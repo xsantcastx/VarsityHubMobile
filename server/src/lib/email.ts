@@ -170,11 +170,15 @@ export async function sendEmail({ to, subject, text, html }: BasicEmail): Promis
   }
 
   try {
+    // v1.0.2 audit fix: explicitly set replyTo so generic emails route replies to support.
+    // From header is managed by the provider via defaultFrom; replyTo override ensures user replies land somewhere real.
+    const replyTo = process.env.SUPPORT_REPLY_TO || 'support@varsityhub.app';
     const result = await service.send({
       to,
       subject: safeSubject,
       text: safeText,
       html: safeHtml,
+      replyTo,
     });
 
     if (result.success) {
@@ -550,11 +554,15 @@ async function sendTemplateEmail(
   }
 
   try {
+    // v1.0.2 audit fix: every template email gets a Reply-To so customer replies
+    // don't bounce into the noreply void. Override-able via SUPPORT_REPLY_TO env var.
+    const replyTo = process.env.SUPPORT_REPLY_TO || 'support@varsityhub.app';
     const result = await service.send({
       to,
       subject,
       templateId,
       templateData,
+      replyTo,
     });
 
     if (result.success) {

@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
@@ -223,10 +224,19 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
         ...c,
         created_at: c.created_at instanceof Date ? c.created_at.toISOString() : c.created_at,
       })),
-      messages_sent: messagesSent.map((m) => ({
-        ...m,
-        created_at: m.created_at instanceof Date ? m.created_at.toISOString() : m.created_at,
-      })),
+      // v1.0.2 audit fix: scrub recipient_id from the exported messages payload.
+      // GDPR is about the requester's own data; exposing which specific accounts they
+      // messaged (even just IDs) leaks relationship data about third parties.
+      messages_sent: messagesSent.map((m: any) => {
+        const { recipient_id, recipient, ...rest } = m;
+        return {
+          ...rest,
+          recipient_id_hash: recipient_id
+            ? crypto.createHash('sha256').update(String(recipient_id)).digest('hex').slice(0, 16)
+            : null,
+          created_at: m.created_at instanceof Date ? m.created_at.toISOString() : m.created_at,
+        };
+      }),
       following: following.map((f) => ({
         user_id: f.following_id,
         created_at: f.created_at instanceof Date ? f.created_at.toISOString() : f.created_at,

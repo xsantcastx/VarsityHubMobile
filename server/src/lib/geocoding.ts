@@ -20,7 +20,9 @@ import { debugLog } from './debugLog.js';
 // In-memory cache for geocoded locations (location string -> coordinates)
 // Uses LRU-style eviction to prevent unbounded memory growth
 const geocodeCache = new Map<string, { lat: number; lng: number; timestamp: number }>();
-const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// v1.0.2 audit fix: reduced from 7d to 24h so renamed venues don't stay stale for a week.
+// Zip codes are stable, but freeform addresses can change as businesses move/rename.
+const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24h
 const MAX_CACHE_SIZE = 10000; // Max entries to prevent memory leaks
 
 /**
@@ -117,10 +119,27 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
       query = `${query}, Canada`;
     }
     
+    // v1.0.2 audit fix: retry with exponential backoff on OVER_QUERY_LIMIT.
+    // Prevents silent degradation during traffic spikes. Max 3 attempts with 250/500ms gaps.
+    const fetchGeocodeWithRetry = async (u: string) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const r = await fetch(u);
+        const j = await r.json();
+        if (j.status !== 'OVER_QUERY_LIMIT') return j;
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+          continue;
+        }
+        console.error('[geocoding] OVER_QUERY_LIMIT after 3 retries — rate limit likely exceeded for Google Maps API key');
+        return j;
+      }
+      return null;
+    };
+
     // Call Google Geocoding API
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
-    const response = await fetch(url);
-    const data = await response.json();
+    const data = await fetchGeocodeWithRetry(url);
+    if (!data) return null;
 
     if (data.status === 'OK' && data.results && data.results.length > 0) {
       const result = data.results[0];

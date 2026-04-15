@@ -96,19 +96,22 @@ export default function SignUpScreen() {
   };
 
   const onSubmit = async () => {
+    // v1.0.2 audit fix: set synchronous guard FIRST thing, before any validation that could
+    // yield back to the event loop. Previously validation ran before `submitting.current = true`,
+    // leaving a small window where a rapid second tap could slip through.
     if (submitting.current) return;
-    if (loading) return;
-    if (!email || !password) { setError('Please enter email and password'); return; }
-    
+    submitting.current = true;
+    if (loading) { submitting.current = false; return; }
+    if (!email || !password) { submitting.current = false; setError('Please enter email and password'); return; }
+
     // Use form validation utilities
     const emailValidation = validateEmail(email);
-    if (!emailValidation.valid) { setError(emailValidation.error || 'Invalid email'); return; }
-    
+    if (!emailValidation.valid) { submitting.current = false; setError(emailValidation.error || 'Invalid email'); return; }
+
     const passwordValidation = validatePassword(password, 8, true);
-    if (!passwordValidation.valid) { setError(passwordValidation.error || 'Invalid password'); return; }
-    
+    if (!passwordValidation.valid) { submitting.current = false; setError(passwordValidation.error || 'Invalid password'); return; }
+
     trackTap('auth_email_submit', { screen: 'sign_up' });
-    submitting.current = true;
     setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
 
     try {

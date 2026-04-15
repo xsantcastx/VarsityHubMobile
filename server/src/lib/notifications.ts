@@ -89,6 +89,27 @@ export async function sendPushNotification(
 
     debugLog(`Sent notification to user ${userId}: ${title}`);
 
+    // v1.0.2 audit fix: clear stale push_token at send time, not just via cron.
+    // Previously verifyPushReceipts (cron) was the only path that cleared invalid tokens,
+    // meaning a stale token would fail every notification until the cron ran.
+    const errorTickets = tickets.filter(
+      (t: any) => t?.status === 'error' && t?.details?.error === 'DeviceNotRegistered'
+    );
+    if (errorTickets.length > 0) {
+      try {
+        const currentPrefs = (user.preferences as any) || {};
+        if (currentPrefs.push_token === pushToken) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { preferences: { ...currentPrefs, push_token: null } },
+          });
+          debugLog(`Cleared stale push_token for user ${userId} (DeviceNotRegistered)`);
+        }
+      } catch (clearErr) {
+        console.warn('[notifications] Failed to clear stale push_token:', clearErr);
+      }
+    }
+
     // Return successful ticket IDs for receipt tracking
     const successTicketIds = tickets
       .filter((t: any) => t.status === 'ok' && t.id)

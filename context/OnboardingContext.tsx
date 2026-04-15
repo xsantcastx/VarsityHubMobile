@@ -141,23 +141,33 @@ export function OBProvider({ children }: PropsWithChildren) {
     loadState();
   }, []);
 
+  // v1.0.2 audit fix: AsyncStorage writes were fire-and-forget. If storage fails
+  // (quota, permissions), UI state silently diverges from persisted state.
+  // Log failures so we can trace them; user experience continues via in-memory state.
+  const persistAsync = (key: string, value: string) => {
+    AsyncStorage.setItem(key, value).catch((err) => {
+      if (__DEV__) console.warn(`[OnboardingContext] AsyncStorage.setItem failed for ${key}:`, err?.message || err);
+      // In prod, Sentry breadcrumb would be added here if OnboardingContext has access to it.
+    });
+  };
+
   // Persist state to AsyncStorage on change
   const setAndPersistState = useCallback((newState: React.SetStateAction<OnboardingState>) => {
     setState(prevState => {
       const updatedState = typeof newState === 'function' ? newState(prevState) : newState;
-      AsyncStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(updatedState));
-      
+      persistAsync(ONBOARDING_STATE_KEY, JSON.stringify(updatedState));
+
       // Sync with reducer
       dispatch({ type: 'UPDATE_DRAFT', data: updatedState });
-      
+
       return updatedState;
     });
   }, []);
 
   const setAndPersistProgress = useCallback((newProgress: number) => {
     setProgress(newProgress);
-    AsyncStorage.setItem(ONBOARDING_PROGRESS_KEY, newProgress.toString());
-    
+    persistAsync(ONBOARDING_PROGRESS_KEY, newProgress.toString());
+
     // Sync with reducer
     dispatch({ type: 'SET_STEP', stepIndex: newProgress, reason: 'LEGACY_SET_PROGRESS' });
   }, []);

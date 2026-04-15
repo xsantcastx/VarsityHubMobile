@@ -289,9 +289,16 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     debugLog(`[payments] User has existing subscription ${existingSubId} — will cancel after new payment completes`);
   }
 
-  const session = await stripe.checkout.sessions.create(sessionConfig, {
-    idempotencyKey: (req.headers['x-idempotency-key'] as string) || `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / 60000)}`,
-  });
+  // v1.0.2 audit fix: idempotency key was drifting every 60s via Math.floor(Date.now()/60000).
+  // Network retries past the minute boundary created duplicate Stripe sessions → duplicate charges.
+  // Now prefer client-supplied x-idempotency-key; fall back to a 1-hour window that still provides
+  // meaningful retry protection without blocking legitimate new upgrades.
+  const clientKey = (req.headers['x-idempotency-key'] as string) || '';
+  if (!clientKey && process.env.NODE_ENV !== 'production') {
+    console.warn('[payments] No x-idempotency-key header on /payments/checkout — using 1h fallback window. Client should supply a UUID per checkout attempt.');
+  }
+  const idempotencyKey = clientKey || `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+  const session = await stripe.checkout.sessions.create(sessionConfig, { idempotencyKey });
 
   // Log subscription transaction
   const currentUser = await prisma.user.findUnique({ 
@@ -440,24 +447,27 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
-    // Log $0 transaction for audit trail
-    logTransaction({
-      transactionType: 'AD_PURCHASE',
-      status: 'COMPLETED',
-      userId: req.user!.id,
-      subtotalCents: subtotal,
-      taxCents: 0,
-      discountCents: discount,
-      promoCode: appliedCode || undefined,
-      promoDiscountCents: discount,
-      totalCents: 0,
-      netCents: 0,
-      currency: 'usd',
-      metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-    }).catch((err) => {
+    // v1.0.2 audit fix: await so financial audit trail can't silently drop.
+    // On DB failure, the user-facing response succeeds but we capture to Sentry at error level.
+    try {
+      await logTransaction({
+        transactionType: 'AD_PURCHASE',
+        status: 'COMPLETED',
+        userId: req.user!.id,
+        subtotalCents: subtotal,
+        taxCents: 0,
+        discountCents: discount,
+        promoCode: appliedCode || undefined,
+        promoDiscountCents: discount,
+        totalCents: 0,
+        netCents: 0,
+        currency: 'usd',
+        metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
+      });
+    } catch (err) {
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log', adId: String(ad_id) });
-    });
+    }
     // Ad payment confirmation email removed — non-mandatory
     return res.json({ free: true });
   }
@@ -576,9 +586,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // sessionConfig.automatic_tax = { enabled: true };
   // This would calculate and add tax automatically for Price IDs
 
-  const session = await stripe.checkout.sessions.create(sessionConfig, {
-    idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / 60000)}`,
-  });
+  // v1.0.2 audit fix: same idempotency drift bug — widen fallback window to 1h.
+  const adIdemClientKey = (req.headers['x-idempotency-key'] as string) || '';
+  const adIdempotencyKey = adIdemClientKey || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+  const session = await stripe.checkout.sessions.create(sessionConfig, { idempotencyKey: adIdempotencyKey });
 
   // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
   // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
@@ -887,24 +898,26 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
-    // Log $0 transaction for audit trail
-    logTransaction({
-      transactionType: 'AD_PURCHASE',
-      status: 'COMPLETED',
-      userId,
-      subtotalCents: subtotal,
-      taxCents: 0,
-      discountCents: discount,
-      promoCode: appliedCode || undefined,
-      promoDiscountCents: discount,
-      totalCents: 0,
-      netCents: 0,
-      currency: 'usd',
-      metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-    }).catch((err) => {
+    // v1.0.2 audit fix: await to preserve audit trail on PaymentSheet free-promo path.
+    try {
+      await logTransaction({
+        transactionType: 'AD_PURCHASE',
+        status: 'COMPLETED',
+        userId,
+        subtotalCents: subtotal,
+        taxCents: 0,
+        discountCents: discount,
+        promoCode: appliedCode || undefined,
+        promoDiscountCents: discount,
+        totalCents: 0,
+        netCents: 0,
+        currency: 'usd',
+        metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
+      });
+    } catch (err) {
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log_pi', adId: String(ad_id) });
-    });
+    }
     // Ad payment confirmation email removed — non-mandatory
     return res.json({ free: true });
   }
@@ -927,7 +940,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         weekend_blocks: String(pricingResult.weekendBlocks),
       },
     }, {
-      idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 60000)}`,
+      // v1.0.2 audit fix: widen fallback window from 60s to 1h to prevent duplicate payment intents on retry
+      idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`,
     });
 
     // Hold slots atomically — re-check capacity inside transaction to prevent race conditions
@@ -1089,15 +1103,20 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     if (invoice.customer && invoice.subscription) {
       const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
       if (renewalUser) {
-        logTransaction({
-          transactionType: 'SUBSCRIPTION_RENEWAL',
-          status: 'COMPLETED',
-          userId: renewalUser.id,
-          totalCents: invoice.amount_paid || 0,
-          stripeSessionId: String(invoice.id),
-          stripeSubscriptionId: String(invoice.subscription),
-          metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
-        }).catch(err => captureException(err as Error, { context: 'renewal_transaction_log' }));
+        // v1.0.2 audit fix: await so renewal audit trail is never silently dropped.
+        try {
+          await logTransaction({
+            transactionType: 'SUBSCRIPTION_RENEWAL',
+            status: 'COMPLETED',
+            userId: renewalUser.id,
+            totalCents: invoice.amount_paid || 0,
+            stripeSessionId: String(invoice.id),
+            stripeSubscriptionId: String(invoice.subscription),
+            metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
+          });
+        } catch (err) {
+          captureException(err as Error, { context: 'renewal_transaction_log' });
+        }
       }
     }
   }
@@ -2124,8 +2143,18 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           const piId = session.payment_intent ? String(session.payment_intent) : '';
           if (piId) {
             const refund = await stripe.refunds.create({ payment_intent: piId, reason: 'requested_by_customer' });
+            // v1.0.2 audit fix: persist refunded amount in metadata for audit trail.
+            // Previously only stripe_refund_id was saved — no record of how much was refunded.
             await updateTransactionStatus(session.id, 'REFUNDED', {
-              metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
+              metadata: {
+                reason: 'slot_full',
+                overbooked_dates: e.dates,
+                stripe_refund_id: refund.id,
+                refunded_amount_cents: refund.amount ?? totalCents,
+                refund_currency: refund.currency || 'usd',
+                refund_status: refund.status || 'pending',
+                refunded_at: new Date().toISOString(),
+              },
             });
             // Notify user
             if (fallbackEmail) {

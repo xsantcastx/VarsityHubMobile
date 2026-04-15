@@ -66,13 +66,20 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Get current user ID
+  // v1.0.2 audit fix: guard setState against resolution after unmount / visibility change.
   useEffect(() => {
-    if (visible) {
-      User.me().then((user: any) => {
-        setCurrentUserId(user?.id || null);
-      }).catch(() => setCurrentUserId(null));
-    }
+    if (!visible) return;
+    let cancelled = false;
+    User.me()
+      .then((user: any) => {
+        if (!cancelled) setCurrentUserId(user?.id || null);
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUserId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [visible]);
 
   // Sync starting index when viewer opens or caller changes it

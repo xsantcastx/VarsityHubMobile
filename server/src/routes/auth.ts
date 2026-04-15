@@ -798,7 +798,19 @@ authRouter.post('/password/reset', asyncHandler(async (req, res) => {
     await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
-  if (String(code).trim() !== String(user.password_reset_code)) {
+  // v1.0.2 audit fix: use timingSafeEqual on the reset code comparison.
+  // Previously `!==` leaked timing info, and only the submitted code was trimmed.
+  const submittedCode = String(code).trim();
+  const storedCode = String(user.password_reset_code).trim();
+  const codesMatch = (() => {
+    if (submittedCode.length !== storedCode.length) return false;
+    try {
+      return crypto.timingSafeEqual(Buffer.from(submittedCode), Buffer.from(storedCode));
+    } catch {
+      return false;
+    }
+  })();
+  if (!codesMatch) {
     await recordResetFailure(sanitizedEmail);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
