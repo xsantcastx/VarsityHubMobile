@@ -8,12 +8,19 @@
 import { prisma } from './prisma.js';
 import { logAdminActivity } from './adminActivityLogger.js';
 
-// Escalation thresholds
-const WARN_THRESHOLD = 3;       // 3 reports → auto-warning
-const STRIKE_THRESHOLD = 5;     // 5 reports → strike
-const SUSPEND_THRESHOLD = 8;    // 8 reports → 7-day suspension
-const BAN_THRESHOLD = 12;       // 12 reports → permanent ban
-const SPIKE_THRESHOLD = 10;     // 10+ pending reports = spike alert
+// Escalation thresholds — env-overridable for tuning at scale without redeploy.
+// v1.0.2 pass 9: previously hardcoded constants; now pulled from env with the same defaults.
+const intEnv = (key: string, defaultValue: number): number => {
+  const raw = process.env[key];
+  if (!raw) return defaultValue;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : defaultValue;
+};
+const WARN_THRESHOLD = intEnv('MOD_WARN_THRESHOLD', 3);       // reports → auto-warning
+const STRIKE_THRESHOLD = intEnv('MOD_STRIKE_THRESHOLD', 5);   // reports → strike
+const SUSPEND_THRESHOLD = intEnv('MOD_SUSPEND_THRESHOLD', 8); // reports → 7-day suspension
+const BAN_THRESHOLD = intEnv('MOD_BAN_THRESHOLD', 12);        // reports → permanent ban
+const SPIKE_THRESHOLD = intEnv('MOD_SPIKE_THRESHOLD', 10);    // pending reports → spike alert
 
 /**
  * Issue a warning to a user

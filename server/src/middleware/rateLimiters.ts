@@ -25,6 +25,17 @@ const rateLimitingDisabled =
   isTruthyEnv(process.env.DISABLE_RATE_LIMITING) ||
   isTruthyEnv(process.env.RATE_LIMIT_DISABLE);
 
+// v1.0.2 pass 9: log loudly at boot when rate limiting is disabled. Previously a stray
+// dev env var leaking into staging/prod would silently disable all limiters.
+if (rateLimitingDisabled) {
+  const msg = '⚠️  RATE LIMITING DISABLED via DISABLE_RATE_LIMITING / RATE_LIMIT_DISABLE — every endpoint is unthrottled.';
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[CRITICAL]', msg, 'This should NEVER be set in production.');
+  } else {
+    console.warn(msg);
+  }
+}
+
 /**
  * Create a separate Redis connection for rate limiting only
  * This prevents connection pool exhaustion when queues are also using Redis

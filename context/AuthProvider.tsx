@@ -290,8 +290,18 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Fetch subscription status (non-blocking)
         fetchSubscription().catch((e) => captureException(e, { tags: { context: 'subscription_fetch' } }));
 
-        // Push notifications are requested during onboarding step 9 (with pre-prompt),
-        // not immediately after login.
+        // v1.0.2 pass 9: register push token on every successful checkAuth (was only on sign-in/onboarding).
+        // Fixes case where user signs in via web/Apple/Google and never hits an onboarding screen
+        // that called registerPushToken — they'd never receive push notifications.
+        // Safe to call repeatedly: the helper is idempotent (compares existing prefs.push_token).
+        if (me.preferences?.onboarding_completed === true) {
+          // Defer slightly so the user state propagates first
+          setTimeout(() => {
+            registerPushTokenRef.current?.().catch((e) => {
+              if (__DEV__) console.warn('[AuthProvider] checkAuth push token register failed:', e?.message);
+            });
+          }, 500);
+        }
 
         return me;
       } catch (err: any) {
@@ -314,6 +324,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   React.useEffect(() => {
     checkAuthRef.current = checkAuth;
   }, [checkAuth]);
+
+  // v1.0.2 pass 9: ref to registerPushToken so checkAuth (defined earlier in the file)
+  // can call it without a forward-reference / circular-dep issue.
+  const registerPushTokenRef = React.useRef<(() => Promise<boolean>) | null>(null);
 
   // Sign out
   const signOut = useCallback(async () => {
@@ -345,6 +359,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     if (!user?.id) return false;
     return setupPushNotifications(user.id);
   }, [setupPushNotifications, user?.id]);
+
+  // v1.0.2 pass 9: keep the ref synced so checkAuth can invoke registerPushToken without circular dep.
+  React.useEffect(() => {
+    registerPushTokenRef.current = registerPushToken;
+  }, [registerPushToken]);
   
   const markOnboardingCompleteLocally = useCallback(async () => {
     try {

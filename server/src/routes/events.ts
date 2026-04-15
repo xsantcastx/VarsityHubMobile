@@ -1074,7 +1074,9 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, a
   const eventLocation = [event.location].filter(Boolean).join(', ');
   const appBase = process.env.APP_BASE_URL || 'https://varsityhub.app';
 
-  // Send cancellation push notifications (event canceled email removed — non-mandatory)
+  // v1.0.2 pass 9: send BOTH push AND email so RSVP'd users still hear about cancellation
+  // even if their device push token is stale. Previously push-only meant lost notifications.
+  const { sendEmail: sendGenericEmail } = await import('../lib/email.js');
   for (const rsvp of rsvps) {
     if (rsvp.user?.id && rsvp.user.id !== userId) {
       sendPushNotification(
@@ -1083,6 +1085,16 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, a
         `"${event.title || 'Event'}" has been cancelled.`,
         { type: 'event_cancelled', event_id: eventId, screen: 'event-detail' }
       ).catch(err => console.warn('[events] Failed to send push:', err));
+
+      // Best-effort email fallback so users who missed the push still find out.
+      if (rsvp.user.email) {
+        sendGenericEmail({
+          to: rsvp.user.email,
+          subject: `"${event.title || 'Event'}" was cancelled`,
+          text: `Hi ${rsvp.user.display_name || 'there'},\n\nThe event "${event.title || 'Event'}" scheduled for ${eventDateStr} at ${eventTimeStr}${eventLocation ? ' (' + eventLocation + ')' : ''} has been cancelled.\n\nLearn more: ${appBase}/event/${eventId}\n\n— VarsityHub`,
+          html: `<p>Hi ${rsvp.user.display_name || 'there'},</p><p>The event <strong>"${event.title || 'Event'}"</strong> scheduled for ${eventDateStr} at ${eventTimeStr}${eventLocation ? ' (' + eventLocation + ')' : ''} has been cancelled.</p><p><a href="${appBase}/event/${eventId}">View details</a></p>`,
+        }).catch((err: any) => console.warn('[events] cancel email failed:', err?.message || err));
+      }
     }
   }
 
