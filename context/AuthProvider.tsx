@@ -329,6 +329,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // can call it without a forward-reference / circular-dep issue.
   const registerPushTokenRef = React.useRef<(() => Promise<boolean>) | null>(null);
 
+  // v1.0.2 pass 9: circuit breaker timestamp for the subscription paywall redirect.
+  const paywallPushTsRef = React.useRef<number>(0);
+
   // Sign out
   const signOut = useCallback(async () => {
     try {
@@ -605,9 +608,20 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         || currentPath.includes('billing');
 
       if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath) {
+        // v1.0.2 pass 9: circuit breaker — if we've already pushed to the paywall in the
+        // last 5s and the user is back here, the redirect is looping. Stop redirecting and
+        // let the user land in tabs; the server will surface PAYMENT_REQUIRED naturally.
+        const now = Date.now();
+        const lastPaywallPush = paywallPushTsRef.current || 0;
+        if (now - lastPaywallPush < 5000) {
+          if (__DEV__) console.warn('[AuthProvider] Paywall redirect loop detected — breaking circuit');
+          paywallPushTsRef.current = 0;
+          return;
+        }
         if (__DEV__) console.log('[AuthProvider] Approved coach must complete checkout before tools');
         if (lastRedirectRef.current !== '/settings/manage-subscription') {
           lastRedirectRef.current = '/settings/manage-subscription';
+          paywallPushTsRef.current = now;
           router.replace('/settings/manage-subscription');
         }
         return;

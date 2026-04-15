@@ -1649,6 +1649,52 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
   }
 }));
 
+// v1.0.2 pass 9: resume a cancel-at-period-end subscription before period actually ends.
+// Mirrors /subscription/cancel; just sets cancel_at_period_end back to false.
+paymentsRouter.post('/subscription/resume', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const subscriptionId: string | undefined = typeof prefs.subscription_id === 'string' ? prefs.subscription_id : undefined;
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No subscription to resume' });
+    }
+    let sub: Stripe.Subscription;
+    try {
+      sub = await stripe.subscriptions.retrieve(subscriptionId);
+    } catch (err: any) {
+      return res.status(404).json({ error: 'Subscription not found in Stripe', detail: err?.message });
+    }
+    if (!sub.cancel_at_period_end) {
+      return res.json({ ok: true, message: 'Subscription is already active', already_active: true });
+    }
+    if (sub.status === 'canceled' || sub.status === 'incomplete_expired') {
+      return res.status(400).json({
+        error: 'Subscription has already ended. Please subscribe again.',
+        code: 'SUBSCRIPTION_ENDED',
+      });
+    }
+    try {
+      await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
+    } catch (err: any) {
+      console.warn('Failed to resume subscription:', err?.message || err);
+      return res.status(500).json({ error: 'Failed to resume subscription with Stripe' });
+    }
+    await logTransaction({
+      transactionType: 'SUBSCRIPTION_CANCEL',
+      status: 'COMPLETED',
+      stripeSubscriptionId: subscriptionId,
+      userId,
+      metadata: { action: 'resume_cancel_at_period_end', plan: prefs.plan },
+    }).catch(err => { console.error('[transaction-log] resume log failed:', err); captureException(err as Error, { context: 'transaction_log_resume' }); });
+    return res.json({ ok: true, resumed: true });
+  } catch (err) {
+    console.error('Error resuming subscription:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
+
 // Update subscription quantity for Veteran plan
 paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {

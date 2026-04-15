@@ -517,6 +517,8 @@ export const Subscriptions = {
   createCheckout: (plan: string, teamCount?: number) => httpPost('/payments/checkout', { plan, team_count: teamCount }),
   finalizeSession: (sessionId: string) => httpPost('/payments/finalize-session', { session_id: sessionId }),
   cancel: () => httpPost('/payments/subscription/cancel', {}),
+  // v1.0.2: undo a cancel-at-period-end before the period actually ends
+  resume: () => httpPost('/payments/subscription/resume', {}),
   updateQuantity: (teamCount: number) => httpPost('/payments/update-subscription-quantity', { team_count: teamCount }),
   getSummary: () => httpGet('/payments/subscription/summary'),
   // v1.0.2: billing history for current user
