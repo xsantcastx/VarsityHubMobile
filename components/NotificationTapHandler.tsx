@@ -135,6 +135,12 @@ export function NotificationTapHandler() {
             router.push('/onboarding/coach-agreement' as any);
             break;
 
+          // v1.0.2 pass 9: org_rejected was missing — server sends it but tap previously did nothing.
+          case 'org_rejected':
+            // Land on league-pending-approval where the rejection reason + Try Again CTA renders
+            router.push('/onboarding/league-pending-approval' as any);
+            break;
+
           case 'event_approved':
           case 'event_rejected': {
             const eventId = str(data.event_id);
