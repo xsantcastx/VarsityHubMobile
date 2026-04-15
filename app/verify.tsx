@@ -182,14 +182,14 @@ export default function VerifyScreen() {
               setTimeout(() => {
                 Keyboard.dismiss();
                 if (!loading && !isVerified) {
-                  onVerify();
+                  void onVerify();
                 }
               }, 150);
             }
           }}
           returnKeyType="done"
           onSubmitEditing={() => {
-            if (code.trim().length >= 6 && !loading && !isVerified) onVerify();
+            if (code.trim().length >= 6 && !loading && !isVerified) void onVerify();
           }}
           keyboardType="number-pad"
           maxLength={6}
