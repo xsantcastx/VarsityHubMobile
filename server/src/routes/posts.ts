@@ -571,7 +571,7 @@ import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.
 import { notifyMentions } from '../lib/mentionNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 
-postsRouter.post('/', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
+postsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   // Sample game IDs (sample-*) are handled downstream — stored in title with [SAMPLE_GAME:] prefix
   // instead of game_id (which has a foreign key constraint). See line ~604.
 

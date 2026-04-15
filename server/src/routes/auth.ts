@@ -29,9 +29,17 @@ const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_RESET_FAILURES = 5;
 const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 
+// v1.0.2 audit fix: unified truthy parsing — must match middleware/rateLimiters.ts.
+// Previously this checked "true" while rateLimiters.ts checked "1", so setting either
+// value alone left half the app rate-limited.
+const isRateLimitDisabled = (): boolean => {
+  const v = process.env.DISABLE_RATE_LIMITING;
+  return v !== undefined && ['1', 'true', 'yes', 'on'].includes(String(v).trim().toLowerCase());
+};
+
 // Redis-backed auth rate limiting using INCR + EXPIRE pattern
 async function checkAuthRateLimit(identifier: string): Promise<boolean> {
-  if (process.env.DISABLE_RATE_LIMITING === 'true') return true;
+  if (isRateLimitDisabled()) return true;
   const key = `auth:${identifier}`;
   const count = await rlIncr(key, AUTH_WINDOW_MS);
   return count <= MAX_AUTH_ATTEMPTS;
@@ -795,29 +803,23 @@ authRouter.post('/password/reset', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
 
-  const normalizedCode = String(code).trim();
+  // Success — clear failure tracking and reset the code
+  await clearResetFailures(sanitizedEmail);
 
   const password_hash = await bcrypt.hash(password, 10);
-  const updated = await prisma.user.updateMany({
-    where: {
-      id: user.id,
-      password_reset_code: normalizedCode,
-      password_reset_expires: { gt: new Date() },
-    },
-    data: {
-      password_hash,
-      password_reset_code: null,
-      password_reset_expires: null,
-      password_changed_at: new Date(),
-    },
-  });
-  if (updated.count !== 1) {
-    return res.status(400).json({ error: 'Invalid or expired reset code' });
-  }
-
-  // Success — clear failure tracking and revoke refresh tokens after consuming the code atomically.
-  await clearResetFailures(sanitizedEmail);
-  await prisma.refreshToken.deleteMany({ where: { user_id: user.id } });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password_hash,
+        password_reset_code: null,
+        password_reset_expires: null,
+        password_changed_at: new Date(),
+      },
+    }),
+    // Revoke all refresh tokens — stolen tokens can no longer mint new access tokens
+    prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
+  ]);
 
   // Security alert: password changed notification removed as part of email cleanup
 
@@ -865,18 +867,39 @@ const upgradeToCoachSchema = z.object({
   plan: z.enum(['rookie', 'veteran', 'legend']),
 });
 
+// v1.0.2: 48hr cooldown for rejected coach/org applications.
+const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+
 authRouter.post('/upgrade-to-coach', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const parsed = upgradeToCoachSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
   const { plan } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { id: true, preferences: true, approval_status: true, rejected_at: true, rejection_reason: true },
+  });
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   const currentPrefs = (user.preferences as any) || {};
   // If already a coach, reject
   if (currentPrefs.role === 'coach') {
     return res.status(400).json({ error: 'Account is already a coach account.' });
+  }
+
+  // v1.0.2: enforce 48hr cooldown on rejected applicants to prevent admin spam.
+  if (user.approval_status === 'REJECTED' && user.rejected_at) {
+    const elapsed = Date.now() - new Date(user.rejected_at).getTime();
+    if (elapsed < REJECTION_COOLDOWN_MS) {
+      const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+      return res.status(429).json({
+        error: 'Your previous coach application was declined. Please wait before trying again.',
+        code: 'REJECTION_COOLDOWN',
+        retry_after_ms: retryAfterMs,
+        retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+        reason: user.rejection_reason || null,
+      });
+    }
   }
 
   // Server-side 18+ age gate — coaches must be adults
@@ -903,9 +926,58 @@ authRouter.post('/upgrade-to-coach', requireAuth as any, requireVerified as any,
   };
   const updated = await prisma.user.update({
     where: { id: user.id },
-    data: { preferences: merged, approval_status: 'PENDING' },
+    data: {
+      preferences: merged,
+      approval_status: 'PENDING',
+      // v1.0.2: clear rejection tracking on fresh re-apply.
+      rejected_at: null,
+      rejection_reason: null,
+    },
   });
 
+  return res.json({ ok: true, preferences: updated.preferences });
+}));
+
+// v1.0.2: POST /auth/coach/reapply
+// Rejected coaches can re-apply after 48hr cooldown. Resets approval_status to PENDING
+// and clears rejection tracking. Does not touch role (already coach). Protected by REJECTION_COOLDOWN_MS.
+authRouter.post('/coach/reapply', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { id: true, preferences: true, approval_status: true, rejected_at: true, rejection_reason: true },
+  });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const prefs = (user.preferences as any) || {};
+  if (prefs.role !== 'coach') {
+    return res.status(400).json({ error: 'Only coach accounts can re-apply. Upgrade to coach first.', code: 'NOT_COACH' });
+  }
+  if (user.approval_status !== 'REJECTED') {
+    return res.status(400).json({ error: 'Your application is not in a rejected state.', code: 'NOT_REJECTED' });
+  }
+  if (user.rejected_at) {
+    const elapsed = Date.now() - new Date(user.rejected_at).getTime();
+    if (elapsed < REJECTION_COOLDOWN_MS) {
+      const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+      return res.status(429).json({
+        error: 'Please wait before re-applying.',
+        code: 'REJECTION_COOLDOWN',
+        retry_after_ms: retryAfterMs,
+        retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+        reason: user.rejection_reason || null,
+      });
+    }
+  }
+  // Reset to PENDING, clear rejection, force re-run of onboarding (org connect)
+  const merged = { ...prefs, onboarding_completed: false, join_request_pending: false };
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      preferences: merged,
+      approval_status: 'PENDING',
+      rejected_at: null,
+      rejection_reason: null,
+    },
+  });
   return res.json({ ok: true, preferences: updated.preferences });
 }));
 

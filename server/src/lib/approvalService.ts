@@ -291,12 +291,18 @@ export async function rejectCoach(
   if (!user) return { error: 'User not found', status: 404 };
   if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
 
+  const reason = opts?.reason;
+
+  // v1.0.2: persist rejected_at + reason so requireOnboarded / auth handlers
+  // can enforce 48hr cooldown on re-apply (see REJECTION_COOLDOWN_MS below).
   await prisma.user.update({
     where: { id: userId },
-    data: { approval_status: 'REJECTED' },
+    data: {
+      approval_status: 'REJECTED',
+      rejected_at: new Date(),
+      rejection_reason: reason || null,
+    },
   });
-
-  const reason = opts?.reason;
 
   // ── Fire-and-forget notifications ──
   if (user.email) {

@@ -66,6 +66,18 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     }
   }
 
+  // v1.0.2: Approved coaches must accept the coach agreement before accessing coach tools.
+  // Previously this was UI-only — any API client could bypass by calling coach endpoints directly.
+  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
+    const acceptedAt = prefs?.coach_agreement_accepted_at;
+    if (!acceptedAt) {
+      return res.status(403).json({
+        error: 'You must accept the coach agreement before accessing coach tools.',
+        code: 'COACH_AGREEMENT_REQUIRED',
+      });
+    }
+  }
+
   // Approved coach accounts that selected a paid tier must complete checkout
   // before accessing coach tools, unless their league owner covers billing.
   if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {

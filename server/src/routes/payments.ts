@@ -427,26 +427,15 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
   const isFullyComped = discount >= subtotal;
   if (total === 0 || isFullyComped) {
+    // Record redemption and create reservations
+    if (appliedCode) {
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
+    }
     try {
-      await prisma.$transaction(async (tx) => {
-        if (appliedCode) {
-          await redeemPromo(
-            {
-              code: appliedCode,
-              subtotalCents: subtotal,
-              userId: req.user!.id,
-              service: 'booking',
-              orderId: `FREE-${crypto.randomUUID()}`,
-            },
-            tx
-          );
-        }
-        await tx.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } });
-        await tx.adReservation.createMany({
-          data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-          skipDuplicates: true,
-        });
-      });
+      await prisma.$transaction([
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
+        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
+      ]);
     } catch (e) {
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
@@ -2053,10 +2042,16 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`);
         }
 
-        await tx.ad.update({
-          where: { id: ad_id },
+        // v1.0.2 audit hardening: use conditional updateMany so we fail if admin rejected
+        // the ad between our read above and the write below. updateMany with status filter
+        // returns count:0 if the row is no longer in an activatable state.
+        const updated = await tx.ad.updateMany({
+          where: { id: ad_id, status: { in: ['approved', 'active'] } },
           data: { payment_status: 'paid', status: 'active' },
         });
+        if (updated.count === 0) {
+          throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} was no longer approved at activation time`);
+        }
         await tx.adReservation.createMany({
           data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
           skipDuplicates: true,
@@ -2170,6 +2165,26 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       return; // Critical fix: don't continue processing unpaid sessions
     } else {
       try {
+        // v1.0.2 audit hardening: re-fetch the session from Stripe immediately before mutating user state.
+        // Closes a TOCTOU window where a stale/replayed session object could carry an old "paid" flag.
+        try {
+          const fresh = await stripe.checkout.sessions.retrieve(String(session.id));
+          if (fresh?.payment_status !== 'paid') {
+            console.error('[payments] finalize aborted — session no longer paid on re-verify', {
+              session_id: session.id,
+              fresh_status: fresh?.payment_status,
+              userId,
+            });
+            return;
+          }
+        } catch (reverifyErr: any) {
+          console.error('[payments] finalize aborted — session re-verify failed', {
+            session_id: session.id,
+            err: reverifyErr?.message || reverifyErr,
+            userId,
+          });
+          return;
+        }
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         if (!current) { console.error('[payments] finalizeFromSession: user not found', userId); return; }
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};

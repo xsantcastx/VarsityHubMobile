@@ -110,3 +110,31 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
   res.json(body);
 }));
 
+/**
+ * v1.0.2 audit addition: /health/email
+ * Focused email-system smoke test. Requires HEALTH_CHECK_SECRET to avoid exposing template IDs.
+ * Returns 200 if SendGrid is wired up + critical templates present; 503 otherwise.
+ * Use for external monitoring (UptimeRobot, etc.) and quick CI checks post-deploy.
+ */
+healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
+  const secret = process.env.HEALTH_CHECK_SECRET;
+  const provided = req.headers['x-health-check-secret'] as string | undefined;
+  if (!secret || !provided || provided !== secret) {
+    return res.status(401).json({ status: 'unauthorized' });
+  }
+  const missingEmailTemplates = getMissingEmailTemplates();
+  const missingRecommended = getMissingRecommendedTemplates();
+  const emailService = getEmailService();
+  const serviceReady = emailService.isConfigured() && emailService.validateConfig().valid;
+  const sendgridOk = isSendGridConfigured();
+  const ready = sendgridOk && serviceReady && missingEmailTemplates.length === 0;
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'degraded',
+    sendgrid_configured: sendgridOk,
+    service_ready: serviceReady,
+    missing_critical_templates: missingEmailTemplates,
+    missing_recommended_templates: missingRecommended,
+    timestamp: new Date().toISOString(),
+  });
+}));
+

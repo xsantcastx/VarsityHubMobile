@@ -14,12 +14,16 @@ import { RedisStore } from 'rate-limit-redis';
 import { debugLog } from '../lib/debugLog.js';
 
 /**
- * Rate limiting is always active unless explicitly disabled via DISABLE_RATE_LIMITING=1.
- * This ensures dev and staging environments behave like production by default.
+ * Rate limiting is always active unless explicitly disabled via DISABLE_RATE_LIMITING.
+ * Accepts any common truthy value ("1", "true", "yes"). Must match the helper in
+ * routes/auth.ts to prevent silent misconfig where one path checks "1" and another "true".
+ * v1.0.2 audit fix: unified truthy parsing.
  */
+const isTruthyEnv = (v: string | undefined): boolean =>
+  v !== undefined && ['1', 'true', 'yes', 'on'].includes(String(v).trim().toLowerCase());
 const rateLimitingDisabled =
-  process.env.DISABLE_RATE_LIMITING === '1' ||
-  process.env.RATE_LIMIT_DISABLE === '1';
+  isTruthyEnv(process.env.DISABLE_RATE_LIMITING) ||
+  isTruthyEnv(process.env.RATE_LIMIT_DISABLE);
 
 /**
  * Create a separate Redis connection for rate limiting only

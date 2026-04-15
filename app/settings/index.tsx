@@ -600,14 +600,15 @@ export default function SettingsScreen() {
                           { text: 'Continue', onPress: async () => {
                             try {
                               await User.upgradeToCoach('rookie');
-                              // Update local state and navigate to step-3 BEFORE checkAuth
-                              // so AuthProvider doesn't yank user to pending-approval
+                              // v1.0.2 audit fix: route to step-2-basic so user is walked through
+                              // ALL coach-required fields (background photo, bio) before step-3.
+                              // Previously we skipped straight to step-3-league, leaving profile data gaps.
                               setRole('coach');
                               if (setOB) {
-                                setOB((prev) => ({ ...prev, role: 'coach', plan: 'rookie', step_3_visited: false, step_4_visited: false }));
+                                setOB((prev) => ({ ...prev, role: 'coach', plan: 'rookie', step_2_visited: false, step_3_visited: false, step_4_visited: false }));
                               }
                               await markOnboardingIncompleteLocally();
-                              router.push('/onboarding/step-3-league');
+                              router.push('/onboarding/step-2-basic');
                               // Fire-and-forget — routing is already done
                               checkAuth().catch(() => {});
                             } catch (e: any) {
@@ -615,7 +616,7 @@ export default function SettingsScreen() {
                               // If already a coach, update local state and redirect to onboarding
                               if (msg.toLowerCase().includes('already a coach')) {
                                 setRole('coach');
-                                router.push('/onboarding/step-3-league');
+                                router.push('/onboarding/step-2-basic');
                                 return;
                               }
                               Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');

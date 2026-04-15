@@ -111,17 +111,26 @@ void (async () => {
   }
 })();
 
+// Audit v1.0.2: enforce ad plan gate server-side on all paid ad endpoints, not just create.
+// Rookie users were able to reach submit-for-approval/reservations by crafting requests directly.
+async function enforceAdPlan(userId: string | undefined): Promise<{ ok: true } | { ok: false; error: string; code: string }> {
+  if (!userId) return { ok: false, error: 'Unauthorized', code: 'UNAUTHENTICATED' };
+  const adUser = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
+  const plan = String((adUser?.preferences as any)?.plan || '').toLowerCase();
+  const isAdAdmin = isEmailAdmin(adUser?.email);
+  if (!isAdAdmin && plan !== 'veteran' && plan !== 'legend') {
+    return { ok: false, error: 'Ad creation requires a Veteran or Legend subscription.', code: 'PLAN_REQUIRED' };
+  }
+  return { ok: true };
+}
+
 // Create an Ad — requires Veteran/Legend plan or admin
-adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationLimiter, async (req: AuthedRequest, res) => {
+adsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, adCreationLimiter, async (req: AuthedRequest, res) => {
   try {
     // Role gate: only Veteran/Legend subscribers or admins can create ads
-    if (req.user?.id) {
-      const adUser = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
-      const plan = String((adUser?.preferences as any)?.plan || '').toLowerCase();
-      const isAdAdmin = isEmailAdmin(adUser?.email);
-      if (!isAdAdmin && plan !== 'veteran' && plan !== 'legend') {
-        return res.status(403).json({ error: 'Ad creation requires a Veteran or Legend subscription.', code: 'PLAN_REQUIRED' });
-      }
+    const gate = await enforceAdPlan(req.user?.id);
+    if (!gate.ok) {
+      return res.status(403).json({ error: gate.error, code: gate.code });
     }
 
     const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
@@ -165,6 +174,12 @@ adsRouter.post('/', requireVerified as any, requireOnboarded as any, adCreationL
 // Submit ad for approval — handler exported for app-level registration (guarantees route is hit)
 export async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
   try {
+    // Audit v1.0.2: plan re-check — user could have downgraded since ad creation,
+    // and other flows (API clients) could reach here without the client-side gate.
+    const gate = await enforceAdPlan(req.user?.id);
+    if (!gate.ok) {
+      return res.status(403).json({ error: gate.error, code: gate.code });
+    }
     const id = String(req.params.id).trim();
     if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
       return res.status(400).json({ error: 'Invalid ad ID' });
@@ -279,7 +294,7 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
   }
 }
 
-adsRouter.post('/:id/submit-for-approval', requireVerified as any, requireOnboarded as any, handleAdSubmitForApproval);
+adsRouter.post('/:id/submit-for-approval', requireAuth as any, requireVerified as any, requireOnboarded as any, handleAdSubmitForApproval);
 
 // List Ads. If mine=1, returns ads for the authenticated user. If contact_email is provided, returns by email.
 adsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {

@@ -93,7 +93,13 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
   // Check if we have Google Maps API key
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
-    console.warn('⚠️ GOOGLE_MAPS_API_KEY not configured. Geocoding disabled.');
+    // v1.0.2: in production this is a hard config error, not a warning.
+    // Without geocoding, map pins, event radius filtering, and ad targeting all silently break.
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[geocoding] FATAL: GOOGLE_MAPS_API_KEY missing — maps and location features DISABLED');
+    } else {
+      console.warn('⚠️ GOOGLE_MAPS_API_KEY not configured. Geocoding disabled.');
+    }
     return null;
   }
 
@@ -159,11 +165,13 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
         }
       }
       
-      console.warn(`Geocoding failed for "${location}": ${data.status}`);
+      // v1.0.2: surface Google's specific status (ZERO_RESULTS, OVER_QUERY_LIMIT, REQUEST_DENIED)
+      // so Railway logs make the root cause obvious instead of a generic "failed".
+      console.error(`[geocoding] failed for "${location}": status=${data.status} error_message=${data.error_message || 'none'}`);
       return null;
     }
-  } catch (error) {
-    console.error(`Error geocoding location "${location}":`, error);
+  } catch (error: any) {
+    console.error(`[geocoding] exception for "${location}":`, error?.message || error);
     return null;
   }
 }

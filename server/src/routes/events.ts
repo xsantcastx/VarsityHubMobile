@@ -502,7 +502,7 @@ const createEventSchema = z.object({
   requested_email: z.string().trim().optional(),
 });
 
-eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+eventsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, eventCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createEventSchema.safeParse(req.body);
   if (!parsed.success) {

@@ -186,9 +186,12 @@ export default function EventMap({
               longitude: event.longitude!,
             }}
             pinColor={getMarkerColor(event.type)}
-            onPress={() => onEventPress?.(event.id, event.type)}
+            // v1.0.2 fix: first tap shows the callout preview (default Marker behavior).
+            // Navigation happens only on second tap (onCalloutPress below).
+            // Previously onPress fired navigation immediately, skipping the preview.
+            onCalloutPress={() => onEventPress?.(event.id, event.type)}
           >
-            <Callout>
+            <Callout onPress={() => onEventPress?.(event.id, event.type)}>
               <View style={styles.callout}>
                 <Text style={styles.calloutTitle}>{event.title}</Text>
                 {event.location && (
@@ -197,6 +200,7 @@ export default function EventMap({
                 <Text style={styles.calloutDate}>
                   {new Date(event.date).toLocaleDateString()}
                 </Text>
+                <Text style={styles.calloutHint}>Tap for details</Text>
               </View>
             </Callout>
           </Marker>
@@ -364,6 +368,12 @@ const styles = StyleSheet.create({
   calloutDate: {
     fontSize: 12,
     color: '#999',
+  },
+  calloutHint: {
+    fontSize: 11,
+    color: '#1B3A6B',
+    fontWeight: '600',
+    marginTop: 6,
   },
   noEventsContainer: {
     ...StyleSheet.absoluteFillObject,

@@ -83,6 +83,8 @@ export const User = {
   // GDPR/CCPA data portability - export all user data as JSON (longer timeout for large exports)
   exportMyData: () => httpGet('/users/me/export', {}, 60000),
   upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') => httpPost('/auth/upgrade-to-coach', { plan }),
+  // v1.0.2: rejected coaches can re-apply after 48hr cooldown
+  reapplyCoach: () => httpPost('/auth/coach/reapply', {}),
   deleteAccount: (payload?: { password?: string; delete_confirmation?: string }) =>
     httpDelete('/users/me', payload || {}),
   acceptFollow: (userId: string) => httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
@@ -168,18 +170,8 @@ const normalizePostItems = (input: any) => {
 };
 
 const normalizePostPage = (input: any) => {
-  if (!input) {
-    const error: any = new Error('Malformed posts response');
-    error.code = 'MALFORMED_POST_PAGE_RESPONSE';
-    throw error;
-  }
+  if (!input) return { items: [] as any[], nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined };
   if (Array.isArray(input)) return { items: input, nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined };
-  if (!('items' in input)) {
-    const error: any = new Error('Malformed posts response');
-    error.code = 'MALFORMED_POST_PAGE_RESPONSE';
-    error.data = input;
-    throw error;
-  }
   return {
     items: Array.isArray(input.items) ? input.items : [],
     nextCursor: typeof input.nextCursor === 'string' ? input.nextCursor : null,

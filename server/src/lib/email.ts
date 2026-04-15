@@ -524,9 +524,16 @@ async function sendTemplateEmail(
   logMessage: string
 ): Promise<boolean> {
   if (!templateId) {
+    // v1.0.2 audit fix: missing template IDs in production cause approval emails to silently drop.
+    // Log at error level so Railway + Sentry surface these loudly.
     const msg = `[email] Template ID not configured for: ${subject}`;
-    console.warn(msg);
-    Sentry.captureMessage(msg, 'warning');
+    if (process.env.NODE_ENV === 'production') {
+      console.error(msg);
+      Sentry.captureMessage(msg, 'error');
+    } else {
+      console.warn(msg);
+      Sentry.captureMessage(msg, 'warning');
+    }
     return false;
   }
 

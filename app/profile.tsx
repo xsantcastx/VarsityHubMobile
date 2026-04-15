@@ -616,8 +616,10 @@ export default function ProfileScreen() {
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
   const approvalStatus = (me as any)?.approval_status;
+  // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
+  // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
   const roleLabel = roleRaw === 'coach'
-    ? (approvalStatus === 'APPROVED' ? 'Coach / Organizer' : 'Pending Coach')
+    ? (approvalStatus === 'APPROVED' ? 'Coach / Organizer' : 'Fan')
     : roleRaw === 'fan' ? 'Fan' : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
@@ -878,7 +880,7 @@ export default function ProfileScreen() {
                 roleRaw === 'player' && styles.playerBadge,
                 roleRaw === 'fan' && styles.fanBadge
               ]}>
-                <Text style={styles.roleText}>{roleRaw === 'coach' ? (approvalStatus === 'APPROVED' ? 'COACH' : 'PENDING COACH') : roleRaw.toUpperCase()}</Text>
+                <Text style={styles.roleText}>{roleRaw === 'coach' ? (approvalStatus === 'APPROVED' ? 'COACH' : 'FAN') : roleRaw.toUpperCase()}</Text>
               </View>
             )}
           </View>

@@ -162,7 +162,7 @@ const updateOrgSchema = z.object({
   contact_info: z.string().max(500).optional().nullable(),
 });
 
-organizationsRouter.patch('/:id', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.patch('/:id', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const orgId = String(req.params.id);
     const userId = req.user!.id;
@@ -320,7 +320,7 @@ const createOrganizationSchema = z.object({
 });
 
 // Create organization
-organizationsRouter.post('/', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -429,7 +429,7 @@ const createOrganizationWithTeamsSchema = z.object({
 });
 
 // Enhanced create organization for onboarding
-organizationsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/create', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });

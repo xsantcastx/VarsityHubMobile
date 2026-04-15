@@ -596,6 +596,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // Approved coach with incomplete onboarding (approved while app was closed)
       // Send to the correct onboarding step — NOT back to pending-approval (causes loop)
+      // v1.0.2 fix: if user is ALREADY on any /onboarding/* screen, do not force-yank them
+      // forward or backward. The onboarding screens handle their own sequencing (step-1 → step-2
+      // → step-3), and forcing a redirect here creates loops when the Settings "Upgrade to Coach"
+      // flow pushes to step-2-basic but AuthProvider wants to skip straight to step-3.
       if (needsOnboarding && user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && firstSegment !== 'onboarding') {
         if (__DEV__) console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
         // Check if they have an org yet — if not, send to league step; if yes, send to create-team
