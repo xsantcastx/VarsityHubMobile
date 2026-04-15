@@ -401,11 +401,59 @@ export async function rejectAd(
   if (!ad) return { error: 'Ad not found', status: 404 };
   if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
 
+  // v1.0.2 pass 8: if ad was already paid before admin rejection, refund the user.
+  // Previously the ad was reset to draft + unpaid but the money stayed with VarsityHub.
+  let refundResult: { ok: boolean; amount?: number; refund_id?: string; error?: string } | null = null;
+  if (ad.payment_status === 'paid' && ad.user_id) {
+    try {
+      // Find the matching transaction log entry to get the payment intent
+      const tx = await prisma.transactionLog.findFirst({
+        where: { user_id: ad.user_id, order_id: adId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' },
+        orderBy: { created_at: 'desc' },
+      });
+      if (tx?.stripe_payment_intent_id) {
+        const Stripe = (await import('stripe')).default;
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' as any });
+        const refund = await stripe.refunds.create({
+          payment_intent: tx.stripe_payment_intent_id,
+          reason: 'requested_by_customer',
+          metadata: { reason: 'admin_rejected_ad', ad_id: adId, admin_id: adminId || 'unknown' },
+        });
+        refundResult = { ok: true, amount: refund.amount ?? tx.total_cents ?? undefined, refund_id: refund.id };
+        // Update transaction log with refund info
+        await prisma.transactionLog.update({
+          where: { id: tx.id },
+          data: {
+            status: 'REFUNDED' as any,
+            metadata: {
+              ...(tx.metadata as any || {}),
+              refund_reason: 'admin_rejected_ad',
+              stripe_refund_id: refund.id,
+              refunded_amount_cents: refund.amount ?? tx.total_cents,
+              refunded_at: new Date().toISOString(),
+            },
+          },
+        }).catch((e: any) => console.error('[approvalService] failed to update tx log on ad reject refund:', e));
+      } else {
+        refundResult = { ok: false, error: 'no_payment_intent_found' };
+        console.error('[approvalService] CRITICAL: ad rejected after payment but no payment_intent found to refund', { adId, userId: ad.user_id });
+      }
+    } catch (refundErr: any) {
+      refundResult = { ok: false, error: refundErr?.message || 'refund_api_failed' };
+      console.error('[approvalService] CRITICAL: ad reject refund FAILED — manual intervention needed', { adId, error: refundErr?.message });
+    }
+  }
+
   await prisma.$transaction([
     prisma.adReservation.deleteMany({ where: { ad_id: adId } }),
     prisma.ad.update({
       where: { id: adId },
-      data: { status: 'draft', payment_status: 'unpaid', ...(opts?.reason ? { admin_note: opts.reason } : {}) },
+      data: {
+        status: 'draft',
+        // v1.0.2 pass 8: payment_status reflects refund outcome (not just blanket "unpaid")
+        payment_status: refundResult?.ok ? 'refunded' : ad.payment_status === 'paid' ? 'refund_pending' : 'unpaid',
+        ...(opts?.reason ? { admin_note: opts.reason } : {}),
+      },
     }),
   ]);
 

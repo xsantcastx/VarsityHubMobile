@@ -575,6 +575,15 @@ postsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboard
   // Sample game IDs (sample-*) are handled downstream — stored in title with [SAMPLE_GAME:] prefix
   // instead of game_id (which has a foreign key constraint). See line ~604.
 
+  // v1.0.2 pass 8: banned check (symmetric with DMs + comments)
+  const banner = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { banned: true, banned_until: true },
+  });
+  if (banner?.banned || (banner?.banned_until && banner.banned_until > new Date())) {
+    return res.status(403).json({ error: 'USER_BANNED', message: 'Your account is suspended from posting.' });
+  }
+
   // req.user is guaranteed by requireVerified middleware
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1069,6 +1078,18 @@ postsRouter.get('/:id/comments', asyncHandler(async (req: AuthedRequest, res) =>
 postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireAuth middleware
   const { id } = req.params;
+
+  // v1.0.2 pass 8: banned users were blocked from DMs but could still post comments.
+  // Symmetric enforcement: ban applies to all user-generated content, not just messages.
+  const sender = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { banned: true, banned_until: true },
+  });
+  const nowTs = new Date();
+  if (sender?.banned || (sender?.banned_until && sender.banned_until > nowTs)) {
+    return res.status(403).json({ error: 'USER_BANNED', message: 'Your account is suspended from posting.' });
+  }
+
   const post = await prisma.post.findFirst({
     where: { id, deleted_at: null },
     select: { id: true, author_id: true, author: { select: { id: true, preferences: true } } },

@@ -272,4 +272,61 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
   }
 });
 
+// v1.0.2 pass 8: leave a group chat (any member) or remove another member (creator only).
+// Previously there was no exit mechanism — members were trapped in chats forever.
+groupChatsRouter.delete('/:chatId/members/:userId', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const chatId = String(req.params.chatId);
+    const targetUserId = String(req.params.userId);
+    const meId = req.user.id;
+
+    const chat = await prisma.groupChat.findUnique({
+      where: { id: chatId },
+      select: { id: true, creator_id: true, members: { where: { user_id: meId }, select: { user_id: true } } },
+    });
+    if (!chat) return res.status(404).json({ error: 'Group chat not found' });
+
+    // Self-leave is always allowed; removing another requires being the creator
+    const isSelfLeave = targetUserId === meId;
+    const isCreator = chat.creator_id === meId;
+    if (!isSelfLeave && !isCreator) {
+      return res.status(403).json({ error: 'Only the chat creator can remove other members.' });
+    }
+
+    // Verify the target is actually a member
+    const targetMembership = await prisma.groupChatMember.findFirst({
+      where: { chat_id: chatId, user_id: targetUserId },
+      select: { id: true },
+    });
+    if (!targetMembership) return res.status(404).json({ error: 'User is not a member of this chat.' });
+
+    // Creators cannot remove themselves while there are other members — prevents orphan chats
+    if (isSelfLeave && isCreator) {
+      const otherMembers = await prisma.groupChatMember.count({
+        where: { chat_id: chatId, NOT: { user_id: meId } },
+      });
+      if (otherMembers > 0) {
+        return res.status(400).json({
+          error: 'Chat creator must transfer ownership or delete the chat before leaving.',
+          code: 'CREATOR_CANNOT_LEAVE',
+        });
+      }
+      // Last member + creator → delete the whole chat
+      await prisma.$transaction([
+        prisma.groupChatMessage.deleteMany({ where: { chat_id: chatId } }),
+        prisma.groupChatMember.deleteMany({ where: { chat_id: chatId } }),
+        prisma.groupChat.delete({ where: { id: chatId } }),
+      ]);
+      return res.json({ ok: true, deleted: true });
+    }
+
+    await prisma.groupChatMember.delete({ where: { id: targetMembership.id } });
+    return res.json({ ok: true, removed_user_id: targetUserId });
+  } catch (error: any) {
+    console.error('[group-chats] DELETE /:chatId/members/:userId error:', error?.message);
+    return res.status(500).json({ error: 'Failed to remove member from group chat' });
+  }
+});
+
 export { groupChatsRouter };

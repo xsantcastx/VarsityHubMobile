@@ -1252,6 +1252,70 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   }
 
   // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
+  // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
+  // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
+  // affect the user's plan or ad — they kept access without paying.
+  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+    const charge = event.data.object as Stripe.Charge;
+    const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+    const refundAmount = charge.amount_refunded || charge.amount;
+    try {
+      // Find the original transaction by payment intent
+      const tx = piId
+        ? await prisma.transactionLog.findFirst({ where: { stripe_payment_intent_id: piId }, orderBy: { created_at: 'desc' } })
+        : null;
+      if (!tx) {
+        console.error('[webhook] charge.refunded without matching transactionLog', { charge_id: charge.id, pi: piId });
+        captureException(new Error('charge.refunded: no matching transaction'), { context: 'refund_no_tx', chargeId: charge.id });
+      } else {
+        // Mark the transaction REFUNDED with the actual refunded amount
+        await prisma.transactionLog.update({
+          where: { id: tx.id },
+          data: {
+            status: 'REFUNDED' as any,
+            metadata: {
+              ...(tx.metadata as any || {}),
+              refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+              refunded_amount_cents: refundAmount,
+              stripe_charge_id: charge.id,
+              refunded_at: new Date().toISOString(),
+            },
+          },
+        });
+
+        // Cascade based on transaction type:
+        // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+        // - AD_PURCHASE → mark ad refunded + release reservations
+        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+          const u = await prisma.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
+          const prefs = (u?.preferences as any) || {};
+          await prisma.user.update({
+            where: { id: tx.user_id },
+            data: {
+              preferences: { ...prefs, plan: 'rookie', subscription_id: null, subscription_period_end: null },
+              subscription_tier: 'free',
+              subscription_status: 'cancelled',
+              max_teams: 2,
+            },
+          });
+          console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
+        } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: tx.order_id } }),
+            prisma.ad.updateMany({
+              where: { id: tx.order_id },
+              data: { status: 'draft', payment_status: 'refunded' },
+            }),
+          ]);
+          console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
+        }
+      }
+    } catch (refundErr: any) {
+      console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
+      captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+    }
+  }
+
   if (event.type === 'checkout.session.expired') {
     const session = event.data.object as Stripe.Checkout.Session;
     await updateTransactionStatus(session.id, 'FAILED', {
@@ -2963,11 +3027,21 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       notificationType === 'DID_FAIL_TO_RENEW' ||
       (notificationType === 'GRACE_PERIOD' || subtype === 'GRACE_PERIOD')
     ) {
-      // Failed renewal or grace period — mark as past_due
+      // v1.0.2 pass 8: previously we marked past_due but never recorded WHEN the grace period
+      // expires. If Apple's EXPIRED notification was lost (network failure, missed delivery),
+      // the user kept Premium access indefinitely. Now we record an explicit cutoff so a
+      // safety net check (in requireOnboarded or middleware) can downgrade users whose
+      // grace period has elapsed without an EXPIRED arriving.
+      const APPLE_GRACE_PERIOD_MS = 16 * 24 * 60 * 60 * 1000; // Apple billing grace ≈ 16 days
+      const graceExpiresAt = new Date(Date.now() + APPLE_GRACE_PERIOD_MS);
+      const updatedPrefs = { ...prefs, grace_period_expires_at: graceExpiresAt.toISOString() };
       await prisma.$transaction([
         prisma.user.update({
           where: { id: userId },
-          data: { subscription_status: 'past_due' },
+          data: {
+            subscription_status: 'past_due',
+            preferences: updatedPrefs,
+          },
         }),
         prisma.transactionLog.create({
           data: {
@@ -2975,11 +3049,11 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
             status: 'FAILED',
             user_id: userId,
             order_id: originalTransactionId,
-            metadata: { source: 'apple_s2s', notificationType, subtype },
+            metadata: { source: 'apple_s2s', notificationType, subtype, grace_expires_at: graceExpiresAt.toISOString() },
           },
         }),
       ]);
-      console.warn('[apple-s2s] Marked user as past_due:', userId);
+      console.warn('[apple-s2s] Marked user as past_due with grace period expiry:', { userId, graceExpiresAt });
 
     } else if (
       notificationType === 'EXPIRED' ||
