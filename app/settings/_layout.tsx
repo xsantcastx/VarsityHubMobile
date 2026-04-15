@@ -40,6 +40,13 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
+        name="billing-history"
+        options={{
+          // v1.0.2: screen renders its own custom header with safeGoBack
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="blocked-users"
         options={{
           title: 'Blocked Users',

@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { safeGoBack } from '@/utils/safeGoBack';
+import { safeGoBack } from '@/utils/navigation';
 
 type Transaction = {
   id: string;
