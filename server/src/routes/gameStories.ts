@@ -246,11 +246,14 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
       const lat = location?.lat ?? null;
       const lng = location?.lng ?? null;
 
+      // v1.0.2 pass 9: pass requester IP for anti-spoof cross-check inside geofencing.
+      const ipAddr = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || null;
       const verification = await verifyStoryPostingPermission(
         event.id,
         req.user.id,
         lat,
-        lng
+        lng,
+        ipAddr
       );
 
       if (!verification.allowed) {

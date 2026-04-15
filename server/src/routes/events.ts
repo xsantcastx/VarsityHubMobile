@@ -429,21 +429,22 @@ eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, asyncHandler(asy
         : !current;
   
   if (desired && !current) {
-    // Use transaction to prevent race condition and enforce capacity
+    // v1.0.2 pass 9: prevent capacity-overflow race by using SELECT ... FOR UPDATE on the
+    // event row inside a Serializable transaction. Previously two concurrent RSVPs could both
+    // pass the count check before either inserted, allowing the event to exceed capacity.
     try {
       await prisma.$transaction(async (tx) => {
-        // Check current count within transaction (prevents race condition)
+        // Lock the event row so concurrent RSVP transactions serialize at this point.
+        await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${id} FOR UPDATE`;
         const currentCount = await tx.eventRsvp.count({ where: { event_id: id } });
         const capacity = event.capacity ?? event.max_attendees;
-        
         if (capacity && currentCount >= capacity) {
           throw new Error('EVENT_AT_CAPACITY');
         }
-        
-        await tx.eventRsvp.create({ 
-          data: { event_id: id, user_id: me.id, user_email: me.email } 
+        await tx.eventRsvp.create({
+          data: { event_id: id, user_id: me.id, user_email: me.email }
         });
-      });
+      }, { isolationLevel: 'Serializable' });
       
       // Send RSVP confirmation email (best-effort, don't block response)
       // RSVP confirmation email removed — non-mandatory transactional email

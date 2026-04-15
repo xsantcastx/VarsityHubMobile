@@ -83,35 +83,34 @@ export async function autoEscalate(targetUserId: string): Promise<{
   action: 'none' | 'warning' | 'strike' | 'suspension' | 'ban';
   message?: string;
 }> {
-  // Count total reports against this user (pending + reviewed — not dismissed)
-  const reportCount = await prisma.abuseReport.count({
-    where: {
-      message: { contains: targetUserId },
-      status: { in: ['pending', 'reviewed', 'resolved'] },
-    },
-  });
-
-  // Also count by parsing subject field for user reports
+  // v1.0.2 pass 9: dropped the broad `message: { contains: targetUserId }` count which was
+  // dead code (Math.max ignored it) AND would over-match on any UUID substring. Use only
+  // the specific structured patterns: subject "[user:ID]" or message JSON keys with the ID.
+  // Schema does not yet have a target_user_id FK column — that's a separate migration.
+  const ACTIVE_STATUSES = { in: ['pending', 'reviewed', 'resolved'] } as const;
   const directReportCount = await prisma.abuseReport.count({
     where: {
       subject: { contains: `[user:${targetUserId}]` },
-      status: { in: ['pending', 'reviewed', 'resolved'] },
+      status: ACTIVE_STATUSES,
     },
   });
-
-  // Count reports where this user's content was reported
   const contentReportCount = await prisma.abuseReport.count({
     where: {
       OR: [
         { message: { contains: `"post_author_id":"${targetUserId}"` } },
         { message: { contains: `"comment_author_id":"${targetUserId}"` } },
         { message: { contains: `"sender_id":"${targetUserId}"` } },
+        // v1.0.2 pass 9: include report-target patterns from /reports endpoint targetContext JSON
+        { message: { contains: `"target_user_id":"${targetUserId}"` } },
       ],
-      status: { in: ['pending', 'reviewed', 'resolved'] },
+      status: ACTIVE_STATUSES,
     },
   });
 
-  const totalReports = Math.max(directReportCount, contentReportCount);
+  // v1.0.2 pass 9: changed Math.max → SUM since direct+content reports are independent
+  // signals about the same user. Previously max() would under-count when the user had
+  // both direct reports AND content reports, letting them stay below thresholds longer.
+  const totalReports = directReportCount + contentReportCount;
 
   if (totalReports >= BAN_THRESHOLD) {
     // Auto-ban
