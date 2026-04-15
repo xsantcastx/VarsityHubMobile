@@ -937,9 +937,8 @@ function ManageSeasonScreen() {
       });
       const result: any = await GameAPI.bulkCreate(payloads);
       const savedGames = Array.isArray(result?.games) ? result.games : [];
-      
-      // Convert to local game format and add to state
-      const teamName = currentTeam?.name || 'Team';
+
+      // Convert to local game format and add to state (teamName already in scope from above)
       const newGames: Game[] = savedGames.map((savedGame, index) => {
         const originalData = bulkGames[index];
         return {
