@@ -822,6 +822,9 @@ model Organization {
   admin_approved Boolean   @default(false)
   approved_by    String?   // super admin user ID who approved
   approved_at    DateTime?
+  // v1.0.2: 48hr cooldown tracking when an org application is rejected
+  rejected_at       DateTime?
+  rejection_reason  String?   @db.Text
 
   // League owner — the user who owns/pays for this league page
   league_owner_id String?

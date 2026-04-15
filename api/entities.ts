@@ -105,6 +105,7 @@ export const Game = {
       approvalStatus?: 'pending' | 'approved' | 'rejected';
       showPending?: boolean;
       teamId?: string;
+      mapView?: boolean; // v1.0.2: restricts server-side to games this week only
     }
   ) => {
     const params: string[] = [];
@@ -119,6 +120,7 @@ export const Game = {
     if (options?.approvalStatus) params.push(`approval_status=${encodeURIComponent(options.approvalStatus)}`);
     if (options?.showPending) params.push('show_pending=true');
     if (options?.teamId) params.push(`team_id=${encodeURIComponent(options.teamId)}`);
+    if (options?.mapView) params.push('map_view=true');
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs);
   },
@@ -128,6 +130,8 @@ export const Game = {
   // Keep it bounded; caller can fall back to Game.get when unavailable.
   summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary', {}, 15000, 1),
   create: (data: CreateGamePayload | Record<string, unknown>) => httpPost('/games', data),
+  // v1.0.2: atomic bulk create for season scheduling (all-or-nothing tx on server)
+  bulkCreate: (games: Array<Record<string, unknown>>) => httpPost('/games/bulk', { games }),
   delete: (id: string) => httpDelete('/games/' + encodeURIComponent(id)),
   posts: (id: string, options: { limit?: number; cursor?: string } = {}) => {
     const q: string[] = [];
@@ -515,6 +519,8 @@ export const Subscriptions = {
   cancel: () => httpPost('/payments/subscription/cancel', {}),
   updateQuantity: (teamCount: number) => httpPost('/payments/update-subscription-quantity', { team_count: teamCount }),
   getSummary: () => httpGet('/payments/subscription/summary'),
+  // v1.0.2: billing history for current user
+  history: (limit: number = 50) => httpGet(`/payments/history?limit=${encodeURIComponent(String(limit))}`),
 };
 
 

@@ -6,6 +6,10 @@ ALTER TABLE "User"
   ADD COLUMN IF NOT EXISTS "rejected_at" TIMESTAMP(3),
   ADD COLUMN IF NOT EXISTS "rejection_reason" TEXT;
 
+ALTER TABLE "Organization"
+  ADD COLUMN IF NOT EXISTS "rejected_at" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "rejection_reason" TEXT;
+
 ALTER TABLE "TransactionLog"
   ADD COLUMN IF NOT EXISTS "apple_transaction_id" TEXT;
 

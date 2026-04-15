@@ -1401,10 +1401,37 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
   }
 }));
 
-// Restore a recently deleted post (author only)
-// Post deletion is final — restore endpoint returns 410
-postsRouter.post('/:id/restore', requireAuth as any, asyncHandler(async (_req: AuthedRequest, res) => {
-  return res.status(410).json({ error: 'POST_RESTORE_DISABLED', message: 'Post deletion is final and cannot be undone.' });
+// Restore a recently deleted post (author only, within POST_UNDO_WINDOW_MS)
+// v1.0.2: restore endpoint was previously stubbed with 410. Soft-delete exists (sets deleted_at),
+// so the undo window is now wired up properly. Hard-delete happens via a separate cleanup path.
+postsRouter.post('/:id/restore', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const postId = String(req.params.id);
+  const userId = req.user!.id;
+  try {
+    const post = await prisma.post.findFirst({
+      where: { id: postId, deleted_at: { not: null } },
+      select: { id: true, author_id: true, deleted_at: true },
+    });
+    if (!post) {
+      return res.status(404).json({ error: 'POST_NOT_FOUND', message: 'Post not found or not in a restorable state.' });
+    }
+    if (post.author_id !== userId) {
+      return res.status(403).json({ error: 'NOT_AUTHOR', message: 'Only the post author can restore it.' });
+    }
+    const elapsed = post.deleted_at ? Date.now() - new Date(post.deleted_at).getTime() : Infinity;
+    if (elapsed > POST_UNDO_WINDOW_MS) {
+      return res.status(410).json({
+        error: 'UNDO_WINDOW_EXPIRED',
+        message: 'The undo window has expired.',
+        window_ms: POST_UNDO_WINDOW_MS,
+      });
+    }
+    await prisma.post.update({ where: { id: postId }, data: { deleted_at: null } });
+    return res.json({ ok: true, post_id: postId });
+  } catch (error: any) {
+    console.error('[posts] restore error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to restore post' });
+  }
 }));
 
 // Update post (author: content/title/is_pinned; coach of team: is_pinned only)

@@ -1710,6 +1710,41 @@ paymentsRouter.get('/debug/subscription-status', requireVerified as any, require
 }));
 
 // Subscription summary for Billing screen
+// v1.0.2: GET /payments/history — list user's own billing transactions (most recent first).
+// Backs the new manage-subscription billing history view.
+paymentsRouter.get('/history', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const rows = await prisma.transactionLog.findMany({
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    select: {
+      id: true,
+      transaction_type: true,
+      status: true,
+      total_cents: true,
+      currency: true,
+      promo_code: true,
+      promo_discount_cents: true,
+      created_at: true,
+      metadata: true,
+    },
+  });
+  return res.json({
+    transactions: rows.map(r => ({
+      id: r.id,
+      type: r.transaction_type,
+      status: r.status,
+      amount_cents: r.total_cents,
+      currency: r.currency,
+      promo_code: r.promo_code,
+      promo_discount_cents: r.promo_discount_cents,
+      created_at: r.created_at.toISOString(),
+    })),
+  });
+}));
+
 paymentsRouter.get('/subscription/summary', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;

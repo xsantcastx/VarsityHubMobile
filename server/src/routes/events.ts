@@ -161,9 +161,13 @@ eventsRouter.get('/', async (req, res) => {
     ];
   }
   
-  // Filter out past events by default (unless explicitly requested)
+  // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
+  // Events remain visible in listings for 72h after they happen (post-game photos, recap)
+  // and drop off after. `include_past=true` still returns everything for admin/team views.
   if (!req.query.include_past && !approvalStatus) {
-    where.date = { gte: new Date() };
+    const EVENT_ARCHIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+    const archiveCutoff = new Date(Date.now() - EVENT_ARCHIVE_WINDOW_MS);
+    where.date = { gte: archiveCutoff };
   }
   
   const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };

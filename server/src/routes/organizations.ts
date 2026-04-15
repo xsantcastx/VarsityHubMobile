@@ -325,6 +325,26 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
     const parsed = createOrganizationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
+    // v1.0.2: 48hr cooldown if prior application was rejected (mirrors POST /create).
+    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+    const applicant = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { approval_status: true, rejected_at: true, rejection_reason: true },
+    });
+    if (applicant?.approval_status === 'REJECTED' && applicant.rejected_at) {
+      const elapsed = Date.now() - new Date(applicant.rejected_at).getTime();
+      if (elapsed < REJECTION_COOLDOWN_MS) {
+        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+        return res.status(429).json({
+          error: 'Your previous application was declined. Please wait before creating another organization.',
+          code: 'REJECTION_COOLDOWN',
+          retry_after_ms: retryAfterMs,
+          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+          reason: applicant.rejection_reason || null,
+        });
+      }
+    }
+
     const data = parsed.data;
     // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
     // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
@@ -370,7 +390,12 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
       // Set coach to PENDING until league is approved by super admin
       await tx.user.update({
         where: { id: req.user!.id },
-        data: { approval_status: 'PENDING' },
+        data: {
+          approval_status: 'PENDING',
+          // v1.0.2: clear prior rejection tracking on a fresh application
+          rejected_at: null,
+          rejection_reason: null,
+        },
       });
       return org;
     });
@@ -434,6 +459,26 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
     const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
+    // v1.0.2: 48hr cooldown for users whose prior org application was rejected.
+    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+    const applicant = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { approval_status: true, rejected_at: true, rejection_reason: true },
+    });
+    if (applicant?.approval_status === 'REJECTED' && applicant.rejected_at) {
+      const elapsed = Date.now() - new Date(applicant.rejected_at).getTime();
+      if (elapsed < REJECTION_COOLDOWN_MS) {
+        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+        return res.status(429).json({
+          error: 'Your previous application was declined. Please wait before creating another organization.',
+          code: 'REJECTION_COOLDOWN',
+          retry_after_ms: retryAfterMs,
+          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+          reason: applicant.rejection_reason || null,
+        });
+      }
+    }
+
     const data = parsed.data;
     // Duplicate guard (same logic as simple create)
     const nm = normalizeOrganizationName(data.name);
@@ -481,7 +526,12 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
       });
       await tx.user.update({
         where: { id: req.user!.id },
-        data: { approval_status: 'PENDING' },
+        data: {
+          approval_status: 'PENDING',
+          // v1.0.2: clear prior rejection tracking on a fresh application
+          rejected_at: null,
+          rejection_reason: null,
+        },
       });
       return org;
     });

@@ -645,6 +645,10 @@ const updateSchema = z.object({
   description: z.string().trim().optional(),
   sport: z.string().trim().optional(),
   season: z.string().trim().optional(),
+  // v1.0.2: season dates are now editable after team creation.
+  // Previously missing from updateSchema so coaches were stuck with the initial dates.
+  season_start: z.string().optional().nullable(),
+  season_end: z.string().optional().nullable(),
   organization_id: z.string().optional().nullable(),
   logo_url: z.string().optional().or(z.literal('')),
   city: z.string().max(100).optional(),
@@ -706,6 +710,13 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   }
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
+  // v1.0.2: season date edits
+  if (parsed.data.season_start !== undefined) {
+    updateData.season_start = parsed.data.season_start ? new Date(parsed.data.season_start) : null;
+  }
+  if (parsed.data.season_end !== undefined) {
+    updateData.season_end = parsed.data.season_end ? new Date(parsed.data.season_end) : null;
+  }
   if (parsed.data.organization_id !== undefined) {
     if (parsed.data.organization_id === null) {
       updateData.organization_id = null;

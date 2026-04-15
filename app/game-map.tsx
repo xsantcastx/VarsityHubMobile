@@ -46,7 +46,8 @@ function GameMapScreen() {
         eventsQuery.set('radius', '50');
       }
       const [gamesResponse, eventsResponse] = await Promise.all([
-        Game.list('-date', lat != null && lng != null ? { lat, lng, limit: 50 } : { limit: 50 }).catch((error: any) => {
+        // v1.0.2: mapView restricts to games this week — past games drop off the map in real time.
+        Game.list('date', lat != null && lng != null ? { lat, lng, limit: 50, mapView: true } : { limit: 50, mapView: true }).catch((error: any) => {
           if (__DEV__) console.error('[game-map] Failed to fetch games:', error);
           return { items: [] };
         }),

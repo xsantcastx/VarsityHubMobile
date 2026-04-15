@@ -143,11 +143,19 @@ export async function rejectOrganization(
   });
   if (!org) return { error: 'Organization not found', status: 404 };
 
+  const reason = opts?.reason || null;
+
   // Cascade: reject org, unlink teams, revoke memberships, reject owner
   await prisma.$transaction(async (tx) => {
     await tx.organization.update({
       where: { id: orgId },
-      data: { status: 'rejected', admin_approved: false },
+      data: {
+        status: 'rejected',
+        admin_approved: false,
+        // v1.0.2: track rejection for 48hr cooldown
+        rejected_at: new Date(),
+        rejection_reason: reason,
+      },
     });
     // organization_id is non-nullable — soft-delete teams by setting status instead
     await tx.team.updateMany({
@@ -160,14 +168,19 @@ export async function rejectOrganization(
     if (org.leagueOwner?.id) {
       await tx.user.update({
         where: { id: org.leagueOwner.id },
-        data: { approval_status: 'REJECTED' },
+        data: {
+          approval_status: 'REJECTED',
+          // v1.0.2: mirror org cooldown onto owner so their re-apply path is gated too
+          rejected_at: new Date(),
+          rejection_reason: reason,
+        },
       });
     }
   });
 
   // ── Fire-and-forget notifications ──
-  const reason = opts?.reason;
-
+  // v1.0.2: `reason` is declared above (line 146) as `string | null`. Use || undefined
+  // where downstream signatures expect `string | undefined`.
   if (org.leagueOwner?.id) {
     sendPushNotification(
       org.leagueOwner.id,
@@ -190,7 +203,7 @@ export async function rejectOrganization(
       to: org.leagueOwner.email,
       ownerName: org.leagueOwner.display_name || 'League Owner',
       leagueName: org.name,
-      reason,
+      reason: reason || undefined,
     }).catch(() => {});
   }
 
@@ -200,7 +213,7 @@ export async function rejectOrganization(
     leagueName: org.name,
     ownerName: org.leagueOwner?.display_name || undefined,
     ownerEmail: org.leagueOwner?.email || undefined,
-    reason,
+    reason: reason || undefined,
   }).catch(() => {});
 
   return { ok: true, org };
