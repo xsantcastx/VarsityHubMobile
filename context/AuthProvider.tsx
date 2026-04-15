@@ -291,12 +291,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         fetchSubscription().catch((e) => captureException(e, { tags: { context: 'subscription_fetch' } }));
 
         // v1.0.2 pass 9: register push token on every successful checkAuth (was only on sign-in/onboarding).
-        // Fixes case where user signs in via web/Apple/Google and never hits an onboarding screen
-        // that called registerPushToken — they'd never receive push notifications.
-        // Safe to call repeatedly: the helper is idempotent (compares existing prefs.push_token).
+        // v1.0.2 pass 10 fix: store the timeout handle so signOut can cancel it before it fires
+        // for a user who has since logged out (audit caught the stale-closure case).
         if (me.preferences?.onboarding_completed === true) {
-          // Defer slightly so the user state propagates first
-          setTimeout(() => {
+          if (pushTokenTimeoutRef.current) clearTimeout(pushTokenTimeoutRef.current);
+          pushTokenTimeoutRef.current = setTimeout(() => {
+            pushTokenTimeoutRef.current = null;
             registerPushTokenRef.current?.().catch((e) => {
               if (__DEV__) console.warn('[AuthProvider] checkAuth push token register failed:', e?.message);
             });
@@ -332,6 +332,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // v1.0.2 pass 9: circuit breaker timestamp for the subscription paywall redirect.
   const paywallPushTsRef = React.useRef<number>(0);
 
+  // v1.0.2 pass 10: handle for the deferred push-token register so signOut can cancel
+  // it before it fires for a user who's already logged out.
+  const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Sign out
   const signOut = useCallback(async () => {
     try {
@@ -339,6 +343,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } catch (error) {
       if (__DEV__) console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
+      // v1.0.2 pass 10: cancel any deferred push-token register that was scheduled in checkAuth
+      // so it can't fire after logout against a stale user.
+      if (pushTokenTimeoutRef.current) {
+        clearTimeout(pushTokenTimeoutRef.current);
+        pushTokenTimeoutRef.current = null;
+      }
       clearPostCacheOnLogout();
       setUser(null);
       setSentryUser(null);

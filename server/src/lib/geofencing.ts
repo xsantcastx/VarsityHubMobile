@@ -142,6 +142,11 @@ export function isPostingWindowOpen(eventDate: Date): boolean {
 // Won't stop a determined attacker with VPN at the venue's region, but raises the bar for
 // trivial spoofing.
 async function verifyClientCoordsVsIp(userLat: number, userLon: number, ipAddress: string | null): Promise<{ ok: boolean; reason?: string }> {
+  // v1.0.2 pass 10: ops escape hatch. If ipapi.co rate-limits or has an outage, set
+  // DISABLE_GEOFENCE_IP_CHECK=1 in Railway env to skip the cross-check and let stories through.
+  if (process.env.DISABLE_GEOFENCE_IP_CHECK === '1' || process.env.DISABLE_GEOFENCE_IP_CHECK === 'true') {
+    return { ok: true };
+  }
   if (!ipAddress || ipAddress === '::1' || ipAddress === '127.0.0.1' || ipAddress.startsWith('10.') || ipAddress.startsWith('192.168.')) {
     // Local/private IP — skip check (dev / VPN through corporate net are common false positives)
     return { ok: true };

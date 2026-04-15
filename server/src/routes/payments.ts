@@ -1651,7 +1651,10 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
 
 // v1.0.2 pass 9: resume a cancel-at-period-end subscription before period actually ends.
 // Mirrors /subscription/cancel; just sets cancel_at_period_end back to false.
-paymentsRouter.post('/subscription/resume', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+// v1.0.2 pass 10: explicit requireAuth for defense-in-depth (matches pattern set in earlier passes).
+// Logged as SUBSCRIPTION_CANCEL with metadata.action='resume_cancel_at_period_end' since
+// SUBSCRIPTION_RESUME isn't in the TransactionType enum (would need a migration).
+paymentsRouter.post('/subscription/resume', expressPkg.json(), requireAuth as any, requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });

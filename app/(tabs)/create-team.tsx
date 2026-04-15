@@ -540,7 +540,9 @@ function CreateTeamScreen() {
               router.push({ pathname: '/team-page', params: { id: teamId } } as any);
             } else {
               if (__DEV__) console.warn('[create-team] API returned no team.id — falling back to manage-teams');
-              router.replace('/manage-teams' as any);
+              // v1.0.2 pass 10: explicit (tabs) prefix — both /app/manage-teams.tsx and
+              // /app/(tabs)/manage-teams.tsx exist; ambiguous route would land on the wrong one.
+              router.replace('/(tabs)/manage-teams' as any);
             }
           },
         },

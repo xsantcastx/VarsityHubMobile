@@ -198,10 +198,6 @@ export function NotificationTapHandler() {
             break;
           }
 
-          case 'org_rejected':
-            router.push('/(tabs)/feed' as any);
-            break;
-
           default:
             devLog('[Notifications] Unknown notification type:', data.type);
         }

@@ -463,9 +463,10 @@ function ManageTeamsSimpleScreen() {
               subtitle="Create your first team to get started"
             />
             <View style={{ alignItems: 'center', marginTop: 12, paddingHorizontal: 24 }}>
+              {/* v1.0.2 pass 10: use theme tint color so button matches dark/light schemes. */}
               <Pressable
                 onPress={() => router.push('/(tabs)/create-team')}
-                style={{ backgroundColor: '#1B3A6B', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                style={{ backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel="Create your first team"
               >
