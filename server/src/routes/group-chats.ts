@@ -50,34 +50,17 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
     });
 
     // v1.0.2 pass 11: previously unreadCount was derived from `messages: { take: 1 }`,
-    // so the count was always 0 or 1, never the true unread total. Fixed by issuing a
-    // single groupBy across all the user's chats that counts unread messages from OTHER
-    // senders since each chat's last_read_at. One round-trip regardless of chat count.
+    // so the count was always 0 or 1, never the true unread total. Fixed with per-chat
+    // counts (exclude own messages; if last_read_at is null, count all others' messages).
+    // pass 11 follow-up: removed unused groupBy that duplicated work and hit DB every request.
     const chatIds = memberships.map((m: any) => m.chat_id);
     const lastReadByChat = new Map<string, Date | null>(
       memberships.map((m: any) => [m.chat_id, m.last_read_at ?? null])
     );
 
-    const unreadGroups = chatIds.length > 0
-      ? await prisma.groupChatMessage.groupBy({
-          by: ['chat_id'],
-          where: {
-            chat_id: { in: chatIds },
-            sender_id: { not: req.user!.id },
-            // We can't express per-chat date filters in a single groupBy WHERE clause,
-            // so fetch all messages-from-others and filter the count per-chat below
-            // using the raw rows. For low-volume chats this is fine; if a chat ever has
-            // huge message counts, switch to per-chat $queryRaw with each last_read_at.
-          },
-          _count: { _all: true },
-        })
-      : [];
-
-    // Per-chat refined counts that respect last_read_at
     const refinedUnread = await Promise.all(
       chatIds.map(async (chatId: string) => {
         const lastRead = lastReadByChat.get(chatId);
-        // If never read, count ALL messages from other senders
         const count = await prisma.groupChatMessage.count({
           where: {
             chat_id: chatId,
@@ -89,7 +72,6 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
       })
     );
     const unreadByChat = new Map(refinedUnread);
-    void unreadGroups; // groupBy result reserved for future single-query path
 
     const chats = memberships.map((m: any) => ({
       ...m.chat,
