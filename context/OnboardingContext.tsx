@@ -144,12 +144,13 @@ export function OBProvider({ children }: PropsWithChildren) {
   // v1.0.2 audit fix: AsyncStorage writes were fire-and-forget. If storage fails
   // (quota, permissions), UI state silently diverges from persisted state.
   // Log failures so we can trace them; user experience continues via in-memory state.
-  const persistAsync = (key: string, value: string) => {
+  // v1.0.2 pass 4: wrapped in useCallback so downstream callbacks keep stable references.
+  const persistAsync = useCallback((key: string, value: string) => {
     AsyncStorage.setItem(key, value).catch((err) => {
       if (__DEV__) console.warn(`[OnboardingContext] AsyncStorage.setItem failed for ${key}:`, err?.message || err);
       // In prod, Sentry breadcrumb would be added here if OnboardingContext has access to it.
     });
-  };
+  }, []);
 
   // Persist state to AsyncStorage on change
   const setAndPersistState = useCallback((newState: React.SetStateAction<OnboardingState>) => {
@@ -162,7 +163,7 @@ export function OBProvider({ children }: PropsWithChildren) {
 
       return updatedState;
     });
-  }, []);
+  }, [persistAsync]);
 
   const setAndPersistProgress = useCallback((newProgress: number) => {
     setProgress(newProgress);
@@ -170,7 +171,7 @@ export function OBProvider({ children }: PropsWithChildren) {
 
     // Sync with reducer
     dispatch({ type: 'SET_STEP', stepIndex: newProgress, reason: 'LEGACY_SET_PROGRESS' });
-  }, []);
+  }, [persistAsync]);
 
   const hydrateFromServer = useCallback((serverPrefs: Record<string, unknown>) => {
     if (!serverPrefs || Object.keys(serverPrefs).length === 0) return;

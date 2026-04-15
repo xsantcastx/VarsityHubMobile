@@ -900,9 +900,20 @@ authRouter.post('/upgrade-to-coach', requireAuth as any, requireVerified as any,
   }
 
   // v1.0.2: enforce 48hr cooldown on rejected applicants to prevent admin spam.
-  if (user.approval_status === 'REJECTED' && user.rejected_at) {
-    const elapsed = Date.now() - new Date(user.rejected_at).getTime();
-    if (elapsed < REJECTION_COOLDOWN_MS) {
+  // v1.0.2 pass 4: legacy users REJECTED before rejected_at was added (null column) would otherwise
+  // bypass the cooldown entirely. Treat null rejected_at as "reject stamp unknown — apply cooldown
+  // from right now and backfill" so they can't spam admins by exploiting the legacy-null state.
+  if (user.approval_status === 'REJECTED') {
+    let rejectedAt = user.rejected_at;
+    if (!rejectedAt) {
+      rejectedAt = new Date();
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { rejected_at: rejectedAt },
+      });
+    }
+    const elapsed = Date.now() - new Date(rejectedAt).getTime();
+    if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
       const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
       return res.status(429).json({
         error: 'Your previous coach application was declined. Please wait before trying again.',
@@ -966,18 +977,26 @@ authRouter.post('/coach/reapply', requireAuth as any, requireVerified as any, as
   if (user.approval_status !== 'REJECTED') {
     return res.status(400).json({ error: 'Your application is not in a rejected state.', code: 'NOT_REJECTED' });
   }
-  if (user.rejected_at) {
-    const elapsed = Date.now() - new Date(user.rejected_at).getTime();
-    if (elapsed < REJECTION_COOLDOWN_MS) {
-      const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
-      return res.status(429).json({
-        error: 'Please wait before re-applying.',
-        code: 'REJECTION_COOLDOWN',
-        retry_after_ms: retryAfterMs,
-        retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
-        reason: user.rejection_reason || null,
-      });
-    }
+  // v1.0.2 pass 4: handle legacy null rejected_at by backfilling the timestamp now,
+  // preventing bypass via the legacy-null state.
+  let rejectedAt2 = user.rejected_at;
+  if (!rejectedAt2) {
+    rejectedAt2 = new Date();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { rejected_at: rejectedAt2 },
+    });
+  }
+  const elapsed = Date.now() - new Date(rejectedAt2).getTime();
+  if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
+    const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+    return res.status(429).json({
+      error: 'Please wait before re-applying.',
+      code: 'REJECTION_COOLDOWN',
+      retry_after_ms: retryAfterMs,
+      retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+      reason: user.rejection_reason || null,
+    });
   }
   // Reset to PENDING, clear rejection, force re-run of onboarding (org connect)
   const merged = { ...prefs, onboarding_completed: false, join_request_pending: false };

@@ -2242,11 +2242,32 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             return;
           }
         } catch (reverifyErr: any) {
-          console.error('[payments] finalize aborted — session re-verify failed', {
+          // v1.0.2 audit pass 4: if Stripe is unreachable during re-verify, we MUST NOT silently
+          // drop the payment record. User already paid (that's how we got here with paid=true from
+          // the webhook payload). Mark the transaction for manual reconciliation instead of
+          // proceeding blindly — the ops team can decide whether to trust the webhook.
+          console.error('[payments] finalize aborted — session re-verify failed (transaction marked NEEDS_REVIEW)', {
             session_id: session.id,
             err: reverifyErr?.message || reverifyErr,
             userId,
           });
+          captureException(reverifyErr as Error, {
+            context: 'finalize_reverify_failed',
+            sessionId: String(session.id),
+            userId,
+          });
+          try {
+            await updateTransactionStatus(session.id, 'NEEDS_REVIEW' as any, {
+              metadata: {
+                reason: 'session_reverify_api_failed',
+                reverify_error: String(reverifyErr?.message || reverifyErr),
+                webhook_payment_status: session.payment_status,
+                flagged_at: new Date().toISOString(),
+              },
+            });
+          } catch (markErr) {
+            console.error('[payments] Failed to mark transaction NEEDS_REVIEW:', markErr);
+          }
           return;
         }
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });

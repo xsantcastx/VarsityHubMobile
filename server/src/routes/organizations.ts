@@ -331,9 +331,18 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
       where: { id: req.user!.id },
       select: { approval_status: true, rejected_at: true, rejection_reason: true },
     });
-    if (applicant?.approval_status === 'REJECTED' && applicant.rejected_at) {
-      const elapsed = Date.now() - new Date(applicant.rejected_at).getTime();
-      if (elapsed < REJECTION_COOLDOWN_MS) {
+    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
+    if (applicant?.approval_status === 'REJECTED') {
+      let rejectedAt = applicant.rejected_at;
+      if (!rejectedAt) {
+        rejectedAt = new Date();
+        await prisma.user.update({
+          where: { id: req.user!.id },
+          data: { rejected_at: rejectedAt },
+        });
+      }
+      const elapsed = Date.now() - new Date(rejectedAt).getTime();
+      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
         const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
         return res.status(429).json({
           error: 'Your previous application was declined. Please wait before creating another organization.',
@@ -465,9 +474,18 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
       where: { id: req.user!.id },
       select: { approval_status: true, rejected_at: true, rejection_reason: true },
     });
-    if (applicant?.approval_status === 'REJECTED' && applicant.rejected_at) {
-      const elapsed = Date.now() - new Date(applicant.rejected_at).getTime();
-      if (elapsed < REJECTION_COOLDOWN_MS) {
+    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
+    if (applicant?.approval_status === 'REJECTED') {
+      let rejectedAt = applicant.rejected_at;
+      if (!rejectedAt) {
+        rejectedAt = new Date();
+        await prisma.user.update({
+          where: { id: req.user!.id },
+          data: { rejected_at: rejectedAt },
+        });
+      }
+      const elapsed = Date.now() - new Date(rejectedAt).getTime();
+      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
         const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
         return res.status(429).json({
           error: 'Your previous application was declined. Please wait before creating another organization.',
