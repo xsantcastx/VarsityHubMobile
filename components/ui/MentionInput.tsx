@@ -37,21 +37,26 @@ export function MentionInput({
   const [mentionStart, setMentionStart] = useState(-1);
   const inputRef = useRef<TextInput>(null);
   const searchTimeoutRef = useRef<any>(null);
+  const mentionSearchSeqRef = useRef(0);
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
   const searchUsers = async (query: string) => {
     if (query.length < 1) {
+      mentionSearchSeqRef.current += 1;
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
+    const seq = ++mentionSearchSeqRef.current;
 
     try {
       const data = await User.searchForMentions(query, 10);
+      if (seq !== mentionSearchSeqRef.current) return;
       setSuggestions(data.users || []);
       setShowSuggestions((data.users || []).length > 0);
     } catch (error) {
+      if (seq !== mentionSearchSeqRef.current) return;
       if (__DEV__) console.error('Failed to search users:', error);
       setSuggestions([]);
       setShowSuggestions(false);

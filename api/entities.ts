@@ -254,8 +254,13 @@ export const Post = {
       // normalize to page shape
       return normalizePostPage(res);
     } catch (error: any) {
-      // If trending endpoint doesn't exist, fallback to regular posts sorted by created_at
-      console.log('[Post.trendingPage] Trending endpoint not available, falling back to recent posts');
+      // Only fall back when trending is absent (404/410). Other errors should surface
+      // so we do not silently show chronological feed as if it were trending.
+      const status = error?.status;
+      if (status !== 404 && status !== 410) {
+        throw error;
+      }
+      if (__DEV__) console.log('[Post.trendingPage] Trending route missing, falling back to recent posts');
       const q: string[] = [];
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));

@@ -839,7 +839,7 @@ const updateEventSchema = z.object({
 
 const COACH_EDITABLE_FIELDS = ['date', 'location', 'latitude', 'longitude', 'description', 'opponent', 'away_team_id', 'away_team_name'];
 
-eventsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+eventsRouter.patch('/:id', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;
@@ -1015,7 +1015,7 @@ eventsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (r
 });
 
 // Cancel event (creator or team owner only)
-eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+eventsRouter.patch('/:id/cancel', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;
