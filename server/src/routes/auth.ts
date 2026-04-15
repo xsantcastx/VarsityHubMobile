@@ -1301,6 +1301,34 @@ authRouter.patch('/me/preferences', requireAuth as any, asyncHandler(async (req:
     });
   }
 
+  // v1.0.2 pass 6: SECURITY — prevent skipping onboarding by setting onboarding_completed=true
+  // directly via PATCH. The legitimate path is POST /auth/complete-onboarding which validates
+  // required fields. We allow clients to set it to `false` (restart flow) and to re-affirm `true`
+  // if the server state already confirms it. Any other attempt is rejected.
+  if (incoming.onboarding_completed === true && currentPrefs.onboarding_completed !== true) {
+    // Require the same baseline fields /complete-onboarding checks for the user's role.
+    const effectiveRole = incoming.role || currentPrefs.role || 'fan';
+    const currentUserRec = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { username: true } });
+    if (effectiveRole === 'coach') {
+      const hasUsername = !!currentUserRec?.username || !!(incoming.username);
+      const hasOrgOrTeam = !!(currentPrefs.organization_id || currentPrefs.team_id || incoming.organization_id || incoming.team_id);
+      if (!hasUsername || !hasOrgOrTeam) {
+        return res.status(400).json({
+          error: 'Cannot mark onboarding complete — required coach fields missing. Use POST /auth/complete-onboarding.',
+          code: 'ONBOARDING_VALIDATION_REQUIRED',
+        });
+      }
+    } else {
+      // Fan minimum: must have a username on record
+      if (!currentUserRec?.username) {
+        return res.status(400).json({
+          error: 'Cannot mark onboarding complete — username missing. Use POST /auth/complete-onboarding.',
+          code: 'ONBOARDING_VALIDATION_REQUIRED',
+        });
+      }
+    }
+  }
+
   // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach and /complete-onboarding)
   if (incoming.role === 'coach' && currentPrefs.role !== 'coach') {
     const effectiveDob = incoming.dob || currentPrefs.dob || currentPrefs.date_of_birth;
