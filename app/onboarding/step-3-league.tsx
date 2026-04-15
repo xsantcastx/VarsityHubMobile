@@ -328,11 +328,11 @@ function Step3League() {
       // Persist org_id so it survives app restarts
       await User.updatePreferences({ organization_id: selectedOrg.id, organization_name: selectedOrg.name }).catch(() => {});
 
-      // Show success — user must press Continue to proceed
+      // v1.0.2 pass 5 fix: wording now matches the new flow (waiting screen, not main app).
       Alert.alert(
         'Request Sent!',
-        `Your request to join "${selectedOrg.name}" has been sent. You'll be notified when approved. Press Continue to explore the app.`,
-        [{ text: 'OK' }]
+        `Your request to join "${selectedOrg.name}" has been sent. You'll see a waiting screen while the league admin reviews your request, then you'll be walked through the coach agreement and setup.`,
+        [{ text: 'Continue' }]
       );
     } catch (error: any) {
       Alert.alert('Request Failed', error?.data?.error || error?.message || 'Failed to send join request');
@@ -383,8 +383,17 @@ function Step3League() {
         }
         checkAuth().catch(() => {});
         if (isPendingJoin) {
-          // Pending join request — enter app as fan while waiting
-          router.replace('/(tabs)' as any);
+          // v1.0.2 pass 5 fix: coach with pending join request goes to pending-approval screen
+          // (was incorrectly routing to /(tabs), which skipped the waiting UI entirely and left the
+          // user confused about what state they were in). pending-approval polls for approval and
+          // then routes to coach-agreement → tools on approval.
+          router.replace({
+            pathname: '/onboarding/pending-approval',
+            params: {
+              leagueName: resolvedOrgName || 'the league',
+              ownerName: 'the league admin',
+            },
+          } as any);
         } else {
           // Existing org/team — go to coach agreement
           router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);

@@ -76,8 +76,12 @@ function LeaguePendingApproval() {
           // Use server data (me) as primary source, fall back to local state (ob)
           const me: any = await User.me().catch(() => null);
           const mePrefs = me?.preferences || {};
+          // v1.0.2 pass 5 fix: explicitly set proceeding_as_fan:false so the league owner
+          // leaves the "fan limbo" state once the org is approved. Without this, AuthProvider's
+          // "continue as fan" fallback logic could keep them mode-stuck even after approval.
           await User.completeOnboarding({
             role: 'coach',
+            proceeding_as_fan: false,
             username: me?.username || ob.username || mePrefs.username,
             dob: me?.dob || ob.dob || mePrefs.dob,
             zip_code: me?.zip_code || ob.zip_code || ob.zip || mePrefs.zip_code,
