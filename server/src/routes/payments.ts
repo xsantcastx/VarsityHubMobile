@@ -2491,7 +2491,10 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 }
 
 // Human-facing pages for success/cancel, with success also attempting confirmation if session_id present
-paymentsRouter.get('/success', asyncHandler(async (req, res) => {
+// v1.0.2 pass 11: /success is a PUBLIC GET that triggers Stripe + DB writes via finalizeFromSession.
+// Without a rate limit, an attacker spamming arbitrary session_id values forces real Stripe API
+// calls per request. paymentLimiter caps abuse without breaking legitimate post-checkout redirects.
+paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req, res) => {
   const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';
   const appReturnPath = process.env.APP_RETURN_PATH || '';
   const returnUrl = `${appScheme}://${appReturnPath}`;
