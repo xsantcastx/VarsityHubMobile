@@ -7,6 +7,7 @@
 
 import { prisma } from './prisma.js';
 import { logAdminActivity } from './adminActivityLogger.js';
+import { updateUserAndInvalidate } from './userCache.js';
 
 // Escalation thresholds — env-overridable for tuning at scale without redeploy.
 // v1.0.2 pass 9: previously hardcoded constants; now pulled from env with the same defaults.
@@ -121,7 +122,7 @@ export async function autoEscalate(targetUserId: string): Promise<{
 
   if (totalReports >= BAN_THRESHOLD) {
     // Auto-ban
-    await prisma.user.update({
+    await updateUserAndInvalidate(prisma, {
       where: { id: targetUserId },
       data: {
         banned: true,
@@ -139,7 +140,7 @@ export async function autoEscalate(targetUserId: string): Promise<{
   if (totalReports >= SUSPEND_THRESHOLD) {
     // Auto-suspend for 7 days
     const suspendUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await prisma.user.update({
+    await updateUserAndInvalidate(prisma, {
       where: { id: targetUserId },
       data: {
         banned_until: suspendUntil,
@@ -225,7 +226,7 @@ export async function suspendUser(params: {
   const { userId, days, reason, adminId } = params;
   const suspendUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-  await prisma.user.update({
+  await updateUserAndInvalidate(prisma, {
     where: { id: userId },
     data: {
       banned_until: suspendUntil,

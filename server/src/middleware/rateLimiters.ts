@@ -22,13 +22,13 @@ import { debugLog } from '../lib/debugLog.js';
 const isTruthyEnv = (v: string | undefined): boolean =>
   v !== undefined && ['1', 'true', 'yes', 'on'].includes(String(v).trim().toLowerCase());
 const rateLimitingDisabled =
-  isTruthyEnv(process.env.DISABLE_RATE_LIMITING) ||
-  isTruthyEnv(process.env.RATE_LIMIT_DISABLE);
+  isTruthyEnv(process.env.DISABLE_RATE_LIMITING) || isTruthyEnv(process.env.RATE_LIMIT_DISABLE);
 
 // v1.0.2 pass 9: log loudly at boot when rate limiting is disabled. Previously a stray
 // dev env var leaking into staging/prod would silently disable all limiters.
 if (rateLimitingDisabled) {
-  const msg = '⚠️  RATE LIMITING DISABLED via DISABLE_RATE_LIMITING / RATE_LIMIT_DISABLE — every endpoint is unthrottled.';
+  const msg =
+    '⚠️  RATE LIMITING DISABLED via DISABLE_RATE_LIMITING / RATE_LIMIT_DISABLE — every endpoint is unthrottled.';
   if (process.env.NODE_ENV === 'production') {
     console.error('[CRITICAL]', msg, 'This should NEVER be set in production.');
   } else {
@@ -45,19 +45,19 @@ let redisStore: Store | undefined;
 
 async function initializeRateLimitRedis() {
   if (rateLimitingDisabled || rateLimitRedis) return;
-  
+
   try {
     const REDIS_URL = process.env.REDIS_URL;
     if (!REDIS_URL) {
       debugLog('⚠️ REDIS_URL not set, rate limiter will use memory store');
       return;
     }
-    
+
     // Import Redis using CommonJS style (same as queue.ts)
     const RedisModule = await import('ioredis');
     const Redis = RedisModule.default;
     const RedisCtor = Redis as unknown as new (url: string, options?: any) => any;
-    
+
     rateLimitRedis = new RedisCtor(REDIS_URL, {
       maxRetriesPerRequest: null, // Disable retry limit
       enableReadyCheck: false,
@@ -77,7 +77,7 @@ async function initializeRateLimitRedis() {
 }
 
 // Initialize rate limit Redis on module load
-initializeRateLimitRedis().catch((err) => {
+initializeRateLimitRedis().catch(err => {
   console.error('[RateLimit] Failed to initialize Redis:', err);
 });
 
@@ -98,13 +98,19 @@ function getUserIdentifier(req: Request): string {
  * Uses Redis store in production for multi-instance scalability
  */
 function createLimiter(options: Partial<Options> & { name: string }): ReturnType<typeof rateLimit> {
-  const { name, ...restOptions } = options;
+  const { name, skip: customSkip, ...restOptions } = options;
 
   return rateLimit({
     windowMs: 60 * 1000, // 1 minute default
     standardHeaders: true,
     legacyHeaders: false,
-    skip: () => rateLimitingDisabled,
+    skip: (req, res) => {
+      if (rateLimitingDisabled) return true;
+      if (typeof customSkip === 'function') {
+        return customSkip(req, res);
+      }
+      return false;
+    },
     keyGenerator: getUserIdentifier,
     // Use Redis store if available (set after async init), otherwise default memory store
     ...(redisStore && !rateLimitingDisabled ? { store: redisStore } : {}),
@@ -132,7 +138,7 @@ export const authLimiter = createLimiter({
   name: 'auth',
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: rateLimitingDisabled ? 100000 : 10,
-  keyGenerator: (req) => `ip:${req.ip}`, // Always use IP for auth
+  keyGenerator: req => `ip:${req.ip}`, // Always use IP for auth
   message: 'Too many login attempts. Please try again in 15 minutes.',
 });
 
@@ -144,7 +150,7 @@ export const passwordResetLimiter = createLimiter({
   name: 'password-reset',
   windowMs: 60 * 60 * 1000, // 1 hour
   max: rateLimitingDisabled ? 100000 : 5,
-  keyGenerator: (req) => `ip:${req.ip}`,
+  keyGenerator: req => `ip:${req.ip}`,
 });
 
 /**
@@ -155,7 +161,7 @@ export const refreshTokenLimiter = createLimiter({
   name: 'refresh-token',
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: rateLimitingDisabled ? 100000 : 30,
-  keyGenerator: (req) => `ip:${req.ip}`,
+  keyGenerator: req => `ip:${req.ip}`,
 });
 
 /**
@@ -176,7 +182,7 @@ export const oauthLimiter = createLimiter({
   name: 'oauth',
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: rateLimitingDisabled ? 100000 : 10,
-  keyGenerator: (req) => `ip:${req.ip}`,
+  keyGenerator: req => `ip:${req.ip}`,
 });
 
 /**
@@ -187,7 +193,7 @@ export const verificationConfirmLimiter = createLimiter({
   name: 'verification-confirm',
   windowMs: 15 * 60 * 1000,
   max: rateLimitingDisabled ? 100000 : 5,
-  keyGenerator: (req) => `ip:${req.ip}`,
+  keyGenerator: req => `ip:${req.ip}`,
 });
 
 // ============================================
@@ -396,7 +402,7 @@ export const alternativeZipsLimiter = createLimiter({
   name: 'alternative-zips',
   windowMs: 60 * 1000, // 1 minute
   max: rateLimitingDisabled ? 100000 : 30,
-  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+  keyGenerator: req => `ip:${req.ip || 'unknown'}`,
 });
 
 /**
@@ -407,7 +413,7 @@ export const usernameAvailableLimiter = createLimiter({
   name: 'username-available',
   windowMs: 60 * 1000, // 1 minute
   max: rateLimitingDisabled ? 100000 : 30,
-  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+  keyGenerator: req => `ip:${req.ip || 'unknown'}`,
 });
 
 /**
@@ -418,7 +424,7 @@ export const searchLimiter = createLimiter({
   name: 'search',
   windowMs: 60 * 1000, // 1 minute
   max: rateLimitingDisabled ? 100000 : 60,
-  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+  keyGenerator: req => `ip:${req.ip || 'unknown'}`,
 });
 
 /**
@@ -439,7 +445,7 @@ export const organizationsNearbyLimiter = createLimiter({
   name: 'organizations-nearby',
   windowMs: 60 * 1000, // 1 minute
   max: rateLimitingDisabled ? 100000 : 30,
-  keyGenerator: (req) => `ip:${req.ip || 'unknown'}`,
+  keyGenerator: req => `ip:${req.ip || 'unknown'}`,
 });
 
 /**
@@ -470,6 +476,21 @@ export const adminLimiter = createLimiter({
   message: 'Too many admin requests, please try again later',
 });
 
+/**
+ * Default API limiter
+ * Baseline guard for routes that do not define a stricter per-endpoint limiter.
+ * Webhook callbacks are excluded because providers, not end users, control their retry cadence.
+ */
+export const defaultApiLimiter = createLimiter({
+  name: 'default-api',
+  windowMs: 60 * 1000, // 1 minute
+  max: rateLimitingDisabled ? 100000 : 120,
+  skip: req => {
+    const path = String(req.path || req.originalUrl || '');
+    return path === '/payments/webhook' || path === '/payments/apple/notifications';
+  },
+});
+
 // ============================================
 // Export all limiters for easy application
 // ============================================
@@ -497,6 +518,7 @@ export const rateLimiters = {
   promoCode: promoCodeLimiter,
   userLookup: userLookupLimiter,
   mentionsSearch: mentionsSearchLimiter,
+  defaultApi: defaultApiLimiter,
 };
 
 export default rateLimiters;

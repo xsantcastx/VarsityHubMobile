@@ -1,6 +1,6 @@
 /**
  * Centralized Error Handling Middleware
- * 
+ *
  * Catches all errors and formats consistent responses.
  * Should be added as the last middleware in Express app.
  */
@@ -14,10 +14,11 @@ import { AuthorizationError } from '../lib/errors/AuthorizationError.js';
 import { NotFoundError } from '../lib/errors/NotFoundError.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { RateLimitError } from '../lib/errors/RateLimitError.js';
+import { sendError } from '../lib/http/sendError.js';
 
 /**
  * Error handling middleware
- * 
+ *
  * Handles:
  * - AppError instances (operational errors)
  * - Zod validation errors
@@ -38,7 +39,7 @@ export function errorHandler(
   // Handle AppError instances
   if (err instanceof AppError) {
     const logDetails = err.getLogDetails();
-    
+
     // Log operational errors at appropriate level
     if (err.statusCode >= 500) {
       console.error('[AppError]', logDetails);
@@ -70,7 +71,7 @@ export function errorHandler(
         message: issue.message,
       })),
     });
-    
+
     console.warn('[ValidationError]', validationError.getLogDetails());
     res.status(400).json(validationError.toJSON());
     return;
@@ -79,7 +80,7 @@ export function errorHandler(
   // Handle Prisma errors
   if (err.name === 'PrismaClientKnownRequestError') {
     const prismaError = err as any;
-    
+
     // Unique constraint violation (do not leak schema/column names to client)
     if (prismaError.code === 'P2002') {
       console.warn('[ConflictError] P2002', { target: prismaError.meta?.target, path: req.path });
@@ -87,7 +88,7 @@ export function errorHandler(
       res.status(409).json(conflictError.toJSON());
       return;
     }
-    
+
     // Record not found
     if (prismaError.code === 'P2025') {
       const notFoundError = new NotFoundError('Resource not found');
@@ -95,10 +96,13 @@ export function errorHandler(
       res.status(404).json(notFoundError.toJSON());
       return;
     }
-    
+
     // Foreign key constraint violation (do not leak schema/field names to client)
     if (prismaError.code === 'P2003') {
-      console.warn('[ValidationError] P2003', { field: prismaError.meta?.field_name, path: req.path });
+      console.warn('[ValidationError] P2003', {
+        field: prismaError.meta?.field_name,
+        path: req.path,
+      });
       const validationError = new ValidationError('Invalid reference');
       res.status(400).json(validationError.toJSON());
       return;
@@ -120,30 +124,33 @@ export function errorHandler(
     extra: {
       path: req.path,
       method: req.method,
-      body: req.body ? Object.fromEntries(
-        Object.entries(req.body).map(([k, v]) =>
-          /password|secret|token|code/i.test(k) ? [k, '[REDACTED]'] : [k, v]
-        )
-      ) : undefined,
+      body: req.body
+        ? Object.fromEntries(
+            Object.entries(req.body).map(([k, v]) =>
+              /password|secret|token|code/i.test(k) ? [k, '[REDACTED]'] : [k, v]
+            )
+          )
+        : undefined,
       query: req.query,
       params: req.params,
     },
   });
 
   // Send generic error response (don't leak internal details)
-  res.status(500).json({
-    error: 'Internal server error',
-    errorCode: 'INTERNAL_SERVER_ERROR',
+  sendError(res, 500, 'Internal server error', {
+    code: 'INTERNAL_SERVER_ERROR',
     ...(process.env.NODE_ENV === 'development' && {
-      message: err.message,
-      stack: err.stack,
+      details: {
+        message: err.message,
+        stack: err.stack,
+      },
     }),
   });
 }
 
 /**
  * Async error wrapper
- * 
+ *
  * Wraps async route handlers to catch errors and pass to error handler.
  * Usage: router.get('/path', asyncHandler(async (req, res) => { ... }))
  */

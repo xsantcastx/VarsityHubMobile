@@ -2,6 +2,7 @@ import type { Response, NextFunction } from 'express';
 import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
+import { updateUserAndInvalidate } from '../lib/userCache.js';
 
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
@@ -89,7 +90,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
       const downgradedPrefs = { ...(prefs as any), plan: 'rookie', grace_period_expires_at: null };
       delete downgradedPrefs.apple_product_id;
       delete downgradedPrefs.apple_expires_date;
-      await prisma.user.update({
+      await updateUserAndInvalidate(prisma, {
         where: { id: req.user.id },
         data: {
           preferences: downgradedPrefs,

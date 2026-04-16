@@ -22,6 +22,7 @@ import {
   sendAdminActionConfirmationEmail,
 } from './email.js';
 import { sendPushNotification } from './notifications.js';
+import { invalidateMeCacheForUser, updateUserAndInvalidate } from './userCache.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -89,6 +90,9 @@ export async function approveOrganization(
     );
   }
   const [updated] = await prisma.$transaction(txOps);
+  if (ownerId) {
+    await invalidateMeCacheForUser(ownerId);
+  }
 
   // Race-condition guard: another admin already approved
   if (updated.count === 0) return { already: true };
@@ -181,6 +185,9 @@ export async function rejectOrganization(
       });
     }
   });
+  if (org.leagueOwner?.id) {
+    await invalidateMeCacheForUser(org.leagueOwner.id);
+  }
 
   // ── Fire-and-forget notifications ──
   // v1.0.2: `reason` is declared above (line 146) as `string | null`. Use || undefined
@@ -260,7 +267,7 @@ export async function approveCoach(
   }
 
   // BUG FIX: set paid_by_owner: true so the coach inherits the org owner's plan
-  await prisma.user.update({
+  await updateUserAndInvalidate(prisma, {
     where: { id: userId },
     data: { approval_status: 'APPROVED', paid_by_owner: true },
   });
@@ -316,7 +323,7 @@ export async function rejectCoach(
 
   // v1.0.2: persist rejected_at + reason so requireOnboarded / auth handlers
   // can enforce 48hr cooldown on re-apply (see REJECTION_COOLDOWN_MS below).
-  await prisma.user.update({
+  await updateUserAndInvalidate(prisma, {
     where: { id: userId },
     data: {
       approval_status: 'REJECTED',

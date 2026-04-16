@@ -20,6 +20,7 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
   throw new Error('FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.');
@@ -1133,6 +1134,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
           where: { id: failedUser.id },
           data: { subscription_status: 'past_due' },
         });
+        await invalidateMeCacheForUser(failedUser.id);
         console.warn('[webhook] invoice.payment_failed — marked user as past_due', { userId: failedUser.id, invoiceId: invoice.id });
       }
     }
@@ -1194,6 +1196,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
           },
         }),
       ]);
+      await invalidateMeCacheForUser(canceledUser.id);
     }
   }
   
@@ -1235,6 +1238,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
         where: { id: subUser.id },
         data: updateData,
       });
+      await invalidateMeCacheForUser(subUser.id);
       console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
 
       // Update any PENDING transaction log created by PaymentSheet flow
@@ -1300,6 +1304,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
               max_teams: 2,
             },
           });
+          await invalidateMeCacheForUser(tx.user_id);
           console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
         } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
           await prisma.$transaction([
@@ -1954,6 +1959,7 @@ paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, requireAdm
     delete nextPrefs.payment_approved;
 
     await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
+    await invalidateMeCacheForUser(userId);
 
     debugLog(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
     
@@ -2037,6 +2043,7 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
 
     try {
       await prisma.$transaction(updateOps);
+      await invalidateMeCacheForUsers(usersToReset.map((user) => user.id));
       resetCount = usersToReset.length;
       for (const u of resetUsers) {
         debugLog(`✅ Admin reset: ${u.email} to rookie plan`);
@@ -2439,6 +2446,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             },
           }),
         ]);
+        await invalidateMeCacheForUser(userId);
 
         // Cancel old Stripe subscription AFTER successful DB commit to prevent double-billing.
         // Order matters: new sub verified (line above) → DB updated → old sub canceled.
@@ -2713,6 +2721,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
         } as any,
       }),
     ]);
+    await invalidateMeCacheForUser(userId);
 
     // Send confirmation email
     if (user?.email) {
@@ -3090,6 +3099,7 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
           } as any,
         }),
       ]);
+      await invalidateMeCacheForUser(userId);
       debugLog('apple-s2s', `User ${userId} renewed/subscribed — plan: ${plan}`);
 
     } else if (
@@ -3122,6 +3132,7 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
           },
         }),
       ]);
+      await invalidateMeCacheForUser(userId);
       console.warn('[apple-s2s] Marked user as past_due with grace period expiry:', { userId, graceExpiresAt });
 
     } else if (
@@ -3162,6 +3173,7 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
           } as any,
         }),
       ]);
+      await invalidateMeCacheForUser(userId);
       debugLog('apple-s2s', `User ${userId} downgraded to rookie — reason: ${notificationType}`);
 
       // Send billing notice for cancellation/refund
@@ -3399,6 +3411,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
         } as any,
       }),
     ]);
+    await invalidateMeCacheForUser(userId);
 
     // Send confirmation email
     if (user?.email) {

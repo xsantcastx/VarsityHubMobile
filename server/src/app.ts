@@ -6,7 +6,12 @@ import helmet from 'helmet';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-import { startAdGoLiveCheck, startMessageCleanup, startOvernightMonitoring, startQueueCleanup } from './cron/overnightTasks.js';
+import {
+  startAdGoLiveCheck,
+  startMessageCleanup,
+  startOvernightMonitoring,
+  startQueueCleanup,
+} from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
@@ -16,6 +21,7 @@ import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireVerified } from './middleware/requireVerified.js';
 import { requireOnboarded } from './middleware/requireOnboarded.js';
+import { defaultApiLimiter } from './middleware/rateLimiters.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter, handleAdSubmitForApproval } from './routes/ads.js';
@@ -58,21 +64,32 @@ if (!isTest) {
 app.set('trust proxy', 1);
 
 // pino-http ESM interop can require using the default property in some setups
-const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
-app.use(pinoMiddleware(process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}));
+const pinoMiddleware =
+  (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) ||
+  pinoHttp;
+app.use(
+  pinoMiddleware(
+    process.env.NODE_ENV !== 'production' ? { transport: { target: 'pino-pretty' } } : {}
+  )
+);
 // In dev, disable CSP to allow loading media from API when app runs on a different origin.
 // In prod, enable CSP with sensible defaults for a mobile API backend.
-app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
-    directives: {
-      defaultSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.googleapis.com'],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'", 'https://*.stripe.com', 'https://*.sentry.io'],
-    },
-  } : false,
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy:
+      process.env.NODE_ENV === 'production'
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.googleapis.com'],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              connectSrc: ["'self'", 'https://*.stripe.com', 'https://*.sentry.io'],
+            },
+          }
+        : false,
+  })
+);
 
 const isProd = process.env.NODE_ENV === 'production';
 const defaultProdOrigins = [
@@ -89,12 +106,14 @@ const defaultDevOrigins = [
 ];
 const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
-  .map((s) => s.trim())
+  .map(s => s.trim())
   .filter(Boolean);
 if (isProd && envAllowedOrigins.length === 0) {
-  console.warn('[cors] ALLOWED_ORIGINS not set in production. Using defaults. Set explicit domains in Railway for full control.');
+  console.warn(
+    '[cors] ALLOWED_ORIGINS not set in production. Using defaults. Set explicit domains in Railway for full control.'
+  );
 }
-const hasWildcardOrigin = envAllowedOrigins.some((origin) => origin === '*');
+const hasWildcardOrigin = envAllowedOrigins.some(origin => origin === '*');
 if (hasWildcardOrigin) {
   const message = '[cors] ALLOWED_ORIGINS includes "*"; configure explicit origins instead.';
   if (isProd) {
@@ -111,7 +130,7 @@ const allowedOrigins = Array.from(
   new Set([
     ...defaultProdOrigins,
     ...(isProd ? [] : defaultDevOrigins),
-    ...envAllowedOrigins.filter((origin) => origin !== '*'),
+    ...envAllowedOrigins.filter(origin => origin !== '*'),
   ])
 ).filter(Boolean);
 if (isProd && allowedOrigins.length === 0) {
@@ -123,7 +142,7 @@ const isAllowedOrigin = (origin?: string | null) => {
   // Allow exact matches
   if (allowedOrigins.includes(origin)) return true;
   // Allow wildcard pattern matches
-  return wildcardOriginMatchers.some((pattern) => pattern.test(origin));
+  return wildcardOriginMatchers.some(pattern => pattern.test(origin));
 };
 const corsOptions: cors.CorsOptions = {
   origin: (origin, cb) => {
@@ -155,12 +174,12 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 // Stripe webhook must be registered before body parsing so we can verify signatures
 // Special raw body parser for Stripe webhooks
 const rawBodyPaths = ['/payments/webhook'];
-rawBodyPaths.forEach((path) => {
+rawBodyPaths.forEach(path => {
   app.use(path, express.raw({ type: 'application/json', limit: '5mb' }));
 });
 
 app.use((req, res, next) => {
-  if (rawBodyPaths.some((path) => req.originalUrl.startsWith(path))) {
+  if (rawBodyPaths.some(path => req.originalUrl.startsWith(path))) {
     return next();
   }
   return express.json({ limit: '10mb' })(req, res, next);
@@ -217,14 +236,6 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skip: () => isDev,
 });
-// Increased limits for read operations - app makes multiple requests on startup
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDev ? 100000 : 2000, // Increased from 500 to 2000 for normal app usage
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => isDev || req.path === '/health',
-});
 
 app.use('/health', healthRouter);
 
@@ -254,33 +265,40 @@ const meProxy = (req: any, res: any, next: any) => {
 };
 
 function mountApiRoutes(parent: any) {
+  parent.use(defaultApiLimiter);
   parent.use('/auth', authLimiter, authRouter);
   parent.use('/me', noStore, meProxy);
-  parent.use('/games', apiLimiter, gamesRouter);
-  parent.use('/posts', apiLimiter, postsRouter);
-  parent.use('/notifications', noStore, apiLimiter, notificationsRouter);
-  parent.use('/events', apiLimiter, eventsRouter);
-  parent.use('/messages', noStore, apiLimiter, messagesRouter);
-  parent.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
+  parent.use('/games', gamesRouter);
+  parent.use('/posts', postsRouter);
+  parent.use('/notifications', noStore, notificationsRouter);
+  parent.use('/events', eventsRouter);
+  parent.use('/messages', noStore, messagesRouter);
+  parent.use('/group-chats', noStore, groupChatsRouter);
   parent.use('/uploads', uploadsRouter);
-  parent.post('/ads/:id/submit-for-approval', requireAuth as any, requireVerified as any, requireOnboarded as any, handleAdSubmitForApproval as any);
+  parent.post(
+    '/ads/:id/submit-for-approval',
+    requireAuth as any,
+    requireVerified as any,
+    requireOnboarded as any,
+    handleAdSubmitForApproval as any
+  );
   parent.use('/ads', adsRouter);
   parent.use('/payments', paymentsRouter);
-  parent.use('/admin', noStore, apiLimiter, adminRouter);
-  parent.use('/geocoding', noStore, apiLimiter, geocodingRouter);
-  parent.use('/teams', apiLimiter, teamsRouter);
-  parent.use('/organizations', apiLimiter, organizationsRouter);
-  parent.use('/users', noStore, apiLimiter, usersRouter);
-  parent.use('/search', noStore, apiLimiter, searchRouter);
-  parent.use('/reports', noStore, apiLimiter, reportsRouter);
-  parent.use('/rsvps', noStore, apiLimiter, rsvpsRouter);
-  parent.use('/follows', noStore, apiLimiter, followsRouter);
-  parent.use('/support', noStore, apiLimiter, supportRouter);
-  parent.use('/admin/reports', noStore, apiLimiter, adminReportsRouter);
-  parent.use('/team-memberships', noStore, apiLimiter, teamMembershipsRouter);
-  parent.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
-  parent.use('/highlights', noStore, apiLimiter, highlightsRouter);
-  parent.use('/promos', noStore, apiLimiter, promosRouter);
+  parent.use('/admin', noStore, adminRouter);
+  parent.use('/geocoding', noStore, geocodingRouter);
+  parent.use('/teams', teamsRouter);
+  parent.use('/organizations', organizationsRouter);
+  parent.use('/users', noStore, usersRouter);
+  parent.use('/search', noStore, searchRouter);
+  parent.use('/reports', noStore, reportsRouter);
+  parent.use('/rsvps', noStore, rsvpsRouter);
+  parent.use('/follows', noStore, followsRouter);
+  parent.use('/support', noStore, supportRouter);
+  parent.use('/admin/reports', noStore, adminReportsRouter);
+  parent.use('/team-memberships', noStore, teamMembershipsRouter);
+  parent.use('/team-invites', noStore, teamInvitesRouter);
+  parent.use('/highlights', noStore, highlightsRouter);
+  parent.use('/promos', noStore, promosRouter);
 }
 
 // Mount at root (backward compat for existing app versions in the wild)
@@ -366,7 +384,9 @@ if (!isTest) {
   startOvernightMonitoring();
   startQueueCleanup();
   startMessageCleanup();
-  debugLog('[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup)');
+  debugLog(
+    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup)'
+  );
 }
 
 export { app };

@@ -12,7 +12,7 @@ let emailServicePromise: Promise<EmailService> | null = null;
 const getEmailService = async (): Promise<EmailService | null> => {
   if (isTestEnv) return null;
   if (!emailServicePromise) {
-    emailServicePromise = import('../services/email/service.js').then((mod) => mod.getEmailService());
+    emailServicePromise = import('../services/email/service.js').then(mod => mod.getEmailService());
   }
   return emailServicePromise;
 };
@@ -21,14 +21,19 @@ const getEmailService = async (): Promise<EmailService | null> => {
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-const API_BASE_URL = (process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
+const API_BASE_URL = (
+  process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app'
+).replace(/\/$/, '');
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
-  logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
-  footer_logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png',
-  hero_image_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
+  logo_url:
+    'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
+  footer_logo_url:
+    'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png',
+  hero_image_url:
+    'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
   privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
   community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
   instagram_url: 'https://www.instagram.com/varsityhubapp/',
@@ -42,33 +47,37 @@ const getCommonTemplateData = () => ({
   customer_service_email: CUSTOMER_SERVICE_EMAIL,
 });
 
-// Template IDs for SendGrid dynamic templates
-// Only mandatory templates for critical functionality
+// Approved SendGrid template IDs.
+// Per product policy, only templates present in the Railway-approved catalog may be used.
 const TEMPLATE_IDS = {
-  // Auth & Security (REQUIRED)
-  VERIFICATION: process.env.SENDGRID_VERIFICATION_TEMPLATE_ID || '',
+  // Auth & Security
+  VERIFICATION:
+    process.env.SENDGRID_VERIFICATION_TEMPLATE_ID ||
+    process.env.SENDGRID_USER_CONFIRMATION_TEMPLATE_ID ||
+    '',
   PASSWORD_RESET: process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID || '',
 
-  // Team & Organization (REQUIRED)
+  // Team & Organization
   TEAM_INVITE: process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID || '',
   ORG_INVITE: process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID || '',
-
-  // Billing (REQUIRED)
-  BILLING_NOTICE: process.env.SENDGRID_BILLING_NOTICE_TEMPLATE_ID || '',
-
-  // Approval flows (MANDATORY)
-  ABUSE_REPORT: process.env.SENDGRID_ABUSE_REPORT_TEMPLATE_ID || '',
-  AD_PENDING_REVIEW: process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID || '',
-  AD_APPROVED: process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID || '',
-  AD_REJECTED: process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID || '',
-  EVENT_APPROVED: process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID || '',
-  EVENT_DENIED: process.env.SENDGRID_EVENT_DENIED_TEMPLATE_ID || '',
-  LEAGUE_PENDING_APPROVAL: process.env.SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID || '',
-  ADMIN_ACTION_CONFIRMATION: process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID || '',
-  ORG_APPROVAL: process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID || '',
-  ORG_DENIAL: process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID || '',
+  JOIN_REQUEST_ADMIN:
+    process.env.SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID ||
+    process.env.SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID ||
+    '',
   JOIN_REQUEST_APPROVED: process.env.SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID || '',
   JOIN_REQUEST_DENIED: process.env.SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID || '',
+
+  // Events
+  EVENT_APPROVED: process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID || '',
+  EVENT_DENIED: process.env.SENDGRID_EVENT_DENIED_TEMPLATE_ID || '',
+  EVENT_CANCELED:
+    process.env.SENDGRID_EVENT_CANCELED_TEMPLATE_ID ||
+    process.env.SENDGRID_EVENT_CANCELLATION_TEMPLATE_ID ||
+    '',
+
+  // Billing
+  PAYMENT_FAILED: process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID || '',
+  SUBSCRIPTION_EXPIRING: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -79,7 +88,6 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'PASSWORD_RESET',
   'TEAM_INVITE',
   'ORG_INVITE',
-  'BILLING_NOTICE',
 ];
 
 // All templates are now mandatory — no recommended list
@@ -89,16 +97,14 @@ export function isSendGridConfigured(): boolean {
   return Boolean(SENDGRID_API_KEY);
 }
 
-export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMPLATE_KEYS): string[] {
-  return required
-    .filter((key) => !TEMPLATE_IDS[key])
-    .map((key) => key.toLowerCase());
+export function getMissingEmailTemplates(
+  required: TemplateKey[] = REQUIRED_TEMPLATE_KEYS
+): string[] {
+  return required.filter(key => !TEMPLATE_IDS[key]).map(key => key.toLowerCase());
 }
 
 export function getMissingRecommendedTemplates(): string[] {
-  return RECOMMENDED_TEMPLATE_KEYS
-    .filter((key) => !TEMPLATE_IDS[key])
-    .map((key) => key.toLowerCase());
+  return RECOMMENDED_TEMPLATE_KEYS.filter(key => !TEMPLATE_IDS[key]).map(key => key.toLowerCase());
 }
 
 /**
@@ -120,17 +126,25 @@ export async function initEmailService() {
   // Also check for missing templates (legacy check)
   const missing = getMissingEmailTemplates();
   if (missing.length) {
-    console.error(`[email] ⛔ ${missing.length} critical SendGrid template IDs missing: ${missing.join(', ')}`);
+    console.error(
+      `[email] ⛔ ${missing.length} critical SendGrid template IDs missing: ${missing.join(', ')}`
+    );
     if (process.env.NODE_ENV === 'production') {
-      console.error('[email] FATAL: Critical email templates must be configured in production. Set them in Railway environment variables.');
+      console.error(
+        '[email] FATAL: Critical email templates must be configured in production. Set them in Railway environment variables.'
+      );
       process.exit(1);
     }
-    console.error('[email] Emails using these templates will silently fail. Set them in Railway environment variables.');
+    console.error(
+      '[email] Emails using these templates will silently fail. Set them in Railway environment variables.'
+    );
   }
 
   const missingRecommended = getMissingRecommendedTemplates();
   if (missingRecommended.length) {
-    console.warn(`[email] ⚠️  ${missingRecommended.length} recommended SendGrid template IDs missing: ${missingRecommended.join(', ')}`);
+    console.warn(
+      `[email] ⚠️  ${missingRecommended.length} recommended SendGrid template IDs missing: ${missingRecommended.join(', ')}`
+    );
   }
 
   return result;
@@ -139,59 +153,31 @@ export async function initEmailService() {
 type BasicEmail = { to: string; subject: string; text?: string; html?: string };
 
 const formatLines = (lines: Array<string | undefined | null>) =>
-  lines.filter((line) => Boolean(line && String(line).trim().length)).join('\n');
+  lines.filter(line => Boolean(line && String(line).trim().length)).join('\n');
+
+function blockUnapprovedEmail(emailType: string, context?: Record<string, unknown>): false {
+  const message = `[email] Blocked unapproved email type: ${emailType}`;
+  console.warn(message, context || {});
+  if (process.env.NODE_ENV === 'production') {
+    Sentry.captureMessage(message, {
+      level: 'warning',
+      extra: context,
+    });
+  }
+  return false;
+}
 
 /**
- * Generic email helper — use ONLY for internal/system emails when no template exists.
- * All user-facing and business emails MUST use SendGrid templates via sendTemplateEmail.
+ * Generic email sending is blocked by policy.
+ * Only approved SendGrid templates may be sent.
  */
 export async function sendEmail({ to, subject, text, html }: BasicEmail): Promise<boolean> {
-  if (!to) {
-    console.warn('[email] Missing recipient');
-    return false;
-  }
-
-  const safeSubject = subject || 'VarsityHub notification';
-  const safeText = text ?? '';
-  const safeHtml = html ?? text ?? '';
-
-  const service = await getEmailService();
-
-  if (!service || !service.isConfigured()) {
-    if (process.env.NODE_ENV === 'production') {
-      const err = new Error(`[email] Email service not configured in production — email to "${to}" (${safeSubject}) silently dropped`);
-      console.error(err.message);
-      Sentry.captureException(err, { extra: { to, subject: safeSubject } });
-      throw err;
-    }
-    console.error('[email] Email service not configured - logging email', { to, subject: safeSubject });
-    console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
-    return true; // Return true to not break existing flows in dev
-  }
-
-  try {
-    // v1.0.2 audit fix: explicitly set replyTo so generic emails route replies to support.
-    // From header is managed by the provider via defaultFrom; replyTo override ensures user replies land somewhere real.
-    const replyTo = process.env.SUPPORT_REPLY_TO || 'support@varsityhub.app';
-    const result = await service.send({
-      to,
-      subject: safeSubject,
-      text: safeText,
-      html: safeHtml,
-      replyTo,
-    });
-
-    if (result.success) {
-      debugLog(`[email] Sent generic email to ${to} (${safeSubject})`);
-      return true;
-    } else {
-      console.error('[email] Failed to send generic email:', result.error);
-      return false;
-    }
-  } catch (error: any) {
-    console.error('[email] Failed to send generic email:', error);
-    return false;
-  }
+  return blockUnapprovedEmail('GENERIC_EMAIL', {
+    to,
+    subject,
+    hasText: Boolean(text),
+    hasHtml: Boolean(html),
+  });
 }
 
 // Removed non-mandatory email functions (sendSubscriptionExpiringEmail, sendAccountRecoveryEmail,
@@ -208,51 +194,10 @@ export async function sendAdPendingReviewEmail(params: {
   approveToken?: string;
   rejectToken?: string;
 }): Promise<boolean> {
-  // v1.0.2 audit fix: use centralized admin email helper, fallback to customerservice
-  const { getPrimaryAdminEmail } = await import('./adminEmails.js');
-  const adminTo = params.to || getPrimaryAdminEmail();
-  const subject = `Ad Pending Review — ${params.businessName || 'Unknown Business'}`;
-
-  // Build one-click approve/reject URLs when tokens are provided
-  const approveUrl = params.approveToken && params.adId
-    ? `${API_BASE_URL}/ads/${params.adId}/approve?token=${params.approveToken}`
-    : '';
-  const rejectUrl = params.rejectToken && params.adId
-    ? `${API_BASE_URL}/ads/${params.adId}/reject?token=${params.rejectToken}`
-    : '';
-
-  // Use ad-specific template if available, fall back to league approval template (same layout)
-  const templateId = TEMPLATE_IDS.AD_PENDING_REVIEW || TEMPLATE_IDS.LEAGUE_PENDING_APPROVAL;
-  if (!templateId) {
-    console.error('[email] Missing SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID or SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID');
-    return false;
-  }
-
-  return sendTemplateEmail(
-    templateId,
-    adminTo,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      // Ad-specific fields
-      business_name: params.businessName || 'N/A',
-      contact_name: params.contactName || 'N/A',
-      contact_email: params.contactEmail || 'N/A',
-      zip_code: params.zipCode || 'N/A',
-      banner_url: params.bannerUrl || '',
-      ad_id: params.adId || '',
-      approve_url: approveUrl,
-      reject_url: rejectUrl,
-      // Map to league template fields so it renders in either template
-      league_name: params.businessName || 'N/A',
-      owner_name: params.contactName || 'N/A',
-      owner_email: params.contactEmail || 'N/A',
-      sport: `Ad • ZIP ${params.zipCode || 'N/A'}`,
-      org_type: 'advertisement',
-      created_date: new Date().toLocaleDateString(),
-    },
-    `Ad pending review email sent to ${adminTo}`
-  );
+  return blockUnapprovedEmail('AD_PENDING_REVIEW', {
+    to: params.to,
+    adId: params.adId,
+  });
 }
 
 export async function sendAbuseReportEmail(params: {
@@ -266,32 +211,11 @@ export async function sendAbuseReportEmail(params: {
   contentContext?: Record<string, any>;
   reportId?: string;
 }): Promise<boolean> {
-  const subject = `Content Report Submitted — ${params.reportedContentType.toUpperCase()} [${params.reportedContentId}]`;
-
-  const templateId = TEMPLATE_IDS.ABUSE_REPORT;
-  if (!templateId) {
-    console.error('[email] Missing SENDGRID_ABUSE_REPORT_TEMPLATE_ID');
-    return false;
-  }
-
-  return sendTemplateEmail(
-    templateId,
-    params.to,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      report_id: params.reportId || 'N/A',
-      reporter_name: params.reporterName || 'Unknown',
-      reporter_email: params.reporterEmail || 'unknown@email.com',
-      reported_type: params.reportedContentType,
-      reported_id: params.reportedContentId,
-      report_reason: params.reportReason.replace(/_/g, ' '),
-      report_details: params.reportDetails || '',
-      content_context: JSON.stringify(params.contentContext || {}, null, 2),
-      dashboard_url: `${APP_BASE_URL}/admin/reports`,
-    },
-    `Abuse report notification sent to ${params.to}`
-  );
+  return blockUnapprovedEmail('ABUSE_REPORT', {
+    to: params.to,
+    reportId: params.reportId,
+    reportedContentId: params.reportedContentId,
+  });
 }
 
 export async function sendAdApprovedEmail(params: {
@@ -299,25 +223,10 @@ export async function sendAdApprovedEmail(params: {
   businessName?: string;
   note?: string;
 }): Promise<boolean> {
-  const subject = 'Your Ad Has Been Approved — VarsityHub';
-  const templateId = TEMPLATE_IDS.AD_APPROVED;
-  if (!templateId) {
-    console.error('[email] Missing SENDGRID_AD_APPROVED_TEMPLATE_ID');
-    return false;
-  }
-
-  return sendTemplateEmail(
-    templateId,
-    params.to,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      business_name: params.businessName || 'your business',
-      admin_note: params.note || '',
-      app_url: APP_BASE_URL,
-    },
-    `Ad approved email sent to ${params.to}`
-  );
+  return blockUnapprovedEmail('AD_APPROVED', {
+    to: params.to,
+    businessName: params.businessName,
+  });
 }
 
 export async function sendAdRejectedEmail(params: {
@@ -325,26 +234,10 @@ export async function sendAdRejectedEmail(params: {
   businessName?: string;
   reason?: string;
 }): Promise<boolean> {
-  const subject = 'Your Ad Needs Changes — VarsityHub';
-  const templateId = TEMPLATE_IDS.AD_REJECTED;
-  if (!templateId) {
-    console.error('[email] Missing SENDGRID_AD_REJECTED_TEMPLATE_ID');
-    return false;
-  }
-
-  return sendTemplateEmail(
-    templateId,
-    params.to,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      business_name: params.businessName || 'your business',
-      rejection_reason: params.reason || 'Please review our ad guidelines and resubmit.',
-      support_email: CUSTOMER_SERVICE_EMAIL,
-      app_url: APP_BASE_URL,
-    },
-    `Ad rejected email sent to ${params.to}`
-  );
+  return blockUnapprovedEmail('AD_REJECTED', {
+    to: params.to,
+    businessName: params.businessName,
+  });
 }
 
 // sendDormantUserDigestEmail removed — non-mandatory
@@ -377,7 +270,37 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
   );
 }
 
-// sendEventCanceledEmail removed — non-mandatory transactional email
+export async function sendEventCanceledEmail(params: {
+  to: string;
+  recipientName?: string;
+  eventName?: string;
+  eventDate?: string;
+  eventTime?: string;
+  eventLocation?: string;
+  eventId?: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.EVENT_CANCELED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_EVENT_CANCELED_TEMPLATE_ID');
+    return false;
+  }
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `"${params.eventName || 'Event'}" was cancelled`,
+    {
+      ...getCommonTemplateData(),
+      recipient_name: params.recipientName || 'there',
+      event_name: params.eventName || 'Event',
+      event_date: params.eventDate || '',
+      event_time: params.eventTime || '',
+      event_location: params.eventLocation || '',
+      view_event_url: `${APP_BASE_URL}/event/${params.eventId || ''}`,
+    },
+    `Event cancelled email sent to ${params.to}`
+  );
+}
 
 export async function sendEventDeniedEmail(params: any): Promise<boolean> {
   const templateId = TEMPLATE_IDS.EVENT_DENIED;
@@ -418,7 +341,11 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
  * Send verification email with 6-digit code
  * Uses SendGrid dynamic template
  */
-export async function sendVerificationEmail(email: string, token: string, userName?: string): Promise<boolean> {
+export async function sendVerificationEmail(
+  email: string,
+  token: string,
+  userName?: string
+): Promise<boolean> {
   const displayName = userName || 'VarsityHub User';
   const subject = `${token} is your VarsityHub verification code`;
   const templateId = TEMPLATE_IDS.VERIFICATION;
@@ -493,7 +420,8 @@ export async function sendTeamInviteEmail(params: {
   primaryColor?: string;
   inviteToken?: string;
 }): Promise<boolean> {
-  const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'member';
+  const prettyRole =
+    params.role?.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) || 'member';
   const inviterName = params.inviterName || 'VarsityHub Coach';
   const subject = `You've been invited to join ${params.teamName}`;
 
@@ -509,7 +437,9 @@ export async function sendTeamInviteEmail(params: {
       inviterName: inviterName,
       role: prettyRole,
       expiresIn: '7 days',
-      acceptLink: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
+      acceptLink: params.inviteToken
+        ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
+        : `${APP_BASE_URL}/invites`,
       declineLink: `${APP_BASE_URL}/invites`,
       team_hero_url: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
       team_logo_url: params.teamLogoUrl || '',
@@ -546,7 +476,9 @@ async function sendTemplateEmail(
   const service = await getEmailService();
   if (!service || !service.isConfigured()) {
     if (process.env.NODE_ENV === 'production') {
-      const err = new Error(`[email] Email service not configured in production — template email dropped: ${logMessage}`);
+      const err = new Error(
+        `[email] Email service not configured in production — template email dropped: ${logMessage}`
+      );
       console.error(err.message);
       Sentry.captureException(err, { extra: { to, subject, logMessage } });
     } else {
@@ -596,7 +528,8 @@ export async function sendOrganizationInviteEmail(params: {
   primaryColor?: string;
   inviteToken?: string;
 }): Promise<boolean> {
-  const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'Member';
+  const prettyRole =
+    params.role?.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) || 'Member';
 
   return sendTemplateEmail(
     TEMPLATE_IDS.ORG_INVITE,
@@ -609,7 +542,9 @@ export async function sendOrganizationInviteEmail(params: {
       teamName: '',
       role: prettyRole,
       inviterName: params.inviterName || 'VarsityHub Admin',
-      acceptLink: params.inviteToken ? `${APP_BASE_URL}/invites?token=${params.inviteToken}` : `${APP_BASE_URL}/invites`,
+      acceptLink: params.inviteToken
+        ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
+        : `${APP_BASE_URL}/invites`,
       declineLink: `${APP_BASE_URL}/invites`,
       expiresIn: '7 days',
       org_logo_url: params.orgLogoUrl || '',
@@ -626,12 +561,17 @@ export async function sendOrganizationInviteEmail(params: {
 // - sendContentModerationEmail (non-mandatory moderation email)
 
 /**
- * Billing notices (trial ending, payment succeeded/failed, subscription canceled/renewed)
+ * Billing emails are restricted to approved templates only.
  */
 export async function sendBillingNoticeEmail(params: {
   to: string;
   user_name?: string;
-  type: 'trial_ending' | 'payment_succeeded' | 'payment_failed' | 'subscription_canceled' | 'subscription_renewed';
+  type:
+    | 'trial_ending'
+    | 'payment_succeeded'
+    | 'payment_failed'
+    | 'subscription_canceled'
+    | 'subscription_renewed';
   planName?: string;
   amount?: string;
   manageLink?: string;
@@ -639,23 +579,59 @@ export async function sendBillingNoticeEmail(params: {
   orgName?: string;
   perks?: string[];
 }): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.BILLING_NOTICE,
-    params.to,
-    'Billing Update — VarsityHub',
-    {
-      ...getCommonTemplateData(),
-      user_name: params.user_name || '',
-      billing_type: params.type,
-      plan_name: params.planName || 'VarsityHub Subscription',
-      amount: params.amount || '',
-      manage_subscription_url: params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
-      team_name: params.teamName || '',
-      org_name: params.orgName || '',
-      perks: params.perks || [],
-    },
-    `Billing notice sent to ${params.to} (type: ${params.type})`
-  );
+  if (params.type === 'payment_failed') {
+    const templateId = TEMPLATE_IDS.PAYMENT_FAILED;
+    if (!templateId) {
+      console.error('[email] Missing SENDGRID_PAYMENT_FAILED_TEMPLATE_ID');
+      return false;
+    }
+
+    return sendTemplateEmail(
+      templateId,
+      params.to,
+      'Payment Failed — VarsityHub',
+      {
+        ...getCommonTemplateData(),
+        user_name: params.user_name || '',
+        plan_name: params.planName || 'VarsityHub Subscription',
+        amount: params.amount || '',
+        manage_subscription_url:
+          params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
+        team_name: params.teamName || '',
+        org_name: params.orgName || '',
+      },
+      `Payment failed email sent to ${params.to}`
+    );
+  }
+
+  if (params.type === 'trial_ending') {
+    const templateId = TEMPLATE_IDS.SUBSCRIPTION_EXPIRING;
+    if (!templateId) {
+      console.error('[email] Missing SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID');
+      return false;
+    }
+
+    return sendTemplateEmail(
+      templateId,
+      params.to,
+      'Subscription Expiring — VarsityHub',
+      {
+        ...getCommonTemplateData(),
+        user_name: params.user_name || '',
+        plan_name: params.planName || 'VarsityHub Subscription',
+        manage_subscription_url:
+          params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
+        team_name: params.teamName || '',
+        org_name: params.orgName || '',
+      },
+      `Subscription expiring email sent to ${params.to}`
+    );
+  }
+
+  return blockUnapprovedEmail('BILLING_NOTICE', {
+    to: params.to,
+    billingType: params.type,
+  });
 }
 
 /**
@@ -675,9 +651,52 @@ function formatCurrency(cents: number): string {
 // League / Coach Approval Emails (SendGrid templates only)
 // =====================================================
 
+async function sendJoinRequestAdminTemplate(params: {
+  to: string;
+  subject: string;
+  leagueName: string;
+  ownerName: string;
+  ownerEmail: string;
+  sport?: string;
+  orgType?: string;
+  approveUrl?: string;
+  rejectUrl?: string;
+  supportingDocumentUrl?: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.JOIN_REQUEST_ADMIN;
+  if (!templateId) {
+    console.error(
+      '[email] Missing SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID or SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID'
+    );
+    return false;
+  }
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    params.subject,
+    {
+      ...getCommonTemplateData(),
+      league_name: params.leagueName,
+      owner_name: params.ownerName,
+      owner_email: params.ownerEmail,
+      sport: params.sport || 'Not specified',
+      org_type: params.orgType || 'Not specified',
+      created_date: new Date().toLocaleDateString(),
+      approve_url: params.approveUrl || '',
+      reject_url: params.rejectUrl || '',
+      supporting_document_url: params.supportingDocumentUrl || '',
+      supporting_document_link: params.supportingDocumentUrl
+        ? `<a href="${params.supportingDocumentUrl}">View Supporting Document</a>`
+        : '',
+    },
+    `Join request admin email sent to ${params.to}`
+  );
+}
+
 /**
  * Notify super admin that a new league was created and needs approval.
- * Uses SendGrid LEAGUE_PENDING_APPROVAL template.
+ * Uses the approved Join Request Admin template.
  */
 export async function sendLeagueApprovalRequestEmail(params: {
   leagueId: string;
@@ -697,44 +716,70 @@ export async function sendLeagueApprovalRequestEmail(params: {
   const { getAllAdminEmails } = await import('./adminEmails.js');
   const adminEmails = getAllAdminEmails();
 
-  const templateId = TEMPLATE_IDS.LEAGUE_PENDING_APPROVAL;
-  if (!templateId) {
-    console.error('[email] Missing SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID');
-    return false;
-  }
-
   // Send to all admins in parallel
   const results = await Promise.all(
-    adminEmails.map((to) =>
-      sendTemplateEmail(
-        templateId,
+    adminEmails.map(to =>
+      sendJoinRequestAdminTemplate({
         to,
-        `New League Awaiting Approval: ${params.leagueName}`,
-        {
-          ...getCommonTemplateData(),
-          league_name: params.leagueName,
-          owner_name: params.ownerName,
-          owner_email: params.ownerEmail,
-          sport: params.sport || 'Not specified',
-          org_type: params.orgType || 'Not specified',
-          created_date: new Date().toLocaleDateString(),
-          approve_url: approveUrl,
-          reject_url: rejectUrl,
-          supporting_document_url: params.supportingDocumentUrl || '',
-          supporting_document_link: params.supportingDocumentUrl
-            ? `<a href="${params.supportingDocumentUrl}">View Supporting Document</a>`
-            : '',
-        },
-        `League approval request sent to ${to}`
-      )
+        subject: `New League Awaiting Approval: ${params.leagueName}`,
+        leagueName: params.leagueName,
+        ownerName: params.ownerName,
+        ownerEmail: params.ownerEmail,
+        sport: params.sport,
+        orgType: params.orgType,
+        approveUrl,
+        rejectUrl,
+        supportingDocumentUrl: params.supportingDocumentUrl,
+      })
     )
   );
   return results.some(Boolean); // true if at least one email was sent
 }
 
 /**
+ * Notify a league owner that a coach wants to join their organization.
+ * v1.0.2 audit fix: search-mode join requests previously only sent push
+ * notifications. This adds email parity with the create-new-org path.
+ * Reuses LEAGUE_PENDING_APPROVAL template ("Join request admin" in SendGrid).
+ */
+export async function sendCoachJoinRequestEmail(params: {
+  ownerEmail: string;
+  ownerName: string;
+  coachName: string;
+  coachEmail: string;
+  organizationName: string;
+  organizationId: string;
+}): Promise<boolean> {
+  return sendJoinRequestAdminTemplate({
+    to: params.ownerEmail,
+    subject: `New Coach Request: ${params.coachName} wants to join ${params.organizationName}`,
+    leagueName: params.organizationName,
+    ownerName: params.ownerName,
+    ownerEmail: params.coachEmail,
+    sport: 'N/A',
+    orgType: 'Coach join request',
+  });
+}
+
+export async function sendCoachApplicationAdminEmail(params: {
+  to: string;
+  applicantName: string;
+  applicantEmail: string;
+}): Promise<boolean> {
+  return sendJoinRequestAdminTemplate({
+    to: params.to,
+    subject: `New coach application: ${params.applicantName}`,
+    leagueName: 'VarsityHub Coach Application',
+    ownerName: params.applicantName,
+    ownerEmail: params.applicantEmail,
+    sport: 'N/A',
+    orgType: 'Coach application',
+  });
+}
+
+/**
  * Notify league owner that their league has been approved by super admin.
- * Uses SendGrid ORG_APPROVAL template (league = org).
+ * Blocked by policy: no approved organization-approval template exists in the allowed catalog.
  */
 export async function sendLeagueApprovedEmail(params: {
   to: string;
@@ -742,32 +787,15 @@ export async function sendLeagueApprovedEmail(params: {
   leagueName: string;
   note?: string;
 }): Promise<boolean> {
-  const subject = `Your league "${params.leagueName}" is live!`;
-  const templateId = TEMPLATE_IDS.ORG_APPROVAL;
-  if (!templateId) {
-    console.error('[email] Missing SENDGRID_ORG_APPROVAL_TEMPLATE_ID');
-    return false;
-  }
-
-  return sendTemplateEmail(
-    templateId,
-    params.to,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      org_name: params.leagueName,
-      owner_name: params.ownerName,
-      admin_note: params.note || '',
-      dashboard_url: `${APP_BASE_URL}/team-hub`,
-      org_logo_url: '',
-    },
-    `League approved email sent to ${params.to}`
-  );
+  return blockUnapprovedEmail('LEAGUE_APPROVED', {
+    to: params.to,
+    leagueName: params.leagueName,
+  });
 }
 
 /**
  * Notify league owner that their league was rejected by super admin.
- * Uses SendGrid ORG_DENIAL template (league = org).
+ * Blocked by policy: no approved organization-denial template exists in the allowed catalog.
  */
 export async function sendLeagueRejectedEmail(params: {
   to: string;
@@ -775,26 +803,10 @@ export async function sendLeagueRejectedEmail(params: {
   leagueName: string;
   reason?: string;
 }): Promise<boolean> {
-  const subject = `League "${params.leagueName}" — not approved`;
-  const templateId = TEMPLATE_IDS.ORG_DENIAL;
-  if (!templateId) {
-    console.error('[email] Missing SENDGRID_ORG_DENIAL_TEMPLATE_ID');
-    return false;
-  }
-
-  return sendTemplateEmail(
-    templateId,
-    params.to,
-    subject,
-    {
-      ...getCommonTemplateData(),
-      org_name: params.leagueName,
-      owner_name: params.ownerName,
-      reason: params.reason || '',
-      org_logo_url: '',
-    },
-    `League rejected email sent to ${params.to}`
-  );
+  return blockUnapprovedEmail('LEAGUE_REJECTED', {
+    to: params.to,
+    leagueName: params.leagueName,
+  });
 }
 
 /**
@@ -864,8 +876,7 @@ export async function sendCoachRejectedEmail(params: {
 }
 
 /**
- * Notify super admin of league approval/rejection action (internal confirmation).
- * Uses SendGrid ADMIN_ACTION_CONFIRMATION template.
+ * Blocked by policy: no approved internal admin-confirmation template exists in the allowed catalog.
  */
 export async function sendAdminActionConfirmationEmail(params: {
   to: string;
@@ -875,20 +886,11 @@ export async function sendAdminActionConfirmationEmail(params: {
   ownerEmail?: string;
   reason?: string;
 }): Promise<boolean> {
-  return sendTemplateEmail(
-    TEMPLATE_IDS.ADMIN_ACTION_CONFIRMATION,
-    params.to,
-    `League ${params.action === 'league_approved' ? 'Approved' : 'Rejected'}: ${params.leagueName}`,
-    {
-      ...getCommonTemplateData(),
-      action: params.action,
-      league_name: params.leagueName,
-      owner_name: params.ownerName || 'Unknown',
-      owner_email: params.ownerEmail || '',
-      reason: params.reason || '',
-    },
-    `Admin action confirmation sent to ${params.to}`
-  );
+  return blockUnapprovedEmail('ADMIN_ACTION_CONFIRMATION', {
+    to: params.to,
+    action: params.action,
+    leagueName: params.leagueName,
+  });
 }
 
 // Non-mandatory email functions removed:

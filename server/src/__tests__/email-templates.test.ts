@@ -32,14 +32,12 @@ describe('Email template helpers', () => {
     process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID = '';
     process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = '';
     process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID = '';
-    process.env.SENDGRID_BILLING_NOTICE_TEMPLATE_ID = '';
     const { getMissingEmailTemplates } = await import('../lib/email.js');
     const missing = getMissingEmailTemplates();
     expect(missing).toContain('verification');
     expect(missing).toContain('password_reset');
     expect(missing).toContain('team_invite');
     expect(missing).toContain('org_invite');
-    expect(missing).toContain('billing_notice');
   });
 
   it('getMissingEmailTemplates returns empty when all required are set', async () => {
@@ -47,7 +45,6 @@ describe('Email template helpers', () => {
     process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID = 'd-xxx';
     process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = 'd-xxx';
     process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_BILLING_NOTICE_TEMPLATE_ID = 'd-xxx';
     const { getMissingEmailTemplates } = await import('../lib/email.js');
     const missing = getMissingEmailTemplates();
     expect(missing).toHaveLength(0);

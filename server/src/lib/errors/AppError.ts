@@ -1,6 +1,6 @@
 /**
  * Base Application Error Class
- * 
+ *
  * All application errors should extend this class to ensure consistent
  * error handling, logging, and response formatting.
  */
@@ -28,19 +28,19 @@ export class AppError extends Error {
     }
   ) {
     super(publicMessage);
-    
+
     this.statusCode = statusCode;
     this.publicMessage = publicMessage;
     this.errorCode = options?.errorCode;
     this.privateMessage = options?.privateMessage;
     this.metadata = options?.metadata;
     this.isOperational = options?.isOperational ?? true;
-    
+
     // Maintains proper stack trace for where error was thrown (V8 only)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, this.constructor);
     }
-    
+
     this.name = this.constructor.name;
   }
 
@@ -49,14 +49,20 @@ export class AppError extends Error {
    */
   toJSON(): {
     error: string;
+    code?: string;
+    details?: ErrorMetadata;
     errorCode?: string;
     message?: string;
     metadata?: ErrorMetadata;
   } {
     return {
       error: this.publicMessage,
-      ...(this.errorCode && { errorCode: this.errorCode }),
-      ...(this.metadata && Object.keys(this.metadata).length > 0 && { metadata: this.metadata }),
+      ...(this.errorCode && { code: this.errorCode, errorCode: this.errorCode }),
+      ...(this.metadata &&
+        Object.keys(this.metadata).length > 0 && {
+          details: this.metadata,
+          metadata: this.metadata,
+        }),
     };
   }
 

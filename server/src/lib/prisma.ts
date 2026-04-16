@@ -6,29 +6,31 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Runtime diagnostic: mask password in DATABASE_URL and log connection pool settings
 (() => {
-	const raw = process.env.DATABASE_URL;
-	if (raw) {
-		const masked = raw.replace(/(postgresql:\/\/[^:]+):[^@]*@/, '$1:***@');
-		const preview = masked.length > 140 ? masked.slice(0, 140) + '…' : masked;
-		debugLog('[env] DATABASE_URL (masked preview):', preview);
+  const raw = process.env.DATABASE_URL;
+  if (raw) {
+    const masked = raw.replace(/(postgresql:\/\/[^:]+):[^@]*@/, '$1:***@');
+    const preview = masked.length > 140 ? masked.slice(0, 140) + '…' : masked;
+    debugLog('[env] DATABASE_URL (masked preview):', preview);
 
-		// Parse and log connection pool settings
-		try {
-			const url = new URL(raw);
-			const connectionLimit = url.searchParams.get('connection_limit');
-			const poolTimeout = url.searchParams.get('pool_timeout');
-			if (connectionLimit || poolTimeout) {
-				debugLog(`[prisma] Connection pool: limit=${connectionLimit || 'default'}, timeout=${poolTimeout || 'default'}s`);
-			} else {
-				debugLog('[prisma] ⚠️ No connection pool configured. For production, add to DATABASE_URL:');
-				debugLog('[prisma]    ?connection_limit=20&pool_timeout=10');
-			}
-		} catch {
-			// URL parsing failed, skip pool logging
-		}
-	} else {
-		debugLog('[env] DATABASE_URL is not set (prisma init)');
-	}
+    // Parse and log connection pool settings
+    try {
+      const url = new URL(raw);
+      const connectionLimit = url.searchParams.get('connection_limit');
+      const poolTimeout = url.searchParams.get('pool_timeout');
+      if (connectionLimit || poolTimeout) {
+        debugLog(
+          `[prisma] Connection pool: limit=${connectionLimit || 'default'}, timeout=${poolTimeout || 'default'}s`
+        );
+      } else {
+        debugLog('[prisma] ⚠️ No connection pool configured. For production, add to DATABASE_URL:');
+        debugLog('[prisma]    ?connection_limit=20&pool_timeout=10');
+      }
+    } catch {
+      // URL parsing failed, skip pool logging
+    }
+  } else {
+    debugLog('[env] DATABASE_URL is not set (prisma init)');
+  }
 })();
 
 /**
@@ -41,45 +43,105 @@ const isProduction = process.env.NODE_ENV === 'production';
  * Example: postgresql://user:pass@host/db?connection_limit=20&pool_timeout=10
  */
 export const prisma = new PrismaClient({
-	log: isProduction
-		? ['error']
-		: ['query', 'error', 'warn'],
+  log: isProduction ? ['error'] : ['query', 'error', 'warn'],
 });
 
 const getTrimmed = (value: unknown): string | null => {
-	if (typeof value !== 'string') return null;
-	return value.trim();
+  if (typeof value !== 'string') return null;
+  return value.trim();
+};
+
+const POST_SOFT_DELETE_READ_ACTIONS = new Set([
+  'findUnique',
+  'findUniqueOrThrow',
+  'findFirst',
+  'findFirstOrThrow',
+  'findMany',
+  'count',
+  'aggregate',
+  'groupBy',
+]);
+
+const hasDeletedAtFilter = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some(hasDeletedAtFilter);
+
+  const record = value as Record<string, unknown>;
+  if (Object.prototype.hasOwnProperty.call(record, 'deleted_at')) return true;
+  return Object.values(record).some(hasDeletedAtFilter);
+};
+
+const applyPostSoftDeleteScope = (params: any) => {
+  if (params.model !== 'Post' || !POST_SOFT_DELETE_READ_ACTIONS.has(params.action)) {
+    return params;
+  }
+
+  const args = params.args ?? {};
+  const where = args.where;
+  if (hasDeletedAtFilter(where)) {
+    return params;
+  }
+
+  if (params.action === 'findUnique') {
+    params.action = 'findFirst';
+  }
+  if (params.action === 'findUniqueOrThrow') {
+    params.action = 'findFirstOrThrow';
+  }
+
+  params.args = {
+    ...args,
+    where: where ? { ...where, deleted_at: null } : { deleted_at: null },
+  };
+
+  return params;
 };
 
 const validateNonEmpty = (value: unknown, label: string) => {
-	const trimmed = getTrimmed(value);
-	if (trimmed !== null && trimmed.length === 0) {
-		throw new Error(`${label} is required`);
-	}
+  const trimmed = getTrimmed(value);
+  if (trimmed !== null && trimmed.length === 0) {
+    throw new Error(`${label} is required`);
+  }
 };
 
 prisma.$use(async (params, next) => {
-	if (params.model === 'Team') {
-		const data = params.args?.data ?? {};
-		if (params.action === 'create' || params.action === 'update' || params.action === 'updateMany') {
-			const name = (data as any).name ?? (data as any)?.name?.set;
-			validateNonEmpty(name, 'Team name');
-		}
-		if (params.action === 'upsert') {
-			validateNonEmpty((data as any)?.create?.name, 'Team name');
-			validateNonEmpty((data as any)?.update?.name ?? (data as any)?.update?.name?.set, 'Team name');
-		}
-	}
-	if (params.model === 'Event') {
-		const data = params.args?.data ?? {};
-		if (params.action === 'create' || params.action === 'update' || params.action === 'updateMany') {
-			const title = (data as any).title ?? (data as any)?.title?.set;
-			validateNonEmpty(title, 'Event title');
-		}
-		if (params.action === 'upsert') {
-			validateNonEmpty((data as any)?.create?.title, 'Event title');
-			validateNonEmpty((data as any)?.update?.title ?? (data as any)?.update?.title?.set, 'Event title');
-		}
-	}
-	return next(params);
+  applyPostSoftDeleteScope(params);
+
+  if (params.model === 'Team') {
+    const data = params.args?.data ?? {};
+    if (
+      params.action === 'create' ||
+      params.action === 'update' ||
+      params.action === 'updateMany'
+    ) {
+      const name = (data as any).name ?? (data as any)?.name?.set;
+      validateNonEmpty(name, 'Team name');
+    }
+    if (params.action === 'upsert') {
+      validateNonEmpty((data as any)?.create?.name, 'Team name');
+      validateNonEmpty(
+        (data as any)?.update?.name ?? (data as any)?.update?.name?.set,
+        'Team name'
+      );
+    }
+  }
+  if (params.model === 'Event') {
+    const data = params.args?.data ?? {};
+    if (
+      params.action === 'create' ||
+      params.action === 'update' ||
+      params.action === 'updateMany'
+    ) {
+      const title = (data as any).title ?? (data as any)?.title?.set;
+      validateNonEmpty(title, 'Event title');
+    }
+    if (params.action === 'upsert') {
+      validateNonEmpty((data as any)?.create?.title, 'Event title');
+      validateNonEmpty(
+        (data as any)?.update?.title ?? (data as any)?.update?.title?.set,
+        'Event title'
+      );
+    }
+  }
+  return next(params);
 });

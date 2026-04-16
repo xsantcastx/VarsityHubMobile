@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendAbuseReportEmail } from '../lib/email.js';
+import { sendError } from '../lib/http/sendError.js';
 import { prisma } from '../lib/prisma.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { supportLimiter } from '../middleware/rateLimiters.js';
@@ -22,61 +24,98 @@ const feedbackSchema = z.object({
 export const supportRouter = Router();
 
 // POST /support/contact
-supportRouter.post('/contact', supportLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const parsed = contactSchema.safeParse(req.body || {});
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-    const { name, email, subject, message } = parsed.data;
+supportRouter.post(
+  '/contact',
+  supportLimiter,
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) {
+        return sendError(res, 401, 'UNAUTHORIZED', {
+          message: 'Unauthorized',
+        });
+      }
+      const parsed = contactSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return sendError(res, 400, 'INVALID_PAYLOAD', {
+          message: 'Invalid payload',
+          details: parsed.error.issues,
+        });
+      }
+      const { name, email, subject, message } = parsed.data;
 
-    // Log the report
-    req.log?.info?.({ type: 'support_contact', user_id: req.user.id, name, email, subject }, 'Support contact submit');
+      // Log the report
+      req.log?.info?.(
+        { type: 'support_contact', user_id: req.user.id, name, email, subject },
+        'Support contact submit'
+      );
 
-    // Save to database for admin review
-    const report = await prisma.abuseReport.create({
-      data: {
-        reporter_id: req.user.id,
-        reporter_name: name,
-        reporter_email: email,
-        subject,
-        message,
-        status: 'pending',
-      },
-    });
+      // Save to database for admin review
+      const report = await prisma.abuseReport.create({
+        data: {
+          reporter_id: req.user.id,
+          reporter_name: name,
+          reporter_email: email,
+          subject,
+          message,
+          status: 'pending',
+        },
+      });
 
-    // Send email notification to customer service (async, don't block response)
-    sendAbuseReportEmail({
-      to: process.env.SUPPORT_EMAIL || 'support@varsityhub.app',
-      reporterName: name,
-      reporterEmail: email,
-      reportedContentType: 'support_contact',
-      reportedContentId: report.id,
-      reportReason: subject,
-      reportDetails: message,
-    }).catch(err => {
-      console.error('Failed to send abuse report email:', err);
-    });
+      // Send email notification to customer service (async, don't block response)
+      sendAbuseReportEmail({
+        to: process.env.SUPPORT_EMAIL || 'support@varsityhub.app',
+        reporterName: name,
+        reporterEmail: email,
+        reportedContentType: 'support_contact',
+        reportedContentId: report.id,
+        reportReason: subject,
+        reportDetails: message,
+      }).catch(err => {
+        console.error('Failed to send abuse report email:', err);
+      });
 
-    return res.json({ ok: true, reportId: report.id });
-  } catch (err) {
-    console.error('[support] POST /contact error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+      return res.json({ ok: true, reportId: report.id });
+    } catch (err) {
+      console.error('[support] POST /contact error:', err);
+      return sendError(res, 500, 'SUPPORT_CONTACT_FAILED', {
+        message: 'Internal server error',
+      });
+    }
+  })
+);
 
 // POST /support/feedback
-supportRouter.post('/feedback', supportLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const parsed = feedbackSchema.safeParse(req.body || {});
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-    const { category, message, screenshot_url } = parsed.data;
-    const uid = req.user.id;
-    req.log?.info?.({ type: 'support_feedback', user_id: uid, category, screenshot_url }, 'Feedback submit');
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error('[support] POST /feedback error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
+supportRouter.post(
+  '/feedback',
+  supportLimiter,
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) {
+        return sendError(res, 401, 'UNAUTHORIZED', {
+          message: 'Unauthorized',
+        });
+      }
+      const parsed = feedbackSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return sendError(res, 400, 'INVALID_PAYLOAD', {
+          message: 'Invalid payload',
+          details: parsed.error.issues,
+        });
+      }
+      const { category, message, screenshot_url } = parsed.data;
+      const uid = req.user.id;
+      req.log?.info?.(
+        { type: 'support_feedback', user_id: uid, category, screenshot_url },
+        'Feedback submit'
+      );
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error('[support] POST /feedback error:', err);
+      return sendError(res, 500, 'SUPPORT_FEEDBACK_FAILED', {
+        message: 'Internal server error',
+      });
+    }
+  })
+);

@@ -1,17 +1,32 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth from './auth';
-import { httpDelete, httpGet, httpPatch, httpPost, httpPostLongTimeout, httpPostWithOptions, httpPut } from './http';
+import {
+  httpDelete,
+  httpGet,
+  httpPatch,
+  httpPost,
+  httpPostLongTimeout,
+  httpPostWithOptions,
+  httpPut,
+} from './http';
 import type {
-  UpdateMePayload, UpdatePreferencesPayload, CompleteOnboardingPayload,
-  CreateGamePayload, UpdateGamePayload,
-  CreatePostPayload, UpdatePostPayload,
-  CreateEventPayload, UpdateEventPayload,
-  CreateAdPayload, UpdateAdPayload,
+  UpdateMePayload,
+  UpdatePreferencesPayload,
+  CompleteOnboardingPayload,
+  CreateGamePayload,
+  UpdateGamePayload,
+  CreatePostPayload,
+  UpdatePostPayload,
+  CreateEventPayload,
+  UpdateEventPayload,
+  CreateAdPayload,
+  UpdateAdPayload,
 } from './types';
 
 export const User = {
   me: () => auth.me(),
-  register: (email: string, password: string, display_name?: string) => auth.register(email, password, display_name),
+  register: (email: string, password: string, display_name?: string) =>
+    auth.register(email, password, display_name),
   loginViaEmailPassword: (email: string, password: string) => auth.login(email, password),
   loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
   loginViaApple: (identityToken: string) => auth.loginWithApple(identityToken),
@@ -19,10 +34,12 @@ export const User = {
   updateMe: (data: UpdateMePayload) => httpPut('/auth/me', data),
   patchMe: (data: UpdateMePayload) => httpPatch('/me', data),
   updatePreferences: (patch: UpdatePreferencesPayload) => httpPatch('/me/preferences', patch),
-  completeOnboarding: (data: CompleteOnboardingPayload) => httpPost('/me/complete-onboarding', data),
+  completeOnboarding: (data: CompleteOnboardingPayload) =>
+    httpPost('/me/complete-onboarding', data),
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),
-  usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),
+  usernameAvailable: (username: string) =>
+    httpGet('/users/username-available?username=' + encodeURIComponent(username)),
   lookupByEmail: (email: string) => httpGet('/users/lookup?email=' + encodeURIComponent(email)),
   listAll: async (q?: string, limit: number = 100, banned?: boolean) => {
     try {
@@ -40,15 +57,57 @@ export const User = {
       throw error;
     }
   },
-  ban: (id: string, reason?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID'); return httpPost('/admin/users/' + encodeURIComponent(id) + '/ban', { reason: reason || undefined }); },
-  unban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unban] Invalid user ID'); return httpPost('/admin/users/' + encodeURIComponent(id) + '/unban', {}); },
-  getFull: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getFull] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id) + '/full'); },
-  followers: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.followers] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
-  following: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.following] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
-  follow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.follow] Invalid user ID'); return httpPost(`/users/${encodeURIComponent(id)}/follow`, {}); },
-  unfollow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unfollow] Invalid user ID'); return httpDelete(`/users/${encodeURIComponent(id)}/follow`); },
-  postsForProfile: (id: string, opts: { cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
-    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.postsForProfile] Invalid user ID');
+  ban: (id: string, reason?: string) => {
+    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID');
+    return httpPost('/admin/users/' + encodeURIComponent(id) + '/ban', {
+      reason: reason || undefined,
+    });
+  },
+  unban: (id: string) => {
+    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unban] Invalid user ID');
+    return httpPost('/admin/users/' + encodeURIComponent(id) + '/unban', {});
+  },
+  getFull: (id: string) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.getFull] Invalid user ID');
+    return httpGet('/users/' + encodeURIComponent(id) + '/full');
+  },
+  followers: (id: string, cursor?: string) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.followers] Invalid user ID');
+    return httpGet(
+      `/users/${encodeURIComponent(id)}/followers` +
+        (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')
+    );
+  },
+  following: (id: string, cursor?: string) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.following] Invalid user ID');
+    return httpGet(
+      `/users/${encodeURIComponent(id)}/following` +
+        (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')
+    );
+  },
+  follow: (id: string) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.follow] Invalid user ID');
+    return httpPost(`/users/${encodeURIComponent(id)}/follow`, {});
+  },
+  unfollow: (id: string) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.unfollow] Invalid user ID');
+    return httpDelete(`/users/${encodeURIComponent(id)}/follow`);
+  },
+  postsForProfile: (
+    id: string,
+    opts: {
+      cursor?: string | null;
+      limit?: number;
+      sort?: 'newest' | 'most_upvoted' | 'most_commented';
+    } = {}
+  ) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.postsForProfile] Invalid user ID');
     const q: string[] = [];
     if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
     if (opts.cursor) q.push('cursor=' + encodeURIComponent(opts.cursor));
@@ -56,8 +115,17 @@ export const User = {
     const qs = q.length ? '?' + q.join('&') : '';
     return httpGet(`/users/${encodeURIComponent(id)}/posts` + qs);
   },
-  interactionsForProfile: (id: string, opts: { type?: 'all' | 'like' | 'comment' | 'repost' | 'save'; cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
-    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.interactionsForProfile] Invalid user ID');
+  interactionsForProfile: (
+    id: string,
+    opts: {
+      type?: 'all' | 'like' | 'comment' | 'repost' | 'save';
+      cursor?: string | null;
+      limit?: number;
+      sort?: 'newest' | 'most_upvoted' | 'most_commented';
+    } = {}
+  ) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.interactionsForProfile] Invalid user ID');
     const q: string[] = [];
     if (opts.type) q.push('type=' + encodeURIComponent(opts.type));
     if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
@@ -68,27 +136,37 @@ export const User = {
   },
   // Password reset helpers (delegates to auth)
   requestPasswordReset: (email: string) => auth.requestPasswordReset(email),
-  resetPassword: (email: string, code: string, password: string) => auth.resetPassword(email, code, password),
+  resetPassword: (email: string, code: string, password: string) =>
+    auth.resetPassword(email, code, password),
   // Public profile fetch
-  getPublic: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getPublic] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id)); },
+  getPublic: (id: string) => {
+    if (!id || id === 'undefined' || id === 'null')
+      throw new Error('[User.getPublic] Invalid user ID');
+    return httpGet('/users/' + encodeURIComponent(id));
+  },
   teams: (id: string) => httpGet('/users/' + encodeURIComponent(id) + '/teams'),
   // Search users for mentions
-  searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
+  searchForMentions: (query: string, limit: number = 10) =>
+    httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
   // Lookup user by username
-  lookupByUsername: (username: string) => httpGet('/users/lookup?username=' + encodeURIComponent(username)),
+  lookupByUsername: (username: string) =>
+    httpGet('/users/lookup?username=' + encodeURIComponent(username)),
   // Block/unblock users
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
   // GDPR/CCPA data portability - export all user data as JSON (longer timeout for large exports)
   exportMyData: () => httpGet('/users/me/export', {}, 60000),
-  upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') => httpPost('/auth/upgrade-to-coach', { plan }),
+  upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') =>
+    httpPost('/auth/upgrade-to-coach', { plan }),
   // v1.0.2: rejected coaches can re-apply after 48hr cooldown
   reapplyCoach: () => httpPost('/auth/coach/reapply', {}),
   deleteAccount: (payload?: { password?: string; delete_confirmation?: string }) =>
     httpDelete('/users/me', payload || {}),
-  acceptFollow: (userId: string) => httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
-  rejectFollow: (userId: string) => httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
+  acceptFollow: (userId: string) =>
+    httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
+  rejectFollow: (userId: string) =>
+    httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
 };
 
 export const Game = {
@@ -111,13 +189,18 @@ export const Game = {
     const params: string[] = [];
     if (sort) params.push(`sort=${encodeURIComponent(sort)}`);
     if (options?.cursor) params.push(`cursor=${encodeURIComponent(options.cursor)}`);
-    if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
-    if (typeof options?.lat === 'number') params.push(`lat=${encodeURIComponent(String(options.lat))}`);
-    if (typeof options?.lng === 'number') params.push(`lng=${encodeURIComponent(String(options.lng))}`);
-    if (typeof options?.distance === 'number') params.push(`distance=${encodeURIComponent(String(options.distance))}`);
+    if (typeof options?.limit === 'number')
+      params.push(`limit=${encodeURIComponent(String(options.limit))}`);
+    if (typeof options?.lat === 'number')
+      params.push(`lat=${encodeURIComponent(String(options.lat))}`);
+    if (typeof options?.lng === 'number')
+      params.push(`lng=${encodeURIComponent(String(options.lng))}`);
+    if (typeof options?.distance === 'number')
+      params.push(`distance=${encodeURIComponent(String(options.distance))}`);
     if (options?.dateFrom) params.push(`from=${encodeURIComponent(options.dateFrom)}`);
     if (options?.dateTo) params.push(`to=${encodeURIComponent(options.dateTo)}`);
-    if (options?.approvalStatus) params.push(`approval_status=${encodeURIComponent(options.approvalStatus)}`);
+    if (options?.approvalStatus)
+      params.push(`approval_status=${encodeURIComponent(options.approvalStatus)}`);
     if (options?.showPending) params.push('show_pending=true');
     if (options?.teamId) params.push(`team_id=${encodeURIComponent(options.teamId)}`);
     if (options?.mapView) params.push('map_view=true');
@@ -135,7 +218,8 @@ export const Game = {
   delete: (id: string) => httpDelete('/games/' + encodeURIComponent(id)),
   posts: (id: string, options: { limit?: number; cursor?: string } = {}) => {
     const q: string[] = [];
-    if (typeof options.limit === 'number') q.push('limit=' + encodeURIComponent(String(options.limit)));
+    if (typeof options.limit === 'number')
+      q.push('limit=' + encodeURIComponent(String(options.limit)));
     if (options.cursor) q.push('cursor=' + encodeURIComponent(options.cursor));
     const qs = q.length ? '?' + q.join('&') : '';
     return httpGet(`/games/${encodeURIComponent(id)}/posts` + qs);
@@ -146,45 +230,57 @@ export const Game = {
     const q = opts?.include_expired ? '?include_expired=1' : '';
     return httpGet(`/games/${encodeURIComponent(id)}/media` + q, {}, 15000, 1);
   },
-  deleteMedia: (gameId: string, mediaId: string) => httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
+  deleteMedia: (gameId: string, mediaId: string) =>
+    httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
   votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
   votesSummaryBatch: (ids: string[]) => {
     if (ids.length === 0) return Promise.resolve({});
-    const qs = '?ids=' + ids.map((id) => encodeURIComponent(id)).join(',');
+    const qs = '?ids=' + ids.map(id => encodeURIComponent(id)).join(',');
     return httpGet('/games/votes-summary' + qs);
   },
-  castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
+  castVote: (id: string, team: 'A' | 'B') =>
+    httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
   clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
-  update: (id: string, data: UpdateGamePayload) => httpPut('/games/' + encodeURIComponent(id), data),
-  setResult: (id: string, data: { home_score?: number; away_score?: number; winner?: 'home' | 'away' | 'tie' | null }) =>
-    httpPatch(`/games/${encodeURIComponent(id)}/result`, data),
+  update: (id: string, data: UpdateGamePayload) =>
+    httpPut('/games/' + encodeURIComponent(id), data),
+  setResult: (
+    id: string,
+    data: { home_score?: number; away_score?: number; winner?: 'home' | 'away' | 'tie' | null }
+  ) => httpPatch(`/games/${encodeURIComponent(id)}/result`, data),
   setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
     httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`, {}, 15000, 1),
   // Story creation can be slower under server load; allow a longer timeout but avoid retries to prevent duplicates.
-  addStory: (id: string, data: { media_url: string; caption?: string; location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' } }) =>
-    httpPostWithOptions(`/games/${encodeURIComponent(id)}/stories`, data, 45000, 0),
+  addStory: (
+    id: string,
+    data: {
+      media_url: string;
+      caption?: string;
+      location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' };
+    }
+  ) => httpPostWithOptions(`/games/${encodeURIComponent(id)}/stories`, data, 45000, 0),
 };
 
-
-const normalizePostItems = (input: any) => {
-  if (Array.isArray(input)) return input;
-  if (input && Array.isArray(input.items)) return input.items;
-  return [] as any[];
+export type PostPage<T = any> = {
+  items: T[];
+  nextCursor: string | null;
+  followed_feed_meta?: { following_count: number };
+  followed_teams_feed_meta?: { followed_teams_count: number };
 };
 
-const normalizePostPage = (input: any) => {
-  if (!input) return { items: [] as any[], nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined };
-  if (Array.isArray(input)) return { items: input, nextCursor: null, followed_feed_meta: undefined, followed_teams_feed_meta: undefined };
+const parsePostPage = (input: unknown): PostPage => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('[Post] Invalid paginated response shape');
+  }
+
+  const response = input as Record<string, any>;
   return {
-    items: Array.isArray(input.items) ? input.items : [],
-    nextCursor: typeof input.nextCursor === 'string' ? input.nextCursor : null,
-    followed_feed_meta: input.followed_feed_meta ?? undefined,
-    followed_teams_feed_meta: input.followed_teams_feed_meta ?? undefined,
+    items: Array.isArray(response.items) ? response.items : [],
+    nextCursor: typeof response.nextCursor === 'string' ? response.nextCursor : null,
+    followed_feed_meta: response.followed_feed_meta ?? undefined,
+    followed_teams_feed_meta: response.followed_teams_feed_meta ?? undefined,
   };
 };
-
-
 
 export const Post = {
   list: async (sort?: string, limit: number = 20) => {
@@ -193,10 +289,14 @@ export const Post = {
     if (limit) q.push('limit=' + String(limit));
     // Non-critical content; avoid long retry storms on weak networks.
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 15000, 1);
-    return normalizePostItems(res);
+    return parsePostPage(res).items;
   },
   create: (data: CreatePostPayload) => httpPostLongTimeout('/posts', data),
-  filter: async (where: { game_id?: string; type?: string; user_id?: string } = {}, sort?: string, limit: number = 20) => {
+  filter: async (
+    where: { game_id?: string; type?: string; user_id?: string } = {},
+    sort?: string,
+    limit: number = 20
+  ) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
@@ -204,7 +304,7 @@ export const Post = {
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
-    return normalizePostItems(res);
+    return parsePostPage(res).items;
   },
   count: (where: { game_id?: string; type?: string } = {}) => {
     const q: string[] = [];
@@ -218,9 +318,20 @@ export const Post = {
     if (limit) q.push('limit=' + String(limit));
     if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
-    return normalizePostPage(res);
+    return parsePostPage(res);
   },
-  filterPage: async (where: { game_id?: string; type?: string; user_id?: string; followed_only?: boolean; followed_teams?: boolean } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
+  filterPage: async (
+    where: {
+      game_id?: string;
+      type?: string;
+      user_id?: string;
+      followed_only?: boolean;
+      followed_teams?: boolean;
+    } = {},
+    cursor?: string | null,
+    limit: number = 20,
+    sort: string = '-created_date'
+  ) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
@@ -231,9 +342,12 @@ export const Post = {
     if (where.followed_only) q.push('followed_only=true');
     if (where.followed_teams) q.push('followed_teams=true');
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
-    return normalizePostPage(res);
+    return parsePostPage(res);
   },
-  feedForGame: async (gameId: string, options: { cursor?: string | null; limit?: number; sort?: string } = {}) => {
+  feedForGame: async (
+    gameId: string,
+    options: { cursor?: string | null; limit?: number; sort?: string } = {}
+  ) => {
     const q: string[] = [];
     q.push('game_id=' + encodeURIComponent(gameId));
     const sortValue = options.sort || 'trending';
@@ -242,7 +356,7 @@ export const Post = {
     if (limitValue) q.push('limit=' + String(limitValue));
     if (options.cursor) q.push('cursor=' + encodeURIComponent(options.cursor));
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 15000, 1);
-    return normalizePostPage(res);
+    return parsePostPage(res);
   },
   // Additional helpers used in UI
   trendingPage: async (cursor?: string | null, limit: number = 20) => {
@@ -250,9 +364,14 @@ export const Post = {
       const q: string[] = [];
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));
-      const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''), {}, 12000, 0);
+      const res = await httpGet(
+        '/posts/trending' + (q.length ? '?' + q.join('&') : ''),
+        {},
+        12000,
+        0
+      );
       // normalize to page shape
-      return normalizePostPage(res);
+      return parsePostPage(res);
     } catch (error: any) {
       // Only fall back when trending is absent (404/410). Other errors should surface
       // so we do not silently show chronological feed as if it were trending.
@@ -260,14 +379,15 @@ export const Post = {
       if (status !== 404 && status !== 410) {
         throw error;
       }
-      if (__DEV__) console.log('[Post.trendingPage] Trending route missing, falling back to recent posts');
+      if (__DEV__)
+        console.log('[Post.trendingPage] Trending route missing, falling back to recent posts');
       const q: string[] = [];
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));
       q.push('sort=-created_at'); // Sort by most recent
       try {
         const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 12000, 0);
-        return normalizePostPage(res);
+        return parsePostPage(res);
       } catch (_fallbackError) {
         return { items: [], nextCursor: null };
       }
@@ -277,26 +397,48 @@ export const Post = {
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
   comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
   addComment: (id: string, content: string, parentId?: string) =>
-    httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content, ...(parentId ? { parent_id: parentId } : {}) }),
-  deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
-  updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
+    httpPost(`/posts/${encodeURIComponent(id)}/comments`, {
+      content,
+      ...(parentId ? { parent_id: parentId } : {}),
+    }),
+  deleteComment: (postId: string, commentId: string) =>
+    httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
+  updateComment: (postId: string, commentId: string, content: string) =>
+    httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, {
+      content,
+    }),
   delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
   restore: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/restore`, {}),
-  update: (id: string, data: UpdatePostPayload) => httpPatch('/posts/' + encodeURIComponent(id), data),
+  update: (id: string, data: UpdatePostPayload) =>
+    httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
   share: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/share`, {}),
-  getByEvent: (eventId: string) => httpGet(`/posts?event_id=${encodeURIComponent(eventId)}`),
-  createPoll: (id: string, data: { options: string[], expires_at?: string }) => httpPost(`/posts/${encodeURIComponent(id)}/poll`, data),
-  voteOnPoll: (id: string, optionId: string) => httpPost(`/posts/${encodeURIComponent(id)}/poll/vote`, { option_id: optionId }),
+  getByEvent: async (eventId: string) =>
+    parsePostPage(await httpGet(`/posts?event_id=${encodeURIComponent(eventId)}`)),
+  createPoll: (id: string, data: { options: string[]; expires_at?: string }) =>
+    httpPost(`/posts/${encodeURIComponent(id)}/poll`, data),
+  voteOnPoll: (id: string, optionId: string) =>
+    httpPost(`/posts/${encodeURIComponent(id)}/poll/vote`, { option_id: optionId }),
 };
 
 export const Event = {
   create: (data: CreateEventPayload) => httpPost('/events', data),
-  filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string; include_cancelled?: boolean } = {}, sort?: string, limit?: number) => {
+  filter: (
+    where: {
+      status?: string;
+      approval_status?: string;
+      event_type?: string;
+      q?: string;
+      include_cancelled?: boolean;
+    } = {},
+    sort?: string,
+    limit?: number
+  ) => {
     const q: string[] = [];
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
-    if (where.approval_status) q.push('approval_status=' + encodeURIComponent(where.approval_status));
+    if (where.approval_status)
+      q.push('approval_status=' + encodeURIComponent(where.approval_status));
     if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
     if (where.include_cancelled) q.push('include_cancelled=true');
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
@@ -305,10 +447,12 @@ export const Event = {
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
-  update: (id: string, data: UpdateEventPayload) => httpPatch('/events/' + encodeURIComponent(id), data),
+  update: (id: string, data: UpdateEventPayload) =>
+    httpPatch('/events/' + encodeURIComponent(id), data),
   cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
-  rsvp: (id: string, going?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
+  rsvp: (id: string, going?: boolean) =>
+    httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
   myRsvps: () => httpGet('/events/my-rsvps'),
 };
 
@@ -318,7 +462,7 @@ export const Message = {
     const options = {
       headers: {
         'Cache-Control': 'no-store',
-        'Pragma': 'no-cache',
+        Pragma: 'no-cache',
         'If-None-Match': '',
       },
     };
@@ -329,22 +473,36 @@ export const Message = {
     const options = {
       headers: {
         'Cache-Control': 'no-store',
-        'Pragma': 'no-cache',
+        Pragma: 'no-cache',
         'If-None-Match': '',
       },
     };
     return httpGet('/messages?sort=' + encodeURIComponent(sort), options);
   },
   threadByConversation: (conversationId: string, limit: number = 100) => {
-    const q = [`conversation_id=${encodeURIComponent(conversationId)}`, `sort=${encodeURIComponent('-created_at')}`, `limit=${limit}`];
+    const q = [
+      `conversation_id=${encodeURIComponent(conversationId)}`,
+      `sort=${encodeURIComponent('-created_at')}`,
+      `limit=${limit}`,
+    ];
     return httpGet('/messages?' + q.join('&'));
   },
   threadWith: (email: string, limit: number = 100) => {
-    const q = [`with=${encodeURIComponent(email)}`, `sort=${encodeURIComponent('-created_at')}`, `limit=${limit}`];
+    const q = [
+      `with=${encodeURIComponent(email)}`,
+      `sort=${encodeURIComponent('-created_at')}`,
+      `limit=${limit}`,
+    ];
     return httpGet('/messages?' + q.join('&'));
   },
-  send: (data: { content: string; conversation_id?: string; recipient_id?: string; recipient_email?: string }) => httpPost('/messages', data),
-  markReadByConversation: (conversationId: string) => httpPost('/messages/mark-read', { conversation_id: conversationId }),
+  send: (data: {
+    content: string;
+    conversation_id?: string;
+    recipient_id?: string;
+    recipient_email?: string;
+  }) => httpPost('/messages', data),
+  markReadByConversation: (conversationId: string) =>
+    httpPost('/messages/mark-read', { conversation_id: conversationId }),
   markReadWith: (email: string) => httpPost('/messages/mark-read', { with: email }),
   unreadCount: () => httpGet('/messages/unread-count'),
 };
@@ -378,10 +536,13 @@ export const Organization = {
     longitude?: number;
   }) => httpPost('/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
-  invite: (organizationId: string, email: string, role?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
+  invite: (organizationId: string, email: string, role?: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
   myInvites: () => httpGet('/organizations/invites/me'),
-  acceptInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),
-  declineInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  acceptInvite: (inviteId: string) =>
+    httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),
+  declineInvite: (inviteId: string) =>
+    httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   // Organization join requests (coach/admin workflows)
   requestToJoin: (organizationId: string, message?: string, role?: string) =>
     httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, role }),
@@ -391,14 +552,28 @@ export const Organization = {
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet(`/organizations/${encodeURIComponent(organizationId)}/join-requests` + qs);
   },
-  approveJoinRequest: (requestId: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
-  rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/deny`, { reason }),
-  update: (id: string, data: Record<string, any>) => httpPatch(`/organizations/${encodeURIComponent(id)}`, data),
-  pendingCoaches: (organizationId: string) => httpGet(`/organizations/${encodeURIComponent(organizationId)}/pending-coaches`),
-  approveCoach: (organizationId: string, userId: string, note?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`, { note }),
-  rejectCoach: (organizationId: string, userId: string, reason?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`, { reason }),
-  approveLeague: (organizationId: string, note?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/approve`, { note }),
-  rejectLeague: (organizationId: string, reason?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/reject`, { reason }),
+  approveJoinRequest: (requestId: string) =>
+    httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
+  rejectJoinRequest: (requestId: string, reason?: string) =>
+    httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/deny`, { reason }),
+  update: (id: string, data: Record<string, any>) =>
+    httpPatch(`/organizations/${encodeURIComponent(id)}`, data),
+  pendingCoaches: (organizationId: string) =>
+    httpGet(`/organizations/${encodeURIComponent(organizationId)}/pending-coaches`),
+  approveCoach: (organizationId: string, userId: string, note?: string) =>
+    httpPost(
+      `/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/approve`,
+      { note }
+    ),
+  rejectCoach: (organizationId: string, userId: string, reason?: string) =>
+    httpPost(
+      `/organizations/${encodeURIComponent(organizationId)}/coaches/${encodeURIComponent(userId)}/reject`,
+      { reason }
+    ),
+  approveLeague: (organizationId: string, note?: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/approve`, { note }),
+  rejectLeague: (organizationId: string, reason?: string) =>
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/reject`, { reason }),
 };
 
 export const Team = {
@@ -421,7 +596,8 @@ export const Team = {
   follow: (id: string) => httpPost(`/teams/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/teams/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/teams/${encodeURIComponent(id)}/members`),
-  allMembers: (q?: string) => httpGet('/teams/members/all' + (q ? `?q=${encodeURIComponent(q)}` : '')),
+  allMembers: (q?: string) =>
+    httpGet('/teams/members/all' + (q ? `?q=${encodeURIComponent(q)}` : '')),
   create: (data: {
     name: string;
     description?: string;
@@ -432,7 +608,12 @@ export const Team = {
     organization_id?: string;
     organization_name?: string;
     logo_url?: string | null;
-    authorized_users?: Array<{ email?: string; user_id?: string; role?: string; assign_team?: string }>;
+    authorized_users?: Array<{
+      email?: string;
+      user_id?: string;
+      role?: string;
+      assign_team?: string;
+    }>;
   }) => {
     const payload: Record<string, any> = {};
     Object.entries(data).forEach(([key, value]) => {
@@ -447,14 +628,17 @@ export const Team = {
     });
     return httpPost('/teams/create', payload);
   },
-  update: (id: string, data: {
-    name?: string;
-    description?: string;
-    sport?: string;
-    season?: string;
-    organization_id?: string | null;
-    logo_url?: string | null;
-  }) => {
+  update: (
+    id: string,
+    data: {
+      name?: string;
+      description?: string;
+      sport?: string;
+      season?: string;
+      organization_id?: string | null;
+      logo_url?: string | null;
+    }
+  ) => {
     const payload: Record<string, any> = {};
     Object.entries(data).forEach(([key, value]) => {
       if (value === undefined) return;
@@ -466,28 +650,47 @@ export const Team = {
     });
     return httpPut('/teams/' + encodeURIComponent(id), payload);
   },
-  invite: (teamId: string, email: string, role?: string) => httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
+  invite: (teamId: string, email: string, role?: string) =>
+    httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
   myInvites: () => httpGet('/teams/invites/me'),
-  acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
-  declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
-  updateMember: (
-    membershipId: string,
-    data: { role?: string; custom_position?: string | null }
-  ) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  acceptInvite: (inviteId: string) =>
+    httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
+  declineInvite: (inviteId: string) =>
+    httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  updateMember: (membershipId: string, data: { role?: string; custom_position?: string | null }) =>
+    httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
   removeMember: (membershipId: string, reason?: string) =>
-    httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`, reason ? { reason } : undefined),
+    httpDelete(
+      `/team-memberships/${encodeURIComponent(membershipId)}`,
+      reason ? { reason } : undefined
+    ),
   delete: (id: string) => httpDelete('/teams/' + encodeURIComponent(id)),
   limits: () => httpGet('/teams/limits'),
-  transferOwnership: (teamId: string, newOwnerId: string) => httpPost(`/teams/${encodeURIComponent(teamId)}/transfer-ownership`, { new_owner_id: newOwnerId }),
+  transferOwnership: (teamId: string, newOwnerId: string) =>
+    httpPost(`/teams/${encodeURIComponent(teamId)}/transfer-ownership`, {
+      new_owner_id: newOwnerId,
+    }),
 };
 
 export const Support = {
-  contact: (data: { name: string; email: string; subject: string; message: string; from_email?: string }) => httpPost('/support/contact', data),
-  feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
+  contact: (data: {
+    name: string;
+    email: string;
+    subject: string;
+    message: string;
+    from_email?: string;
+  }) => httpPost('/support/contact', data),
+  feedback: (data: {
+    user_id?: string;
+    category: 'bug' | 'idea' | 'other';
+    message: string;
+    screenshot_url?: string;
+  }) => httpPost('/support/feedback', data),
 };
 
 export const Report = {
-  create: (data: { target_type: string; target_id: string; reason: string; details?: string }) => httpPost('/reports', data),
+  create: (data: { target_type: string; target_id: string; reason: string; details?: string }) =>
+    httpPost('/reports', data),
 };
 
 async function getPaymentsConfig(): Promise<{
@@ -519,26 +722,33 @@ export const Payments = {
 };
 
 export const Subscriptions = {
-  createCheckout: (plan: string, teamCount?: number) => httpPost('/payments/checkout', { plan, team_count: teamCount }),
-  finalizeSession: (sessionId: string) => httpPost('/payments/finalize-session', { session_id: sessionId }),
+  createCheckout: (plan: string, teamCount?: number) =>
+    httpPost('/payments/checkout', { plan, team_count: teamCount }),
+  finalizeSession: (sessionId: string) =>
+    httpPost('/payments/finalize-session', { session_id: sessionId }),
   cancel: () => httpPost('/payments/subscription/cancel', {}),
   // v1.0.2: undo a cancel-at-period-end before the period actually ends
   resume: () => httpPost('/payments/subscription/resume', {}),
-  updateQuantity: (teamCount: number) => httpPost('/payments/update-subscription-quantity', { team_count: teamCount }),
+  updateQuantity: (teamCount: number) =>
+    httpPost('/payments/update-subscription-quantity', { team_count: teamCount }),
   getSummary: () => httpGet('/payments/subscription/summary'),
   // v1.0.2: billing history for current user
-  history: (limit: number = 50) => httpGet(`/payments/history?limit=${encodeURIComponent(String(limit))}`),
+  history: (limit: number = 50) =>
+    httpGet(`/payments/history?limit=${encodeURIComponent(String(limit))}`),
 };
 
-
 export const TeamMemberships = {
-  create: (data: { team_id: string; user_id: string; role?: string }) => httpPost('/team-memberships', data),
-  update: (membershipId: string, data: { role?: string; custom_position?: string }) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
-  delete: (membershipId: string) => httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
+  create: (data: { team_id: string; user_id: string; role?: string }) =>
+    httpPost('/team-memberships', data),
+  update: (membershipId: string, data: { role?: string; custom_position?: string }) =>
+    httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  delete: (membershipId: string) =>
+    httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
 };
 
 export const TeamInvites = {
-  create: (data: { team_id: string; email: string; role?: string }) => httpPost('/team-invites', data),
+  create: (data: { team_id: string; email: string; role?: string }) =>
+    httpPost('/team-invites', data),
 };
 
 export const Notification = {
@@ -556,11 +766,16 @@ export const Notification = {
     } catch (error: any) {
       // If unauthorized (not logged in), return empty page
       if (error?.message?.includes('Unauthorized') || error?.status === 401) {
-        if (__DEV__) console.log('[Notification.listPage] Not authenticated, returning empty results');
+        if (__DEV__)
+          console.log('[Notification.listPage] Not authenticated, returning empty results');
         return { items: [], cursor: null, nextCursor: null };
       }
       // If timeout or network error, return empty page for polling requests
-      if (limit === 1 && unreadOnly && (error?.message?.includes('timeout') || error?.message?.includes('Aborted'))) {
+      if (
+        limit === 1 &&
+        unreadOnly &&
+        (error?.message?.includes('timeout') || error?.message?.includes('Aborted'))
+      ) {
         if (__DEV__) console.warn('[Notification.listPage] Poll timeout, returning empty results');
         return { items: [], cursor: null, nextCursor: null };
       }
@@ -579,7 +794,8 @@ export const Advertisement = {
     if (to) q.push('to=' + encodeURIComponent(to));
     return httpGet('/ads/reservations' + (q.length ? '?' + q.join('&') : ''));
   },
-  reservationsForAd: (ad_id: string) => httpGet('/ads/reservations?ad_id=' + encodeURIComponent(ad_id)),
+  reservationsForAd: (ad_id: string) =>
+    httpGet('/ads/reservations?ad_id=' + encodeURIComponent(ad_id)),
   reserve: (ad_id: string, dates: string[]) => httpPost('/ads/reservations', { ad_id, dates }),
   create: (data: CreateAdPayload) => httpPostWithOptions('/ads', data, 15000, 0),
   listMine: () => httpGet('/ads?mine=1'),
@@ -596,8 +812,10 @@ export const Advertisement = {
     if (lng != null) q.push('lng=' + String(lng));
     return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
   },
-  submitForApproval: (adId: string, dates: string[]) => httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, { dates }),
-  review: (adId: string, action: 'approve' | 'reject', note?: string) => httpPost(`/ads/${encodeURIComponent(adId)}/review`, { action, note }),
+  submitForApproval: (adId: string, dates: string[]) =>
+    httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, { dates }),
+  review: (adId: string, action: 'approve' | 'reject', note?: string) =>
+    httpPost(`/ads/${encodeURIComponent(adId)}/review`, { action, note }),
 };
 
 export const Search = {

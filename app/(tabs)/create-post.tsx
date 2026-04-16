@@ -27,6 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 let VideoThumbnails: any = null;
 try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 import { compressVideoSafe } from '@/utils/compressVideo';
+import { isICloudError, ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE } from '@/utils/isICloudError';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // Retry thumbnail generation at multiple timestamps
@@ -445,12 +446,9 @@ function CreatePostScreen() {
       }
     } catch (error: any) {
       if (__DEV__) console.error('[CreatePost] Image picker error:', error);
-      // Handle iOS PHPicker "public.png" error gracefully
-      if (error?.message?.includes('public.png') || error?.message?.includes('Failed to read picked image')) {
-        Alert.alert(
-          'Image Selection Failed',
-          'Unable to load this image. Please try selecting a different photo or take a new one with the camera.'
-        );
+      // v1.0.2 audit fix: use shared iCloud detection (matches BannerUpload patterns)
+      if (isICloudError(error)) {
+        Alert.alert(ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE);
       } else {
         Alert.alert('Error', 'Failed to select media. Please try again.');
       }

@@ -1,6 +1,14 @@
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import Constants from 'expo-constants';
 
+export type HttpBehaviorOptions = {
+  skipAuthRetry?: boolean;
+};
+
+type RefreshOutcome =
+  | { accessToken: string; reason: 'success' }
+  | { accessToken: null; reason: 'missing' | 'auth' | 'network' | 'unknown'; error?: unknown };
+
 let tokenCache: string | null = null;
 export function setAuthToken(token: string | null) {
   tokenCache = token || null;
@@ -13,7 +21,7 @@ export function getAuthToken(): string | null {
 }
 
 // Refresh lock: prevents concurrent refresh attempts when multiple 401s fire simultaneously
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<RefreshOutcome> | null = null;
 
 export function getApiBaseUrl(): string {
   // Support environment-based configuration for testing/staging/preview builds
@@ -46,7 +54,8 @@ async function request(
   path: string,
   options: RequestInit = {},
   timeoutMs: number = 30000,
-  retries: number = 1
+  retries: number = 1,
+  behavior: HttpBehaviorOptions = {}
 ): Promise<any> {
   const base = getBaseUrl();
   const headers: Record<string, string> = {
@@ -142,7 +151,7 @@ async function request(
 
       // On 401, attempt a token refresh before giving up.
       // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
-      if (err.status === 401 && token) {
+      if (err.status === 401 && token && !behavior.skipAuthRetry) {
         // Lazy-import to avoid circular dependency (auth.ts imports from http.ts)
         const { auth } = await import('./auth');
 
@@ -152,7 +161,8 @@ async function request(
             refreshPromise = null;
           });
         }
-        const newToken = await refreshPromise;
+        const refreshResult = (await refreshPromise) as RefreshOutcome;
+        const newToken = refreshResult?.accessToken ?? null;
 
         if (newToken) {
           // Retry the original request with the fresh token
@@ -195,15 +205,35 @@ async function request(
           const retryErr: any = new Error(retryMsg || `HTTP ${retryRes.status}`);
           retryErr.status = retryRes.status;
           retryErr.data = retryData;
-          // Only clear auth token if the retry itself returned 401 (session truly expired)
+          // A 401 after a successful refresh means the session is no longer usable.
+          // Clear persisted auth state, not just the in-memory access token.
           if (retryRes.status === 401) {
-            clearAuthToken();
+            await auth.clearTokensOnly();
           }
           throw retryErr;
         }
 
-        // Refresh failed or no refresh token — clear and throw
-        clearAuthToken();
+        // Refresh failed. Only clear auth state on explicit auth failures.
+        if (refreshResult?.reason === 'auth' || refreshResult?.reason === 'missing') {
+          await auth.clearTokensOnly();
+          const authErr: any = new Error('Session expired');
+          authErr.status = 401;
+          authErr.data = { error: 'Session expired', code: 'SESSION_EXPIRED' };
+          throw authErr;
+        }
+
+        const refreshError = refreshResult && 'error' in refreshResult ? refreshResult.error : err;
+
+        const transientRefreshErr: any = new Error(
+          'Unable to refresh session right now. Please try again.'
+        );
+        transientRefreshErr.status = 503;
+        transientRefreshErr.data = { error: 'Session refresh unavailable' };
+        transientRefreshErr.isTransientAuthError = true;
+        transientRefreshErr.refreshFailureReason = refreshResult?.reason || 'unknown';
+        transientRefreshErr.originalStatus = err.status;
+        transientRefreshErr.originalError = refreshError;
+        throw transientRefreshErr;
       }
       throw err;
     }
@@ -408,7 +438,8 @@ export function httpGet(
   path: string,
   options: RequestInit = {},
   timeoutMs?: number,
-  retriesOverride?: number
+  retriesOverride?: number,
+  behavior?: HttpBehaviorOptions
 ) {
   // Allow more retries for critical endpoints (helps with Railway infrastructure errors)
   // Critical endpoints get additional retries automatically in 502 handler
@@ -420,40 +451,42 @@ export function httpGet(
   const defaultRetries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
   const retries =
     typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
-  return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries);
+  return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries, behavior);
 }
 // Default POST should never retry automatically (prevents duplicate mutations).
-export function httpPost(path: string, body?: any) {
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 0);
+export function httpPost(path: string, body?: any, behavior?: HttpBehaviorOptions) {
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 0, behavior);
 }
 // POST with explicit timeout/retry controls for endpoint-specific tuning.
 export function httpPostWithOptions(
   path: string,
   body: any,
   timeoutMs: number,
-  retries: number = 0
+  retries: number = 0,
+  behavior?: HttpBehaviorOptions
 ) {
   return request(
     path,
     { method: 'POST', body: JSON.stringify(body || {}) },
     timeoutMs,
-    Math.max(0, retries)
+    Math.max(0, retries),
+    behavior
   );
 }
 // Long-timeout POST for heavy endpoints, still no automatic retries for safety.
-export function httpPostLongTimeout(path: string, body?: any) {
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 180000, 0); // 3 minute timeout
+export function httpPostLongTimeout(path: string, body?: any, behavior?: HttpBehaviorOptions) {
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 180000, 0, behavior); // 3 minute timeout
 }
 // PUT/PATCH/DELETE should NOT retry - they are state-changing operations
 // Retrying could cause duplicate updates or delete operations on already-deleted resources
-export function httpPut(path: string, body?: any) {
-  return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, 15000, 0);
+export function httpPut(path: string, body?: any, behavior?: HttpBehaviorOptions) {
+  return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, 15000, 0, behavior);
 }
-export function httpPatch(path: string, body?: any) {
-  return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }, 15000, 0);
+export function httpPatch(path: string, body?: any, behavior?: HttpBehaviorOptions) {
+  return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }, 15000, 0, behavior);
 }
-export function httpDelete(path: string, body?: any) {
+export function httpDelete(path: string, body?: any, behavior?: HttpBehaviorOptions) {
   const payload = typeof body === 'undefined' ? undefined : JSON.stringify(body);
   const options: RequestInit = payload ? { method: 'DELETE', body: payload } : { method: 'DELETE' };
-  return request(path, options, 15000, 0);
+  return request(path, options, 15000, 0, behavior);
 }

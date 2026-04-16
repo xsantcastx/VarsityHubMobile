@@ -13,11 +13,15 @@ import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { cacheGet, cacheSet } from '../lib/cache.js';
+import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
+
+async function invalidateGamesListCache(): Promise<void> {
+  await cacheDelPattern('games:*');
+}
 
 // One-time startup backfill: geocode games that have a location string but no coordinates.
 // Fire-and-forget — safe to run repeatedly (skips games already populated).
@@ -758,6 +762,7 @@ gamesRouter.post(
             : null,
       };
 
+      await invalidateGamesListCache();
       res.status(201).json(response);
     } catch (error) {
       console.error('Error creating game:', error);
@@ -836,6 +841,7 @@ gamesRouter.post(
         }
         return rows;
       });
+      await invalidateGamesListCache();
       return res.status(201).json({ ok: true, created_count: created.length, games: created });
     } catch (err: any) {
       console.error('[games/bulk] failed — rolled back:', err?.message || err);
@@ -939,6 +945,7 @@ gamesRouter.post(
       created.push(game);
     }
 
+    await invalidateGamesListCache();
     return res.json({ ok: true, games: created });
   })
 );
@@ -1337,6 +1344,7 @@ gamesRouter.delete(
 
       // Delete the game (cascade deletes will handle related records)
       await prisma.game.delete({ where: { id } });
+      await invalidateGamesListCache();
 
       res.json({ message: 'Game deleted successfully' });
     } catch (error) {
@@ -1499,6 +1507,7 @@ gamesRouter.patch(
         where: { id },
         data,
       });
+      await invalidateGamesListCache();
       return res.json(updated);
     } catch (err) {
       console.error('[games] update-result error:', err);
@@ -1574,6 +1583,7 @@ gamesRouter.patch(
         },
       });
 
+      await invalidateGamesListCache();
       return res.json(updatedGame);
     } catch (error) {
       console.error('Error updating game:', error);
@@ -1730,6 +1740,7 @@ gamesRouter.put(
       }
 
       const { events, ...rest } = updated as any;
+      await invalidateGamesListCache();
       return res.json({ ...rest, event_id: event?.id ?? null });
     } catch (error) {
       console.error('Error updating game:', error);
@@ -1802,6 +1813,7 @@ gamesRouter.put(
           ...(parsed.data.approval_status === 'approved' ? { approved_at: new Date() } : {}),
         },
       });
+      await invalidateGamesListCache();
 
       // Notify the game creator of the approval/rejection decision
       if (updatedGame.created_by_id && updatedGame.created_by_id !== req.user!.id) {

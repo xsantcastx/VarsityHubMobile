@@ -47,6 +47,7 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional().transform(toOptional),
   SENTRY_ENVIRONMENT: z.string().optional().transform(toOptional),
   SENDGRID_API_KEY: z.string().optional().transform(toOptional),
+  DEMO_ACCOUNT_PASSWORD: z.string().optional().transform(toOptional),
   UPLOADS_PUBLIC: z.string().optional(),
   /** iOS in-app purchase receipt verification (App Store Connect → App → App-Specific Shared Secret) */
   APPLE_IAP_SHARED_SECRET: z.string().optional().transform(toOptional),
@@ -101,23 +102,38 @@ if (isProd) {
   if (!env.STRIPE_SECRET_KEY) warnings.push('STRIPE_SECRET_KEY (payments will fail)');
   // Webhook secret is critical — without it every Stripe event returns 503 and ads/subscriptions never activate
   if (!env.STRIPE_WEBHOOK_SECRET) {
-    throw new Error('FATAL: STRIPE_WEBHOOK_SECRET is not set. All Stripe webhooks will return 503 and payments will never complete. Set this in Railway env vars immediately.');
+    throw new Error(
+      'FATAL: STRIPE_WEBHOOK_SECRET is not set. All Stripe webhooks will return 503 and payments will never complete. Set this in Railway env vars immediately.'
+    );
   }
   if (!env.STRIPE_PRICE_VETERAN) warnings.push('STRIPE_PRICE_VETERAN (subscription pricing)');
   if (!env.STRIPE_PRICE_LEGEND) warnings.push('STRIPE_PRICE_LEGEND (subscription pricing)');
   // v1.0.2 audit: Cloudinary misconfig silently falls back to ephemeral Railway disk,
   // which wipes on deploy. Hard-throw in production so uploads can't silently disappear.
   if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
-    throw new Error('FATAL: Cloudinary env vars (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET) are not all set. Without them uploads fall back to ephemeral Railway disk and are lost on every deploy. Set these in Railway env vars immediately.');
+    throw new Error(
+      'FATAL: Cloudinary env vars (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET) are not all set. Without them uploads fall back to ephemeral Railway disk and are lost on every deploy. Set these in Railway env vars immediately.'
+    );
   }
   // v1.0.2 audit: geocoding silently returns null when API key missing → map/ad targeting broken.
-  if (!env.GOOGLE_MAPS_API_KEY) warnings.push('GOOGLE_MAPS_API_KEY (maps, geocoding, event radius, ad targeting all disabled)');
-  if (!env.SENDGRID_API_KEY) warnings.push('SENDGRID_API_KEY (emails will fail)');
+  if (!env.GOOGLE_MAPS_API_KEY)
+    warnings.push('GOOGLE_MAPS_API_KEY (maps, geocoding, event radius, ad targeting all disabled)');
+  if (!env.SENDGRID_API_KEY) {
+    throw new Error(
+      'FATAL: SENDGRID_API_KEY is not set. Outbound email would silently fail in production. Set this in Railway env vars immediately.'
+    );
+  }
   if (!env.APPLE_BUNDLE_ID) warnings.push('APPLE_BUNDLE_ID (Apple Sign-In/IAP)');
   if (!env.APPLE_CLIENT_ID) warnings.push('APPLE_CLIENT_ID (Apple Sign-In)');
-  if (!env.REDIS_URL) warnings.push('REDIS_URL (email queue will not function — queued emails silently dropped)');
-  if (!env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY) warnings.push('GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL/KEY (Android IAP verification will return 503)');
+  if (!env.REDIS_URL)
+    warnings.push('REDIS_URL (email queue will not function — queued emails silently dropped)');
+  if (!env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY)
+    warnings.push(
+      'GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL/KEY (Android IAP verification will return 503)'
+    );
   if (warnings.length > 0) {
-    console.warn(`⚠️  Missing production environment variables:\n${warnings.map(w => `  - ${w}`).join('\n')}`);
+    console.warn(
+      `⚠️  Missing production environment variables:\n${warnings.map(w => `  - ${w}`).join('\n')}`
+    );
   }
 }

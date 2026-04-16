@@ -11,23 +11,30 @@ await initEmailService();
 
 // v1.0.2: surface admin-email config issues at startup so silent-failures are obvious in logs
 {
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean);
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
   if (adminEmails.length === 0) {
-    const msg = '[startup] ⚠️  ADMIN_EMAILS env var is empty — coach, ad, and league approval notifications will NOT be delivered';
+    const msg =
+      '[startup] ⚠️  ADMIN_EMAILS env var is empty — coach, ad, and league approval notifications will NOT be delivered';
     console.warn(msg);
     captureMessage(msg, 'warning');
   } else {
-    console.log(`[startup] ADMIN_EMAILS configured: ${adminEmails.length} recipient(s) — first: ${adminEmails[0]}`);
+    console.log(
+      `[startup] ADMIN_EMAILS configured: ${adminEmails.length} recipient(s) — first: ${adminEmails[0]}`
+    );
   }
-  if (!process.env.SENDGRID_API_KEY) {
-    const msg = '[startup] ⚠️  SENDGRID_API_KEY is missing — all outbound email (verification, invites, admin notifications) will fail silently';
+  if (!env.SENDGRID_API_KEY) {
+    const msg =
+      '[startup] ⚠️  SENDGRID_API_KEY is missing — all outbound email (verification, invites, admin notifications) will fail silently';
     console.warn(msg);
     captureMessage(msg, 'warning');
   }
 }
 
 // Initialize job queues (async, non-blocking)
-initializeQueues().catch((error) => {
+initializeQueues().catch(error => {
   console.error('[startup] Failed to initialize queues:', error);
   captureException(error, { context: 'queue_initialization' });
 });
@@ -35,7 +42,7 @@ initializeQueues().catch((error) => {
 // Start scheduler (BullMQ with Redis, falls back to setInterval without it)
 setupScheduler()
   .then(() => startSchedulerWorker())
-  .catch((error) => {
+  .catch(error => {
     console.error('[startup] Scheduler failed to start:', error);
     captureException(error, { context: 'scheduler_startup' });
   });
@@ -66,7 +73,7 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 // Handle uncaught errors
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   console.error('[uncaughtException]', error);
   captureException(error, { context: 'uncaught_exception' });
   shutdown('uncaughtException').finally(() => process.exit(1));
@@ -104,7 +111,9 @@ async function runStartupChecks(): Promise<void> {
     debugLog('[startup] Database ping OK');
   } catch (dbErr) {
     console.error('[startup] STARTUP: Database ping failed:', dbErr);
-    captureException(dbErr instanceof Error ? dbErr : new Error(String(dbErr)), { context: 'startup_db_ping_failed' });
+    captureException(dbErr instanceof Error ? dbErr : new Error(String(dbErr)), {
+      context: 'startup_db_ping_failed',
+    });
   }
 
   // Ping Redis if configured (uses the BullMQ queue connection)
@@ -118,22 +127,30 @@ async function runStartupChecks(): Promise<void> {
       debugLog('[startup] Redis ping OK');
     } catch (redisErr) {
       console.error('[startup] STARTUP: Redis ping failed:', redisErr);
-      captureException(redisErr instanceof Error ? redisErr : new Error(String(redisErr)), { context: 'startup_redis_ping_failed' });
+      captureException(redisErr instanceof Error ? redisErr : new Error(String(redisErr)), {
+        context: 'startup_redis_ping_failed',
+      });
     }
   }
 }
 
-runStartupChecks().catch((err) => {
+runStartupChecks().catch(err => {
   console.error('[startup] runStartupChecks threw unexpectedly:', err);
 });
 
 // ONE-TIME: Ensure Apple Review demo account is verified & onboarded
 // Safe to re-run (upsert). Remove after Apple approves build 90.
 (async () => {
+  if (!env.DEMO_ACCOUNT_PASSWORD) {
+    debugLog(
+      '[startup] DEMO_ACCOUNT_PASSWORD not set — skipping Apple Review demo account bootstrap'
+    );
+    return;
+  }
   try {
     const { prisma } = await import('./lib/prisma.js');
     const bcrypt = await import('bcrypt');
-    const hash = await bcrypt.hash('VarsityDemo2026!', 10);
+    const hash = await bcrypt.hash(env.DEMO_ACCOUNT_PASSWORD, 10);
     await prisma.user.upsert({
       where: { email: 'demo@varsityhub.app' },
       update: {
@@ -148,7 +165,13 @@ runStartupChecks().catch((err) => {
           plan: 'rookie',
           affiliation: 'none',
           dob: '2000-01-15',
-          notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
+          notifications: {
+            game_event_reminders: false,
+            team_updates: false,
+            comments_upvotes: false,
+            follows_notifications: true,
+            messages_notifications: true,
+          },
         },
       },
       create: {
@@ -167,7 +190,13 @@ runStartupChecks().catch((err) => {
           plan: 'rookie',
           affiliation: 'none',
           dob: '2000-01-15',
-          notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false, follows_notifications: true, messages_notifications: true },
+          notifications: {
+            game_event_reminders: false,
+            team_updates: false,
+            comments_upvotes: false,
+            follows_notifications: true,
+            messages_notifications: true,
+          },
         },
       },
     });

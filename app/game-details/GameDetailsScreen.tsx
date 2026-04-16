@@ -1006,10 +1006,7 @@ const GameDetailsScreen = () => {
       let serverPostsLoaded = false;
       try {
         const res: any = await Post.feedForGame(gameIdValue, { limit: 100, sort: 'newest' });
-        if (Array.isArray(res)) {
-          samplePosts = res;
-          serverPostsLoaded = true;
-        } else if (Array.isArray(res?.items)) {
+        if (Array.isArray(res?.items)) {
           samplePosts = res.items;
           serverPostsLoaded = true;
         }

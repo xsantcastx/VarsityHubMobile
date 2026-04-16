@@ -105,14 +105,14 @@ enum GameApprovalStatus {
 
 model User {
   id                         String    @id @default(cuid())
-  email                      String    @unique
+  email                      String    @unique @db.VarChar(320)
   password_hash              String?
   google_id                  String?   @unique
   apple_id                   String?   @unique
-  display_name               String?
-  username                   String?   @unique
-  avatar_url                 String?
-  bio                        String?
+  display_name               String?   @db.VarChar(120)
+  username                   String?   @unique @db.VarChar(20)
+  avatar_url                 String?   @db.VarChar(2048)
+  bio                        String?   @db.VarChar(300)
   created_at                 DateTime  @default(now())
   email_verified             Boolean   @default(false)
   email_verification_code    String?
@@ -126,42 +126,42 @@ model User {
   preferences                Json      @default("{}")
 
   // Coach approval status — APPROVED for fans, PENDING for new coaches until league owner approves
-  approval_status            ApprovalStatus @default(APPROVED)
+  approval_status  ApprovalStatus @default(APPROVED)
   // v1.0.2: 48hr cooldown tracking for rejected coach/org applications
-  rejected_at                DateTime?
-  rejection_reason           String?   @db.Text
+  rejected_at      DateTime?
+  rejection_reason String?        @db.Text
 
   // Subscription/Premium fields
-  subscription_tier          String    @default("free") // free | premium | pro
-  subscription_status        String    @default("active") // active | cancelled | expired
-  subscription_expires_at    DateTime?
-  stripe_customer_id         String?   @unique
-  max_teams                  Int       @default(2) // Free users get 2 teams
-  paid_by_owner              Boolean   @default(false) // true if coach's plan is covered by league owner
+  subscription_tier       String    @default("free") // free | premium | pro
+  subscription_status     String    @default("active") // active | cancelled | expired
+  subscription_expires_at DateTime?
+  stripe_customer_id      String?   @unique
+  max_teams               Int       @default(2) // Free users get 2 teams
+  paid_by_owner           Boolean   @default(false) // true if coach's plan is covered by league owner
 
   // Relations
-  refreshTokens RefreshToken[]
-  memberships TeamMembership[]
-  orgMemberships OrganizationMembership[]
-  orgJoinRequests OrganizationJoinRequest[]
-  rsvps       EventRsvp[]
-  createdEvents Event[]
-  stories     Story[]
-  ads         Ad[]
-  posts       Post[]
-  categoryFollows CategoryFollow[]
+  refreshTokens    RefreshToken[]
+  memberships      TeamMembership[]
+  orgMemberships   OrganizationMembership[]
+  orgJoinRequests  OrganizationJoinRequest[]
+  rsvps            EventRsvp[]
+  createdEvents    Event[]
+  stories          Story[]
+  ads              Ad[]
+  posts            Post[]
+  categoryFollows  CategoryFollow[]
   promoRedemptions PromoRedemption[]
   transactionLogs  TransactionLog[]
 
   // Follows (self-relation)
-  following Follows[] @relation("following")
-  followers Follows[] @relation("followers")
-  teamFollows TeamFollow[]
+  following           Follows[]            @relation("following")
+  followers           Follows[]            @relation("followers")
+  teamFollows         TeamFollow[]
   organizationFollows OrganizationFollow[]
 
   // Messages
-  messagesSent     Message[] @relation("message_sender")
-  messagesReceived Message[] @relation("message_recipient")
+  messagesSent     Message[]      @relation("message_sender")
+  messagesReceived Message[]      @relation("message_recipient")
   Comment          Comment[]
   postUpvotes      PostUpvote[]
   postBookmarks    PostBookmark[]
@@ -169,31 +169,31 @@ model User {
   pollVotes        PollVote[]
 
   // Blocking
-  blocking BlockedUser[] @relation("blocker")
+  blocking  BlockedUser[] @relation("blocker")
   blockedBy BlockedUser[] @relation("blocked")
 
   // Group Chats
-  createdGroupChats GroupChat[]
+  createdGroupChats    GroupChat[]
   groupChatMemberships GroupChatMember[]
-  groupChatMessages GroupChatMessage[]
+  groupChatMessages    GroupChatMessage[]
 
   // Notifications
-  notifications   Notification[] @relation("notification_user")
-  actions         Notification[] @relation("notification_actor")
-  
+  notifications Notification[] @relation("notification_user")
+  actions       Notification[] @relation("notification_actor")
+
   // Games (approval workflow)
-  createdGames    Game[] @relation("created_games")
-  approvedGames   Game[] @relation("approved_games")
+  createdGames  Game[] @relation("created_games")
+  approvedGames Game[] @relation("approved_games")
 
   // League ownership (organizations this user owns)
   ownedOrganizations Organization[] @relation("league_owner")
 
   // Abuse Reports
-  abuseReports    AbuseReport[]
+  abuseReports AbuseReport[]
 
   // Warnings/Strikes
-  warnings        UserWarning[] @relation("warned_user")
-  issuedWarnings  UserWarning[] @relation("warning_issuer")
+  warnings       UserWarning[] @relation("warned_user")
+  issuedWarnings UserWarning[] @relation("warning_issuer")
 
   @@index([subscription_status])
   @@index([banned])
@@ -205,10 +205,10 @@ model User {
 
 model RefreshToken {
   id           String   @id @default(cuid())
-  token_hash   String   @unique  // SHA-256 hash of the token
+  token_hash   String   @unique // SHA-256 hash of the token
   user_id      String
   user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  device_info  String?  // User-Agent or device identifier
+  device_info  String? // User-Agent or device identifier
   expires_at   DateTime
   created_at   DateTime @default(now())
   last_used_at DateTime @default(now())
@@ -218,63 +218,63 @@ model RefreshToken {
 }
 
 model Game {
-  id              String   @id @default(cuid())
-  title           String
-  date            DateTime
-  location        String?
-  latitude        Float?
-  longitude       Float?
-  
+  id        String   @id @default(cuid())
+  title     String   @db.VarChar(200)
+  date      DateTime
+  location  String?
+  latitude  Float?
+  longitude Float?
+
   // New: Team relationships
-  home_team_id    String?
-  away_team_id    String?
-  homeTeam        Team?    @relation("home_games", fields: [home_team_id], references: [id], onDelete: SetNull)
-  awayTeam        Team?    @relation("away_games", fields: [away_team_id], references: [id], onDelete: SetNull)
-  
+  home_team_id String?
+  away_team_id String?
+  homeTeam     Team?   @relation("home_games", fields: [home_team_id], references: [id], onDelete: SetNull)
+  awayTeam     Team?   @relation("away_games", fields: [away_team_id], references: [id], onDelete: SetNull)
+
   // Team names for display (backward compatibility)
-  home_team       String?
-  away_team       String?
-  away_team_name  String?
-  
+  home_team      String?
+  away_team      String?
+  away_team_name String?
+
   // Venue information
-  venue_place_id  String?
-  venue_address   String?
-  venue_lat       Float?
-  venue_lng       Float?
-  is_neutral      Boolean  @default(false)
-  
-  description     String?
-  cover_image_url String?
-  banner_url      String?
+  venue_place_id String?
+  venue_address  String?
+  venue_lat      Float?
+  venue_lng      Float?
+  is_neutral     Boolean @default(false)
+
+  description         String?
+  cover_image_url     String?
+  banner_url          String?
   // Optional appearance/preset for the match banner (e.g. classic, sparkle, sporty)
-  appearance      String?
+  appearance          String?
   // Expected attendance for events (optional)
   expected_attendance Int?
   // Event type: game, fundraiser, watch_party, team_trip, meeting, other
-  event_type      String?  @default("game")
-  
+  event_type          String? @default("game")
+
   // Event type-specific fields
-  donation_goal   Float?   // For fundraisers - target amount
-  watch_location  String?  // For watch parties - viewing location
-  watch_location_lat Float? // Watch party location latitude
-  watch_location_lng Float? // Watch party location longitude
+  donation_goal           Float? // For fundraisers - target amount
+  watch_location          String? @db.VarChar(200) // For watch parties - viewing location
+  watch_location_lat      Float? // Watch party location latitude
+  watch_location_lng      Float? // Watch party location longitude
   watch_location_place_id String? // Google Places ID for watch location
-  destination     String?  // For team trips - destination city/venue
-  
+  destination             String? @db.VarChar(200) // For team trips - destination city/venue
+
   // Approval workflow
   approval_status GameApprovalStatus @default(approved)
   created_by_id   String?
-  created_by      User?    @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
+  created_by      User?              @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
   approved_by_id  String?
-  approved_by     User?    @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
+  approved_by     User?              @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
   approved_at     DateTime?
 
   // Game result (set by coaches/owners via PATCH /games/:id/result)
-  home_score Int?    // Home team score
-  away_score Int?    // Away team score
+  home_score Int? // Home team score
+  away_score Int? // Away team score
   winner     String? // "home" | "away" | "tie" | null if not yet played
 
-  created_at      DateTime @default(now())
+  created_at DateTime @default(now())
 
   // Back-relations
   posts   Post[]
@@ -295,9 +295,9 @@ model Post {
   author_id String
   author    User   @relation(fields: [author_id], references: [id], onDelete: Cascade)
 
-  title         String?
-  content       String?
-  type          String? // consider enum later
+  title         String? @db.VarChar(200)
+  content       String? @db.VarChar(4000)
+  type          String? @db.VarChar(50) // consider enum later
   media_url     String?
   upvotes_count Int     @default(0)
 
@@ -310,19 +310,19 @@ model Post {
   game_id String?
   game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
 
-  team_id  String?
-  team     Team?  @relation(fields: [team_id], references: [id], onDelete: SetNull)
+  team_id   String?
+  team      Team?   @relation(fields: [team_id], references: [id], onDelete: SetNull)
   is_pinned Boolean @default(false)
 
-  created_at DateTime @default(now())
+  created_at DateTime  @default(now())
   deleted_at DateTime?
 
-  poll     Poll?
+  poll Poll?
 
-  comments Comment[]
-  upvotes PostUpvote[]
-  bookmarks PostBookmark[]
-  categories CategoryAssignment[]
+  comments      Comment[]
+  upvotes       PostUpvote[]
+  bookmarks     PostBookmark[]
+  categories    CategoryAssignment[]
   notifications Notification[]
 
   @@index([created_at])
@@ -337,12 +337,12 @@ model Post {
 }
 
 model Poll {
-  id          String       @id @default(cuid())
-  post_id     String       @unique
-  post        Post         @relation(fields: [post_id], references: [id], onDelete: Cascade)
-  options     PollOption[]
-  created_at  DateTime     @default(now())
-  expires_at  DateTime?
+  id         String       @id @default(cuid())
+  post_id    String       @unique
+  post       Post         @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  options    PollOption[]
+  created_at DateTime     @default(now())
+  expires_at DateTime?
 }
 
 model PollOption {
@@ -357,46 +357,46 @@ model PollOption {
 }
 
 model PollVote {
-  id           String     @id @default(cuid())
+  id             String     @id @default(cuid())
   poll_option_id String
-  poll_option  PollOption @relation(fields: [poll_option_id], references: [id], onDelete: Cascade)
-  user_id      String
-  user         User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  created_at   DateTime   @default(now())
+  poll_option    PollOption @relation(fields: [poll_option_id], references: [id], onDelete: Cascade)
+  user_id        String
+  user           User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at     DateTime   @default(now())
 
   @@unique([poll_option_id, user_id])
   @@index([user_id])
 }
 
 model Event {
-  id         String   @id @default(cuid())
-  title      String
+  id         String      @id @default(cuid())
+  title      String      @db.VarChar(200)
   date       DateTime
-  location   String?
+  location   String?     @db.VarChar(500)
   latitude   Float?
   longitude  Float?
   banner_url String?
   game_id    String?
   status     EventStatus @default(draft)
   capacity   Int?
-  created_at DateTime @default(now())
-  
+  created_at DateTime    @default(now())
+
   // Fan event creation fields
   creator_id      String?
-  creator_role    String?   // fan, coach, organizer
+  creator_role    String?             @db.VarChar(50) // fan, coach, organizer
   approval_status EventApprovalStatus @default(pending)
-  event_type      String?   // game, watch_party, fundraiser, tryout, bbq, other
-  description     String?
-  linked_league   String?   // League/school name or ID
+  event_type      String?             @db.VarChar(50) // game, watch_party, fundraiser, tryout, bbq, other
+  description     String?             @db.VarChar(5000)
+  linked_league   String?             @db.VarChar(255) // League/school name or ID
   max_attendees   Int?
-  contact_info    String?
-  approved_by     String?   // User ID of approver
+  contact_info    String?             @db.VarChar(500)
+  approved_by     String? // User ID of approver
   approved_at     DateTime?
   rejected_reason String?
 
   // Team association — fan pitches must be tied to a team
-  team_id         String?
-  team            Team?     @relation(fields: [team_id], references: [id], onDelete: SetNull)
+  team_id String?
+  team    Team?   @relation(fields: [team_id], references: [id], onDelete: SetNull)
 
   game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
   creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
@@ -420,11 +420,11 @@ model Message {
   sender_id    String
   recipient_id String?
 
-  sender    User  @relation("message_sender", fields: [sender_id], references: [id], onDelete: Cascade)
-  recipient User? @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: SetNull)
+  sender        User           @relation("message_sender", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient     User?          @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: SetNull)
   notifications Notification[]
 
-  content    String?
+  content    String?  @db.VarChar(5000)
   read       Boolean  @default(false)
   created_at DateTime @default(now())
 
@@ -451,26 +451,26 @@ model BlockedUser {
 
 model GroupChat {
   id         String   @id @default(cuid())
-  name       String
+  name       String   @db.VarChar(100)
   team_id    String?
   created_by String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  team       Team?              @relation(fields: [team_id], references: [id], onDelete: Cascade)
-  creator    User?              @relation(fields: [created_by], references: [id], onDelete: SetNull)
-  members    GroupChatMember[]
-  messages   GroupChatMessage[]
+  team     Team?              @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  creator  User?              @relation(fields: [created_by], references: [id], onDelete: SetNull)
+  members  GroupChatMember[]
+  messages GroupChatMessage[]
 
   @@index([team_id])
   @@index([created_by])
 }
 
 model GroupChatMember {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   chat_id      String
   user_id      String
-  joined_at    DateTime @default(now())
+  joined_at    DateTime  @default(now())
   last_read_at DateTime?
 
   chat GroupChat @relation(fields: [chat_id], references: [id], onDelete: Cascade)
@@ -484,7 +484,7 @@ model GroupChatMessage {
   id         String   @id @default(cuid())
   chat_id    String
   sender_id  String
-  content    String
+  content    String   @db.VarChar(5000)
   created_at DateTime @default(now())
 
   chat   GroupChat @relation(fields: [chat_id], references: [id], onDelete: Cascade)
@@ -507,7 +507,7 @@ model Comment {
   author_id String?
   author    User?   @relation(fields: [author_id], references: [id], onDelete: SetNull)
 
-  content    String
+  content    String   @db.VarChar(1000)
   created_at DateTime @default(now())
 
   notifications Notification[]
@@ -577,26 +577,26 @@ model AdReservation {
 }
 
 model Ad {
-  id              String   @id @default(cuid())
-  user_id         String?
-  user            User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
-  contact_name    String?
-  contact_email   String?
-  business_name   String?
-  banner_url      String?
-  banner_fit_mode String?  @default("fill") // cover | contain | fill (CSS object-fit)
-  target_url      String?  // URL to open when ad is clicked
-  target_zip_code String?
-  target_lat      Float?   // Latitude of target_zip_code (populated on create/update)
-  target_lng      Float?   // Longitude of target_zip_code (populated on create/update)
-  radius          Int      @default(45) // non-null with default
-  description     String?
-  status          AdStatus        @default(draft)
-  payment_status  AdPaymentStatus @default(unpaid)
-  admin_note      String?  // Note from admin when approving/rejecting
+  id                  String          @id @default(cuid())
+  user_id             String?
+  user                User?           @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  contact_name        String?         @db.VarChar(200)
+  contact_email       String?         @db.VarChar(320)
+  business_name       String?         @db.VarChar(200)
+  banner_url          String?         @db.VarChar(2048)
+  banner_fit_mode     String?         @default("fill") // cover | contain | fill (CSS object-fit)
+  target_url          String?         @db.VarChar(2048) // URL to open when ad is clicked
+  target_zip_code     String?         @db.VarChar(12)
+  target_lat          Float? // Latitude of target_zip_code (populated on create/update)
+  target_lng          Float? // Longitude of target_zip_code (populated on create/update)
+  radius              Int             @default(45) // non-null with default
+  description         String?         @db.VarChar(1000)
+  status              AdStatus        @default(draft)
+  payment_status      AdPaymentStatus @default(unpaid)
+  admin_note          String?         @db.VarChar(2000) // Note from admin when approving/rejecting
   go_live_notified_at DateTime? // Set after go-live email sent to prevent duplicates
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
 
   reservations AdReservation[]
 
@@ -650,7 +650,7 @@ model CategoryAssignment {
 // ===========================
 
 model GameVote {
-  id         String     @id @default(cuid())
+  id         String   @id @default(cuid())
   game_id    String
   user_id    String
   team       String
@@ -671,8 +671,8 @@ model Story {
   user_id String?
 
   media_url  String
-  caption    String?
-  created_at DateTime @default(now())
+  caption    String?   @db.VarChar(500)
+  created_at DateTime  @default(now())
   expires_at DateTime? // 24h after created_at; expired stories are filtered out
 
   // Geolocation (optional)
@@ -732,9 +732,9 @@ model Notification {
   created_at DateTime         @default(now())
   read_at    DateTime?
 
-  user   User  @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
-  actor  User? @relation("notification_actor", fields: [actor_id], references: [id], onDelete: SetNull)
-  post   Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
+  user    User     @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
+  actor   User?    @relation("notification_actor", fields: [actor_id], references: [id], onDelete: SetNull)
+  post    Post?    @relation(fields: [post_id], references: [id], onDelete: SetNull)
   comment Comment? @relation(fields: [comment_id], references: [id], onDelete: SetNull)
   message Message? @relation(fields: [message_id], references: [id], onDelete: SetNull)
 
@@ -752,49 +752,49 @@ model Notification {
 // ===========================
 
 model Team {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
+  id                       String    @id @default(cuid())
+  name                     String    @db.VarChar(100)
+  description              String?   @db.VarChar(1000)
   // Logo and optional avatar URL for backward compatibility with front-end
-  logo_url    String?
-  avatar_url  String?
-  sport       String?
-  club_type   String   @default("sport") // "sport" or "extracurricular"
-  extracurricular_category String? // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
-  season       String?  // "Fall" | "Spring" | "Winter" | "Summer"
-  primary_color String? // hex color for team branding
-  season_start DateTime?
-  season_end  DateTime?
-  organization_id String
-  status      String   @default("active")
-  
+  logo_url                 String?
+  avatar_url               String?
+  sport                    String?   @db.VarChar(100)
+  club_type                String    @default("sport") // "sport" or "extracurricular"
+  extracurricular_category String?   @db.VarChar(100) // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
+  season                   String?   @db.VarChar(50) // "Fall" | "Spring" | "Winter" | "Summer"
+  primary_color            String?   @db.VarChar(20) // hex color for team branding
+  season_start             DateTime?
+  season_end               DateTime?
+  organization_id          String
+  status                   String    @default("active")
+
   // Venue information
-  venue_place_id String?
-  venue_lat      Float?
-  venue_lng      Float?
-  venue_address  String?
+  venue_place_id   String?   @db.VarChar(255)
+  venue_lat        Float?
+  venue_lng        Float?
+  venue_address    String?   @db.VarChar(500)
   venue_updated_at DateTime?
-  
+
   // Additional metadata for search/disambiguation
-  city           String?
-  state          String?
-  league         String?
+  city   String? @db.VarChar(100)
+  state  String? @db.VarChar(100)
+  league String? @db.VarChar(100)
 
-  created_at  DateTime @default(now())
+  created_at DateTime @default(now())
 
-  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Restrict)
-  memberships TeamMembership[]
-  invites     TeamInvite[]
-  followers   TeamFollow[]
-  groupChats  GroupChat[]
-  posts       Post[]
+  organization Organization     @relation(fields: [organization_id], references: [id], onDelete: Restrict)
+  memberships  TeamMembership[]
+  invites      TeamInvite[]
+  followers    TeamFollow[]
+  groupChats   GroupChat[]
+  posts        Post[]
 
   // Game relations
-  homeGames   Game[] @relation("home_games")
-  awayGames   Game[] @relation("away_games")
+  homeGames Game[] @relation("home_games")
+  awayGames Game[] @relation("away_games")
 
   // Event relations (fan pitches tied to team)
-  events      Event[]
+  events Event[]
 
   @@index([name])
   @@index([city, state])
@@ -803,45 +803,45 @@ model Team {
 }
 
 model Organization {
-  id                    String   @id @default(cuid())
-  name                  String
-  description           String?
-  logo_url              String?
-  profile_picture_url   String?
-  background_url        String?
-  sport                 String?
-  org_type    String?  // school | club | league | other
-  location    String?  // City, State format
-  zip_code    String?  // For nearby search
-  season_start DateTime?
-  season_end  DateTime?
-  status      String   @default("active")
-  created_at  DateTime @default(now())
-  updated_at  DateTime @default(now()) @updatedAt
+  id                  String    @id @default(cuid())
+  name                String    @db.VarChar(255)
+  description         String?   @db.VarChar(2000)
+  logo_url            String?   @db.VarChar(2000)
+  profile_picture_url String?   @db.VarChar(2000)
+  background_url      String?   @db.VarChar(2000)
+  sport               String?   @db.VarChar(100)
+  org_type            String?   @db.VarChar(100) // school | club | league | other
+  location            String?   @db.VarChar(500) // City, State format
+  zip_code            String?   @db.VarChar(20) // For nearby search
+  season_start        DateTime?
+  season_end          DateTime?
+  status              String    @default("active")
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
 
   // Super admin approval — every league page owner must be approved by emancero@varsityhub.app
-  admin_approved Boolean   @default(false)
-  approved_by    String?   // super admin user ID who approved
-  approved_at    DateTime?
+  admin_approved   Boolean   @default(false)
+  approved_by      String? // super admin user ID who approved
+  approved_at      DateTime?
   // v1.0.2: 48hr cooldown tracking when an org application is rejected
-  rejected_at       DateTime?
-  rejection_reason  String?   @db.Text
+  rejected_at      DateTime?
+  rejection_reason String?   @db.Text
 
   // League owner — the user who owns/pays for this league page
   league_owner_id String?
-  leagueOwner     User?    @relation("league_owner", fields: [league_owner_id], references: [id], onDelete: SetNull)
+  leagueOwner     User?   @relation("league_owner", fields: [league_owner_id], references: [id], onDelete: SetNull)
 
   // Contact info (optional)
-  contact_info String?
+  contact_info String? @db.VarChar(500)
 
   // Supporting document (file/image) URL — required for new org creation
-  supporting_document_url String?
+  supporting_document_url String? @db.VarChar(2000)
 
-  teams       Team[]
-  memberships OrganizationMembership[]
-  invites     OrganizationInvite[]
+  teams        Team[]
+  memberships  OrganizationMembership[]
+  invites      OrganizationInvite[]
   joinRequests OrganizationJoinRequest[]
-  followers   OrganizationFollow[]
+  followers    OrganizationFollow[]
 
   @@unique([name, zip_code])
   @@index([name])
@@ -853,19 +853,19 @@ model Organization {
 }
 
 model OrganizationJoinRequest {
-  id              String   @id @default(cuid())
-  organization_id String
-  user_id         String
-  status           String   @default("pending") // pending | approved | denied
-  message          String?  // Optional message from user
-  rejection_reason String?  // Reason provided by admin when denying
-  created_at       DateTime @default(now())
+  id               String    @id @default(cuid())
+  organization_id  String
+  user_id          String
+  status           String    @default("pending") // pending | approved | denied
+  message          String? // Optional message from user
+  rejection_reason String? // Reason provided by admin when denying
+  created_at       DateTime  @default(now())
   reviewed_at      DateTime?
-  reviewed_by      String?  // user_id of admin who reviewed
-  
+  reviewed_by      String? // user_id of admin who reviewed
+
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+
   @@unique([organization_id, user_id])
   @@index([organization_id, status])
   @@index([user_id, status])
@@ -913,7 +913,7 @@ model TeamMembership {
   role            TeamRole         @default(member)
   status          MembershipStatus @default(active)
   custom_position String?
-  created_at      DateTime @default(now())
+  created_at      DateTime         @default(now())
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -925,12 +925,12 @@ model TeamMembership {
 }
 
 model TeamInvite {
-  id         String   @id @default(cuid())
+  id         String       @id @default(cuid())
   team_id    String
   email      String
   role       TeamRole     @default(member)
   status     InviteStatus @default(pending)
-  created_at DateTime @default(now())
+  created_at DateTime     @default(now())
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
 
@@ -959,8 +959,8 @@ model Follows {
 }
 
 model TeamFollow {
-  user_id String
-  team_id String
+  user_id    String
+  team_id    String
   created_at DateTime @default(now())
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -984,9 +984,6 @@ model OrganizationFollow {
   @@index([organization_id])
 }
 
-
-
-
 // ===========================
 // Promotions
 // ===========================
@@ -997,11 +994,11 @@ enum PromoType {
 }
 
 model PromoCode {
-  id              String    @id @default(cuid())
-  code            String    @unique
-  type            PromoType
-  percent_off     Int?
-  enabled         Boolean   @default(true)
+  id          String    @id @default(cuid())
+  code        String    @unique
+  type        PromoType
+  percent_off Int?
+  enabled     Boolean   @default(true)
 
   start_at        DateTime?
   end_at          DateTime?
@@ -1011,20 +1008,20 @@ model PromoCode {
 
   applies_to_service String?
 
-  note        String?
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  note       String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   redemptions PromoRedemption[]
 }
 
 model PromoRedemption {
-  id                       String   @id @default(cuid())
-  promo_id                 String
-  user_id                  String?
-  order_id                 String?
-  amount_discounted_cents  Int
-  created_at               DateTime @default(now())
+  id                      String   @id @default(cuid())
+  promo_id                String
+  user_id                 String?
+  order_id                String?
+  amount_discounted_cents Int
+  created_at              DateTime @default(now())
 
   promo PromoCode @relation(fields: [promo_id], references: [id])
   user  User?     @relation(fields: [user_id], references: [id], onDelete: SetNull)
@@ -1032,7 +1029,6 @@ model PromoRedemption {
   @@unique([promo_id, order_id])
   @@index([promo_id, user_id])
 }
-
 
 // ===========================
 // Transaction Logging
@@ -1060,50 +1056,50 @@ enum TransactionStatus {
 }
 
 model TransactionLog {
-  id                  String            @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Transaction identification
-  transaction_type    TransactionType
-  status              TransactionStatus @default(PENDING)
-  stripe_session_id   String?           @unique
+  transaction_type         TransactionType
+  status                   TransactionStatus @default(PENDING)
+  stripe_session_id        String?           @unique
   stripe_payment_intent_id String?
   stripe_subscription_id   String?
   // v1.0.2: Apple IAP transaction identifier. @unique closes the TOCTOU window in
   // server/src/routes/payments.ts where two rapid replays could both pass the findFirst check.
   // Old rows have NULL; new IAP writes populate this. Never set for Stripe flows.
-  apple_transaction_id String?          @unique
+  apple_transaction_id     String?           @unique
 
   // User and order details
-  user_id             String?
-  user_email          String?
-  order_id            String?           // Ad ID, subscription ID, etc.
-  
+  user_id    String?
+  user_email String?
+  order_id   String? // Ad ID, subscription ID, etc.
+
   // Financial details (all in cents)
-  subtotal_cents      Int               @default(0)
-  tax_cents           Int               @default(0)
-  stripe_fee_cents    Int               @default(0)
-  discount_cents      Int               @default(0)
-  total_cents         Int               @default(0)
-  net_cents           Int               @default(0)  // total - stripe_fee
-  
+  subtotal_cents   Int @default(0)
+  tax_cents        Int @default(0)
+  stripe_fee_cents Int @default(0)
+  discount_cents   Int @default(0)
+  total_cents      Int @default(0)
+  net_cents        Int @default(0) // total - stripe_fee
+
   // Promo code tracking
-  promo_code          String?
-  promo_discount_cents Int              @default(0)
-  
+  promo_code           String?
+  promo_discount_cents Int     @default(0)
+
   // Metadata
-  currency            String            @default("usd")
-  payment_method      String?           // "card", "bank_transfer", etc.
-  metadata            Json?             // Additional context (dates, zip codes, etc.)
-  
+  currency       String  @default("usd")
+  payment_method String? // "card", "bank_transfer", etc.
+  metadata       Json? // Additional context (dates, zip codes, etc.)
+
   // Audit trail
-  ip_address          String?
-  user_agent          String?
-  created_at          DateTime          @default(now())
-  updated_at          DateTime          @updatedAt
-  
+  ip_address String?
+  user_agent String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   // Relations
-  user                User?             @relation(fields: [user_id], references: [id], onDelete: SetNull)
-  
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
   @@index([user_id])
   @@index([stripe_session_id])
   @@index([transaction_type])
@@ -1125,16 +1121,16 @@ model ProcessedStripeEvent {
 // ===========================
 
 model AdminActivityLog {
-  id           String   @id @default(cuid())
-  admin_id     String
-  admin_email  String
-  action       String   // e.g., "Ban User", "Delete Team", "Approve Ad"
-  target_type  String   // e.g., "user", "team", "ad", "post"
-  target_id    String   // ID of the affected resource
-  description  String   // Human-readable description
-  metadata     Json?    // Additional context (old values, new values, etc.)
-  timestamp    DateTime @default(now())
-  
+  id          String   @id @default(cuid())
+  admin_id    String
+  admin_email String
+  action      String // e.g., "Ban User", "Delete Team", "Approve Ad"
+  target_type String // e.g., "user", "team", "ad", "post"
+  target_id   String // ID of the affected resource
+  description String // Human-readable description
+  metadata    Json? // Additional context (old values, new values, etc.)
+  timestamp   DateTime @default(now())
+
   @@index([admin_id])
   @@index([target_type])
   @@index([target_id])
@@ -1146,20 +1142,20 @@ model AdminActivityLog {
 // ===========================
 
 model AbuseReport {
-  id              String   @id @default(cuid())
-  reporter_id     String?  // User who submitted the report
+  id              String    @id @default(cuid())
+  reporter_id     String? // User who submitted the report
   reporter_name   String
   reporter_email  String
   subject         String
-  message         String   @db.Text
-  status          String   @default("pending") // "pending", "reviewed", "resolved", "dismissed"
-  reviewed_by     String?  // Admin ID who reviewed
+  message         String    @db.Text
+  status          String    @default("pending") // "pending", "reviewed", "resolved", "dismissed"
+  reviewed_by     String? // Admin ID who reviewed
   reviewed_at     DateTime?
-  resolution_note String?  @db.Text // Admin notes about resolution
-  created_at      DateTime @default(now())
-  
-  reporter        User?    @relation(fields: [reporter_id], references: [id], onDelete: SetNull)
-  
+  resolution_note String?   @db.Text // Admin notes about resolution
+  created_at      DateTime  @default(now())
+
+  reporter User? @relation(fields: [reporter_id], references: [id], onDelete: SetNull)
+
   @@index([reporter_id])
   @@index([status])
   @@index([created_at])
@@ -1170,15 +1166,15 @@ model AbuseReport {
 // ===========================
 
 model UserWarning {
-  id              String    @id @default(cuid())
-  user_id         String
-  issued_by       String?
-  reason          String    @db.Text
-  severity        String    @default("warning") // warning | strike | final_warning
-  report_id       String?   // Link to the report that triggered this
-  expires_at      DateTime? // Null = permanent
-  acknowledged    Boolean   @default(false)
-  created_at      DateTime  @default(now())
+  id           String    @id @default(cuid())
+  user_id      String
+  issued_by    String?
+  reason       String    @db.Text
+  severity     String    @default("warning") // warning | strike | final_warning
+  report_id    String? // Link to the report that triggered this
+  expires_at   DateTime? // Null = permanent
+  acknowledged Boolean   @default(false)
+  created_at   DateTime  @default(now())
 
   user   User  @relation("warned_user", fields: [user_id], references: [id], onDelete: Cascade)
   issuer User? @relation("warning_issuer", fields: [issued_by], references: [id], onDelete: SetNull)
@@ -1187,6 +1183,3 @@ model UserWarning {
   @@index([user_id, created_at])
   @@index([severity])
 }
-
-
-

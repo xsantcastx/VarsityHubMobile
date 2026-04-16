@@ -4,6 +4,7 @@ import { validateContent } from '../lib/contentFilter.js';
 import {
   sendOrganizationInviteEmail, sendLeagueApprovalRequestEmail,
   sendCoachApprovedEmail, sendCoachRejectedEmail,
+  sendCoachJoinRequestEmail,
 } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -21,6 +22,7 @@ import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
+import { invalidateMeCacheForUser } from '../lib/userCache.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -341,6 +343,7 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
           where: { id: req.user!.id },
           data: { rejected_at: rejectedAt },
         });
+        await invalidateMeCacheForUser(req.user!.id);
       }
       const elapsed = Date.now() - new Date(rejectedAt).getTime();
       if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
@@ -409,6 +412,7 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
       });
       return org;
     });
+    await invalidateMeCacheForUser(req.user!.id);
 
     // Send approval request email to super admin (best effort)
     const creator = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true, email: true } });
@@ -484,6 +488,7 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
           where: { id: req.user!.id },
           data: { rejected_at: rejectedAt },
         });
+        await invalidateMeCacheForUser(req.user!.id);
       }
       const elapsed = Date.now() - new Date(rejectedAt).getTime();
       if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
@@ -554,6 +559,7 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
       });
       return org;
     });
+    await invalidateMeCacheForUser(req.user!.id);
 
     // Send approval request email to super admin (best effort)
     const creator = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true, email: true } });
@@ -1034,12 +1040,25 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
         })
       ] : []),
     ]);
+    if (isCoachRole) {
+      await invalidateMeCacheForUser(req.user!.id);
+    }
 
-    // Send email notification to organization owners
+    // Send email + push + in-app notification to organization owner
     if (organization.memberships.length > 0) {
       const owner = organization.memberships[0];
       try {
-        // Coach request email notification removed — non-mandatory
+        // v1.0.2 audit fix: search-mode join requests now send email to org owner
+        // (previously only push + in-app). Uses LEAGUE_PENDING_APPROVAL template.
+        sendCoachJoinRequestEmail({
+          ownerEmail: owner.user.email!,
+          ownerName: owner.user.display_name || 'League Owner',
+          coachName: joinRequest.user.display_name || 'A coach',
+          coachEmail: joinRequest.user.email || '',
+          organizationName: organization.name,
+          organizationId: organization.id,
+        }).catch((err) => console.error('[orgs] Failed to send join request email:', (err as any)?.message));
+
         // Push notification to league owner
         sendPushNotification(
           owner.user.id,
@@ -1063,7 +1082,7 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
           },
         }).catch((err) => console.error('[orgs] FAILED to create join request notification:', (err as any)?.message));
       } catch (err) {
-        console.error('Failed to send join request email to admin:', err);
+        console.error('Failed to send join request notification to admin:', err);
       }
     }
 
@@ -1223,6 +1242,7 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
       data: { approval_status: 'APPROVED', paid_by_owner: true }
     });
   }, { isolationLevel: 'Serializable' });
+  await invalidateMeCacheForUser(joinRequest.user_id);
   
   // Persist org info into coach's preferences (non-blocking, non-fatal)
   prisma.user.findUnique({ where: { id: joinRequest.user_id }, select: { preferences: true } })
@@ -1233,7 +1253,12 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         organization_id: joinRequest.organization_id,
         organization_name: joinRequest.organization.name,
       };
-      return prisma.user.update({ where: { id: joinRequest.user_id }, data: { preferences: merged } });
+      return prisma.user
+        .update({ where: { id: joinRequest.user_id }, data: { preferences: merged } })
+        .then(async (updatedCoach) => {
+          await invalidateMeCacheForUser(updatedCoach.id);
+          return updatedCoach;
+        });
     })
     .catch((err) => {
       console.warn('[orgs] failed to persist org_id into coach preferences on join-request approval:', (err as any)?.message || err);
@@ -1342,6 +1367,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
       data: { approval_status: 'REJECTED' },
     }),
   ]);
+  await invalidateMeCacheForUser(joinRequest.user.id);
   
   // Create in-app notification for the denied user
   try {
@@ -1696,6 +1722,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     );
 
     await prisma.$transaction(txOps);
+    await invalidateMeCacheForUser(coachId);
 
     // Persist org info into coach's preferences so complete-onboarding succeeds
     // even if the coach never explicitly saved it (e.g. join-request path pre-fix).
@@ -1707,7 +1734,12 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
           organization_id: orgId,
           organization_name: org?.name || current.organization_name,
         };
-        return prisma.user.update({ where: { id: coachId }, data: { preferences: merged } });
+        return prisma.user
+          .update({ where: { id: coachId }, data: { preferences: merged } })
+          .then(async (updatedCoach) => {
+            await invalidateMeCacheForUser(updatedCoach.id);
+            return updatedCoach;
+          });
       })
       .catch((err) => {
         console.warn('[orgs] failed to persist org_id into coach preferences:', (err as any)?.message || err);
@@ -1752,6 +1784,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
           data: { approval_status: 'APPROVED', paid_by_owner: true },
         }),
       ]);
+      await invalidateMeCacheForUser(coachId);
       return res.json({ message: 'Coach approved (already a member)', coach_id: coachId });
     }
     console.error('[organizations] POST /:id/coaches/:userId/approve error:', err);
@@ -1795,6 +1828,7 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
         data: { approval_status: 'REJECTED' },
       }),
     ]);
+    await invalidateMeCacheForUser(coachId);
 
     if (coach?.email) {
       sendCoachRejectedEmail({

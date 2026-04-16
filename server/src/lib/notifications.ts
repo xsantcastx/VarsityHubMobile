@@ -24,6 +24,7 @@ import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 import { captureException, captureMessage } from './sentry.js';
+import { updateUserAndInvalidate } from './userCache.js';
 
 const expo = new Expo();
 
@@ -99,7 +100,7 @@ export async function sendPushNotification(
       try {
         const currentPrefs = (user.preferences as any) || {};
         if (currentPrefs.push_token === pushToken) {
-          await prisma.user.update({
+          await updateUserAndInvalidate(prisma, {
             where: { id: userId },
             data: { preferences: { ...currentPrefs, push_token: null } },
           });
@@ -562,7 +563,7 @@ export async function verifyPushReceipts(): Promise<void> {
             if (user?.preferences) {
               const prefs = { ...(user.preferences as any) };
               delete prefs.push_token;
-              await prisma.user.update({
+              await updateUserAndInvalidate(prisma, {
                 where: { id: entry.user_id },
                 data: { preferences: prefs },
               });

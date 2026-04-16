@@ -12,10 +12,17 @@ import bcrypt from 'bcrypt';
 import 'dotenv/config';
 
 const DEMO_EMAIL = 'demo@varsityhub.app';
-const DEMO_PASSWORD = 'VarsityDemo2026!';
 const DEMO_USERNAME = 'appledemo';
+const DEMO_PASSWORD = process.env.DEMO_ACCOUNT_PASSWORD?.trim();
 
 async function main() {
+  if (!DEMO_PASSWORD) {
+    console.error(
+      'DEMO_ACCOUNT_PASSWORD is required. Set it in the environment before running this script.'
+    );
+    process.exit(1);
+  }
+
   const prisma = new PrismaClient();
 
   try {

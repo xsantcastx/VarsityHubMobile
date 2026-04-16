@@ -1,7 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { clearAuthToken, getApiBaseUrl, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
+import {
+  clearAuthToken,
+  getAuthToken,
+  httpGet,
+  httpPost,
+  httpPostLongTimeout,
+  setAuthToken,
+} from './http';
 
 // Storage keys for authentication tokens (not secrets, just key names)
 const TOKEN_KEY = 'auth_token_key';
@@ -91,6 +98,10 @@ type AuthTokenResponse = {
   access_token?: string;
   refresh_token?: string;
 };
+
+export type RefreshTokenResult =
+  | { accessToken: string; reason: 'success' }
+  | { accessToken: null; reason: 'missing' | 'auth' | 'network' | 'unknown'; error?: unknown };
 
 function parseAuthTokenResponse(value: unknown): AuthTokenResponse {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -217,21 +228,11 @@ export const auth = {
     const options = {
       headers: {
         'Cache-Control': 'no-store',
-        'Pragma': 'no-cache',
+        Pragma: 'no-cache',
         'If-None-Match': '',
       },
     };
-    try {
-      return await httpGet('/me', options);
-    } catch (e: any) {
-      // On 401, session expired — log out if http.ts didn't already (avoid double-logout)
-      if (e && e.status === 401 && getAuthToken()) {
-        try { await auth.logout(); } catch (logoutError) {
-          if (__DEV__) console.warn('[auth] Cleanup logout failed:', logoutError);
-        }
-      }
-      throw e;
-    }
+    return httpGet('/me', options);
   },
   async logout() {
     // Invalidate refresh token server-side first (best-effort)
@@ -275,42 +276,41 @@ export const auth = {
       new_password: newPassword,
     });
   },
-  async refreshToken(): Promise<string | null> {
+  async refreshToken(): Promise<RefreshTokenResult> {
     const stored = await loadRefreshToken();
-    if (!stored) return null;
-
-    const timeoutMs = 15000; // 15s — align with auth endpoint timeouts
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    if (!stored) return { accessToken: null, reason: 'missing' };
 
     try {
-      const base = getApiBaseUrl();
-      const res = await fetch(`${base}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: stored }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        await auth.logout();
-        return null;
-      }
-
-      const { access_token, refresh_token } = parseAuthTokenResponse(await res.json());
+      const response = parseAuthTokenResponse(
+        await httpPost('/auth/refresh', { refresh_token: stored }, { skipAuthRetry: true })
+      );
+      const { access_token, refresh_token } = response;
       if (!access_token) {
-        await auth.logout();
-        return null;
+        await saveToken(null);
+        await saveRefreshToken(null);
+        return { accessToken: null, reason: 'auth' };
       }
       await saveToken(access_token);
       await saveRefreshToken(refresh_token ?? null);
-      return access_token;
-    } catch (error) {
-      clearTimeout(timeoutId);
+      return { accessToken: access_token, reason: 'success' };
+    } catch (error: any) {
       if (__DEV__) console.error('[auth] Token refresh failed:', error);
-      await auth.logout();
-      return null;
+      if (error?.status === 401 || error?.status === 403) {
+        await saveToken(null);
+        await saveRefreshToken(null);
+        return { accessToken: null, reason: 'auth', error };
+      }
+      if (
+        error?.status === 0 ||
+        error?.status === 408 ||
+        error?.status === 502 ||
+        error?.status === 503 ||
+        error?.isNetworkError ||
+        error?.isTransientAuthError
+      ) {
+        return { accessToken: null, reason: 'network', error };
+      }
+      return { accessToken: null, reason: 'unknown', error };
     }
   },
   getToken: loadToken,

@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import ExpandableText from './ExpandableText';
 import PollCard from './PollCard';
 
 type MasonryPostCardProps = {
@@ -17,12 +18,15 @@ type MasonryPostCardProps = {
   onUpdated?: (updatedPost: any) => void;
 };
 
-function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onUpdated }: MasonryPostCardProps) {
+function MasonryPostCard({
+  post,
+  onPress,
+  onDeleted: _onDeleted,
+  onUpdated: _onUpdated,
+}: MasonryPostCardProps) {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const {
-    upvotesCount, bookmarked, onUpvote, onBookmark, submitReport,
-  } = usePostInteractions({
+  const { upvotesCount, bookmarked, onUpvote, onBookmark, submitReport } = usePostInteractions({
     postId: String(post.id),
     initialUpvotes: post.upvotes_count || 0,
     initialBookmarked: !!post.has_bookmarked,
@@ -33,8 +37,10 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
   const mediaUrl = post?.media_url || post?.mediaUrl || null;
   const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
   const mediaType = typeof post?.media_type === 'string' ? post.media_type.toLowerCase() : null;
-  const isImage = mediaType === 'image' || (mediaUrl ? /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl) : false);
-  const isVideo = mediaType === 'video' || (mediaUrl ? /\.(mp4|mov|webm|m4v)$/i.test(mediaUrl) : false);
+  const isImage =
+    mediaType === 'image' || (mediaUrl ? /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl) : false);
+  const isVideo =
+    mediaType === 'video' || (mediaUrl ? /\.(mp4|mov|webm|m4v)$/i.test(mediaUrl) : false);
   const caption = useMemo(() => post.caption || post.content || '', [post.caption, post.content]);
   const author = post?.author || null;
   const hasPoll = !!post.poll;
@@ -44,7 +50,11 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
     if (!mediaUrl) return 0;
     // Randomize heights for Pinterest-style masonry
     const heights = [180, 220, 260, 300, 340, 280, 240, 200];
-    const hash = post.id ? String(post.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 0;
+    const hash = post.id
+      ? String(post.id)
+          .split('')
+          .reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      : 0;
     return heights[hash % heights.length];
   }, [post.id, mediaUrl]);
 
@@ -64,7 +74,9 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
       ...reasons.map(r => ({
         text: r.label,
         style: 'default' as const,
-        onPress: () => { void submitReport(r.value); },
+        onPress: () => {
+          void submitReport(r.value);
+        },
       })),
       { text: 'Cancel', style: 'cancel' as const },
     ]);
@@ -79,9 +91,9 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
         styles.container,
         {
           backgroundColor: Colors[colorScheme].card,
-          borderColor: Colors[colorScheme].border
+          borderColor: Colors[colorScheme].border,
         },
-        pressed && styles.containerPressed
+        pressed && styles.containerPressed,
       ]}
     >
       {/* Author Header */}
@@ -91,17 +103,27 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
             style={styles.authorInfo}
             onPress={() => {
               if (!author?.id) return;
-              router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
+              router.push({
+                pathname: '/user-profile',
+                params: { id: String(author.id), username: author.username || 'User' },
+              });
             }}
           >
             <View style={styles.authorAvatarWrap}>
               {author?.avatar_url ? (
-                <Image source={{ uri: String(author.avatar_url) }} style={styles.authorAvatar} contentFit="cover" />
+                <Image
+                  source={{ uri: String(author.avatar_url) }}
+                  style={styles.authorAvatar}
+                  contentFit="cover"
+                />
               ) : (
-                <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.authorAvatar} />
+                <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.authorAvatar} />
               )}
             </View>
-            <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>
+            <Text
+              numberOfLines={1}
+              style={[styles.authorName, { color: Colors[colorScheme].text }]}
+            >
               {author?.username ? `@${author.username}` : 'User'}
             </Text>
           </Pressable>
@@ -116,7 +138,12 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
           ) : isVideo && previewUrl ? (
             <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
           ) : isVideo && mediaUrl ? (
-            <View style={[styles.media, { backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }]}>
+            <View
+              style={[
+                styles.media,
+                { backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' },
+              ]}
+            >
               <MaterialIcons name="videocam" size={28} color="#94a3b8" />
             </View>
           ) : null}
@@ -132,29 +159,34 @@ function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onU
       {hasPoll && <PollCard poll={post.poll} onVote={handleVotePoll} />}
 
       {/* Caption - show under poll if poll exists, otherwise show normally */}
-      {caption && (
-        <Text numberOfLines={4} style={[styles.caption, { color: Colors[colorScheme].text }]}>
-          {caption}
-        </Text>
-      )}
+      <ExpandableText
+        text={caption}
+        maxLines={3}
+        style={[styles.caption, { color: Colors[colorScheme].text }]}
+        expandStyle={[styles.captionToggle, { color: Colors[colorScheme].tint }]}
+      />
 
       {/* Footer Actions */}
       <View style={styles.footer}>
-        <Pressable 
-          onPress={onUpvote} 
+        <Pressable
+          onPress={onUpvote}
           style={[styles.actionBtn, { backgroundColor: Colors[colorScheme].tint }]}
         >
           <MaterialIcons name="arrow-upward" size={14} color="#fff" />
           <Text style={styles.actionText}>{upvotesCount}</Text>
         </Pressable>
-        
+
         <View style={styles.metaRow}>
-          <MaterialIcons name="chat-bubble-outline" size={14} color={Colors[colorScheme].mutedText} />
+          <MaterialIcons
+            name="chat-bubble-outline"
+            size={14}
+            color={Colors[colorScheme].mutedText}
+          />
           <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>
             {post.comments_count || 0}
           </Text>
         </View>
-        
+
         <View style={{ flex: 1 }} />
 
         <Pressable onPress={handleReport} style={styles.bookmarkBtn}>
@@ -185,7 +217,7 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginBottom: 2,
   },
-  containerPressed: { 
+  containerPressed: {
     transform: [{ scale: 0.98 }],
     opacity: 0.9,
   },
@@ -241,6 +273,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 20,
+    marginBottom: 8,
+  },
+  captionToggle: {
     marginBottom: 8,
   },
   footer: {

@@ -11,6 +11,7 @@ import { followLimiter, mentionsSearchLimiter, userLookupLimiter, usernameAvaila
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { updateUserAndInvalidate } from '../lib/userCache.js';
 
 export const usersRouter = Router();
 registerIdValidation(usersRouter);
@@ -51,7 +52,7 @@ usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
   try {
     const id = String(req.params.id);
     const { reason } = req.body || {};
-    const u = await prisma.user.update({ where: { id }, data: { banned: true, ban_reason: reason || 'Banned for violating community guidelines.' } });
+    const u = await updateUserAndInvalidate(prisma, { where: { id }, data: { banned: true, ban_reason: reason || 'Banned for violating community guidelines.' } });
     return res.json({ ok: true, id: u.id, banned: true });
   } catch (err) {
     console.error('[users] POST /:id/ban error:', err);
@@ -62,7 +63,7 @@ usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
 usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
   try {
     const id = String(req.params.id);
-    const u = await prisma.user.update({ where: { id }, data: { banned: false, ban_reason: null, banned_until: null } });
+    const u = await updateUserAndInvalidate(prisma, { where: { id }, data: { banned: false, ban_reason: null, banned_until: null } });
     return res.json({ ok: true, id: u.id, banned: false });
   } catch (err) {
     console.error('[users] POST /:id/unban error:', err);
@@ -1227,5 +1228,3 @@ usersRouter.delete('/:id/block', requireAuth as any, asyncHandler(async (req: Au
     return res.status(500).json({ error: 'Failed to unblock user' });
   }
 }));
-
-

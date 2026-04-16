@@ -1,8 +1,10 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
+import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import { useEventListener } from 'expo';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -188,7 +190,14 @@ const FeedCard = memo(
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     const [editCaption, setEditCaption] = useState('');
+    const [isVideoLoading, setIsVideoLoading] = useState(post.media_type === 'video');
+    const [videoError, setVideoError] = useState<string | null>(null);
+    const [videoRetryKey, setVideoRetryKey] = useState(0);
     const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const videoSource = useMemo(
+      () => (post.media_url ? { uri: post.media_url } : null),
+      [post.media_url, videoRetryKey]
+    );
 
     useEffect(() => {
       return () => {
@@ -243,7 +252,7 @@ const FeedCard = memo(
     };
 
     // Create per-card player
-    const player = useVideoPlayer(post.media_url || null, p => {
+    const player = useVideoPlayer(videoSource, p => {
       p.loop = true;
       p.volume = 1.0;
       p.muted = isMuted;
@@ -254,6 +263,29 @@ const FeedCard = memo(
           // Video player may not be ready - non-critical
           if (__DEV__) console.warn('[FeedCard] Video play failed:', e);
         }
+      }
+    });
+
+    useEffect(() => {
+      if (post.media_type !== 'video') return;
+      setIsVideoLoading(true);
+      setVideoError(null);
+    }, [post.id, post.media_type, post.media_url, videoRetryKey]);
+
+    useEventListener(player, 'statusChange', ({ status, error }) => {
+      if (status === 'loading') {
+        setIsVideoLoading(true);
+        setVideoError(null);
+        return;
+      }
+      if (status === 'readyToPlay') {
+        setIsVideoLoading(false);
+        setVideoError(null);
+        return;
+      }
+      if (status === 'error') {
+        setIsVideoLoading(false);
+        setVideoError(error?.message || 'Video unavailable');
       }
     });
 
@@ -287,6 +319,12 @@ const FeedCard = memo(
       }
       lastTapRef.current = now;
     };
+
+    const handleRetryVideo = useCallback(() => {
+      setVideoError(null);
+      setIsVideoLoading(true);
+      setVideoRetryKey(prev => prev + 1);
+    }, []);
 
     const authorLabel = post.author?.username ? `@${post.author.username}` : 'Anonymous';
 
@@ -325,13 +363,32 @@ const FeedCard = memo(
               <CollageView collage={post.collage} style={{ width: '100%', height: '100%' }} />
             </View>
           ) : post.media_type === 'video' && post.media_url ? (
-            <VideoView
-              player={player}
-              style={styles.media}
-              contentFit="cover"
-              nativeControls={false}
-              allowsFullscreen={false}
-            />
+            <View style={styles.videoWrap}>
+              <VideoView
+                player={player}
+                style={styles.media}
+                contentFit="cover"
+                nativeControls={false}
+                allowsFullscreen={false}
+              />
+              {isVideoLoading && !videoError ? (
+                <View style={styles.videoOverlay}>
+                  <ActivityIndicator size="small" color="#fff" />
+                </View>
+              ) : null}
+              {videoError ? (
+                <Pressable
+                  onPress={handleRetryVideo}
+                  style={styles.videoOverlay}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry video playback"
+                >
+                  <Ionicons name="refresh" size={24} color="#fff" />
+                  <Text style={styles.videoOverlayTitle}>Video unavailable</Text>
+                  <Text style={styles.videoOverlayCaption}>Tap to retry</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : post.media_url ? (
             <FastImage source={{ uri: post.media_url }} style={styles.media} resizeMode="contain" />
           ) : (
@@ -366,7 +423,12 @@ const FeedCard = memo(
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.textOnlyCaption}>{post.caption || 'No content'}</Text>
+                <ExpandableText
+                  text={post.caption || 'No content'}
+                  maxLines={6}
+                  style={styles.textOnlyCaption}
+                  expandStyle={styles.textOnlyCaptionToggle}
+                />
               </View>
             </View>
           )}
@@ -374,7 +436,12 @@ const FeedCard = memo(
 
         <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}>
           <Text style={styles.authorNameBottom}>{authorLabel}</Text>
-          {post.caption ? <Text style={styles.captionText}>{post.caption}</Text> : null}
+          <ExpandableText
+            text={post.caption}
+            maxLines={3}
+            style={styles.captionText}
+            expandStyle={styles.captionToggle}
+          />
         </View>
 
         <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
@@ -889,6 +956,17 @@ function GameVerticalFeedScreen({
     }
   }).current;
 
+  const handleMomentumScrollEnd = useCallback(
+    (event: any) => {
+      const nextIndex = Math.max(
+        0,
+        Math.min(posts.length - 1, Math.round(event.nativeEvent.contentOffset.y / windowHeight))
+      );
+      setActiveIndex(nextIndex);
+    },
+    [posts.length]
+  );
+
   useEffect(() => {
     const activeId = posts[activeIndex]?.id;
     Object.entries(videoRefs.current).forEach(([postId, player]) => {
@@ -1282,6 +1360,7 @@ function GameVerticalFeedScreen({
         }
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
         ListEmptyComponent={
           loading ? (
             <View style={styles.loadingState}>
@@ -1490,6 +1569,9 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     letterSpacing: -0.2,
   },
+  textOnlyCaptionToggle: {
+    color: '#cbd5e1',
+  },
   headerOverlay: {
     position: 'absolute',
     left: 16,
@@ -1546,6 +1628,34 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  captionToggle: {
+    color: '#e2e8f0',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  videoWrap: {
+    width: '100%',
+    height: '100%',
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(2, 6, 23, 0.38)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+  },
+  videoOverlayTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  videoOverlayCaption: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '600',
   },
   rail: {
     position: 'absolute',

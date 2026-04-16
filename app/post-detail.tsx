@@ -1,4 +1,5 @@
 import VideoPlayer from '@/components/VideoPlayer';
+import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
@@ -11,19 +12,19 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -36,31 +37,44 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-
 const getSportCategory = (title?: string | null, content?: string | null) => {
   const text = ((title || '') + ' ' + (content || '')).toLowerCase();
-  if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
-  if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
-  if (text.includes('baseball') || text.includes('mlb')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
-  if (text.includes('soccer') || text.includes('fifa')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
-  if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
+  if (text.includes('football') || text.includes('nfl'))
+    return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
+  if (text.includes('basketball') || text.includes('nba'))
+    return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
+  if (text.includes('baseball') || text.includes('mlb'))
+    return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
+  if (text.includes('soccer') || text.includes('fifa'))
+    return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
+  if (text.includes('hockey') || text.includes('nhl'))
+    return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
   if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
 export default function PostDetailScreen() {
-  const params = useLocalSearchParams<{ id?: string; postIds?: string; index?: string; from?: string }>();
+  const params = useLocalSearchParams<{
+    id?: string;
+    postIds?: string;
+    index?: string;
+    from?: string;
+  }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const postCache = usePostCache();
   const { edgeSwipeGesture } = useEdgeSwipeBack();
-  
+
   // Parse params for multi-post navigation
   const postIdsArray = useMemo(() => {
-    return params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : [];
+    return params.postIds
+      ? params.postIds.split(',').filter(Boolean)
+      : params.id
+        ? [params.id]
+        : [];
   }, [params.postIds, params.id]);
   const initialIndex = params.index ? parseInt(params.index, 10) : 0;
-  
+
   // State for current post in swipe sequence
   const [currentPostIndex, setCurrentPostIndex] = useState(initialIndex);
   const currentPostId = useMemo(() => {
@@ -92,7 +106,9 @@ export default function PostDetailScreen() {
         if (flatListRef.current && postIdsArray.length > 1) {
           try {
             flatListRef.current.scrollToIndex({ index: newIndex, animated: false });
-          } catch { /* scrollToIndex may fail before layout */ }
+          } catch {
+            /* scrollToIndex may fail before layout */
+          }
         }
       }, 50);
     }, [params.index, params.postIds, postIdsArray.length])
@@ -111,7 +127,10 @@ export default function PostDetailScreen() {
   const [editCommentId, setEditCommentId] = useState<string | null>(null);
   const [editCommentText, setEditCommentText] = useState('');
   const [updatingComment, setUpdatingComment] = useState(false);
-  const [replyingToComment, setReplyingToComment] = useState<{ id: string; authorName: string } | null>(null);
+  const [replyingToComment, setReplyingToComment] = useState<{
+    id: string;
+    authorName: string;
+  } | null>(null);
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [following, setFollowing] = useState(false);
@@ -128,7 +147,7 @@ export default function PostDetailScreen() {
   };
 
   const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => {
+    .onUpdate(e => {
       // Reduced sensitivity: max 2.5x zoom, no sub-1x shrink
       imageScale.value = Math.max(1, Math.min(2.5, savedScale.value * e.scale));
     })
@@ -146,59 +165,138 @@ export default function PostDetailScreen() {
 
   // Skeleton loading component
   const SkeletonLoader = () => (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top', 'bottom']}
+    >
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={Colors[colorScheme].background}
+      />
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       {/* Header Skeleton */}
-      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: Colors[colorScheme].surface,
+            borderBottomColor: Colors[colorScheme].border,
+          },
+        ]}
+      >
         <View style={[styles.skeletonButton, { backgroundColor: Colors[colorScheme].surface }]} />
         <View style={[styles.skeletonTitle, { backgroundColor: Colors[colorScheme].surface }]} />
         <View style={[styles.skeletonButton, { backgroundColor: Colors[colorScheme].surface }]} />
       </View>
-      
-      <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
+
+      <ScrollView
+        style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Hero Skeleton */}
         <View style={[styles.skeletonHero, { backgroundColor: Colors[colorScheme].surface }]} />
-        
+
         {/* Content Skeleton */}
         <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card }]}>
-          <View style={[styles.skeletonLine, styles.skeletonLineTitle, { backgroundColor: Colors[colorScheme].surface }]} />
-          <View style={[styles.skeletonLine, styles.skeletonLineText, { backgroundColor: Colors[colorScheme].surface }]} />
-          <View style={[styles.skeletonLine, styles.skeletonLineText, { backgroundColor: Colors[colorScheme].surface }]} />
-          
+          <View
+            style={[
+              styles.skeletonLine,
+              styles.skeletonLineTitle,
+              { backgroundColor: Colors[colorScheme].surface },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              styles.skeletonLineText,
+              { backgroundColor: Colors[colorScheme].surface },
+            ]}
+          />
+          <View
+            style={[
+              styles.skeletonLine,
+              styles.skeletonLineText,
+              { backgroundColor: Colors[colorScheme].surface },
+            ]}
+          />
+
           {/* Author Skeleton */}
           <View style={styles.authorSection}>
             <View style={styles.authorInfo}>
-              <View style={[styles.authorAvatar, { backgroundColor: Colors[colorScheme].surface }]} />
+              <View
+                style={[styles.authorAvatar, { backgroundColor: Colors[colorScheme].surface }]}
+              />
               <View style={styles.authorDetails}>
-                <View style={[styles.skeletonAuthorName, { backgroundColor: Colors[colorScheme].surface }]} />
-                <View style={[styles.skeletonAuthorTime, { backgroundColor: Colors[colorScheme].surface }]} />
+                <View
+                  style={[
+                    styles.skeletonAuthorName,
+                    { backgroundColor: Colors[colorScheme].surface },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.skeletonAuthorTime,
+                    { backgroundColor: Colors[colorScheme].surface },
+                  ]}
+                />
               </View>
             </View>
-            <View style={[styles.skeletonFollowButton, { backgroundColor: Colors[colorScheme].surface }]} />
+            <View
+              style={[
+                styles.skeletonFollowButton,
+                { backgroundColor: Colors[colorScheme].surface },
+              ]}
+            />
           </View>
         </View>
-        
+
         {/* Comments Skeleton */}
         <View style={[styles.commentsSection, { backgroundColor: 'transparent' }]}>
           <View style={styles.commentsHeader}>
-            <View style={[styles.skeletonCommentsTitle, { backgroundColor: Colors[colorScheme].surface }]} />
-            <View style={[styles.skeletonCommentsCount, { backgroundColor: Colors[colorScheme].surface }]} />
+            <View
+              style={[
+                styles.skeletonCommentsTitle,
+                { backgroundColor: Colors[colorScheme].surface },
+              ]}
+            />
+            <View
+              style={[
+                styles.skeletonCommentsCount,
+                { backgroundColor: Colors[colorScheme].surface },
+              ]}
+            />
           </View>
 
           {Array.from({ length: 3 }).map((_, i) => (
             <View key={i} style={styles.commentCard}>
               <View style={styles.commentHeader}>
                 <View style={styles.commentAuthor}>
-                  <View style={[styles.commentAvatar, { backgroundColor: Colors[colorScheme].surface }]} />
+                  <View
+                    style={[styles.commentAvatar, { backgroundColor: Colors[colorScheme].surface }]}
+                  />
                   <View style={styles.commentAuthorInfo}>
-                    <View style={[styles.skeletonCommentAuthor, { backgroundColor: Colors[colorScheme].surface }]} />
-                    <View style={[styles.skeletonCommentDate, { backgroundColor: Colors[colorScheme].surface }]} />
+                    <View
+                      style={[
+                        styles.skeletonCommentAuthor,
+                        { backgroundColor: Colors[colorScheme].surface },
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.skeletonCommentDate,
+                        { backgroundColor: Colors[colorScheme].surface },
+                      ]}
+                    />
                   </View>
                 </View>
               </View>
-              <View style={[styles.skeletonCommentText, { backgroundColor: Colors[colorScheme].surface }]} />
+              <View
+                style={[
+                  styles.skeletonCommentText,
+                  { backgroundColor: Colors[colorScheme].surface },
+                ]}
+              />
             </View>
           ))}
         </View>
@@ -220,101 +318,105 @@ export default function PostDetailScreen() {
     void loadUser();
   }, []);
 
-  const load = useCallback(async (postId?: string, showLoading = true) => {
-    const targetId = postId || currentPostId;
-    if (!targetId) {
-      setError('No post ID provided');
-      setLoading(false);
-      return;
-    }
-    
-    // Try to get cached post first
-    const cachedPost = postCache.get(targetId);
-    if (cachedPost?.id && cachedPost?.author?.username) {
-      setPost(cachedPost);
-      if (targetId) {
-        setPostsById((prev) => ({ ...prev, [targetId]: cachedPost }));
-      }
-      setError(null);
-      setLoading(false);
-      // Still load comments and fresh data in background
-      void PostApi.comments(targetId).catch(() => [])
-        .then((c: any) => {
-          let commentsArray: any[] = [];
-          if (Array.isArray(c)) {
-            commentsArray = c;
-          } else if (c && Array.isArray(c.items)) {
-            commentsArray = c.items;
-          }
-          setComments(commentsArray);
-          if (targetId) {
-            setCommentsById((prev) => ({ ...prev, [targetId]: commentsArray }));
-          }
-        });
-      return;
-    }
-    
-    // Only show loading skeleton on initial load, not when swiping
-    if (showLoading) {
-      setLoading(true);
-    }
-    setError(null);
-    try {
-      const [p, c] = await Promise.all([
-        PostApi.get(targetId).catch((err: any) => {
-          if (__DEV__) console.error('[post-detail] Failed to get post:', err?.message || err);
-          throw err;
-        }), 
-        PostApi.comments(targetId).catch((err: any) => {
-          if (__DEV__) console.warn('[post-detail] Failed to get comments:', err?.message || err);
-          return [];
-        })
-      ]);
-      
-      if (!p || !p.id) {
-        setError('Post not found or was deleted');
+  const load = useCallback(
+    async (postId?: string, showLoading = true) => {
+      const targetId = postId || currentPostId;
+      if (!targetId) {
+        setError('No post ID provided');
         setLoading(false);
         return;
       }
-      
-      // Cache the post
-      postCache.set(targetId, p);
-      
-      setPost(p);
-      if (targetId) {
-        setPostsById((prev) => ({ ...prev, [targetId]: p }));
-      }
-      
-      // Handle comments response - it returns { items, nextCursor }
-      let commentsArray: any[] = [];
-      if (Array.isArray(c)) {
-        commentsArray = c;
-      } else if (c && Array.isArray(c.items)) {
-        commentsArray = c.items;
-      }
-      setComments(commentsArray);
-      if (targetId) {
-        setCommentsById((prev) => ({ ...prev, [targetId]: commentsArray }));
-      }
-      
-      // Initialize follow and save states from post data
-      if (p) {
-        if (typeof p.is_following_author === 'boolean') {
-          setFollowing(p.is_following_author);
+
+      // Try to get cached post first
+      const cachedPost = postCache.get(targetId);
+      if (cachedPost?.id && cachedPost?.author?.username) {
+        setPost(cachedPost);
+        if (targetId) {
+          setPostsById(prev => ({ ...prev, [targetId]: cachedPost }));
         }
-        if (typeof p.has_bookmarked === 'boolean') {
-          setSaved(p.has_bookmarked);
-        }
-        // Note: has_upvoted is stored directly in post state for UI
+        setError(null);
+        setLoading(false);
+        // Still load comments and fresh data in background
+        void PostApi.comments(targetId)
+          .catch(() => [])
+          .then((c: any) => {
+            let commentsArray: any[] = [];
+            if (Array.isArray(c)) {
+              commentsArray = c;
+            } else if (c && Array.isArray(c.items)) {
+              commentsArray = c.items;
+            }
+            setComments(commentsArray);
+            if (targetId) {
+              setCommentsById(prev => ({ ...prev, [targetId]: commentsArray }));
+            }
+          });
+        return;
       }
-    } catch (e: any) {
-      const errorMsg = e?.message || 'Failed to load post';
-      setError(errorMsg);
-      if (__DEV__) console.error('Error loading post and comments:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPostId, postCache]);
+
+      // Only show loading skeleton on initial load, not when swiping
+      if (showLoading) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const [p, c] = await Promise.all([
+          PostApi.get(targetId).catch((err: any) => {
+            if (__DEV__) console.error('[post-detail] Failed to get post:', err?.message || err);
+            throw err;
+          }),
+          PostApi.comments(targetId).catch((err: any) => {
+            if (__DEV__) console.warn('[post-detail] Failed to get comments:', err?.message || err);
+            return [];
+          }),
+        ]);
+
+        if (!p || !p.id) {
+          setError('Post not found or was deleted');
+          setLoading(false);
+          return;
+        }
+
+        // Cache the post
+        postCache.set(targetId, p);
+
+        setPost(p);
+        if (targetId) {
+          setPostsById(prev => ({ ...prev, [targetId]: p }));
+        }
+
+        // Handle comments response - it returns { items, nextCursor }
+        let commentsArray: any[] = [];
+        if (Array.isArray(c)) {
+          commentsArray = c;
+        } else if (c && Array.isArray(c.items)) {
+          commentsArray = c.items;
+        }
+        setComments(commentsArray);
+        if (targetId) {
+          setCommentsById(prev => ({ ...prev, [targetId]: commentsArray }));
+        }
+
+        // Initialize follow and save states from post data
+        if (p) {
+          if (typeof p.is_following_author === 'boolean') {
+            setFollowing(p.is_following_author);
+          }
+          if (typeof p.has_bookmarked === 'boolean') {
+            setSaved(p.has_bookmarked);
+          }
+          // Note: has_upvoted is stored directly in post state for UI
+        }
+      } catch (e: any) {
+        const errorMsg = e?.message || 'Failed to load post';
+        setError(errorMsg);
+        if (__DEV__) console.error('Error loading post and comments:', e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentPostId, postCache]
+  );
 
   // Reload when params or currentPostIndex changes
   useEffect(() => {
@@ -348,7 +450,7 @@ export default function PostDetailScreen() {
         has_upvoted: optimisticNext,
         upvotes_count: Math.max(0, (p.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
       };
-      if (currentPostId) setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
+      if (currentPostId) setPostsById(prev => ({ ...prev, [currentPostId]: next }));
       return next;
     });
     try {
@@ -357,16 +459,21 @@ export default function PostDetailScreen() {
       setPost((p: any) => {
         const next = {
           ...(p || {}),
-          upvotes_count: typeof r?.count === 'number' ? r.count : typeof r?.upvotes_count === 'number' ? r.upvotes_count : (p?.upvotes_count || 0),
+          upvotes_count:
+            typeof r?.count === 'number'
+              ? r.count
+              : typeof r?.upvotes_count === 'number'
+                ? r.upvotes_count
+                : p?.upvotes_count || 0,
           has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
         };
-        if (currentPostId) setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
+        if (currentPostId) setPostsById(prev => ({ ...prev, [currentPostId]: next }));
         return next;
       });
     } catch (error: any) {
       // Revert optimistic update on failure
       setPost(prevPost);
-      if (currentPostId && prevPost) setPostsById((prev) => ({ ...prev, [currentPostId]: prevPost }));
+      if (currentPostId && prevPost) setPostsById(prev => ({ ...prev, [currentPostId]: prevPost }));
       Alert.alert('Error', error?.message || 'Something went wrong. Please try again.');
       if (__DEV__) console.error('Error toggling upvote:', error);
     } finally {
@@ -383,7 +490,7 @@ export default function PostDetailScreen() {
       // Fix: build next array once, then update both states separately (not nested setState)
       const next = [created, ...comments];
       setComments(next);
-      setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
+      setCommentsById(prev => ({ ...prev, [currentPostId]: next }));
       setReplyingToComment(null);
     } catch (error) {
       const err = error as any;
@@ -415,8 +522,10 @@ export default function PostDetailScreen() {
     title: sanitizeTitle(post?.title) || 'VarsityHub Post',
     caption: post?.caption,
     contextLines: postShareContext,
-    onShareSuccess: (postId) => {
-      PostApi.share(postId).catch((err) => { if (__DEV__) console.warn('[post-detail] Share tracking failed:', err); });
+    onShareSuccess: postId => {
+      PostApi.share(postId).catch(err => {
+        if (__DEV__) console.warn('[post-detail] Share tracking failed:', err);
+      });
     },
   });
 
@@ -426,26 +535,22 @@ export default function PostDetailScreen() {
 
   const _onSendToFriend = () => {
     // Navigate to messages/DM with pre-filled post link
-    Alert.alert(
-      'Send to Friend',
-      'Choose how to send this post',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
+    Alert.alert('Send to Friend', 'Choose how to send this post', [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Via VarsityHub DM',
+        onPress: () => {
+          router.push(`/messages?sharePost=${currentPostId}` as any);
         },
-        {
-          text: 'Via VarsityHub DM',
-          onPress: () => {
-            router.push(`/messages?sharePost=${currentPostId}` as any);
-          }
-        },
-        {
-          text: 'Share Externally',
-          onPress: onShare
-        }
-      ]
-    );
+      },
+      {
+        text: 'Share Externally',
+        onPress: onShare,
+      },
+    ]);
   };
 
   const followInFlight = useRef(false);
@@ -474,7 +579,7 @@ export default function PostDetailScreen() {
 
   const onSave = async () => {
     if (!post?.id) return;
-    
+
     try {
       const result = await PostApi.toggleBookmark(post.id);
       // Update the saved state based on API response
@@ -503,24 +608,39 @@ export default function PostDetailScreen() {
       { text: 'Spam', value: 'spam' },
       { text: 'Cancel', value: '' },
     ];
-    Alert.alert('Report Post', 'Select a reason:', reasons.map(r => ({
-      text: r.text,
-      style: r.value === '' ? 'cancel' as const : 'default' as const,
-      onPress: r.value ? async () => {
-        try {
-          await Report.create({ target_type: 'post', target_id: currentPostId, reason: r.value });
-          Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
-        } catch (error: any) {
-          if (error?.status === 409) {
-            Alert.alert('Already Reported', 'You have already reported this post.');
-          } else if (error?.status === 400 && error?.data?.error?.includes('own')) {
-            Alert.alert('Cannot Report', 'You cannot report your own content.');
-          } else {
-            Alert.alert('Error', error?.data?.error || error?.message || 'Failed to submit report. Please try again.');
-          }
-        }
-      } : undefined,
-    })));
+    Alert.alert(
+      'Report Post',
+      'Select a reason:',
+      reasons.map(r => ({
+        text: r.text,
+        style: r.value === '' ? ('cancel' as const) : ('default' as const),
+        onPress: r.value
+          ? async () => {
+              try {
+                await Report.create({
+                  target_type: 'post',
+                  target_id: currentPostId,
+                  reason: r.value,
+                });
+                Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+              } catch (error: any) {
+                if (error?.status === 409) {
+                  Alert.alert('Already Reported', 'You have already reported this post.');
+                } else if (error?.status === 400 && error?.data?.error?.includes('own')) {
+                  Alert.alert('Cannot Report', 'You cannot report your own content.');
+                } else {
+                  Alert.alert(
+                    'Error',
+                    error?.data?.error ||
+                      error?.message ||
+                      'Failed to submit report. Please try again.'
+                  );
+                }
+              }
+            }
+          : undefined,
+      }))
+    );
   };
 
   const handleReportComment = (commentId: string) => {
@@ -532,54 +652,65 @@ export default function PostDetailScreen() {
       { text: 'Other', value: 'other' },
       { text: 'Cancel', value: '' },
     ];
-    Alert.alert('Report Comment', 'Select a reason:', reasons.map(r => ({
-      text: r.text,
-      style: r.value === '' ? 'cancel' as const : 'default' as const,
-      onPress: r.value ? async () => {
-        try {
-          await Report.create({ target_type: 'comment', target_id: commentId, reason: r.value });
-          Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
-        } catch (error: any) {
-          if (error?.status === 409) {
-            Alert.alert('Already Reported', 'You have already reported this comment.');
-          } else if (error?.status === 400 && error?.data?.error?.includes('own')) {
-            Alert.alert('Cannot Report', 'You cannot report your own content.');
-          } else {
-            Alert.alert('Error', error?.data?.error || error?.message || 'Failed to submit report. Please try again.');
-          }
-        }
-      } : undefined,
-    })));
+    Alert.alert(
+      'Report Comment',
+      'Select a reason:',
+      reasons.map(r => ({
+        text: r.text,
+        style: r.value === '' ? ('cancel' as const) : ('default' as const),
+        onPress: r.value
+          ? async () => {
+              try {
+                await Report.create({
+                  target_type: 'comment',
+                  target_id: commentId,
+                  reason: r.value,
+                });
+                Alert.alert('Report Submitted', 'Thank you for helping keep our community safe.');
+              } catch (error: any) {
+                if (error?.status === 409) {
+                  Alert.alert('Already Reported', 'You have already reported this comment.');
+                } else if (error?.status === 400 && error?.data?.error?.includes('own')) {
+                  Alert.alert('Cannot Report', 'You cannot report your own content.');
+                } else {
+                  Alert.alert(
+                    'Error',
+                    error?.data?.error ||
+                      error?.message ||
+                      'Failed to submit report. Please try again.'
+                  );
+                }
+              }
+            }
+          : undefined,
+      }))
+    );
   };
 
   const handleDeleteComment = async (commentId: string) => {
     if (!currentPostId) return;
-    Alert.alert(
-      'Delete Comment',
-      'Are you sure you want to delete this comment?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await PostApi.deleteComment(currentPostId, commentId);
-              setComments((prevComments) => {
-                const next = prevComments.filter((c) => String(c.id) !== commentId);
-                if (currentPostId) {
-                  setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
-                }
-                return next;
-              });
-              Alert.alert('Success', 'Comment deleted successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete comment');
-            }
+    Alert.alert('Delete Comment', 'Are you sure you want to delete this comment?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await PostApi.deleteComment(currentPostId, commentId);
+            setComments(prevComments => {
+              const next = prevComments.filter(c => String(c.id) !== commentId);
+              if (currentPostId) {
+                setCommentsById(prev => ({ ...prev, [currentPostId]: next }));
+              }
+              return next;
+            });
+            Alert.alert('Success', 'Comment deleted successfully');
+          } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to delete comment');
           }
-        }
-      ]
-    );
+        },
+      },
+    ]);
   };
 
   const handleDeletePost = async () => {
@@ -600,8 +731,8 @@ export default function PostDetailScreen() {
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete post');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
@@ -611,7 +742,7 @@ export default function PostDetailScreen() {
     try {
       const updated = await PostApi.update(currentPostId, { content: sanitizeText(editContent) });
       setPost((p: any) => ({ ...p, content: editContent.trim() }));
-      setPostsById((prev) => ({
+      setPostsById(prev => ({
         ...prev,
         [currentPostId]: { ...(prev[currentPostId] || post), content: editContent.trim() },
       }));
@@ -628,12 +759,12 @@ export default function PostDetailScreen() {
     setUpdatingComment(true);
     try {
       await PostApi.updateComment(currentPostId, editCommentId, sanitizeText(editCommentText));
-      setComments((prevComments) => {
-        const next = prevComments.map((c) => 
+      setComments(prevComments => {
+        const next = prevComments.map(c =>
           String(c.id) === editCommentId ? { ...c, content: editCommentText.trim() } : c
         );
         if (currentPostId) {
-          setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
+          setCommentsById(prev => ({ ...prev, [currentPostId]: next }));
         }
         return next;
       });
@@ -652,21 +783,45 @@ export default function PostDetailScreen() {
   }
 
   if (error && !loading) {
-    const is404 = error.toLowerCase().includes('not found') || error.toLowerCase().includes('deleted');
+    const is404 =
+      error.toLowerCase().includes('not found') || error.toLowerCase().includes('deleted');
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+      <SafeAreaView
+        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
+        <StatusBar
+          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[colorScheme].background}
+        />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
-          <Ionicons name={is404 ? "document-text-outline" : "alert-circle"} size={48} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{is404 ? 'This post is no longer available' : error}</Text>
+          <Ionicons
+            name={is404 ? 'document-text-outline' : 'alert-circle'}
+            size={48}
+            color={Colors[colorScheme].mutedText}
+          />
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
+            {is404 ? 'This post is no longer available' : error}
+          </Text>
           {!is404 && (
             <Pressable testID="retry-button" style={styles.retryButton} onPress={() => void load()}>
               <Text style={styles.retryButtonText}>Try Again</Text>
             </Pressable>
           )}
-          <Pressable style={[styles.retryButton, !is404 && { marginTop: 8 }, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
+          <Pressable
+            style={[
+              styles.retryButton,
+              !is404 && { marginTop: 8 },
+              { backgroundColor: Colors[colorScheme].surface },
+            ]}
+            onPress={() => {
+              safeGoBack(router);
+            }}
+          >
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
+              Go Back
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -676,17 +831,35 @@ export default function PostDetailScreen() {
   if (!post && !loading && !error) {
     // Post failed to load but no error was set - show error state
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+      <SafeAreaView
+        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
+        <StatusBar
+          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[colorScheme].background}
+        />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>Failed to load post</Text>
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
+            Failed to load post
+          </Text>
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
+          <Pressable
+            style={[
+              styles.retryButton,
+              { marginTop: 8, backgroundColor: Colors[colorScheme].surface },
+            ]}
+            onPress={() => {
+              safeGoBack(router);
+            }}
+          >
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
+              Go Back
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -696,8 +869,14 @@ export default function PostDetailScreen() {
   if (error) {
     // Show error with retry and back options
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+      <SafeAreaView
+        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
+        <StatusBar
+          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[colorScheme].background}
+        />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
@@ -705,24 +884,49 @@ export default function PostDetailScreen() {
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
-          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
+          <Pressable
+            style={[
+              styles.retryButton,
+              { marginTop: 8, backgroundColor: Colors[colorScheme].surface },
+            ]}
+            onPress={() => {
+              safeGoBack(router);
+            }}
+          >
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
+              Go Back
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
-  
+
   if (!post) {
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+      <SafeAreaView
+        style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
+        <StatusBar
+          barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+          backgroundColor={Colors[colorScheme].background}
+        />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>Post not found</Text>
-          <Pressable style={[styles.retryButton, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { safeGoBack(router); }}>
-            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
+            Post not found
+          </Text>
+          <Pressable
+            style={[styles.retryButton, { backgroundColor: Colors[colorScheme].surface }]}
+            onPress={() => {
+              safeGoBack(router);
+            }}
+          >
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
+              Go Back
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -742,61 +946,68 @@ export default function PostDetailScreen() {
     const localComments = Array.isArray(commentsData) ? commentsData : [];
 
     return (
-    <ScrollView
-      style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
-      contentContainerStyle={{ paddingBottom: 40 }}
-      showsVerticalScrollIndicator={false}
-      scrollEnabled
-      nestedScrollEnabled={isInsidePager}
-      directionalLockEnabled
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="interactive"
-      automaticallyAdjustKeyboardInsets
-    >
+      <ScrollView
+        style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled
+        nestedScrollEnabled={isInsidePager}
+        directionalLockEnabled
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
           {hasMedia ? (
             <Pressable style={styles.mediaContainer} onPress={() => setFullscreenMedia(true)}>
               {isImage && (
-                <ExpoImage source={{ uri: postData.media_url }} style={styles.heroImage} contentFit="cover" />
+                <ExpoImage
+                  source={{ uri: postData.media_url }}
+                  style={styles.heroImage}
+                  contentFit="cover"
+                />
               )}
               {isVideo && (
                 <View style={styles.videoContainer}>
                   <VideoPlayer uri={postData.media_url} style={styles.heroVideo} />
                 </View>
               )}
-              
+
               {/* Media Overlay */}
-              <LinearGradient 
-                colors={['transparent', 'rgba(0,0,0,0.8)']} 
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
                 style={styles.mediaOverlay}
               />
-              
+
               {/* Category Badge */}
               <View style={styles.mediaTopOverlay}>
-              {/* Category badge removed as requested */}
-              <Text style={styles.countryFlag}>{getCountryFlag(postData.country_code)}</Text>
-            </View>
-              
+                {/* Category badge removed as requested */}
+                <Text style={styles.countryFlag}>{getCountryFlag(postData.country_code)}</Text>
+              </View>
+
               {/* Expand Icon */}
               <View style={styles.expandIcon}>
                 <Ionicons name="expand-outline" size={24} color="#fff" />
               </View>
-              
+
               {/* Live Badge */}
-              {postData.created_at && new Date(postData.created_at).getTime() > Date.now() - 3600000 && (
-                <View style={styles.liveBadge}>
-                  <Text style={styles.liveText}>LIVE</Text>
-                </View>
-              )}
+              {postData.created_at &&
+                new Date(postData.created_at).getTime() > Date.now() - 3600000 && (
+                  <View style={styles.liveBadge}>
+                    <Text style={styles.liveText}>LIVE</Text>
+                  </View>
+                )}
             </Pressable>
           ) : (
-            <LinearGradient 
-              colors={[category.color + '40', category.color + '20']} 
+            <LinearGradient
+              colors={[category.color + '40', category.color + '20']}
               style={styles.noMediaHero}
             >
               <Text style={styles.noMediaIcon}>{category.icon}</Text>
-              <Text style={[styles.noMediaText, { color: Colors[colorScheme].text }]}>Text Post</Text>
+              <Text style={[styles.noMediaText, { color: Colors[colorScheme].text }]}>
+                Text Post
+              </Text>
             </LinearGradient>
           )}
         </View>
@@ -805,43 +1016,83 @@ export default function PostDetailScreen() {
         <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card }]}>
           {/* Title */}
           {sanitizeTitle(postData.title) && (
-            <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{sanitizeTitle(postData.title)}</Text>
+            <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>
+              {sanitizeTitle(postData.title)}
+            </Text>
           )}
-          
+
           {/* Content */}
           {editing && postData.id === currentPostId ? (
             <View>
               <TextInput
-                style={[styles.postText, { color: Colors[colorScheme].text, borderWidth: 1, borderColor: Colors[colorScheme].border, borderRadius: 8, padding: 10, minHeight: 80, textAlignVertical: 'top' }]}
+                style={[
+                  styles.postText,
+                  {
+                    color: Colors[colorScheme].text,
+                    borderWidth: 1,
+                    borderColor: Colors[colorScheme].border,
+                    borderRadius: 8,
+                    padding: 10,
+                    minHeight: 80,
+                    textAlignVertical: 'top',
+                  },
+                ]}
                 value={editContent}
                 onChangeText={setEditContent}
                 multiline
                 autoFocus
               />
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+              <View
+                style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}
+              >
                 <Pressable
                   onPress={() => setEditing(false)}
-                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, backgroundColor: Colors[colorScheme].surface }}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 6,
+                    backgroundColor: Colors[colorScheme].surface,
+                  }}
                 >
                   <Text style={{ color: Colors[colorScheme].text, fontWeight: '600' }}>Cancel</Text>
                 </Pressable>
                 <Pressable
                   onPress={handleEditPost}
-                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 6, backgroundColor: Colors[colorScheme].tint }}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 6,
+                    backgroundColor: Colors[colorScheme].tint,
+                  }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
                 </Pressable>
               </View>
             </View>
           ) : postData.content ? (
-            <Text style={[styles.postText, { color: Colors[colorScheme].text }]}>{postData.content}</Text>
+            <ExpandableText
+              text={postData.content}
+              maxLines={6}
+              style={[styles.postText, { color: Colors[colorScheme].text }]}
+              expandStyle={[styles.postTextToggle, { color: Colors[colorScheme].tint }]}
+            />
           ) : null}
 
           {/* Game/Event Info */}
           {postData.game && (
-            <Pressable 
-              style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { if (postData.game?.id) { void router.push({ pathname: '/game/[id]', params: { id: postData.game.id } }); } }}
+            <Pressable
+              style={[
+                styles.gameInfo,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+              onPress={() => {
+                if (postData.game?.id) {
+                  void router.push({ pathname: '/game/[id]', params: { id: postData.game.id } });
+                }
+              }}
             >
               <Ionicons name="basketball-outline" size={20} color={Colors[colorScheme].tint} />
               <View style={styles.gameDetails}>
@@ -850,7 +1101,7 @@ export default function PostDetailScreen() {
                 </Text>
                 {(postData.game.home_team || postData.game.away_team) && (
                   <Text style={[styles.gameTeams, { color: Colors[colorScheme].mutedText }]}>
-                    {postData.game.home_team && postData.game.away_team 
+                    {postData.game.home_team && postData.game.away_team
                       ? `${postData.game.home_team} vs ${postData.game.away_team}`
                       : postData.game.home_team || postData.game.away_team}
                   </Text>
@@ -862,10 +1113,18 @@ export default function PostDetailScreen() {
 
           {/* Team Links */}
           {(postData.team_id || postData.team) && (
-            <Pressable 
-              style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { const teamId = postData.team_id || postData.team?.id;
-                if (teamId) { void router.push(`/team-profile?id=${teamId}`);
+            <Pressable
+              style={[
+                styles.teamInfo,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+              onPress={() => {
+                const teamId = postData.team_id || postData.team?.id;
+                if (teamId) {
+                  void router.push(`/team-profile?id=${teamId}`);
                 }
               }}
             >
@@ -886,15 +1145,20 @@ export default function PostDetailScreen() {
 
           {/* Author Info */}
           <View style={[styles.authorSection, { borderBottomColor: Colors[colorScheme].border }]}>
-            <Pressable 
+            <Pressable
               style={styles.authorInfo}
-              onPress={() => { if (postData.author_id) { void router.push(`/user-profile?id=${postData.author_id}`);
+              onPress={() => {
+                if (postData.author_id) {
+                  void router.push(`/user-profile?id=${postData.author_id}`);
                 }
               }}
               disabled={!postData.author_id}
             >
               {postData.author?.avatar_url ? (
-                <ExpoImage source={{ uri: postData.author.avatar_url }} style={styles.authorAvatar} />
+                <ExpoImage
+                  source={{ uri: postData.author.avatar_url }}
+                  style={styles.authorAvatar}
+                />
               ) : (
                 <View style={[styles.authorAvatar, styles.defaultAvatar]}>
                   <Ionicons name="person" size={20} color="#fff" />
@@ -904,7 +1168,9 @@ export default function PostDetailScreen() {
                 <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
                   {postData.author?.display_name || postData.author?.username || 'Anonymous'}
                 </Text>
-                <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(postData.created_at)}</Text>
+                <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>
+                  {timeAgo(postData.created_at)}
+                </Text>
               </View>
             </Pressable>
             {/* Follow button removed — users follow when visiting profile page */}
@@ -915,63 +1181,102 @@ export default function PostDetailScreen() {
             <View style={styles.stats}>
               <View style={styles.stat}>
                 <Ionicons name="arrow-up" size={18} color={Colors[colorScheme].tint} />
-                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(postData.upvotes_count || 0)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>
+                  {formatCount(postData.upvotes_count || 0)}
+                </Text>
               </View>
               <View style={styles.stat}>
-                <Ionicons name="chatbubble-outline" size={18} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(localComments.length || 0)}</Text>
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={18}
+                  color={Colors[colorScheme].mutedText}
+                />
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>
+                  {formatCount(localComments.length || 0)}
+                </Text>
               </View>
               <View style={styles.stat}>
                 <Ionicons name="eye-outline" size={18} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount((postData.upvotes_count || 0) * 12)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>
+                  {formatCount((postData.upvotes_count || 0) * 12)}
+                </Text>
               </View>
             </View>
-            
+
             <View style={styles.actions}>
               <Pressable
                 testID="upvote-button"
                 style={[
                   styles.actionButton,
                   styles.upvoteButton,
-                  postData?.has_upvoted && styles.upvoteButtonActive
+                  postData?.has_upvoted && styles.upvoteButtonActive,
                 ]}
                 onPress={onUpvote}
                 disabled={voting}
               >
                 <Ionicons
-                  name={postData?.has_upvoted ? "arrow-up" : "arrow-up-outline"}
+                  name={postData?.has_upvoted ? 'arrow-up' : 'arrow-up-outline'}
                   size={20}
                   color="#fff"
                 />
               </Pressable>
-              
-              <Pressable style={[styles.actionButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={onSave}>
+
+              <Pressable
+                style={[
+                  styles.actionButton,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+                onPress={onSave}
+              >
                 <Ionicons
-                  name={saved ? "bookmark" : "bookmark-outline"}
+                  name={saved ? 'bookmark' : 'bookmark-outline'}
                   size={20}
-                  color={saved ? "#FFB800" : Colors[colorScheme].icon}
+                  color={saved ? '#FFB800' : Colors[colorScheme].icon}
                 />
               </Pressable>
 
-              <Pressable style={[styles.actionButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={onReport}>
+              <Pressable
+                style={[
+                  styles.actionButton,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+                onPress={onReport}
+              >
                 <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].icon} />
               </Pressable>
             </View>
           </View>
-
         </View>
 
         {/* Comments Section */}
         <View style={[styles.commentsSection, { backgroundColor: 'transparent' }]}>
           <View style={styles.commentsHeader}>
-            <Text style={[styles.commentsTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
-            <Text style={[styles.commentsCount, { color: Colors[colorScheme].mutedText }]}>{localComments.length}</Text>
+            <Text style={[styles.commentsTitle, { color: Colors[colorScheme].text }]}>
+              Comments
+            </Text>
+            <Text style={[styles.commentsCount, { color: Colors[colorScheme].mutedText }]}>
+              {localComments.length}
+            </Text>
           </View>
-          
+
           {/* Add Comment */}
           <View style={styles.addCommentWrapper}>
             {replyingToComment && (
-              <View style={[styles.replyingToBar, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <View
+                style={[
+                  styles.replyingToBar,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
                 <Text style={[styles.replyingToText, { color: Colors[colorScheme].mutedText }]}>
                   Replying to {replyingToComment.authorName}
                 </Text>
@@ -980,90 +1285,142 @@ export default function PostDetailScreen() {
                 </Pressable>
               </View>
             )}
-            <View style={[styles.addCommentContainer, { backgroundColor: Colors[colorScheme].card }]}>
-            {currentUser?.avatar_url ? (
-              <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
-            ) : (
-              <View style={[styles.commentAvatar, styles.defaultAvatar]}>
-                <Ionicons name="person" size={16} color="#fff" />
-              </View>
-            )}
-            <TextInput
-              testID="comment-input"
-              style={[styles.commentInput, {
-                backgroundColor: Colors[colorScheme].surface,
-                borderColor: Colors[colorScheme].border,
-                color: Colors[colorScheme].text
-              }]}
-              placeholder={replyingToComment ? `Reply to ${replyingToComment.authorName}...` : 'Add a comment...'}
-              placeholderTextColor={Colors[colorScheme].mutedText}
-              value={comment}
-              onChangeText={setComment}
-              multiline
-            />
-            <Pressable 
-              testID="submit-comment"
-              style={[styles.sendButton, (commenting || !comment.trim()) && styles.sendButtonDisabled]} 
-              onPress={onAddComment}
-              disabled={commenting || !comment.trim()}
+            <View
+              style={[styles.addCommentContainer, { backgroundColor: Colors[colorScheme].card }]}
             >
-              <Ionicons 
-                name="send" 
-                size={18} 
-                color={(commenting || !comment.trim()) ? Colors[colorScheme].mutedText : Colors[colorScheme].tint}
+              {currentUser?.avatar_url ? (
+                <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
+              ) : (
+                <View style={[styles.commentAvatar, styles.defaultAvatar]}>
+                  <Ionicons name="person" size={16} color="#fff" />
+                </View>
+              )}
+              <TextInput
+                testID="comment-input"
+                style={[
+                  styles.commentInput,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                    color: Colors[colorScheme].text,
+                  },
+                ]}
+                placeholder={
+                  replyingToComment
+                    ? `Reply to ${replyingToComment.authorName}...`
+                    : 'Add a comment...'
+                }
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={comment}
+                onChangeText={setComment}
+                multiline
               />
-            </Pressable>
+              <Pressable
+                testID="submit-comment"
+                style={[
+                  styles.sendButton,
+                  (commenting || !comment.trim()) && styles.sendButtonDisabled,
+                ]}
+                onPress={onAddComment}
+                disabled={commenting || !comment.trim()}
+              >
+                <Ionicons
+                  name="send"
+                  size={18}
+                  color={
+                    commenting || !comment.trim()
+                      ? Colors[colorScheme].mutedText
+                      : Colors[colorScheme].tint
+                  }
+                />
+              </Pressable>
             </View>
           </View>
 
           {/* Comments List */}
           {localComments.length === 0 ? (
             <View style={styles.emptyComments}>
-              <Ionicons name="chatbubbles-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
-              <Text style={[styles.emptyCommentsText, { color: Colors[colorScheme].text }]}>No comments yet</Text>
-              <Text style={[styles.emptyCommentsSubtext, { color: Colors[colorScheme].tabIconDefault }]}>Be the first to share your thoughts!</Text>
+              <Ionicons
+                name="chatbubbles-outline"
+                size={48}
+                color={Colors[colorScheme].tabIconDefault}
+              />
+              <Text style={[styles.emptyCommentsText, { color: Colors[colorScheme].text }]}>
+                No comments yet
+              </Text>
+              <Text
+                style={[styles.emptyCommentsSubtext, { color: Colors[colorScheme].tabIconDefault }]}
+              >
+                Be the first to share your thoughts!
+              </Text>
             </View>
           ) : (
             <View style={styles.commentsList}>
-              {localComments.map((c) => (
+              {localComments.map(c => (
                 <View key={String(c.id)} style={styles.commentCard}>
                   <View style={styles.commentHeader}>
-                    <Pressable 
+                    <Pressable
                       style={styles.commentAuthor}
-                      onPress={() => { if (c.author_id) { void router.push(`/user-profile?id=${c.author_id}`);
+                      onPress={() => {
+                        if (c.author_id) {
+                          void router.push(`/user-profile?id=${c.author_id}`);
                         }
                       }}
                       disabled={!c.author_id}
                     >
                       {c.author?.avatar_url ? (
-                        <ExpoImage source={{ uri: c.author.avatar_url }} style={styles.commentAvatar} />
+                        <ExpoImage
+                          source={{ uri: c.author.avatar_url }}
+                          style={styles.commentAvatar}
+                        />
                       ) : (
                         <View style={[styles.commentAvatar, styles.defaultAvatar]}>
                           <Ionicons name="person" size={16} color="#fff" />
                         </View>
                       )}
                       <View style={styles.commentAuthorInfo}>
-                        <Text style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}>
-                          {c.author?.username ? `@${c.author.username}` : c.author?.display_name ? `@${c.author.display_name}` : 'User'}
+                        <Text
+                          style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}
+                        >
+                          {c.author?.username
+                            ? `@${c.author.username}`
+                            : c.author?.display_name
+                              ? `@${c.author.display_name}`
+                              : 'User'}
                         </Text>
                         {c.created_at && (
-                          <Text style={[styles.commentDate, { color: Colors[colorScheme].mutedText }]}>
+                          <Text
+                            style={[styles.commentDate, { color: Colors[colorScheme].mutedText }]}
+                          >
                             {timeAgo(c.created_at)}
                           </Text>
                         )}
                       </View>
                     </Pressable>
-                    
+
                     <View style={styles.commentActions}>
                       {currentUser && (
                         <Pressable
                           style={styles.commentActionBtn}
-                          onPress={() => setReplyingToComment({ id: String(c.id), authorName: c.author?.username ? `@${c.author.username}` : c.author?.display_name || 'User' })}
+                          onPress={() =>
+                            setReplyingToComment({
+                              id: String(c.id),
+                              authorName: c.author?.username
+                                ? `@${c.author.username}`
+                                : c.author?.display_name || 'User',
+                            })
+                          }
                         >
-                          <Ionicons name="arrow-undo-outline" size={16} color={Colors[colorScheme].icon} />
+                          <Ionicons
+                            name="arrow-undo-outline"
+                            size={16}
+                            color={Colors[colorScheme].icon}
+                          />
                         </Pressable>
                       )}
-                      {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) ? (
+                      {currentUser &&
+                      c.author_id &&
+                      String(currentUser.id) === String(c.author_id) ? (
                         <>
                           <Pressable
                             style={styles.commentActionBtn}
@@ -1081,18 +1438,26 @@ export default function PostDetailScreen() {
                             <Ionicons name="trash" size={16} color="#DC2626" />
                           </Pressable>
                         </>
-                      ) : currentUser && c.author_id && String(currentUser.id) !== String(c.author_id) ? (
+                      ) : currentUser &&
+                        c.author_id &&
+                        String(currentUser.id) !== String(c.author_id) ? (
                         <Pressable
                           style={styles.commentActionBtn}
                           onPress={() => handleReportComment(String(c.id))}
                           accessibilityLabel="Report comment"
                         >
-                          <Ionicons name="flag-outline" size={16} color={Colors[colorScheme].mutedText} />
+                          <Ionicons
+                            name="flag-outline"
+                            size={16}
+                            color={Colors[colorScheme].mutedText}
+                          />
                         </Pressable>
                       ) : null}
                     </View>
                   </View>
-                  <Text style={[styles.commentText, { color: Colors[colorScheme].text }]}>{c.content}</Text>
+                  <Text style={[styles.commentText, { color: Colors[colorScheme].text }]}>
+                    {c.content}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -1103,82 +1468,114 @@ export default function PostDetailScreen() {
   };
 
   const content = (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
-      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top']}
+    >
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={Colors[colorScheme].background}
+      />
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
-
-      {/* Custom Header */}
-      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: 'transparent' }]}>
-        <Pressable style={styles.backButton} onPress={() => safeGoBack(router)}>
-          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Post Details</Text>
-          {hasMultiplePosts && (
-            <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
-              {currentPostIndex + 1} of {postIdsArray.length}
-            </Text>
-          )}
-        </View>
-        <View style={styles.headerActions}>
-          {/* Show edit button for post author only */}
-          {currentUser && post.author_id === currentUser.id && (
-            <Pressable style={styles.headerActionButton} onPress={() => { setEditing(true); setEditContent(post.content || ''); }}>
-              <Ionicons name="create-outline" size={22} color={Colors[colorScheme].text} />
-            </Pressable>
-          )}
-          {/* Show delete button for post author or admin */}
-          {currentUser && (post.author_id === currentUser.id || currentUser.is_admin || currentUser.role === 'admin' || currentUser.role === 'super_admin') && (
-            <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
-              <Ionicons name="trash-outline" size={22} color="#DC2626" />
-            </Pressable>
-          )}
-          <Pressable style={styles.headerActionButton} onPress={onShare}>
-            <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={0}
+      >
+        {/* Custom Header */}
+        <View
+          style={[
+            styles.header,
+            { backgroundColor: Colors[colorScheme].surface, borderBottomColor: 'transparent' },
+          ]}
+        >
+          <Pressable style={styles.backButton} onPress={() => safeGoBack(router)}>
+            <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
+          <View style={styles.headerCenter}>
+            <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
+              Post Details
+            </Text>
+            {hasMultiplePosts && (
+              <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                {currentPostIndex + 1} of {postIdsArray.length}
+              </Text>
+            )}
+          </View>
+          <View style={styles.headerActions}>
+            {/* Show edit button for post author only */}
+            {currentUser && post.author_id === currentUser.id && (
+              <Pressable
+                style={styles.headerActionButton}
+                onPress={() => {
+                  setEditing(true);
+                  setEditContent(post.content || '');
+                }}
+              >
+                <Ionicons name="create-outline" size={22} color={Colors[colorScheme].text} />
+              </Pressable>
+            )}
+            {/* Show delete button for post author or admin */}
+            {currentUser &&
+              (post.author_id === currentUser.id ||
+                currentUser.is_admin ||
+                currentUser.role === 'admin' ||
+                currentUser.role === 'super_admin') && (
+                <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
+                  <Ionicons name="trash-outline" size={22} color="#DC2626" />
+                </Pressable>
+              )}
+            <Pressable style={styles.headerActionButton} onPress={onShare}>
+              <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
+            </Pressable>
+          </View>
         </View>
-      </View>
 
-      {/* Horizontal Swipe FlatList for Multiple Posts */}
-      {hasMultiplePosts ? (
-        <FlatList
-          ref={flatListRef}
-          data={postIdsArray}
-          horizontal
-          pagingEnabled
-          scrollEnabled={true}
-          nestedScrollEnabled
-          directionalLockEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          decelerationRate="fast"
-          keyExtractor={(item) => item}
-          extraData={comments}
-          initialScrollIndex={initialIndex}
-          getItemLayout={(data, index) => ({
-            length: SCREEN_WIDTH,
-            offset: SCREEN_WIDTH * index,
-            index,
-          })}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-          renderItem={({ item }) => {
-            const postData = item === currentPostId ? post : postsById[item];
-            const commentsData = item === currentPostId ? comments : commentsById[item];
-            return (
-              <View style={{ width: SCREEN_WIDTH }}>
-                {postData ? renderPostContent(postData, commentsData, true) : (
-                  <View style={[styles.loadingPlaceholder, { backgroundColor: Colors[colorScheme].background }]} />
-                )}
-              </View>
-            );
-          }}
-        />
-      ) : (
-        post ? renderPostContent(post, comments, false) : null
-      )}
-
+        {/* Horizontal Swipe FlatList for Multiple Posts */}
+        {hasMultiplePosts ? (
+          <FlatList
+            ref={flatListRef}
+            data={postIdsArray}
+            horizontal
+            pagingEnabled
+            scrollEnabled={true}
+            nestedScrollEnabled
+            directionalLockEnabled
+            showsHorizontalScrollIndicator={false}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            keyExtractor={item => item}
+            extraData={comments}
+            initialScrollIndex={initialIndex}
+            getItemLayout={(data, index) => ({
+              length: SCREEN_WIDTH,
+              offset: SCREEN_WIDTH * index,
+              index,
+            })}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+            renderItem={({ item }) => {
+              const postData = item === currentPostId ? post : postsById[item];
+              const commentsData = item === currentPostId ? comments : commentsById[item];
+              return (
+                <View style={{ width: SCREEN_WIDTH }}>
+                  {postData ? (
+                    renderPostContent(postData, commentsData, true)
+                  ) : (
+                    <View
+                      style={[
+                        styles.loadingPlaceholder,
+                        { backgroundColor: Colors[colorScheme].background },
+                      ]}
+                    />
+                  )}
+                </View>
+              );
+            }}
+          />
+        ) : post ? (
+          renderPostContent(post, comments, false)
+        ) : null}
       </KeyboardAvoidingView>
       {/* Edit Comment Modal */}
       <Modal
@@ -1189,28 +1586,57 @@ export default function PostDetailScreen() {
           setEditCommentText('');
         }}
       >
-        <SafeAreaView style={[styles.editModal, { backgroundColor: Colors[colorScheme].background }]}>
-          <View style={[styles.editHeader, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-            <Pressable onPress={() => {
-              setEditCommentId(null);
-              setEditCommentText('');
-            }}>
-              <Text style={[styles.cancelButton, { color: Colors[colorScheme].tabIconDefault }]}>Cancel</Text>
+        <SafeAreaView
+          style={[styles.editModal, { backgroundColor: Colors[colorScheme].background }]}
+        >
+          <View
+            style={[
+              styles.editHeader,
+              {
+                backgroundColor: Colors[colorScheme].surface,
+                borderBottomColor: Colors[colorScheme].border,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => {
+                setEditCommentId(null);
+                setEditCommentText('');
+              }}
+            >
+              <Text style={[styles.cancelButton, { color: Colors[colorScheme].tabIconDefault }]}>
+                Cancel
+              </Text>
             </Pressable>
-            <Text style={[styles.editTitle, { color: Colors[colorScheme].text }]}>Edit Comment</Text>
+            <Text style={[styles.editTitle, { color: Colors[colorScheme].text }]}>
+              Edit Comment
+            </Text>
             <Pressable onPress={handleEditComment} disabled={updatingComment}>
-              <Text style={[styles.saveButton, updatingComment && styles.saveButtonDisabled, { color: updatingComment ? Colors[colorScheme].tabIconDefault : Colors[colorScheme].tint }]}>
+              <Text
+                style={[
+                  styles.saveButton,
+                  updatingComment && styles.saveButtonDisabled,
+                  {
+                    color: updatingComment
+                      ? Colors[colorScheme].tabIconDefault
+                      : Colors[colorScheme].tint,
+                  },
+                ]}
+              >
                 {updatingComment ? 'Saving...' : 'Save'}
               </Text>
             </Pressable>
           </View>
           <View style={styles.editContent}>
             <TextInput
-              style={[styles.editCommentInput, { 
-                backgroundColor: Colors[colorScheme].card, 
-                borderColor: Colors[colorScheme].border,
-                color: Colors[colorScheme].text
-              }]}
+              style={[
+                styles.editCommentInput,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
               placeholder="Edit your comment..."
               placeholderTextColor={Colors[colorScheme].tabIconDefault}
               value={editCommentText}
@@ -1227,12 +1653,18 @@ export default function PostDetailScreen() {
       <Modal
         visible={fullscreenMedia}
         animationType="fade"
-        onRequestClose={() => { setFullscreenMedia(false); resetFullscreen(); }}
+        onRequestClose={() => {
+          setFullscreenMedia(false);
+          resetFullscreen();
+        }}
       >
         <View style={styles.fullscreenContainer}>
           <Pressable
             style={styles.fullscreenCloseButton}
-            onPress={() => { setFullscreenMedia(false); resetFullscreen(); }}
+            onPress={() => {
+              setFullscreenMedia(false);
+              resetFullscreen();
+            }}
           >
             <Ionicons name="close" size={32} color="#fff" />
           </Pressable>
@@ -1351,7 +1783,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
-  
+
   // Swipe Hint
   swipeHint: {
     flexDirection: 'row',
@@ -1371,7 +1803,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  
+
   // Hero Section
   heroSection: {
     position: 'relative',
@@ -1493,6 +1925,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 20,
+  },
+  postTextToggle: {
+    marginTop: -10,
+    marginBottom: 20,
+    fontWeight: '700',
   },
 
   // Game/Event Info
@@ -1708,8 +2145,7 @@ const styles = StyleSheet.create({
   },
 
   // Add Comment
-  addCommentWrapper: {
-  },
+  addCommentWrapper: {},
   addCommentContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',

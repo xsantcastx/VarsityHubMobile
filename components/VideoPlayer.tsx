@@ -1,7 +1,15 @@
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
 interface VideoPlayerProps {
   uri: string;
@@ -20,11 +28,17 @@ export function VideoPlayer({
   nativeControls = true,
   paused,
 }: VideoPlayerProps) {
-  const player = useVideoPlayer(uri, (p) => {
+  const [retryKey, setRetryKey] = React.useState(0);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const source = React.useMemo(() => ({ uri }), [uri, retryKey]);
+  const player = useVideoPlayer(source, p => {
     p.volume = 1.0;
     p.muted = false;
     if (autoPlay && !paused) {
-      try { p.play(); } catch (e) {
+      try {
+        p.play();
+      } catch (e) {
         // Video player may not be ready yet - non-critical
         if (__DEV__) console.warn('[VideoPlayer] Initial play failed:', e);
       }
@@ -34,6 +48,28 @@ export function VideoPlayer({
   useEventListener(player, 'playToEnd', () => {
     if (onEnd) onEnd();
   });
+
+  useEventListener(player, 'statusChange', ({ status, error }) => {
+    if (status === 'loading') {
+      setIsLoading(true);
+      setErrorMessage(null);
+      return;
+    }
+    if (status === 'readyToPlay') {
+      setIsLoading(false);
+      setErrorMessage(null);
+      return;
+    }
+    if (status === 'error') {
+      setIsLoading(false);
+      setErrorMessage(error?.message || 'Video unavailable');
+    }
+  });
+
+  React.useEffect(() => {
+    setIsLoading(true);
+    setErrorMessage(null);
+  }, [uri, retryKey]);
 
   // Control playback based on paused prop
   React.useEffect(() => {
@@ -62,14 +98,57 @@ export function VideoPlayer({
   }, [autoPlay, player, paused]);
 
   return (
-    <VideoView
-      style={style}
-      player={player}
-      nativeControls={nativeControls}
-      allowsFullscreen
-      allowsPictureInPicture
-    />
+    <View style={style}>
+      <VideoView
+        style={StyleSheet.absoluteFill}
+        player={player}
+        nativeControls={nativeControls}
+        allowsFullscreen
+        allowsPictureInPicture
+      />
+      {isLoading && !errorMessage ? (
+        <View style={styles.overlay}>
+          <ActivityIndicator size="small" color="#fff" />
+        </View>
+      ) : null}
+      {errorMessage ? (
+        <Pressable
+          onPress={() => {
+            setIsLoading(true);
+            setErrorMessage(null);
+            setRetryKey(prev => prev + 1);
+          }}
+          style={styles.overlay}
+          accessibilityRole="button"
+          accessibilityLabel="Retry video playback"
+        >
+          <Text style={styles.errorTitle}>Video unavailable</Text>
+          <Text style={styles.errorCaption}>Tap to retry</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+  },
+  errorTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  errorCaption: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});
 
 export default VideoPlayer;

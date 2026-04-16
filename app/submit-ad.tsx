@@ -134,15 +134,11 @@ function SubmitAdScreen() {
             );
             return;
           }
-          if (code === 'PLAN_REQUIRED' || msg.includes('subscription') || msg.includes('veteran') || msg.includes('legend')) {
-            Alert.alert(
-              'Subscription Required',
-              'Ad creation requires a Veteran or Legend subscription. Upgrade your plan to start advertising.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'View Plans', onPress: () => router.push('/subscription-paywall' as any) },
-              ]
-            );
+          // v1.0.2 audit fix: PLAN_REQUIRED gate removed — all users can book ads.
+          // Keeping this block as a no-op so the error code is documented if the
+          // server ever re-introduces a gate in the future.
+          if (code === 'PLAN_REQUIRED') {
+            Alert.alert('Error', 'Unable to create ad. Please try again or contact support.');
             return;
           }
         }

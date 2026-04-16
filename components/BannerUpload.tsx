@@ -6,6 +6,7 @@
  */
 
 import { uploadFile } from '@/api/upload';
+import { isICloudError, ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE } from '@/utils/isICloudError';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
@@ -163,22 +164,9 @@ export function BannerUpload({
         onChange(String(uploadedUrl), getFitValue(fitMode), { x: 50, y: 50 });
       }
     } catch (error: any) {
-      const msg = String(error?.message || '').toLowerCase();
-      // v1.0.2: broaden iCloud detection — iOS sometimes surfaces these as generic "could not read"
-      // or "unable to decode" errors instead of mentioning iCloud explicitly.
-      const isICloudError =
-        msg.includes('icloud') ||
-        msg.includes('not downloaded') ||
-        msg.includes('cloud asset') ||
-        msg.includes('ph://') ||
-        msg.includes('no such file') ||
-        msg.includes('unable to decode') ||
-        msg.includes('could not read');
-      if (isICloudError) {
-        Alert.alert(
-          'Photo Not Available Locally',
-          'This photo appears to be stored in iCloud and hasn\'t been downloaded to your device yet. Open the Photos app, let the image fully load, then try again — or pick a photo already saved on this device.'
-        );
+      // v1.0.2 audit fix: use shared iCloud detection utility
+      if (isICloudError(error)) {
+        Alert.alert(ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE);
       } else {
         Alert.alert(
           'Image Error',

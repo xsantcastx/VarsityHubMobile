@@ -12,6 +12,7 @@ import {
   getTransactionSummary
 } from '../lib/transactionLogger.js';
 import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
+import { updateUserAndInvalidate } from '../lib/userCache.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -579,7 +580,7 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
     const { reason } = parsed.data;
     const bannedUserId = req.params.id;
 
-    await prisma.user.update({
+    await updateUserAndInvalidate(prisma, {
       where: { id: bannedUserId },
       data: {
         banned: true,
@@ -626,7 +627,7 @@ adminRouter.post('/users/:id/unban', requireVerified as any, requireAdminMiddlew
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const unbannedUserId = req.params.id;
 
-    await prisma.user.update({
+    await updateUserAndInvalidate(prisma, {
       where: { id: unbannedUserId },
       data: {
         banned: false,
