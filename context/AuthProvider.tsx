@@ -228,10 +228,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const registerPushTokenRef = React.useRef<(() => Promise<boolean>) | null>(null);
   const paywallPushTsRef = React.useRef<number>(0);
   const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subscriptionFetchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check authentication
   const checkAuth = useCallback(
-    async (options?: { email?: string; pendingVerification?: boolean }) => {
+    async (options?: { email?: string; pendingVerification?: boolean; skipSubscriptionRefresh?: boolean }) => {
       try {
         // If pending verification flag is set, store email and don't try to fetch user
         if (options?.pendingVerification && options?.email) {
@@ -294,8 +295,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         analytics.identify(me.id, { email: me.email, role: me.role });
         setPendingVerificationEmail(null);
 
-        // Fetch subscription status (non-blocking)
-        fetchSubscription().catch((e) => captureException(e, { tags: { context: 'subscription_fetch' } }));
+        // Stagger non-critical subscription refresh so auth/bootstrap requests do not fan out at once.
+        if (!options?.skipSubscriptionRefresh) {
+          if (subscriptionFetchTimeoutRef.current) clearTimeout(subscriptionFetchTimeoutRef.current);
+          subscriptionFetchTimeoutRef.current = setTimeout(() => {
+            subscriptionFetchTimeoutRef.current = null;
+            fetchSubscription().catch((e) => captureException(e, { tags: { context: 'subscription_fetch' } }));
+          }, 750);
+        }
 
         // v1.0.2: register push token after successful checkAuth; signOut clears the timeout.
         if (me.preferences?.onboarding_completed === true) {
@@ -402,6 +409,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       if (pushTokenTimeoutRef.current) {
         clearTimeout(pushTokenTimeoutRef.current);
         pushTokenTimeoutRef.current = null;
+      }
+      if (subscriptionFetchTimeoutRef.current) {
+        clearTimeout(subscriptionFetchTimeoutRef.current);
+        subscriptionFetchTimeoutRef.current = null;
       }
       clearPostCacheOnLogout();
       setUser(null);
@@ -516,11 +527,18 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Skip if we checked less than 5 seconds ago (prevents infinite loop from rapid foreground events)
         if (now - lastForegroundCheckRef.current < 5000) return;
         lastForegroundCheckRef.current = now;
-        checkAuthRef.current().catch((e) => captureException(e, { tags: { context: 'foreground_auth_refresh' } }));
-        fetchSubscription().catch((e) => captureException(e, { tags: { context: 'foreground_subscription_refresh' } }));
+        checkAuthRef.current().catch((e) =>
+          captureException(e, { tags: { context: 'foreground_auth_refresh' } })
+        );
       }
     });
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      if (subscriptionFetchTimeoutRef.current) {
+        clearTimeout(subscriptionFetchTimeoutRef.current);
+        subscriptionFetchTimeoutRef.current = null;
+      }
+    };
   }, [fetchSubscription, initializing]);
 
   // Safety timeout - force initialization complete after 5 seconds

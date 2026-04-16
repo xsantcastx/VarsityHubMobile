@@ -11,7 +11,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
-import { captureException } from '@/utils/sentry';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 export default function VerifyScreen() {
   const router = useRouter();
@@ -46,9 +46,10 @@ export default function VerifyScreen() {
       await User.verifyEmail(code.trim());
       const verifyDuration = Date.now() - startTime;
 
-      captureException(new Error(`[TELEMETRY] Email verified in ${verifyDuration}ms`), {
-        tags: { context: 'verify-email-success', duration_ms: String(verifyDuration) },
-        extra: { email: _email },
+      captureBreadcrumb('Email verified', 'auth', {
+        context: 'verify-email-success',
+        duration_ms: String(verifyDuration),
+        has_email: _email ? 'true' : 'false',
       });
 
       setInfo('Email verified successfully!');
@@ -111,9 +112,10 @@ export default function VerifyScreen() {
       const res: any = await User.requestVerification();
       const resendDuration = Date.now() - startTime;
 
-      captureException(new Error(`[TELEMETRY] Resend requested in ${resendDuration}ms`), {
-        tags: { context: 'verify-email-resend-success', duration_ms: String(resendDuration) },
-        extra: { sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
+      captureBreadcrumb('Verification resend requested', 'auth', {
+        context: 'verify-email-resend-success',
+        duration_ms: String(resendDuration),
+        sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production',
       });
 
       setInfo('Verification code sent! Please check your email (and spam folder).');

@@ -46,6 +46,12 @@ export function initSentry() {
         if (__DEV__) {
           return null; // Drop all events in dev mode
         }
+        // Unauthenticated startup probes to /me are expected; they should not create production issues.
+        const customContext = (event.contexts?.custom || {}) as { path?: string };
+        const exceptionValue = event.exception?.values?.[0]?.value;
+        if (customContext.path === '/me' && exceptionValue === 'Unauthorized') {
+          return null;
+        }
         // Filter out network timeouts from dev/local environments to reduce noise
         const isDev = event.environment === 'development';
         const ex = hint?.originalException as any;
@@ -110,10 +116,13 @@ export function captureException(error: Error | unknown, context?: Record<string
   }
 
   if (__DEV__) console.error('[sentry] Capturing exception:', error);
-  if (context) {
-    Sentry.setContext('custom', context);
-  }
-  Sentry.captureException(error);
+  Sentry.withScope((scope) => {
+    if (context) {
+      scope.setContext('custom', context);
+    }
+    scope.setTag('platform', Platform.OS);
+    Sentry.captureException(error);
+  });
 }
 
 export function captureBreadcrumb(message: string, category: string, data?: Record<string, any>) {

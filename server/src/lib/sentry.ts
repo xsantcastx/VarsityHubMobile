@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import crypto from 'node:crypto';
 import type { Express } from 'express';
 import { debugLog } from './debugLog.js';
 
@@ -55,14 +56,16 @@ export function addSentryErrorHandler(app: Express) {
  * Manually capture exception
  */
 export function captureException(error: Error | string, context?: Record<string, any>) {
-  if (typeof error === 'string') {
-    Sentry.captureMessage(error, 'error');
-  } else {
-    Sentry.captureException(error);
-  }
-  if (context) {
-    Sentry.setContext('additional', context);
-  }
+  Sentry.withScope((scope) => {
+    if (context) {
+      scope.setContext('additional', context);
+    }
+    if (typeof error === 'string') {
+      Sentry.captureMessage(error, 'error');
+    } else {
+      Sentry.captureException(error);
+    }
+  });
 }
 
 /**
@@ -76,10 +79,9 @@ export function captureMessage(message: string, level: 'fatal' | 'error' | 'warn
  * Set user context for error tracking
  */
 export function setUserContext(userId: string, email?: string, username?: string) {
+  const hashedUserId = crypto.createHash('sha256').update(userId).digest('hex').slice(0, 16);
   Sentry.setUser({
-    id: userId,
-    email,
-    username,
+    id: `u_${hashedUserId}`,
   });
 }
 

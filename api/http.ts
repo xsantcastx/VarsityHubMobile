@@ -176,6 +176,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       path.includes('/geocoding/autocomplete') ||
       path.includes('/posts/trending') ||
       (path.includes('/users') && error.status === 403) ||
+      (path === '/me' && error.status === 401) ||
       // Public user profile lookups that return 404 are expected (user deleted/not found)
       (/^\/users\/[^/]+$/.test(path) && error.status === 404) ||
       (path.includes('/notifications') && error.status === 401);
