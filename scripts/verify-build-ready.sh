@@ -134,33 +134,15 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check eas.json Sentry configuration (get first occurrence, should be same across all profiles)
-EAS_ORG=$(grep -o '"SENTRY_ORG": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
-EAS_PROJECT=$(grep -o '"SENTRY_PROJECT": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
-
-if [ -n "$EAS_ORG" ] && [ -n "$EAS_PROJECT" ]; then
-    if [ "$EAS_ORG" = "lime-productions" ] && [ "$EAS_PROJECT" = "varsityhub" ]; then
-        echo -e "${GREEN}✅ EAS Sentry config present (lime-productions / varsityhub)${NC}"
-        
-        # Verify app.json and eas.json match
-        if [ "$APP_ORG" = "$EAS_ORG" ] && [ "$APP_PROJECT" = "$EAS_PROJECT" ]; then
-            echo -e "${GREEN}✅ Sentry org/project values match between app.json and eas.json${NC}"
-        else
-            echo -e "${RED}❌ Sentry org/project mismatch between app.json and eas.json${NC}"
-            echo -e "${RED}   app.json: org='$APP_ORG', project='$APP_PROJECT'${NC}"
-            echo -e "${RED}   eas.json: org='$EAS_ORG', project='$EAS_PROJECT'${NC}"
-            echo -e "${RED}   This will cause 'Project not found' errors during builds${NC}"
-            ERRORS=$((ERRORS + 1))
-        fi
-    else
-        echo -e "${RED}❌ EAS Sentry config has incorrect values${NC}"
-        echo -e "${RED}   Found: org='$EAS_ORG', project='$EAS_PROJECT'${NC}"
-        echo -e "${RED}   Expected: org='lime-productions', project='varsityhub'${NC}"
-        ERRORS=$((ERRORS + 1))
-    fi
-else
-    echo -e "${RED}❌ EAS Sentry config missing in eas.json${NC}"
+# Check eas.json does NOT define SENTRY_ORG / SENTRY_PROJECT.
+# Root-cause fix: repo files are the only source of truth; env overrides caused native builds
+# to upload source maps against the wrong Sentry project.
+if grep -q '"SENTRY_ORG"' eas.json || grep -q '"SENTRY_PROJECT"' eas.json; then
+    echo -e "${RED}❌ eas.json must not define SENTRY_ORG / SENTRY_PROJECT${NC}"
+    echo -e "${RED}   Use app.json/app.config.js + ios/android sentry.properties as the single source of truth.${NC}"
     ERRORS=$((ERRORS + 1))
+else
+    echo -e "${GREEN}✅ eas.json does not override Sentry org/project${NC}"
 fi
 echo ""
 
@@ -174,10 +156,10 @@ else
 fi
 
 # Android Sentry configuration
-if grep -q "SENTRY_ORG.*lime-productions" eas.json && grep -q "SENTRY_PROJECT.*varsityhub" eas.json; then
-    echo -e "${GREEN}✅ Android Sentry org/project configured${NC}"
+if grep -q "defaults.org=lime-productions" android/sentry.properties && grep -q "defaults.project=varsityhub" android/sentry.properties; then
+    echo -e "${GREEN}✅ Android Sentry org/project configured in android/sentry.properties${NC}"
 else
-    echo -e "${RED}❌ Android Sentry org/project missing in eas.json${NC}"
+    echo -e "${RED}❌ Android Sentry org/project missing in android/sentry.properties${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -200,33 +182,23 @@ else
     mark_warning_or_error "EAS CLI not found - cannot verify SENTRY_AUTH_TOKEN"
 fi
 
-# Validate Sentry org/project configuration matches expected values
-# This prevents "Project not found" errors during builds
-SENTRY_ORG=$(grep -o '"SENTRY_ORG": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
-SENTRY_PROJECT=$(grep -o '"SENTRY_PROJECT": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
+# Validate native Sentry source of truth matches expected values
+ANDROID_SENTRY_ORG=$(grep -o 'defaults.org=.*' android/sentry.properties | head -1 | cut -d'=' -f2)
+ANDROID_SENTRY_PROJECT=$(grep -o 'defaults.project=.*' android/sentry.properties | head -1 | cut -d'=' -f2)
+IOS_SENTRY_ORG=$(grep -o 'defaults.org=.*' ios/sentry.properties | head -1 | cut -d'=' -f2)
+IOS_SENTRY_PROJECT=$(grep -o 'defaults.project=.*' ios/sentry.properties | head -1 | cut -d'=' -f2)
 
-if [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
-    # Check if values match what's expected (lime-productions / varsityhub)
-    if [ "$SENTRY_ORG" = "lime-productions" ] && [ "$SENTRY_PROJECT" = "varsityhub" ]; then
-        echo -e "${GREEN}✅ Sentry org/project configured correctly (lime-productions / varsityhub)${NC}"
-        
-        # If token is found, try to verify project exists (if sentry-cli is available)
-        if [ $SENTRY_TOKEN_FOUND -eq 1 ] && command -v sentry-cli &> /dev/null; then
-            # Note: We can't access the token directly from EAS, but we can check if sentry-cli is configured
-            echo -e "${GREEN}✅ sentry-cli available for project verification${NC}"
-        elif [ $SENTRY_TOKEN_FOUND -eq 1 ]; then
-            mark_warning_or_error "sentry-cli not installed - cannot verify project exists"
-        fi
+if [ -n "$ANDROID_SENTRY_ORG" ] && [ -n "$ANDROID_SENTRY_PROJECT" ] && [ -n "$IOS_SENTRY_ORG" ] && [ -n "$IOS_SENTRY_PROJECT" ]; then
+    if [ "$ANDROID_SENTRY_ORG" = "lime-productions" ] && [ "$ANDROID_SENTRY_PROJECT" = "varsityhub" ] && [ "$IOS_SENTRY_ORG" = "lime-productions" ] && [ "$IOS_SENTRY_PROJECT" = "varsityhub" ]; then
+        echo -e "${GREEN}✅ Native Sentry org/project configured correctly (lime-productions / varsityhub)${NC}"
     else
-        echo -e "${RED}❌ Sentry org/project mismatch!${NC}"
-        echo -e "${RED}   Found: org='$SENTRY_ORG', project='$SENTRY_PROJECT'${NC}"
-        echo -e "${RED}   Expected: org='lime-productions', project='varsityhub'${NC}"
-        echo -e "${RED}   This will cause 'Project not found' errors during builds${NC}"
+        echo -e "${RED}❌ Native Sentry org/project mismatch!${NC}"
+        echo -e "${RED}   Android: org='$ANDROID_SENTRY_ORG', project='$ANDROID_SENTRY_PROJECT'${NC}"
+        echo -e "${RED}   iOS: org='$IOS_SENTRY_ORG', project='$IOS_SENTRY_PROJECT'${NC}"
         ERRORS=$((ERRORS + 1))
     fi
 else
-    echo -e "${RED}❌ SENTRY_ORG or SENTRY_PROJECT missing in eas.json${NC}"
-    echo -e "${RED}   This will cause 'Project not found' errors during builds${NC}"
+    echo -e "${RED}❌ Native Sentry org/project missing in sentry.properties${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -248,10 +220,10 @@ else
 fi
 
 # Check iOS Sentry configuration
-if grep -q "SENTRY_ORG.*lime-productions" eas.json && grep -q "SENTRY_PROJECT.*varsityhub" eas.json; then
-    echo -e "${GREEN}✅ iOS Sentry org/project configured${NC}"
+if grep -q "defaults.org=lime-productions" ios/sentry.properties && grep -q "defaults.project=varsityhub" ios/sentry.properties; then
+    echo -e "${GREEN}✅ iOS Sentry org/project configured in ios/sentry.properties${NC}"
 else
-    echo -e "${RED}❌ iOS Sentry org/project missing in eas.json${NC}"
+    echo -e "${RED}❌ iOS Sentry org/project missing in ios/sentry.properties${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -264,12 +236,12 @@ else
 fi
 
 # Final Sentry validation summary
-if [ $SENTRY_TOKEN_FOUND -eq 1 ] && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ] && [ "$SENTRY_ORG" = "lime-productions" ] && [ "$SENTRY_PROJECT" = "varsityhub" ]; then
+if [ $SENTRY_TOKEN_FOUND -eq 1 ] && [ "$ANDROID_SENTRY_ORG" = "lime-productions" ] && [ "$ANDROID_SENTRY_PROJECT" = "varsityhub" ] && [ "$IOS_SENTRY_ORG" = "lime-productions" ] && [ "$IOS_SENTRY_PROJECT" = "varsityhub" ]; then
     echo -e "${GREEN}✅ Sentry configuration validated${NC}"
     echo -e "${BLUE}   Note: If builds fail with 'Project not found', verify:${NC}"
     echo -e "${BLUE}   1. Project 'varsityhub' exists in Sentry org 'lime-productions'${NC}"
     echo -e "${BLUE}   2. SENTRY_AUTH_TOKEN has 'project:write' and 'project:read' scopes${NC}"
-    echo -e "${BLUE}   3. Token has access to the correct organization${NC}"
+    echo -e "${BLUE}   3. No stale SENTRY_ORG / SENTRY_PROJECT env overrides exist in EAS${NC}"
 fi
 echo ""
 

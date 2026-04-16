@@ -78,17 +78,17 @@ echo ""
 
 # Check 4: EAS configuration
 echo "4. Checking EAS configuration..."
-if grep -q "SENTRY_ORG" eas.json; then
-    echo -e "${GREEN}✅ SENTRY_ORG configured in eas.json${NC}"
+if grep -q "defaults.org=lime-productions" android/sentry.properties && grep -q "defaults.project=varsityhub" android/sentry.properties; then
+    echo -e "${GREEN}✅ Android native Sentry configuration present${NC}"
 else
-    echo -e "${RED}❌ SENTRY_ORG NOT found in eas.json${NC}"
+    echo -e "${RED}❌ Android native Sentry configuration invalid${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
-if grep -q "SENTRY_PROJECT" eas.json; then
-    echo -e "${GREEN}✅ SENTRY_PROJECT configured in eas.json${NC}"
+if grep -q "defaults.org=lime-productions" ios/sentry.properties && grep -q "defaults.project=varsityhub" ios/sentry.properties; then
+    echo -e "${GREEN}✅ iOS native Sentry configuration present${NC}"
 else
-    echo -e "${RED}❌ SENTRY_PROJECT NOT found in eas.json${NC}"
+    echo -e "${RED}❌ iOS native Sentry configuration invalid${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -96,11 +96,13 @@ echo ""
 
 # Check 5: Build configuration
 echo "5. Checking build configuration..."
-if grep -q "SENTRY_AUTH_TOKEN" android/app/build.gradle; then
-    echo -e "${GREEN}✅ SENTRY_AUTH_TOKEN check configured in build.gradle${NC}"
+# Root-cause fix: SENTRY auth for native sourcemap upload comes from EAS env/secrets,
+# not from a manual Gradle string check.
+if command -v eas >/dev/null 2>&1 && eas env:list --environment production 2>/dev/null | grep -q "SENTRY_AUTH_TOKEN"; then
+    echo -e "${GREEN}✅ SENTRY_AUTH_TOKEN present in EAS production environment${NC}"
 else
-    echo -e "${RED}❌ SENTRY_AUTH_TOKEN check NOT found in build.gradle${NC}"
-    ERRORS=$((ERRORS + 1))
+    echo -e "${YELLOW}⚠️  Could not verify SENTRY_AUTH_TOKEN in EAS production environment${NC}"
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 echo ""

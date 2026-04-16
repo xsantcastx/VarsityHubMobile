@@ -215,11 +215,11 @@ else
     WARNINGS=$((WARNINGS + 1))
 fi
 
-# Check EAS configuration
-if grep -q "SENTRY_ORG" eas.json && grep -q "SENTRY_PROJECT" eas.json; then
-    echo -e "${GREEN}✅ EAS Sentry configuration present${NC}"
+# Check Sentry source-of-truth configuration
+if grep -q '"organization": "lime-productions"' app.json && grep -q '"project": "varsityhub"' app.json && grep -q "defaults.org=lime-productions" android/sentry.properties && grep -q "defaults.project=varsityhub" android/sentry.properties && grep -q "defaults.org=lime-productions" ios/sentry.properties && grep -q "defaults.project=varsityhub" ios/sentry.properties; then
+    echo -e "${GREEN}✅ Repo-managed Sentry configuration present${NC}"
 else
-    echo -e "${RED}❌ EAS Sentry configuration missing${NC}"
+    echo -e "${RED}❌ Repo-managed Sentry configuration missing or inconsistent${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 echo ""
