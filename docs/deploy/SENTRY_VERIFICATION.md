@@ -94,7 +94,7 @@ eas build --platform android --profile production
 1. **Mobile App:**
    - Build a production version
    - Trigger an error in the app
-   - Check: https://sentry.io/organizations/varsity-hub/projects/varsity-hub-mobile/
+   - Check: https://sentry.io/organizations/lime-productions/projects/varsityhub/
 
 2. **Server:**
    - Check server logs for: `✅ Sentry initialized for production environment`
@@ -109,7 +109,7 @@ eas build --platform android --profile production
 | Server Package | ✅ | `@sentry/node@^7.91.0` |
 | DSN Configuration | ✅ | Set in `.env` |
 | Organization | ✅ | `varsity-hub` |
-| Project | ✅ | `varsity-hub-mobile` |
+| Project | ✅ | `varsityhub` |
 | Android Config | ✅ | `android/sentry.properties` |
 | iOS Config | ✅ | `ios/sentry.properties` |
 | Build Integration | ✅ | `android/app/build.gradle` |

@@ -10,7 +10,7 @@ Sentry is configured to work with both iOS and Android builds. The configuration
 
 All build profiles in `eas.json` include:
 - `SENTRY_ORG`: "varsity-hub"
-- `SENTRY_PROJECT`: "varsity-hub-mobile"
+- `SENTRY_PROJECT`: "varsityhub"
 - `SENTRY_ALLOW_FAILURE`: "true" (safety net - allows builds to continue if upload fails)
 
 ### 2. Required EAS Secret
@@ -59,7 +59,7 @@ This will check:
 
 This means:
 1. `SENTRY_AUTH_TOKEN` is missing or invalid
-2. The token doesn't have access to the `varsity-hub` organization or `varsity-hub-mobile` project
+2. The token doesn't have access to the `lime-productions` organization or `varsityhub` project
 3. The org/project names in `eas.json` don't match your Sentry account
 
 **Fix:**

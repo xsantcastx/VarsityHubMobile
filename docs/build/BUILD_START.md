@@ -128,7 +128,7 @@ These are already configured and tested:
 
 ✅ **iOS**: Bundle ID `com.varsithub.varsityhub` | Team ID `B5H8F69RW5` | Target 15.1
 ✅ **Android**: Package `com.varsithub.varsityhub` | Target SDK 36 | Java 17
-✅ **Sentry**: `varsity-hub` org, `varsity-hub-mobile` project
+✅ **Sentry**: `lime-productions` org, `varsityhub` project
 ✅ **Maps**: Configured to inject API key via environment
 ✅ **EAS**: All profiles configured (development, preview, production)
 

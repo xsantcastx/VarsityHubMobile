@@ -121,12 +121,12 @@ APP_ORG=$(grep -o '"organization": "[^"]*"' app.json | head -1 | cut -d'"' -f4)
 APP_PROJECT=$(grep -o '"project": "[^"]*"' app.json | head -1 | cut -d'"' -f4)
 
 if [ -n "$APP_ORG" ] && [ -n "$APP_PROJECT" ]; then
-    if [ "$APP_ORG" = "lime-productions" ] && [ "$APP_PROJECT" = "varsity-hub-mobile" ]; then
-        echo -e "${GREEN}✅ Sentry plugin configured in app.json (lime-productions / varsity-hub-mobile)${NC}"
+    if [ "$APP_ORG" = "lime-productions" ] && [ "$APP_PROJECT" = "varsityhub" ]; then
+        echo -e "${GREEN}✅ Sentry plugin configured in app.json (lime-productions / varsityhub)${NC}"
     else
         echo -e "${RED}❌ Sentry plugin has incorrect values in app.json${NC}"
         echo -e "${RED}   Found: org='$APP_ORG', project='$APP_PROJECT'${NC}"
-        echo -e "${RED}   Expected: org='lime-productions', project='varsity-hub-mobile'${NC}"
+        echo -e "${RED}   Expected: org='lime-productions', project='varsityhub'${NC}"
         ERRORS=$((ERRORS + 1))
     fi
 else
@@ -139,8 +139,8 @@ EAS_ORG=$(grep -o '"SENTRY_ORG": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
 EAS_PROJECT=$(grep -o '"SENTRY_PROJECT": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
 
 if [ -n "$EAS_ORG" ] && [ -n "$EAS_PROJECT" ]; then
-    if [ "$EAS_ORG" = "lime-productions" ] && [ "$EAS_PROJECT" = "varsity-hub-mobile" ]; then
-        echo -e "${GREEN}✅ EAS Sentry config present (lime-productions / varsity-hub-mobile)${NC}"
+    if [ "$EAS_ORG" = "lime-productions" ] && [ "$EAS_PROJECT" = "varsityhub" ]; then
+        echo -e "${GREEN}✅ EAS Sentry config present (lime-productions / varsityhub)${NC}"
         
         # Verify app.json and eas.json match
         if [ "$APP_ORG" = "$EAS_ORG" ] && [ "$APP_PROJECT" = "$EAS_PROJECT" ]; then
@@ -155,7 +155,7 @@ if [ -n "$EAS_ORG" ] && [ -n "$EAS_PROJECT" ]; then
     else
         echo -e "${RED}❌ EAS Sentry config has incorrect values${NC}"
         echo -e "${RED}   Found: org='$EAS_ORG', project='$EAS_PROJECT'${NC}"
-        echo -e "${RED}   Expected: org='lime-productions', project='varsity-hub-mobile'${NC}"
+        echo -e "${RED}   Expected: org='lime-productions', project='varsityhub'${NC}"
         ERRORS=$((ERRORS + 1))
     fi
 else
@@ -174,7 +174,7 @@ else
 fi
 
 # Android Sentry configuration
-if grep -q "SENTRY_ORG.*lime-productions" eas.json && grep -q "SENTRY_PROJECT.*varsity-hub-mobile" eas.json; then
+if grep -q "SENTRY_ORG.*lime-productions" eas.json && grep -q "SENTRY_PROJECT.*varsityhub" eas.json; then
     echo -e "${GREEN}✅ Android Sentry org/project configured${NC}"
 else
     echo -e "${RED}❌ Android Sentry org/project missing in eas.json${NC}"
@@ -206,9 +206,9 @@ SENTRY_ORG=$(grep -o '"SENTRY_ORG": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
 SENTRY_PROJECT=$(grep -o '"SENTRY_PROJECT": "[^"]*"' eas.json | head -1 | cut -d'"' -f4)
 
 if [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
-    # Check if values match what's expected (lime-productions / varsity-hub-mobile)
-    if [ "$SENTRY_ORG" = "lime-productions" ] && [ "$SENTRY_PROJECT" = "varsity-hub-mobile" ]; then
-        echo -e "${GREEN}✅ Sentry org/project configured correctly (lime-productions / varsity-hub-mobile)${NC}"
+    # Check if values match what's expected (lime-productions / varsityhub)
+    if [ "$SENTRY_ORG" = "lime-productions" ] && [ "$SENTRY_PROJECT" = "varsityhub" ]; then
+        echo -e "${GREEN}✅ Sentry org/project configured correctly (lime-productions / varsityhub)${NC}"
         
         # If token is found, try to verify project exists (if sentry-cli is available)
         if [ $SENTRY_TOKEN_FOUND -eq 1 ] && command -v sentry-cli &> /dev/null; then
@@ -220,7 +220,7 @@ if [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
     else
         echo -e "${RED}❌ Sentry org/project mismatch!${NC}"
         echo -e "${RED}   Found: org='$SENTRY_ORG', project='$SENTRY_PROJECT'${NC}"
-        echo -e "${RED}   Expected: org='lime-productions', project='varsity-hub-mobile'${NC}"
+        echo -e "${RED}   Expected: org='lime-productions', project='varsityhub'${NC}"
         echo -e "${RED}   This will cause 'Project not found' errors during builds${NC}"
         ERRORS=$((ERRORS + 1))
     fi
@@ -248,7 +248,7 @@ else
 fi
 
 # Check iOS Sentry configuration
-if grep -q "SENTRY_ORG.*lime-productions" eas.json && grep -q "SENTRY_PROJECT.*varsity-hub-mobile" eas.json; then
+if grep -q "SENTRY_ORG.*lime-productions" eas.json && grep -q "SENTRY_PROJECT.*varsityhub" eas.json; then
     echo -e "${GREEN}✅ iOS Sentry org/project configured${NC}"
 else
     echo -e "${RED}❌ iOS Sentry org/project missing in eas.json${NC}"
@@ -264,10 +264,10 @@ else
 fi
 
 # Final Sentry validation summary
-if [ $SENTRY_TOKEN_FOUND -eq 1 ] && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ] && [ "$SENTRY_ORG" = "lime-productions" ] && [ "$SENTRY_PROJECT" = "varsity-hub-mobile" ]; then
+if [ $SENTRY_TOKEN_FOUND -eq 1 ] && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ] && [ "$SENTRY_ORG" = "lime-productions" ] && [ "$SENTRY_PROJECT" = "varsityhub" ]; then
     echo -e "${GREEN}✅ Sentry configuration validated${NC}"
     echo -e "${BLUE}   Note: If builds fail with 'Project not found', verify:${NC}"
-    echo -e "${BLUE}   1. Project 'varsity-hub-mobile' exists in Sentry org 'lime-productions'${NC}"
+    echo -e "${BLUE}   1. Project 'varsityhub' exists in Sentry org 'lime-productions'${NC}"
     echo -e "${BLUE}   2. SENTRY_AUTH_TOKEN has 'project:write' and 'project:read' scopes${NC}"
     echo -e "${BLUE}   3. Token has access to the correct organization${NC}"
 fi

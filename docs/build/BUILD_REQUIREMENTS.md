@@ -25,7 +25,7 @@
 
 ### 4. **Sentry Configuration**
 - **Organization**: `varsity-hub` ✅
-- **Project**: `varsity-hub-mobile` ✅
+- **Project**: `varsityhub` ✅
 - **DSN**: Set via `SENTRY_DSN` environment variable
 - **Profiles**: Development, Preview, Production all configured
 - **Properties Files**:
@@ -94,7 +94,7 @@ Add to EAS Secrets Dashboard (`eas secret push --scope project`):
 # Required for all builds
 SENTRY_AUTH_TOKEN=<your-sentry-auth-token>
 SENTRY_ORG=varsity-hub
-SENTRY_PROJECT=varsity-hub-mobile
+SENTRY_PROJECT=varsityhub
 
 # Required for production (Android)
 ANDROID_KEYSTORE_PATH=./android/varsityhub-release.keystore
@@ -135,7 +135,7 @@ Before running EAS build, verify:
 - [ ] `ANDROID_KEYSTORE_*` vars are set for Android production builds
 - [ ] Bundle identifier matches in `app.json` and Android config
 - [ ] All environment variables in `app.json` extra section are populated
-- [ ] Sentry org/project are correct (`varsity-hub` / `varsity-hub-mobile`)
+- [ ] Sentry org/project are correct (`lime-productions` / `varsityhub`)
 - [ ] `app.config.js` is not present in git (should only exist locally for development)
 - [ ] EAS CLI is latest version: `npm install -g eas-cli@latest`
 

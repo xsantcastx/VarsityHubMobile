@@ -19,7 +19,7 @@ During EAS builds, the `.env` file is **not available**. The DSN must be set in 
 
 ### Step 1: Get Your Sentry DSN
 
-1. Go to https://sentry.io/organizations/varsity-hub/projects/varsity-hub-mobile/
+1. Go to https://sentry.io/organizations/lime-productions/projects/varsityhub/
 2. Navigate to **Settings** → **Client Keys (DSN)**
 3. Copy your DSN (format: `https://xxx@xxx.ingest.sentry.io/xxx`)
 
@@ -93,7 +93,7 @@ eas build --platform ios --profile production
 ## Current Configuration
 
 - **Organization**: `varsity-hub`
-- **Project**: `varsity-hub-mobile`
+- **Project**: `varsityhub`
 - **Package**: `@sentry/react-native@~7.2.0`
 - **Initialization**: `utils/sentry.ts` ✅
 - **Error Boundary**: `components/ErrorBoundary.tsx` ✅
@@ -114,7 +114,7 @@ eas build --platform ios --profile production
    - Verify it appears in Sentry dashboard
 
 3. **Monitor Sentry Dashboard**:
-   - https://sentry.io/organizations/varsity-hub/projects/varsity-hub-mobile/
+   - https://sentry.io/organizations/lime-productions/projects/varsityhub/
    - Check for errors after production release
 
 ---

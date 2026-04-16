@@ -17,7 +17,7 @@ Updated `app.json` to include Sentry organization and project configuration:
   "@sentry/react-native/expo",
   {
     "organization": "varsity-hub",
-    "project": "varsity-hub-mobile"
+    "project": "varsityhub"
   }
 ]
 ```

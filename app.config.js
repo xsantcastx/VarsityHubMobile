@@ -182,7 +182,7 @@ module.exports = ({ config }) => {
         {
           url: 'https://sentry.io/',
           organization: 'lime-productions',
-          project: 'varsity-hub-mobile',
+          project: 'varsityhub',
           uploadSourcemaps: true,
         },
       ],

@@ -103,7 +103,7 @@ Or set in `eas.json` env section (less secure, but works):
 
 1. **Mobile App:**
    - Trigger an error in production build
-   - Check Sentry dashboard: https://sentry.io/organizations/varsity-hub/projects/varsity-hub-mobile/
+   - Check Sentry dashboard: https://sentry.io/organizations/lime-productions/projects/varsityhub/
 
 2. **Server:**
    - Check server logs for: `✅ Sentry initialized for production environment`
@@ -137,5 +137,5 @@ SENTRY_DISABLE_AUTO_UPLOAD=true eas build --platform android --profile productio
 ## Organization & Project
 
 - **Organization**: `varsity-hub`
-- **Project**: `varsity-hub-mobile`
+- **Project**: `varsityhub`
 - **DSN**: Set via `EXPO_PUBLIC_SENTRY_DSN` environment variable

@@ -369,7 +369,7 @@ Behavior:
 ## 23. SENTRY VERIFICATION
 
 - [ ] Trigger a test error in staging → appears in Sentry < 5 min
-- [ ] Sentry project: `varsity-hub-mobile` (org: `lime-productions`)
+- [ ] Sentry project: `varsityhub` (org: `lime-productions`)
 - [ ] Backend `SENTRY_DSN` set in Railway env vars
 - [ ] No unhandled promise rejections in Railway logs
 
