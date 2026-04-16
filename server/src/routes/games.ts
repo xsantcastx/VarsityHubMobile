@@ -48,38 +48,50 @@ void (async () => {
           success++;
         } else {
           failed++;
-          console.warn(`[games] backfill: geocode returned null for game ${game.id} location="${game.location}"`);
+          console.warn(
+            `[games] backfill: geocode returned null for game ${game.id} location="${game.location}"`
+          );
         }
       } catch (err: any) {
         failed++;
-        console.error(`[games] backfill: failed game ${game.id} location="${game.location}":`, err?.message || err);
+        console.error(
+          `[games] backfill: failed game ${game.id} location="${game.location}":`,
+          err?.message || err
+        );
       }
     }
-    console.log(`[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`);
+    console.log(
+      `[games] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`
+    );
   } catch (err) {
     console.warn('[games] backfill failed:', err);
   }
 })();
 
 // Helper function to generate Google Maps links
-const generateMapsLink = (location?: string | null, lat?: number | null, lng?: number | null, placeId?: string | null): string | null => {
+const generateMapsLink = (
+  location?: string | null,
+  lat?: number | null,
+  lng?: number | null,
+  placeId?: string | null
+): string | null => {
   if (!location && !lat && !lng && !placeId) return null;
-  
+
   // If we have a place ID, use that for the most accurate link
   if (placeId) {
     return `https://www.google.com/maps/place/?q=place_id:${placeId}`;
   }
-  
+
   // If we have coordinates, use those
   if (lat !== null && lng !== null) {
     return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   }
-  
+
   // Fall back to location text search
   if (location) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
   }
-  
+
   return null;
 };
 
@@ -113,16 +125,17 @@ const pickBannerUrl = (game: any, event: any | null, media: Array<{ url: string 
   if (game?.banner_url) return game.banner_url;
   if (game?.cover_image_url) return game.cover_image_url;
   if (event?.banner_url) return event.banner_url;
-  return media.length > 0 ? media[0]?.url ?? null : null;
+  return media.length > 0 ? (media[0]?.url ?? null) : null;
 };
-
 
 const summarizeVotes = async (gameId: string, userId?: string | null) => {
   const [teamA, teamB, mine] = await Promise.all([
     prisma.gameVote.count({ where: { game_id: gameId, team: 'A' } }),
     prisma.gameVote.count({ where: { game_id: gameId, team: 'B' } }),
     userId
-      ? prisma.gameVote.findUnique({ where: { game_id_user_id: { game_id: gameId, user_id: userId } } })
+      ? prisma.gameVote.findUnique({
+          where: { game_id_user_id: { game_id: gameId, user_id: userId } },
+        })
       : Promise.resolve(null),
   ]);
   const total = teamA + teamB;
@@ -138,7 +151,10 @@ type GameVisibilityRecord = {
   away_team_id?: string | null;
 };
 
-async function canViewGameRecord(record: GameVisibilityRecord, viewerId?: string | null): Promise<boolean> {
+async function canViewGameRecord(
+  record: GameVisibilityRecord,
+  viewerId?: string | null
+): Promise<boolean> {
   if (record.approval_status === 'approved') return true;
   if (!viewerId) return false;
   if (record.created_by_id && record.created_by_id === viewerId) return true;
@@ -167,7 +183,7 @@ async function canViewGameRecord(record: GameVisibilityRecord, viewerId?: string
     where: { id: { in: teamIds } },
     select: { organization_id: true },
   });
-  const organizationIds = teams.map((team) => team.organization_id).filter(Boolean) as string[];
+  const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
   if (organizationIds.length === 0) return false;
 
   const orgMembership = await prisma.organizationMembership.findFirst({
@@ -184,241 +200,252 @@ async function canViewGameRecord(record: GameVisibilityRecord, viewerId?: string
 
 gamesRouter.get('/', async (req, res) => {
   try {
-  // Cache-aside for games list (TTL 120s) — key includes query params
-  const gameCacheKey = `games:${req.url}`;
-  const cachedGames = await cacheGet(gameCacheKey);
-  if (cachedGames) return res.json(cachedGames);
+    // Cache-aside for games list (TTL 120s) — key includes query params
+    const gameCacheKey = `games:${req.url}`;
+    const cachedGames = await cacheGet(gameCacheKey);
+    if (cachedGames) return res.json(cachedGames);
 
-  const sort = String(req.query.sort || '').trim();
-  const orderBy =
-    sort === '-date'
-      ? { date: 'desc' as const }
-      : sort === 'date'
-        ? { date: 'asc' as const }
-        : { created_at: 'desc' as const };
+    const sort = String(req.query.sort || '').trim();
+    const orderBy =
+      sort === '-date'
+        ? { date: 'desc' as const }
+        : sort === 'date'
+          ? { date: 'asc' as const }
+          : { created_at: 'desc' as const };
 
-  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : null;
-  const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-  // Default to 20 when no limit is provided; cap at 100 to prevent unbounded fetches
-  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 20;
-  const lat = Number.parseFloat(String(req.query.lat ?? ''));
-  const lng = Number.parseFloat(String(req.query.lng ?? ''));
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-  const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
-  const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor.trim() : null;
+    const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
+    // Default to 20 when no limit is provided; cap at 100 to prevent unbounded fetches
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 20;
+    const lat = Number.parseFloat(String(req.query.lat ?? ''));
+    const lng = Number.parseFloat(String(req.query.lng ?? ''));
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+    const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
+    const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
 
-  const authedReq = req as AuthedRequest;
+    const authedReq = req as AuthedRequest;
 
-  // By default, only show approved games unless specifically requested otherwise
-  const showPending = req.query.show_pending === 'true';
-  const approvalStatus = req.query.approval_status as string;
-  const normalizedApprovalStatus = typeof approvalStatus === 'string' ? approvalStatus.trim().toLowerCase() : '';
-  const wantsNonApproved =
-    showPending || (normalizedApprovalStatus !== '' && normalizedApprovalStatus !== 'approved');
+    // By default, only show approved games unless specifically requested otherwise
+    const showPending = req.query.show_pending === 'true';
+    const approvalStatus = req.query.approval_status as string;
+    const normalizedApprovalStatus =
+      typeof approvalStatus === 'string' ? approvalStatus.trim().toLowerCase() : '';
+    const wantsNonApproved =
+      showPending || (normalizedApprovalStatus !== '' && normalizedApprovalStatus !== 'approved');
 
-  let canViewNonApproved = false;
-  if (wantsNonApproved) {
-    if (!authedReq.user?.id) {
-      return res.status(403).json({ error: 'Only coaches and admins can view non-approved games' });
-    }
-
-    const requester = await prisma.user.findUnique({
-      where: { id: authedReq.user.id },
-      select: { email: true },
-    });
-    const isAdmin = isEmailAdmin(requester?.email);
-    if (isAdmin) {
-      canViewNonApproved = true;
-    } else {
-      const [teamRole, orgRole] = await Promise.all([
-        prisma.teamMembership.findFirst({
-          where: {
-            user_id: authedReq.user.id,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-          select: { id: true },
-        }),
-        prisma.organizationMembership.findFirst({
-          where: {
-            user_id: authedReq.user.id,
-            role: { in: ['owner', 'manager'] },
-            status: 'active',
-          },
-          select: { id: true },
-        }),
-      ]);
-      canViewNonApproved = !!teamRole || !!orgRole;
-    }
-
-    if (!canViewNonApproved) {
-      return res.status(403).json({ error: 'Only coaches and admins can view non-approved games' });
-    }
-  }
-
-  // Build where clause
-  let whereClause: any = {};
-  if (normalizedApprovalStatus && ['pending', 'approved', 'rejected'].includes(normalizedApprovalStatus)) {
-    whereClause.approval_status = normalizedApprovalStatus;
-  } else if (showPending) {
-    whereClause.approval_status = 'pending';
-  } else {
-    whereClause.approval_status = 'approved';
-  }
-
-  // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
-  // Admins see all; regular coaches only see pending games for their teams.
-  if (wantsNonApproved && canViewNonApproved && authedReq.user?.id) {
-    const requester = await prisma.user.findUnique({
-      where: { id: authedReq.user.id },
-      select: { email: true },
-    });
-    const isAdmin = isEmailAdmin(requester?.email);
-    if (!isAdmin) {
-      // Get team IDs and org IDs the coach manages
-      const [managedTeams, managedOrgs] = await Promise.all([
-        prisma.teamMembership.findMany({
-          where: {
-            user_id: authedReq.user.id,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-          select: { team_id: true },
-        }),
-        prisma.organizationMembership.findMany({
-          where: {
-            user_id: authedReq.user.id,
-            role: { in: ['owner', 'manager'] },
-            status: 'active',
-          },
-          select: { organization_id: true },
-        }),
-      ]);
-      const teamIds = managedTeams.map(m => m.team_id);
-      const orgIds = managedOrgs.map(m => m.organization_id);
-
-      // Also include teams that belong to managed orgs
-      let orgTeamIds: string[] = [];
-      if (orgIds.length > 0) {
-        const orgTeams = await prisma.team.findMany({
-          where: { organization_id: { in: orgIds } },
-          select: { id: true },
-        });
-        orgTeamIds = orgTeams.map(t => t.id);
+    let canViewNonApproved = false;
+    if (wantsNonApproved) {
+      if (!authedReq.user?.id) {
+        return res
+          .status(403)
+          .json({ error: 'Only coaches and admins can view non-approved games' });
       }
 
-      const allTeamIds = [...new Set([...teamIds, ...orgTeamIds])];
-      if (allTeamIds.length > 0) {
-        whereClause.OR = [
-          { home_team_id: { in: allTeamIds } },
-          { away_team_id: { in: allTeamIds } },
-        ];
+      const requester = await prisma.user.findUnique({
+        where: { id: authedReq.user.id },
+        select: { email: true },
+      });
+      const isAdmin = isEmailAdmin(requester?.email);
+      if (isAdmin) {
+        canViewNonApproved = true;
       } else {
-        // Coach has no teams — return no pending games
-        whereClause.id = '__no_managed_teams__';
+        const [teamRole, orgRole] = await Promise.all([
+          prisma.teamMembership.findFirst({
+            where: {
+              user_id: authedReq.user.id,
+              role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+              status: 'active',
+            },
+            select: { id: true },
+          }),
+          prisma.organizationMembership.findFirst({
+            where: {
+              user_id: authedReq.user.id,
+              role: { in: ['owner', 'manager'] },
+              status: 'active',
+            },
+            select: { id: true },
+          }),
+        ]);
+        canViewNonApproved = !!teamRole || !!orgRole;
+      }
+
+      if (!canViewNonApproved) {
+        return res
+          .status(403)
+          .json({ error: 'Only coaches and admins can view non-approved games' });
       }
     }
-  }
 
-  // Filter by team_id (matches home OR away team). Uses AND to not conflict with show_pending OR scoping.
-  const teamIdFilter = typeof req.query.team_id === 'string' ? req.query.team_id.trim() : null;
-  if (teamIdFilter) {
-    if (!whereClause.AND) whereClause.AND = [];
-    whereClause.AND.push({
-      OR: [
-        { home_team_id: teamIdFilter },
-        { away_team_id: teamIdFilter },
-      ],
+    // Build where clause
+    let whereClause: any = {};
+    if (
+      normalizedApprovalStatus &&
+      ['pending', 'approved', 'rejected'].includes(normalizedApprovalStatus)
+    ) {
+      whereClause.approval_status = normalizedApprovalStatus;
+    } else if (showPending) {
+      whereClause.approval_status = 'pending';
+    } else {
+      whereClause.approval_status = 'approved';
+    }
+
+    // Scope non-approved games to the coach's managed teams/orgs (prevent data leak).
+    // Admins see all; regular coaches only see pending games for their teams.
+    if (wantsNonApproved && canViewNonApproved && authedReq.user?.id) {
+      const requester = await prisma.user.findUnique({
+        where: { id: authedReq.user.id },
+        select: { email: true },
+      });
+      const isAdmin = isEmailAdmin(requester?.email);
+      if (!isAdmin) {
+        // Get team IDs and org IDs the coach manages
+        const [managedTeams, managedOrgs] = await Promise.all([
+          prisma.teamMembership.findMany({
+            where: {
+              user_id: authedReq.user.id,
+              role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+              status: 'active',
+            },
+            select: { team_id: true },
+          }),
+          prisma.organizationMembership.findMany({
+            where: {
+              user_id: authedReq.user.id,
+              role: { in: ['owner', 'manager'] },
+              status: 'active',
+            },
+            select: { organization_id: true },
+          }),
+        ]);
+        const teamIds = managedTeams.map(m => m.team_id);
+        const orgIds = managedOrgs.map(m => m.organization_id);
+
+        // Also include teams that belong to managed orgs
+        let orgTeamIds: string[] = [];
+        if (orgIds.length > 0) {
+          const orgTeams = await prisma.team.findMany({
+            where: { organization_id: { in: orgIds } },
+            select: { id: true },
+          });
+          orgTeamIds = orgTeams.map(t => t.id);
+        }
+
+        const allTeamIds = [...new Set([...teamIds, ...orgTeamIds])];
+        if (allTeamIds.length > 0) {
+          whereClause.OR = [
+            { home_team_id: { in: allTeamIds } },
+            { away_team_id: { in: allTeamIds } },
+          ];
+        } else {
+          // Coach has no teams — return no pending games
+          whereClause.id = '__no_managed_teams__';
+        }
+      }
+    }
+
+    // Filter by team_id (matches home OR away team). Uses AND to not conflict with show_pending OR scoping.
+    const teamIdFilter = typeof req.query.team_id === 'string' ? req.query.team_id.trim() : null;
+    if (teamIdFilter) {
+      if (!whereClause.AND) whereClause.AND = [];
+      whereClause.AND.push({
+        OR: [{ home_team_id: teamIdFilter }, { away_team_id: teamIdFilter }],
+      });
+    }
+
+    if (
+      (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) ||
+      (dateToRaw && !Number.isNaN(dateToRaw.getTime()))
+    ) {
+      whereClause.date = {};
+      if (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) {
+        whereClause.date.gte = dateFromRaw;
+      }
+      if (dateToRaw && !Number.isNaN(dateToRaw.getTime())) {
+        whereClause.date.lte = dateToRaw;
+      }
+    }
+
+    // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
+    // Test note: once a game is in the past it should drop off the map. Map should only
+    // reflect games the week of in real time. This filter is opt-in so list views still work as before.
+    if (req.query.map_view === 'true' || req.query.map_view === '1') {
+      const now = new Date();
+      const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      whereClause.date = { ...(whereClause.date || {}), gte: now, lte: weekFromNow };
+    }
+
+    const games = await (prisma.game.findMany as any)({
+      where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
+      orderBy,
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: {
+        events: { orderBy: { date: 'asc' }, take: 1 },
+        _count: { select: { events: true } },
+      },
     });
-  }
 
-  if ((dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) || (dateToRaw && !Number.isNaN(dateToRaw.getTime()))) {
-    whereClause.date = {};
-    if (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) {
-      whereClause.date.gte = dateFromRaw;
-    }
-    if (dateToRaw && !Number.isNaN(dateToRaw.getTime())) {
-      whereClause.date.lte = dateToRaw;
-    }
-  }
+    const hasMore = games.length > limit;
+    const results = hasMore ? games.slice(0, limit) : games;
 
-  // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
-  // Test note: once a game is in the past it should drop off the map. Map should only
-  // reflect games the week of in real time. This filter is opt-in so list views still work as before.
-  if (req.query.map_view === 'true' || req.query.map_view === '1') {
-    const now = new Date();
-    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    whereClause.date = { ...(whereClause.date || {}), gte: now, lte: weekFromNow };
-  }
+    // Get RSVP counts for all games with events
+    const eventIds = results.map((g: any) => g.events[0]?.id).filter(Boolean);
 
-  const games = await (prisma.game.findMany as any)({
-    where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
-    orderBy,
-    take: limit + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    include: {
-      events: { orderBy: { date: 'asc' }, take: 1 },
-      _count: { select: { events: true } }
-    },
-  });
+    const rsvpCounts =
+      eventIds.length > 0
+        ? await prisma.eventRsvp.groupBy({
+            by: ['event_id'],
+            _count: { _all: true },
+            where: { event_id: { in: eventIds } },
+          })
+        : [];
 
-  const hasMore = games.length > limit;
-  const results = hasMore ? games.slice(0, limit) : games;
+    const rsvpMap = new Map(rsvpCounts.map(r => [r.event_id, r._count._all]));
 
-  // Get RSVP counts for all games with events
-  const eventIds = results.map((g: any) => g.events[0]?.id).filter(Boolean);
-
-  const rsvpCounts = eventIds.length > 0 ? await prisma.eventRsvp.groupBy({
-    by: ['event_id'],
-    _count: { _all: true },
-    where: { event_id: { in: eventIds } }
-  }) : [];
-
-  const rsvpMap = new Map(rsvpCounts.map(r => [r.event_id, r._count._all]));
-
-  const payload = results.map((game: any) => {
-    const event = game.events[0] ?? null;
-    const { events, _count, ...rest } = game as any;
-    let distance: number | null = null;
-    if (hasCoords && typeof rest.latitude === 'number' && typeof rest.longitude === 'number') {
-      const dLat = ((rest.latitude - lat) * Math.PI) / 180;
-      const dLng = ((rest.longitude - lng) * Math.PI) / 180;
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos((lat * Math.PI) / 180) *
-          Math.cos((rest.latitude * Math.PI) / 180) *
-          Math.sin(dLng / 2) *
-          Math.sin(dLng / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      distance = 6371 * c; // km
-    }
-    return {
-      ...rest,
-      appearance: rest.appearance ?? null,
-      event_id: event?.id ?? null,
-      // Fixed: Prioritize game.banner_url over other sources
-      banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
-      rsvpCount: event ? (rsvpMap.get(event.id) || 0) : 0,
-      // Include coordinates for map display
-      latitude: rest.latitude,
-      longitude: rest.longitude,
-      distance,
-    };
-  });
-
-  if (hasCoords) {
-    payload.sort((a: any, b: any) => {
-      if (typeof a.distance !== 'number' && typeof b.distance !== 'number') return 0;
-      if (typeof a.distance !== 'number') return 1;
-      if (typeof b.distance !== 'number') return -1;
-      return a.distance - b.distance;
+    const payload = results.map((game: any) => {
+      const event = game.events[0] ?? null;
+      const { events, _count, ...rest } = game as any;
+      let distance: number | null = null;
+      if (hasCoords && typeof rest.latitude === 'number' && typeof rest.longitude === 'number') {
+        const dLat = ((rest.latitude - lat) * Math.PI) / 180;
+        const dLng = ((rest.longitude - lng) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat * Math.PI) / 180) *
+            Math.cos((rest.latitude * Math.PI) / 180) *
+            Math.sin(dLng / 2) *
+            Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        distance = 6371 * c; // km
+      }
+      return {
+        ...rest,
+        appearance: rest.appearance ?? null,
+        event_id: event?.id ?? null,
+        // Fixed: Prioritize game.banner_url over other sources
+        banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
+        rsvpCount: event ? rsvpMap.get(event.id) || 0 : 0,
+        // Include coordinates for map display
+        latitude: rest.latitude,
+        longitude: rest.longitude,
+        distance,
+      };
     });
-  }
 
-  const lastId = payload.length > 0 ? payload[payload.length - 1].id : null;
-  const gamesResponse = { games: payload, nextCursor: hasMore ? lastId : null };
-  void cacheSet(gameCacheKey, gamesResponse, 120); // 120s TTL
-  res.json(gamesResponse);
+    if (hasCoords) {
+      payload.sort((a: any, b: any) => {
+        if (typeof a.distance !== 'number' && typeof b.distance !== 'number') return 0;
+        if (typeof a.distance !== 'number') return 1;
+        if (typeof b.distance !== 'number') return -1;
+        return a.distance - b.distance;
+      });
+    }
+
+    const lastId = payload.length > 0 ? payload[payload.length - 1].id : null;
+    const gamesResponse = { games: payload, nextCursor: hasMore ? lastId : null };
+    void cacheSet(gameCacheKey, gamesResponse, 120); // 120s TTL
+    res.json(gamesResponse);
   } catch (err) {
     console.error('[games] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -426,280 +453,318 @@ gamesRouter.get('/', async (req, res) => {
 });
 
 // Create a new game
-gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const schema = z.object({
-    title: z.string().trim().min(1).max(200),
-    home_team: z.string().trim().optional(), // Home team name for display
-    away_team: z.string().trim().optional(), // Away team name for display
-    home_team_id: z.string().trim().optional(), // Team ID for home team
-    away_team_id: z.string().trim().optional(), // Team ID if opponent exists in system
-    away_team_name: z.string().trim().optional(), // Manual opponent name if not in system
-    date: z.string().datetime().optional(),
-    location: z.string().trim().min(1, 'Location is required'),
-    description: z.string().trim().optional(),
-    cover_image_url: z.string().url().optional(),
-    banner_url: z.string().url().optional(),
-    // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
-    appearance: z.string().optional(),
-    // Expected attendance for events
-    expected_attendance: z.number().int().min(1).max(99999).optional(),
-    // Event type (game, fundraiser, watch_party, team_trip, meeting, other)
-    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
-    // Event type-specific fields
-    donation_goal: z.number().min(0).optional(), // For fundraisers
-    watch_location: z.string().trim().max(200).optional(), // For watch parties
-    watch_location_lat: z.number().min(-90).max(90).optional(), // Watch party latitude
-    watch_location_lng: z.number().min(-180).max(180).optional(), // Watch party longitude
-    watch_location_place_id: z.string().optional(), // Watch party Google Place ID
-    destination: z.string().trim().max(200).optional(), // For team trips
-    // Coordinate options
-    latitude: z.number().min(-90).max(90).optional(),
-    longitude: z.number().min(-180).max(180).optional(),
-    autoGeocode: z.boolean().optional(),
-    // Venue information for opponent's location
-    venue_place_id: z.string().optional(),
-    venue_address: z.string().trim().optional(),
-    venue_lat: z.number().optional(),
-    venue_lng: z.number().optional(),
-    is_neutral: z.boolean().optional(),
-  });
-  
-  const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) {
-    console.warn('create game validation failed', {
-      body: req.body,
-      issues: parsed.error.issues,
-    });
-    return res.status(400).json({ 
-      error: 'Invalid game data', 
-      issues: parsed.error.issues 
-    });
-  }
+gamesRouter.post(
+  '/',
+  requireVerified as any,
+  requireOnboarded as any,
+  gameCreationLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  try {
-    // Prepare game data
-    let gameData: any = {
-      title: parsed.data.title,
-      date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
-      location: parsed.data.location,
-      description: parsed.data.description,
-      banner_url: parsed.data.banner_url ?? null,
-      cover_image_url: parsed.data.cover_image_url ?? null,
-      appearance: parsed.data.appearance ?? null,
-      expected_attendance: parsed.data.expected_attendance ?? null,
-      event_type: parsed.data.event_type ?? 'game',
-      donation_goal: parsed.data.donation_goal ?? null,
-      watch_location: parsed.data.watch_location ?? null,
-      watch_location_lat: parsed.data.watch_location_lat ?? null,
-      watch_location_lng: parsed.data.watch_location_lng ?? null,
-      watch_location_place_id: parsed.data.watch_location_place_id ?? null,
-      destination: parsed.data.destination ?? null,
-      latitude: parsed.data.latitude ?? null,
-      longitude: parsed.data.longitude ?? null,
-      home_team: parsed.data.home_team ?? null,
-      away_team: parsed.data.away_team ?? null,
-      home_team_id: parsed.data.home_team_id ?? null,
-      away_team_id: parsed.data.away_team_id ?? null,
-      away_team_name: parsed.data.away_team_name ?? null,
-      venue_place_id: parsed.data.venue_place_id ?? null,
-      venue_address: parsed.data.venue_address ?? null,
-      venue_lat: parsed.data.venue_lat ?? null,
-      venue_lng: parsed.data.venue_lng ?? null,
-      is_neutral: parsed.data.is_neutral ?? false,
-    };
-    
-    // If home_team_id is provided, use that team's venue as default location
-    if (parsed.data.home_team_id && !parsed.data.location) {
-      const homeTeam = await prisma.team.findUnique({
-        where: { id: parsed.data.home_team_id },
-        select: { 
-          venue_address: true, 
-          venue_lat: true, 
-          venue_lng: true,
-          city: true,
-          state: true,
-          name: true
-        }
+    const schema = z.object({
+      title: z.string().trim().min(1).max(200),
+      home_team: z.string().trim().optional(), // Home team name for display
+      away_team: z.string().trim().optional(), // Away team name for display
+      home_team_id: z.string().trim().optional(), // Team ID for home team
+      away_team_id: z.string().trim().optional(), // Team ID if opponent exists in system
+      away_team_name: z.string().trim().optional(), // Manual opponent name if not in system
+      date: z.string().datetime().optional(),
+      location: z.string().trim().min(1, 'Location is required'),
+      description: z.string().trim().optional(),
+      cover_image_url: z.string().url().optional(),
+      banner_url: z.string().url().optional(),
+      // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
+      appearance: z.string().optional(),
+      // Expected attendance for events
+      expected_attendance: z.number().int().min(1).max(99999).optional(),
+      // Event type (game, fundraiser, watch_party, team_trip, meeting, other)
+      event_type: z
+        .enum([
+          'game',
+          'fundraiser',
+          'watch_party',
+          'team_trip',
+          'meeting',
+          'team_meal',
+          'tryout',
+          'bbq',
+          'team_meeting',
+          'host_request',
+          'other',
+        ])
+        .optional(),
+      // Event type-specific fields
+      donation_goal: z.number().min(0).optional(), // For fundraisers
+      watch_location: z.string().trim().max(200).optional(), // For watch parties
+      watch_location_lat: z.number().min(-90).max(90).optional(), // Watch party latitude
+      watch_location_lng: z.number().min(-180).max(180).optional(), // Watch party longitude
+      watch_location_place_id: z.string().optional(), // Watch party Google Place ID
+      destination: z.string().trim().max(200).optional(), // For team trips
+      // Coordinate options
+      latitude: z.number().min(-90).max(90).optional(),
+      longitude: z.number().min(-180).max(180).optional(),
+      autoGeocode: z.boolean().optional(),
+      // Venue information for opponent's location
+      venue_place_id: z.string().optional(),
+      venue_address: z.string().trim().optional(),
+      venue_lat: z.number().optional(),
+      venue_lng: z.number().optional(),
+      is_neutral: z.boolean().optional(),
+    });
+
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      console.warn('create game validation failed', {
+        body: req.body,
+        issues: parsed.error.issues,
       });
-      
-      if (homeTeam) {
-        gameData.location = homeTeam.venue_address || `${homeTeam.city || ''}, ${homeTeam.state || ''}`.trim();
-        gameData.latitude = homeTeam.venue_lat;
-        gameData.longitude = homeTeam.venue_lng;
-        debugLog(`✅ Using home team location: ${gameData.location}`);
-      }
-    }
-
-    // Auto-geocode when location text is present but no coordinates were supplied
-    // (either directly or via home team venue). Always attempt — no flag required.
-    if (gameData.location && !gameData.latitude && !gameData.longitude) {
-      try {
-        const { geocodeLocation } = await import('../lib/geocoding.js');
-        const coords = await geocodeLocation(gameData.location);
-        if (coords) {
-          gameData.latitude = coords.latitude;
-          gameData.longitude = coords.longitude;
-          debugLog(`✅ Auto-geocoded game location: ${gameData.location} → ${coords.latitude}, ${coords.longitude}`);
-        }
-      } catch (geocodeError) {
-        console.warn('Auto-geocoding failed, continuing without coordinates:', geocodeError);
-        // Non-fatal — game is still created, just without map pin
-      }
-    }
-
-    // Approval workflow: Check if user is a coach/manager OR if user is admin
-    const managementRoles: any[] = ['owner', 'manager', 'coach', 'assistant_coach'];
-    let isCoach = false;
-    
-    // Check if user is super admin (can create events for ANY team)
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true },
-    });
-    const isAdmin = isEmailAdmin(currentUser?.email);
-    
-    // Require team association for non-admin users
-    if (!parsed.data.home_team_id && !isAdmin) {
-      return res.status(400).json({ error: 'home_team_id is required. Games must be associated with a team.' });
-    }
-
-    if (parsed.data.home_team_id && !isAdmin) {
-      // Regular users must be a coach/manager of the team
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: parsed.data.home_team_id,
-          user_id: req.user.id,
-          role: { in: managementRoles }
-        }
+      return res.status(400).json({
+        error: 'Invalid game data',
+        issues: parsed.error.issues,
       });
-      isCoach = !!membership;
+    }
 
-      // Verify the team's org is admin-approved (if team has an org)
-      if (isCoach) {
-        const team = await prisma.team.findUnique({
+    try {
+      // Prepare game data
+      let gameData: any = {
+        title: parsed.data.title,
+        date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+        location: parsed.data.location,
+        description: parsed.data.description,
+        banner_url: parsed.data.banner_url ?? null,
+        cover_image_url: parsed.data.cover_image_url ?? null,
+        appearance: parsed.data.appearance ?? null,
+        expected_attendance: parsed.data.expected_attendance ?? null,
+        event_type: parsed.data.event_type ?? 'game',
+        donation_goal: parsed.data.donation_goal ?? null,
+        watch_location: parsed.data.watch_location ?? null,
+        watch_location_lat: parsed.data.watch_location_lat ?? null,
+        watch_location_lng: parsed.data.watch_location_lng ?? null,
+        watch_location_place_id: parsed.data.watch_location_place_id ?? null,
+        destination: parsed.data.destination ?? null,
+        latitude: parsed.data.latitude ?? null,
+        longitude: parsed.data.longitude ?? null,
+        home_team: parsed.data.home_team ?? null,
+        away_team: parsed.data.away_team ?? null,
+        home_team_id: parsed.data.home_team_id ?? null,
+        away_team_id: parsed.data.away_team_id ?? null,
+        away_team_name: parsed.data.away_team_name ?? null,
+        venue_place_id: parsed.data.venue_place_id ?? null,
+        venue_address: parsed.data.venue_address ?? null,
+        venue_lat: parsed.data.venue_lat ?? null,
+        venue_lng: parsed.data.venue_lng ?? null,
+        is_neutral: parsed.data.is_neutral ?? false,
+      };
+
+      // If home_team_id is provided, use that team's venue as default location
+      if (parsed.data.home_team_id && !parsed.data.location) {
+        const homeTeam = await prisma.team.findUnique({
           where: { id: parsed.data.home_team_id },
-          select: { organization_id: true },
+          select: {
+            venue_address: true,
+            venue_lat: true,
+            venue_lng: true,
+            city: true,
+            state: true,
+            name: true,
+          },
         });
-        if (team?.organization_id) {
-          const org = await prisma.organization.findUnique({
-            where: { id: team.organization_id },
-            select: { admin_approved: true },
+
+        if (homeTeam) {
+          gameData.location =
+            homeTeam.venue_address || `${homeTeam.city || ''}, ${homeTeam.state || ''}`.trim();
+          gameData.latitude = homeTeam.venue_lat;
+          gameData.longitude = homeTeam.venue_lng;
+          debugLog(`✅ Using home team location: ${gameData.location}`);
+        }
+      }
+
+      // Auto-geocode when location text is present but no coordinates were supplied
+      // (either directly or via home team venue). Always attempt — no flag required.
+      if (gameData.location && !gameData.latitude && !gameData.longitude) {
+        try {
+          const { geocodeLocation } = await import('../lib/geocoding.js');
+          const coords = await geocodeLocation(gameData.location);
+          if (coords) {
+            gameData.latitude = coords.latitude;
+            gameData.longitude = coords.longitude;
+            debugLog(
+              `✅ Auto-geocoded game location: ${gameData.location} → ${coords.latitude}, ${coords.longitude}`
+            );
+          }
+        } catch (geocodeError) {
+          console.warn('Auto-geocoding failed, continuing without coordinates:', geocodeError);
+          // Non-fatal — game is still created, just without map pin
+        }
+      }
+
+      // Approval workflow: Check if user is a coach/manager OR if user is admin
+      const managementRoles: any[] = ['owner', 'manager', 'coach', 'assistant_coach'];
+      let isCoach = false;
+
+      // Check if user is super admin (can create events for ANY team)
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { email: true },
+      });
+      const isAdmin = isEmailAdmin(currentUser?.email);
+
+      // Require team association for non-admin users
+      if (!parsed.data.home_team_id && !isAdmin) {
+        return res
+          .status(400)
+          .json({ error: 'home_team_id is required. Games must be associated with a team.' });
+      }
+
+      if (parsed.data.home_team_id && !isAdmin) {
+        // Regular users must be a coach/manager of the team
+        const membership = await prisma.teamMembership.findFirst({
+          where: {
+            team_id: parsed.data.home_team_id,
+            user_id: req.user.id,
+            role: { in: managementRoles },
+          },
+        });
+        isCoach = !!membership;
+
+        // Verify the team's org is admin-approved (if team has an org)
+        if (isCoach) {
+          const team = await prisma.team.findUnique({
+            where: { id: parsed.data.home_team_id },
+            select: { organization_id: true },
           });
-          if (org && !org.admin_approved) {
-            return res.status(403).json({ error: 'Your organization must be approved before creating events.' });
+          if (team?.organization_id) {
+            const org = await prisma.organization.findUnique({
+              where: { id: team.organization_id },
+              select: { admin_approved: true },
+            });
+            if (org && !org.admin_approved) {
+              return res
+                .status(403)
+                .json({ error: 'Your organization must be approved before creating events.' });
+            }
           }
         }
+      } else if (isAdmin) {
+        // Admin can create events for any team
+        isCoach = true;
+        debugLog(
+          `✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`
+        );
       }
-    } else if (isAdmin) {
-      // Admin can create events for any team
-      isCoach = true;
-      debugLog(`✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`);
-    }
-    
-    // Auto-approve if coach/admin, otherwise set to pending
-    gameData.approval_status = (isCoach || isAdmin) ? 'approved' : 'pending';
-    gameData.created_by_id = req.user.id;
 
-    // Enforce fan pending event limit (matches POST /events limit of 3)
-    if (gameData.approval_status === 'pending') {
-      const pendingCount = await prisma.game.count({
-        where: { created_by_id: req.user.id, approval_status: 'pending' },
-      });
-      if (pendingCount >= 3) {
-        return res.status(403).json({
-          error: 'Event limit reached',
-          message: "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
-          code: 'EVENT_LIMIT_EXCEEDED',
-          limit: 3,
-          current: pendingCount,
+      // Auto-approve if coach/admin, otherwise set to pending
+      gameData.approval_status = isCoach || isAdmin ? 'approved' : 'pending';
+      gameData.created_by_id = req.user.id;
+
+      // Enforce fan pending event limit (matches POST /events limit of 3)
+      if (gameData.approval_status === 'pending') {
+        const pendingCount = await prisma.game.count({
+          where: { created_by_id: req.user.id, approval_status: 'pending' },
         });
+        if (pendingCount >= 3) {
+          return res.status(403).json({
+            error: 'Event limit reached',
+            message:
+              "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
+            code: 'EVENT_LIMIT_EXCEEDED',
+            limit: 3,
+            current: pendingCount,
+          });
+        }
       }
+
+      if (isCoach || isAdmin) {
+        gameData.approved_by_id = req.user.id;
+        gameData.approved_at = new Date();
+      }
+
+      const game = (await (prisma.game.create as any)({
+        data: gameData,
+        include: {
+          events: { orderBy: { date: 'asc' }, take: 1 },
+          homeTeam: { select: { id: true, name: true, venue_address: true } },
+          awayTeam: { select: { id: true, name: true, venue_address: true } },
+        },
+      })) as any;
+
+      // Automatically create an associated Event for RSVP functionality
+      // Copy venue coordinates from game so geofencing can enforce location-based posting
+      const eventLat = game.venue_lat ?? game.latitude ?? null;
+      const eventLng = game.venue_lng ?? game.longitude ?? null;
+      const event = await prisma.event.create({
+        data: {
+          title: game.title,
+          date: game.date,
+          location: game.location || null,
+          latitude: eventLat,
+          longitude: eventLng,
+          game_id: game.id,
+          team_id: game.home_team_id || null,
+          status: gameData.approval_status || 'pending',
+          approval_status: gameData.approval_status || 'pending',
+          creator_id: req.user!.id,
+          creator_role: isCoach ? 'coach' : 'fan',
+          event_type: parsed.data.event_type || 'game',
+          capacity: null,
+        } as any,
+      });
+
+      // Games appear in the feed via the games carousel (GET /games) — no separate
+      // text post needed. The game card links directly to the game detail page with
+      // stories, polls, RSVP, and all features.
+
+      // Generate Google Maps link for venue
+      const venueMapsLink = generateMapsLink(
+        game.venue_address || game.location,
+        game.venue_lat || game.latitude,
+        game.venue_lng || game.longitude,
+        game.venue_place_id
+      );
+
+      // Warn if location string is present but no coordinates were resolved
+      const warnings: string[] = [];
+      if (game.location && game.latitude == null && game.longitude == null) {
+        warnings.push(
+          'No coordinates resolved for location — geofencing will be disabled for this event'
+        );
+      }
+
+      const response = {
+        ...game,
+        event_id: event.id,
+        banner_url: game.banner_url,
+        venue_maps_link: venueMapsLink,
+        ...(warnings.length > 0 ? { warnings } : {}),
+        // Include team info with linking capability
+        home_team: game.homeTeam
+          ? {
+              id: game.homeTeam.id,
+              name: game.homeTeam.name,
+              profile_link: `/teams/${game.homeTeam.id}`, // Frontend can use this to link to team page
+            }
+          : null,
+        away_team: game.awayTeam
+          ? {
+              id: game.awayTeam.id,
+              name: game.awayTeam.name,
+              profile_link: `/teams/${game.awayTeam.id}`, // Link to opponent's page if they exist
+            }
+          : game.away_team_name
+            ? {
+                name: game.away_team_name, // Manual opponent name
+                profile_link: null, // No link available
+              }
+            : null,
+      };
+
+      res.status(201).json(response);
+    } catch (error) {
+      console.error('Error creating game:', error);
+      res.status(500).json({ error: 'Failed to create game' });
     }
-
-    if (isCoach || isAdmin) {
-      gameData.approved_by_id = req.user.id;
-      gameData.approved_at = new Date();
-    }
-
-    const game = await (prisma.game.create as any)({
-      data: gameData,
-      include: { 
-        events: { orderBy: { date: 'asc' }, take: 1 },
-        homeTeam: { select: { id: true, name: true, venue_address: true } },
-        awayTeam: { select: { id: true, name: true, venue_address: true } }
-      },
-    }) as any;
-    
-    // Automatically create an associated Event for RSVP functionality
-    // Copy venue coordinates from game so geofencing can enforce location-based posting
-    const eventLat = game.venue_lat ?? game.latitude ?? null;
-    const eventLng = game.venue_lng ?? game.longitude ?? null;
-    const event = await prisma.event.create({
-      data: {
-        title: game.title,
-        date: game.date,
-        location: game.location || null,
-        latitude: eventLat,
-        longitude: eventLng,
-        game_id: game.id,
-        team_id: game.home_team_id || null,
-        status: gameData.approval_status || 'pending',
-        approval_status: gameData.approval_status || 'pending',
-        creator_id: req.user!.id,
-        creator_role: isCoach ? 'coach' : 'fan',
-        event_type: parsed.data.event_type || 'game',
-        capacity: null,
-      } as any,
-    });
-    
-    // Games appear in the feed via the games carousel (GET /games) — no separate
-    // text post needed. The game card links directly to the game detail page with
-    // stories, polls, RSVP, and all features.
-
-    // Generate Google Maps link for venue
-    const venueMapsLink = generateMapsLink(
-      game.venue_address || game.location,
-      game.venue_lat || game.latitude,
-      game.venue_lng || game.longitude,
-      game.venue_place_id
-    );
-    
-    // Warn if location string is present but no coordinates were resolved
-    const warnings: string[] = [];
-    if (game.location && game.latitude == null && game.longitude == null) {
-      warnings.push('No coordinates resolved for location — geofencing will be disabled for this event');
-    }
-
-    const response = {
-      ...game,
-      event_id: event.id,
-      banner_url: game.banner_url,
-      venue_maps_link: venueMapsLink,
-      ...(warnings.length > 0 ? { warnings } : {}),
-      // Include team info with linking capability
-      home_team: game.homeTeam ? {
-        id: game.homeTeam.id,
-        name: game.homeTeam.name,
-        profile_link: `/teams/${game.homeTeam.id}` // Frontend can use this to link to team page
-      } : null,
-      away_team: game.awayTeam ? {
-        id: game.awayTeam.id,
-        name: game.awayTeam.name,
-        profile_link: `/teams/${game.awayTeam.id}` // Link to opponent's page if they exist
-      } : (game.away_team_name ? {
-        name: game.away_team_name, // Manual opponent name
-        profile_link: null // No link available
-      } : null)
-    };
-
-    res.status(201).json(response);
-  } catch (error) {
-    console.error('Error creating game:', error);
-    res.status(500).json({ error: 'Failed to create game' });
-  }
-}));
+  })
+);
 
 // v1.0.2: POST /games/bulk — atomic bulk create for season scheduling.
 // Replaces the client-side loop in manage-season.tsx that had no rollback on partial failure.
@@ -713,189 +778,226 @@ const bulkGameSchema = z.object({
   date: z.string().datetime(),
   location: z.string().trim().min(1),
   description: z.string().trim().optional(),
-  event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
+  event_type: z
+    .enum([
+      'game',
+      'fundraiser',
+      'watch_party',
+      'team_trip',
+      'meeting',
+      'team_meal',
+      'tryout',
+      'bbq',
+      'team_meeting',
+      'host_request',
+      'other',
+    ])
+    .optional(),
   is_neutral: z.boolean().optional(),
 });
-gamesRouter.post('/bulk', requireAuth as any, requireVerified as any, requireOnboarded as any, gameCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  const schema = z.object({ games: z.array(bulkGameSchema).min(1).max(30) });
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid bulk games payload', issues: parsed.error.issues });
-  }
-  const userId = req.user!.id;
-  try {
-    // All-or-nothing: one failure rolls back the whole batch.
-    const created = await prisma.$transaction(async (tx) => {
-      const rows: any[] = [];
-      for (const g of parsed.data.games) {
-        const row = await tx.game.create({
-          data: {
-            title: g.title,
-            date: new Date(g.date),
-            location: g.location,
-            description: g.description ?? null,
-            home_team: g.home_team ?? null,
-            away_team: g.away_team ?? null,
-            home_team_id: g.home_team_id ?? null,
-            away_team_id: g.away_team_id ?? null,
-            event_type: g.event_type ?? 'game',
-            is_neutral: g.is_neutral ?? false,
-            created_by: userId,
-            approval_status: 'approved' as any, // coaches creating for their own team auto-approve (mirrors single endpoint)
-          },
-          select: { id: true, title: true, date: true, location: true },
-        });
-        rows.push(row);
-      }
-      return rows;
-    });
-    return res.status(201).json({ ok: true, created_count: created.length, games: created });
-  } catch (err: any) {
-    console.error('[games/bulk] failed — rolled back:', err?.message || err);
-    return res.status(500).json({ error: 'Bulk game creation failed and was rolled back.', detail: err?.message || 'unknown' });
-  }
-}));
+gamesRouter.post(
+  '/bulk',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  gameCreationLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const schema = z.object({ games: z.array(bulkGameSchema).min(1).max(30) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json({ error: 'Invalid bulk games payload', issues: parsed.error.issues });
+    }
+    const userId = req.user!.id;
+    try {
+      // All-or-nothing: one failure rolls back the whole batch.
+      const created = await prisma.$transaction(async tx => {
+        const rows: any[] = [];
+        for (const g of parsed.data.games) {
+          const row = await tx.game.create({
+            data: {
+              title: g.title,
+              date: new Date(g.date),
+              location: g.location,
+              description: g.description ?? null,
+              home_team: g.home_team ?? null,
+              away_team: g.away_team ?? null,
+              home_team_id: g.home_team_id ?? null,
+              away_team_id: g.away_team_id ?? null,
+              event_type: g.event_type ?? 'game',
+              is_neutral: g.is_neutral ?? false,
+              created_by_id: userId,
+              approval_status: 'approved' as any, // coaches creating for their own team auto-approve (mirrors single endpoint)
+            },
+            select: { id: true, title: true, date: true, location: true },
+          });
+          rows.push(row);
+        }
+        return rows;
+      });
+      return res.status(201).json({ ok: true, created_count: created.length, games: created });
+    } catch (err: any) {
+      console.error('[games/bulk] failed — rolled back:', err?.message || err);
+      return res.status(500).json({
+        error: 'Bulk game creation failed and was rolled back.',
+        detail: err?.message || 'unknown',
+      });
+    }
+  })
+);
 
 // Seed sample games as real DB records so stories/polls work (idempotent)
-gamesRouter.post('/seed-samples', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
-  const SAMPLE_GAMES = [
-    {
-      title: 'Westhill Vikings vs. Stamford Knights',
-      location: 'Westhill High School, Stamford, CT',
-      cover_image_url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=1280&auto=format&fit=crop',
-      days_ahead: 2,
-    },
-    {
-      title: 'Riverside Eagles vs. Greenwich Cardinals',
-      location: 'Greenwich High School, Greenwich, CT',
-      cover_image_url: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=1280&auto=format&fit=crop',
-      days_ahead: 4,
-    },
-    {
-      title: 'Trinity Crusaders vs. Fairfield Prep Jesuits',
-      location: 'Trinity Catholic, Stamford, CT',
-      cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
-      days_ahead: 6,
-    },
-  ];
-
-  const now = new Date();
-  const created: any[] = [];
-
-  for (const sample of SAMPLE_GAMES) {
-    // Check if already seeded (by exact title match)
-    const existing = await prisma.game.findFirst({
-      where: { title: sample.title, approval_status: 'approved' },
-      select: { id: true },
-    });
-    if (existing) {
-      created.push(existing);
-      continue;
-    }
-    const gameDate = new Date(now.getTime() + sample.days_ahead * 86400000);
-    const game = await (prisma.game.create as any)({
-      data: {
-        title: sample.title,
-        date: gameDate,
-        location: sample.location,
-        cover_image_url: sample.cover_image_url,
-        banner_url: sample.cover_image_url,
-        approval_status: 'approved',
-        approved_at: now,
-        created_by_id: req.user!.id,
-        approved_by_id: req.user!.id,
-        event_type: 'game',
+gamesRouter.post(
+  '/seed-samples',
+  requireAdmin as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const SAMPLE_GAMES = [
+      {
+        title: 'Westhill Vikings vs. Stamford Knights',
+        location: 'Westhill High School, Stamford, CT',
+        cover_image_url:
+          'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=1280&auto=format&fit=crop',
+        days_ahead: 2,
       },
-    });
-    // Create associated event for RSVP
-    await prisma.event.create({
-      data: {
-        title: sample.title,
-        date: gameDate,
-        location: sample.location,
-        game_id: game.id,
-        status: 'approved',
-        approval_status: 'approved',
-        creator_id: req.user!.id,
-        creator_role: 'organizer',
-        event_type: 'game',
-      } as any,
-    });
-    // Geocode the location so the game appears as a map pin
-    try {
-      const { geocodeLocation } = await import('../lib/geocoding.js');
-      const coords = await geocodeLocation(sample.location);
-      if (coords) {
-        await (prisma.game.update as any)({
-          where: { id: game.id },
-          data: { latitude: coords.latitude, longitude: coords.longitude },
-        });
-        await prisma.event.updateMany({
-          where: { game_id: game.id },
-          data: { latitude: coords.latitude, longitude: coords.longitude },
-        });
-      }
-    } catch (geocodeErr) {
-      console.warn('[seed-samples] geocoding failed for', sample.title, ':', geocodeErr);
-    }
-    // Games appear as cards in the feed carousel — no text post needed
-    created.push(game);
-  }
+      {
+        title: 'Riverside Eagles vs. Greenwich Cardinals',
+        location: 'Greenwich High School, Greenwich, CT',
+        cover_image_url:
+          'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?q=80&w=1280&auto=format&fit=crop',
+        days_ahead: 4,
+      },
+      {
+        title: 'Trinity Crusaders vs. Fairfield Prep Jesuits',
+        location: 'Trinity Catholic, Stamford, CT',
+        cover_image_url:
+          'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
+        days_ahead: 6,
+      },
+    ];
 
-  return res.json({ ok: true, games: created });
-}));
+    const now = new Date();
+    const created: any[] = [];
+
+    for (const sample of SAMPLE_GAMES) {
+      // Check if already seeded (by exact title match)
+      const existing = await prisma.game.findFirst({
+        where: { title: sample.title, approval_status: 'approved' },
+        select: { id: true },
+      });
+      if (existing) {
+        created.push(existing);
+        continue;
+      }
+      const gameDate = new Date(now.getTime() + sample.days_ahead * 86400000);
+      const game = await (prisma.game.create as any)({
+        data: {
+          title: sample.title,
+          date: gameDate,
+          location: sample.location,
+          cover_image_url: sample.cover_image_url,
+          banner_url: sample.cover_image_url,
+          approval_status: 'approved',
+          approved_at: now,
+          created_by_id: req.user!.id,
+          approved_by_id: req.user!.id,
+          event_type: 'game',
+        },
+      });
+      // Create associated event for RSVP
+      await prisma.event.create({
+        data: {
+          title: sample.title,
+          date: gameDate,
+          location: sample.location,
+          game_id: game.id,
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: req.user!.id,
+          creator_role: 'organizer',
+          event_type: 'game',
+        } as any,
+      });
+      // Geocode the location so the game appears as a map pin
+      try {
+        const { geocodeLocation } = await import('../lib/geocoding.js');
+        const coords = await geocodeLocation(sample.location);
+        if (coords) {
+          await (prisma.game.update as any)({
+            where: { id: game.id },
+            data: { latitude: coords.latitude, longitude: coords.longitude },
+          });
+          await prisma.event.updateMany({
+            where: { game_id: game.id },
+            data: { latitude: coords.latitude, longitude: coords.longitude },
+          });
+        }
+      } catch (geocodeErr) {
+        console.warn('[seed-samples] geocoding failed for', sample.title, ':', geocodeErr);
+      }
+      // Games appear as cards in the feed carousel — no text post needed
+      created.push(game);
+    }
+
+    return res.json({ ok: true, games: created });
+  })
+);
 
 // Batch vote summaries - avoids N+1 when loading feed with many games (must be before /:id)
 gamesRouter.get('/votes-summary', authMiddleware as any, async (req: AuthedRequest, res) => {
   try {
-  const idsParam = String(req.query.ids || '').trim();
-  if (!idsParam) return res.status(400).json({ error: 'ids required (comma-separated game IDs)' });
-  const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean);
-  if (ids.length === 0) return res.json({});
-  if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
-  const userId = req.user?.id ?? null;
+    const idsParam = String(req.query.ids || '').trim();
+    if (!idsParam)
+      return res.status(400).json({ error: 'ids required (comma-separated game IDs)' });
+    const ids = idsParam
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (ids.length === 0) return res.json({});
+    if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
+    const userId = req.user?.id ?? null;
 
-  // Batch: 1 groupBy query for all vote counts + 1 query for user votes (instead of 3N queries)
-  const [voteCounts, userVotes] = await Promise.all([
-    prisma.gameVote.groupBy({
-      by: ['game_id', 'team'],
-      _count: { _all: true },
-      where: { game_id: { in: ids } },
-    }),
-    userId
-      ? prisma.gameVote.findMany({
-          where: { game_id: { in: ids }, user_id: userId },
-          select: { game_id: true, team: true },
-        })
-      : Promise.resolve([]),
-  ]);
+    // Batch: 1 groupBy query for all vote counts + 1 query for user votes (instead of 3N queries)
+    const [voteCounts, userVotes] = await Promise.all([
+      prisma.gameVote.groupBy({
+        by: ['game_id', 'team'],
+        _count: { _all: true },
+        where: { game_id: { in: ids } },
+      }),
+      userId
+        ? prisma.gameVote.findMany({
+            where: { game_id: { in: ids }, user_id: userId },
+            select: { game_id: true, team: true },
+          })
+        : Promise.resolve([]),
+    ]);
 
-  // Build lookup maps
-  const countMap = new Map<string, { A: number; B: number }>();
-  for (const row of voteCounts) {
-    if (!countMap.has(row.game_id)) countMap.set(row.game_id, { A: 0, B: 0 });
-    const entry = countMap.get(row.game_id)!;
-    if (row.team === 'A') entry.A = row._count._all;
-    else if (row.team === 'B') entry.B = row._count._all;
-  }
-  const userVoteMap = new Map(userVotes.map((v) => [v.game_id, v.team]));
+    // Build lookup maps
+    const countMap = new Map<string, { A: number; B: number }>();
+    for (const row of voteCounts) {
+      if (!countMap.has(row.game_id)) countMap.set(row.game_id, { A: 0, B: 0 });
+      const entry = countMap.get(row.game_id)!;
+      if (row.team === 'A') entry.A = row._count._all;
+      else if (row.team === 'B') entry.B = row._count._all;
+    }
+    const userVoteMap = new Map(userVotes.map(v => [v.game_id, v.team]));
 
-  const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
-  for (const id of ids) {
-    const counts = countMap.get(id) || { A: 0, B: 0 };
-    const total = counts.A + counts.B;
-    const pctA = total ? Math.round((counts.A / total) * 100) : 0;
-    const pctB = total ? 100 - pctA : 0;
-    result[id] = {
-      teamA: counts.A,
-      teamB: counts.B,
-      total,
-      pctA,
-      pctB,
-      userVote: userVoteMap.get(id) ?? null,
-    };
-  }
-  return res.json(result);
+    const result: Record<string, Awaited<ReturnType<typeof summarizeVotes>>> = {};
+    for (const id of ids) {
+      const counts = countMap.get(id) || { A: 0, B: 0 };
+      const total = counts.A + counts.B;
+      const pctA = total ? Math.round((counts.A / total) * 100) : 0;
+      const pctB = total ? 100 - pctA : 0;
+      result[id] = {
+        teamA: counts.A,
+        teamB: counts.B,
+        total,
+        pctA,
+        pctB,
+        userVote: userVoteMap.get(id) ?? null,
+      };
+    }
+    return res.json(result);
   } catch (err) {
     console.error('[games] votes-summary error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -905,24 +1007,24 @@ gamesRouter.get('/votes-summary', authMiddleware as any, async (req: AuthedReque
 // Get single game by id
 gamesRouter.get('/:id', async (req, res) => {
   try {
-  const id = String(req.params.id);
-  const authedReq = req as AuthedRequest;
-  const game = await (prisma.game.findUnique as any)({
-    where: { id },
-    include: {
-      events: { orderBy: { date: 'asc' }, take: 1 },
-      homeTeam: { select: { id: true, name: true, avatar_url: true } },
-      awayTeam: { select: { id: true, name: true, avatar_url: true } },
-    },
-  });
-  if (!game) return res.status(404).json({ error: 'Not found' });
-  if (!(await canViewGameRecord(game as GameVisibilityRecord, authedReq.user?.id ?? null))) {
-    return res.status(404).json({ error: 'Not found' });
-  }
-  const gameData = game as any; // Type assertion for relation fields
-  const event = gameData.events[0] ?? null;
-  const { events, ...rest } = gameData;
-  return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
+    const id = String(req.params.id);
+    const authedReq = req as AuthedRequest;
+    const game = await (prisma.game.findUnique as any)({
+      where: { id },
+      include: {
+        events: { orderBy: { date: 'asc' }, take: 1 },
+        homeTeam: { select: { id: true, name: true, avatar_url: true } },
+        awayTeam: { select: { id: true, name: true, avatar_url: true } },
+      },
+    });
+    if (!game) return res.status(404).json({ error: 'Not found' });
+    if (!(await canViewGameRecord(game as GameVisibilityRecord, authedReq.user?.id ?? null))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const gameData = game as any; // Type assertion for relation fields
+    const event = gameData.events[0] ?? null;
+    const { events, ...rest } = gameData;
+    return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
   } catch (err) {
     console.error('[games] get-by-id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -935,129 +1037,148 @@ gamesRouter.get('/:id', async (req, res) => {
 // endpoint stays fast (no heavy joins on potentially large post tables).
 gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   try {
-  const id = String(req.params.id);
-  const game = await (prisma.game.findUnique as any)({
-    where: { id },
-    include: {
-      events: { orderBy: { date: 'asc' }, take: 1 },
-      homeTeam: { select: { id: true, name: true, avatar_url: true } },
-      awayTeam: { select: { id: true, name: true, avatar_url: true } },
-    },
-  });
-  if (!game) return res.status(404).json({ error: 'Not found' });
-  if (!(await canViewGameRecord(game as GameVisibilityRecord, req.user?.id ?? null))) {
-    return res.status(404).json({ error: 'Not found' });
-  }
-
-  const g = game as any; // Type assertion for relation fields
-  const event = g.events[0] ?? null;
-  // Posts and media are no longer bundled in the summary — return empty arrays
-  // so the client can fetch them in parallel without blocking the metadata load.
-  const posts: any[] = [];
-  const media: any[] = [];
-  const bannerUrl = pickBannerUrl(game, event, media);
-  const location = game.location || event?.location || null;
-  const anchorDate = event?.date ?? game.date;
-  const isPast = anchorDate instanceof Date ? anchorDate.getTime() < Date.now() : new Date(anchorDate).getTime() < Date.now();
-
-  const [reviewsCount, rsvpCount, userRsvped] = await (async () => {
-    const reviewPromise = prisma.post.count({ where: { game_id: id, type: 'review', deleted_at: null } });
-    if (!event) {
-      const [reviewTotal] = await Promise.all([reviewPromise]);
-      return [reviewTotal, 0, false] as const;
+    const id = String(req.params.id);
+    const game = await (prisma.game.findUnique as any)({
+      where: { id },
+      include: {
+        events: { orderBy: { date: 'asc' }, take: 1 },
+        homeTeam: { select: { id: true, name: true, avatar_url: true } },
+        awayTeam: { select: { id: true, name: true, avatar_url: true } },
+      },
+    });
+    if (!game) return res.status(404).json({ error: 'Not found' });
+    if (!(await canViewGameRecord(game as GameVisibilityRecord, req.user?.id ?? null))) {
+      return res.status(404).json({ error: 'Not found' });
     }
-    const countPromise = prisma.eventRsvp.count({ where: { event_id: event.id } });
-    const userPromise = req.user
-      ? prisma.eventRsvp.findUnique({
-          where: { event_id_user_id: { event_id: event.id, user_id: req.user.id } } as any,
-          select: { id: true },
-        })
-      : Promise.resolve(null);
-    const [reviewTotal, count, userRow] = await Promise.all([reviewPromise, countPromise, userPromise]);
-    return [reviewTotal, count, Boolean(userRow)] as const;
-  })();
 
-  const gameData = game as any; // Type assertion for updated schema
+    const g = game as any; // Type assertion for relation fields
+    const event = g.events[0] ?? null;
+    // Posts and media are no longer bundled in the summary — return empty arrays
+    // so the client can fetch them in parallel without blocking the metadata load.
+    const posts: any[] = [];
+    const media: any[] = [];
+    const bannerUrl = pickBannerUrl(game, event, media);
+    const location = game.location || event?.location || null;
+    const anchorDate = event?.date ?? game.date;
+    const isPast =
+      anchorDate instanceof Date
+        ? anchorDate.getTime() < Date.now()
+        : new Date(anchorDate).getTime() < Date.now();
 
-  // Compute can_edit_result for coaches/owners/admins
-  let canEditResult = false;
-  if (req.user) {
-    const teamIds = [gameData.home_team_id, gameData.away_team_id].filter(Boolean) as string[];
-    if (teamIds.length > 0) {
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: { in: teamIds },
-          user_id: req.user.id,
-          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-          status: 'active',
-        },
-        select: { id: true },
+    const [reviewsCount, rsvpCount, userRsvped] = await (async () => {
+      const reviewPromise = prisma.post.count({
+        where: { game_id: id, type: 'review', deleted_at: null },
       });
-      if (membership) canEditResult = true;
-    }
-    if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
-    if (!canEditResult) {
-      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-      if (isAdminEmail(user?.email)) canEditResult = true;
-    }
-  }
-  
-  // Generate Google Maps link for venue
-  const venueMapsLink = generateMapsLink(
-    gameData.venue_address || location,
-    gameData.venue_lat || gameData.latitude,
-    gameData.venue_lng || gameData.longitude,
-    gameData.venue_place_id
-  );
+      if (!event) {
+        const [reviewTotal] = await Promise.all([reviewPromise]);
+        return [reviewTotal, 0, false] as const;
+      }
+      const countPromise = prisma.eventRsvp.count({ where: { event_id: event.id } });
+      const userPromise = req.user
+        ? prisma.eventRsvp.findUnique({
+            where: { event_id_user_id: { event_id: event.id, user_id: req.user.id } } as any,
+            select: { id: true },
+          })
+        : Promise.resolve(null);
+      const [reviewTotal, count, userRow] = await Promise.all([
+        reviewPromise,
+        countPromise,
+        userPromise,
+      ]);
+      return [reviewTotal, count, Boolean(userRow)] as const;
+    })();
 
-  return res.json({
-    id: gameData.id,
-    title: gameData.title,
-    appearance: gameData.appearance ?? null,
-    home_team: gameData.homeTeam || gameData.home_team, // Return relation object or string fallback
-    away_team: gameData.awayTeam || gameData.away_team, // Return relation object or string fallback
-    homeTeam: gameData.homeTeam ? { 
-      id: gameData.homeTeam.id, 
-      name: gameData.homeTeam.name,
-      avatar_url: gameData.homeTeam.avatar_url,
-      profile_link: `/teams/${gameData.homeTeam.id}`
-    } : (gameData.home_team ? { name: gameData.home_team } : null),
-    awayTeam: gameData.awayTeam ? { 
-      id: gameData.awayTeam.id, 
-      name: gameData.awayTeam.name,
-      avatar_url: gameData.awayTeam.avatar_url,
-      profile_link: `/teams/${gameData.awayTeam.id}`
-    } : (gameData.away_team || gameData.away_team_name ? { 
-      name: gameData.away_team || gameData.away_team_name
-    } : null),
-    date: gameData.date instanceof Date ? gameData.date.toISOString() : gameData.date,
-    timeLocal: null,
-    location,
-    venueMapsLink, // Google Maps link for the venue
-    description: gameData.description,
-    bannerUrl,
-    coverImageUrl: gameData.cover_image_url,
-    eventId: event?.id ?? null,
-    capacity: event?.capacity ?? null,
-    rsvpCount,
-    userRsvped,
-    teams: [gameData.homeTeam, gameData.awayTeam].filter(Boolean), // Include team relations
-    posts,
-    media,
-    reviewsCount,
-    isPast,
-    event: serializeEvent(event),
-    home_score: gameData.home_score ?? null,
-    away_score: gameData.away_score ?? null,
-    winner: gameData.winner ?? null,
-    can_edit_result: canEditResult,
-  });
+    const gameData = game as any; // Type assertion for updated schema
+
+    // Compute can_edit_result for coaches/owners/admins
+    let canEditResult = false;
+    if (req.user) {
+      const teamIds = [gameData.home_team_id, gameData.away_team_id].filter(Boolean) as string[];
+      if (teamIds.length > 0) {
+        const membership = await prisma.teamMembership.findFirst({
+          where: {
+            team_id: { in: teamIds },
+            user_id: req.user.id,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
+          },
+          select: { id: true },
+        });
+        if (membership) canEditResult = true;
+      }
+      if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
+      if (!canEditResult) {
+        const user = await prisma.user.findUnique({
+          where: { id: req.user.id },
+          select: { email: true },
+        });
+        if (isAdminEmail(user?.email)) canEditResult = true;
+      }
+    }
+
+    // Generate Google Maps link for venue
+    const venueMapsLink = generateMapsLink(
+      gameData.venue_address || location,
+      gameData.venue_lat || gameData.latitude,
+      gameData.venue_lng || gameData.longitude,
+      gameData.venue_place_id
+    );
+
+    return res.json({
+      id: gameData.id,
+      title: gameData.title,
+      appearance: gameData.appearance ?? null,
+      home_team: gameData.homeTeam || gameData.home_team, // Return relation object or string fallback
+      away_team: gameData.awayTeam || gameData.away_team, // Return relation object or string fallback
+      homeTeam: gameData.homeTeam
+        ? {
+            id: gameData.homeTeam.id,
+            name: gameData.homeTeam.name,
+            avatar_url: gameData.homeTeam.avatar_url,
+            profile_link: `/teams/${gameData.homeTeam.id}`,
+          }
+        : gameData.home_team
+          ? { name: gameData.home_team }
+          : null,
+      awayTeam: gameData.awayTeam
+        ? {
+            id: gameData.awayTeam.id,
+            name: gameData.awayTeam.name,
+            avatar_url: gameData.awayTeam.avatar_url,
+            profile_link: `/teams/${gameData.awayTeam.id}`,
+          }
+        : gameData.away_team || gameData.away_team_name
+          ? {
+              name: gameData.away_team || gameData.away_team_name,
+            }
+          : null,
+      date: gameData.date instanceof Date ? gameData.date.toISOString() : gameData.date,
+      timeLocal: null,
+      location,
+      venueMapsLink, // Google Maps link for the venue
+      description: gameData.description,
+      bannerUrl,
+      coverImageUrl: gameData.cover_image_url,
+      eventId: event?.id ?? null,
+      capacity: event?.capacity ?? null,
+      rsvpCount,
+      userRsvped,
+      teams: [gameData.homeTeam, gameData.awayTeam].filter(Boolean), // Include team relations
+      posts,
+      media,
+      reviewsCount,
+      isPast,
+      event: serializeEvent(event),
+      home_score: gameData.home_score ?? null,
+      away_score: gameData.away_score ?? null,
+      winner: gameData.winner ?? null,
+      can_edit_result: canEditResult,
+    });
   } catch (err) {
     console.error('[games] summary error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 
 gamesRouter.get('/:id/votes/summary', async (req: AuthedRequest, res) => {
   try {
@@ -1072,21 +1193,23 @@ gamesRouter.get('/:id/votes/summary', async (req: AuthedRequest, res) => {
 
 gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, async (req: AuthedRequest, res) => {
   try {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const gameId = String(req.params.id);
-  const teamInput = String((req.body?.team ?? '')).trim().toUpperCase();
-  if (teamInput !== 'A' && teamInput !== 'B') {
-    return res.status(400).json({ error: 'Invalid team option' });
-  }
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const gameId = String(req.params.id);
+    const teamInput = String(req.body?.team ?? '')
+      .trim()
+      .toUpperCase();
+    if (teamInput !== 'A' && teamInput !== 'B') {
+      return res.status(400).json({ error: 'Invalid team option' });
+    }
 
-  await prisma.gameVote.upsert({
-    where: { game_id_user_id: { game_id: gameId, user_id: req.user.id } },
-    update: { team: teamInput },
-    create: { game_id: gameId, user_id: req.user.id, team: teamInput },
-  });
+    await prisma.gameVote.upsert({
+      where: { game_id_user_id: { game_id: gameId, user_id: req.user.id } },
+      update: { team: teamInput },
+      create: { game_id: gameId, user_id: req.user.id, team: teamInput },
+    });
 
-  const summary = await summarizeVotes(gameId, req.user.id);
-  res.json(summary);
+    const summary = await summarizeVotes(gameId, req.user.id);
+    res.json(summary);
   } catch (err) {
     console.error('[games] cast-vote error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -1095,11 +1218,11 @@ gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, async (req: Auth
 
 gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const gameId = String(req.params.id);
-  await prisma.gameVote.deleteMany({ where: { game_id: gameId, user_id: req.user.id } });
-  const summary = await summarizeVotes(gameId, req.user.id);
-  res.json(summary);
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const gameId = String(req.params.id);
+    await prisma.gameVote.deleteMany({ where: { game_id: gameId, user_id: req.user.id } });
+    const summary = await summarizeVotes(gameId, req.user.id);
+    res.json(summary);
   } catch (err) {
     console.error('[games] delete-vote error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -1107,131 +1230,143 @@ gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, 
 });
 
 // Delete a game
-gamesRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const id = String(req.params.id);
+gamesRouter.delete(
+  '/:id',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const id = String(req.params.id);
 
-  try {
-    // Check if game exists
-    const game = await prisma.game.findUnique({
-      where: { id },
-      select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true }
-    });
-
-    if (!game) return res.status(404).json({ error: 'Game not found' });
-
-    // CRITICAL: Check authorization before allowing deletion
-    // Only allow: game creator, team coaches, or admins
-    const isCreator = game.created_by_id === req.user.id;
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true }
-    });
-    const isAdmin = isAdminEmail(user?.email);
-
-    // Check if user is coach/manager of either team
-    let isCoach = false;
-    const deleteTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-    if (deleteTeamIds.length > 0) {
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: { in: deleteTeamIds },
-          user_id: req.user.id,
-          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-          status: 'active'
-        }
-      });
-      isCoach = !!membership;
-    }
-
-    // Deny access if user is not authorized
-    if (!isCreator && !isCoach && !isAdmin) {
-      return res.status(403).json({
-        error: 'Not authorized',
-        message: 'Only game creators, team coaches, or admins can delete games.'
-      });
-    }
-
-    // Notify RSVPed users before deleting
     try {
-      const gameForNotif = await prisma.game.findUnique({
+      // Check if game exists
+      const game = await prisma.game.findUnique({
         where: { id },
-        select: { id: true, title: true, date: true },
+        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
       });
-      const gameTitle = gameForNotif?.title || 'A game';
 
-      // Find events linked to this game and their RSVPs
-      const linkedEvents = await prisma.event.findMany({
-        where: { game_id: id },
-        select: { id: true, rsvps: { select: { user_id: true } } },
+      if (!game) return res.status(404).json({ error: 'Game not found' });
+
+      // CRITICAL: Check authorization before allowing deletion
+      // Only allow: game creator, team coaches, or admins
+      const isCreator = game.created_by_id === req.user.id;
+
+      // Check if user is admin
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { email: true },
       });
-      const rsvpUserIds = new Set<string>();
-      for (const evt of linkedEvents) {
-        for (const rsvp of evt.rsvps) {
-          if (rsvp.user_id !== req.user!.id) rsvpUserIds.add(rsvp.user_id);
-        }
-      }
+      const isAdmin = isAdminEmail(user?.email);
 
-      // Also notify team members of home/away teams
+      // Check if user is coach/manager of either team
+      let isCoach = false;
+      const deleteTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
       if (deleteTeamIds.length > 0) {
-        const teamMembers = await prisma.teamMembership.findMany({
-          where: { team_id: { in: deleteTeamIds }, status: 'active', user_id: { not: req.user!.id } },
-          select: { user_id: true },
-        });
-        for (const m of teamMembers) rsvpUserIds.add(m.user_id);
-      }
-
-      const { sendPushNotification } = await import('../lib/notifications.js');
-      for (const uid of rsvpUserIds) {
-        await prisma.notification.create({
-          data: {
-            user_id: uid,
-            actor_id: req.user!.id,
-            type: 'GAME_CANCELLED',
-            meta: { game_id: id, game_title: gameTitle },
+        const membership = await prisma.teamMembership.findFirst({
+          where: {
+            team_id: { in: deleteTeamIds },
+            user_id: req.user.id,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
           },
         });
-
-        await sendPushNotification(
-          uid,
-          `Game cancelled`,
-          `${gameTitle} has been cancelled`,
-          { type: 'game_cancelled', game_id: id, screen: 'games' }
-        );
+        isCoach = !!membership;
       }
-    } catch (notifErr) {
-      console.error('[games] Failed to send game cancelled notifications:', notifErr);
+
+      // Deny access if user is not authorized
+      if (!isCreator && !isCoach && !isAdmin) {
+        return res.status(403).json({
+          error: 'Not authorized',
+          message: 'Only game creators, team coaches, or admins can delete games.',
+        });
+      }
+
+      // Notify RSVPed users before deleting
+      try {
+        const gameForNotif = await prisma.game.findUnique({
+          where: { id },
+          select: { id: true, title: true, date: true },
+        });
+        const gameTitle = gameForNotif?.title || 'A game';
+
+        // Find events linked to this game and their RSVPs
+        const linkedEvents = await prisma.event.findMany({
+          where: { game_id: id },
+          select: { id: true, rsvps: { select: { user_id: true } } },
+        });
+        const rsvpUserIds = new Set<string>();
+        for (const evt of linkedEvents) {
+          for (const rsvp of evt.rsvps) {
+            if (rsvp.user_id !== req.user!.id) rsvpUserIds.add(rsvp.user_id);
+          }
+        }
+
+        // Also notify team members of home/away teams
+        if (deleteTeamIds.length > 0) {
+          const teamMembers = await prisma.teamMembership.findMany({
+            where: {
+              team_id: { in: deleteTeamIds },
+              status: 'active',
+              user_id: { not: req.user!.id },
+            },
+            select: { user_id: true },
+          });
+          for (const m of teamMembers) rsvpUserIds.add(m.user_id);
+        }
+
+        const { sendPushNotification } = await import('../lib/notifications.js');
+        for (const uid of rsvpUserIds) {
+          await prisma.notification.create({
+            data: {
+              user_id: uid,
+              actor_id: req.user!.id,
+              type: 'GAME_CANCELLED',
+              meta: { game_id: id, game_title: gameTitle },
+            },
+          });
+
+          await sendPushNotification(uid, `Game cancelled`, `${gameTitle} has been cancelled`, {
+            type: 'game_cancelled',
+            game_id: id,
+            screen: 'games',
+          });
+        }
+      } catch (notifErr) {
+        console.error('[games] Failed to send game cancelled notifications:', notifErr);
+      }
+
+      // Delete the game (cascade deletes will handle related records)
+      await prisma.game.delete({ where: { id } });
+
+      res.json({ message: 'Game deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting game:', error);
+      res.status(500).json({ error: 'Failed to delete game' });
     }
-
-    // Delete the game (cascade deletes will handle related records)
-    await prisma.game.delete({ where: { id } });
-
-    res.json({ message: 'Game deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting game:', error);
-    res.status(500).json({ error: 'Failed to delete game' });
-  }
-}));
+  })
+);
 
 // Posts tied to a game
 gamesRouter.get('/:id/posts', authMiddleware as any, async (req: AuthedRequest, res) => {
   try {
-  const id = String(req.params.id);
-  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));
-  // Privacy: exclude posts from private-profile authors the viewer doesn't follow
-  const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
-  const posts = await prisma.post.findMany({
-    where: { game_id: id, deleted_at: null, ...(excludedIds.length ? { author_id: { notIn: excludedIds } } : {}) },
-    orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
-    take: limit,
-    include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } },
-      _count: { select: { comments: true } },
-    },
-  });
-  res.json(posts.map(serializePost));
+    const id = String(req.params.id);
+    const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));
+    // Privacy: exclude posts from private-profile authors the viewer doesn't follow
+    const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
+    const posts = await prisma.post.findMany({
+      where: {
+        game_id: id,
+        deleted_at: null,
+        ...(excludedIds.length ? { author_id: { notIn: excludedIds } } : {}),
+      },
+      orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
+      take: limit,
+      include: {
+        author: { select: { id: true, display_name: true, avatar_url: true } },
+        _count: { select: { comments: true } },
+      },
+    });
+    res.json(posts.map(serializePost));
   } catch (err) {
     console.error('[games] get-posts error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -1242,423 +1377,488 @@ gamesRouter.get('/:id/posts', authMiddleware as any, async (req: AuthedRequest, 
 gamesRouter.get('/:id/media', makeListMediaHandler({ prisma }));
 
 // Delete a specific media/story from a game
-gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const gameId = String(req.params.id);
-  const mediaId = String(req.params.mediaId);
-  
-  try {
-    // Find the story first to check ownership
-    const story = await prisma.story.findUnique({
-      where: { id: mediaId },
-      select: { id: true, user_id: true, game_id: true },
-    });
-    
-    if (!story) {
-      return res.status(404).json({ error: 'Story not found' });
+gamesRouter.delete(
+  '/:id/media/:mediaId',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const gameId = String(req.params.id);
+    const mediaId = String(req.params.mediaId);
+
+    try {
+      // Find the story first to check ownership
+      const story = await prisma.story.findUnique({
+        where: { id: mediaId },
+        select: { id: true, user_id: true, game_id: true },
+      });
+
+      if (!story) {
+        return res.status(404).json({ error: 'Story not found' });
+      }
+
+      // Verify the story belongs to this game
+      if (story.game_id !== gameId) {
+        return res.status(400).json({ error: 'Story does not belong to this game' });
+      }
+
+      // Verify the user owns this story
+      if (story.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'You can only delete your own stories' });
+      }
+
+      // Delete the story
+      await prisma.story.delete({ where: { id: mediaId } });
+
+      debugLog(`✅ User ${req.user.id} deleted story ${mediaId} from game ${gameId}`);
+      res.json({ message: 'Story deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting story:', error);
+      res.status(500).json({ error: 'Failed to delete story' });
     }
-    
-    // Verify the story belongs to this game
-    if (story.game_id !== gameId) {
-      return res.status(400).json({ error: 'Story does not belong to this game' });
-    }
-    
-    // Verify the user owns this story
-    if (story.user_id !== req.user.id) {
-      return res.status(403).json({ error: 'You can only delete your own stories' });
-    }
-    
-    // Delete the story
-    await prisma.story.delete({ where: { id: mediaId } });
-    
-    debugLog(`✅ User ${req.user.id} deleted story ${mediaId} from game ${gameId}`);
-    res.json({ message: 'Story deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting story:', error);
-    res.status(500).json({ error: 'Failed to delete story' });
-  }
-}));
+  })
+);
 
 // Legacy stories endpoints (kept for backwards compatibility)
 gamesRouter.get('/:id/stories', makeListMediaHandler({ prisma }));
 
-gamesRouter.post('/:id/stories', requireAuth as any, requireOnboarded as any, makeCreateStoryHandler({ prisma }));
+gamesRouter.post(
+  '/:id/stories',
+  requireAuth as any,
+  requireOnboarded as any,
+  makeCreateStoryHandler({ prisma })
+);
 
 // Update game result (scores) - coaches and team owners only
-gamesRouter.patch('/:id/result', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
-  try {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+gamesRouter.patch(
+  '/:id/result',
+  requireAuth as any,
+  requireOnboarded as any,
+  async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const id = String(req.params.id);
-  const schema = z.object({
-    home_score: z.number().int().min(0).optional(),
-    away_score: z.number().int().min(0).optional(),
-    winner: z.enum(['home', 'away', 'tie']).optional().nullable(),
-  });
-  const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+      const id = String(req.params.id);
+      const schema = z.object({
+        home_score: z.number().int().min(0).optional(),
+        away_score: z.number().int().min(0).optional(),
+        winner: z.enum(['home', 'away', 'tie']).optional().nullable(),
+      });
+      const parsed = schema.safeParse(req.body || {});
+      if (!parsed.success)
+        return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
 
-  const game = await prisma.game.findUnique({
-    where: { id },
-    select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
-  });
+      const game = await prisma.game.findUnique({
+        where: { id },
+        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+      });
 
-  if (!game) return res.status(404).json({ error: 'Game not found' });
+      if (!game) return res.status(404).json({ error: 'Game not found' });
 
-  const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-  let isCoach = false;
-  if (teamIds.length > 0) {
-    const membership = await prisma.teamMembership.findFirst({
-      where: {
-        team_id: { in: teamIds },
-        user_id: req.user.id,
-        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-        status: 'active',
-      },
-      select: { id: true },
-    });
-    isCoach = !!membership;
+      const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      let isCoach = false;
+      if (teamIds.length > 0) {
+        const membership = await prisma.teamMembership.findFirst({
+          where: {
+            team_id: { in: teamIds },
+            user_id: req.user.id,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
+          },
+          select: { id: true },
+        });
+        isCoach = !!membership;
+      }
+
+      const isCreator = game.created_by_id === req.user.id;
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { email: true },
+      });
+      const isAdmin = isAdminEmail(user?.email);
+
+      if (!isCreator && !isCoach && !isAdmin) {
+        return res
+          .status(403)
+          .json({ error: 'Only coaches or team owners can update game results' });
+      }
+
+      const data: Record<string, any> = {};
+      if (typeof parsed.data.home_score === 'number') data.home_score = parsed.data.home_score;
+      if (typeof parsed.data.away_score === 'number') data.away_score = parsed.data.away_score;
+      if (parsed.data.winner !== undefined) data.winner = parsed.data.winner;
+
+      if (Object.keys(data).length === 0) {
+        return res
+          .status(400)
+          .json({ error: 'At least one of home_score, away_score, or winner is required' });
+      }
+
+      const updated = await prisma.game.update({
+        where: { id },
+        data,
+      });
+      return res.json(updated);
+    } catch (err) {
+      console.error('[games] update-result error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   }
-
-  const isCreator = game.created_by_id === req.user.id;
-  const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-  const isAdmin = isAdminEmail(user?.email);
-
-  if (!isCreator && !isCoach && !isAdmin) {
-    return res.status(403).json({ error: 'Only coaches or team owners can update game results' });
-  }
-
-  const data: Record<string, any> = {};
-  if (typeof parsed.data.home_score === 'number') data.home_score = parsed.data.home_score;
-  if (typeof parsed.data.away_score === 'number') data.away_score = parsed.data.away_score;
-  if (parsed.data.winner !== undefined) data.winner = parsed.data.winner;
-
-  if (Object.keys(data).length === 0) {
-    return res.status(400).json({ error: 'At least one of home_score, away_score, or winner is required' });
-  }
-
-  const updated = await prisma.game.update({
-    where: { id },
-    data,
-  });
-  return res.json(updated);
-  } catch (err) {
-    console.error('[games] update-result error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+);
 
 // Update cover image
-gamesRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+gamesRouter.patch(
+  '/:id',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const id = String(req.params.id);
-  const schema = z.object({ cover_image_url: z.string().url().optional(), appearance: z.string().optional() });
-  const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-
-  try {
-    // CRITICAL: Check authorization before allowing updates
-    const game = await prisma.game.findUnique({
-      where: { id },
-      select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true }
+    const id = String(req.params.id);
+    const schema = z.object({
+      cover_image_url: z.string().url().optional(),
+      appearance: z.string().optional(),
     });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-    if (!game) return res.status(404).json({ error: 'Game not found' });
-
-    // Only allow: game creator, team coaches, or admins
-    const isCreator = game.created_by_id === req.user.id;
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true }
-    });
-    const isAdmin = isAdminEmail(user?.email);
-
-    // Check if user is coach/manager of either team
-    let isCoach = false;
-    const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-    if (teamIds.length > 0) {
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: { in: teamIds },
-          user_id: req.user.id,
-          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-          status: 'active'
-        }
+    try {
+      // CRITICAL: Check authorization before allowing updates
+      const game = await prisma.game.findUnique({
+        where: { id },
+        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
       });
-      isCoach = !!membership;
-    }
 
-    // Deny access if user is not authorized
-    if (!isCreator && !isCoach && !isAdmin) {
-      return res.status(403).json({
-        error: 'Not authorized',
-        message: 'Only game creators, team coaches, or admins can update games.'
+      if (!game) return res.status(404).json({ error: 'Game not found' });
+
+      // Only allow: game creator, team coaches, or admins
+      const isCreator = game.created_by_id === req.user.id;
+
+      // Check if user is admin
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { email: true },
       });
-    }
+      const isAdmin = isAdminEmail(user?.email);
 
-    // Update the game
-    const updatedGame = await prisma.game.update({
-      where: { id },
-      data: {
-        cover_image_url: parsed.data.cover_image_url,
-        appearance: parsed.data.appearance ?? undefined
+      // Check if user is coach/manager of either team
+      let isCoach = false;
+      const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      if (teamIds.length > 0) {
+        const membership = await prisma.teamMembership.findFirst({
+          where: {
+            team_id: { in: teamIds },
+            user_id: req.user.id,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
+          },
+        });
+        isCoach = !!membership;
       }
-    });
 
-    return res.json(updatedGame);
-  } catch (error) {
-    console.error('Error updating game:', error);
-    return res.status(500).json({ error: 'Failed to update game' });
-  }
-}));
+      // Deny access if user is not authorized
+      if (!isCreator && !isCoach && !isAdmin) {
+        return res.status(403).json({
+          error: 'Not authorized',
+          message: 'Only game creators, team coaches, or admins can update games.',
+        });
+      }
+
+      // Update the game
+      const updatedGame = await prisma.game.update({
+        where: { id },
+        data: {
+          cover_image_url: parsed.data.cover_image_url,
+          appearance: parsed.data.appearance ?? undefined,
+        },
+      });
+
+      return res.json(updatedGame);
+    } catch (error) {
+      console.error('Error updating game:', error);
+      return res.status(500).json({ error: 'Failed to update game' });
+    }
+  })
+);
 
 // Full update of a game (coaches, creators, admins)
-gamesRouter.put('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+gamesRouter.put(
+  '/:id',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const id = String(req.params.id);
+    const id = String(req.params.id);
 
-  const schema = z.object({
-    title: z.string().trim().min(1).max(200).optional(),
-    home_team: z.string().trim().optional(),
-    away_team: z.string().trim().optional(),
-    home_team_id: z.string().trim().optional(),
-    away_team_id: z.string().trim().optional().nullable(),
-    away_team_name: z.string().trim().optional().nullable(),
-    date: z.string().datetime().optional(),
-    location: z.string().trim().optional().nullable(),
-    description: z.string().trim().optional().nullable(),
-    cover_image_url: z.string().url().optional().nullable(),
-    banner_url: z.string().url().optional().nullable(),
-    appearance: z.string().optional().nullable(),
-    expected_attendance: z.number().int().min(1).max(99999).optional().nullable(),
-    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
-    donation_goal: z.number().min(0).optional().nullable(),
-    watch_location: z.string().trim().max(200).optional().nullable(),
-    watch_location_lat: z.number().min(-90).max(90).optional().nullable(),
-    watch_location_lng: z.number().min(-180).max(180).optional().nullable(),
-    watch_location_place_id: z.string().optional().nullable(),
-    destination: z.string().trim().max(200).optional().nullable(),
-    latitude: z.number().min(-90).max(90).optional().nullable(),
-    longitude: z.number().min(-180).max(180).optional().nullable(),
-    venue_place_id: z.string().optional().nullable(),
-    venue_address: z.string().trim().optional().nullable(),
-    venue_lat: z.number().min(-90).max(90).optional().nullable(),
-    venue_lng: z.number().min(-180).max(180).optional().nullable(),
-    is_neutral: z.boolean().optional(),
-  });
-
-  const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid game data', issues: parsed.error.issues });
-  }
-
-  try {
-    const game = await prisma.game.findUnique({
-      where: { id },
-      select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+    const schema = z.object({
+      title: z.string().trim().min(1).max(200).optional(),
+      home_team: z.string().trim().optional(),
+      away_team: z.string().trim().optional(),
+      home_team_id: z.string().trim().optional(),
+      away_team_id: z.string().trim().optional().nullable(),
+      away_team_name: z.string().trim().optional().nullable(),
+      date: z.string().datetime().optional(),
+      location: z.string().trim().optional().nullable(),
+      description: z.string().trim().optional().nullable(),
+      cover_image_url: z.string().url().optional().nullable(),
+      banner_url: z.string().url().optional().nullable(),
+      appearance: z.string().optional().nullable(),
+      expected_attendance: z.number().int().min(1).max(99999).optional().nullable(),
+      event_type: z
+        .enum([
+          'game',
+          'fundraiser',
+          'watch_party',
+          'team_trip',
+          'meeting',
+          'team_meal',
+          'tryout',
+          'bbq',
+          'team_meeting',
+          'host_request',
+          'other',
+        ])
+        .optional(),
+      donation_goal: z.number().min(0).optional().nullable(),
+      watch_location: z.string().trim().max(200).optional().nullable(),
+      watch_location_lat: z.number().min(-90).max(90).optional().nullable(),
+      watch_location_lng: z.number().min(-180).max(180).optional().nullable(),
+      watch_location_place_id: z.string().optional().nullable(),
+      destination: z.string().trim().max(200).optional().nullable(),
+      latitude: z.number().min(-90).max(90).optional().nullable(),
+      longitude: z.number().min(-180).max(180).optional().nullable(),
+      venue_place_id: z.string().optional().nullable(),
+      venue_address: z.string().trim().optional().nullable(),
+      venue_lat: z.number().min(-90).max(90).optional().nullable(),
+      venue_lng: z.number().min(-180).max(180).optional().nullable(),
+      is_neutral: z.boolean().optional(),
     });
 
-    if (!game) return res.status(404).json({ error: 'Game not found' });
+    const parsed = schema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid game data', issues: parsed.error.issues });
+    }
 
-    const isCreator = game.created_by_id === req.user.id;
-
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true },
-    });
-    const isAdmin = isEmailAdmin(currentUser?.email);
-
-    let isCoach = false;
-    const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-    if (gameTeamIds.length > 0) {
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: { in: gameTeamIds },
-          user_id: req.user.id,
-          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-          status: 'active',
-        },
-        select: { id: true },
+    try {
+      const game = await prisma.game.findUnique({
+        where: { id },
+        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
       });
-      isCoach = !!membership;
-    }
 
-    if (!isCreator && !isCoach && !isAdmin) {
-      return res.status(403).json({ error: 'Only the game creator, team coaches, or admins can update this event' });
-    }
+      if (!game) return res.status(404).json({ error: 'Game not found' });
 
-    // Build update payload — only include fields that were explicitly provided
-    const updateData: any = {};
-    const d = parsed.data;
-    if (d.title !== undefined) updateData.title = d.title;
-    if (d.home_team !== undefined) updateData.home_team = d.home_team;
-    if (d.away_team !== undefined) updateData.away_team = d.away_team;
-    if (d.home_team_id !== undefined) updateData.home_team_id = d.home_team_id;
-    if (d.away_team_id !== undefined) updateData.away_team_id = d.away_team_id;
-    if (d.away_team_name !== undefined) updateData.away_team_name = d.away_team_name;
-    if (d.date !== undefined) updateData.date = new Date(d.date);
-    if (d.location !== undefined) updateData.location = d.location;
-    if (d.description !== undefined) updateData.description = d.description;
-    if (d.cover_image_url !== undefined) updateData.cover_image_url = d.cover_image_url;
-    if (d.banner_url !== undefined) updateData.banner_url = d.banner_url;
-    if (d.appearance !== undefined) updateData.appearance = d.appearance;
-    if (d.expected_attendance !== undefined) updateData.expected_attendance = d.expected_attendance;
-    if (d.event_type !== undefined) updateData.event_type = d.event_type;
-    if (d.donation_goal !== undefined) updateData.donation_goal = d.donation_goal;
-    if (d.watch_location !== undefined) updateData.watch_location = d.watch_location;
-    if (d.watch_location_lat !== undefined) updateData.watch_location_lat = d.watch_location_lat;
-    if (d.watch_location_lng !== undefined) updateData.watch_location_lng = d.watch_location_lng;
-    if (d.watch_location_place_id !== undefined) updateData.watch_location_place_id = d.watch_location_place_id;
-    if (d.destination !== undefined) updateData.destination = d.destination;
-    if (d.latitude !== undefined) updateData.latitude = d.latitude;
-    if (d.longitude !== undefined) updateData.longitude = d.longitude;
-    if (d.venue_place_id !== undefined) updateData.venue_place_id = d.venue_place_id;
-    if (d.venue_address !== undefined) updateData.venue_address = d.venue_address;
-    if (d.venue_lat !== undefined) updateData.venue_lat = d.venue_lat;
-    if (d.venue_lng !== undefined) updateData.venue_lng = d.venue_lng;
-    if (d.is_neutral !== undefined) updateData.is_neutral = d.is_neutral;
+      const isCreator = game.created_by_id === req.user.id;
 
-    const updated = await (prisma.game.update as any)({
-      where: { id },
-      data: updateData,
-      include: { events: { orderBy: { date: 'asc' }, take: 1 } },
-    });
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { email: true },
+      });
+      const isAdmin = isEmailAdmin(currentUser?.email);
 
-    // Keep the associated Event in sync when date/title/location change
-    const event = (updated as any).events?.[0];
-    if (event) {
-      const eventUpdate: any = {};
-      if (d.date !== undefined) eventUpdate.date = new Date(d.date);
-      if (d.title !== undefined) eventUpdate.title = d.title;
-      if (d.location !== undefined) eventUpdate.location = d.location;
-      if (Object.keys(eventUpdate).length > 0) {
-        await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
+      let isCoach = false;
+      const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      if (gameTeamIds.length > 0) {
+        const membership = await prisma.teamMembership.findFirst({
+          where: {
+            team_id: { in: gameTeamIds },
+            user_id: req.user.id,
+            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+            status: 'active',
+          },
+          select: { id: true },
+        });
+        isCoach = !!membership;
       }
-    }
 
-    const { events, ...rest } = updated as any;
-    return res.json({ ...rest, event_id: event?.id ?? null });
-  } catch (error) {
-    console.error('Error updating game:', error);
-    return res.status(500).json({ error: 'Failed to update game' });
-  }
-}));
+      if (!isCreator && !isCoach && !isAdmin) {
+        return res
+          .status(403)
+          .json({ error: 'Only the game creator, team coaches, or admins can update this event' });
+      }
+
+      // Build update payload — only include fields that were explicitly provided
+      const updateData: any = {};
+      const d = parsed.data;
+      if (d.title !== undefined) updateData.title = d.title;
+      if (d.home_team !== undefined) updateData.home_team = d.home_team;
+      if (d.away_team !== undefined) updateData.away_team = d.away_team;
+      if (d.home_team_id !== undefined) updateData.home_team_id = d.home_team_id;
+      if (d.away_team_id !== undefined) updateData.away_team_id = d.away_team_id;
+      if (d.away_team_name !== undefined) updateData.away_team_name = d.away_team_name;
+      if (d.date !== undefined) updateData.date = new Date(d.date);
+      if (d.location !== undefined) updateData.location = d.location;
+      if (d.description !== undefined) updateData.description = d.description;
+      if (d.cover_image_url !== undefined) updateData.cover_image_url = d.cover_image_url;
+      if (d.banner_url !== undefined) updateData.banner_url = d.banner_url;
+      if (d.appearance !== undefined) updateData.appearance = d.appearance;
+      if (d.expected_attendance !== undefined)
+        updateData.expected_attendance = d.expected_attendance;
+      if (d.event_type !== undefined) updateData.event_type = d.event_type;
+      if (d.donation_goal !== undefined) updateData.donation_goal = d.donation_goal;
+      if (d.watch_location !== undefined) updateData.watch_location = d.watch_location;
+      if (d.watch_location_lat !== undefined) updateData.watch_location_lat = d.watch_location_lat;
+      if (d.watch_location_lng !== undefined) updateData.watch_location_lng = d.watch_location_lng;
+      if (d.watch_location_place_id !== undefined)
+        updateData.watch_location_place_id = d.watch_location_place_id;
+      if (d.destination !== undefined) updateData.destination = d.destination;
+      if (d.latitude !== undefined) updateData.latitude = d.latitude;
+      if (d.longitude !== undefined) updateData.longitude = d.longitude;
+      if (d.venue_place_id !== undefined) updateData.venue_place_id = d.venue_place_id;
+      if (d.venue_address !== undefined) updateData.venue_address = d.venue_address;
+      if (d.venue_lat !== undefined) updateData.venue_lat = d.venue_lat;
+      if (d.venue_lng !== undefined) updateData.venue_lng = d.venue_lng;
+      if (d.is_neutral !== undefined) updateData.is_neutral = d.is_neutral;
+
+      const updated = await (prisma.game.update as any)({
+        where: { id },
+        data: updateData,
+        include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+      });
+
+      // Keep the associated Event in sync when date/title/location change
+      const event = (updated as any).events?.[0];
+      if (event) {
+        const eventUpdate: any = {};
+        if (d.date !== undefined) eventUpdate.date = new Date(d.date);
+        if (d.title !== undefined) eventUpdate.title = d.title;
+        if (d.location !== undefined) eventUpdate.location = d.location;
+        if (Object.keys(eventUpdate).length > 0) {
+          await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
+        }
+      }
+
+      const { events, ...rest } = updated as any;
+      return res.json({ ...rest, event_id: event?.id ?? null });
+    } catch (error) {
+      console.error('Error updating game:', error);
+      return res.status(500).json({ error: 'Failed to update game' });
+    }
+  })
+);
 
 // Approve or reject event
-gamesRouter.put('/:id/approve', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
-  try {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
-  const id = String(req.params.id);
-  const schema = z.object({
-    approval_status: z.enum(['approved', 'rejected']),
-  });
-  
-  const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
-  
-  // Get the game to check permissions
-  const game = await (prisma.game.findUnique as any)({
-    where: { id },
-    select: { id: true, home_team_id: true, away_team_id: true, approval_status: true }
-  });
-
-  if (!game) return res.status(404).json({ error: 'Event not found' });
-
-  // Check if user is coach/manager of either the home or away team
-  let isCoach = false;
-  const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-  if (gameTeamIds.length > 0) {
-    const membership = await prisma.teamMembership.findFirst({
-      where: {
-        team_id: { in: gameTeamIds },
-        user_id: req.user.id,
-        role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] },
-        status: 'active',
-      }
-    });
-    isCoach = !!membership;
-  }
-  
-  const isAdmin = await getIsAdmin(req as any);
-
-  if (!isCoach && !isAdmin) {
-    return res.status(403).json({ error: 'Only coaches and admins can approve events' });
-  }
-
-  const updatedGame = await (prisma.game.update as any)({
-    where: { id },
-    data: {
-      approval_status: parsed.data.approval_status,
-      approved_by_id: parsed.data.approval_status === 'approved' ? req.user.id : null,
-      approved_at: parsed.data.approval_status === 'approved' ? new Date() : null,
-    }
-  });
-
-  // Sync linked events to match the game's approval status
-  await prisma.event.updateMany({
-    where: { game_id: id },
-    data: {
-      approval_status: parsed.data.approval_status,
-      ...(parsed.data.approval_status === 'approved' ? { approved_at: new Date() } : {}),
-    },
-  });
-
-  // Notify the game creator of the approval/rejection decision
-  if (updatedGame.created_by_id && updatedGame.created_by_id !== req.user!.id) {
+gamesRouter.put(
+  '/:id/approve',
+  requireAuth as any,
+  requireOnboarded as any,
+  async (req: AuthedRequest, res) => {
     try {
-      // Get linked event ID so notification tap navigates correctly (client reads event_id)
-      const linkedEvent = await prisma.event.findFirst({
-        where: { game_id: id },
-        select: { id: true },
-        orderBy: { date: 'asc' },
-      });
-      const eventId = linkedEvent?.id || null;
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-      const { sendPushNotification } = await import('../lib/notifications.js');
-      if (parsed.data.approval_status === 'approved') {
-        await sendPushNotification(
-          updatedGame.created_by_id,
-          'Event Approved!',
-          `Your event "${updatedGame.title}" has been approved and is now live.`,
-          { type: 'event_approved', game_id: id, event_id: eventId }
-        );
-        await prisma.notification.create({
-          data: {
-            user_id: updatedGame.created_by_id,
-            type: 'EVENT_APPROVED' as any,
-            meta: { game_id: id, event_id: eventId, event_title: updatedGame.title },
+      const id = String(req.params.id);
+      const schema = z.object({
+        approval_status: z.enum(['approved', 'rejected']),
+      });
+
+      const parsed = schema.safeParse(req.body || {});
+      if (!parsed.success)
+        return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+
+      // Get the game to check permissions
+      const game = await (prisma.game.findUnique as any)({
+        where: { id },
+        select: { id: true, home_team_id: true, away_team_id: true, approval_status: true },
+      });
+
+      if (!game) return res.status(404).json({ error: 'Event not found' });
+
+      // Check if user is coach/manager of either the home or away team
+      let isCoach = false;
+      const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
+      if (gameTeamIds.length > 0) {
+        const membership = await prisma.teamMembership.findFirst({
+          where: {
+            team_id: { in: gameTeamIds },
+            user_id: req.user.id,
+            role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] },
+            status: 'active',
           },
         });
-        // Approved games appear in the feed carousel automatically via GET /games
-      } else {
-        await sendPushNotification(
-          updatedGame.created_by_id,
-          'Event Not Approved',
-          `Your event "${updatedGame.title}" was not approved.${(req.body as any)?.reason ? ` Reason: ${(req.body as any).reason}` : ''}`,
-          { type: 'event_rejected', game_id: id, event_id: eventId }
-        );
-        await prisma.notification.create({
-          data: {
-            user_id: updatedGame.created_by_id,
-            type: 'EVENT_REJECTED' as any,
-            meta: { game_id: id, event_id: eventId, event_title: updatedGame.title, reason: (req.body as any)?.reason },
-          },
-        });
+        isCoach = !!membership;
       }
-    } catch (notifErr) {
-      console.warn('[games] Failed to notify creator of approval decision:', notifErr);
+
+      const isAdmin = await getIsAdmin(req as any);
+
+      if (!isCoach && !isAdmin) {
+        return res.status(403).json({ error: 'Only coaches and admins can approve events' });
+      }
+
+      const updatedGame = await (prisma.game.update as any)({
+        where: { id },
+        data: {
+          approval_status: parsed.data.approval_status,
+          approved_by_id: parsed.data.approval_status === 'approved' ? req.user.id : null,
+          approved_at: parsed.data.approval_status === 'approved' ? new Date() : null,
+        },
+      });
+
+      // Sync linked events to match the game's approval status
+      await prisma.event.updateMany({
+        where: { game_id: id },
+        data: {
+          approval_status: parsed.data.approval_status,
+          ...(parsed.data.approval_status === 'approved' ? { approved_at: new Date() } : {}),
+        },
+      });
+
+      // Notify the game creator of the approval/rejection decision
+      if (updatedGame.created_by_id && updatedGame.created_by_id !== req.user!.id) {
+        try {
+          // Get linked event ID so notification tap navigates correctly (client reads event_id)
+          const linkedEvent = await prisma.event.findFirst({
+            where: { game_id: id },
+            select: { id: true },
+            orderBy: { date: 'asc' },
+          });
+          const eventId = linkedEvent?.id || null;
+
+          const { sendPushNotification } = await import('../lib/notifications.js');
+          if (parsed.data.approval_status === 'approved') {
+            await sendPushNotification(
+              updatedGame.created_by_id,
+              'Event Approved!',
+              `Your event "${updatedGame.title}" has been approved and is now live.`,
+              { type: 'event_approved', game_id: id, event_id: eventId }
+            );
+            await prisma.notification.create({
+              data: {
+                user_id: updatedGame.created_by_id,
+                type: 'EVENT_APPROVED' as any,
+                meta: { game_id: id, event_id: eventId, event_title: updatedGame.title },
+              },
+            });
+            // Approved games appear in the feed carousel automatically via GET /games
+          } else {
+            await sendPushNotification(
+              updatedGame.created_by_id,
+              'Event Not Approved',
+              `Your event "${updatedGame.title}" was not approved.${(req.body as any)?.reason ? ` Reason: ${(req.body as any).reason}` : ''}`,
+              { type: 'event_rejected', game_id: id, event_id: eventId }
+            );
+            await prisma.notification.create({
+              data: {
+                user_id: updatedGame.created_by_id,
+                type: 'EVENT_REJECTED' as any,
+                meta: {
+                  game_id: id,
+                  event_id: eventId,
+                  event_title: updatedGame.title,
+                  reason: (req.body as any)?.reason,
+                },
+              },
+            });
+          }
+        } catch (notifErr) {
+          console.warn('[games] Failed to notify creator of approval decision:', notifErr);
+        }
+      }
+
+      return res.json(updatedGame);
+    } catch (err) {
+      console.error('[games] approve error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
-
-  return res.json(updatedGame);
-  } catch (err) {
-    console.error('[games] approve error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+);

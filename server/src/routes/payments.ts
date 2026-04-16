@@ -1027,10 +1027,12 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     // No signature = not from Stripe (bot, crawler, health check). Reject silently.
     return res.status(400).json({ error: 'Missing stripe-signature header' });
   }
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+  // PAY-2: Explicit check for missing/empty webhook secret (falsy OR whitespace-only)
+  const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
   if (!webhookSecret) {
-    console.error('STRIPE_WEBHOOK_SECRET is not set!');
-    return res.status(400).json({ error: 'Webhook verification failed' });
+    console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
+    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), { context: 'webhook_secret_missing' });
+    return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' });
   }
   let event: Stripe.Event;
   try {
@@ -1453,8 +1455,8 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
               }
             }
             if (!promoRedeemed) {
-              // CRITICAL: Payment succeeded but promo usage wasn't decremented — promo can be reused.
-              // Flag for manual review. Admin should manually decrement promo usage or disable the code.
+              // PAY-5: Payment succeeded but promo usage wasn't decremented — promo can be reused.
+              // Mark as NEEDS_REVIEW instead of COMPLETED so admin dashboard surfaces it.
               console.error('[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable', { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id });
               captureException(new Error('Promo redemption failed after retries — revenue leak risk'), {
                 context: 'promo_redeem_failed',
@@ -1463,8 +1465,8 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
                 userId: meta.user_id,
                 level: 'fatal',
               });
-              updateTransactionStatus(pi.id, 'COMPLETED', {
-                metadata: { promo_redemption_failed: true, promo_code: meta.promo_code },
+              updateTransactionStatus(pi.id, 'FAILED', {
+                metadata: { promo_redemption_failed: true, promo_code: meta.promo_code, needs_review: true },
               }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
             }
           }
@@ -2489,8 +2491,13 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       }
     }
     if (!redeemed) {
-      console.error('[payments] Promo redemption FAILED after 3 attempts — flagging', { code, userId, session_id: session.id });
+      // PAY-5: Flag for admin review instead of silently completing
+      console.error('[payments] Promo redemption FAILED after 3 attempts — flagging for review', { code, userId, session_id: session.id });
       captureException(new Error('Promo redemption failed after retries (session)'), { context: 'promo_redeem_failed_session', promoCode: code, sessionId: session.id, userId });
+      // Mark any associated transaction as needing review
+      updateTransactionStatus(session.id, 'FAILED', {
+        metadata: { promo_redemption_failed: true, promo_code: code, needs_review: true },
+      }).catch((err) => console.warn('[payments] failed to flag session promo failure:', err));
     }
   }
 }
@@ -2504,7 +2511,8 @@ paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req, res) => 
   const appReturnPath = process.env.APP_RETURN_PATH || '';
   const returnUrl = `${appScheme}://${appReturnPath}`;
   const sessionId = typeof req.query.session_id === 'string' ? req.query.session_id : undefined;
-  if (sessionId && process.env.STRIPE_SECRET_KEY) {
+  // PAY-3: Validate session_id format before hitting Stripe API (prevent enumeration)
+  if (sessionId && process.env.STRIPE_SECRET_KEY && /^cs_(test_|live_)[a-zA-Z0-9]+$/.test(sessionId)) {
     try {
       // Dedup: only finalize if not already processed by webhook
       const alreadyProcessed = await prisma.processedStripeEvent.findFirst({
@@ -2512,7 +2520,11 @@ paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req, res) => 
       });
       if (!alreadyProcessed) {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        if (session && session.payment_status === 'paid') {
+        // PAY-3: Verify session metadata contains a valid user_id before finalizing
+        const sessionUserId = (session.metadata as any)?.user_id;
+        if (!sessionUserId) {
+          console.warn('[payments] Success page: session has no user_id in metadata', { session_id: sessionId });
+        } else if (session.payment_status === 'paid') {
           await finalizeFromSession(session);
           await prisma.processedStripeEvent.create({
             data: { event_id: `success_page_${sessionId}`, event_type: 'success_page_finalize' },

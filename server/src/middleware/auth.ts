@@ -26,6 +26,18 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   }
   const token = header.slice('Bearer '.length).trim();
   const payload = verifyJwt<{ id: string; iat?: number }>(token);
+  if (!payload) {
+    // AUTH-6: Log invalid/expired token attempts for security monitoring
+    console.warn('[auth] Invalid or expired token presented', {
+      ip: req.ip,
+      path: req.path,
+      method: req.method,
+      tokenPrefix: token.substring(0, 8) + '...',
+    });
+    clearUserContext();
+    return next();
+  }
+
   if (payload?.id) {
     let user;
     try {

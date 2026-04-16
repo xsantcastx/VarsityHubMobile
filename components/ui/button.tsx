@@ -1,5 +1,12 @@
 import React from 'react';
-import { AccessibilityProps, Pressable, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
+import {
+  AccessibilityProps,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextStyle,
+  ViewStyle,
+} from 'react-native';
 
 type Variant = 'default' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg' | 'icon';
@@ -12,6 +19,7 @@ export interface ButtonProps extends AccessibilityProps {
   size?: Size;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  testID?: string;
 }
 
 export function Button({
@@ -22,15 +30,14 @@ export function Button({
   size = 'md',
   style,
   textStyle,
+  testID,
   ...accessibilityProps
 }: ButtonProps) {
   const vs = getVariantStyles(variant);
   const ss = getSizeStyles(size);
-  const content = React.Children.map(children, (child) => {
+  const content = React.Children.map(children, child => {
     if (typeof child === 'string' || typeof child === 'number') {
-      return (
-        <Text style={[styles.text, vs.text, ss.text, textStyle]}>{String(child)}</Text>
-      );
+      return <Text style={[styles.text, vs.text, ss.text, textStyle]}>{String(child)}</Text>;
     }
     return child;
   });
@@ -39,6 +46,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      testID={testID}
       style={[styles.base, vs.container, ss.container, disabled && styles.disabled, style]}
       {...accessibilityProps}
     >
@@ -63,26 +71,43 @@ const styles = StyleSheet.create({
 function getVariantStyles(variant: Variant) {
   switch (variant) {
     case 'outline':
-      return { container: { backgroundColor: 'transparent', borderColor: '#D1D5DB' }, text: { color: '#111827' } };
+      return {
+        container: { backgroundColor: 'transparent', borderColor: '#D1D5DB' },
+        text: { color: '#111827' },
+      };
     case 'ghost':
-      return { container: { backgroundColor: 'transparent', borderColor: 'transparent' }, text: { color: '#111827' } };
+      return {
+        container: { backgroundColor: 'transparent', borderColor: 'transparent' },
+        text: { color: '#111827' },
+      };
     default:
-      return { container: { backgroundColor: '#111827', borderColor: '#111827' }, text: { color: 'white' } };
+      return {
+        container: { backgroundColor: '#111827', borderColor: '#111827' },
+        text: { color: 'white' },
+      };
   }
 }
 
 function getSizeStyles(size: Size): { container: ViewStyle; text: TextStyle } {
   switch (size) {
     case 'sm':
-      return { container: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 }, text: { fontSize: 14 } };
+      return {
+        container: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
+        text: { fontSize: 14 },
+      };
     case 'lg':
-      return { container: { paddingVertical: 16, paddingHorizontal: 24, borderRadius: 12 }, text: { fontSize: 17, fontWeight: '600' as const } };
+      return {
+        container: { paddingVertical: 16, paddingHorizontal: 24, borderRadius: 12 },
+        text: { fontSize: 17, fontWeight: '600' as const },
+      };
     case 'icon':
-      return { container: { padding: 10, width: 44, height: 44, borderRadius: 999 }, text: { fontSize: 16 } };
+      return {
+        container: { padding: 10, width: 44, height: 44, borderRadius: 999 },
+        text: { fontSize: 16 },
+      };
     default:
       return { container: { paddingVertical: 12, paddingHorizontal: 16 }, text: { fontSize: 16 } };
   }
 }
 
 export default Button;
-

@@ -39,8 +39,8 @@ export default function ResetPasswordScreen() {
       await auth.changePassword(currentValue, p);
       // Refresh user data in both useUser hook and AuthProvider
       await Promise.all([
-        refreshUser().catch(() => {}), // Refresh useUser hook
-        checkAuth().catch(() => {}), // Refresh AuthProvider state
+        refreshUser().catch((e) => { if (__DEV__) console.warn('[reset-password] User refresh failed:', e); }), // VAL-2
+        checkAuth().catch((e) => { if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e); }), // VAL-2
       ]);
       Alert.alert('Password updated', 'Your password has been changed. A confirmation email has been sent to your account.');
       setCurrent('');

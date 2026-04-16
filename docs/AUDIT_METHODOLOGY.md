@@ -1,105 +1,223 @@
-# Security & Architecture Audit Methodology
+# VarsityHub Audit Standard
 
-**Audit Type:** Security & Architecture Validation Audit  
-**Purpose:** Identify security gaps, validation mismatches, and architectural inconsistencies across interconnected features.
+This document is the canonical source for VarsityHub security and architecture audits. It separates audit steps, engineering standards, business rules, and release gates so reviewers can check code against an explicit spec instead of rediscovering invariants from the implementation.
 
----
+Use this doc for:
 
-## Methodology
+- full-system security and architecture audits
+- targeted reviews of risky changes
+- PR review when a change touches protected behavior
+- release sign-off for auth, payments, approvals, org/team ownership, or deep links
 
-### 1. System Mapping Phase
+## How To Use This Standard
 
-- Identify all related components (routes, schemas, database models, frontend)
-- Map data flow from frontend → backend → database
-- Identify permission hierarchy and validation points
+- Treat every rule below as pass/fail.
+- If a rule changes, update this document and the audit review gate in the same PR.
+- If a past finding becomes a false positive because main already fixed it, update the rule or verification anchor here rather than relying on tribal knowledge.
+- For business rules, reviewers must verify at least one concrete anchor: a test file, an enforcement path, or a grep-able symbol.
 
-### 2. Gap Identification Phase
+## 1. Audit Steps
 
-- Search for regex/validation mismatches (frontend vs backend)
-- Check for missing authorization validations
-- Identify orphaned or inconsistent data states
-- Look for predictable code generation (security)
-- Check for missing data persistence (webhooks, async operations)
+### 1.1 System Mapping
 
-### 3. Severity Classification
+An audit is incomplete unless it maps:
 
-| Severity | Definition |
-|----------|------------|
-| **CRITICAL** | User can bypass intended restrictions |
-| **HIGH** | Data integrity at risk, user confusion |
-| **MEDIUM** | Architectural inconsistency, design flaw |
-| **LOW** | Edge cases, UX improvements |
+- client entrypoints and deep links
+- API routes and middleware
+- database writes and source-of-truth tables
+- async paths such as webhooks, queues, retries, and approval jobs
+- third-party boundaries such as Stripe, Apple/Google IAP, SendGrid, Cloudinary, OAuth providers
 
-### 4. Fix Implementation
+Pass/fail checks:
 
-- Code changes with validation
-- Snyk security scans
-- TypeScript error checks
-- Comprehensive documentation
+- Every critical flow has a documented path from UI or external trigger to final persisted state.
+- Every privileged mutation identifies the exact middleware and ownership checks that guard it.
+- Every async completion path identifies the authoritative state writer.
 
----
+### 1.2 Threat Model
 
-## Commandments (Testable Principles)
+Each audit must explicitly check for:
 
-### Overall Architecture
+- auth bypass
+- privilege escalation
+- IDOR / cross-tenant access
+- payment spoofing or duplicate finalization
+- webhook replay or stale callback replay
+- validation drift between client, API, and persistence
+- deep-link abuse or malformed params
+- silent fallback that weakens security posture
 
-- Keep `app/` as thin routing only; real screens live under `src/features/*` with barrel exports and app wrappers.
-- Use shared assets via `@/shared/*` (hooks/components/utils/constants) rather than duplicating in root.
-- Respect path aliases (`@/features/*`, `@/shared/*`, etc.); no deep relative imports.
+Pass/fail checks:
 
-### State & Data
+- Each critical flow is reviewed against the threat list above.
+- Findings state which threat boundary was crossed or attempted.
 
-- Prefer feature-scoped state; global context only for auth, theme, user/session, location.
-- API calls go through `api/*` clients; never call fetch directly in screens.
-- Handle loading/error/empty states explicitly (no silent failures).
+### 1.3 Trust Boundaries
 
-### Navigation & Deep Links
+VarsityHub trust boundaries are:
 
-- All routes must be resolvable via Expo Router; wrappers should be stateless.
-- Deep links must parse/handle missing params gracefully; tests should cover reset-password and oauth callbacks.
+- untrusted client input
+- authenticated client input
+- privileged admin or owner actions
+- third-party callbacks and webhooks
+- background jobs and scheduled cleanup
+- external storage and messaging providers
 
-### UI/UX
+Pass/fail checks:
 
-- Always render: loading, success, error, and empty states for lists and detail views.
-- Inputs must validate before network calls; block double submits (`saving`/`isLoading` guards).
-- All touch targets accessible: add `testID`/`accessibilityLabel`, and meaningful alt text for images.
+- Each boundary crossing identifies what is trusted, what is revalidated, and what is ignored.
+- No security-critical transition relies only on client-provided state.
 
-### Plans/Subscriptions
+### 1.4 Source Of Truth
 
-- Before checkout: read current plan; block duplicate paid plan; allow rookie upgrades.
-- For paid plans: don't persist plan until payment callback confirms; handle email verification errors by showing modal.
-- Veteran team count: enforce free first two teams; compute billing for extras.
+Every critical state must have one authoritative owner:
 
-### Teams/Organizations
+- auth/session state: server-issued tokens and server-side token records
+- plan/subscription state: verified server-side payment completion, not client checkout intent
+- org and team ownership: membership and role records in the database
+- approval state: server-owned approval fields and approval services
+- notification/email recipients: centralized server-side recipient helpers, not client hints
 
-- Team creation must associate an organization; create if missing; fail fast on permission/plan checks.
-- Extracurricular clubs require Legend plan; enforce via error handling and UI prompts.
-- Uploads (logo/background/avatar): wrap in try/catch; warn but don't block core create flow.
+Pass/fail checks:
 
-### Payments/Ads
+- Audits identify the canonical owner for each critical state they touch.
+- Any duplicate or cached representation is treated as derived, never authoritative.
 
-- Payment-success screen must verify status with retries and surface "Try Again" + "Continue" paths.
-- Ad confirmation must display banner, dates, amount, and target URL; handle missing params with defaults.
+### 1.5 Validation Drift Review
 
-### Testing & Quality
+Pass/fail checks:
 
-- Tests for critical flows (auth, onboarding, payments, team create) must pass; use `jest-expo` setup with Expo polyfills.
-- No `any` without justification; typecheck must stay green.
-- Lint/typecheck before PR; add Playwright smoke for deep links and key tabs.
+- Frontend validation is UX-only and may not loosen or tighten server rules by accident.
+- Backend validation is authoritative for auth, role, plan, payment, and approval state.
+- Database constraints or transactional checks backstop critical invariants where practical.
+- Missing or malformed params fail closed for privileged actions and fail safely for public navigation.
 
-### Security & Errors
+### 1.6 Async And Idempotency Review
 
-- Never swallow errors silently; log with context and show user-friendly messages.
-- Guard async effects with mounted flags; avoid state updates after unmount.
-- Respect role/plan gates everywhere (coach-only actions, Legend-only features).
+Pass/fail checks:
 
----
+- Webhooks, polling finalizers, retryable jobs, and approval side effects are safe to replay.
+- Multi-step financial or approval writes are transactional or otherwise race-safe.
+- Async failure does not silently mark protected work as complete.
+
+### 1.7 Findings And Proof
+
+Every finding must include:
+
+- affected behavior
+- exploit or failure path
+- expected behavior
+- actual behavior
+- fix direction
+- verification steps
+
+High and critical findings must also include:
+
+- exploitability
+- blast radius
+- violated trust boundary or source of truth
+- release risk if shipped unfixed
+
+## 2. Engineering Standards
+
+These standards apply repo-wide and are reviewable in code.
+
+| Standard                                 | Pass Condition                                                                                                           | Verification Anchor                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Thin routes, thick features              | `app/` files stay as route wrappers; feature logic lives in `src/features/*` or shared modules instead of route wrappers | Grep `app/` for business logic and network calls            |
+| Shared code stays shared                 | Reused hooks, components, utils, and constants are imported from shared paths instead of duplicated per screen           | Grep duplicate helpers before adding new ones               |
+| No deep cross-feature relative imports   | Imports use aliases such as `@/shared/*` and `@/features/*` rather than brittle deep relatives                           | Grep for `../../../../` in app and src                      |
+| Screens do not call raw `fetch`          | UI code uses typed API clients or feature adapters rather than ad hoc network calls                                      | Grep `fetch(` in `app/` and `src/features/`                 |
+| Async screens render all states          | Loading, success, error, and empty states are explicitly handled for async list/detail views                             | Screen review plus relevant UI tests                        |
+| Forms block duplicate submit             | Submit buttons guard on loading or saving state before firing network requests                                           | Grep `isLoading`, `saving`, `disabled` near submit handlers |
+| No silent user-flow failure              | User-facing async flows do not use silent `catch {}` or `.catch(() => {})` without logging and recovery                  | Grep `.catch(() => {})` and `catch {}` in app/server        |
+| Security posture never degrades silently | Fallback behavior may not bypass auth, approval, payment, or role checks                                                 | Review fallback branches in auth, payments, organizations   |
+| Security-critical state is server-owned  | Client payloads cannot set paid plan, approval state, privileged role, or ownership                                      | Review request schemas and protected field filtering        |
+| Privileged actions are observable        | Admin or owner actions that change protected state emit logs or audit records                                            | `server/src/lib/adminActivityLogger.ts`, route logging      |
+
+## 3. Business Rules
+
+These are VarsityHub-specific invariants. Each rule includes a concrete verification anchor.
+
+### 3.1 Auth, Session, And Onboarding
+
+| Rule                                          | Pass Condition                                                                                                             | Verification Anchor                                                                                                              |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Protected preference fields stay protected    | Client updates to `/me/preferences` cannot set paid plan, approval state, or other protected keys                          | `server/src/routes/auth.ts`, grep `PROTECTED_PREF_KEYS`; `server/src/__tests__/api-auth.test.ts`                                 |
+| Coach-only tools require approved coach state | Server blocks unapproved or incomplete coaches even if UI paths are reachable                                              | `requireOnboarded` in server middleware; `server/src/__tests__/coach-approval.test.ts`; `server/scripts/smoke-test-approvals.sh` |
+| Verification and reset flows fail safely      | Missing or invalid tokens/codes do not reveal sensitive state and do not succeed partially                                 | `server/src/routes/auth.ts`; `app/reset-password.tsx`; grep `/verify/confirm` and reset-password routes                          |
+| Provider redirects are observable             | Provider-owned redirects do not silently reroute without telemetry or a shared redirect helper                             | Grep `router.replace(` in auth/onboarding providers and contexts; grep `breadcrumb` or redirect telemetry helpers                |
+| Proceed-as-fan stays explicit                 | Pending coach flows may continue as fan only through explicit server-safe preference updates, not implicit role escalation | `app/onboarding/pending-approval.tsx`, `app/onboarding/league-pending-approval.tsx`, `server/src/routes/auth.ts`                 |
+
+### 3.2 Plans, Payments, And Billing
+
+| Rule                                                          | Pass Condition                                                                                                                   | Verification Anchor                                                                                                                                           |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Paid plan state changes only after verified server completion | Checkout intent alone cannot persist a paid plan                                                                                 | `server/src/routes/payments.ts`; `app/payment-success.tsx`; `server/src/__tests__/payment-flow.test.ts`; `server/src/__tests__/payments-finalization.test.ts` |
+| Payment success UI verifies backend state                     | Success screens do not trust query params and provide retry/recovery states                                                      | `app/payment-success.tsx`, grep `Try Again`; payment tests above                                                                                              |
+| Webhook and client finalization are replay-safe               | `checkout.session.completed`, retries, and polling do not double-apply entitlements                                              | `server/src/routes/payments.ts`, grep `checkout.session.completed`; `processedStripeEvent`; finalization tests                                                |
+| Promo failure cannot silently complete protected work         | If promo redemption or billing side effects fail, the transaction is flagged for failure/review instead of being marked complete | `server/src/routes/payments.ts`, grep `needs_review` and transaction status handling                                                                          |
+| Pricing and entitlements are server-derived                   | Team counts, plan limits, and billable quantities are computed server-side                                                       | `server/src/routes/payments.ts`; `server/src/__tests__/payments.test.ts`; `server/src/__tests__/team-creation.test.ts`                                        |
+
+### 3.3 Teams, Organizations, And Approvals
+
+| Rule                                           | Pass Condition                                                                                            | Verification Anchor                                                                                                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ownership checks are server-side               | Team/org mutations enforce auth, role, plan, and ownership on the server even if the UI hides the action  | `server/src/routes/organizations.ts`, `server/src/routes/team-memberships.ts`, `server/src/routes/admin.ts`                                                         |
+| Sole owners cannot be removed accidentally     | Member deletion or ownership transfer cannot leave an org or team without an owner                        | `server/src/routes/team-memberships.ts`; grep `sole owner`; relevant ownership tests                                                                                |
+| Coach approval is tenant-safe                  | Owners can approve or reject only coaches for organizations they control                                  | `server/src/routes/organizations.ts`; `server/src/lib/approvalService.ts`; `server/src/__tests__/coach-approval.test.ts`; `server/scripts/verify-coach-approval.ts` |
+| Join request review is race-safe               | Approval/rejection uses transactional state checks so a request cannot be reviewed twice under contention | `server/src/routes/organizations.ts`; grep `Serializable` and join-request approval transaction                                                                     |
+| Team creation respects org and plan invariants | Team creation associates an org, enforces plan gates, and fails clearly on permission or plan violations  | `app/create-team.tsx`; `server/src/__tests__/team-creation.test.ts`; server org/team routes                                                                         |
+
+### 3.4 Ads, Notifications, And Email
+
+| Rule                                             | Pass Condition                                                                                                  | Verification Anchor                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Ad confirmation is explicit                      | Users can review banner, dates, amount, and target URL before or after purchase without relying on hidden state | `app/payment-success.tsx`; ad confirmation screens and payment tests                 |
+| Admin notification recipients are centralized    | Approval and review emails use centralized admin-recipient helpers rather than hardcoded personal addresses     | `server/src/lib/adminEmails.ts`; `server/src/lib/email.ts`; grep `getAllAdminEmails` |
+| Notification failure does not block primary work | Push/email side effects may fail, but the main mutation path remains correct and observable                     | `server/src/lib/notifications.ts`; grep `[notif]`; email send helpers                |
+| Admin actions are auditable                      | Approvals, rejections, and protected moderation actions write audit records                                     | `server/src/lib/adminActivityLogger.ts`; admin and organization routes               |
+
+### 3.5 Navigation And Deep Links
+
+| Rule                               | Pass Condition                                                                                         | Verification Anchor                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Deep links resolve safely          | All push, email, OAuth, and payment routes resolve in Expo Router and handle missing params gracefully | `app/payment-success.tsx`, `app/reset-password.tsx`, grep `callback` in `app/`, and `app/_layout.tsx` route registration |
+| Navigation wrappers stay stateless | Route wrappers do not mutate business state directly                                                   | Review `app/` wrappers for side effects                                                                                  |
+| Back navigation is safe            | Fallback back behavior does not grow stacks or skip required state checks                              | Grep `safeGoBack` in app navigation flows                                                                                |
+
+## 4. Release Gates
+
+These gates are required when a change touches auth, payments, approvals, ownership, or other protected behavior.
+
+| Gate                                       | Pass Condition                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Tests updated with invariant changes       | If a protected invariant changed, the same PR updates the relevant automated test or adds a concrete verification anchor |
+| Security fixes prove before/after behavior | High/critical fixes include exploit reproduction or equivalent proof before and after the fix                            |
+| No new quality regressions                 | `lint`, `typecheck`, and relevant tests pass, or the PR documents a no-new-errors exception with tracked debt            |
+| Migration safety documented                | Schema-affecting changes include migration state, rollback notes, and any required client regeneration                   |
+| Payment and webhook safety checked         | Payment-related changes confirm signature verification, idempotency, and retry behavior                                  |
+| Auditability preserved                     | Protected state changes remain logged, observable, and debuggable in production                                          |
+| Risky launches are smoke-tested            | Auth, payments, approvals, and deep links receive targeted smoke coverage before release                                 |
+
+## 5. Standard Maintenance
+
+Update this standard and `docs/AUDIT_REVIEW_GATE.md` in the same PR when:
+
+- a protected invariant changes
+- a high/critical finding is fixed
+- a false positive is retired because main already enforces the rule
+- a new verification anchor becomes the preferred source of truth
+
+Maintenance rules:
+
+- Historical audit reports remain historical evidence, not canonical policy.
+- The canonical rule must say what is true now, not what used to be broken.
+- If automation is missing, add a grep-able enforcement anchor until a test exists.
 
 ## Related Documents
 
-- `docs/SECURITY_ARCHITECTURE_AUDIT_2026-03.md` — March 2026 audit findings
-- `docs/COMPREHENSIVE_SECURITY_ARCHITECTURE_AUDIT_2026.md` — January 2026 comprehensive audit
-
----
-
-**Last Updated:** March 15, 2026
+- `docs/AUDIT_EXECUTION_GUIDE.md` — operational workflow for running audits and recording findings
+- `docs/AUDIT_REVIEW_GATE.md` — PR review and release readiness checklist derived from this standard
+- `docs/SECURITY_ARCHITECTURE_AUDIT_2026-03.md` — historical audit evidence
+- `docs/COMPREHENSIVE_SECURITY_ARCHITECTURE_AUDIT_2026.md` — historical audit evidence

@@ -3,18 +3,16 @@ const fs = require('node:fs');
 const { config } = require('dotenv');
 
 // Mimic server/src/lib/load-env.ts without importing TS during tests.
-const candidatePaths = [
-  path.resolve(process.cwd(), '.env'),
-  path.resolve(__dirname, '../../.env'),
-];
-for (const envPath of candidatePaths) {
-  if (!fs.existsSync(envPath)) continue;
-  config({ path: envPath });
-  break;
+const explicitEnvPath = process.env.VARSITYHUB_ENV_PATH
+  ? path.resolve(process.env.VARSITYHUB_ENV_PATH)
+  : path.resolve(__dirname, '../../.env');
+if (fs.existsSync(explicitEnvPath)) {
+  config({ path: explicitEnvPath });
 }
 
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/varsityhub_test';
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/varsityhub_test';
 
 // Quiet console noise unless explicitly enabled.
 if (!process.env.VERBOSE) {

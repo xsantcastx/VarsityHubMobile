@@ -4,6 +4,7 @@ import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser }
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
   getAllTransactions,
@@ -98,7 +99,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
         orderBy: { timestamp: 'desc' },
         take: 5,
         select: { id: true, admin_email: true, action: true, target_type: true, description: true, timestamp: true },
-      }).catch(() => [] as Array<{ id: string; admin_email: string; action: string; target_type: string; description: string; timestamp: Date }>),
+      }).catch((err) => { console.error('[admin] Failed to fetch recent activity:', err); return [] as Array<{ id: string; admin_email: string; action: string; target_type: string; description: string; timestamp: Date }>; }),
 
       // Pending leagues (not yet approved by admin)
       prisma.organization.findMany({
@@ -116,7 +117,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           leagueOwner: { select: { id: true, display_name: true, email: true } },
           _count: { select: { teams: true, memberships: true } },
         },
-      }).catch(() => []),
+      }).catch((err) => { console.error('[admin] Failed to fetch pending leagues:', err); return []; }),
 
       // Events/games with a location string but no lat/lng coordinates
       prisma.game.count({
@@ -125,7 +126,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           latitude: null,
           longitude: null,
         },
-      }).catch(() => 0),
+      }).catch((err) => { console.error('[admin] Failed to count events without coords:', err); return 0; }),
 
       // Pending coaches (users with approval_status = 'PENDING' and coach preferences)
       prisma.user.findMany({
@@ -144,7 +145,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           created_at: true,
           preferences: true,
         },
-      }).catch(() => [])
+      }).catch((err) => { console.error('[admin] Failed to fetch pending coaches:', err); return []; })
     ]);
 
     return res.json({
@@ -180,18 +181,10 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
     const result = await approveCoach(id, req.user?.id || 'unknown', prisma, { note });
     if (result.error) return res.status(result.status || 500).json({ error: result.error });
 
-    // Log admin action
+    // Log admin action via centralized logger (AUTH-3 — auto-resolves admin email)
     const user = result.user!;
-    await prisma.adminActivityLog.create({
-      data: {
-        admin_id: req.user?.id || 'unknown',
-        admin_email: req.user?.id || 'unknown',
-        action: 'APPROVE_COACH',
-        target_type: 'user',
-        target_id: id,
-        description: `Approved coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
-      },
-    }).catch(() => {});
+    await logAdminActivityFromReq(req, 'APPROVE_COACH', 'user', id,
+      `Approved coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`);
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} approved` });
   } catch (error) {
@@ -212,18 +205,10 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
     const result = await rejectCoach(id, req.user?.id || 'unknown', prisma, { reason: note });
     if (result.error) return res.status(result.status || 500).json({ error: result.error });
 
-    // Log admin action
+    // Log admin action via centralized logger (AUTH-3 — auto-resolves admin email)
     const user = result.user!;
-    await prisma.adminActivityLog.create({
-      data: {
-        admin_id: req.user?.id || 'unknown',
-        admin_email: req.user?.id || 'unknown',
-        action: 'REJECT_COACH',
-        target_type: 'user',
-        target_id: id,
-        description: `Rejected coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`,
-      },
-    }).catch(() => {});
+    await logAdminActivityFromReq(req, 'REJECT_COACH', 'user', id,
+      `Rejected coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`);
 
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} rejected` });
   } catch (error) {
@@ -613,16 +598,8 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
       at: new Date().toISOString(),
     });
 
-    await prisma.adminActivityLog.create({
-      data: {
-        admin_id: req.user.id,
-        admin_email: req.user.id,
-        action: 'BAN_USER',
-        target_type: 'user',
-        target_id: bannedUserId,
-        description: `Banned user ${bannedUserId}${reason ? ': ' + reason : ''}`,
-      },
-    }).catch(() => {});
+    await logAdminActivityFromReq(req, 'BAN_USER', 'user', bannedUserId,
+      `Banned user ${bannedUserId}${reason ? ': ' + reason : ''}`);
 
     await issueWarning({
       userId: req.params.id,
@@ -664,16 +641,8 @@ adminRouter.post('/users/:id/unban', requireVerified as any, requireAdminMiddlew
       at: new Date().toISOString(),
     });
 
-    await prisma.adminActivityLog.create({
-      data: {
-        admin_id: req.user.id,
-        admin_email: req.user.id,
-        action: 'UNBAN_USER',
-        target_type: 'user',
-        target_id: unbannedUserId,
-        description: `Unbanned user ${unbannedUserId}`,
-      },
-    }).catch(() => {});
+    await logAdminActivityFromReq(req, 'UNBAN_USER', 'user', unbannedUserId,
+      `Unbanned user ${unbannedUserId}`);
 
     return res.json({ ok: true, banned: false });
   } catch (error) {

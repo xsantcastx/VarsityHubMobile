@@ -6,7 +6,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
@@ -98,7 +107,9 @@ function ManageSeasonScreen() {
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTab, _setSelectedTab] = useState<'schedule' | 'standings' | 'playoffs'>('schedule');
+  const [selectedTab, _setSelectedTab] = useState<'schedule' | 'standings' | 'playoffs'>(
+    'schedule'
+  );
   const [showAddGameModal, setShowAddGameModal] = useState(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false);
@@ -121,10 +132,16 @@ function ManageSeasonScreen() {
           router.push('/(tabs)');
         }
       } catch (err) {
-        if (__DEV__) console.warn('[manage-season] Failed to check coach role:', (err as Error)?.message ?? err);
+        if (__DEV__)
+          console.warn(
+            '[manage-season] Failed to check coach role:',
+            (err as Error)?.message ?? err
+          );
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
   const loadTeam = useCallback(async () => {
@@ -137,8 +154,15 @@ function ManageSeasonScreen() {
       }
       // No teamId provided: fetch managed teams and prompt selection
       const teams = await TeamAPI.managed();
-      const arr = Array.isArray(teams) ? teams : (Array.isArray((teams as any)?.items) ? (teams as any).items : []);
-      const normalized = arr.map((t: any) => ({ id: String(t.id), name: String(t.name || t.display_name || 'Team') }));
+      const arr = Array.isArray(teams)
+        ? teams
+        : Array.isArray((teams as any)?.items)
+          ? (teams as any).items
+          : [];
+      const normalized = arr.map((t: any) => ({
+        id: String(t.id),
+        name: String(t.name || t.display_name || 'Team'),
+      }));
       setManagedTeams(normalized);
       if (normalized.length > 0) {
         setTeamSelectorOpen(true);
@@ -146,7 +170,7 @@ function ManageSeasonScreen() {
         setActionModal({
           visible: true,
           title: 'No Managed Teams',
-          message: 'You don\'t manage any teams yet. Create one to continue.',
+          message: "You don't manage any teams yet. Create one to continue.",
           options: [
             { label: 'Create Team', onPress: () => router.push('/create-team') },
             { label: 'Close', onPress: () => {} },
@@ -184,7 +208,7 @@ function ManageSeasonScreen() {
             return candidateIds.includes(targetTeamId);
           })
         : [];
-      
+
       // Convert backend games to local Game format
       const convertedGames = relevantGames.map((game: any) => {
         const converted: Game = {
@@ -192,28 +216,37 @@ function ManageSeasonScreen() {
           homeTeam: game.home_team || null,
           awayTeam: game.away_team || null,
           opponent: game.away_team || game.home_team || game.title?.replace('vs ', '') || 'TBD',
-          date: game.date ? new Date(game.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          time: game.date ? new Date(game.date).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          }) : '7:00 PM',
+          date: game.date
+            ? new Date(game.date).toISOString().split('T')[0]
+            : new Date().toISOString().split('T')[0],
+          time: game.date
+            ? new Date(game.date).toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '7:00 PM',
           location: game.location || 'TBD',
-          type: (game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away'),
-          status: game.winner ? 'completed' : (game.status === 'completed' || game.status === 'cancelled' ? game.status : 'upcoming'),
+          type: game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away',
+          status: game.winner
+            ? 'completed'
+            : game.status === 'completed' || game.status === 'cancelled'
+              ? game.status
+              : 'upcoming',
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
         };
         return converted;
       });
-      
+
       setGames(convertedGames);
     } catch (error) {
       if (__DEV__) console.error('Error loading games:', error);
-      const errorMessage = error instanceof Error && error.message.includes('Too many requests') 
-        ? 'Server is busy, please try again in a moment'
-        : 'Failed to load games from server';
-      
+      const errorMessage =
+        error instanceof Error && error.message.includes('Too many requests')
+          ? 'Server is busy, please try again in a moment'
+          : 'Failed to load games from server';
+
       setActionModal({
         visible: true,
         title: 'Error',
@@ -239,9 +272,22 @@ function ManageSeasonScreen() {
   // Compute season stats from real game data
   const _seasonStats: SeasonStats = (() => {
     const teamId = currentTeam?.id;
-    if (!teamId) return { wins: 0, losses: 0, ties: 0, gamesPlayed: 0, totalGames: 0, pointsFor: 0, pointsAgainst: 0 };
+    if (!teamId)
+      return {
+        wins: 0,
+        losses: 0,
+        ties: 0,
+        gamesPlayed: 0,
+        totalGames: 0,
+        pointsFor: 0,
+        pointsAgainst: 0,
+      };
     const completed = games.filter(g => g.status === 'completed' || (g as any).winner);
-    let wins = 0, losses = 0, ties = 0, pointsFor = 0, pointsAgainst = 0;
+    let wins = 0,
+      losses = 0,
+      ties = 0,
+      pointsFor = 0,
+      pointsAgainst = 0;
     for (const g of completed) {
       const raw = g as any;
       const isHome = String(raw.home_team_id) === teamId;
@@ -249,11 +295,23 @@ function ManageSeasonScreen() {
       const as_ = typeof raw.away_score === 'number' ? raw.away_score : 0;
       pointsFor += isHome ? hs : as_;
       pointsAgainst += isHome ? as_ : hs;
-      if (raw.winner === 'tie') { ties++; }
-      else if ((raw.winner === 'home' && isHome) || (raw.winner === 'away' && !isHome)) { wins++; }
-      else if (raw.winner) { losses++; }
+      if (raw.winner === 'tie') {
+        ties++;
+      } else if ((raw.winner === 'home' && isHome) || (raw.winner === 'away' && !isHome)) {
+        wins++;
+      } else if (raw.winner) {
+        losses++;
+      }
     }
-    return { wins, losses, ties, gamesPlayed: completed.length, totalGames: games.length, pointsFor, pointsAgainst };
+    return {
+      wins,
+      losses,
+      ties,
+      gamesPlayed: completed.length,
+      totalGames: games.length,
+      pointsFor,
+      pointsAgainst,
+    };
   })();
 
   // Mock standings data
@@ -268,10 +326,10 @@ function ManageSeasonScreen() {
       pointsAgainst: 189,
       winPercentage: 0.833,
       streak: 'W5',
-      lastGame: 'W 28-14'
+      lastGame: 'W 28-14',
     },
     {
-      id: '2', 
+      id: '2',
       name: 'Our Team',
       wins: 8,
       losses: 3,
@@ -280,7 +338,7 @@ function ManageSeasonScreen() {
       pointsAgainst: 189,
       winPercentage: 0.708,
       streak: 'W2',
-      lastGame: 'W 24-17'
+      lastGame: 'W 24-17',
     },
     {
       id: '3',
@@ -292,7 +350,7 @@ function ManageSeasonScreen() {
       pointsAgainst: 201,
       winPercentage: 0.625,
       streak: 'L1',
-      lastGame: 'L 17-21'
+      lastGame: 'L 17-21',
     },
     {
       id: '4',
@@ -304,7 +362,7 @@ function ManageSeasonScreen() {
       pointsAgainst: 215,
       winPercentage: 0.542,
       streak: 'W1',
-      lastGame: 'W 28-10'
+      lastGame: 'W 28-10',
     },
     {
       id: '5',
@@ -316,7 +374,7 @@ function ManageSeasonScreen() {
       pointsAgainst: 243,
       winPercentage: 0.375,
       streak: 'L3',
-      lastGame: 'L 14-31'
+      lastGame: 'L 14-31',
     },
     {
       id: '6',
@@ -328,7 +386,7 @@ function ManageSeasonScreen() {
       pointsAgainst: 289,
       winPercentage: 0.208,
       streak: 'L6',
-      lastGame: 'L 7-42'
+      lastGame: 'L 7-42',
     },
   ].sort((a, b) => b.winPercentage - a.winPercentage);
 
@@ -346,17 +404,17 @@ function ManageSeasonScreen() {
       score1: 28,
       score2: 14,
       status: 'completed',
-      gameDate: '2025-12-15'
+      gameDate: '2025-12-15',
     },
     {
-      id: 'semi2', 
+      id: 'semi2',
       round: 1,
       position: 2,
       team1: playoffTeams[1], // 2nd seed
       team2: playoffTeams[2], // 3rd seed
       winner: undefined,
       status: 'upcoming',
-      gameDate: '2025-12-15'
+      gameDate: '2025-12-15',
     },
     // Championship
     {
@@ -366,11 +424,13 @@ function ManageSeasonScreen() {
       team1: playoffTeams[0], // Winner of semi1
       team2: undefined, // Winner of semi2
       status: 'upcoming',
-      gameDate: '2025-12-22'
-    }
+      gameDate: '2025-12-22',
+    },
   ];
 
-  const pendingGames: Game[] = (games ?? []).filter(g => g.approval_status === 'pending' || g.status === 'pending');
+  const pendingGames: Game[] = (games ?? []).filter(
+    g => g.approval_status === 'pending' || g.status === 'pending'
+  );
 
   const upcomingGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
@@ -424,7 +484,10 @@ function ManageSeasonScreen() {
       message: `Are you sure you want to delete the game vs ${game.opponent || game.opponent_name || 'opponent'}?`,
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
-        { label: 'Delete', isDestructive: true, onPress: async () => {
+        {
+          label: 'Delete',
+          isDestructive: true,
+          onPress: async () => {
             try {
               await GameAPI.delete(game.id);
               setGames(prev => prev.filter(g => g.id !== game.id));
@@ -443,7 +506,7 @@ function ManageSeasonScreen() {
               });
               if (__DEV__) console.error('Error deleting game:', error);
             }
-          }
+          },
         },
       ],
     });
@@ -468,9 +531,9 @@ function ManageSeasonScreen() {
           onPress: async () => {
             try {
               await GameAPI.update(game.id, { status: option.value });
-              setGames(prev => prev.map(g =>
-                g.id === game.id ? { ...g, status: option.value } : g
-              ));
+              setGames(prev =>
+                prev.map(g => (g.id === game.id ? { ...g, status: option.value } : g))
+              );
               setActionModal({
                 visible: true,
                 title: 'Success',
@@ -485,8 +548,8 @@ function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             }
-          }
-        }))
+          },
+        })),
       ],
     });
   };
@@ -494,7 +557,7 @@ function ManageSeasonScreen() {
   const handleGamePress = (game: GameCardGame) => {
     router.push({
       pathname: '/game/[id]',
-      params: { id: game.id }
+      params: { id: game.id },
     });
   };
 
@@ -505,7 +568,7 @@ function ManageSeasonScreen() {
       title: 'Home Team Score',
       message: `Enter score for ${localGame?.homeTeam || 'Home Team'}`,
       defaultValue: String(localGame?.score?.team ?? ''),
-      onSubmit: (homeScoreStr) => {
+      onSubmit: homeScoreStr => {
         const homeScore = parseInt(homeScoreStr.trim(), 10);
         if (isNaN(homeScore)) {
           setActionModal({
@@ -522,7 +585,7 @@ function ManageSeasonScreen() {
             title: 'Away Team Score',
             message: `Enter score for ${localGame?.awayTeam || 'Away Team'}`,
             defaultValue: String(localGame?.score?.opponent ?? ''),
-            onSubmit: async (awayScoreStr) => {
+            onSubmit: async awayScoreStr => {
               const awayScore = parseInt(awayScoreStr.trim(), 10);
               if (isNaN(awayScore)) {
                 setActionModal({
@@ -534,7 +597,8 @@ function ManageSeasonScreen() {
                 return;
               }
               try {
-                const winner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'tie';
+                const winner =
+                  homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'tie';
                 await GameAPI.setResult(game.id, {
                   home_score: homeScore,
                   away_score: awayScore,
@@ -543,7 +607,11 @@ function ManageSeasonScreen() {
                 setGames(prevGames =>
                   prevGames.map(g =>
                     g.id === game.id
-                      ? { ...g, score: { team: homeScore, opponent: awayScore }, status: 'completed' as GameStatus }
+                      ? {
+                          ...g,
+                          score: { team: homeScore, opponent: awayScore },
+                          status: 'completed' as GameStatus,
+                        }
                       : g
                   )
                 );
@@ -690,29 +758,32 @@ function ManageSeasonScreen() {
   const handleSaveQuickGame = async (gameData: QuickGameData) => {
     try {
       const isEditing = !!gameData.id;
-      
-      
+
       const { year, month, day } = parseDateParts(gameData.date);
       const { hours, minutes } = parseMeridiemTime(gameData.time);
 
-      if ([year, month, day, hours, minutes].some((val) => Number.isNaN(val))) {
+      if ([year, month, day, hours, minutes].some(val => Number.isNaN(val))) {
         throw new Error('Invalid date/time combination');
       }
 
       // Create the timestamp in UTC so the intended date/time is preserved server-side
       const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-      
+
       // Validate the date
       if (isNaN(gameDateTime.getTime())) {
         throw new Error('Invalid date/time combination');
       }
-      
-      const homeTeamId = sanitizeTeamId(gameData.type === 'home' ? gameData.currentTeamId : gameData.opponentTeamId);
-      const awayTeamId = sanitizeTeamId(gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId);
+
+      const homeTeamId = sanitizeTeamId(
+        gameData.type === 'home' ? gameData.currentTeamId : gameData.opponentTeamId
+      );
+      const awayTeamId = sanitizeTeamId(
+        gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId
+      );
 
       // Create game data for API
       const gamePayload: Record<string, any> = {
-        title: gameData.isCompetitive 
+        title: gameData.isCompetitive
           ? `${gameData.currentTeam} vs ${gameData.opponent}`
           : `${gameData.currentTeam} Event`,
         date: gameDateTime.toISOString(),
@@ -725,7 +796,7 @@ function ManageSeasonScreen() {
       if (gameData.isCompetitive) {
         gamePayload.home_team = gameData.type === 'home' ? gameData.currentTeam : gameData.opponent;
         gamePayload.away_team = gameData.type === 'home' ? gameData.opponent : gameData.currentTeam;
-        
+
         if (homeTeamId) gamePayload.home_team_id = homeTeamId;
         if (awayTeamId) {
           gamePayload.away_team_id = awayTeamId;
@@ -748,7 +819,7 @@ function ManageSeasonScreen() {
       if (gameData.eventType) {
         gamePayload.event_type = gameData.eventType;
       }
-      
+
       // Add event type-specific fields
       if (gameData.donationGoal) {
         gamePayload.donation_goal = gameData.donationGoal;
@@ -757,7 +828,8 @@ function ManageSeasonScreen() {
         gamePayload.watch_location = gameData.watchLocation;
         if (gameData.watchLocationLat) gamePayload.watch_location_lat = gameData.watchLocationLat;
         if (gameData.watchLocationLng) gamePayload.watch_location_lng = gameData.watchLocationLng;
-        if (gameData.watchLocationPlaceId) gamePayload.watch_location_place_id = gameData.watchLocationPlaceId;
+        if (gameData.watchLocationPlaceId)
+          gamePayload.watch_location_place_id = gameData.watchLocationPlaceId;
       }
       if (gameData.destination) {
         gamePayload.destination = gameData.destination;
@@ -789,12 +861,11 @@ function ManageSeasonScreen() {
         gamePayload.appearance = gameData.appearance;
       }
 
-
       // Save to backend API (create or update)
       const savedGame = isEditing
         ? await GameAPI.update(gameData.id!, gamePayload)
         : await GameAPI.create(gamePayload);
-      
+
       // Create local game object for immediate UI update
       const updatedGame: Game = {
         id: savedGame.id || gameData.id || Date.now().toString(),
@@ -803,43 +874,52 @@ function ManageSeasonScreen() {
         opponent: gameData.opponent, // Keep for backward compatibility
         date: gameData.date,
         time: gameData.time,
-        location: gameData.homeVenue || gameData.awayVenue || (gameData.type === 'home' ? 'Home Stadium' : 'Away Venue'),
+        location:
+          gameData.homeVenue ||
+          gameData.awayVenue ||
+          (gameData.type === 'home' ? 'Home Stadium' : 'Away Venue'),
         type: gameData.type,
         status: 'upcoming',
         // TEMP FIX: Prioritize the banner_url we sent over the null response from backend
         banner_url: gameData.banner_url || savedGame.banner_url || undefined,
-        cover_image_url: gameData.banner_url || gameData.cover_image_url || savedGame.cover_image_url || undefined,
+        cover_image_url:
+          gameData.banner_url || gameData.cover_image_url || savedGame.cover_image_url || undefined,
       };
 
       // Update games state
       if (isEditing) {
-        setGames(prev => prev.map(g => g.id === gameData.id ? updatedGame : g));
+        setGames(prev => prev.map(g => (g.id === gameData.id ? updatedGame : g)));
       } else {
         setGames(prev => [...prev, updatedGame]);
       }
-      
+
       // Show success message
       setActionModal({
         visible: true,
         title: 'Success',
-        message: isEditing 
+        message: isEditing
           ? `Game "${gameData.currentTeam} vs ${gameData.opponent}" updated successfully!`
           : `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-      
+
       // Close modal and clear editing state
       setShowQuickAddModal(false);
       setEditingGame(null);
-      
     } catch (error: any) {
       if (__DEV__) console.error('Error adding quick game:', error);
       if (__DEV__) console.error('Error status:', error?.status);
       if (__DEV__) console.error('Error data:', error?.data);
       if (__DEV__) console.error('Error message:', error?.message);
       const details = error?.data?.issues ? `\nDetails: ${JSON.stringify(error.data.issues)}` : '';
-      const rawMsg = (typeof error?.data === 'object' ? (error.data?.error || error.data?.message) : null) || error?.message || 'Unknown error';
-      const errorMsg = (typeof rawMsg === 'string' && (rawMsg.includes('<') || rawMsg.startsWith('Cannot '))) ? 'Server error. Please try again.' : rawMsg;
+      const rawMsg =
+        (typeof error?.data === 'object' ? error.data?.error || error.data?.message : null) ||
+        error?.message ||
+        'Unknown error';
+      const errorMsg =
+        typeof rawMsg === 'string' && (rawMsg.includes('<') || rawMsg.startsWith('Cannot '))
+          ? 'Server error. Please try again.'
+          : rawMsg;
       setActionModal({
         visible: true,
         title: 'Error',
@@ -863,7 +943,7 @@ function ManageSeasonScreen() {
 
       // Save to backend API
       const savedGame = await GameAPI.create(gamePayload);
-      
+
       // Create local game object for immediate UI update
       const newGame: Game = {
         id: savedGame.id || Date.now().toString(),
@@ -872,7 +952,7 @@ function ManageSeasonScreen() {
         time: gameData.time.toLocaleTimeString('en-US', {
           hour: 'numeric',
           minute: '2-digit',
-          hour12: true
+          hour12: true,
         }),
         location: gameData.location,
         type: gameData.type,
@@ -882,7 +962,7 @@ function ManageSeasonScreen() {
 
       // Add to games state
       setGames(prev => [...prev, newGame]);
-      
+
       // Show success message
       setActionModal({
         visible: true,
@@ -890,7 +970,6 @@ function ManageSeasonScreen() {
         message: `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-      
     } catch (error) {
       setActionModal({
         visible: true,
@@ -918,11 +997,17 @@ function ManageSeasonScreen() {
         return `${hours}:${minutes || '00'}`;
       };
       const teamName = currentTeam?.name || 'Team';
-      const payloads = bulkGames.map((gameData) => {
+      const payloads = bulkGames.map(gameData => {
         const time24h = convertTo24Hour(gameData.time);
         const [year, month, day] = gameData.date.split('-');
         const [hours, minutes] = time24h.split(':');
-        const gameDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes));
+        const gameDateTime = new Date(
+          parseInt(year),
+          parseInt(month) - 1,
+          parseInt(day),
+          parseInt(hours),
+          parseInt(minutes)
+        );
         if (isNaN(gameDateTime.getTime())) {
           throw new Error(`Invalid date/time for game vs ${gameData.opponent}`);
         }
@@ -939,7 +1024,7 @@ function ManageSeasonScreen() {
       const savedGames = Array.isArray(result?.games) ? result.games : [];
 
       // Convert to local game format and add to state (teamName already in scope from above)
-      const newGames: Game[] = savedGames.map((savedGame, index) => {
+      const newGames: Game[] = savedGames.map((savedGame: any, index: number) => {
         const originalData = bulkGames[index];
         return {
           id: savedGame.id || Date.now().toString() + index,
@@ -962,7 +1047,6 @@ function ManageSeasonScreen() {
         message: `Successfully created ${savedGames.length} games!`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-      
     } catch (error) {
       setActionModal({
         visible: true,
@@ -1001,13 +1085,13 @@ function ManageSeasonScreen() {
 
   const handleEditPlayoffResult = (matchup: PlayoffMatchup) => {
     if (!matchup.team1 || !matchup.team2) return;
-    
+
     setPromptModal({
       visible: true,
       title: 'Enter Game Result',
       message: `${matchup.team1.name} vs ${matchup.team2.name}`,
       defaultValue: matchup.status === 'completed' ? `${matchup.score1}-${matchup.score2}` : '',
-      onSubmit: (input) => {
+      onSubmit: input => {
         if (input) {
           const scores = input.split('-').map(s => parseInt(s.trim()));
           if (scores.length === 2 && !isNaN(scores[0]) && !isNaN(scores[1])) {
@@ -1035,7 +1119,7 @@ function ManageSeasonScreen() {
       title: 'Schedule Game',
       message: `${matchupLabel}\nEnter game date (YYYY-MM-DD):`,
       defaultValue: new Date().toISOString().split('T')[0],
-      onSubmit: (dateInput) => {
+      onSubmit: dateInput => {
         if (dateInput) {
           setActionModal({
             visible: true,
@@ -1069,7 +1153,10 @@ function ManageSeasonScreen() {
   }, [promptModal.visible, promptModal.defaultValue]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}> 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['top', 'bottom']}
+    >
       {/* Universal Action Modal */}
       <CustomActionModal
         visible={actionModal.visible}
@@ -1096,11 +1183,17 @@ function ManageSeasonScreen() {
         title={promptModal.title}
         message={promptModal.message}
         options={[
-          { label: 'Cancel', onPress: () => setPromptModal(p => ({ ...p, visible: false })), color: undefined },
-          { label: 'OK', onPress: () => {
+          {
+            label: 'Cancel',
+            onPress: () => setPromptModal(p => ({ ...p, visible: false })),
+            color: undefined,
+          },
+          {
+            label: 'OK',
+            onPress: () => {
               setPromptModal(p => ({ ...p, visible: false }));
               promptModal.onSubmit?.(promptValue);
-            }
+            },
           },
         ]}
         onClose={() => setPromptModal(p => ({ ...p, visible: false }))}
@@ -1136,7 +1229,9 @@ function ManageSeasonScreen() {
                 { label: 'Cancel', onPress: () => setTeamSelectorOpen(false), color: undefined },
                 {
                   label: 'Create Team',
-                  onPress: () => { void router.push('/create-team'); },
+                  onPress: () => {
+                    void router.push('/create-team');
+                  },
                   color: Colors[colorScheme].tint,
                 },
               ]
@@ -1145,12 +1240,15 @@ function ManageSeasonScreen() {
       >
         {managedTeams.length > 0 ? (
           <View style={{ width: '100%', gap: 12 }}>
-            {managedTeams.map((team) => (
+            {managedTeams.map(team => (
               <Pressable
                 key={team.id}
                 style={[
                   styles.teamOptionButton,
-                  { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface },
+                  {
+                    borderColor: Colors[colorScheme].border,
+                    backgroundColor: Colors[colorScheme].surface,
+                  },
                 ]}
                 onPress={() => {
                   setCurrentTeam(team);
@@ -1159,7 +1257,9 @@ function ManageSeasonScreen() {
               >
                 <Ionicons name="shield-outline" size={18} color={Colors[colorScheme].tint} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>
+                  <Text
+                    style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}
+                  >
                     {team.name}
                   </Text>
                   <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>
@@ -1182,24 +1282,59 @@ function ManageSeasonScreen() {
       />
 
       {/* SIMPLIFIED HEADER - Team Name with Back Button */}
-      <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, padding: 20 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View
+        style={[
+          styles.headerCard,
+          {
+            backgroundColor: Colors[colorScheme].surface,
+            borderColor: Colors[colorScheme].border,
+            padding: 20,
+          },
+        ]}
+      >
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+        >
           <Pressable onPress={() => safeGoBack(router)} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Pressable onPress={() => setTeamSelectorOpen(true)} style={{ flex: 1 }}>
-            <Text style={{ fontSize: 24, fontWeight: '700', textAlign: 'center', color: Colors[colorScheme].text }}>
+            <Text
+              style={{
+                fontSize: 24,
+                fontWeight: '700',
+                textAlign: 'center',
+                color: Colors[colorScheme].text,
+              }}
+            >
               {currentTeam?.name || 'Select Team'}
             </Text>
           </Pressable>
-          <Pressable onPress={() => { if (currentTeam?.id) router.push(`/season-stats?teamId=${currentTeam.id}`); }} style={{ padding: 8 }}>
-            <Ionicons name="stats-chart" size={22} color={currentTeam?.id ? Colors[colorScheme].tint : Colors[colorScheme].border} />
+          <Pressable
+            onPress={() => {
+              if (currentTeam?.id) router.push(`/season-stats?teamId=${currentTeam.id}`);
+            }}
+            style={{ padding: 8 }}
+          >
+            <Ionicons
+              name="stats-chart"
+              size={22}
+              color={currentTeam?.id ? Colors[colorScheme].tint : Colors[colorScheme].border}
+            />
           </Pressable>
         </View>
       </View>
 
       {loading && (
-        <View style={[styles.loadingState, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+        <View
+          style={[
+            styles.loadingState,
+            {
+              backgroundColor: Colors[colorScheme].surface,
+              borderColor: Colors[colorScheme].border,
+            },
+          ]}
+        >
           <ActivityIndicator color={Colors[colorScheme].tint} />
           <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
             Refreshing season data...
@@ -1208,8 +1343,13 @@ function ManageSeasonScreen() {
       )}
 
       {/* Quick Actions - SIMPLIFIED: Add Event Only */}
-      <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Pressable 
+      <View
+        style={[
+          styles.quickActionsCard,
+          { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border },
+        ]}
+      >
+        <Pressable
           style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
           onPress={handleAddGame}
         >
@@ -1221,7 +1361,7 @@ function ManageSeasonScreen() {
       {/* Tab controls removed — only Schedule content is shown */}
 
       {/* Main Content - No Tabs, Just Schedule */}
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 20 }}
         refreshControl={
@@ -1236,43 +1376,101 @@ function ManageSeasonScreen() {
         {selectedTab === 'schedule' && (
           <View style={styles.tabContent}>
             {!currentTeam?.id ? (
-              <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}> 
+              <View
+                style={[
+                  styles.sectionCard,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
                 <SectionHeader title="Select a Team to Manage" style={{ paddingHorizontal: 0 }} />
                 {managedTeams.length > 0 ? (
-                  managedTeams.map((t) => (
-                    <Pressable key={t.id} style={[styles.gameCard, { borderColor: Colors[colorScheme].border }]}
-                      onPress={() => { setCurrentTeam(t); setTeamSelectorOpen(false); }}>
+                  managedTeams.map(t => (
+                    <Pressable
+                      key={t.id}
+                      style={[styles.gameCard, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => {
+                        setCurrentTeam(t);
+                        setTeamSelectorOpen(false);
+                      }}
+                    >
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Ionicons name="shield" size={18} color={Colors[colorScheme].tint} />
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>{t.name}</Text>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: '700',
+                            color: Colors[colorScheme].text,
+                          }}
+                        >
+                          {t.name}
+                        </Text>
                       </View>
                     </Pressable>
                   ))
                 ) : (
-                  <EmptyState icon="people-outline" title="No Teams" subtitle="Create a team to manage your season." />
+                  <EmptyState
+                    icon="people-outline"
+                    title="No Teams"
+                    subtitle="Create a team to manage your season."
+                  />
                 )}
               </View>
             ) : null}
             {/* Pending Approval Queue */}
             {pendingGames.length > 0 && (
-              <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: '#F59E0B', borderWidth: 2 }]}>
-                <View style={[styles.approvalHeader, { backgroundColor: colorScheme === 'dark' ? '#78350F' : '#FEF3C7', borderColor: '#F59E0B' }]}>
+              <View
+                style={[
+                  styles.sectionCard,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: '#F59E0B',
+                    borderWidth: 2,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.approvalHeader,
+                    {
+                      backgroundColor: colorScheme === 'dark' ? '#78350F' : '#FEF3C7',
+                      borderColor: '#F59E0B',
+                    },
+                  ]}
+                >
                   <Ionicons name="time" size={24} color="#F59E0B" />
-                  <Text style={[styles.approvalTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
+                  <Text
+                    style={[
+                      styles.approvalTitle,
+                      { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+                    ]}
+                  >
                     📋 Approval Queue ({pendingGames.length})
                   </Text>
                 </View>
                 <Text style={[styles.approvalSubtitle, { color: Colors[colorScheme].mutedText }]}>
                   Games waiting for approval before appearing publicly
                 </Text>
-                {pendingGames.map((game) => (
-                  <View key={game.id} style={[styles.pendingGameCard, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB', borderColor: Colors[colorScheme].border }]}>
+                {pendingGames.map(game => (
+                  <View
+                    key={game.id}
+                    style={[
+                      styles.pendingGameCard,
+                      {
+                        backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB',
+                        borderColor: Colors[colorScheme].border,
+                      },
+                    ]}
+                  >
                     <GameCard
                       game={{
                         ...game,
-                        opponent_name: game.homeTeam && game.awayTeam 
-                          ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : game.opponent,
+                        opponent_name:
+                          game.homeTeam && game.awayTeam
+                            ? `${game.homeTeam} vs ${game.awayTeam}`
+                            : game.opponent,
                         scheduled_date: game.date,
                         scheduled_time: game.time,
                         game_type: game.type,
@@ -1290,11 +1488,21 @@ function ManageSeasonScreen() {
                         <Text style={styles.approveButtonText}>Approve</Text>
                       </Pressable>
                       <Pressable
-                        style={[styles.rejectButton, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB' }]}
+                        style={[
+                          styles.rejectButton,
+                          { backgroundColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB' },
+                        ]}
                         onPress={() => handleRejectGame(game)}
                       >
                         <Ionicons name="close-circle" size={18} color="#EF4444" />
-                        <Text style={[styles.rejectButtonText, { color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626' }]}>Reject</Text>
+                        <Text
+                          style={[
+                            styles.rejectButtonText,
+                            { color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626' },
+                          ]}
+                        >
+                          Reject
+                        </Text>
                       </Pressable>
                     </View>
                   </View>
@@ -1303,33 +1511,46 @@ function ManageSeasonScreen() {
             )}
 
             {/* Upcoming Games */}
-            <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <SectionHeader 
+            <View
+              style={[
+                styles.sectionCard,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <SectionHeader
                 title="📅 Upcoming Games"
                 action={
                   <Pressable onPress={handleAddGame}>
-                    <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={24}
+                      color={Colors[colorScheme].tint}
+                    />
                   </Pressable>
                 }
                 style={{ paddingHorizontal: 0 }}
               />
-              
+
               {upcomingGames.length === 0 ? (
-                <EmptyState 
+                <EmptyState
                   icon="calendar-outline"
                   title="No Upcoming Games"
                   subtitle="Add your first game to get started"
                   style={{ paddingVertical: 40 }}
                 />
               ) : (
-                upcomingGames.map((game) => (
+                upcomingGames.map(game => (
                   <GameCard
                     key={game.id}
                     game={{
                       ...game,
-                      opponent_name: game.homeTeam && game.awayTeam 
-                        ? `${game.homeTeam} vs ${game.awayTeam}`
-                        : game.opponent,
+                      opponent_name:
+                        game.homeTeam && game.awayTeam
+                          ? `${game.homeTeam} vs ${game.awayTeam}`
+                          : game.opponent,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,
@@ -1345,28 +1566,34 @@ function ManageSeasonScreen() {
             </View>
 
             {/* Recent Games */}
-            <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <SectionHeader 
-                title="🏆 Recent Games"
-                style={{ paddingHorizontal: 0 }}
-              />
-              
+            <View
+              style={[
+                styles.sectionCard,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <SectionHeader title="🏆 Recent Games" style={{ paddingHorizontal: 0 }} />
+
               {recentGames.length === 0 ? (
-                <EmptyState 
+                <EmptyState
                   icon="time-outline"
                   title="No Recent Games"
                   subtitle="Past games will appear here"
                   style={{ paddingVertical: 40 }}
                 />
               ) : (
-                recentGames.map((game) => (
+                recentGames.map(game => (
                   <GameCard
                     key={game.id}
                     game={{
                       ...game,
-                      opponent_name: game.homeTeam && game.awayTeam 
-                        ? `${game.homeTeam} vs ${game.awayTeam}`
-                        : game.opponent,
+                      opponent_name:
+                        game.homeTeam && game.awayTeam
+                          ? `${game.homeTeam} vs ${game.awayTeam}`
+                          : game.opponent,
                       scheduled_date: game.date,
                       scheduled_time: game.time,
                       game_type: game.type,
@@ -1387,32 +1614,77 @@ function ManageSeasonScreen() {
 
         {selectedTab === 'standings' && (
           <View style={styles.tabContent}>
-            <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+            <View
+              style={[
+                styles.sectionCard,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>League Standings</Text>
+                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                  League Standings
+                </Text>
                 <Pressable onPress={onRefresh}>
                   <Ionicons name="refresh-outline" size={20} color={Colors[colorScheme].tint} />
                 </Pressable>
               </View>
-              
+
               {/* Standings Table Header */}
-              <View style={[styles.standingsHeader, { borderBottomColor: Colors[colorScheme].border }]}>
-                <Text style={[styles.standingsHeaderText, styles.teamColumn, { color: Colors[colorScheme].mutedText }]}>TEAM</Text>
-                <Text style={[styles.standingsHeaderText, styles.recordColumn, { color: Colors[colorScheme].mutedText }]}>W-L-T</Text>
-                <Text style={[styles.standingsHeaderText, styles.pctColumn, { color: Colors[colorScheme].mutedText }]}>PCT</Text>
-                <Text style={[styles.standingsHeaderText, styles.streakColumn, { color: Colors[colorScheme].mutedText }]}>STREAK</Text>
+              <View
+                style={[styles.standingsHeader, { borderBottomColor: Colors[colorScheme].border }]}
+              >
+                <Text
+                  style={[
+                    styles.standingsHeaderText,
+                    styles.teamColumn,
+                    { color: Colors[colorScheme].mutedText },
+                  ]}
+                >
+                  TEAM
+                </Text>
+                <Text
+                  style={[
+                    styles.standingsHeaderText,
+                    styles.recordColumn,
+                    { color: Colors[colorScheme].mutedText },
+                  ]}
+                >
+                  W-L-T
+                </Text>
+                <Text
+                  style={[
+                    styles.standingsHeaderText,
+                    styles.pctColumn,
+                    { color: Colors[colorScheme].mutedText },
+                  ]}
+                >
+                  PCT
+                </Text>
+                <Text
+                  style={[
+                    styles.standingsHeaderText,
+                    styles.streakColumn,
+                    { color: Colors[colorScheme].mutedText },
+                  ]}
+                >
+                  STREAK
+                </Text>
               </View>
 
               {/* Standings Rows */}
               {standingsData.map((team, index) => (
-                <View 
-                  key={team.id} 
+                <View
+                  key={team.id}
                   style={[
-                    styles.standingsRow, 
-                    { 
-                      backgroundColor: team.name === 'Our Team' ? Colors[colorScheme].tint + '10' : 'transparent',
-                      borderBottomColor: Colors[colorScheme].border 
-                    }
+                    styles.standingsRow,
+                    {
+                      backgroundColor:
+                        team.name === 'Our Team' ? Colors[colorScheme].tint + '10' : 'transparent',
+                      borderBottomColor: Colors[colorScheme].border,
+                    },
                   ]}
                 >
                   <View style={styles.teamColumn}>
@@ -1420,36 +1692,45 @@ function ManageSeasonScreen() {
                       <Text style={[styles.rankText, { color: Colors[colorScheme].mutedText }]}>
                         {index + 1}
                       </Text>
-                      <Text style={[
-                        styles.teamName, 
-                        { 
-                          color: team.name === 'Our Team' ? Colors[colorScheme].tint : Colors[colorScheme].text,
-                          fontWeight: team.name === 'Our Team' ? '800' : '600'
-                        }
-                      ]}>
+                      <Text
+                        style={[
+                          styles.teamName,
+                          {
+                            color:
+                              team.name === 'Our Team'
+                                ? Colors[colorScheme].tint
+                                : Colors[colorScheme].text,
+                            fontWeight: team.name === 'Our Team' ? '800' : '600',
+                          },
+                        ]}
+                      >
                         {team.name}
-                        {team.name === 'Our Team' && <Text style={styles.ourTeamBadge}> (You)</Text>}
+                        {team.name === 'Our Team' && (
+                          <Text style={styles.ourTeamBadge}> (You)</Text>
+                        )}
                       </Text>
                     </View>
                   </View>
-                  
+
                   <View style={styles.recordColumn}>
                     <Text style={[styles.recordText, { color: Colors[colorScheme].text }]}>
                       {team.wins}-{team.losses}-{team.ties}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.pctColumn}>
                     <Text style={[styles.pctText, { color: Colors[colorScheme].text }]}>
                       {team.winPercentage.toFixed(3)}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.streakColumn}>
-                    <View style={[
-                      styles.streakBadge, 
-                      { backgroundColor: team.streak.startsWith('W') ? '#10B981' : '#EF4444' }
-                    ]}>
+                    <View
+                      style={[
+                        styles.streakBadge,
+                        { backgroundColor: team.streak.startsWith('W') ? '#10B981' : '#EF4444' },
+                      ]}
+                    >
                       <Text style={styles.streakText}>{team.streak}</Text>
                     </View>
                   </View>
@@ -1457,26 +1738,55 @@ function ManageSeasonScreen() {
               ))}
 
               {/* League Stats Summary */}
-              <View style={[styles.leagueStats, { borderTopColor: Colors[colorScheme].border }]}> 
-                <Text style={[styles.leagueStatsTitle, { color: Colors[colorScheme].text }]}>League Averages</Text>
+              <View style={[styles.leagueStats, { borderTopColor: Colors[colorScheme].border }]}>
+                <Text style={[styles.leagueStatsTitle, { color: Colors[colorScheme].text }]}>
+                  League Averages
+                </Text>
                 <View style={styles.leagueStatsGrid}>
                   <View style={styles.leagueStatItem}>
-                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}> 
-                      {standingsData && standingsData.length > 0 ? Math.round(standingsData.reduce((sum, team) => sum + team.pointsFor, 0) / standingsData.length) : 0}
+                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}>
+                      {standingsData && standingsData.length > 0
+                        ? Math.round(
+                            standingsData.reduce((sum, team) => sum + team.pointsFor, 0) /
+                              standingsData.length
+                          )
+                        : 0}
                     </Text>
-                    <Text style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}>PPG</Text>
+                    <Text
+                      style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}
+                    >
+                      PPG
+                    </Text>
                   </View>
                   <View style={styles.leagueStatItem}>
-                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}> 
-                      {standingsData && standingsData.length > 0 ? (standingsData.reduce((sum, team) => sum + team.winPercentage, 0) / standingsData.length).toFixed(3) : '0.000'}
+                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}>
+                      {standingsData && standingsData.length > 0
+                        ? (
+                            standingsData.reduce((sum, team) => sum + team.winPercentage, 0) /
+                            standingsData.length
+                          ).toFixed(3)
+                        : '0.000'}
                     </Text>
-                    <Text style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}>Avg Win %</Text>
+                    <Text
+                      style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}
+                    >
+                      Avg Win %
+                    </Text>
                   </View>
                   <View style={styles.leagueStatItem}>
-                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}> 
-                      {standingsData && standingsData.length > 0 ? (standingsData.reduce((sum, team) => sum + team.wins + team.losses + team.ties, 0) / standingsData.length) : 0}
+                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}>
+                      {standingsData && standingsData.length > 0
+                        ? standingsData.reduce(
+                            (sum, team) => sum + team.wins + team.losses + team.ties,
+                            0
+                          ) / standingsData.length
+                        : 0}
                     </Text>
-                    <Text style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}>Games</Text>
+                    <Text
+                      style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}
+                    >
+                      Games
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -1486,191 +1796,351 @@ function ManageSeasonScreen() {
 
         {selectedTab === 'playoffs' && (
           <View style={styles.tabContent}>
-            <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+            <View
+              style={[
+                styles.sectionCard,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Playoff Bracket</Text>
+                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                  Playoff Bracket
+                </Text>
                 <Pressable onPress={onRefresh}>
                   <Ionicons name="trophy-outline" size={20} color={Colors[colorScheme].tint} />
                 </Pressable>
               </View>
 
               {/* Playoff Info */}
-              <View style={[styles.playoffInfo, { backgroundColor: Colors[colorScheme].background }]}>
-                <Ionicons name="information-circle-outline" size={16} color={Colors[colorScheme].tint} />
+              <View
+                style={[styles.playoffInfo, { backgroundColor: Colors[colorScheme].background }]}
+              >
+                <Ionicons
+                  name="information-circle-outline"
+                  size={16}
+                  color={Colors[colorScheme].tint}
+                />
                 <Text style={[styles.playoffInfoText, { color: Colors[colorScheme].mutedText }]}>
                   Top 4 teams qualify for playoffs. Single elimination format.
                 </Text>
               </View>
 
               {/* Bracket Visualization */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.bracketScroll}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.bracketScroll}
+              >
                 <View style={styles.bracketContainer}>
-                  
                   {/* Round 1: Semifinals */}
                   <View style={styles.bracketRound}>
-                    <Text style={[styles.roundTitle, { color: Colors[colorScheme].text }]}>Semifinals</Text>
-                    
-                    {playoffBracket.filter(match => match.round === 1).map((match) => (
-                      <Pressable 
-                        key={match.id} 
-                        style={[styles.matchupCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                        onPress={() => handlePlayoffMatchupPress(match)}
-                      >
-                        <View style={styles.matchupHeader}>
-                          <Text style={[styles.matchupDate, { color: Colors[colorScheme].mutedText }]}>
-                            {match.gameDate ? new Date(match.gameDate).toLocaleDateString() : 'TBD'}
-                          </Text>
-                          <View style={[
-                            styles.matchupStatus,
-                            { backgroundColor: match.status === 'completed' ? '#10B981' : match.status === 'in-progress' ? '#F59E0B' : '#6B7280' }
-                          ]}>
-                            <Text style={styles.matchupStatusText}>
-                              {match.status === 'completed' ? 'FINAL' : match.status === 'in-progress' ? 'LIVE' : 'UPCOMING'}
-                            </Text>
-                          </View>
-                        </View>
+                    <Text style={[styles.roundTitle, { color: Colors[colorScheme].text }]}>
+                      Semifinals
+                    </Text>
 
-                        {/* Team 1 */}
-                        <View style={[
-                          styles.teamMatchupRow,
-                          { backgroundColor: match.winner?.id === match.team1?.id ? Colors[colorScheme].tint + '20' : 'transparent' }
-                        ]}>
-                          <View style={styles.teamMatchupInfo}>
-                            <Text style={[styles.seedNumber, { color: Colors[colorScheme].mutedText }]}>
-                              {standingsData.findIndex(t => t.id === match.team1?.id) + 1}
+                    {playoffBracket
+                      .filter(match => match.round === 1)
+                      .map(match => (
+                        <Pressable
+                          key={match.id}
+                          style={[
+                            styles.matchupCard,
+                            {
+                              backgroundColor: Colors[colorScheme].background,
+                              borderColor: Colors[colorScheme].border,
+                            },
+                          ]}
+                          onPress={() => handlePlayoffMatchupPress(match)}
+                        >
+                          <View style={styles.matchupHeader}>
+                            <Text
+                              style={[styles.matchupDate, { color: Colors[colorScheme].mutedText }]}
+                            >
+                              {match.gameDate
+                                ? new Date(match.gameDate).toLocaleDateString()
+                                : 'TBD'}
                             </Text>
-                            <Text style={[
-                              styles.teamMatchupName, 
-                              { 
-                                color: match.winner?.id === match.team1?.id ? Colors[colorScheme].tint : Colors[colorScheme].text,
-                                fontWeight: match.winner?.id === match.team1?.id ? '800' : '600'
-                              }
-                            ]}>
-                              {match.team1?.name || 'TBD'}
-                            </Text>
+                            <View
+                              style={[
+                                styles.matchupStatus,
+                                {
+                                  backgroundColor:
+                                    match.status === 'completed'
+                                      ? '#10B981'
+                                      : match.status === 'in-progress'
+                                        ? '#F59E0B'
+                                        : '#6B7280',
+                                },
+                              ]}
+                            >
+                              <Text style={styles.matchupStatusText}>
+                                {match.status === 'completed'
+                                  ? 'FINAL'
+                                  : match.status === 'in-progress'
+                                    ? 'LIVE'
+                                    : 'UPCOMING'}
+                              </Text>
+                            </View>
                           </View>
-                          {match.status === 'completed' && (
-                            <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
-                              {match.score1}
-                            </Text>
-                          )}
-                        </View>
 
-                        <View style={[styles.vsLine, { backgroundColor: Colors[colorScheme].border }]} />
-
-                        {/* Team 2 */}
-                        <View style={[
-                          styles.teamMatchupRow,
-                          { backgroundColor: match.winner?.id === match.team2?.id ? Colors[colorScheme].tint + '20' : 'transparent' }
-                        ]}>
-                          <View style={styles.teamMatchupInfo}>
-                            <Text style={[styles.seedNumber, { color: Colors[colorScheme].mutedText }]}>
-                              {match.team2 ? standingsData.findIndex(t => t.id === match.team2?.id) + 1 : ''}
-                            </Text>
-                            <Text style={[
-                              styles.teamMatchupName, 
-                              { 
-                                color: match.winner?.id === match.team2?.id ? Colors[colorScheme].tint : Colors[colorScheme].text,
-                                fontWeight: match.winner?.id === match.team2?.id ? '800' : '600'
-                              }
-                            ]}>
-                              {match.team2?.name || 'TBD'}
-                            </Text>
+                          {/* Team 1 */}
+                          <View
+                            style={[
+                              styles.teamMatchupRow,
+                              {
+                                backgroundColor:
+                                  match.winner?.id === match.team1?.id
+                                    ? Colors[colorScheme].tint + '20'
+                                    : 'transparent',
+                              },
+                            ]}
+                          >
+                            <View style={styles.teamMatchupInfo}>
+                              <Text
+                                style={[
+                                  styles.seedNumber,
+                                  { color: Colors[colorScheme].mutedText },
+                                ]}
+                              >
+                                {standingsData.findIndex(t => t.id === match.team1?.id) + 1}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.teamMatchupName,
+                                  {
+                                    color:
+                                      match.winner?.id === match.team1?.id
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].text,
+                                    fontWeight:
+                                      match.winner?.id === match.team1?.id ? '800' : '600',
+                                  },
+                                ]}
+                              >
+                                {match.team1?.name || 'TBD'}
+                              </Text>
+                            </View>
+                            {match.status === 'completed' && (
+                              <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
+                                {match.score1}
+                              </Text>
+                            )}
                           </View>
-                          {match.status === 'completed' && (
-                            <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
-                              {match.score2}
-                            </Text>
-                          )}
-                        </View>
-                      </Pressable>
-                    ))}
+
+                          <View
+                            style={[styles.vsLine, { backgroundColor: Colors[colorScheme].border }]}
+                          />
+
+                          {/* Team 2 */}
+                          <View
+                            style={[
+                              styles.teamMatchupRow,
+                              {
+                                backgroundColor:
+                                  match.winner?.id === match.team2?.id
+                                    ? Colors[colorScheme].tint + '20'
+                                    : 'transparent',
+                              },
+                            ]}
+                          >
+                            <View style={styles.teamMatchupInfo}>
+                              <Text
+                                style={[
+                                  styles.seedNumber,
+                                  { color: Colors[colorScheme].mutedText },
+                                ]}
+                              >
+                                {match.team2
+                                  ? standingsData.findIndex(t => t.id === match.team2?.id) + 1
+                                  : ''}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.teamMatchupName,
+                                  {
+                                    color:
+                                      match.winner?.id === match.team2?.id
+                                        ? Colors[colorScheme].tint
+                                        : Colors[colorScheme].text,
+                                    fontWeight:
+                                      match.winner?.id === match.team2?.id ? '800' : '600',
+                                  },
+                                ]}
+                              >
+                                {match.team2?.name || 'TBD'}
+                              </Text>
+                            </View>
+                            {match.status === 'completed' && (
+                              <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
+                                {match.score2}
+                              </Text>
+                            )}
+                          </View>
+                        </Pressable>
+                      ))}
                   </View>
 
                   {/* Connector Lines */}
                   <View style={styles.bracketConnector}>
-                    <View style={[styles.connectorLine, { backgroundColor: Colors[colorScheme].border }]} />
+                    <View
+                      style={[
+                        styles.connectorLine,
+                        { backgroundColor: Colors[colorScheme].border },
+                      ]}
+                    />
                   </View>
 
                   {/* Round 2: Championship */}
                   <View style={styles.bracketRound}>
-                    <Text style={[styles.roundTitle, { color: Colors[colorScheme].text }]}>Championship</Text>
-                    
-                    {playoffBracket.filter(match => match.round === 2).map((match) => (
-                      <Pressable 
-                        key={match.id} 
-                        style={[styles.matchupCard, styles.championshipCard, { backgroundColor: Colors[colorScheme].background, borderColor: '#F59E0B' }]}
-                        onPress={() => handlePlayoffMatchupPress(match)}
-                      >
-                        <View style={styles.matchupHeader}>
-                          <Ionicons name="trophy" size={16} color="#F59E0B" />
-                          <Text style={[styles.matchupDate, { color: Colors[colorScheme].mutedText }]}>
-                            {match.gameDate ? new Date(match.gameDate).toLocaleDateString() : 'TBD'}
-                          </Text>
-                          <View style={[
-                            styles.matchupStatus,
-                            { backgroundColor: match.status === 'completed' ? '#10B981' : match.status === 'in-progress' ? '#F59E0B' : '#6B7280' }
-                          ]}>
-                            <Text style={styles.matchupStatusText}>
-                              {match.status === 'completed' ? 'FINAL' : match.status === 'in-progress' ? 'LIVE' : 'UPCOMING'}
-                            </Text>
-                          </View>
-                        </View>
+                    <Text style={[styles.roundTitle, { color: Colors[colorScheme].text }]}>
+                      Championship
+                    </Text>
 
-                        {/* Team 1 */}
-                        <View style={[
-                          styles.teamMatchupRow,
-                          { backgroundColor: match.winner?.id === match.team1?.id ? '#F59E0B20' : 'transparent' }
-                        ]}>
-                          <View style={styles.teamMatchupInfo}>
-                            <Text style={[styles.teamMatchupName, { color: Colors[colorScheme].text, fontWeight: '600' }]}>
-                              {match.team1?.name || 'Winner of Semi 1'}
+                    {playoffBracket
+                      .filter(match => match.round === 2)
+                      .map(match => (
+                        <Pressable
+                          key={match.id}
+                          style={[
+                            styles.matchupCard,
+                            styles.championshipCard,
+                            {
+                              backgroundColor: Colors[colorScheme].background,
+                              borderColor: '#F59E0B',
+                            },
+                          ]}
+                          onPress={() => handlePlayoffMatchupPress(match)}
+                        >
+                          <View style={styles.matchupHeader}>
+                            <Ionicons name="trophy" size={16} color="#F59E0B" />
+                            <Text
+                              style={[styles.matchupDate, { color: Colors[colorScheme].mutedText }]}
+                            >
+                              {match.gameDate
+                                ? new Date(match.gameDate).toLocaleDateString()
+                                : 'TBD'}
                             </Text>
+                            <View
+                              style={[
+                                styles.matchupStatus,
+                                {
+                                  backgroundColor:
+                                    match.status === 'completed'
+                                      ? '#10B981'
+                                      : match.status === 'in-progress'
+                                        ? '#F59E0B'
+                                        : '#6B7280',
+                                },
+                              ]}
+                            >
+                              <Text style={styles.matchupStatusText}>
+                                {match.status === 'completed'
+                                  ? 'FINAL'
+                                  : match.status === 'in-progress'
+                                    ? 'LIVE'
+                                    : 'UPCOMING'}
+                              </Text>
+                            </View>
                           </View>
-                          {match.status === 'completed' && (
-                            <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
-                              {match.score1}
-                            </Text>
-                          )}
-                        </View>
 
-                        <View style={[styles.vsLine, { backgroundColor: Colors[colorScheme].border }]} />
-
-                        {/* Team 2 */}
-                        <View style={[
-                          styles.teamMatchupRow,
-                          { backgroundColor: match.winner?.id === match.team2?.id ? '#F59E0B20' : 'transparent' }
-                        ]}>
-                          <View style={styles.teamMatchupInfo}>
-                            <Text style={[styles.teamMatchupName, { color: Colors[colorScheme].text, fontWeight: '600' }]}>
-                              {match.team2?.name || 'Winner of Semi 2'}
-                            </Text>
+                          {/* Team 1 */}
+                          <View
+                            style={[
+                              styles.teamMatchupRow,
+                              {
+                                backgroundColor:
+                                  match.winner?.id === match.team1?.id
+                                    ? '#F59E0B20'
+                                    : 'transparent',
+                              },
+                            ]}
+                          >
+                            <View style={styles.teamMatchupInfo}>
+                              <Text
+                                style={[
+                                  styles.teamMatchupName,
+                                  { color: Colors[colorScheme].text, fontWeight: '600' },
+                                ]}
+                              >
+                                {match.team1?.name || 'Winner of Semi 1'}
+                              </Text>
+                            </View>
+                            {match.status === 'completed' && (
+                              <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
+                                {match.score1}
+                              </Text>
+                            )}
                           </View>
-                          {match.status === 'completed' && (
-                            <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
-                              {match.score2}
-                            </Text>
-                          )}
-                        </View>
-                      </Pressable>
-                    ))}
+
+                          <View
+                            style={[styles.vsLine, { backgroundColor: Colors[colorScheme].border }]}
+                          />
+
+                          {/* Team 2 */}
+                          <View
+                            style={[
+                              styles.teamMatchupRow,
+                              {
+                                backgroundColor:
+                                  match.winner?.id === match.team2?.id
+                                    ? '#F59E0B20'
+                                    : 'transparent',
+                              },
+                            ]}
+                          >
+                            <View style={styles.teamMatchupInfo}>
+                              <Text
+                                style={[
+                                  styles.teamMatchupName,
+                                  { color: Colors[colorScheme].text, fontWeight: '600' },
+                                ]}
+                              >
+                                {match.team2?.name || 'Winner of Semi 2'}
+                              </Text>
+                            </View>
+                            {match.status === 'completed' && (
+                              <Text style={[styles.teamScore, { color: Colors[colorScheme].text }]}>
+                                {match.score2}
+                              </Text>
+                            )}
+                          </View>
+                        </Pressable>
+                      ))}
                   </View>
                 </View>
               </ScrollView>
 
               {/* Playoff Schedule */}
               <View style={styles.playoffSchedule}>
-                <Text style={[styles.scheduleTitle, { color: Colors[colorScheme].text }]}>Upcoming Games</Text>
-                {playoffBracket.filter(match => match.status === 'upcoming').map((match) => (
-                  <View key={match.id} style={[styles.scheduleItem, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
-                    <Text style={[styles.scheduleMatchup, { color: Colors[colorScheme].text }]}>
-                      {match.team1?.name || 'TBD'} vs {match.team2?.name || 'TBD'}
-                    </Text>
-                    <Text style={[styles.scheduleDate, { color: Colors[colorScheme].mutedText }]}>
-                      {match.gameDate ? new Date(match.gameDate).toLocaleDateString() : 'Date TBD'}
-                    </Text>
-                  </View>
-                ))}
+                <Text style={[styles.scheduleTitle, { color: Colors[colorScheme].text }]}>
+                  Upcoming Games
+                </Text>
+                {playoffBracket
+                  .filter(match => match.status === 'upcoming')
+                  .map(match => (
+                    <View
+                      key={match.id}
+                      style={[
+                        styles.scheduleItem,
+                        {
+                          backgroundColor: Colors[colorScheme].background,
+                          borderColor: Colors[colorScheme].border,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.scheduleMatchup, { color: Colors[colorScheme].text }]}>
+                        {match.team1?.name || 'TBD'} vs {match.team2?.name || 'TBD'}
+                      </Text>
+                      <Text style={[styles.scheduleDate, { color: Colors[colorScheme].mutedText }]}>
+                        {match.gameDate
+                          ? new Date(match.gameDate).toLocaleDateString()
+                          : 'Date TBD'}
+                      </Text>
+                    </View>
+                  ))}
               </View>
             </View>
           </View>
@@ -1696,16 +2166,20 @@ function ManageSeasonScreen() {
         currentTeamName={currentTeam?.name || 'My Team'}
         currentTeamId={currentTeam?.id || params.teamId || ''}
         userRole="coach"
-        initialData={editingGame ? {
-          id: editingGame.id,
-          opponent: editingGame.opponent || '',
-          date: editingGame.date,
-          time: editingGame.time,
-          type: editingGame.type === 'neutral' ? 'home' : editingGame.type, // Convert neutral to home for editing
-          banner_url: editingGame.banner_url,
-          status: editingGame.status,
-          location: editingGame.location,
-        } : undefined}
+        initialData={
+          editingGame
+            ? {
+                id: editingGame.id,
+                opponent: editingGame.opponent || '',
+                date: editingGame.date,
+                time: editingGame.time,
+                type: editingGame.type === 'neutral' ? 'home' : editingGame.type, // Convert neutral to home for editing
+                banner_url: editingGame.banner_url,
+                status: editingGame.status,
+                location: editingGame.location,
+              }
+            : undefined
+        }
       />
 
       {/* Bulk Schedule Modal */}
@@ -1721,9 +2195,9 @@ function ManageSeasonScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#F8FAFC' 
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
   },
   headerCard: {
     margin: 16,
@@ -1929,7 +2403,7 @@ const styles = StyleSheet.create({
     padding: 24,
     fontStyle: 'italic',
   },
-  
+
   // Standings Table Styles
   standingsHeader: {
     flexDirection: 'row',

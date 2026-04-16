@@ -13,8 +13,7 @@
 //   EAS_PROJECT_ID
 
 module.exports = ({ config }) => {
-  const EAS_PROJECT_ID =
-    process.env.EAS_PROJECT_ID || '64489ed7-a8c0-41de-91ec-5846ea79a27f';
+  const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || '64489ed7-a8c0-41de-91ec-5846ea79a27f';
 
   // Client IDs are NOT secrets — they're embedded in the app bundle.
   // Hardcoded fallbacks ensure the URL scheme is always registered even
@@ -28,7 +27,7 @@ module.exports = ({ config }) => {
     name: 'VarsityHub',
     slug: 'varsityhub',
     owner: 'varsity-hub',
-    version: '1.0.2',
+    version: '1.0.1',
     runtimeVersion: { policy: 'appVersion' },
     description:
       'The ultimate sports team management and social platform for athletes, coaches, and fans.',
@@ -75,7 +74,9 @@ module.exports = ({ config }) => {
               // Reversed Google iOS client ID for OAuth redirect
               // e.g. 514463516787-xxx.apps.googleusercontent.com → com.googleusercontent.apps.514463516787-xxx
               ...(GOOGLE_IOS_CLIENT_ID
-                ? [`com.googleusercontent.apps.${GOOGLE_IOS_CLIENT_ID.replace('.apps.googleusercontent.com', '')}`]
+                ? [
+                    `com.googleusercontent.apps.${GOOGLE_IOS_CLIENT_ID.replace('.apps.googleusercontent.com', '')}`,
+                  ]
                 : []),
             ],
           },
@@ -211,12 +212,9 @@ module.exports = ({ config }) => {
 
       // Sensitive values — loaded from environment variables
       EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
-      EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY:
-        process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
-      EXPO_PUBLIC_GOOGLE_MAPS_API_KEY:
-        process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-      EXPO_PUBLIC_ADMIN_EMAILS:
-        process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'emancero@varsityhub.app',
+      EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
+      EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+      EXPO_PUBLIC_ADMIN_EMAILS: process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'emancero@varsityhub.app',
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:
         process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
         '514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com',

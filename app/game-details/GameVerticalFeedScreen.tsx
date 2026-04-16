@@ -12,21 +12,21 @@ import { safeGoBack } from '@/utils/navigation';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Linking,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    Share,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
@@ -55,7 +55,12 @@ export type FeedPost = {
   comments_count: number;
   bookmarks_count: number;
   created_at: string | null;
-  author: { id: string; username?: string | null; display_name?: string | null; avatar_url: string | null } | null;
+  author: {
+    id: string;
+    username?: string | null;
+    display_name?: string | null;
+    avatar_url: string | null;
+  } | null;
   has_upvoted: boolean;
   has_bookmarked: boolean;
   is_following_author: boolean;
@@ -82,23 +87,33 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
   const mediaUrl = typeof item?.media_url === 'string' ? item.media_url : null;
   if (!mediaUrl) return null;
   const explicitType = typeof item?.media_type === 'string' ? item.media_type.toLowerCase() : null;
-  const mediaType: 'video' | 'image' = explicitType === 'video' || explicitType === 'image'
-    ? (explicitType as 'video' | 'image')
-    : (VIDEO_EXT.test(mediaUrl) ? 'video' : 'image');
+  const mediaType: 'video' | 'image' =
+    explicitType === 'video' || explicitType === 'image'
+      ? (explicitType as 'video' | 'image')
+      : VIDEO_EXT.test(mediaUrl)
+        ? 'video'
+        : 'image';
   return {
     id,
     media_url: mediaUrl,
     media_type: mediaType,
     caption: item?.caption ?? sanitizeTitle(item?.title) ?? null,
     upvotes_count: typeof item?.upvotes_count === 'number' ? item.upvotes_count : 0,
-    comments_count: typeof item?._count?.comments === 'number' ? item._count.comments : (typeof item?.comments_count === 'number' ? item.comments_count : 0),
+    comments_count:
+      typeof item?._count?.comments === 'number'
+        ? item._count.comments
+        : typeof item?.comments_count === 'number'
+          ? item.comments_count
+          : 0,
     bookmarks_count: typeof item?.bookmarks_count === 'number' ? item.bookmarks_count : 0,
     created_at: item?.created_at ?? null,
-    author: item?.author ? {
-      id: String(item.author.id ?? item.author.user_id ?? id),
-      username: item.author.username ?? item.author.display_name ?? null,
-      avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
-    } : null,
+    author: item?.author
+      ? {
+          id: String(item.author.id ?? item.author.user_id ?? id),
+          username: item.author.username ?? item.author.display_name ?? null,
+          avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
+        }
+      : null,
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),
@@ -123,7 +138,6 @@ type GameVerticalFeedScreenProps = {
   title?: string;
 };
 
-
 const fetchCommentsPage = async (postId: string, cursor?: string | null) => {
   const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
   return httpGet(`/posts/${encodeURIComponent(postId)}/comments${qs}`);
@@ -146,6 +160,8 @@ const FeedCard = memo(
     insets,
     colorScheme,
     meInfo,
+    isMuted,
+    onToggleMute,
   }: {
     post: FeedPost;
     isActive: boolean;
@@ -227,12 +243,14 @@ const FeedCard = memo(
     };
 
     // Create per-card player
-    const player = useVideoPlayer(post.media_url || null, (p) => {
+    const player = useVideoPlayer(post.media_url || null, p => {
       p.loop = true;
       p.volume = 1.0;
       p.muted = isMuted;
       if (isActive && post.media_type === 'video') {
-        try { p.play(); } catch (e) {
+        try {
+          p.play();
+        } catch (e) {
           // Video player may not be ready - non-critical
           if (__DEV__) console.warn('[FeedCard] Video play failed:', e);
         }
@@ -241,7 +259,9 @@ const FeedCard = memo(
 
     // Sync mute state when user toggles
     useEffect(() => {
-      try { player.muted = isMuted; } catch {}
+      try {
+        player.muted = isMuted;
+      } catch {}
     }, [isMuted, player]);
 
     useEffect(() => {
@@ -252,7 +272,8 @@ const FeedCard = memo(
     useEffect(() => {
       if (post.media_type !== 'video') return;
       try {
-        if (isActive) player.play(); else player.pause();
+        if (isActive) player.play();
+        else player.pause();
       } catch (e) {
         // Video player state change failed - non-critical
         if (__DEV__) console.warn('[FeedCard] Video play/pause failed:', e);
@@ -284,7 +305,8 @@ const FeedCard = memo(
         await MediaLibrary.saveToLibraryAsync(uri as any);
       } catch (error: any) {
         if (__DEV__) {
-          if (__DEV__) console.warn('[GameVerticalFeed] Failed to save collage:', error?.message || error);
+          if (__DEV__)
+            console.warn('[GameVerticalFeed] Failed to save collage:', error?.message || error);
         }
         // Non-critical - user can try again
       }
@@ -292,7 +314,12 @@ const FeedCard = memo(
 
     return (
       <View style={[styles.card, { height: windowHeight }]}>
-        <Pressable style={styles.mediaContainer} onPress={handleTap} onLongPress={onLongPressExport} delayLongPress={350}>
+        <Pressable
+          style={styles.mediaContainer}
+          onPress={handleTap}
+          onLongPress={onLongPressExport}
+          delayLongPress={350}
+        >
           {post?.collage ? (
             <View ref={collageRef as any} style={styles.media}>
               <CollageView collage={post.collage} style={{ width: '100%', height: '100%' }} />
@@ -306,36 +333,40 @@ const FeedCard = memo(
               allowsFullscreen={false}
             />
           ) : post.media_url ? (
-            <FastImage
-              source={{ uri: post.media_url }}
-              style={styles.media}
-              resizeMode="contain"
-            />
+            <FastImage source={{ uri: post.media_url }} style={styles.media} resizeMode="contain" />
           ) : (
             <View style={[styles.media, styles.textOnlyCard]}>
               <LinearGradient
-                colors={["#1e293b", "#0f172a"]}
+                colors={['#1e293b', '#0f172a']}
                 style={StyleSheet.absoluteFillObject as any}
               />
               <View style={styles.textOnlyContent}>
                 <View style={styles.textOnlyHeader}>
                   {post.author?.avatar_url ? (
-                    <FastImage source={{ uri: post.author.avatar_url }} style={styles.textOnlyAvatar} />
+                    <FastImage
+                      source={{ uri: post.author.avatar_url }}
+                      style={styles.textOnlyAvatar}
+                    />
                   ) : (
                     <View style={[styles.textOnlyAvatar, styles.avatarFallback]}>
-                      <Text style={styles.avatarFallbackText}>{authorLabel.charAt(0).toUpperCase()}</Text>
+                      <Text style={styles.avatarFallbackText}>
+                        {authorLabel.charAt(0).toUpperCase()}
+                      </Text>
                     </View>
                   )}
                   <View style={styles.textOnlyAuthorInfo}>
                     <Text style={styles.textOnlyAuthorName}>{authorLabel}</Text>
                     <Text style={styles.textOnlyTimestamp}>
-                      {post.created_at ? new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                      {post.created_at
+                        ? new Date(post.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : ''}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.textOnlyCaption}>
-                  {post.caption || 'No content'}
-                </Text>
+                <Text style={styles.textOnlyCaption}>{post.caption || 'No content'}</Text>
               </View>
             </View>
           )}
@@ -353,7 +384,11 @@ const FeedCard = memo(
               {post.author?.avatar_url ? (
                 <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
               ) : (
-                <View style={[styles.railAvatarImg, styles.avatarFallback]}><Text style={styles.avatarFallbackText}>{authorLabel.charAt(0).toUpperCase()}</Text></View>
+                <View style={[styles.railAvatarImg, styles.avatarFallback]}>
+                  <Text style={styles.avatarFallbackText}>
+                    {authorLabel.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
               )}
               {!post.is_following_author ? (
                 <View style={styles.railFollowPlus}>
@@ -364,7 +399,11 @@ const FeedCard = memo(
           ) : null}
 
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
-            <Ionicons name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={36} color="#fff" />
+            <Ionicons
+              name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'}
+              size={36}
+              color="#fff"
+            />
             <Text style={styles.railLabel}>{post.upvotes_count}</Text>
           </Pressable>
 
@@ -379,7 +418,11 @@ const FeedCard = memo(
           </Pressable>
 
           <Pressable onPress={onToggleBookmark} style={styles.railBtn}>
-            <Ionicons name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'} size={34} color="#fff" />
+            <Ionicons
+              name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'}
+              size={34}
+              color="#fff"
+            />
             <Text style={styles.railLabel}>{post.bookmarks_count}</Text>
           </Pressable>
 
@@ -408,7 +451,9 @@ const FeedCard = memo(
                 style={styles.optionButton}
               >
                 <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>Report Post</Text>
+                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
+                  Report Post
+                </Text>
               </Pressable>
               {isAuthor && (
                 <>
@@ -420,7 +465,9 @@ const FeedCard = memo(
                     style={styles.optionButton}
                   >
                     <Ionicons name="pencil-outline" size={20} color={Colors[colorScheme].text} />
-                    <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>Edit Post</Text>
+                    <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>
+                      Edit Post
+                    </Text>
                   </Pressable>
                   <Pressable
                     onPress={() => {
@@ -443,9 +490,14 @@ const FeedCard = memo(
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Delete Post?</Text>
-              <Text style={styles.modalText}>Are you sure you want to delete this post? This action cannot be undone.</Text>
+              <Text style={styles.modalText}>
+                Are you sure you want to delete this post? This action cannot be undone.
+              </Text>
               <View style={styles.modalButtons}>
-                <Pressable onPress={() => setShowDeleteConfirm(false)} style={styles.modalCancelBtn}>
+                <Pressable
+                  onPress={() => setShowDeleteConfirm(false)}
+                  style={styles.modalCancelBtn}
+                >
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </Pressable>
                 <Pressable onPress={confirmDelete} style={styles.modalDeleteBtn}>
@@ -458,7 +510,11 @@ const FeedCard = memo(
 
         {/* Edit Modal */}
         <Modal visible={showEditModal} transparent animationType="fade">
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay} keyboardVerticalOffset={0}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.modalOverlay}
+            keyboardVerticalOffset={0}
+          >
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Edit Post</Text>
               <TextInput
@@ -486,14 +542,29 @@ const FeedCard = memo(
 );
 FeedCard.displayName = 'FeedCard';
 
-function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, excludeMediaUrls = [], title }: GameVerticalFeedScreenProps = {}) {
+function GameVerticalFeedScreen({
+  onClose,
+  gameId: externalGameId,
+  showHeader = true,
+  countryCode,
+  initialPosts,
+  startIndex = 0,
+  excludeMediaUrls = [],
+  title,
+}: GameVerticalFeedScreenProps = {}) {
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const gameId = externalGameId ? String(externalGameId) : (gameIdParam ? String(gameIdParam) : null);
-  const usingInitial = useMemo(() => Array.isArray(initialPosts) && initialPosts.length > 0, [initialPosts]);
-  const normalizedCountry = useMemo(() => (countryCode ? String(countryCode).toUpperCase() : undefined), [countryCode]);
+  const gameId = externalGameId ? String(externalGameId) : gameIdParam ? String(gameIdParam) : null;
+  const usingInitial = useMemo(
+    () => Array.isArray(initialPosts) && initialPosts.length > 0,
+    [initialPosts]
+  );
+  const normalizedCountry = useMemo(
+    () => (countryCode ? String(countryCode).toUpperCase() : undefined),
+    [countryCode]
+  );
   const normalizeUrl = useCallback((u: any) => {
     if (!u || typeof u !== 'string') return null;
     try {
@@ -513,7 +584,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
   }, []);
   const excludeSet = useMemo(() => {
     const set = new Set<string>();
-    (excludeMediaUrls || []).forEach((u) => {
+    (excludeMediaUrls || []).forEach(u => {
       const n = normalizeUrl(u);
       if (n) set.add(n);
     });
@@ -542,7 +613,11 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
   const [commentTarget, setCommentTarget] = useState<FeedPost | null>(null);
-  const [meInfo, setMeInfo] = useState<{ id?: string; display_name?: string | null; username?: string | null } | null>(null);
+  const [meInfo, setMeInfo] = useState<{
+    id?: string;
+    display_name?: string | null;
+    username?: string | null;
+  } | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const headerTitle = title || game?.title || 'Game';
 
@@ -555,15 +630,16 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
   const hasMoreRef = useRef(true);
   const _resetRunCount = useRef(0);
   const setIfDifferent = useCallback((setter: any, next: any) => {
-      setter((prev: any) => {
-        try {
-          if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-        } catch (error) {
-          if (__DEV__) console.warn('[GameVerticalFeedScreen] State comparison failed, using new value:', error);
-          // If comparison fails, fall back to setting the new value
-        }
-        return next;
-      });
+    setter((prev: any) => {
+      try {
+        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+      } catch (error) {
+        if (__DEV__)
+          console.warn('[GameVerticalFeedScreen] State comparison failed, using new value:', error);
+        // If comparison fails, fall back to setting the new value
+      }
+      return next;
+    });
   }, []);
   const _initialSeedSig = useRef<string | null>(null);
 
@@ -593,22 +669,23 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
   // If acting as a generic viewer with provided posts, seed posts and index.
   useEffect(() => {
     if (!usingInitial) return;
-    const items = Array.isArray(initialPosts)
-      ? initialPosts.filter((p) => !!p && !!p.id)
-      : [];
+    const items = Array.isArray(initialPosts) ? initialPosts.filter(p => !!p && !!p.id) : [];
     // filter excluded
-    const filtered = items.filter((p) => {
+    const filtered = items.filter(p => {
       const n = normalizeUrl(p.media_url);
       return n ? !excludeSet.has(n) : true;
     });
     // Create a small signature to avoid reseeding the same content repeatedly
-    const sig = filtered.map((p) => p.id).join('|') + `::${startIndex || 0}`;
+    const sig = filtered.map(p => p.id).join('|') + `::${startIndex || 0}`;
     if (_initialSeedSig.current === sig) {
       return;
     }
     _initialSeedSig.current = sig;
     setIfDifferent(setPosts, filtered);
-    setIfDifferent(setActiveIndex, Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1)));
+    setIfDifferent(
+      setActiveIndex,
+      Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1))
+    );
     cursorRef.current = null;
     hasMoreRef.current = false;
     setIfDifferent(setLoading, false);
@@ -627,14 +704,16 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
       isScreenFocusedRef.current = true;
       return () => {
         isScreenFocusedRef.current = false;
-        Object.values(videoRefs.current).forEach((player) => {
-          try { player?.pause?.(); } catch (e) {
+        Object.values(videoRefs.current).forEach(player => {
+          try {
+            player?.pause?.();
+          } catch (e) {
             // Non-critical: cleanup pause can fail silently
             if (__DEV__) console.warn('[GameVerticalFeed] Cleanup pause failed:', e);
           }
         });
       };
-    }, []),
+    }, [])
   );
 
   useEffect(() => {
@@ -674,7 +753,9 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
           setRefreshing(true);
         }
         try {
-          const response = await Highlights.fetch(normalizedCountry ? { country: normalizedCountry, limit: 40 } : { limit: 40 });
+          const response = await Highlights.fetch(
+            normalizedCountry ? { country: normalizedCountry, limit: 40 } : { limit: 40 }
+          );
           const pools: any[] = [];
           if (Array.isArray(response?.nationalTop)) pools.push(...response.nationalTop);
           if (Array.isArray(response?.ranked)) pools.push(...response.ranked);
@@ -717,11 +798,11 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
           sort: 'trending',
         });
         const items = Array.isArray(page?.items) ? page.items : [];
-        const filtered = items.filter((p) => {
+        const filtered = items.filter(p => {
           const n = normalizeUrl((p as any)?.media_url);
           return n ? !excludeSet.has(n) : true;
         });
-        setPosts((prev) => (reset ? filtered : [...prev, ...filtered]));
+        setPosts(prev => (reset ? filtered : [...prev, ...filtered]));
         const nextCursor = page?.nextCursor ?? null;
         cursorRef.current = nextCursor;
         const more = Boolean(page?.nextCursor);
@@ -734,7 +815,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
         setLoadingMore(false);
       }
     },
-    [gameId, normalizedCountry, usingInitial, excludeSet, normalizeUrl],
+    [gameId, normalizedCountry, usingInitial, excludeSet, normalizeUrl]
   );
 
   // Load feed on mount and when gameId changes — avoid depending on loadFeed
@@ -762,7 +843,8 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
       });
     } catch (error: any) {
       if (__DEV__) {
-        if (__DEV__) console.warn('[GameVerticalFeed] Failed to load posts:', error?.message || error);
+        if (__DEV__)
+          console.warn('[GameVerticalFeed] Failed to load posts:', error?.message || error);
       }
       // Continue with existing posts
     }
@@ -792,7 +874,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
     if (viewableItems?.length) {
       const first = viewableItems[0];
       const index = first?.index ?? 0;
-      setActiveIndex((prev) => {
+      setActiveIndex(prev => {
         if (prev !== index) {
           // Close comment sheet and reset all comment state when swiping to a different post
           setCommentsVisible(false);
@@ -812,7 +894,11 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
     Object.entries(videoRefs.current).forEach(([postId, player]) => {
       if (!player) return;
       try {
-        if (postId === activeId && posts[activeIndex]?.media_type === 'video' && isScreenFocusedRef.current) {
+        if (
+          postId === activeId &&
+          posts[activeIndex]?.media_type === 'video' &&
+          isScreenFocusedRef.current
+        ) {
           player.play?.();
         } else {
           player.pause?.();
@@ -825,63 +911,72 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
   }, [activeIndex, posts]);
 
   const updatePost = useCallback((postId: string, updater: (post: FeedPost) => FeedPost) => {
-    setPosts((prev) => prev.map((post) => (post.id === postId ? updater(post) : post)));
+    setPosts(prev => prev.map(post => (post.id === postId ? updater(post) : post)));
   }, []);
 
-  const optimisticUpdateAllFromAuthor = useCallback((authorId: string, updater: (post: FeedPost) => FeedPost) => {
-    setPosts((prev) => prev.map((post) => (post.author?.id === authorId ? updater(post) : post)));
-  }, []);
+  const optimisticUpdateAllFromAuthor = useCallback(
+    (authorId: string, updater: (post: FeedPost) => FeedPost) => {
+      setPosts(prev => prev.map(post => (post.author?.id === authorId ? updater(post) : post)));
+    },
+    []
+  );
 
   const handleToggleUpvote = useCallback(
     async (post: FeedPost) => {
       const optimisticNext = !post.has_upvoted;
-      updatePost(post.id, (p) => ({
+      updatePost(post.id, p => ({
         ...p,
         has_upvoted: optimisticNext,
         upvotes_count: Math.max(0, p.upvotes_count + (optimisticNext ? 1 : -1)),
       }));
       try {
         const res: any = await Post.toggleUpvote(post.id);
-        updatePost(post.id, (p) => ({
+        updatePost(post.id, p => ({
           ...p,
           has_upvoted: Boolean(res?.has_upvoted ?? res?.upvoted),
-          upvotes_count: typeof res?.upvotes_count === 'number' ? res.upvotes_count : typeof res?.count === 'number' ? res.count : p.upvotes_count,
+          upvotes_count:
+            typeof res?.upvotes_count === 'number'
+              ? res.upvotes_count
+              : typeof res?.count === 'number'
+                ? res.count
+                : p.upvotes_count,
         }));
       } catch {
-        updatePost(post.id, (p) => ({
+        updatePost(post.id, p => ({
           ...p,
           has_upvoted: post.has_upvoted,
           upvotes_count: p.upvotes_count + (post.has_upvoted ? 1 : -1),
         }));
       }
     },
-    [updatePost],
+    [updatePost]
   );
 
   const handleToggleBookmark = useCallback(
     async (post: FeedPost) => {
       const optimisticNext = !post.has_bookmarked;
-      updatePost(post.id, (p) => ({
+      updatePost(post.id, p => ({
         ...p,
         has_bookmarked: optimisticNext,
         bookmarks_count: Math.max(0, p.bookmarks_count + (optimisticNext ? 1 : -1)),
       }));
       try {
         const res: any = await Post.toggleBookmark(post.id);
-        updatePost(post.id, (p) => ({
+        updatePost(post.id, p => ({
           ...p,
           has_bookmarked: Boolean(res?.has_bookmarked ?? res?.bookmarked),
-          bookmarks_count: typeof res?.bookmarks_count === 'number' ? res.bookmarks_count : p.bookmarks_count,
+          bookmarks_count:
+            typeof res?.bookmarks_count === 'number' ? res.bookmarks_count : p.bookmarks_count,
         }));
       } catch {
-        updatePost(post.id, (p) => ({
+        updatePost(post.id, p => ({
           ...p,
           has_bookmarked: post.has_bookmarked,
           bookmarks_count: p.bookmarks_count + (post.has_bookmarked ? 1 : -1),
         }));
       }
     },
-    [updatePost],
+    [updatePost]
   );
 
   const handleToggleFollow = useCallback(
@@ -889,26 +984,32 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
       const authorId = post.author?.id;
       if (!authorId) return;
       const optimisticNext = !post.is_following_author;
-      optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: optimisticNext }));
+      optimisticUpdateAllFromAuthor(authorId, p => ({ ...p, is_following_author: optimisticNext }));
       try {
         if (optimisticNext) {
           const res: any = await User.follow(authorId);
           const isFollowing = Boolean(res?.is_following_author ?? true);
-          optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: isFollowing }));
+          optimisticUpdateAllFromAuthor(authorId, p => ({
+            ...p,
+            is_following_author: isFollowing,
+          }));
         } else {
           await User.unfollow(authorId);
-          optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: false }));
+          optimisticUpdateAllFromAuthor(authorId, p => ({ ...p, is_following_author: false }));
         }
       } catch {
-        optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: post.is_following_author }));
+        optimisticUpdateAllFromAuthor(authorId, p => ({
+          ...p,
+          is_following_author: post.is_following_author,
+        }));
       }
     },
-    [optimisticUpdateAllFromAuthor],
+    [optimisticUpdateAllFromAuthor]
   );
 
   const handleShare = useCallback((post: FeedPost) => {
-   const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
-   Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
+    const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
+    Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
   }, []);
 
   const handleMoreOptions = useCallback((post: FeedPost) => {
@@ -941,7 +1042,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
       },
       { text: 'Cancel', style: 'cancel' },
     ]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes submitReport to avoid re-creating action sheet handler
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes submitReport to avoid re-creating action sheet handler
   }, []);
 
   const submitReport = useCallback(async (post: FeedPost, reason: string) => {
@@ -957,18 +1058,15 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
     }
   }, []);
 
-  const handleDeletePost = useCallback(
-    (post: FeedPost) => {
-      // Remove the post from the current posts array
-      setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
-    },
-    []
-  );
+  const handleDeletePost = useCallback((post: FeedPost) => {
+    // Remove the post from the current posts array
+    setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
+  }, []);
 
   const handleEditPost = useCallback(
     (post: FeedPost, newCaption: string) => {
       // Update the post in the current posts array
-      updatePost(post.id, (p) => ({
+      updatePost(post.id, p => ({
         ...p,
         caption: newCaption,
       }));
@@ -992,7 +1090,8 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
             setMeInfo({ id: me?.id ? String(me.id) : undefined, username: me?.username ?? null });
           } catch (error: any) {
             if (__DEV__) {
-              if (__DEV__) console.warn('[GameVerticalFeed] Failed to load user:', error?.message || error);
+              if (__DEV__)
+                console.warn('[GameVerticalFeed] Failed to load user:', error?.message || error);
             }
             // Continue without user info
           }
@@ -1007,7 +1106,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
         setCommentsLoading(false);
       }
     },
-    [meInfo],
+    [meInfo]
   );
 
   const loadMoreComments = useCallback(async () => {
@@ -1016,7 +1115,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
     try {
       const res: any = await fetchCommentsPage(commentTarget.id, commentsCursor);
       const items = Array.isArray(res?.items) ? res.items : [];
-      setComments((prev) => [...prev, ...items]);
+      setComments(prev => [...prev, ...items]);
       setCommentsCursor(res?.nextCursor ?? null);
     } catch {
       setCommentsCursor(null);
@@ -1032,22 +1131,23 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
       content: commentInput,
       optimistic: true,
       created_at: new Date().toISOString(),
-  author: { username: (meInfo?.username || 'you') as any },
+      author: { username: (meInfo?.username || 'you') as any },
     };
-    setComments((prev) => [optimistic, ...prev]);
+    setComments(prev => [optimistic, ...prev]);
     setCommentInput('');
     setCommentSending(true);
     try {
       const res: any = await Post.addComment(commentTarget.id, optimistic.content);
-      const withAuthor = res && typeof res === 'object'
-        ? { ...res, author: { username: res?.author?.username ?? (meInfo?.username || 'you') } }
-        : res;
-      setComments((prev) => [withAuthor, ...prev.filter((c) => !c.optimistic)]);
-      updatePost(commentTarget.id, (p) => ({ ...p, comments_count: p.comments_count + 1 }));
+      const withAuthor =
+        res && typeof res === 'object'
+          ? { ...res, author: { username: res?.author?.username ?? (meInfo?.username || 'you') } }
+          : res;
+      setComments(prev => [withAuthor, ...prev.filter(c => !c.optimistic)]);
+      updatePost(commentTarget.id, p => ({ ...p, comments_count: p.comments_count + 1 }));
       // Notify profile interactions that a new comment was made
       events.emit('comment:created', { post_id: commentTarget.id });
     } catch {
-      setComments((prev) => prev.filter((c) => !c.optimistic));
+      setComments(prev => prev.filter(c => !c.optimistic));
       setCommentsError('Unable to send comment right now.');
     } finally {
       setCommentSending(false);
@@ -1060,10 +1160,10 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
         void handleToggleUpvote(post);
       }
     },
-    [handleToggleUpvote],
+    [handleToggleUpvote]
   );
 
-  const handleToggleMute = useCallback(() => setIsMuted((m) => !m), []);
+  const handleToggleMute = useCallback(() => setIsMuted(m => !m), []);
 
   const renderItem = useCallback(
     ({ item, index }: { item: FeedPost; index: number }) => (
@@ -1088,7 +1188,25 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
         onToggleMute={handleToggleMute}
       />
     ),
-    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleMoreOptions, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme, meInfo, isMuted, handleToggleMute],
+    [
+      activeIndex,
+      handleDoubleTap,
+      handleDeletePost,
+      handleEditPost,
+      handleMoreOptions,
+      handleShare,
+      handleToggleBookmark,
+      handleToggleFollow,
+      handleToggleUpvote,
+      insets.bottom,
+      insets.top,
+      openComments,
+      registerVideo,
+      colorScheme,
+      meInfo,
+      isMuted,
+      handleToggleMute,
+    ]
   );
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);
@@ -1101,23 +1219,36 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
       try {
         const me: any = await User.me();
         if (!cancelled && me) {
-          setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
+          setMeInfo({
+            id: me?.id ? String(me.id) : undefined,
+            display_name: me?.display_name ?? null,
+            username: me?.username ?? null,
+          });
         }
       } catch (error) {
         // User info load failed - non-critical for feed viewing
         if (__DEV__) console.warn('[GameVerticalFeed] Failed to load user info:', error);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Note: We allow missing gameId - the component will load general highlights instead
   // The loadFeed function handles this case gracefully (lines 612-642)
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none">
+    <View
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      pointerEvents="box-none"
+    >
       <LinearGradient
-        colors={colorScheme === 'dark' ? ['#0b1120', '#020617'] : [Colors[colorScheme].surface, Colors[colorScheme].background]}
+        colors={
+          colorScheme === 'dark'
+            ? ['#0b1120', '#020617']
+            : [Colors[colorScheme].surface, Colors[colorScheme].background]
+        }
         style={styles.backdrop}
         pointerEvents="none"
       />
@@ -1132,18 +1263,40 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
         showsVerticalScrollIndicator={false}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.3}
-        initialScrollIndex={usingInitial ? Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1)) : undefined}
-        getItemLayout={(_, index) => ({ length: windowHeight, offset: windowHeight * index, index })}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}
+        initialScrollIndex={
+          usingInitial
+            ? Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1))
+            : undefined
+        }
+        getItemLayout={(_, index) => ({
+          length: windowHeight,
+          offset: windowHeight * index,
+          index,
+        })}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors[colorScheme].tint}
+          />
+        }
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
         ListEmptyComponent={
           loading ? (
-            <View style={styles.loadingState}><ActivityIndicator color={Colors[colorScheme].tint} /></View>
+            <View style={styles.loadingState}>
+              <ActivityIndicator color={Colors[colorScheme].tint} />
+            </View>
           ) : (
             <View style={styles.emptyState}>
-              <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>No posts yet</Text>
-              <Text style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}>Be the first to create a post for this game.</Text>
+              <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>
+                No posts yet
+              </Text>
+              <Text
+                style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}
+              >
+                Be the first to create a post for this game.
+              </Text>
             </View>
           )
         }
@@ -1156,7 +1309,9 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
           </Pressable>
           <View style={styles.titleTextWrap}>
             <Text style={styles.titleText}>{headerTitle}</Text>
-            {game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
+            {game?.date ? (
+              <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text>
+            ) : null}
           </View>
         </View>
       ) : usingInitial ? (
@@ -1181,9 +1336,17 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={0}
         >
-          <View style={[styles.commentSheet, { maxHeight: windowHeight * 0.75, backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none"> 
+          <View
+            style={[
+              styles.commentSheet,
+              { maxHeight: windowHeight * 0.75, backgroundColor: Colors[colorScheme].background },
+            ]}
+            pointerEvents="box-none"
+          >
             <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>
-              <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
+              <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>
+                Comments
+              </Text>
               <Pressable onPress={() => setCommentsVisible(false)} style={styles.commentCloseBtn}>
                 <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
               </Pressable>
@@ -1191,25 +1354,53 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
             {commentsLoading && comments.length === 0 ? (
               <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 24 }} />
             ) : null}
-            {commentsError ? <Text style={[styles.commentError, { color: Colors[colorScheme].text }]}>{commentsError}</Text> : null}
+            {commentsError ? (
+              <Text style={[styles.commentError, { color: Colors[colorScheme].text }]}>
+                {commentsError}
+              </Text>
+            ) : null}
             <FlatList
               data={comments}
-              keyExtractor={(item) => String(item.id)}
+              keyExtractor={item => String(item.id)}
               renderItem={({ item }) => (
-                <View style={[styles.commentRow, { borderBottomColor: Colors[colorScheme].border }]}>
+                <View
+                  style={[styles.commentRow, { borderBottomColor: Colors[colorScheme].border }]}
+                >
                   <Text style={[styles.commentAuthor, { color: Colors[colorScheme].text }]}>
-                    {item.author?.username ? `@${item.author.username}` : (item.optimistic ? (meInfo?.username ? `@${meInfo.username}` : 'You') : 'Anonymous')}
+                    {item.author?.username
+                      ? `@${item.author.username}`
+                      : item.optimistic
+                        ? meInfo?.username
+                          ? `@${meInfo.username}`
+                          : 'You'
+                        : 'Anonymous'}
                   </Text>
-                  <Text style={[styles.commentBody, { color: Colors[colorScheme].text }]}>{item.content}</Text>
+                  <Text style={[styles.commentBody, { color: Colors[colorScheme].text }]}>
+                    {item.content}
+                  </Text>
                 </View>
               )}
               onEndReached={loadMoreComments}
               onEndReachedThreshold={0.4}
-              ListFooterComponent={commentsCursor ? <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 12 }} /> : null}
+              ListFooterComponent={
+                commentsCursor ? (
+                  <ActivityIndicator
+                    color={Colors[colorScheme].tint}
+                    style={{ marginVertical: 12 }}
+                  />
+                ) : null
+              }
             />
             <View style={styles.commentComposer}>
               <TextInput
-                style={[styles.commentInput, { color: Colors[colorScheme].text, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                style={[
+                  styles.commentInput,
+                  {
+                    color: Colors[colorScheme].text,
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
                 placeholder="Add a comment..."
                 placeholderTextColor={Colors[colorScheme].tabIconDefault}
                 value={commentInput}
@@ -1217,11 +1408,16 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
                 editable={!commentSending}
               />
               <Pressable
-                style={[styles.commentSendBtn, commentSending || !commentInput.trim() ? styles.commentSendDisabled : null]}
+                style={[
+                  styles.commentSendBtn,
+                  commentSending || !commentInput.trim() ? styles.commentSendDisabled : null,
+                ]}
                 onPress={handleSendComment}
                 disabled={commentSending || !commentInput.trim()}
               >
-                <Text style={[styles.commentSendText, { color: Colors[colorScheme].text }]}>Send</Text>
+                <Text style={[styles.commentSendText, { color: Colors[colorScheme].text }]}>
+                  Send
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -1235,14 +1431,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   card: { width: windowWidth, backgroundColor: 'transparent' },
-  mediaContainer: { 
+  mediaContainer: {
     flex: 1,
     backgroundColor: '#000', // Black background for images to show properly with contain mode
     justifyContent: 'center',
     alignItems: 'center',
   },
-  media: { 
-    width: '100%', 
+  media: {
+    width: '100%',
     height: '100%',
     backgroundColor: 'transparent',
   },
@@ -1470,7 +1666,7 @@ const styles = StyleSheet.create({
   },
   commentSendDisabled: { backgroundColor: '#475569' },
   commentSendText: { fontWeight: '700' },
-  
+
   // Modal styles
   modalOverlay: {
     flex: 1,

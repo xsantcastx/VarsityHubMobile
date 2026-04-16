@@ -16,11 +16,11 @@ const intEnv = (key: string, defaultValue: number): number => {
   const n = parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : defaultValue;
 };
-const WARN_THRESHOLD = intEnv('MOD_WARN_THRESHOLD', 3);       // reports → auto-warning
-const STRIKE_THRESHOLD = intEnv('MOD_STRIKE_THRESHOLD', 5);   // reports → strike
+const WARN_THRESHOLD = intEnv('MOD_WARN_THRESHOLD', 3); // reports → auto-warning
+const STRIKE_THRESHOLD = intEnv('MOD_STRIKE_THRESHOLD', 5); // reports → strike
 const SUSPEND_THRESHOLD = intEnv('MOD_SUSPEND_THRESHOLD', 8); // reports → 7-day suspension
-const BAN_THRESHOLD = intEnv('MOD_BAN_THRESHOLD', 12);        // reports → permanent ban
-const SPIKE_THRESHOLD = intEnv('MOD_SPIKE_THRESHOLD', 10);    // pending reports → spike alert
+const BAN_THRESHOLD = intEnv('MOD_BAN_THRESHOLD', 12); // reports → permanent ban
+const SPIKE_THRESHOLD = intEnv('MOD_SPIKE_THRESHOLD', 10); // pending reports → spike alert
 
 /**
  * Issue a warning to a user
@@ -49,7 +49,10 @@ export async function issueWarning(params: {
 
   // Log admin activity if issued by admin
   if (issuedBy) {
-    const admin = await prisma.user.findUnique({ where: { id: issuedBy }, select: { email: true } });
+    const admin = await prisma.user.findUnique({
+      where: { id: issuedBy },
+      select: { email: true },
+    });
     await logAdminActivity(
       issuedBy,
       admin?.email || 'system',
@@ -57,7 +60,7 @@ export async function issueWarning(params: {
       'user',
       userId,
       `Issued ${severity} to user: ${reason}`,
-      { warning_id: warning.id, report_id: reportId },
+      { warning_id: warning.id, report_id: reportId }
     );
   }
 
@@ -67,10 +70,14 @@ export async function issueWarning(params: {
 /**
  * Get warning/strike counts for a user
  */
-export async function getWarningCounts(userId: string): Promise<{ totalWarnings: number; totalStrikes: number }> {
+export async function getWarningCounts(
+  userId: string
+): Promise<{ totalWarnings: number; totalStrikes: number }> {
   const [totalWarnings, totalStrikes] = await Promise.all([
     prisma.userWarning.count({ where: { user_id: userId, severity: 'warning' } }),
-    prisma.userWarning.count({ where: { user_id: userId, severity: { in: ['strike', 'final_warning'] } } }),
+    prisma.userWarning.count({
+      where: { user_id: userId, severity: { in: ['strike', 'final_warning'] } },
+    }),
   ]);
   return { totalWarnings, totalStrikes };
 }
@@ -87,11 +94,11 @@ export async function autoEscalate(targetUserId: string): Promise<{
   // dead code (Math.max ignored it) AND would over-match on any UUID substring. Use only
   // the specific structured patterns: subject "[user:ID]" or message JSON keys with the ID.
   // Schema does not yet have a target_user_id FK column — that's a separate migration.
-  const ACTIVE_STATUSES = { in: ['pending', 'reviewed', 'resolved'] } as const;
+  const ACTIVE_STATUSES = ['pending', 'reviewed', 'resolved'] as const;
   const directReportCount = await prisma.abuseReport.count({
     where: {
       subject: { contains: `[user:${targetUserId}]` },
-      status: ACTIVE_STATUSES,
+      status: { in: [...ACTIVE_STATUSES] },
     },
   });
   const contentReportCount = await prisma.abuseReport.count({
@@ -103,7 +110,7 @@ export async function autoEscalate(targetUserId: string): Promise<{
         // v1.0.2 pass 9: include report-target patterns from /reports endpoint targetContext JSON
         { message: { contains: `"target_user_id":"${targetUserId}"` } },
       ],
-      status: ACTIVE_STATUSES,
+      status: { in: [...ACTIVE_STATUSES] },
     },
   });
 
@@ -144,7 +151,10 @@ export async function autoEscalate(targetUserId: string): Promise<{
       reason: `Auto-suspension: ${totalReports} reports received`,
       severity: 'strike',
     });
-    return { action: 'suspension', message: `User auto-suspended for 7 days after ${totalReports} reports` };
+    return {
+      action: 'suspension',
+      message: `User auto-suspended for 7 days after ${totalReports} reports`,
+    };
   }
 
   if (totalReports >= STRIKE_THRESHOLD) {
@@ -232,7 +242,10 @@ export async function suspendUser(params: {
 
   const [admin, suspendedUser] = await Promise.all([
     prisma.user.findUnique({ where: { id: adminId }, select: { email: true } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { email: true, display_name: true, username: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, display_name: true, username: true },
+    }),
   ]);
   await logAdminActivity(
     adminId,
@@ -241,7 +254,7 @@ export async function suspendUser(params: {
     'user',
     userId,
     `Suspended user for ${days} days: ${reason}`,
-    { banned_until: suspendUntil.toISOString(), days },
+    { banned_until: suspendUntil.toISOString(), days }
   );
 
   // Suspension notification emails removed — non-mandatory moderation emails
@@ -259,10 +272,7 @@ export async function getUserModerationHistory(userId: string) {
     }),
     prisma.abuseReport.count({
       where: {
-        OR: [
-          { subject: { contains: `[user:${userId}]` } },
-          { message: { contains: userId } },
-        ],
+        OR: [{ subject: { contains: `[user:${userId}]` } }, { message: { contains: userId } }],
       },
     }),
     prisma.user.findUnique({

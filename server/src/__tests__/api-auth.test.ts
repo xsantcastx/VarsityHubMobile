@@ -241,6 +241,28 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
+  describe('PATCH /auth/me/preferences', () => {
+    it('should ignore client attempts to set paid plan fields', async () => {
+      await request(app)
+        .patch('/auth/me/preferences')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          plan: 'legend',
+          notifications_enabled: false,
+        })
+        .expect(200);
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { preferences: true },
+      });
+      const prefs = (user?.preferences as any) || {};
+
+      expect(prefs.plan).not.toBe('legend');
+      expect(prefs.notifications_enabled).toBe(false);
+    });
+  });
+
   describe('POST /auth/verify/confirm', () => {
     it('should verify email with correct code', async () => {
       if (!verificationCode) {

@@ -71,7 +71,7 @@ function ManageTeamsSimpleScreen() {
   }, [user]);
 
   useEffect(() => {
-    void loadTeams().finally(() => setLoading(false)).catch((e) => { if (__DEV__) console.warn('[ManageTeams] load error:', e); });
+    void loadTeams().catch((e) => { if (__DEV__) console.warn('[ManageTeams] load error:', e); }).finally(() => setLoading(false)); // VAL-4: .catch() before .finally()
   }, [loadTeams]);
 
   // Auto-refresh when screen regains focus (e.g. after creating a team)

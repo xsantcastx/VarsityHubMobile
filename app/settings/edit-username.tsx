@@ -55,7 +55,7 @@ export default function EditUsernameScreen() {
       // Refresh user data in both useUser hook and AuthProvider
       await Promise.all([
         refreshUser(),
-        checkAuth().catch(() => {}), // Refresh AuthProvider state
+        checkAuth().catch((e) => { if (__DEV__) console.warn('[edit-username] Auth refresh failed:', e); }), // VAL-2
       ]);
       Alert.alert('Success', 'Username updated successfully');
       safeGoBack(router);

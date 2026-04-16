@@ -35,6 +35,7 @@ enum AdPaymentStatus {
   pending_approval
   hold
   paid
+  refund_pending
   refunded
 }
 
@@ -1186,7 +1187,6 @@ model UserWarning {
   @@index([user_id, created_at])
   @@index([severity])
 }
-
 
 
 

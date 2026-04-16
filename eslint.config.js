@@ -8,11 +8,23 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin');
 module.exports = [
   // Ignore non-RN folders to keep lint signal focused
   {
-    ignores: ['dist/*', 'server/**', 'node_modules/**', '.expo/**', 'android/**', 'ios/**'],
+    ignores: [
+      'dist/*',
+      'server/dist/**',
+      'server/node_modules/**',
+      'node_modules/**',
+      '.expo/**',
+      'android/**',
+      'ios/**',
+    ],
   },
   // RN rules for RN source folders (excluding test files)
   {
-    files: ['app/**/*.{js,jsx,ts,tsx}', 'components/**/*.{js,jsx,ts,tsx}', 'hooks/**/*.{js,jsx,ts,tsx}'],
+    files: [
+      'app/**/*.{js,jsx,ts,tsx}',
+      'components/**/*.{js,jsx,ts,tsx}',
+      'hooks/**/*.{js,jsx,ts,tsx}',
+    ],
     ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
     languageOptions: {
       parser: tsParser,
@@ -23,8 +35,8 @@ module.exports = [
         project: './tsconfig.json',
       },
     },
-    plugins: { 
-      'react-native': reactNative, 
+    plugins: {
+      'react-native': reactNative,
       'react-hooks': reactHooks,
       '@typescript-eslint': tsPlugin,
     },
@@ -34,12 +46,42 @@ module.exports = [
       'react-hooks/exhaustive-deps': 'warn',
       // Use TS version instead of base ESLint rule
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+      '@typescript-eslint/no-explicit-any': 'warn',
       // Intentional fire-and-forget patterns (haptics, analytics) - warn not error
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/await-thenable': 'warn',
       // Allow console.warn and console.error for debugging
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    files: ['server/src/**/*.{ts,tsx}', 'server/scripts/**/*.{ts,tsx}'],
+    ignores: ['server/src/**/*.test.{ts,tsx}', 'server/src/**/__tests__/**'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        project: './server/tsconfig.json',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/await-thenable': 'warn',
+      'no-console': ['warn', { allow: ['log', 'warn', 'error'] }],
     },
   },
   // Test files are ignored from linting to avoid parser issues

@@ -254,7 +254,7 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   const rawRefreshReg = generateRefreshToken();
   const regTokenHash = hashRefreshToken(rawRefreshReg);
   const regExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-  await prisma.refreshToken.create({ data: { token_hash: regTokenHash, user_id: user.id, expires_at: regExpiry } });
+  await prisma.refreshToken.create({ data: { token_hash: regTokenHash, user_id: user.id, expires_at: regExpiry, device_info: req.headers['user-agent'] || null } });
 
   const payload: any = { access_token, refresh_token: rawRefreshReg, user: sanitizeUser(user) };
   if (shouldExposeDevCodes) payload.dev_verification_code = code;
@@ -283,12 +283,13 @@ authRouter.post('/login', asyncHandler(async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const access_token = signJwt({ id: user.id });
 
-  // Issue refresh token
+  // AUTH-4: Issue refresh token with device fingerprint binding
   const rawRefresh = generateRefreshToken();
   const tokenHash = hashRefreshToken(rawRefresh);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  const deviceInfo = req.headers['user-agent'] || null;
   await prisma.refreshToken.create({
-    data: { token_hash: tokenHash, user_id: user.id, expires_at: expiresAt },
+    data: { token_hash: tokenHash, user_id: user.id, expires_at: expiresAt, device_info: deviceInfo },
   });
 
   const sanitized = sanitizeUser(user);
@@ -345,6 +346,16 @@ authRouter.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
       return res.status(401).json({ error: 'Token invalidated by password change' });
     }
 
+    // AUTH-4: Validate device fingerprint (warn-only for now to avoid breaking existing sessions)
+    const currentDevice = req.headers['user-agent'] || null;
+    if (stored.device_info && currentDevice && stored.device_info !== currentDevice) {
+      console.warn('[auth] Refresh token used from different device', {
+        userId: user.id,
+        storedDevice: stored.device_info.substring(0, 50),
+        currentDevice: currentDevice.substring(0, 50),
+      });
+    }
+
     // Rotate: delete old token, issue new pair
     // Wrapped in try-catch to handle race condition where two concurrent
     // refresh requests find the same token but only one can delete it.
@@ -356,7 +367,7 @@ authRouter.post('/refresh', authLimiter, asyncHandler(async (req, res) => {
       await prisma.$transaction([
         prisma.refreshToken.delete({ where: { id: stored.id } }),
         prisma.refreshToken.create({
-          data: { token_hash: newHash, user_id: user.id, expires_at: newExpiry },
+          data: { token_hash: newHash, user_id: user.id, expires_at: newExpiry, device_info: currentDevice },
         }),
       ]);
     } catch (txErr: any) {
@@ -522,7 +533,7 @@ authRouter.post('/google', oauthLimiter, asyncHandler(async (req, res) => {
     const rawRefresh = generateRefreshToken();
     const rtHash = hashRefreshToken(rawRefresh);
     const rtExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-    await prisma.refreshToken.create({ data: { token_hash: rtHash, user_id: sanitized.id, expires_at: rtExpiry } });
+    await prisma.refreshToken.create({ data: { token_hash: rtHash, user_id: sanitized.id, expires_at: rtExpiry, device_info: req.headers['user-agent'] || null } });
 
     // Include is_admin so AuthProvider knows admin status immediately
     const isOAuthAdmin = isAdminEmail(sanitized.email);
@@ -701,7 +712,7 @@ authRouter.post('/apple', oauthLimiter, asyncHandler(async (req, res) => {
     const appleRawRefresh = generateRefreshToken();
     const appleRtHash = hashRefreshToken(appleRawRefresh);
     const appleRtExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-    await prisma.refreshToken.create({ data: { token_hash: appleRtHash, user_id: sanitized.id, expires_at: appleRtExpiry } });
+    await prisma.refreshToken.create({ data: { token_hash: appleRtHash, user_id: sanitized.id, expires_at: appleRtExpiry, device_info: req.headers['user-agent'] || null } });
 
     return res.json({
       access_token,
@@ -1242,6 +1253,7 @@ function mergePreferences(base: any, incoming: any) {
 const PROTECTED_PREF_KEYS = new Set([
   'approval_status',
   'is_admin',
+  'plan',
   'paid_by_owner',
   'payment_approved',
 ]);
@@ -1653,8 +1665,10 @@ authRouter.post('/verify/request', requireAuth as any, asyncHandler(async (req: 
   const code = String(crypto.randomInt(100000, 999999));
   if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code generated: ${code} for user ${user.id} (${user.email})`);
   const exp = new Date(Date.now() + 30 * 60 * 1000);
-  await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
-  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code stored in DB (expires ${exp.toISOString()})`);
+  // AUTH-5: Hash verification code before storage (same SHA-256 as refresh tokens)
+  const codeHash = hashRefreshToken(code);
+  await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: codeHash, email_verification_expires: exp } });
+  if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Code hash stored in DB (expires ${exp.toISOString()})`);
   try {
     if (process.env.NODE_ENV === 'development') console.log(`[verify-code] [verify/request] Calling sendVerificationEmail → to: ${user.email}`);
     const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
@@ -1689,7 +1703,8 @@ authRouter.post('/verify/confirm', verificationConfirmLimiter, requireAuth as an
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
   if (!user.email_verification_code || !user.email_verification_expires) return res.status(400).json({ error: 'No verification in progress' });
   if (new Date() > user.email_verification_expires) return res.status(400).json({ error: 'Code expired' });
-  if (String(code) !== String(user.email_verification_code)) return res.status(400).json({ error: 'Invalid code' });
+  // AUTH-5: Compare hash of submitted code against stored hash
+  if (hashRefreshToken(String(code)) !== String(user.email_verification_code)) return res.status(400).json({ error: 'Invalid code' });
   const updated = await prisma.user.update({ where: { id: user.id }, data: { email_verified: true, email_verification_code: null, email_verification_expires: null } });
   return res.json({ ok: true, user: sanitizeUser(updated) });
 }));

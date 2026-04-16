@@ -1,6 +1,6 @@
 # Release Checklist
 
-**Use this checklist before every production release.** This gates releases and prevents "tribal knowledge" from causing issues.
+**Use this checklist before every production release.** This gates releases and prevents "tribal knowledge" from causing issues. For security-relevant changes (auth, payments, approvals, ownership), also complete [docs/AUDIT_REVIEW_GATE.md](../AUDIT_REVIEW_GATE.md) Section B.
 
 ## Pre-Release: Code Quality
 - [ ] `./scripts/check-repo-health.sh` passes (no logs/artifacts committed)

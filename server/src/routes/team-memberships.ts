@@ -212,6 +212,19 @@ teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any
       });
     }
 
+    // ORG-5: Prevent removal of the sole team owner
+    if (membership.role === 'owner') {
+      const ownerCount = await prisma.teamMembership.count({
+        where: { team_id: membership.team_id, role: 'owner' },
+      });
+      if (ownerCount <= 1) {
+        return res.status(400).json({
+          error: 'SOLE_OWNER',
+          message: 'Cannot remove the only owner. Transfer ownership to another member first.',
+        });
+      }
+    }
+
     await prisma.teamMembership.delete({ where: { id } });
 
     // Notify the removed member (only if removed by someone else, not self-leave)

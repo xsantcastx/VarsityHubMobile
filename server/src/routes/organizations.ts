@@ -20,6 +20,7 @@ import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
+import { logAdminActivity } from '../lib/adminActivityLogger.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -983,6 +984,16 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
       return res.status(400).json({ error: 'You already have a pending request for this organization' });
     }
 
+    // ORG-9: Enforce 7-day cooldown after a rejected join request
+    if (existingRequest && existingRequest.status === 'denied' && existingRequest.reviewed_at) {
+      const cooldownMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+      const timeSinceRejection = Date.now() - new Date(existingRequest.reviewed_at).getTime();
+      if (timeSinceRejection < cooldownMs) {
+        const daysLeft = Math.ceil((cooldownMs - timeSinceRejection) / (24 * 60 * 60 * 1000));
+        return res.status(429).json({ error: `Your previous request was denied. You can re-apply in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.` });
+      }
+    }
+
     // Check if requester is a coach before the write so we can set PENDING atomically
     const requester = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true } });
     const isCoachRole = (requester?.preferences as any)?.role === 'coach';
@@ -1184,29 +1195,34 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     return res.status(403).json({ error: 'Organization must be approved by VarsityHub before accepting members.' });
   }
 
-  // Update join request, create membership, and set coach approval — approved coaches get free access
-  await prisma.$transaction([
-    prisma.organizationJoinRequest.update({
+  // ORG-8 + ORG-4: Serializable isolation with status re-check inside transaction
+  await prisma.$transaction(async (tx) => {
+    // Re-check status inside transaction to prevent race condition (ORG-4)
+    const fresh = await tx.organizationJoinRequest.findUnique({ where: { id: requestId } });
+    if (!fresh || fresh.status !== 'pending') {
+      throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
+    }
+    await tx.organizationJoinRequest.update({
       where: { id: requestId },
       data: {
         status: 'approved',
         reviewed_at: new Date(),
         reviewed_by: req.user!.id
       }
-    }),
-    prisma.organizationMembership.create({
+    });
+    await tx.organizationMembership.create({
       data: {
         organization_id: joinRequest.organization_id,
         user_id: joinRequest.user_id,
         role: 'coach',
         status: 'active'
       }
-    }),
-    prisma.user.update({
+    });
+    await tx.user.update({
       where: { id: joinRequest.user_id },
       data: { approval_status: 'APPROVED', paid_by_owner: true }
-    }),
-  ]);
+    });
+  }, { isolationLevel: 'Serializable' });
   
   // Persist org info into coach's preferences (non-blocking, non-fatal)
   prisma.user.findUnique({ where: { id: joinRequest.user_id }, select: { preferences: true } })
@@ -1252,7 +1268,10 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
   }
 
   return res.json({ message: 'Join request approved' });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
+      return res.status(400).json({ error: 'This request has already been reviewed' });
+    }
     console.error('[organizations] POST /join-requests/:requestId/approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -1369,6 +1388,11 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireV
       return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
     }
 
+    // ORG-10: Prevent self-transfer (no-op that could cause confusion)
+    if (new_owner_id === req.user.id) {
+      return res.status(400).json({ error: 'Cannot transfer ownership to yourself' });
+    }
+
     // Verify new owner is a member of the organization
     const newOwnerMembership = await prisma.organizationMembership.findFirst({
       where: { organization_id: orgId, user_id: new_owner_id },
@@ -1377,7 +1401,7 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireV
       return res.status(400).json({ error: 'New owner must be a member of the organization' });
     }
 
-    // Transfer: demote current owner to manager, promote new owner
+    // Transfer: demote current owner to manager, promote new owner (ORG-10: atomic)
     await prisma.$transaction([
       prisma.organizationMembership.update({
         where: { id: currentOwnership.id },
@@ -1454,6 +1478,15 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
     const org = (result as any).org;
 
+    // ORG-11: Log league approval via centralized logger
+    const approverEmail = adminUserId
+      ? ((await prisma.user.findUnique({ where: { id: adminUserId }, select: { email: true } }))?.email || adminUserId)
+      : 'token-auth';
+    await logAdminActivity(
+      adminUserId || 'token-auth', approverEmail, 'APPROVE_LEAGUE', 'organization', orgId,
+      `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
+    );
+
     // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
     if (token) {
       return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${escapeHtml(String(org.name || ''))}" is now live on VarsityHub.</p></body></html>`);
@@ -1502,10 +1535,20 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
     }
 
-    const result = await rejectOrganization(orgId, null, prisma, { reason });
+    const adminUserId = req.user?.id || null;
+    const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
     if (result.error) return res.status((result as any).status || 500).json({ error: result.error });
 
     const org = (result as any).org;
+
+    // ORG-11: Log league rejection via centralized logger
+    const rejecterEmail = adminUserId
+      ? ((await prisma.user.findUnique({ where: { id: adminUserId }, select: { email: true } }))?.email || adminUserId)
+      : 'token-auth';
+    await logAdminActivity(
+      adminUserId || 'token-auth', rejecterEmail, 'REJECT_LEAGUE', 'organization', orgId,
+      `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
+    );
 
     if (token) {
       return res.send(`<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${escapeHtml(String(org.name || ''))}" has been declined.</p></body></html>`);

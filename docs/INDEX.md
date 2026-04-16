@@ -2,7 +2,16 @@
 
 This is the single entry point for VarsityHub docs. Use the sections below to find setup, build, deploy, troubleshooting, status, and release references.
 
+## Audit
+
+- [Audit Standard](./AUDIT_METHODOLOGY.md)
+- [Audit Execution Guide](./AUDIT_EXECUTION_GUIDE.md)
+- [Audit Review Gate](./AUDIT_REVIEW_GATE.md)
+- [Security Architecture Audit (Historical)](./SECURITY_ARCHITECTURE_AUDIT_2026-03.md)
+- [Comprehensive Security Architecture Audit (Historical)](./COMPREHENSIVE_SECURITY_ARCHITECTURE_AUDIT_2026.md)
+
 ## Core Guides
+
 - [Setup](./01-SETUP.md)
 - [Project Structure](./02-PROJECT-STRUCTURE.md)
 - [Environment](./03-ENVIRONMENT.md)
@@ -11,6 +20,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Troubleshooting](./11-TROUBLESHOOTING.md)
 
 ## Setup
+
 - [Localhost Dev Setup](./setup/LOCALHOST_DEV_SETUP.md)
 - [Quick Dev Start](./setup/QUICK_DEV_START.md)
 - [Quick Start (Dev)](./setup/QUICK_START_DEV.md)
@@ -18,6 +28,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Xcode Setup](./setup/XCODE_SETUP.md)
 
 ## Build
+
 - [Build Requirements](./build/BUILD_REQUIREMENTS.md)
 - [Build Start](./build/BUILD_START.md)
 - [Build System](./build/BUILD_SYSTEM.md)
@@ -26,6 +37,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Build Fix Summary (Jan 27)](./build/BUILD_FIX_SUMMARY_JAN27.md)
 
 ## Deploy
+
 - [Xcode Cloud Setup](./09-XCODE-CLOUD.md)
 - [Android Submission Guide](./deploy/ANDROID_SUBMISSION_GUIDE.md)
 - [Google Play Deployment](./deploy/GOOGLE_PLAY_DEPLOYMENT.md)
@@ -37,6 +49,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Security Locked Configuration](./deploy/SECURITY_LOCKED.md)
 
 ## Troubleshooting
+
 - [**Google OAuth Fix (deleted_client)**](./GOOGLE_OAUTH_FIX_NOW.md)
 - [Apple Team ID Fix](./troubleshooting/APPLE_TEAM_ID_FIX_INSTRUCTIONS.md)
 - [Clear EAS Credentials](./troubleshooting/CLEAR_EAS_CREDENTIALS.md)
@@ -56,6 +69,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Test Coach Now](./troubleshooting/TEST_COACH_NOW.md)
 
 ## Status
+
 - [Status Index](./status/INDEX.md)
 - [Coach Approval System](./status/COACH_APPROVAL_SYSTEM.md)
 - [API Key Update Complete](./status/API_KEY_UPDATE_COMPLETE.md)
@@ -71,6 +85,8 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Overnight Artifacts Summary](./status/OVERNIGHT_ARTIFACTS_SUMMARY.md)
 
 ## Release
+
+- [Audit Review Gate](./AUDIT_REVIEW_GATE.md)
 - [Release Checklist](./release/CHECKLIST.md)
 - [Production Readiness](./release/PRODUCTION_READINESS.md)
 - [Production Readiness Audit](./release/PRODUCTION_READINESS_AUDIT.md)
@@ -81,9 +97,11 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [P0 Foundation Verification (2026-03-16)](./release/P0_FOUNDATION_VERIFICATION_2026-03-16.md)
 
 ## Testing
+
 - [P0 Payment Confidence Suite](./testing/P0_PAYMENT_CONFIDENCE_SUITE.md)
 - [P0 Load and Concurrency Validation](./testing/P0_LOAD_AND_CONCURRENCY_VALIDATION.md)
 
 ## Runbooks
+
 - [P0 Break-Glass: Payments + Webhooks](./runbooks/P0_BREAK_GLASS_PAYMENTS_AND_WEBHOOKS.md)
 - [P0 Database Backup + Restore Drill](./runbooks/P0_DATABASE_BACKUP_AND_RESTORE_DRILL.md)

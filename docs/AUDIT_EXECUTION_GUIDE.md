@@ -1,184 +1,208 @@
-# System Architecture Audit - Execution Guide
+# VarsityHub Audit Execution Guide
 
-## 🚀 Quick Start
+This guide explains how to run an audit against [AUDIT_METHODOLOGY.md](./AUDIT_METHODOLOGY.md), how to document findings, and how to verify fixes without turning routine audits into documentation-heavy theater.
 
-### Run the Audit
+## When To Run Which Audit
 
-```bash
-# Install dependencies if needed
-npm install
+Run a **full-system audit** when:
 
-# Run the comprehensive audit
-npx tsx scripts/system-architecture-audit.ts
+- preparing a major release
+- changing auth, payments, org approvals, ownership, or onboarding flows
+- merging a broad refactor that crosses app, server, and persistence boundaries
+- closing a significant security report and verifying adjacent flows
+
+Run a **targeted audit** when:
+
+- adding or changing a single risky route, screen, middleware, or webhook
+- fixing a focused finding and checking for regression nearby
+- reviewing a PR that modifies a protected invariant
+
+## Audit Workflow
+
+### 1. Map The Flow
+
+For the feature under review, identify:
+
+- UI entrypoints or external triggers
+- route handlers and middleware
+- persistence writes and reads
+- async callbacks, retries, and jobs
+- third-party boundaries
+
+Output required:
+
+- one end-to-end flow description from trigger to persisted outcome
+- one list of trust boundaries crossed
+- one statement of the source of truth for each critical state
+
+### 2. Check Controls
+
+Review:
+
+- auth, role, plan, and ownership enforcement
+- request validation and protected field filtering
+- frontend/backend/schema drift
+- transactions, idempotency, and replay safety
+- logging, audit logs, and failure visibility
+- deep-link or navigation safety where routes are involved
+
+### 3. Reproduce The Gap
+
+For each finding:
+
+- state the expected behavior
+- state the actual behavior
+- record how to reproduce or prove it
+- identify the violated rule from the audit standard
+
+For high/critical findings also capture:
+
+- blast radius
+- exploitability
+- whether the issue crosses a trust boundary or source-of-truth rule
+
+### 4. Verify The Fix
+
+Verification should include the smallest set that proves the issue is fixed:
+
+- automated tests
+- targeted manual reproduction
+- typecheck/lint where relevant
+- logs, audit records, or monitoring for production-facing changes
+
+Do not close a finding on code inspection alone if the issue is user-visible, payment-related, or security-sensitive.
+
+## Review Heuristics By Area
+
+### Auth And Session
+
+Check:
+
+- protected routes use the right middleware
+- refresh/verification/reset flows do not trust client-only state
+- role and onboarding gates are server-side
+- invalid token or code paths are logged without leaking secrets
+
+### Payments And Billing
+
+Check:
+
+- plan state changes only after trusted server confirmation
+- webhook handling is signature-verified and replay-safe
+- payment success routes verify backend state, not just query params
+- retry or promo failures do not silently mark work complete
+
+### Organizations, Teams, And Approvals
+
+Check:
+
+- every protected org/team mutation enforces ownership or role on the server
+- approval or rejection cannot target another tenant's records
+- joins, approvals, and transfers are race-safe
+- owner removal and transfer flows preserve a valid owner
+
+### Navigation And Deep Links
+
+Check:
+
+- routes exist and resolve in Expo Router
+- missing params fail safely
+- fallback navigation does not skip security gates or create stack loops
+
+### Reliability And User Recovery
+
+Check:
+
+- async screens show loading, error, empty, and recovery states
+- duplicate submit is blocked
+- user-facing catches log context and surface a clear recovery path
+
+## Finding Templates
+
+### Short Form
+
+Use for low/medium findings.
+
+```md
+## <title>
+
+- Severity: LOW | MEDIUM
+- Area: <feature/system>
+- Rule: <audit standard rule violated>
+- Proof: <repro step, code path, or log>
+- Expected: <expected behavior>
+- Actual: <actual behavior>
+- Fix Direction: <what needs to change>
+- Verification: <test, manual repro, or grep anchor>
 ```
 
-### Review Results
+### Full Form
 
-The audit generates:
-1. **Console Output**: Summary of findings by severity
-2. **JSON Report**: `docs/SYSTEM_ARCHITECTURE_AUDIT_REPORT.json` - Detailed findings
+Use for high/critical findings.
 
----
+```md
+## <title>
 
-## 📊 What the Audit Checks
-
-### 1. Security Gaps
-- ✅ Missing authentication middleware on protected routes
-- ✅ SQL injection risks (raw queries)
-- ✅ Missing input validation (Zod schemas)
-- ✅ Missing authorization checks (ownership, roles)
-- ✅ Missing rate limiting on auth endpoints
-
-### 2. Validation Mismatches
-- ✅ Frontend vs backend validation inconsistencies
-- ✅ Missing email validation
-- ✅ Missing input sanitization (`.trim()`)
-- ✅ Missing length limits on text fields
-
-### 3. Architectural Inconsistencies
-- ✅ Inconsistent error handling patterns
-- ✅ Missing database transactions for multi-step operations
-- ✅ Inconsistent middleware usage
-- ✅ Missing structured logging
-
-### 4. Permissions & Authorization
-- ✅ Incomplete role checks
-- ✅ Missing ownership verification
-- ✅ Subscription tier limits not enforced
-
----
-
-## 🔍 Manual Review Checklist
-
-After running the automated audit, manually review:
-
-### Critical Security Checks
-- [ ] All update/delete endpoints verify ownership
-- [ ] All authentication endpoints have rate limiting
-- [ ] No raw SQL queries without parameterization
-- [ ] All email fields use proper validation
-
-### Validation Checks
-- [ ] Frontend validation matches backend schemas
-- [ ] All string fields use `.trim()`
-- [ ] All text fields have max length limits
-
-### Architecture Checks
-- [ ] Multi-step DB operations use transactions
-- [ ] Error responses are standardized
-- [ ] Middleware patterns are consistent
-
----
-
-## 📝 Interpreting Results
-
-### Severity Levels
-
-- **🔴 CRITICAL**: Immediate security risk - fix immediately
-- **🟠 HIGH**: Security concern - fix soon
-- **🟡 MEDIUM**: Best practice violation - plan to fix
-- **🔵 LOW**: Code quality improvement - nice to have
-- **ℹ️ INFO**: Documentation or style issue
-
-### Example Finding
-
-```json
-{
-  "severity": "HIGH",
-  "category": "Security - Missing Authentication",
-  "file": "server/src/routes/example.ts",
-  "issue": "Route POST /example may be missing authentication middleware",
-  "recommendation": "Add requireAuth or requireVerified middleware"
-}
+- Severity: HIGH | CRITICAL
+- Exploitability: <who can trigger it and how easily>
+- Blast Radius: <users/data/financial impact>
+- Area: <feature/system>
+- Violated Rule: <audit standard rule violated>
+- Trust Boundary / Source Of Truth: <what boundary or source was broken>
+- Affected Files: <key paths only>
+- Proof: <repro, payload, or code path>
+- Expected: <expected behavior>
+- Actual: <actual behavior>
+- Fix Strategy: <implementation direction>
+- Verification: <before/after repro, tests, logs>
+- Release Risk: <what happens if shipped unfixed>
 ```
 
----
+## Evidence Expectations
 
-## 🛠️ Fixing Findings
+Use the lightest acceptable evidence for the severity:
 
-### Finding: Missing Authentication
-**Fix**: Add middleware to route
-```typescript
-// Before
-router.post('/example', async (req, res) => { ... });
+| Severity | Minimum Evidence                                                      |
+| -------- | --------------------------------------------------------------------- |
+| LOW      | Code path plus verification anchor                                    |
+| MEDIUM   | Repro or concrete code path plus one verification method              |
+| HIGH     | Repro or exploit path, affected files, before/after verification      |
+| CRITICAL | Repro or exploit path, blast radius, before/after proof, release risk |
 
-// After
-router.post('/example', requireAuth as any, async (req, res) => { ... });
-```
+Preferred verification anchors:
 
-### Finding: Missing Input Validation
-**Fix**: Add Zod schema
-```typescript
-const schema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1).max(100),
-});
+- automated tests
+- a concrete enforcement path in server/app code
+- a grep-able symbol or pattern when no test exists yet
 
-router.post('/example', async (req, res) => {
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  // ... use parsed.data
-});
-```
+## Reporting Format
 
-### Finding: Missing Ownership Check
-**Fix**: Verify ownership before update/delete
-```typescript
-const item = await prisma.item.findUnique({ where: { id } });
-if (!item || item.owner_id !== req.user.id) {
-  return res.status(403).json({ error: 'Forbidden' });
-}
-```
+For mixed audiences, publish findings in this order:
 
----
+1. executive summary
+2. findings grouped by severity
+3. open questions or assumptions
+4. fix status and verification
 
-## 🔄 Continuous Auditing
+Keep the executive summary short:
 
-### When to Run
-- Before major releases
-- After adding new routes
-- After security updates
-- Monthly for ongoing projects
+- what was audited
+- how many findings by severity
+- what blocks ship
+- what was already fixed on current main
 
-### Integration
-Add to CI/CD pipeline:
-```yaml
-- name: Run Security Audit
-  run: npx tsx scripts/system-architecture-audit.ts
-```
+## Closing An Audit
 
----
+An audit is ready to close when:
 
-## 📚 Related Documentation
+- each finding maps to a rule in the audit standard
+- each accepted fix includes a verification step
+- false positives are called out explicitly
+- any invariant changes are reflected in `docs/AUDIT_METHODOLOGY.md`
+- any checklist-impacting changes are reflected in `docs/AUDIT_REVIEW_GATE.md`
 
-- `docs/SYSTEM_ARCHITECTURE_AUDIT.md` - Detailed audit methodology
-- `BACKEND_BUSINESS_RULES.md` - Business rule enforcement
-- `.docs/guides/MOBILE_SECURITY_HARDENING.md` - Security checklist
+## Related Documents
 
----
-
-## ⚠️ Important Notes
-
-- Automated audits may produce false positives
-- Manual review is required for all findings
-- Focus on CRITICAL and HIGH severity first
-- Some findings may be intentional (document why)
-
----
-
-## 🆘 Troubleshooting
-
-### Script fails to run
-- Check Node.js version (requires 18+)
-- Install dependencies: `npm install`
-- Check file permissions
-
-### Too many findings
-- Start with CRITICAL and HIGH severity
-- Review false positives and update script
-- Focus on security-related findings first
-
-### Missing dependencies
-```bash
-npm install glob tsx
-```
+- [Audit Standard](./AUDIT_METHODOLOGY.md)
+- [Audit Review Gate](./AUDIT_REVIEW_GATE.md)
+- `docs/SYSTEM_ARCHITECTURE_AUDIT_REPORT.json` for generated or archived raw findings

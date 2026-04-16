@@ -7,6 +7,7 @@ This repository contains the Expo mobile app and the Node/Express API.
 ## 🚀 Quick Start
 
 ### First Time Setup
+
 ```bash
 # Install dependencies (generates ~2 GB of artifacts)
 npm install
@@ -19,6 +20,7 @@ cd server && npm install && cd ..
 ```
 
 ### Start Development
+
 ```bash
 # One command to run mobile + server
 npm run dev
@@ -31,6 +33,9 @@ See **[docs/INDEX.md](./docs/INDEX.md)** for the full documentation index.
 ## 📚 Key Documentation
 
 - **[docs/INDEX.md](./docs/INDEX.md)** - Documentation entry point
+- **[docs/AUDIT_METHODOLOGY.md](./docs/AUDIT_METHODOLOGY.md)** - Canonical audit standard and invariants
+- **[docs/AUDIT_EXECUTION_GUIDE.md](./docs/AUDIT_EXECUTION_GUIDE.md)** - Audit workflow and finding templates
+- **[docs/AUDIT_REVIEW_GATE.md](./docs/AUDIT_REVIEW_GATE.md)** - PR review and release readiness checklist for protected changes
 - **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Development environment setup
 - **[docs/04-DEVELOPMENT.md](./docs/04-DEVELOPMENT.md)** - Development workflow and standards
 - **[docs/07-PRODUCTION.md](./docs/07-PRODUCTION.md)** - Production launch guide
@@ -42,12 +47,14 @@ See **[docs/INDEX.md](./docs/INDEX.md)** for the full documentation index.
 ## 🔍 Repository Health
 
 This repository is kept lean by excluding generated artifacts (~2 GB):
+
 - `node_modules/` - npm dependencies
-- `ios/Pods/` - CocoaPods dependencies  
+- `ios/Pods/` - CocoaPods dependencies
 - Build artifacts (`ios/build`, `android/build`)
 - User uploads (`server/uploads/*`)
 
 **Verify repository health**:
+
 ```bash
 ./scripts/check-repo-health.sh
 ```
@@ -77,6 +84,7 @@ DATABASE_URL="postgresql://..." node scripts/check-db.js
 **Foundation Grade: A-** (see [SECURITY.md](./SECURITY.md))
 
 Recent security enhancements:
+
 - ✅ Refresh token system (1h access tokens + 30d refresh)
 - ✅ Comprehensive audit logging
 - ✅ JWT secret validation on startup
@@ -119,6 +127,7 @@ cd server && npm test -- --testPathPattern="coach-approval"  # Integration tests
 - `EXPO_PUBLIC_FORCE_SAMPLE_FEED`: When set to `true`, the Feed shows bundled sample events (UNC/Duke, Warriors/Lakers, Patriots/Jets) regardless of backend results. Great for demos and regression tests. Configure in `.env` or your CI/CD env.
 
 Example:
+
 ```bash
 EXPO_PUBLIC_FORCE_SAMPLE_FEED=true npx expo start
 ```

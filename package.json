@@ -23,6 +23,7 @@
     "postinstall": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/patches/patch-router-sitemap.js && node ./tools/ensure-is-arrayish.js && node ./tools/patches/patch-logbox-button.js && node ./scripts/patch-lottie-ios.js",
     "fix:deps": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js",
     "lint": "expo lint",
+    "format:check": "npx prettier --check \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
     "lint:strict": "expo lint --fix && npm run typecheck",
     "doctor": "npx expo-doctor",
     "validate:pre-launch": "bash scripts/validate-pre-launch.sh",
@@ -108,7 +109,6 @@
     "expo-video": "~3.0.16",
     "expo-video-thumbnails": "~10.0.8",
     "expo-web-browser": "~15.0.9",
-    "jest-expo": "~54.0.16",
     "lottie-ios": "4.5.0",
     "lottie-react-native": "~7.3.1",
     "posthog-react-native": "^4.39.1",
@@ -127,8 +127,7 @@
     "react-native-view-shot": "4.0.3",
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
-    "react-native-worklets": "0.5.1",
-    "typescript": "~5.9.2"
+    "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.1",
@@ -145,9 +144,11 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-native": "^4.0.0",
     "jest-expo": "~54.0.16",
+    "prettier": "^3.8.3",
     "react-test-renderer": "19.1.0",
     "reactotron-react-native": "^5.1.18",
-    "ts-jest": "^29.4.6"
+    "ts-jest": "^29.4.6",
+    "typescript": "~5.9.2"
   },
   "private": true,
   "prisma": {

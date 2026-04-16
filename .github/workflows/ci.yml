@@ -81,17 +81,68 @@ jobs:
         working-directory: server
         run: npx prisma validate
         env:
-          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+          DATABASE_URL: 'postgresql://dummy:dummy@localhost:5432/dummy'
 
       - name: TypeScript check (server)
         working-directory: server
         run: npx tsc --noEmit --skipLibCheck
 
+  server-tests:
+    name: Server Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: varsityhub_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d varsityhub_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/varsityhub_test
+      JWT_SECRET: test-jwt-secret-with-at-least-32-chars
+      SENDGRID_API_KEY: test-sendgrid-key
+      ADMIN_EMAILS: admin@example.com
+      CLOUDINARY_CLOUD_NAME: test
+      CLOUDINARY_API_KEY: test
+      CLOUDINARY_API_SECRET: test
+      STRIPE_SECRET_KEY: sk_test_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_dummy
+      APPLE_IAP_SHARED_SECRET: test-apple-secret
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Apply Prisma schema
+        working-directory: server
+        run: npx prisma migrate deploy
+
+      - name: Run server tests
+        working-directory: server
+        run: npm test -- --runInBand
+
   # All checks must pass - this job ensures the PR gate
   all-checks:
     name: All Checks Passed
     runs-on: ubuntu-latest
-    needs: [repo-health, lint, typecheck, server-checks, test]
+    needs: [repo-health, lint, typecheck, server-checks, server-tests, test, format-check]
     if: always()
     steps:
       - name: Verify all checks passed
@@ -100,7 +151,9 @@ jobs:
              [ "${{ needs.lint.result }}" != "success" ] || \
              [ "${{ needs.typecheck.result }}" != "success" ] || \
              [ "${{ needs.server-checks.result }}" != "success" ] || \
-             [ "${{ needs.test.result }}" != "success" ]; then
+             [ "${{ needs.server-tests.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.format-check.result }}" != "success" ]; then
             echo "❌ One or more checks failed"
             exit 1
           fi
@@ -112,6 +165,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -122,14 +177,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check code formatting
+      - name: Check formatting on changed files
         run: |
-          if npm run format:check --if-present 2>/dev/null; then
-            echo "✅ Format check passed"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
           else
-            echo "⚠️  format:check script not found, skipping"
+            BASE_SHA="${{ github.event.before }}"
           fi
-        continue-on-error: true
+
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="$(git rev-parse HEAD^ 2>/dev/null || true)"
+          fi
+
+          if [ -z "$BASE_SHA" ]; then
+            echo "No base SHA available; skipping format diff check"
+            exit 0
+          fi
+
+          CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md')"
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No format-relevant files changed"
+            exit 0
+          fi
+
+          echo "Checking formatting for:"
+          echo "$CHANGED_FILES"
+          echo "$CHANGED_FILES" | xargs npx prettier --check
 
   test:
     name: Run Tests

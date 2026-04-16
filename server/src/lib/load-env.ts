@@ -4,14 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const candidatePaths = [
-  path.resolve(process.cwd(), '.env'),
-  path.resolve(moduleDir, '../../.env'),
-  path.resolve(moduleDir, '../../../.env'),
-];
+const explicitEnvPath = process.env.VARSITYHUB_ENV_PATH
+  ? path.resolve(process.env.VARSITYHUB_ENV_PATH)
+  : path.resolve(moduleDir, '../../.env');
 
-for (const envPath of candidatePaths) {
-  if (!fs.existsSync(envPath)) continue;
-  config({ path: envPath });
-  break;
+if (fs.existsSync(explicitEnvPath)) {
+  config({ path: explicitEnvPath });
 }
