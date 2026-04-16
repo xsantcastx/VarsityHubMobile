@@ -1320,7 +1320,9 @@ postsRouter.post('/:id/bookmark', requireAuth as any, interactionLimiter, async 
 });
 
 // Share post (tracks share for notifications)
-postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, res) => {
+// v1.0.2 pass 12: interactionLimiter matches /upvote and /bookmark — without it a single
+// user could spam share notifications to any author as fast as the network allows.
+postsRouter.post('/:id/share', requireAuth as any, interactionLimiter, async (req: AuthedRequest, res) => {
   try {
   const postId = String(req.params.id);
   const userId = req.user!.id;

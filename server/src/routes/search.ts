@@ -26,9 +26,12 @@ searchRouter.get('/', searchLimiter, authMiddleware as any, async (req: AuthedRe
   // Without this, blocked users could discover each other via exact-username search and infer the block.
   let blockedIds: string[] = [];
   if (currentUserId) {
+    // v1.0.2 pass 12: cap at 10k — user block sets are tiny in practice and this keeps the
+    // query bounded so a pathological user can't stall every search request.
     const blocks = await prisma.blockedUser.findMany({
       where: { OR: [{ blocker_id: currentUserId }, { blocked_id: currentUserId }] },
       select: { blocker_id: true, blocked_id: true },
+      take: 10000,
     });
     const ids = new Set<string>();
     for (const b of blocks) {

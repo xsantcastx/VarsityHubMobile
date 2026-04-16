@@ -143,7 +143,9 @@ eventsRouter.get('/', async (req, res) => {
   const search = String(req.query.q || '').trim();
   const sort = String(req.query.sort || '').trim();
   const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
+  // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
+  // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
   
   const where: any = {};
   if (status) where.status = status;

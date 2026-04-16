@@ -68,7 +68,11 @@ function VerifyScreen() {
       setCode(''); // Clear the code input
       setIsVerified(true);
 
-      // After successful verification, check if user needs onboarding
+      // After successful verification, check if user needs onboarding.
+      // v1.0.2 pass 12: do NOT silently route to onboarding when User.me() fails —
+      // that masked auth errors (e.g. stale token) as a "success" path, dropping
+      // already-onboarded users back into step-1-role on every flaky network. Show
+      // the error and let the user tap Continue to retry instead.
       try {
         const userInfo = await User.me();
         const needsOnboarding = userInfo?.preferences?.onboarding_completed !== true;
@@ -82,10 +86,16 @@ function VerifyScreen() {
           }
         }, 3000);
 
-      } catch {
-        redirectTimerRef.current = setTimeout(() => {
-          router.replace('/onboarding/step-1-role');
-        }, 3000);
+      } catch (meErr: any) {
+        const status = meErr?.status ?? meErr?.response?.status ?? null;
+        if (status === 401 || status === 403) {
+          // Auth is actually broken — send them back to sign in cleanly.
+          setError('Your session expired. Please sign in again.');
+          redirectTimerRef.current = setTimeout(() => router.replace('/sign-in'), 2000);
+        } else {
+          // Transient: keep the verified banner and surface a retry CTA.
+          setError('Could not load your profile. Tap Continue to retry.');
+        }
       }
     } catch (e: any) {
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
@@ -118,8 +128,17 @@ function VerifyScreen() {
       } else {
         router.push('/(tabs)' as any);
       }
-    } catch {
-      router.replace('/onboarding/step-1-role');
+    } catch (err: any) {
+      // v1.0.2 pass 12: distinguish auth errors (401/403) from transient network
+      // failures. Previously every error dumped the user into step-1-role even
+      // when onboarding was already complete — see the onVerify handler above.
+      const status = err?.status ?? err?.response?.status ?? null;
+      if (status === 401 || status === 403) {
+        setError('Your session expired. Please sign in again.');
+        router.replace('/sign-in');
+      } else {
+        setError('Could not load your profile. Please try again.');
+      }
     }
   };
 

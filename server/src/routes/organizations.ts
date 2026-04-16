@@ -680,7 +680,10 @@ organizationsRouter.post('/:id/invite', requireVerified as any, requireOnboarded
   // Get organization-level limit from the owner's plan definitions
   const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
 
-  // Atomic limit check + create to prevent race condition on concurrent invites
+  // Atomic limit check + create to prevent race condition on concurrent invites.
+  // v1.0.2 pass 12: promote to Serializable isolation — the default ReadCommitted still
+  // permits two parallel invite requests to both pass the count check before either
+  // INSERTs, over-counting the authorized-user cap. Serializable forces one to retry.
   const invite = await prisma.$transaction(async (tx) => {
     if (limit !== null) {
       const inviteCount = await tx.organizationInvite.count({ where: { organization_id: id, status: 'pending' } });
@@ -701,7 +704,7 @@ organizationsRouter.post('/:id/invite', requireVerified as any, requireOnboarded
     return tx.organizationInvite.create({
       data: { organization_id: id, email, role: role || 'member' },
     });
-  });
+  }, { isolationLevel: 'Serializable' });
 
   // Send email (best effort)
   const org = await prisma.organization.findUnique({ where: { id }, select: { name: true } });

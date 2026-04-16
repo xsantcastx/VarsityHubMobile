@@ -486,7 +486,9 @@ export async function cancelGameReminders(eventId: string, userId: string): Prom
 export async function verifyPushReceipts(): Promise<void> {
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Find notifications with a ticket_id that haven't been receipt-checked yet
+  // Find notifications with a ticket_id that haven't been receipt-checked yet.
+  // v1.0.2 pass 12: bound the scan. 5000 / 24h handles our current push volume and the
+  // oldest rows run first so Expo's 24-hour receipt retention window is respected.
   const notifications = await prisma.notification.findMany({
     where: {
       created_at: { gte: twentyFourHoursAgo },
@@ -497,6 +499,8 @@ export async function verifyPushReceipts(): Promise<void> {
       user_id: true,
       meta: true,
     },
+    orderBy: { created_at: 'asc' },
+    take: 5000,
   });
 
   // Filter to those with ticket_id and no receipt_checked flag
