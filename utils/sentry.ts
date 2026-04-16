@@ -11,9 +11,7 @@ const SENTRY_DSN = envDsn || configDsn;
 const isPlaceholderDsn = (dsn: string) => {
   const lower = dsn.toLowerCase();
   return (
-    lower.includes('your-key-here') ||
-    !lower.startsWith('http') ||
-    !lower.includes('.sentry.io')
+    lower.includes('your-key-here') || !lower.startsWith('http') || !lower.includes('.sentry.io')
   );
 };
 
@@ -116,7 +114,7 @@ export function captureException(error: Error | unknown, context?: Record<string
   }
 
   if (__DEV__) console.error('[sentry] Capturing exception:', error);
-  Sentry.withScope((scope) => {
+  Sentry.withScope(scope => {
     if (context) {
       scope.setContext('custom', context);
     }

@@ -1,6 +1,6 @@
 /**
  * AuthProvider - Centralized authentication and routing logic
- * 
+ *
  * Fixes production issues:
  * - Eliminates competing User.me() calls in _layout, index, and sign-in
  * - Provides single source of truth for auth state
@@ -98,16 +98,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
   const ONBOARDING_COMPLETE_USER_KEY = '@onboarding_completed_user_id';
   const LAST_ONBOARDING_USER_KEY = '@last_onboarding_user_id';
-  
+
   const router = useRouter();
   const segments = useSegments();
-  
+
   const lastRedirectRef = React.useRef<string | null>(null);
   const segmentsRef = React.useRef(segments);
   // Guard against multiple in-flight coach-role restores triggered by repeated
   // effect runs. Cleared in the async block's finally.
   const restoringCoachRef = React.useRef(false);
-  
+
   // Update segments ref on every render
   React.useEffect(() => {
     segmentsRef.current = segments;
@@ -115,7 +115,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   // Derived state
   const normalizedRole = String(user?.role || '').toLowerCase();
-  const isAdmin = normalizedRole === 'admin' || normalizedRole === 'super_admin' || user?.is_admin === true;
+  const isAdmin =
+    normalizedRole === 'admin' || normalizedRole === 'super_admin' || user?.is_admin === true;
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
@@ -138,13 +139,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Register for push notifications
   const setupPushNotifications = useCallback(async (userId: string) => {
     if (!userId) return false;
-    
+
     // Skip push notifications in Expo Go
     if (isExpoGo || !Notifications) {
       if (__DEV__) console.log('[PushNotifications] Skipping setup in Expo Go environment');
       return false;
     }
-    
+
     if (!Device.isDevice) {
       if (__DEV__) console.log('[PushNotifications] Skipping setup on simulator/emulator');
       return false;
@@ -184,9 +185,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       const tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: projectId,
       });
-      
+
       const token = tokenData.data;
-      if (__DEV__) console.log('[PushNotifications] Got push token:', token.substring(0, 30) + '...');
+      if (__DEV__)
+        console.log('[PushNotifications] Got push token:', token.substring(0, 30) + '...');
 
       // 4. Save token to backend (with retry on failure)
       const saveToken = async (attempt = 1): Promise<void> => {
@@ -232,7 +234,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   // Check authentication
   const checkAuth = useCallback(
-    async (options?: { email?: string; pendingVerification?: boolean; skipSubscriptionRefresh?: boolean }) => {
+    async (options?: {
+      email?: string;
+      pendingVerification?: boolean;
+      skipSubscriptionRefresh?: boolean;
+    }) => {
       try {
         // If pending verification flag is set, store email and don't try to fetch user
         if (options?.pendingVerification && options?.email) {
@@ -255,7 +261,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           setUser(null);
           setSentryUser(null);
           setPendingVerificationEmail(null);
-          try { await auth.logout(); } catch {}
+          try {
+            await auth.logout();
+          } catch {}
           return;
         }
 
@@ -279,7 +287,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         if (!serverComplete && me?.id) {
           const lastUserId = await AsyncStorage.getItem(LAST_ONBOARDING_USER_KEY);
           if (lastUserId && lastUserId !== me.id) {
-            if (__DEV__) console.log('[AuthProvider] Different user needs onboarding — clearing stale data');
+            if (__DEV__)
+              console.log('[AuthProvider] Different user needs onboarding — clearing stale data');
             await AsyncStorage.multiRemove([
               'onboarding_state',
               'onboarding_progress',
@@ -297,10 +306,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         // Stagger non-critical subscription refresh so auth/bootstrap requests do not fan out at once.
         if (!options?.skipSubscriptionRefresh) {
-          if (subscriptionFetchTimeoutRef.current) clearTimeout(subscriptionFetchTimeoutRef.current);
+          if (subscriptionFetchTimeoutRef.current)
+            clearTimeout(subscriptionFetchTimeoutRef.current);
           subscriptionFetchTimeoutRef.current = setTimeout(() => {
             subscriptionFetchTimeoutRef.current = null;
-            fetchSubscription().catch((e) => captureException(e, { tags: { context: 'subscription_fetch' } }));
+            fetchSubscription().catch(e =>
+              captureException(e, { tags: { context: 'subscription_fetch' } })
+            );
           }, 750);
         }
 
@@ -309,8 +321,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           if (pushTokenTimeoutRef.current) clearTimeout(pushTokenTimeoutRef.current);
           pushTokenTimeoutRef.current = setTimeout(() => {
             pushTokenTimeoutRef.current = null;
-            registerPushTokenRef.current?.().catch((e) => {
-              if (__DEV__) console.warn('[AuthProvider] checkAuth push token register failed:', e?.message);
+            registerPushTokenRef.current?.().catch(e => {
+              if (__DEV__)
+                console.warn('[AuthProvider] checkAuth push token register failed:', e?.message);
             });
           }, 500);
         }
@@ -325,7 +338,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           setPendingVerificationEmail(null);
           throw err; // Rethrow 401 so callers (sign-in, sign-up) can handle it
         }
-        if (__DEV__) console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
+        if (__DEV__)
+          console.error('[AuthProvider] checkAuth transient error (session preserved):', err);
         return null; // Don't crash the app on transient network/server errors
       }
     },
@@ -337,66 +351,75 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     checkAuthRef.current = checkAuth;
   }, [checkAuth]);
 
-  const redirectWithTelemetry = useCallback((to: string, reason: string, userSnapshot?: AuthUser | null) => {
-    const from = Array.isArray(segmentsRef.current) && segmentsRef.current.length
-      ? segmentsRef.current.join('/')
-      : 'index';
-    const effectiveUser = userSnapshot ?? user;
-    const role = String(effectiveUser?.preferences?.role || effectiveUser?.role || '').trim() || null;
-    const approvalStatus = typeof effectiveUser?.approval_status === 'string' ? effectiveUser.approval_status : null;
-    const onboardingCompleted = effectiveUser?.preferences?.onboarding_completed === true;
-    const emailVerified = effectiveUser?.email_verified === true;
-    const pendingVerification = !!pendingVerificationEmail;
-    const paidByOwner = effectiveUser?.paid_by_owner === true;
-    const proceedingAsFan = effectiveUser?.preferences?.proceeding_as_fan === true;
-    const coachAgreementAccepted = !!effectiveUser?.preferences?.coach_agreement_accepted_at;
-    const userStateFingerprint = buildAuthRedirectFingerprint({
-      from,
-      role,
-      approvalStatus,
-      onboardingCompleted,
-      emailVerified,
-      pendingVerification,
-      healthOk,
-      paidByOwner,
-      proceedingAsFan,
-      coachAgreementAccepted,
-    });
+  const redirectWithTelemetry = useCallback(
+    (to: string, reason: string, userSnapshot?: AuthUser | null) => {
+      const from =
+        Array.isArray(segmentsRef.current) && segmentsRef.current.length
+          ? segmentsRef.current.join('/')
+          : 'index';
+      const effectiveUser = userSnapshot ?? user;
+      const role =
+        String(effectiveUser?.preferences?.role || effectiveUser?.role || '').trim() || null;
+      const approvalStatus =
+        typeof effectiveUser?.approval_status === 'string' ? effectiveUser.approval_status : null;
+      const onboardingCompleted = effectiveUser?.preferences?.onboarding_completed === true;
+      const emailVerified = effectiveUser?.email_verified === true;
+      const pendingVerification = !!pendingVerificationEmail;
+      const paidByOwner = effectiveUser?.paid_by_owner === true;
+      const proceedingAsFan = effectiveUser?.preferences?.proceeding_as_fan === true;
+      const coachAgreementAccepted = !!effectiveUser?.preferences?.coach_agreement_accepted_at;
+      const userStateFingerprint = buildAuthRedirectFingerprint({
+        from,
+        role,
+        approvalStatus,
+        onboardingCompleted,
+        emailVerified,
+        pendingVerification,
+        healthOk,
+        paidByOwner,
+        proceedingAsFan,
+        coachAgreementAccepted,
+      });
 
-    navigateWithAuthRedirect(router, {
-      from,
-      to,
-      reason,
-      userStateFingerprint,
-      userId: effectiveUser?.id || null,
-      role,
-      approvalStatus,
-      onboardingCompleted,
-      emailVerified,
-      pendingVerification,
-      healthOk,
-      paidByOwner,
-      proceedingAsFan,
-      coachAgreementAccepted,
-    });
+      navigateWithAuthRedirect(router, {
+        from,
+        to,
+        reason,
+        userStateFingerprint,
+        userId: effectiveUser?.id || null,
+        role,
+        approvalStatus,
+        onboardingCompleted,
+        emailVerified,
+        pendingVerification,
+        healthOk,
+        paidByOwner,
+        proceedingAsFan,
+        coachAgreementAccepted,
+      });
 
-    lastRedirectRef.current = to;
-  }, [healthOk, pendingVerificationEmail, router, user]);
+      lastRedirectRef.current = to;
+    },
+    [healthOk, pendingVerificationEmail, router, user]
+  );
 
-  const getPendingCoachRoute = useCallback((userSnapshot?: AuthUser | null) => {
-    const effectiveUser = userSnapshot ?? user;
-    const prefs = effectiveUser?.preferences;
+  const getPendingCoachRoute = useCallback(
+    (userSnapshot?: AuthUser | null) => {
+      const effectiveUser = userSnapshot ?? user;
+      const prefs = effectiveUser?.preferences;
 
-    // Coach join requests and org approval waits have different status screens.
-    // Choose the screen from server-backed state so relaunches land consistently.
-    if (prefs?.join_request_pending === true) {
+      // Coach join requests and org approval waits have different status screens.
+      // Choose the screen from server-backed state so relaunches land consistently.
+      if (prefs?.join_request_pending === true) {
+        return '/onboarding/pending-approval';
+      }
+      if (prefs?.organization_id) {
+        return '/onboarding/league-pending-approval';
+      }
       return '/onboarding/pending-approval';
-    }
-    if (prefs?.organization_id) {
-      return '/onboarding/league-pending-approval';
-    }
-    return '/onboarding/pending-approval';
-  }, [user]);
+    },
+    [user]
+  );
 
   // Sign out
   const signOut = useCallback(async () => {
@@ -483,7 +506,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       if (__DEV__) console.log('[AuthProvider] Checking backend health...');
       const healthy = await checkHealth();
       if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
-      
+
       if (!mounted) return;
 
       // 2. If backend is down, we can't authenticate
@@ -501,7 +524,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         await checkAuthRef.current();
         if (__DEV__) console.log('[AuthProvider] Auth check successful');
       } catch (err: any) {
-        if (__DEV__) console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
+        if (__DEV__)
+          console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
         // Auth failed - user not logged in
         // Don't redirect here - let the routing logic below handle it
       } finally {
@@ -521,15 +545,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Re-check auth when app comes to foreground (debounced to prevent rapid-fire)
   const lastForegroundCheckRef = React.useRef<number>(0);
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
+    const subscription = AppState.addEventListener('change', nextState => {
       if (nextState === 'active' && !initializing) {
         const now = Date.now();
         // Skip if we checked less than 5 seconds ago (prevents infinite loop from rapid foreground events)
         if (now - lastForegroundCheckRef.current < 5000) return;
         lastForegroundCheckRef.current = now;
-        checkAuthRef.current().catch((e) =>
-          captureException(e, { tags: { context: 'foreground_auth_refresh' } })
-        );
+        checkAuthRef
+          .current()
+          .catch(e => captureException(e, { tags: { context: 'foreground_auth_refresh' } }));
       }
     });
     return () => {
@@ -545,7 +569,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (initializing) {
-        if (__DEV__) console.warn('[AuthProvider] ⚠️ Initialization timeout (5s) - forcing completion');
+        if (__DEV__)
+          console.warn('[AuthProvider] ⚠️ Initialization timeout (5s) - forcing completion');
         setLoading(false);
         setInitializing(false);
       }
@@ -597,11 +622,32 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       return;
     }
 
-    const firstSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length ? String(segmentsRef.current[0]) : '';
-    const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'verify', 'verify-identity', 'forgot-password', 'reset-password', 'reset', 'public-event']);
+    const firstSegment =
+      Array.isArray(segmentsRef.current) && segmentsRef.current.length
+        ? String(segmentsRef.current[0])
+        : '';
+    const publicRoutes = new Set([
+      'sign-in',
+      'sign-up',
+      'verify-email',
+      'verify',
+      'verify-identity',
+      'forgot-password',
+      'reset-password',
+      'reset',
+      'public-event',
+    ]);
     const isPublic = publicRoutes.has(firstSegment);
 
-    if (__DEV__) console.log('[AuthProvider] Routing check - segment:', firstSegment, 'user:', !!user, 'pendingVerif:', !!pendingVerificationEmail);
+    if (__DEV__)
+      console.log(
+        '[AuthProvider] Routing check - segment:',
+        firstSegment,
+        'user:',
+        !!user,
+        'pendingVerif:',
+        !!pendingVerificationEmail
+      );
 
     // If backend is unhealthy, don't do any redirects
     if (!healthOk) {
@@ -619,7 +665,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         void (async () => {
           const storedToken = await auth.getToken().catch(() => null);
           if (!storedToken) {
-            if (__DEV__) console.log('[AuthProvider] Stale pendingVerificationEmail — no user or token, clearing');
+            if (__DEV__)
+              console.log(
+                '[AuthProvider] Stale pendingVerificationEmail — no user or token, clearing'
+              );
             setPendingVerificationEmail(null);
           }
         })();
@@ -657,9 +706,17 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           void (async () => {
             try {
               await User.updatePreferences({ proceeding_as_fan: false, role: 'coach' });
-              setUser((prev) => prev ? { ...prev, preferences: { ...prev.preferences, proceeding_as_fan: false, role: 'coach' } } : prev);
+              setUser(prev =>
+                prev
+                  ? {
+                      ...prev,
+                      preferences: { ...prev.preferences, proceeding_as_fan: false, role: 'coach' },
+                    }
+                  : prev
+              );
             } catch (err: any) {
-              if (__DEV__) console.warn('[AuthProvider] Failed to restore coach role:', err?.message);
+              if (__DEV__)
+                console.warn('[AuthProvider] Failed to restore coach role:', err?.message);
               captureException(err, { tags: { context: 'fan_to_coach_restore' } });
             } finally {
               restoringCoachRef.current = false;
@@ -668,9 +725,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
         // Route to coach-agreement if they haven't accepted it yet — this does not
         // depend on the in-flight restore completing.
-        const onAgreement = Array.isArray(segmentsRef.current) && segmentsRef.current.join('/').includes('coach-agreement');
+        const onAgreement =
+          Array.isArray(segmentsRef.current) &&
+          segmentsRef.current.join('/').includes('coach-agreement');
         if (!user.preferences?.coach_agreement_accepted_at && !onAgreement) {
-          if (__DEV__) console.log('[AuthProvider] Approved fan→coach transition — routing to coach agreement');
+          if (__DEV__)
+            console.log(
+              '[AuthProvider] Approved fan→coach transition — routing to coach agreement'
+            );
           if (lastRedirectRef.current !== '/onboarding/coach-agreement') {
             redirectWithTelemetry('/onboarding/coach-agreement', 'approved_fan_to_coach_agreement');
           }
@@ -683,14 +745,22 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       const isUnapprovedCoach =
         (user.approval_status === 'PENDING' || user.approval_status === 'REJECTED') &&
         user.preferences?.role === 'coach';
-      const proceedingAsFan = user.preferences?.proceeding_as_fan === true && user.approval_status !== 'APPROVED';
+      const proceedingAsFan =
+        user.preferences?.proceeding_as_fan === true && user.approval_status !== 'APPROVED';
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       // isPendingCoach is derived from user state, not route string — avoids fragile path matching
       const isPendingCoach = isUnapprovedCoach && !proceedingAsFan;
       // Don't yank pending coaches off onboarding routes (e.g. step-3 during upgrade flow)
       const pendingCoachRoute = getPendingCoachRoute(user);
-      if (isPendingCoach && lastRedirectRef.current !== pendingCoachRoute && firstSegment !== 'sign-in' && firstSegment !== 'sign-up' && firstSegment !== 'onboarding') {
-        if (__DEV__) console.log('[AuthProvider] Unapproved coach blocked — must wait for approval decision');
+      if (
+        isPendingCoach &&
+        lastRedirectRef.current !== pendingCoachRoute &&
+        firstSegment !== 'sign-in' &&
+        firstSegment !== 'sign-up' &&
+        firstSegment !== 'onboarding'
+      ) {
+        if (__DEV__)
+          console.log('[AuthProvider] Unapproved coach blocked — must wait for approval decision');
         if (lastRedirectRef.current !== pendingCoachRoute) {
           redirectWithTelemetry(pendingCoachRoute, 'coach_pending_approval');
         }
@@ -701,27 +771,34 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Treat undefined/null as incomplete (prevents bypass when flag is missing)
       const serverSaysIncomplete = user.preferences?.onboarding_completed !== true;
       const needsOnboarding = serverSaysIncomplete;
-      const pendingPlan = String(user.preferences?.pending_plan || user.preferences?.plan || '').toLowerCase();
-      const coachNeedsCheckout = user.preferences?.role === 'coach'
-        && user.approval_status === 'APPROVED'
-        && user.paid_by_owner !== true
-        && user.preferences?.payment_pending === true
-        && (pendingPlan === 'veteran' || pendingPlan === 'legend')
-        && (user.preferences?.payment_approved === true || user.preferences?.join_request_pending !== true);
-      const isOnPaymentPath = currentPath.includes('settings/manage-subscription')
-        || currentPath.includes('subscription-paywall')
-        || currentPath.includes('payment-success')
-        || currentPath.includes('billing');
+      const pendingPlan = String(
+        user.preferences?.pending_plan || user.preferences?.plan || ''
+      ).toLowerCase();
+      const coachNeedsCheckout =
+        user.preferences?.role === 'coach' &&
+        user.approval_status === 'APPROVED' &&
+        user.paid_by_owner !== true &&
+        user.preferences?.payment_pending === true &&
+        (pendingPlan === 'veteran' || pendingPlan === 'legend') &&
+        (user.preferences?.payment_approved === true ||
+          user.preferences?.join_request_pending !== true);
+      const isOnPaymentPath =
+        currentPath.includes('settings/manage-subscription') ||
+        currentPath.includes('subscription-paywall') ||
+        currentPath.includes('payment-success') ||
+        currentPath.includes('billing');
 
       if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath) {
         const now = Date.now();
         const lastPaywallPush = paywallPushTsRef.current || 0;
         if (now - lastPaywallPush < 5000) {
-          if (__DEV__) console.warn('[AuthProvider] Paywall redirect loop detected — breaking circuit');
+          if (__DEV__)
+            console.warn('[AuthProvider] Paywall redirect loop detected — breaking circuit');
           paywallPushTsRef.current = 0;
           return;
         }
-        if (__DEV__) console.log('[AuthProvider] Approved coach must complete checkout before tools');
+        if (__DEV__)
+          console.log('[AuthProvider] Approved coach must complete checkout before tools');
         if (lastRedirectRef.current !== '/settings/manage-subscription') {
           paywallPushTsRef.current = now;
           redirectWithTelemetry('/settings/manage-subscription', 'coach_checkout_required');
@@ -731,8 +808,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // Approved coach with incomplete onboarding (approved while app was closed)
       // Send to the correct onboarding step — NOT back to pending-approval (causes loop)
-      if (needsOnboarding && user.approval_status === 'APPROVED' && user.preferences?.role === 'coach' && firstSegment !== 'onboarding') {
-        if (__DEV__) console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
+      if (
+        needsOnboarding &&
+        user.approval_status === 'APPROVED' &&
+        user.preferences?.role === 'coach' &&
+        firstSegment !== 'onboarding'
+      ) {
+        if (__DEV__)
+          console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
         // Check if they have an org yet — if not, send to league step; if yes, send to create-team
         const hasOrg = !!user.preferences?.organization_id;
         const target = hasOrg ? '/(tabs)/create-team' : '/onboarding/step-3-league';
@@ -743,11 +826,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // Approved coaches must accept the Coach Agreement before accessing tools
-      const isCoachWithoutAgreement = !needsOnboarding
-        && user.preferences?.role === 'coach'
-        && user.approval_status === 'APPROVED'
-        && !user.preferences?.coach_agreement_accepted_at
-        && !coachNeedsCheckout;
+      const isCoachWithoutAgreement =
+        !needsOnboarding &&
+        user.preferences?.role === 'coach' &&
+        user.approval_status === 'APPROVED' &&
+        !user.preferences?.coach_agreement_accepted_at &&
+        !coachNeedsCheckout;
       const isOnAgreementScreen = currentPath.includes('coach-agreement');
       if (isCoachWithoutAgreement && !isOnAgreementScreen) {
         if (lastRedirectRef.current !== '/onboarding/coach-agreement') {
@@ -769,9 +853,17 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Exception: pending-approval and league-pending-approval are completion screens —
       // the user must tap the button themselves. Don't yank them away automatically.
       // Exception: coach-agreement — only keep the user there if they still need to accept it.
-      const isOnPendingScreen = currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
-      if (!needsOnboarding && firstSegment === 'onboarding' && !isPendingCoach && !isOnPendingScreen && !(isOnAgreementScreen && isCoachWithoutAgreement)) {
-        if (__DEV__) console.log('[AuthProvider] User completed onboarding, redirecting to main app');
+      const isOnPendingScreen =
+        currentPath.includes('pending-approval') || currentPath.includes('league-pending-approval');
+      if (
+        !needsOnboarding &&
+        firstSegment === 'onboarding' &&
+        !isPendingCoach &&
+        !isOnPendingScreen &&
+        !(isOnAgreementScreen && isCoachWithoutAgreement)
+      ) {
+        if (__DEV__)
+          console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {
           redirectWithTelemetry(landingRoute, 'onboarding_complete');
@@ -808,44 +900,52 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         redirectWithTelemetry('/sign-in', 'unauthenticated');
       }
     }
-  // NOTE: `segments` is intentionally excluded — we read segmentsRef.current inside.
-  // Including segments causes an infinite loop: route change -> segments update -> effect re-runs -> route change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding, redirectWithTelemetry, getPendingCoachRoute]);
-
-  const value = useMemo<AuthContextType>(() => ({
+    // NOTE: `segments` is intentionally excluded — we read segmentsRef.current inside.
+    // Including segments causes an infinite loop: route change -> segments update -> effect re-runs -> route change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
     user,
     pendingVerificationEmail,
-    loading,
+    initializing,
     healthOk,
-    healthError,
-    isAdmin,
-    subscriptionTier,
-    hasActiveSubscription,
-    checkAuth,
-    signOut,
-    registerPushToken,
-    markOnboardingCompleteLocally,
-    markOnboardingIncompleteLocally,
-  }), [
-    user,
-    pendingVerificationEmail,
-    loading,
-    healthOk,
-    healthError,
-    isAdmin,
-    subscriptionTier,
-    hasActiveSubscription,
-    checkAuth,
-    signOut,
-    registerPushToken,
-    markOnboardingCompleteLocally,
-    markOnboardingIncompleteLocally,
+    router,
+    hasCompletedOnboarding,
+    redirectWithTelemetry,
+    getPendingCoachRoute,
   ]);
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      pendingVerificationEmail,
+      loading,
+      healthOk,
+      healthError,
+      isAdmin,
+      subscriptionTier,
+      hasActiveSubscription,
+      checkAuth,
+      signOut,
+      registerPushToken,
+      markOnboardingCompleteLocally,
+      markOnboardingIncompleteLocally,
+    }),
+    [
+      user,
+      pendingVerificationEmail,
+      loading,
+      healthOk,
+      healthError,
+      isAdmin,
+      subscriptionTier,
+      hasActiveSubscription,
+      checkAuth,
+      signOut,
+      registerPushToken,
+      markOnboardingCompleteLocally,
+      markOnboardingIncompleteLocally,
+    ]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
