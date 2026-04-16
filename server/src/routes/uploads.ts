@@ -185,7 +185,17 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
     const folder = getCloudinaryFolder();
     const timestamp = Math.floor(Date.now() / 1000);
 
-    const params: Record<string, string> = { folder, timestamp: String(timestamp) };
+    // v1.0.2 audit fix: constrain what Cloudinary accepts on direct-upload. Without these,
+    // a signed request lets the client upload any file type (executable, script, etc.).
+    // The signature ties these constraints into the request so clients can't weaken them.
+    const allowedFormats = 'jpg,jpeg,png,gif,webp,heic,heif,mp4,mov';
+    const maxBytes = '52428800'; // 50 MB — videos are the largest legitimate uploads
+    const params: Record<string, string> = {
+      folder,
+      timestamp: String(timestamp),
+      allowed_formats: allowedFormats,
+      max_bytes: maxBytes,
+    };
     // Cloudinary requires alphabetically-sorted params for signature
     const toSign = Object.keys(params)
       .sort()
@@ -199,6 +209,8 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
       signature,
       timestamp,
       folder,
+      allowed_formats: allowedFormats,
+      max_bytes: maxBytes,
     });
   } catch (error: any) {
     console.error('[uploads] Failed to generate Cloudinary signature:', error);

@@ -22,11 +22,31 @@ searchRouter.get('/', searchLimiter, authMiddleware as any, async (req: AuthedRe
     return res.json({ users: [], teams: [], organizations: [] });
   }
 
+  // v1.0.2 pass 8: exclude users that the requester has blocked OR who have blocked the requester.
+  // Without this, blocked users could discover each other via exact-username search and infer the block.
+  let blockedIds: string[] = [];
+  if (currentUserId) {
+    // v1.0.2 pass 12: cap at 10k — user block sets are tiny in practice and this keeps the
+    // query bounded so a pathological user can't stall every search request.
+    const blocks = await prisma.blockedUser.findMany({
+      where: { OR: [{ blocker_id: currentUserId }, { blocked_id: currentUserId }] },
+      select: { blocker_id: true, blocked_id: true },
+      take: 10000,
+    });
+    const ids = new Set<string>();
+    for (const b of blocks) {
+      if (b.blocker_id !== currentUserId) ids.add(b.blocker_id);
+      if (b.blocked_id !== currentUserId) ids.add(b.blocked_id);
+    }
+    blockedIds = Array.from(ids);
+  }
+
   const [users, teams, organizations] = await Promise.all([
     prisma.user.findMany({
       where: {
         AND: [
           { banned: false },
+          ...(blockedIds.length > 0 ? [{ id: { notIn: blockedIds } }] : []),
           {
             OR: [
               { username: { contains: q, mode: 'insensitive' } },

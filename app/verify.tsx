@@ -178,8 +178,18 @@ export default function VerifyScreen() {
             const cleaned = t.replace(/[^0-9]/g, '');
             setCode(cleaned);
             if (cleaned.length === 6) {
-              setTimeout(() => Keyboard.dismiss(), 100);
+              // v1.0.2 audit fix: auto-submit at 6 digits so users aren't stuck hunting for a button.
+              setTimeout(() => {
+                Keyboard.dismiss();
+                if (!loading && !isVerified) {
+                  void onVerify();
+                }
+              }, 150);
             }
+          }}
+          returnKeyType="done"
+          onSubmitEditing={() => {
+            if (code.trim().length >= 6 && !loading && !isVerified) void onVerify();
           }}
           keyboardType="number-pad"
           maxLength={6}

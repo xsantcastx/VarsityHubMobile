@@ -8,12 +8,19 @@
 import { prisma } from './prisma.js';
 import { logAdminActivity } from './adminActivityLogger.js';
 
-// Escalation thresholds
-const WARN_THRESHOLD = 3;       // 3 reports → auto-warning
-const STRIKE_THRESHOLD = 5;     // 5 reports → strike
-const SUSPEND_THRESHOLD = 8;    // 8 reports → 7-day suspension
-const BAN_THRESHOLD = 12;       // 12 reports → permanent ban
-const SPIKE_THRESHOLD = 10;     // 10+ pending reports = spike alert
+// Escalation thresholds — env-overridable for tuning at scale without redeploy.
+// v1.0.2 pass 9: previously hardcoded constants; now pulled from env with the same defaults.
+const intEnv = (key: string, defaultValue: number): number => {
+  const raw = process.env[key];
+  if (!raw) return defaultValue;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : defaultValue;
+};
+const WARN_THRESHOLD = intEnv('MOD_WARN_THRESHOLD', 3);       // reports → auto-warning
+const STRIKE_THRESHOLD = intEnv('MOD_STRIKE_THRESHOLD', 5);   // reports → strike
+const SUSPEND_THRESHOLD = intEnv('MOD_SUSPEND_THRESHOLD', 8); // reports → 7-day suspension
+const BAN_THRESHOLD = intEnv('MOD_BAN_THRESHOLD', 12);        // reports → permanent ban
+const SPIKE_THRESHOLD = intEnv('MOD_SPIKE_THRESHOLD', 10);    // pending reports → spike alert
 
 /**
  * Issue a warning to a user
@@ -76,35 +83,34 @@ export async function autoEscalate(targetUserId: string): Promise<{
   action: 'none' | 'warning' | 'strike' | 'suspension' | 'ban';
   message?: string;
 }> {
-  // Count total reports against this user (pending + reviewed — not dismissed)
-  const reportCount = await prisma.abuseReport.count({
-    where: {
-      message: { contains: targetUserId },
-      status: { in: ['pending', 'reviewed', 'resolved'] },
-    },
-  });
-
-  // Also count by parsing subject field for user reports
+  // v1.0.2 pass 9: dropped the broad `message: { contains: targetUserId }` count which was
+  // dead code (Math.max ignored it) AND would over-match on any UUID substring. Use only
+  // the specific structured patterns: subject "[user:ID]" or message JSON keys with the ID.
+  // Schema does not yet have a target_user_id FK column — that's a separate migration.
+  const ACTIVE_STATUSES = { in: ['pending', 'reviewed', 'resolved'] } as const;
   const directReportCount = await prisma.abuseReport.count({
     where: {
       subject: { contains: `[user:${targetUserId}]` },
-      status: { in: ['pending', 'reviewed', 'resolved'] },
+      status: ACTIVE_STATUSES,
     },
   });
-
-  // Count reports where this user's content was reported
   const contentReportCount = await prisma.abuseReport.count({
     where: {
       OR: [
         { message: { contains: `"post_author_id":"${targetUserId}"` } },
         { message: { contains: `"comment_author_id":"${targetUserId}"` } },
         { message: { contains: `"sender_id":"${targetUserId}"` } },
+        // v1.0.2 pass 9: include report-target patterns from /reports endpoint targetContext JSON
+        { message: { contains: `"target_user_id":"${targetUserId}"` } },
       ],
-      status: { in: ['pending', 'reviewed', 'resolved'] },
+      status: ACTIVE_STATUSES,
     },
   });
 
-  const totalReports = Math.max(directReportCount, contentReportCount);
+  // v1.0.2 pass 9: changed Math.max → SUM since direct+content reports are independent
+  // signals about the same user. Previously max() would under-count when the user had
+  // both direct reports AND content reports, letting them stay below thresholds longer.
+  const totalReports = directReportCount + contentReportCount;
 
   if (totalReports >= BAN_THRESHOLD) {
     // Auto-ban

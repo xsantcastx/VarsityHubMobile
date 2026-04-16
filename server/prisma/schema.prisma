@@ -126,6 +126,9 @@ model User {
 
   // Coach approval status — APPROVED for fans, PENDING for new coaches until league owner approves
   approval_status            ApprovalStatus @default(APPROVED)
+  // v1.0.2: 48hr cooldown tracking for rejected coach/org applications
+  rejected_at                DateTime?
+  rejection_reason           String?   @db.Text
 
   // Subscription/Premium fields
   subscription_tier          String    @default("free") // free | premium | pro
@@ -819,6 +822,9 @@ model Organization {
   admin_approved Boolean   @default(false)
   approved_by    String?   // super admin user ID who approved
   approved_at    DateTime?
+  // v1.0.2: 48hr cooldown tracking when an org application is rejected
+  rejected_at       DateTime?
+  rejection_reason  String?   @db.Text
 
   // League owner — the user who owns/pays for this league page
   league_owner_id String?
@@ -1061,7 +1067,11 @@ model TransactionLog {
   stripe_session_id   String?           @unique
   stripe_payment_intent_id String?
   stripe_subscription_id   String?
-  
+  // v1.0.2: Apple IAP transaction identifier. @unique closes the TOCTOU window in
+  // server/src/routes/payments.ts where two rapid replays could both pass the findFirst check.
+  // Old rows have NULL; new IAP writes populate this. Never set for Stripe flows.
+  apple_transaction_id String?          @unique
+
   // User and order details
   user_id             String?
   user_email          String?

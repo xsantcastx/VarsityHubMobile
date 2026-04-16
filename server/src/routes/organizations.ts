@@ -162,7 +162,7 @@ const updateOrgSchema = z.object({
   contact_info: z.string().max(500).optional().nullable(),
 });
 
-organizationsRouter.patch('/:id', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.patch('/:id', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const orgId = String(req.params.id);
     const userId = req.user!.id;
@@ -320,10 +320,39 @@ const createOrganizationSchema = z.object({
 });
 
 // Create organization
-organizationsRouter.post('/', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+    // v1.0.2: 48hr cooldown if prior application was rejected (mirrors POST /create).
+    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+    const applicant = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { approval_status: true, rejected_at: true, rejection_reason: true },
+    });
+    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
+    if (applicant?.approval_status === 'REJECTED') {
+      let rejectedAt = applicant.rejected_at;
+      if (!rejectedAt) {
+        rejectedAt = new Date();
+        await prisma.user.update({
+          where: { id: req.user!.id },
+          data: { rejected_at: rejectedAt },
+        });
+      }
+      const elapsed = Date.now() - new Date(rejectedAt).getTime();
+      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
+        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+        return res.status(429).json({
+          error: 'Your previous application was declined. Please wait before creating another organization.',
+          code: 'REJECTION_COOLDOWN',
+          retry_after_ms: retryAfterMs,
+          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+          reason: applicant.rejection_reason || null,
+        });
+      }
+    }
 
     const data = parsed.data;
     // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
@@ -370,7 +399,12 @@ organizationsRouter.post('/', requireVerified as any, requireOnboarded as any, a
       // Set coach to PENDING until league is approved by super admin
       await tx.user.update({
         where: { id: req.user!.id },
-        data: { approval_status: 'PENDING' },
+        data: {
+          approval_status: 'PENDING',
+          // v1.0.2: clear prior rejection tracking on a fresh application
+          rejected_at: null,
+          rejection_reason: null,
+        },
       });
       return org;
     });
@@ -429,10 +463,39 @@ const createOrganizationWithTeamsSchema = z.object({
 });
 
 // Enhanced create organization for onboarding
-organizationsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/create', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+    // v1.0.2: 48hr cooldown for users whose prior org application was rejected.
+    const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
+    const applicant = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { approval_status: true, rejected_at: true, rejection_reason: true },
+    });
+    // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
+    if (applicant?.approval_status === 'REJECTED') {
+      let rejectedAt = applicant.rejected_at;
+      if (!rejectedAt) {
+        rejectedAt = new Date();
+        await prisma.user.update({
+          where: { id: req.user!.id },
+          data: { rejected_at: rejectedAt },
+        });
+      }
+      const elapsed = Date.now() - new Date(rejectedAt).getTime();
+      if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
+        const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+        return res.status(429).json({
+          error: 'Your previous application was declined. Please wait before creating another organization.',
+          code: 'REJECTION_COOLDOWN',
+          retry_after_ms: retryAfterMs,
+          retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+          reason: applicant.rejection_reason || null,
+        });
+      }
+    }
 
     const data = parsed.data;
     // Duplicate guard (same logic as simple create)
@@ -481,7 +544,12 @@ organizationsRouter.post('/create', requireVerified as any, async (req: AuthedRe
       });
       await tx.user.update({
         where: { id: req.user!.id },
-        data: { approval_status: 'PENDING' },
+        data: {
+          approval_status: 'PENDING',
+          // v1.0.2: clear prior rejection tracking on a fresh application
+          rejected_at: null,
+          rejection_reason: null,
+        },
       });
       return org;
     });
@@ -612,7 +680,10 @@ organizationsRouter.post('/:id/invite', requireVerified as any, requireOnboarded
   // Get organization-level limit from the owner's plan definitions
   const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
 
-  // Atomic limit check + create to prevent race condition on concurrent invites
+  // Atomic limit check + create to prevent race condition on concurrent invites.
+  // v1.0.2 pass 12: promote to Serializable isolation — the default ReadCommitted still
+  // permits two parallel invite requests to both pass the count check before either
+  // INSERTs, over-counting the authorized-user cap. Serializable forces one to retry.
   const invite = await prisma.$transaction(async (tx) => {
     if (limit !== null) {
       const inviteCount = await tx.organizationInvite.count({ where: { organization_id: id, status: 'pending' } });
@@ -633,7 +704,7 @@ organizationsRouter.post('/:id/invite', requireVerified as any, requireOnboarded
     return tx.organizationInvite.create({
       data: { organization_id: id, email, role: role || 'member' },
     });
-  });
+  }, { isolationLevel: 'Serializable' });
 
   // Send email (best effort)
   const org = await prisma.organization.findUnique({ where: { id }, select: { name: true } });

@@ -8,6 +8,7 @@ import { postsRouter } from './routes/posts.js';
 import { teamsRouter } from './routes/teams.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
+import { groupChatsRouter } from './routes/group-chats.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -22,6 +23,7 @@ app.use('/posts', postsRouter);
 app.use('/teams', teamsRouter);
 app.use('/uploads', uploadsRouter);
 app.use('/users', usersRouter);
+app.use('/group-chats', groupChatsRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;

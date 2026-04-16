@@ -66,6 +66,43 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     }
   }
 
+  // v1.0.2: Approved coaches must accept the coach agreement before accessing coach tools.
+  // Previously this was UI-only — any API client could bypass by calling coach endpoints directly.
+  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
+    const acceptedAt = prefs?.coach_agreement_accepted_at;
+    if (!acceptedAt) {
+      return res.status(403).json({
+        error: 'You must accept the coach agreement before accessing coach tools.',
+        code: 'COACH_AGREEMENT_REQUIRED',
+      });
+    }
+  }
+
+  // v1.0.2 pass 8: safety net for Apple IAP grace period expiry. If Apple's EXPIRED
+  // notification was lost, this catches users whose grace period has elapsed and
+  // downgrades them lazily on their next coach API call. Without this, users could
+  // retain Premium access indefinitely after a failed renewal.
+  const graceExpiresAt = (prefs as any)?.grace_period_expires_at;
+  if (graceExpiresAt) {
+    const expires = new Date(String(graceExpiresAt));
+    if (!Number.isNaN(expires.getTime()) && expires < new Date()) {
+      const downgradedPrefs = { ...(prefs as any), plan: 'rookie', grace_period_expires_at: null };
+      delete downgradedPrefs.apple_product_id;
+      delete downgradedPrefs.apple_expires_date;
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          preferences: downgradedPrefs,
+          subscription_tier: 'free',
+          subscription_status: 'expired',
+          max_teams: 2,
+        },
+      });
+      console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', { userId: req.user.id });
+      // Continue with downgraded state; coach paid-tier check below will catch them if needed.
+    }
+  }
+
   // Approved coach accounts that selected a paid tier must complete checkout
   // before accessing coach tools, unless their league owner covers billing.
   if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {

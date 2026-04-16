@@ -1,4 +1,5 @@
 import * as ImageManipulator from 'expo-image-manipulator';
+import { materializeICloudAssetIfNeeded } from './materializeICloudAsset';
 
 /**
  * Max dimension (width or height) for uploaded images.
@@ -23,6 +24,7 @@ function isImageFile(mimeType?: string, uri?: string): boolean {
 
 /**
  * Compress and resize an image for upload.
+ * - Forces iCloud download on iOS when needed (v1.0.2)
  * - Resizes to max 1920px on the longest side (maintains aspect ratio)
  * - Compresses to 80% JPEG quality
  * - Skips videos and non-image files
@@ -39,11 +41,14 @@ export async function compressImageForUpload(
     return { uri, mimeType };
   }
 
+  // v1.0.2: force iCloud download before manipulation
+  const localUri = await materializeICloudAssetIfNeeded(uri);
+
   // Attempt 1: resize to max dimension + compress
   try {
     if (__DEV__) console.log('[media] Compressing image for upload (max 1920px, 80% quality)...');
     const manip = await ImageManipulator.manipulateAsync(
-      uri,
+      localUri,
       [{ resize: { width: MAX_IMAGE_DIMENSION } }],
       { compress: IMAGE_COMPRESS_QUALITY, format: ImageManipulator.SaveFormat.JPEG },
     );
@@ -58,7 +63,7 @@ export async function compressImageForUpload(
   // Attempt 2: compress without resize (in case the resize dimension caused issues)
   try {
     const manip = await ImageManipulator.manipulateAsync(
-      uri,
+      localUri,
       [],
       { compress: IMAGE_COMPRESS_QUALITY, format: ImageManipulator.SaveFormat.JPEG },
     );
@@ -70,8 +75,8 @@ export async function compressImageForUpload(
     if (__DEV__) console.warn('[media] Image compression attempt 2 also failed:', e);
   }
 
-  // Fallback: return original URI
-  return { uri, mimeType };
+  // Fallback: return the (possibly materialized) local URI
+  return { uri: localUri, mimeType };
 }
 
 /**

@@ -224,6 +224,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, []);
 
+  // v1.0.2: refs for deferred push registration + paywall loop breaker (must be before checkAuth).
+  const registerPushTokenRef = React.useRef<(() => Promise<boolean>) | null>(null);
+  const paywallPushTsRef = React.useRef<number>(0);
+  const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Check authentication
   const checkAuth = useCallback(
     async (options?: { email?: string; pendingVerification?: boolean }) => {
@@ -292,8 +297,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Fetch subscription status (non-blocking)
         fetchSubscription().catch((e) => captureException(e, { tags: { context: 'subscription_fetch' } }));
 
-        // Push notifications are requested during onboarding step 9 (with pre-prompt),
-        // not immediately after login.
+        // v1.0.2: register push token after successful checkAuth; signOut clears the timeout.
+        if (me.preferences?.onboarding_completed === true) {
+          if (pushTokenTimeoutRef.current) clearTimeout(pushTokenTimeoutRef.current);
+          pushTokenTimeoutRef.current = setTimeout(() => {
+            pushTokenTimeoutRef.current = null;
+            registerPushTokenRef.current?.().catch((e) => {
+              if (__DEV__) console.warn('[AuthProvider] checkAuth push token register failed:', e?.message);
+            });
+          }, 500);
+        }
 
         return me;
       } catch (err: any) {
@@ -386,6 +399,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } catch (error) {
       if (__DEV__) console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
+      if (pushTokenTimeoutRef.current) {
+        clearTimeout(pushTokenTimeoutRef.current);
+        pushTokenTimeoutRef.current = null;
+      }
       clearPostCacheOnLogout();
       setUser(null);
       setSentryUser(null);
@@ -409,7 +426,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     if (!user?.id) return false;
     return setupPushNotifications(user.id);
   }, [setupPushNotifications, user?.id]);
-  
+
+  React.useEffect(() => {
+    registerPushTokenRef.current = registerPushToken;
+  }, [registerPushToken]);
+
   const markOnboardingCompleteLocally = useCallback(async () => {
     try {
       setHasCompletedOnboarding(true);
@@ -675,8 +696,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         || currentPath.includes('billing');
 
       if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath) {
+        const now = Date.now();
+        const lastPaywallPush = paywallPushTsRef.current || 0;
+        if (now - lastPaywallPush < 5000) {
+          if (__DEV__) console.warn('[AuthProvider] Paywall redirect loop detected — breaking circuit');
+          paywallPushTsRef.current = 0;
+          return;
+        }
         if (__DEV__) console.log('[AuthProvider] Approved coach must complete checkout before tools');
         if (lastRedirectRef.current !== '/settings/manage-subscription') {
+          paywallPushTsRef.current = now;
           redirectWithTelemetry('/settings/manage-subscription', 'coach_checkout_required');
         }
         return;

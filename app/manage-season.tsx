@@ -904,34 +904,29 @@ function ManageSeasonScreen() {
 
   const handleSaveBulkGames = async (bulkGames: any[]) => {
     try {
-      const promises = bulkGames.map(async (gameData) => {
-        // Convert 12-hour time to 24-hour format for ISO string
-        const convertTo24Hour = (time12h: string) => {
-          const [time, modifier] = time12h.split(' ');
-          let [hours, minutes] = time.split(':');
-          hours = hours.padStart(2, '0');
-          
-          if (hours === '12') {
-            hours = modifier === 'AM' ? '00' : '12';
-          } else if (modifier === 'PM') {
-            hours = String(parseInt(hours, 10) + 12).padStart(2, '0');
-          }
-          return `${hours}:${minutes || '00'}`;
-        };
-
-        // Create proper datetime for API
+      // v1.0.2: use atomic /games/bulk endpoint instead of Promise.all over individual creates.
+      // Server rolls back the whole batch if any single game fails to save.
+      const convertTo24Hour = (time12h: string) => {
+        const [time, modifier] = time12h.split(' ');
+        let [hours, minutes] = time.split(':');
+        hours = hours.padStart(2, '0');
+        if (hours === '12') {
+          hours = modifier === 'AM' ? '00' : '12';
+        } else if (modifier === 'PM') {
+          hours = String(parseInt(hours, 10) + 12).padStart(2, '0');
+        }
+        return `${hours}:${minutes || '00'}`;
+      };
+      const teamName = currentTeam?.name || 'Team';
+      const payloads = bulkGames.map((gameData) => {
         const time24h = convertTo24Hour(gameData.time);
         const [year, month, day] = gameData.date.split('-');
         const [hours, minutes] = time24h.split(':');
-        
         const gameDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes));
-        
         if (isNaN(gameDateTime.getTime())) {
           throw new Error(`Invalid date/time for game vs ${gameData.opponent}`);
         }
-        
-        const teamName = currentTeam?.name || 'Team';
-        const gamePayload = {
+        return {
           title: `${teamName} vs ${gameData.opponent}`,
           home_team: gameData.type === 'home' ? teamName : gameData.opponent,
           away_team: gameData.type === 'home' ? gameData.opponent : teamName,
@@ -939,14 +934,11 @@ function ManageSeasonScreen() {
           location: gameData.location,
           description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: ${teamName} vs ${gameData.opponent}`,
         };
-
-        return GameAPI.create(gamePayload);
       });
+      const result: any = await GameAPI.bulkCreate(payloads);
+      const savedGames = Array.isArray(result?.games) ? result.games : [];
 
-      const savedGames = await Promise.all(promises);
-      
-      // Convert to local game format and add to state
-      const teamName = currentTeam?.name || 'Team';
+      // Convert to local game format and add to state (teamName already in scope from above)
       const newGames: Game[] = savedGames.map((savedGame, index) => {
         const originalData = bulkGames[index];
         return {

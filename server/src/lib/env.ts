@@ -105,7 +105,13 @@ if (isProd) {
   }
   if (!env.STRIPE_PRICE_VETERAN) warnings.push('STRIPE_PRICE_VETERAN (subscription pricing)');
   if (!env.STRIPE_PRICE_LEGEND) warnings.push('STRIPE_PRICE_LEGEND (subscription pricing)');
-  if (!env.CLOUDINARY_CLOUD_NAME) warnings.push('CLOUDINARY_CLOUD_NAME (uploads will fail)');
+  // v1.0.2 audit: Cloudinary misconfig silently falls back to ephemeral Railway disk,
+  // which wipes on deploy. Hard-throw in production so uploads can't silently disappear.
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+    throw new Error('FATAL: Cloudinary env vars (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET) are not all set. Without them uploads fall back to ephemeral Railway disk and are lost on every deploy. Set these in Railway env vars immediately.');
+  }
+  // v1.0.2 audit: geocoding silently returns null when API key missing → map/ad targeting broken.
+  if (!env.GOOGLE_MAPS_API_KEY) warnings.push('GOOGLE_MAPS_API_KEY (maps, geocoding, event radius, ad targeting all disabled)');
   if (!env.SENDGRID_API_KEY) warnings.push('SENDGRID_API_KEY (emails will fail)');
   if (!env.APPLE_BUNDLE_ID) warnings.push('APPLE_BUNDLE_ID (Apple Sign-In/IAP)');
   if (!env.APPLE_CLIENT_ID) warnings.push('APPLE_CLIENT_ID (Apple Sign-In)');

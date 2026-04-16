@@ -18,7 +18,8 @@ export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
   | 'POSTING_WINDOW_CLOSED'
   | 'TOO_FAR_FROM_VENUE'
-  | 'LOCATION_REQUIRED';
+  | 'LOCATION_REQUIRED'
+  | 'LOCATION_SPOOF_SUSPECTED';
 
 export type PostingPermissionResult = {
   allowed: boolean;
@@ -135,11 +136,44 @@ export function isPostingWindowOpen(eventDate: Date): boolean {
  * Stories: 24-hour window (12h before to 12h after game), 1km radius
  * @returns { allowed: boolean; reason?: string; distance?: number }
  */
+// v1.0.2 pass 9: server-side anti-spoof for client-supplied geofence coords. We can't fully
+// trust GPS from the client (rooted device, mock locations, modified app binary), so we add
+// a coarse IP-geo cross-check. If client coords differ from IP region by >250 miles, reject.
+// Won't stop a determined attacker with VPN at the venue's region, but raises the bar for
+// trivial spoofing.
+async function verifyClientCoordsVsIp(userLat: number, userLon: number, ipAddress: string | null): Promise<{ ok: boolean; reason?: string }> {
+  // v1.0.2 pass 10: ops escape hatch. If ipapi.co rate-limits or has an outage, set
+  // DISABLE_GEOFENCE_IP_CHECK=1 in Railway env to skip the cross-check and let stories through.
+  if (process.env.DISABLE_GEOFENCE_IP_CHECK === '1' || process.env.DISABLE_GEOFENCE_IP_CHECK === 'true') {
+    return { ok: true };
+  }
+  if (!ipAddress || ipAddress === '::1' || ipAddress === '127.0.0.1' || ipAddress.startsWith('10.') || ipAddress.startsWith('192.168.')) {
+    // Local/private IP — skip check (dev / VPN through corporate net are common false positives)
+    return { ok: true };
+  }
+  try {
+    // ipapi.co is free for ~1k req/day; fall through silently if it fails so we don't break the feature
+    const resp = await fetch(`https://ipapi.co/${ipAddress}/json/`, { signal: AbortSignal.timeout(2000) });
+    if (!resp.ok) return { ok: true };
+    const data: any = await resp.json();
+    if (typeof data?.latitude !== 'number' || typeof data?.longitude !== 'number') return { ok: true };
+    const distMi = calculateDistance(userLat, userLon, data.latitude, data.longitude, 'miles');
+    if (distMi > 250) {
+      return { ok: false, reason: `Reported location is ${Math.round(distMi)}mi from your network location. If you're using a VPN, please disable it.` };
+    }
+    return { ok: true };
+  } catch {
+    // Network failure or rate limit — don't block legitimate users; let geofence proceed
+    return { ok: true };
+  }
+}
+
 export async function verifyStoryPostingPermission(
   eventId: string,
   userId: string,
   userLat: number | null,
-  userLon: number | null
+  userLon: number | null,
+  ipAddress?: string | null,
 ): Promise<PostingPermissionResult> {
   // Get event details
   const event = await prisma.event.findUnique({
@@ -207,6 +241,19 @@ export async function verifyStoryPostingPermission(
       reason: 'You must be within 1 km of the venue to post a story.',
       distance,
     };
+  }
+
+  // v1.0.2 pass 9: anti-spoof — IP cross-check. If client says "I'm at venue X" but their
+  // network IP is in a different region, reject. Best-effort; never blocks on API failure.
+  if (ipAddress) {
+    const ipCheck = await verifyClientCoordsVsIp(userLat, userLon, ipAddress);
+    if (!ipCheck.ok) {
+      return {
+        allowed: false,
+        code: 'LOCATION_SPOOF_SUSPECTED',
+        reason: ipCheck.reason || 'Reported location does not match your network location.',
+      };
+    }
   }
 
   return { allowed: true, distance };

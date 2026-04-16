@@ -4,7 +4,7 @@ import { httpPost } from '@/api/http';
 import { Button } from '@/components/ui/button';
 import { useVHubIAP } from '@/hooks/useIAP';
 import { useFocusEffect } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
@@ -32,6 +32,7 @@ const isIOS = Platform.OS === 'ios';
 
 function ManageSubscription() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);
   const [paidByOwner, setPaidByOwner] = useState(false);
@@ -260,6 +261,11 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
                       <Text>Cancel subscription</Text>
                     </Button>
                   )}
+                  <View style={{ height: 8 }} />
+                  {/* v1.0.2: billing history entry point */}
+                  <Button onPress={() => router.push('/settings/billing-history' as any)} variant="outline">
+                    <Text>Billing History</Text>
+                  </Button>
                 </View>
               ) : (
                 <>

@@ -143,11 +143,19 @@ export async function rejectOrganization(
   });
   if (!org) return { error: 'Organization not found', status: 404 };
 
+  const reason = opts?.reason || null;
+
   // Cascade: reject org, unlink teams, revoke memberships, reject owner
   await prisma.$transaction(async (tx) => {
     await tx.organization.update({
       where: { id: orgId },
-      data: { status: 'rejected', admin_approved: false },
+      data: {
+        status: 'rejected',
+        admin_approved: false,
+        // v1.0.2: track rejection for 48hr cooldown
+        rejected_at: new Date(),
+        rejection_reason: reason,
+      },
     });
     // organization_id is non-nullable — soft-delete teams by setting status instead
     await tx.team.updateMany({
@@ -160,14 +168,19 @@ export async function rejectOrganization(
     if (org.leagueOwner?.id) {
       await tx.user.update({
         where: { id: org.leagueOwner.id },
-        data: { approval_status: 'REJECTED' },
+        data: {
+          approval_status: 'REJECTED',
+          // v1.0.2: mirror org cooldown onto owner so their re-apply path is gated too
+          rejected_at: new Date(),
+          rejection_reason: reason,
+        },
       });
     }
   });
 
   // ── Fire-and-forget notifications ──
-  const reason = opts?.reason;
-
+  // v1.0.2: `reason` is declared above (line 146) as `string | null`. Use || undefined
+  // where downstream signatures expect `string | undefined`.
   if (org.leagueOwner?.id) {
     sendPushNotification(
       org.leagueOwner.id,
@@ -190,7 +203,7 @@ export async function rejectOrganization(
       to: org.leagueOwner.email,
       ownerName: org.leagueOwner.display_name || 'League Owner',
       leagueName: org.name,
-      reason,
+      reason: reason || undefined,
     }).catch(() => {});
   }
 
@@ -200,7 +213,7 @@ export async function rejectOrganization(
     leagueName: org.name,
     ownerName: org.leagueOwner?.display_name || undefined,
     ownerEmail: org.leagueOwner?.email || undefined,
-    reason,
+    reason: reason || undefined,
   }).catch(() => {});
 
   return { ok: true, org };
@@ -291,12 +304,18 @@ export async function rejectCoach(
   if (!user) return { error: 'User not found', status: 404 };
   if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
 
+  const reason = opts?.reason;
+
+  // v1.0.2: persist rejected_at + reason so requireOnboarded / auth handlers
+  // can enforce 48hr cooldown on re-apply (see REJECTION_COOLDOWN_MS below).
   await prisma.user.update({
     where: { id: userId },
-    data: { approval_status: 'REJECTED' },
+    data: {
+      approval_status: 'REJECTED',
+      rejected_at: new Date(),
+      rejection_reason: reason || null,
+    },
   });
-
-  const reason = opts?.reason;
 
   // ── Fire-and-forget notifications ──
   if (user.email) {
@@ -382,11 +401,59 @@ export async function rejectAd(
   if (!ad) return { error: 'Ad not found', status: 404 };
   if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
 
+  // v1.0.2 pass 8: if ad was already paid before admin rejection, refund the user.
+  // Previously the ad was reset to draft + unpaid but the money stayed with VarsityHub.
+  let refundResult: { ok: boolean; amount?: number; refund_id?: string; error?: string } | null = null;
+  if (ad.payment_status === 'paid' && ad.user_id) {
+    try {
+      // Find the matching transaction log entry to get the payment intent
+      const tx = await prisma.transactionLog.findFirst({
+        where: { user_id: ad.user_id, order_id: adId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' },
+        orderBy: { created_at: 'desc' },
+      });
+      if (tx?.stripe_payment_intent_id) {
+        const Stripe = (await import('stripe')).default;
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' as any });
+        const refund = await stripe.refunds.create({
+          payment_intent: tx.stripe_payment_intent_id,
+          reason: 'requested_by_customer',
+          metadata: { reason: 'admin_rejected_ad', ad_id: adId, admin_id: adminId || 'unknown' },
+        });
+        refundResult = { ok: true, amount: refund.amount ?? tx.total_cents ?? undefined, refund_id: refund.id };
+        // Update transaction log with refund info
+        await prisma.transactionLog.update({
+          where: { id: tx.id },
+          data: {
+            status: 'REFUNDED' as any,
+            metadata: {
+              ...(tx.metadata as any || {}),
+              refund_reason: 'admin_rejected_ad',
+              stripe_refund_id: refund.id,
+              refunded_amount_cents: refund.amount ?? tx.total_cents,
+              refunded_at: new Date().toISOString(),
+            },
+          },
+        }).catch((e: any) => console.error('[approvalService] failed to update tx log on ad reject refund:', e));
+      } else {
+        refundResult = { ok: false, error: 'no_payment_intent_found' };
+        console.error('[approvalService] CRITICAL: ad rejected after payment but no payment_intent found to refund', { adId, userId: ad.user_id });
+      }
+    } catch (refundErr: any) {
+      refundResult = { ok: false, error: refundErr?.message || 'refund_api_failed' };
+      console.error('[approvalService] CRITICAL: ad reject refund FAILED — manual intervention needed', { adId, error: refundErr?.message });
+    }
+  }
+
   await prisma.$transaction([
     prisma.adReservation.deleteMany({ where: { ad_id: adId } }),
     prisma.ad.update({
       where: { id: adId },
-      data: { status: 'draft', payment_status: 'unpaid', ...(opts?.reason ? { admin_note: opts.reason } : {}) },
+      data: {
+        status: 'draft',
+        // v1.0.2 pass 8: payment_status reflects refund outcome (not just blanket "unpaid")
+        payment_status: refundResult?.ok ? 'refunded' : ad.payment_status === 'paid' ? 'refund_pending' : 'unpaid',
+        ...(opts?.reason ? { admin_note: opts.reason } : {}),
+      },
     }),
   ]);
 

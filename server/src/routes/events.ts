@@ -143,7 +143,9 @@ eventsRouter.get('/', async (req, res) => {
   const search = String(req.query.q || '').trim();
   const sort = String(req.query.sort || '').trim();
   const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
+  // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
+  // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
   
   const where: any = {};
   if (status) where.status = status;
@@ -161,9 +163,13 @@ eventsRouter.get('/', async (req, res) => {
     ];
   }
   
-  // Filter out past events by default (unless explicitly requested)
+  // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
+  // Events remain visible in listings for 72h after they happen (post-game photos, recap)
+  // and drop off after. `include_past=true` still returns everything for admin/team views.
   if (!req.query.include_past && !approvalStatus) {
-    where.date = { gte: new Date() };
+    const EVENT_ARCHIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+    const archiveCutoff = new Date(Date.now() - EVENT_ARCHIVE_WINDOW_MS);
+    where.date = { gte: archiveCutoff };
   }
   
   const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };
@@ -425,21 +431,22 @@ eventsRouter.post('/:id/rsvp', requireAuth as any, rsvpLimiter, asyncHandler(asy
         : !current;
   
   if (desired && !current) {
-    // Use transaction to prevent race condition and enforce capacity
+    // v1.0.2 pass 9: prevent capacity-overflow race by using SELECT ... FOR UPDATE on the
+    // event row inside a Serializable transaction. Previously two concurrent RSVPs could both
+    // pass the count check before either inserted, allowing the event to exceed capacity.
     try {
       await prisma.$transaction(async (tx) => {
-        // Check current count within transaction (prevents race condition)
+        // Lock the event row so concurrent RSVP transactions serialize at this point.
+        await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${id} FOR UPDATE`;
         const currentCount = await tx.eventRsvp.count({ where: { event_id: id } });
         const capacity = event.capacity ?? event.max_attendees;
-        
         if (capacity && currentCount >= capacity) {
           throw new Error('EVENT_AT_CAPACITY');
         }
-        
-        await tx.eventRsvp.create({ 
-          data: { event_id: id, user_id: me.id, user_email: me.email } 
+        await tx.eventRsvp.create({
+          data: { event_id: id, user_id: me.id, user_email: me.email }
         });
-      });
+      }, { isolationLevel: 'Serializable' });
       
       // Send RSVP confirmation email (best-effort, don't block response)
       // RSVP confirmation email removed — non-mandatory transactional email
@@ -502,7 +509,7 @@ const createEventSchema = z.object({
   requested_email: z.string().trim().optional(),
 });
 
-eventsRouter.post('/', requireVerified as any, requireOnboarded as any, eventCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+eventsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, eventCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createEventSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -834,7 +841,7 @@ const updateEventSchema = z.object({
 
 const COACH_EDITABLE_FIELDS = ['date', 'location', 'latitude', 'longitude', 'description', 'opponent', 'away_team_id', 'away_team_name'];
 
-eventsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+eventsRouter.patch('/:id', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;
@@ -1010,7 +1017,7 @@ eventsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (r
 });
 
 // Cancel event (creator or team owner only)
-eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+eventsRouter.patch('/:id/cancel', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const eventId = String(req.params.id);
   const userId = req.user!.id;
@@ -1070,7 +1077,9 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, a
   const eventLocation = [event.location].filter(Boolean).join(', ');
   const appBase = process.env.APP_BASE_URL || 'https://varsityhub.app';
 
-  // Send cancellation push notifications (event canceled email removed — non-mandatory)
+  // v1.0.2 pass 9: send BOTH push AND email so RSVP'd users still hear about cancellation
+  // even if their device push token is stale. Previously push-only meant lost notifications.
+  const { sendEmail: sendGenericEmail } = await import('../lib/email.js');
   for (const rsvp of rsvps) {
     if (rsvp.user?.id && rsvp.user.id !== userId) {
       sendPushNotification(
@@ -1079,6 +1088,16 @@ eventsRouter.patch('/:id/cancel', requireAuth as any, requireOnboarded as any, a
         `"${event.title || 'Event'}" has been cancelled.`,
         { type: 'event_cancelled', event_id: eventId, screen: 'event-detail' }
       ).catch(err => console.warn('[events] Failed to send push:', err));
+
+      // Best-effort email fallback so users who missed the push still find out.
+      if (rsvp.user.email) {
+        sendGenericEmail({
+          to: rsvp.user.email,
+          subject: `"${event.title || 'Event'}" was cancelled`,
+          text: `Hi ${rsvp.user.display_name || 'there'},\n\nThe event "${event.title || 'Event'}" scheduled for ${eventDateStr} at ${eventTimeStr}${eventLocation ? ' (' + eventLocation + ')' : ''} has been cancelled.\n\nLearn more: ${appBase}/event/${eventId}\n\n— VarsityHub`,
+          html: `<p>Hi ${rsvp.user.display_name || 'there'},</p><p>The event <strong>"${event.title || 'Event'}"</strong> scheduled for ${eventDateStr} at ${eventTimeStr}${eventLocation ? ' (' + eventLocation + ')' : ''} has been cancelled.</p><p><a href="${appBase}/event/${eventId}">View details</a></p>`,
+        }).catch((err: any) => console.warn('[events] cancel email failed:', err?.message || err));
+      }
     }
   }
 

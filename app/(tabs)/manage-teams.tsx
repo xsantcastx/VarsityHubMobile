@@ -454,12 +454,26 @@ function ManageTeamsSimpleScreen() {
         )}
 
         {/* Empty State */}
+        {/* v1.0.2 pass 9: added action button so newly-approved coaches don't hit a dead end here. */}
         {!loading && !error && activeTeams.length === 0 && (
-          <EmptyState
-            icon="people-outline"
-            title="No Teams Yet"
-            subtitle="Create your first team to get started"
-          />
+          <View>
+            <EmptyState
+              icon="people-outline"
+              title="No Teams Yet"
+              subtitle="Create your first team to get started"
+            />
+            <View style={{ alignItems: 'center', marginTop: 12, paddingHorizontal: 24 }}>
+              {/* v1.0.2 pass 10: use theme tint color so button matches dark/light schemes. */}
+              <Pressable
+                onPress={() => router.push('/(tabs)/create-team')}
+                style={{ backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Create your first team"
+              >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Create Your First Team</Text>
+              </Pressable>
+            </View>
+          </View>
         )}
 
         {/* Big Action Buttons */}

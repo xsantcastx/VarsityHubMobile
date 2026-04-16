@@ -7,7 +7,7 @@
 
 const BASE = 'https://api-production-8ac3.up.railway.app';
 const ADMIN_EMAIL = 'emancero@varsityhub.app';
-const ADMIN_PASS = 'Lime3100$';
+const ADMIN_PASS = process.env.ADMIN_PASS || '';
 const ts = Date.now();
 
 let passed = 0;
@@ -57,6 +57,11 @@ async function login(email: string, password: string) {
 }
 
 async function main() {
+  if (!ADMIN_PASS) {
+    console.error('ADMIN_PASS is required');
+    process.exit(1);
+  }
+
   console.log('╔══════════════════════════════════════════════════════════╗');
   console.log('║     GHOST TEST — FULL PRODUCTION QA (API LEVEL)        ║');
   console.log(`║     ${new Date().toISOString()}                ║`);

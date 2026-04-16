@@ -289,9 +289,16 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     debugLog(`[payments] User has existing subscription ${existingSubId} — will cancel after new payment completes`);
   }
 
-  const session = await stripe.checkout.sessions.create(sessionConfig, {
-    idempotencyKey: (req.headers['x-idempotency-key'] as string) || `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / 60000)}`,
-  });
+  // v1.0.2 audit fix: idempotency key was drifting every 60s via Math.floor(Date.now()/60000).
+  // Network retries past the minute boundary created duplicate Stripe sessions → duplicate charges.
+  // Now prefer client-supplied x-idempotency-key; fall back to a 1-hour window that still provides
+  // meaningful retry protection without blocking legitimate new upgrades.
+  const clientKey = (req.headers['x-idempotency-key'] as string) || '';
+  if (!clientKey && process.env.NODE_ENV !== 'production') {
+    console.warn('[payments] No x-idempotency-key header on /payments/checkout — using 1h fallback window. Client should supply a UUID per checkout attempt.');
+  }
+  const idempotencyKey = clientKey || `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+  const session = await stripe.checkout.sessions.create(sessionConfig, { idempotencyKey });
 
   // Log subscription transaction
   const currentUser = await prisma.user.findUnique({ 
@@ -427,48 +434,40 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
   const isFullyComped = discount >= subtotal;
   if (total === 0 || isFullyComped) {
+    // Record redemption and create reservations
+    if (appliedCode) {
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
+    }
     try {
-      await prisma.$transaction(async (tx) => {
-        if (appliedCode) {
-          await redeemPromo(
-            {
-              code: appliedCode,
-              subtotalCents: subtotal,
-              userId: req.user!.id,
-              service: 'booking',
-              orderId: `FREE-${crypto.randomUUID()}`,
-            },
-            tx
-          );
-        }
-        await tx.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } });
-        await tx.adReservation.createMany({
-          data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-          skipDuplicates: true,
-        });
-      });
+      await prisma.$transaction([
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
+        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
+      ]);
     } catch (e) {
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
-    // Log $0 transaction for audit trail
-    logTransaction({
-      transactionType: 'AD_PURCHASE',
-      status: 'COMPLETED',
-      userId: req.user!.id,
-      subtotalCents: subtotal,
-      taxCents: 0,
-      discountCents: discount,
-      promoCode: appliedCode || undefined,
-      promoDiscountCents: discount,
-      totalCents: 0,
-      netCents: 0,
-      currency: 'usd',
-      metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-    }).catch((err) => {
+    // v1.0.2 audit fix: await so financial audit trail can't silently drop.
+    // On DB failure, the user-facing response succeeds but we capture to Sentry at error level.
+    try {
+      await logTransaction({
+        transactionType: 'AD_PURCHASE',
+        status: 'COMPLETED',
+        userId: req.user!.id,
+        subtotalCents: subtotal,
+        taxCents: 0,
+        discountCents: discount,
+        promoCode: appliedCode || undefined,
+        promoDiscountCents: discount,
+        totalCents: 0,
+        netCents: 0,
+        currency: 'usd',
+        metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
+      });
+    } catch (err) {
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log', adId: String(ad_id) });
-    });
+    }
     // Ad payment confirmation email removed — non-mandatory
     return res.json({ free: true });
   }
@@ -587,9 +586,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // sessionConfig.automatic_tax = { enabled: true };
   // This would calculate and add tax automatically for Price IDs
 
-  const session = await stripe.checkout.sessions.create(sessionConfig, {
-    idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / 60000)}`,
-  });
+  // v1.0.2 audit fix: same idempotency drift bug — widen fallback window to 1h.
+  const adIdemClientKey = (req.headers['x-idempotency-key'] as string) || '';
+  const adIdempotencyKey = adIdemClientKey || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+  const session = await stripe.checkout.sessions.create(sessionConfig, { idempotencyKey: adIdempotencyKey });
 
   // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
   // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
@@ -898,24 +898,26 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
-    // Log $0 transaction for audit trail
-    logTransaction({
-      transactionType: 'AD_PURCHASE',
-      status: 'COMPLETED',
-      userId,
-      subtotalCents: subtotal,
-      taxCents: 0,
-      discountCents: discount,
-      promoCode: appliedCode || undefined,
-      promoDiscountCents: discount,
-      totalCents: 0,
-      netCents: 0,
-      currency: 'usd',
-      metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-    }).catch((err) => {
+    // v1.0.2 audit fix: await to preserve audit trail on PaymentSheet free-promo path.
+    try {
+      await logTransaction({
+        transactionType: 'AD_PURCHASE',
+        status: 'COMPLETED',
+        userId,
+        subtotalCents: subtotal,
+        taxCents: 0,
+        discountCents: discount,
+        promoCode: appliedCode || undefined,
+        promoDiscountCents: discount,
+        totalCents: 0,
+        netCents: 0,
+        currency: 'usd',
+        metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
+      });
+    } catch (err) {
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log_pi', adId: String(ad_id) });
-    });
+    }
     // Ad payment confirmation email removed — non-mandatory
     return res.json({ free: true });
   }
@@ -938,7 +940,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         weekend_blocks: String(pricingResult.weekendBlocks),
       },
     }, {
-      idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / 60000)}`,
+      // v1.0.2 audit fix: widen fallback window from 60s to 1h to prevent duplicate payment intents on retry
+      idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`,
     });
 
     // Hold slots atomically — re-check capacity inside transaction to prevent race conditions
@@ -1100,15 +1103,20 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     if (invoice.customer && invoice.subscription) {
       const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
       if (renewalUser) {
-        logTransaction({
-          transactionType: 'SUBSCRIPTION_RENEWAL',
-          status: 'COMPLETED',
-          userId: renewalUser.id,
-          totalCents: invoice.amount_paid || 0,
-          stripeSessionId: String(invoice.id),
-          stripeSubscriptionId: String(invoice.subscription),
-          metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
-        }).catch(err => captureException(err as Error, { context: 'renewal_transaction_log' }));
+        // v1.0.2 audit fix: await so renewal audit trail is never silently dropped.
+        try {
+          await logTransaction({
+            transactionType: 'SUBSCRIPTION_RENEWAL',
+            status: 'COMPLETED',
+            userId: renewalUser.id,
+            totalCents: invoice.amount_paid || 0,
+            stripeSessionId: String(invoice.id),
+            stripeSubscriptionId: String(invoice.subscription),
+            metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
+          });
+        } catch (err) {
+          captureException(err as Error, { context: 'renewal_transaction_log' });
+        }
       }
     }
   }
@@ -1244,6 +1252,70 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   }
 
   // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
+  // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
+  // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
+  // affect the user's plan or ad — they kept access without paying.
+  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+    const charge = event.data.object as Stripe.Charge;
+    const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+    const refundAmount = charge.amount_refunded || charge.amount;
+    try {
+      // Find the original transaction by payment intent
+      const tx = piId
+        ? await prisma.transactionLog.findFirst({ where: { stripe_payment_intent_id: piId }, orderBy: { created_at: 'desc' } })
+        : null;
+      if (!tx) {
+        console.error('[webhook] charge.refunded without matching transactionLog', { charge_id: charge.id, pi: piId });
+        captureException(new Error('charge.refunded: no matching transaction'), { context: 'refund_no_tx', chargeId: charge.id });
+      } else {
+        // Mark the transaction REFUNDED with the actual refunded amount
+        await prisma.transactionLog.update({
+          where: { id: tx.id },
+          data: {
+            status: 'REFUNDED' as any,
+            metadata: {
+              ...(tx.metadata as any || {}),
+              refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+              refunded_amount_cents: refundAmount,
+              stripe_charge_id: charge.id,
+              refunded_at: new Date().toISOString(),
+            },
+          },
+        });
+
+        // Cascade based on transaction type:
+        // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+        // - AD_PURCHASE → mark ad refunded + release reservations
+        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+          const u = await prisma.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
+          const prefs = (u?.preferences as any) || {};
+          await prisma.user.update({
+            where: { id: tx.user_id },
+            data: {
+              preferences: { ...prefs, plan: 'rookie', subscription_id: null, subscription_period_end: null },
+              subscription_tier: 'free',
+              subscription_status: 'cancelled',
+              max_teams: 2,
+            },
+          });
+          console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
+        } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: tx.order_id } }),
+            prisma.ad.updateMany({
+              where: { id: tx.order_id },
+              data: { status: 'draft', payment_status: 'refunded' },
+            }),
+          ]);
+          console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
+        }
+      }
+    } catch (refundErr: any) {
+      console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
+      captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+    }
+  }
+
   if (event.type === 'checkout.session.expired') {
     const session = event.data.object as Stripe.Checkout.Session;
     await updateTransactionStatus(session.id, 'FAILED', {
@@ -1577,6 +1649,55 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
   }
 }));
 
+// v1.0.2 pass 9: resume a cancel-at-period-end subscription before period actually ends.
+// Mirrors /subscription/cancel; just sets cancel_at_period_end back to false.
+// v1.0.2 pass 10: explicit requireAuth for defense-in-depth (matches pattern set in earlier passes).
+// Logged as SUBSCRIPTION_CANCEL with metadata.action='resume_cancel_at_period_end' since
+// SUBSCRIPTION_RESUME isn't in the TransactionType enum (would need a migration).
+paymentsRouter.post('/subscription/resume', expressPkg.json(), requireAuth as any, requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const subscriptionId: string | undefined = typeof prefs.subscription_id === 'string' ? prefs.subscription_id : undefined;
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No subscription to resume' });
+    }
+    let sub: Stripe.Subscription;
+    try {
+      sub = await stripe.subscriptions.retrieve(subscriptionId);
+    } catch (err: any) {
+      return res.status(404).json({ error: 'Subscription not found in Stripe', detail: err?.message });
+    }
+    if (!sub.cancel_at_period_end) {
+      return res.json({ ok: true, message: 'Subscription is already active', already_active: true });
+    }
+    if (sub.status === 'canceled' || sub.status === 'incomplete_expired') {
+      return res.status(400).json({
+        error: 'Subscription has already ended. Please subscribe again.',
+        code: 'SUBSCRIPTION_ENDED',
+      });
+    }
+    try {
+      await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
+    } catch (err: any) {
+      console.warn('Failed to resume subscription:', err?.message || err);
+      return res.status(500).json({ error: 'Failed to resume subscription with Stripe' });
+    }
+    await logTransaction({
+      transactionType: 'SUBSCRIPTION_CANCEL',
+      status: 'COMPLETED',
+      stripeSubscriptionId: subscriptionId,
+      userId,
+      metadata: { action: 'resume_cancel_at_period_end', plan: prefs.plan },
+    }).catch(err => { console.error('[transaction-log] resume log failed:', err); captureException(err as Error, { context: 'transaction_log_resume' }); });
+    return res.json({ ok: true, resumed: true });
+  } catch (err) {
+    console.error('Error resuming subscription:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
+
 // Update subscription quantity for Veteran plan
 paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
@@ -1721,6 +1842,41 @@ paymentsRouter.get('/debug/subscription-status', requireVerified as any, require
 }));
 
 // Subscription summary for Billing screen
+// v1.0.2: GET /payments/history — list user's own billing transactions (most recent first).
+// Backs the new manage-subscription billing history view.
+paymentsRouter.get('/history', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const rows = await prisma.transactionLog.findMany({
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    select: {
+      id: true,
+      transaction_type: true,
+      status: true,
+      total_cents: true,
+      currency: true,
+      promo_code: true,
+      promo_discount_cents: true,
+      created_at: true,
+      metadata: true,
+    },
+  });
+  return res.json({
+    transactions: rows.map(r => ({
+      id: r.id,
+      type: r.transaction_type,
+      status: r.status,
+      amount_cents: r.total_cents,
+      currency: r.currency,
+      promo_code: r.promo_code,
+      promo_discount_cents: r.promo_discount_cents,
+      created_at: r.created_at.toISOString(),
+    })),
+  });
+}));
+
 paymentsRouter.get('/subscription/summary', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
@@ -2058,10 +2214,16 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`);
         }
 
-        await tx.ad.update({
-          where: { id: ad_id },
+        // v1.0.2 audit hardening: use conditional updateMany so we fail if admin rejected
+        // the ad between our read above and the write below. updateMany with status filter
+        // returns count:0 if the row is no longer in an activatable state.
+        const updated = await tx.ad.updateMany({
+          where: { id: ad_id, status: { in: ['approved', 'active'] } },
           data: { payment_status: 'paid', status: 'active' },
         });
+        if (updated.count === 0) {
+          throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} was no longer approved at activation time`);
+        }
         await tx.adReservation.createMany({
           data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
           skipDuplicates: true,
@@ -2099,8 +2261,18 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           const piId = session.payment_intent ? String(session.payment_intent) : '';
           if (piId) {
             const refund = await stripe.refunds.create({ payment_intent: piId, reason: 'requested_by_customer' });
+            // v1.0.2 audit fix: persist refunded amount in metadata for audit trail.
+            // Previously only stripe_refund_id was saved — no record of how much was refunded.
             await updateTransactionStatus(session.id, 'REFUNDED', {
-              metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
+              metadata: {
+                reason: 'slot_full',
+                overbooked_dates: e.dates,
+                stripe_refund_id: refund.id,
+                refunded_amount_cents: refund.amount ?? totalCents,
+                refund_currency: refund.currency || 'usd',
+                refund_status: refund.status || 'pending',
+                refunded_at: new Date().toISOString(),
+              },
             });
             // Notify user
             if (fallbackEmail) {
@@ -2175,6 +2347,47 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       return; // Critical fix: don't continue processing unpaid sessions
     } else {
       try {
+        // v1.0.2 audit hardening: re-fetch the session from Stripe immediately before mutating user state.
+        // Closes a TOCTOU window where a stale/replayed session object could carry an old "paid" flag.
+        try {
+          const fresh = await stripe.checkout.sessions.retrieve(String(session.id));
+          if (fresh?.payment_status !== 'paid') {
+            console.error('[payments] finalize aborted — session no longer paid on re-verify', {
+              session_id: session.id,
+              fresh_status: fresh?.payment_status,
+              userId,
+            });
+            return;
+          }
+        } catch (reverifyErr: any) {
+          // v1.0.2 audit pass 4: if Stripe is unreachable during re-verify, we MUST NOT silently
+          // drop the payment record. User already paid (that's how we got here with paid=true from
+          // the webhook payload). Mark the transaction for manual reconciliation instead of
+          // proceeding blindly — the ops team can decide whether to trust the webhook.
+          console.error('[payments] finalize aborted — session re-verify failed (transaction marked NEEDS_REVIEW)', {
+            session_id: session.id,
+            err: reverifyErr?.message || reverifyErr,
+            userId,
+          });
+          captureException(reverifyErr as Error, {
+            context: 'finalize_reverify_failed',
+            sessionId: String(session.id),
+            userId,
+          });
+          try {
+            await updateTransactionStatus(session.id, 'NEEDS_REVIEW' as any, {
+              metadata: {
+                reason: 'session_reverify_api_failed',
+                reverify_error: String(reverifyErr?.message || reverifyErr),
+                webhook_payment_status: session.payment_status,
+                flagged_at: new Date().toISOString(),
+              },
+            });
+          } catch (markErr) {
+            console.error('[payments] Failed to mark transaction NEEDS_REVIEW:', markErr);
+          }
+          return;
+        }
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         if (!current) { console.error('[payments] finalizeFromSession: user not found', userId); return; }
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
@@ -2283,7 +2496,10 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 }
 
 // Human-facing pages for success/cancel, with success also attempting confirmation if session_id present
-paymentsRouter.get('/success', asyncHandler(async (req, res) => {
+// v1.0.2 pass 11: /success is a PUBLIC GET that triggers Stripe + DB writes via finalizeFromSession.
+// Without a rate limit, an attacker spamming arbitrary session_id values forces real Stripe API
+// calls per request. paymentLimiter caps abuse without breaking legitimate post-checkout redirects.
+paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req, res) => {
   const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';
   const appReturnPath = process.env.APP_RETURN_PATH || '';
   const returnUrl = `${appScheme}://${appReturnPath}`;
@@ -2868,11 +3084,21 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       notificationType === 'DID_FAIL_TO_RENEW' ||
       (notificationType === 'GRACE_PERIOD' || subtype === 'GRACE_PERIOD')
     ) {
-      // Failed renewal or grace period — mark as past_due
+      // v1.0.2 pass 8: previously we marked past_due but never recorded WHEN the grace period
+      // expires. If Apple's EXPIRED notification was lost (network failure, missed delivery),
+      // the user kept Premium access indefinitely. Now we record an explicit cutoff so a
+      // safety net check (in requireOnboarded or middleware) can downgrade users whose
+      // grace period has elapsed without an EXPIRED arriving.
+      const APPLE_GRACE_PERIOD_MS = 16 * 24 * 60 * 60 * 1000; // Apple billing grace ≈ 16 days
+      const graceExpiresAt = new Date(Date.now() + APPLE_GRACE_PERIOD_MS);
+      const updatedPrefs = { ...prefs, grace_period_expires_at: graceExpiresAt.toISOString() };
       await prisma.$transaction([
         prisma.user.update({
           where: { id: userId },
-          data: { subscription_status: 'past_due' },
+          data: {
+            subscription_status: 'past_due',
+            preferences: updatedPrefs,
+          },
         }),
         prisma.transactionLog.create({
           data: {
@@ -2880,11 +3106,11 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
             status: 'FAILED',
             user_id: userId,
             order_id: originalTransactionId,
-            metadata: { source: 'apple_s2s', notificationType, subtype },
+            metadata: { source: 'apple_s2s', notificationType, subtype, grace_expires_at: graceExpiresAt.toISOString() },
           },
         }),
       ]);
-      console.warn('[apple-s2s] Marked user as past_due:', userId);
+      console.warn('[apple-s2s] Marked user as past_due with grace period expiry:', { userId, graceExpiresAt });
 
     } else if (
       notificationType === 'EXPIRED' ||

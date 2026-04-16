@@ -71,11 +71,26 @@ export function initSentry() {
   }
 }
 
+// v1.0.2 pass 9: PII scrubbing for Sentry. Previously we sent raw user_id + email + username,
+// which Sentry stores in plaintext and exposes to anyone with project access. Now we only
+// send a hashed identifier so cross-error correlation still works without leaking PII.
+function hashForSentry(input: string): string {
+  // Lightweight FNV-1a 32-bit hash → 8-char hex. No real crypto needed for correlation.
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 export function setUserContext(user: { id: string; email?: string; username?: string } | null) {
   if (!sentryReady) return;
   try {
     if (user) {
-      Sentry.setUser({ id: user.id, email: user.email, username: user.username });
+      // Hash the id so we can correlate errors per-user without exposing the raw identifier.
+      // No email/username sent — those are PII.
+      Sentry.setUser({ id: `u_${hashForSentry(user.id)}` });
     } else {
       Sentry.setUser(null);
     }

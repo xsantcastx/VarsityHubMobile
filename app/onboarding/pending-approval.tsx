@@ -254,6 +254,36 @@ function PendingApproval() {
 
         {(!approved || rejected) && !timedOut && (
           <>
+            {/* v1.0.2: Try-again CTA for rejected coaches. Server enforces 48hr cooldown. */}
+            {rejected && (
+              <Pressable
+                style={[styles.primaryButton, { marginBottom: 12, backgroundColor: '#1B3A6B' }]}
+                onPress={async () => {
+                  try {
+                    setChecking(true);
+                    await User.reapplyCoach();
+                    setRejected(false);
+                    setRejectionReason(null);
+                    Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
+                    router.replace('/onboarding/step-3-league');
+                  } catch (e: any) {
+                    const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
+                    const code = e?.data?.code;
+                    const hrs = e?.data?.retry_after_hours;
+                    if (code === 'REJECTION_COOLDOWN' && hrs) {
+                      Alert.alert('Please wait', `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`);
+                    } else {
+                      Alert.alert('Failed', msg);
+                    }
+                  } finally {
+                    setChecking(false);
+                  }
+                }}
+                disabled={checking}
+              >
+                <Text style={styles.primaryButtonText}>Try Again</Text>
+              </Pressable>
+            )}
             {/* Buttons */}
             <Pressable
               style={[styles.primaryButton, { marginBottom: 12 }]}

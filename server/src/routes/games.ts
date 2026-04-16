@@ -342,6 +342,15 @@ gamesRouter.get('/', async (req, res) => {
     }
   }
 
+  // v1.0.2: map_view=true restricts to "games this week" (today through +7 days).
+  // Test note: once a game is in the past it should drop off the map. Map should only
+  // reflect games the week of in real time. This filter is opt-in so list views still work as before.
+  if (req.query.map_view === 'true' || req.query.map_view === '1') {
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    whereClause.date = { ...(whereClause.date || {}), gte: now, lte: weekFromNow };
+  }
+
   const games = await (prisma.game.findMany as any)({
     where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
     orderBy,
@@ -689,6 +698,61 @@ gamesRouter.post('/', requireVerified as any, requireOnboarded as any, gameCreat
   } catch (error) {
     console.error('Error creating game:', error);
     res.status(500).json({ error: 'Failed to create game' });
+  }
+}));
+
+// v1.0.2: POST /games/bulk — atomic bulk create for season scheduling.
+// Replaces the client-side loop in manage-season.tsx that had no rollback on partial failure.
+// Max 30 games per call (same cap as single endpoint's monthly batch).
+const bulkGameSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  home_team: z.string().trim().optional(),
+  away_team: z.string().trim().optional(),
+  home_team_id: z.string().trim().optional(),
+  away_team_id: z.string().trim().optional(),
+  date: z.string().datetime(),
+  location: z.string().trim().min(1),
+  description: z.string().trim().optional(),
+  event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'team_meal', 'tryout', 'bbq', 'team_meeting', 'host_request', 'other']).optional(),
+  is_neutral: z.boolean().optional(),
+});
+gamesRouter.post('/bulk', requireAuth as any, requireVerified as any, requireOnboarded as any, gameCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  const schema = z.object({ games: z.array(bulkGameSchema).min(1).max(30) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid bulk games payload', issues: parsed.error.issues });
+  }
+  const userId = req.user!.id;
+  try {
+    // All-or-nothing: one failure rolls back the whole batch.
+    const created = await prisma.$transaction(async (tx) => {
+      const rows: any[] = [];
+      for (const g of parsed.data.games) {
+        const row = await tx.game.create({
+          data: {
+            title: g.title,
+            date: new Date(g.date),
+            location: g.location,
+            description: g.description ?? null,
+            home_team: g.home_team ?? null,
+            away_team: g.away_team ?? null,
+            home_team_id: g.home_team_id ?? null,
+            away_team_id: g.away_team_id ?? null,
+            event_type: g.event_type ?? 'game',
+            is_neutral: g.is_neutral ?? false,
+            created_by: userId,
+            approval_status: 'approved' as any, // coaches creating for their own team auto-approve (mirrors single endpoint)
+          },
+          select: { id: true, title: true, date: true, location: true },
+        });
+        rows.push(row);
+      }
+      return rows;
+    });
+    return res.status(201).json({ ok: true, created_count: created.length, games: created });
+  } catch (err: any) {
+    console.error('[games/bulk] failed — rolled back:', err?.message || err);
+    return res.status(500).json({ error: 'Bulk game creation failed and was rolled back.', detail: err?.message || 'unknown' });
   }
 }));
 

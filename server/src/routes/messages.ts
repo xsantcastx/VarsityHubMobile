@@ -211,6 +211,16 @@ if (block) {
 return res.status(403).json({ error: 'MESSAGE_BLOCKED', message: 'Messaging is disabled between these users.' });
 }
 
+// v1.0.2 audit fix: block banned users from sending DMs.
+const sender = await prisma.user.findUnique({
+  where: { id: meId },
+  select: { banned: true, banned_until: true },
+});
+const nowTs = new Date();
+if (sender?.banned || (sender?.banned_until && sender.banned_until > nowTs)) {
+  return res.status(403).json({ error: 'USER_BANNED', message: 'Your account is suspended from messaging.' });
+}
+
 // AGE POLICY: Fetch both users' DOB for age checks
 const [me, recipient] = await Promise.all([
   prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } }),

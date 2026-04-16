@@ -170,11 +170,15 @@ export async function sendEmail({ to, subject, text, html }: BasicEmail): Promis
   }
 
   try {
+    // v1.0.2 audit fix: explicitly set replyTo so generic emails route replies to support.
+    // From header is managed by the provider via defaultFrom; replyTo override ensures user replies land somewhere real.
+    const replyTo = process.env.SUPPORT_REPLY_TO || 'support@varsityhub.app';
     const result = await service.send({
       to,
       subject: safeSubject,
       text: safeText,
       html: safeHtml,
+      replyTo,
     });
 
     if (result.success) {
@@ -524,9 +528,16 @@ async function sendTemplateEmail(
   logMessage: string
 ): Promise<boolean> {
   if (!templateId) {
+    // v1.0.2 audit fix: missing template IDs in production cause approval emails to silently drop.
+    // Log at error level so Railway + Sentry surface these loudly.
     const msg = `[email] Template ID not configured for: ${subject}`;
-    console.warn(msg);
-    Sentry.captureMessage(msg, 'warning');
+    if (process.env.NODE_ENV === 'production') {
+      console.error(msg);
+      Sentry.captureMessage(msg, 'error');
+    } else {
+      console.warn(msg);
+      Sentry.captureMessage(msg, 'warning');
+    }
     return false;
   }
 
@@ -543,11 +554,15 @@ async function sendTemplateEmail(
   }
 
   try {
+    // v1.0.2 audit fix: every template email gets a Reply-To so customer replies
+    // don't bounce into the noreply void. Override-able via SUPPORT_REPLY_TO env var.
+    const replyTo = process.env.SUPPORT_REPLY_TO || 'support@varsityhub.app';
     const result = await service.send({
       to,
       subject,
       templateId,
       templateData,
+      replyTo,
     });
 
     if (result.success) {

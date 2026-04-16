@@ -282,9 +282,12 @@ export default function ProfileScreen() {
       }
 
       const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
-      const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
+      // v1.0.2: force iCloud download before manipulation (fixes "old images" crash)
+      const { materializeICloudAssetIfNeeded } = await import('@/utils/materializeICloudAsset');
+      const localUri = await materializeICloudAssetIfNeeded(uri);
+      const manipulated = await ImageManipulator.manipulateAsync(localUri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
-      
+
       // Use shared upload helper with consistent auth/retry logic
       const { url } = await uploadAvatar(null, manipulated.uri, name);
       await User.updateMe({ avatar_url: url });
@@ -322,7 +325,10 @@ export default function ProfileScreen() {
       }
 
       const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
-      const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
+      // v1.0.2: force iCloud download before manipulation
+      const { materializeICloudAssetIfNeeded } = await import('@/utils/materializeICloudAsset');
+      const localUri = await materializeICloudAssetIfNeeded(uri);
+      const manipulated = await ImageManipulator.manipulateAsync(localUri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
       
       const { url } = await uploadAvatar(null, manipulated.uri, name);
@@ -616,8 +622,10 @@ export default function ProfileScreen() {
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
   const approvalStatus = (me as any)?.approval_status;
+  // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
+  // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
   const roleLabel = roleRaw === 'coach'
-    ? (approvalStatus === 'APPROVED' ? 'Coach / Organizer' : 'Pending Coach')
+    ? (approvalStatus === 'APPROVED' ? 'Coach / Organizer' : 'Fan')
     : roleRaw === 'fan' ? 'Fan' : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
@@ -878,7 +886,7 @@ export default function ProfileScreen() {
                 roleRaw === 'player' && styles.playerBadge,
                 roleRaw === 'fan' && styles.fanBadge
               ]}>
-                <Text style={styles.roleText}>{roleRaw === 'coach' ? (approvalStatus === 'APPROVED' ? 'COACH' : 'PENDING COACH') : roleRaw.toUpperCase()}</Text>
+                <Text style={styles.roleText}>{roleRaw === 'coach' ? (approvalStatus === 'APPROVED' ? 'COACH' : 'FAN') : roleRaw.toUpperCase()}</Text>
               </View>
             )}
           </View>

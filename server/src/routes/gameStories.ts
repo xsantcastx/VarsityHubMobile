@@ -113,6 +113,13 @@ export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Reque
     if (!visibility.exists) return res.status(404).json({ error: 'Not found' });
     if (!visibility.allowed) return res.status(404).json({ error: 'Not found' });
 
+    // v1.0.2 pass 9: lazy-delete expired stories on each list request. Without a cron job
+    // the Story table grew unbounded. Done as fire-and-forget so list latency isn't affected.
+    // Only delete stories that are clearly expired (expires_at set and past).
+    prisma.story.deleteMany({
+      where: { game_id: id, expires_at: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
+    }).catch((err) => console.warn('[gameStories] lazy expired-cleanup failed:', err?.message || err));
+
     const items = await prisma.story.findMany({
       where: { game_id: id },
       orderBy: { created_at: 'desc' },
@@ -212,11 +219,14 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
       const lat = location?.lat ?? null;
       const lng = location?.lng ?? null;
 
+      // v1.0.2 pass 9: pass requester IP for anti-spoof cross-check inside geofencing.
+      const ipAddr = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || null;
       const verification = await verifyStoryPostingPermission(
         event.id,
         req.user.id,
         lat,
-        lng
+        lng,
+        ipAddr
       );
 
       if (!verification.allowed) {

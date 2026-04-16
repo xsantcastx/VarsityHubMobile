@@ -45,11 +45,19 @@ export default function MasonryGrid({
           key={columnIndex} 
           style={[styles.column, { width: columnWidth, marginRight: columnIndex < numColumns - 1 ? gap : 0 }]}
         >
-          {column.map(({ item, index }) => (
-            <View key={item.id || `${columnIndex}-${index}`} style={{ marginBottom: gap }}>
-              {renderItem(item, index)}
-            </View>
-          ))}
+          {column.map(({ item, index }) => {
+            // v1.0.2 audit fix: prefer a stable id-based key. Only fall back to a
+            // CONTENT-derived key (not index) when id is missing, so reorders don't
+            // cause visual ghosting as React reuses DOM nodes for different items.
+            const stableKey = item?.id
+              ? String(item.id)
+              : `c${columnIndex}-${(item as any)?.key || (item as any)?.url || (item as any)?.created_at || index}`;
+            return (
+              <View key={stableKey} style={{ marginBottom: gap }}>
+                {renderItem(item, index)}
+              </View>
+            );
+          })}
         </View>
       ))}
     </View>

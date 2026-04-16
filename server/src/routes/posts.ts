@@ -576,9 +576,18 @@ import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.
 import { notifyMentions } from '../lib/mentionNotifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 
-postsRouter.post('/', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
+postsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   // Sample game IDs (sample-*) are handled downstream — stored in title with [SAMPLE_GAME:] prefix
   // instead of game_id (which has a foreign key constraint). See line ~604.
+
+  // v1.0.2 pass 8: banned check (symmetric with DMs + comments)
+  const banner = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { banned: true, banned_until: true },
+  });
+  if (banner?.banned || (banner?.banned_until && banner.banned_until > new Date())) {
+    return res.status(403).json({ error: 'USER_BANNED', message: 'Your account is suspended from posting.' });
+  }
 
   // req.user is guaranteed by requireVerified middleware
   const parsed = createPostSchema.safeParse(req.body);
@@ -1083,6 +1092,18 @@ postsRouter.get('/:id/comments', asyncHandler(async (req: AuthedRequest, res) =>
 postsRouter.post('/:id/comments', requireAuth as any, commentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireAuth middleware
   const { id } = req.params;
+
+  // v1.0.2 pass 8: banned users were blocked from DMs but could still post comments.
+  // Symmetric enforcement: ban applies to all user-generated content, not just messages.
+  const sender = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { banned: true, banned_until: true },
+  });
+  const nowTs = new Date();
+  if (sender?.banned || (sender?.banned_until && sender.banned_until > nowTs)) {
+    return res.status(403).json({ error: 'USER_BANNED', message: 'Your account is suspended from posting.' });
+  }
+
   const post = await prisma.post.findFirst({
     where: { id, deleted_at: null },
     select: { id: true, author_id: true, author: { select: { id: true, preferences: true } } },
@@ -1313,7 +1334,9 @@ postsRouter.post('/:id/bookmark', requireAuth as any, interactionLimiter, async 
 });
 
 // Share post (tracks share for notifications)
-postsRouter.post('/:id/share', requireAuth as any, async (req: AuthedRequest, res) => {
+// v1.0.2 pass 12: interactionLimiter matches /upvote and /bookmark — without it a single
+// user could spam share notifications to any author as fast as the network allows.
+postsRouter.post('/:id/share', requireAuth as any, interactionLimiter, async (req: AuthedRequest, res) => {
   try {
   const postId = String(req.params.id);
   const userId = req.user!.id;
@@ -1415,10 +1438,37 @@ postsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
   }
 }));
 
-// Restore a recently deleted post (author only)
-// Post deletion is final — restore endpoint returns 410
-postsRouter.post('/:id/restore', requireAuth as any, asyncHandler(async (_req: AuthedRequest, res) => {
-  return res.status(410).json({ error: 'POST_RESTORE_DISABLED', message: 'Post deletion is final and cannot be undone.' });
+// Restore a recently deleted post (author only, within POST_UNDO_WINDOW_MS)
+// v1.0.2: restore endpoint was previously stubbed with 410. Soft-delete exists (sets deleted_at),
+// so the undo window is now wired up properly. Hard-delete happens via a separate cleanup path.
+postsRouter.post('/:id/restore', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const postId = String(req.params.id);
+  const userId = req.user!.id;
+  try {
+    const post = await prisma.post.findFirst({
+      where: { id: postId, deleted_at: { not: null } },
+      select: { id: true, author_id: true, deleted_at: true },
+    });
+    if (!post) {
+      return res.status(404).json({ error: 'POST_NOT_FOUND', message: 'Post not found or not in a restorable state.' });
+    }
+    if (post.author_id !== userId) {
+      return res.status(403).json({ error: 'NOT_AUTHOR', message: 'Only the post author can restore it.' });
+    }
+    const elapsed = post.deleted_at ? Date.now() - new Date(post.deleted_at).getTime() : Infinity;
+    if (elapsed > POST_UNDO_WINDOW_MS) {
+      return res.status(410).json({
+        error: 'UNDO_WINDOW_EXPIRED',
+        message: 'The undo window has expired.',
+        window_ms: POST_UNDO_WINDOW_MS,
+      });
+    }
+    await prisma.post.update({ where: { id: postId }, data: { deleted_at: null } });
+    return res.json({ ok: true, post_id: postId });
+  } catch (error: any) {
+    console.error('[posts] restore error:', error?.message || error);
+    return res.status(500).json({ error: 'Failed to restore post' });
+  }
 }));
 
 // Update post (author: content/title/is_pinned; coach of team: is_pinned only)

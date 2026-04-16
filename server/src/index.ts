@@ -9,6 +9,23 @@ import { env } from './lib/env.js';
 // Initialize SendGrid email service
 await initEmailService();
 
+// v1.0.2: surface admin-email config issues at startup so silent-failures are obvious in logs
+{
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (adminEmails.length === 0) {
+    const msg = '[startup] ⚠️  ADMIN_EMAILS env var is empty — coach, ad, and league approval notifications will NOT be delivered';
+    console.warn(msg);
+    captureMessage(msg, 'warning');
+  } else {
+    console.log(`[startup] ADMIN_EMAILS configured: ${adminEmails.length} recipient(s) — first: ${adminEmails[0]}`);
+  }
+  if (!process.env.SENDGRID_API_KEY) {
+    const msg = '[startup] ⚠️  SENDGRID_API_KEY is missing — all outbound email (verification, invites, admin notifications) will fail silently';
+    console.warn(msg);
+    captureMessage(msg, 'warning');
+  }
+}
+
 // Initialize job queues (async, non-blocking)
 initializeQueues().catch((error) => {
   console.error('[startup] Failed to initialize queues:', error);

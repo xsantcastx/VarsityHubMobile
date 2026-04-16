@@ -529,8 +529,23 @@ function CreateTeamScreen() {
       
       const response = await Team.create(teamData);
       const createdTeam = response?.team || response;
+      // v1.0.2 pass 9: if API returns malformed response (no id), don't trap user on a dead button.
+      // Fall back to manage-teams which will show the freshly-created team in its list.
+      const teamId = createdTeam?.id ? String(createdTeam.id) : null;
       Alert.alert('Success!', 'Your team has been created successfully.', [
-        { text: 'View Team', onPress: () => router.push({ pathname: '/team-page', params: { id: String(createdTeam.id) } } as any) }
+        {
+          text: 'View Team',
+          onPress: () => {
+            if (teamId) {
+              router.push({ pathname: '/team-page', params: { id: teamId } } as any);
+            } else {
+              if (__DEV__) console.warn('[create-team] API returned no team.id — falling back to manage-teams');
+              // v1.0.2 pass 10: explicit (tabs) prefix — both /app/manage-teams.tsx and
+              // /app/(tabs)/manage-teams.tsx exist; ambiguous route would land on the wrong one.
+              router.replace('/(tabs)/manage-teams' as any);
+            }
+          },
+        },
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);

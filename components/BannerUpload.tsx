@@ -9,6 +9,7 @@ import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -84,11 +85,16 @@ export function BannerUpload({
       }
 
       // Launch picker
+      // v1.0.2: allowsMultipleSelection:false + exif:false encourages iOS to
+      // hand us a proper local file (not a ph:// cloud reference). On iCloud-optimized
+      // devices the first read may still fail — the catch below handles that gracefully.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false, // Allow full image without cropping
+        allowsMultipleSelection: false,
         quality: 0.8,
         exif: false,
+        base64: false,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -99,11 +105,14 @@ export function BannerUpload({
         const isPng = originalName.endsWith('.png');
         const saveFormat = isPng ? ImageManipulator.SaveFormat.PNG : ImageManipulator.SaveFormat.JPEG;
 
+        // v1.0.2: force iCloud download if ph:// URI before any manipulation
+        const materializedUri = await materializeICloudAssetIfNeeded(asset.uri);
+
         // Resize/compress image before size validation
-        let processedUri = asset.uri;
+        let processedUri = materializedUri;
         try {
           const manipulated = await ImageManipulator.manipulateAsync(
-            asset.uri,
+            materializedUri,
             [{ resize: { width: 1920 } }],
             { compress: isPng ? 1 : 0.8, format: saveFormat }
           );
@@ -154,12 +163,21 @@ export function BannerUpload({
         onChange(String(uploadedUrl), getFitValue(fitMode), { x: 50, y: 50 });
       }
     } catch (error: any) {
-      const msg = error?.message || '';
-      const isICloudError = msg.includes('iCloud') || msg.includes('not downloaded') || msg.includes('cloud asset');
+      const msg = String(error?.message || '').toLowerCase();
+      // v1.0.2: broaden iCloud detection — iOS sometimes surfaces these as generic "could not read"
+      // or "unable to decode" errors instead of mentioning iCloud explicitly.
+      const isICloudError =
+        msg.includes('icloud') ||
+        msg.includes('not downloaded') ||
+        msg.includes('cloud asset') ||
+        msg.includes('ph://') ||
+        msg.includes('no such file') ||
+        msg.includes('unable to decode') ||
+        msg.includes('could not read');
       if (isICloudError) {
         Alert.alert(
-          'Image Selection Failed',
-          'Unable to load this image. This can happen with iCloud-synced photos. Please try selecting a different photo or take a new one with the camera.'
+          'Photo Not Available Locally',
+          'This photo appears to be stored in iCloud and hasn\'t been downloaded to your device yet. Open the Photos app, let the image fully load, then try again — or pick a photo already saved on this device.'
         );
       } else {
         Alert.alert(

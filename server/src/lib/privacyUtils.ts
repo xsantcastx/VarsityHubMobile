@@ -18,11 +18,14 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
   if (_privateIdsCache && Date.now() < _privateIdsCache.expires) {
     privateUsers = _privateIdsCache.ids.map(id => ({ id }));
   } else {
+    // v1.0.2 pass 12: bound the scan. 50k private-profile users is ~10x today's peak and
+    // the result is cached for 60s, so cold-start cost stays constant regardless of growth.
     privateUsers = await prisma.user.findMany({
       where: {
         preferences: { path: ['profile_private'], equals: true },
       },
       select: { id: true },
+      take: 50000,
     });
     _privateIdsCache = { ids: privateUsers.map(u => u.id), expires: Date.now() + PRIVATE_IDS_CACHE_TTL };
   }
@@ -58,6 +61,8 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
 export async function getBlockedUserIds(viewerId: string | null): Promise<string[]> {
   if (!viewerId) return [];
 
+  // v1.0.2 pass 12: bound the scan. A single user's bidirectional block set is tiny in
+  // practice; 10k is orders of magnitude beyond real use and keeps the query bounded.
   const blocks = await prisma.blockedUser.findMany({
     where: {
       OR: [
@@ -66,6 +71,7 @@ export async function getBlockedUserIds(viewerId: string | null): Promise<string
       ],
     },
     select: { blocker_id: true, blocked_id: true },
+    take: 10000,
   });
 
   const ids = new Set<string>();

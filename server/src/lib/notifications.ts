@@ -89,6 +89,27 @@ export async function sendPushNotification(
 
     debugLog(`Sent notification to user ${userId}: ${title}`);
 
+    // v1.0.2 audit fix: clear stale push_token at send time, not just via cron.
+    // Previously verifyPushReceipts (cron) was the only path that cleared invalid tokens,
+    // meaning a stale token would fail every notification until the cron ran.
+    const errorTickets = tickets.filter(
+      (t: any) => t?.status === 'error' && t?.details?.error === 'DeviceNotRegistered'
+    );
+    if (errorTickets.length > 0) {
+      try {
+        const currentPrefs = (user.preferences as any) || {};
+        if (currentPrefs.push_token === pushToken) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { preferences: { ...currentPrefs, push_token: null } },
+          });
+          debugLog(`Cleared stale push_token for user ${userId} (DeviceNotRegistered)`);
+        }
+      } catch (clearErr) {
+        console.warn('[notifications] Failed to clear stale push_token:', clearErr);
+      }
+    }
+
     // Return successful ticket IDs for receipt tracking
     const successTicketIds = tickets
       .filter((t: any) => t.status === 'ok' && t.id)
@@ -465,7 +486,9 @@ export async function cancelGameReminders(eventId: string, userId: string): Prom
 export async function verifyPushReceipts(): Promise<void> {
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Find notifications with a ticket_id that haven't been receipt-checked yet
+  // Find notifications with a ticket_id that haven't been receipt-checked yet.
+  // v1.0.2 pass 12: bound the scan. 5000 / 24h handles our current push volume and the
+  // oldest rows run first so Expo's 24-hour receipt retention window is respected.
   const notifications = await prisma.notification.findMany({
     where: {
       created_at: { gte: twentyFourHoursAgo },
@@ -476,6 +499,8 @@ export async function verifyPushReceipts(): Promise<void> {
       user_id: true,
       meta: true,
     },
+    orderBy: { created_at: 'asc' },
+    take: 5000,
   });
 
   // Filter to those with ticket_id and no receipt_checked flag
