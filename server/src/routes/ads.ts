@@ -271,9 +271,10 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
     const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '7d');
     const rejectToken = signJwt({ adId: id, action: 'reject_ad' }, '7d');
 
-    // Ad approval emails always go to emancero@varsityhub.app (primary admin)
+    // v1.0.2 audit fix: use centralized admin email helper
+    const { getPrimaryAdminEmail } = await import('../lib/adminEmails.js');
     sendAdPendingReviewEmail({
-      to: (process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app'),
+      to: getPrimaryAdminEmail(),
       businessName: ad.business_name || undefined,
       contactName: ad.contact_name || undefined,
       contactEmail: ad.contact_email || undefined,
@@ -509,8 +510,14 @@ adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, async (req: AuthedReq
 });
 
 // Update an Ad (owner-only if authenticated)
-adsRouter.put('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: AuthedRequest, res) => {
+adsRouter.put('/:id([a-z0-9]{15,50})', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
   try {
+    // v1.0.2 audit fix H-5: enforce ad plan on update — downgraded users cannot modify ads
+    const gate = await enforceAdPlan(req.user?.id);
+    if (!gate.ok) {
+      return res.status(403).json({ error: gate.error, code: gate.code });
+    }
+
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
@@ -545,8 +552,9 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: Authe
 
     // Notify admin when banner or target URL needs review
     if ((bannerChanged && data.banner_url) || targetUrlChanged) {
+      const { getPrimaryAdminEmail: getAdmin } = await import('../lib/adminEmails.js');
       void sendAdPendingReviewEmail({
-        to: 'emancero@varsityhub.app',
+        to: getAdmin(),
         businessName: updated.business_name || undefined,
         contactName: updated.contact_name || undefined,
         contactEmail: updated.contact_email || undefined,
@@ -566,7 +574,7 @@ adsRouter.put('/:id([a-z0-9]{15,50})', requireVerified as any, async (req: Authe
 });
 
 // Delete an Ad (owner-only if authenticated)
-adsRouter.delete('/:id([a-z0-9]{15,50})', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+adsRouter.delete('/:id([a-z0-9]{15,50})', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });

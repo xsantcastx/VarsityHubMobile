@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import type { AuthedRequest } from '../middleware/auth.js';
+import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin, isEmailAdmin, getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -846,7 +846,7 @@ gamesRouter.post('/seed-samples', requireAdmin as any, asyncHandler(async (req: 
 }));
 
 // Batch vote summaries - avoids N+1 when loading feed with many games (must be before /:id)
-gamesRouter.get('/votes-summary', async (req: AuthedRequest, res) => {
+gamesRouter.get('/votes-summary', authMiddleware as any, async (req: AuthedRequest, res) => {
   try {
   const idsParam = String(req.query.ids || '').trim();
   if (!idsParam) return res.status(400).json({ error: 'ids required (comma-separated game IDs)' });
@@ -1216,7 +1216,7 @@ gamesRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHan
 }));
 
 // Posts tied to a game
-gamesRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
+gamesRouter.get('/:id/posts', authMiddleware as any, async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));

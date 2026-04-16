@@ -120,13 +120,17 @@ export async function approveOrganization(
     }).catch((err) => console.error('[approvalService] org approved in-app notification failed:', (err as any)?.message || err));
   }
 
+  // v1.0.2 audit fix: use centralized admin email + log errors instead of swallowing
+  const { getPrimaryAdminEmail } = await import('./adminEmails.js');
   sendAdminActionConfirmationEmail({
-    to: 'emancero@varsityhub.app',
+    to: getPrimaryAdminEmail(),
     action: 'league_approved',
     leagueName: org.name,
     ownerName: org.leagueOwner?.display_name || undefined,
     ownerEmail: org.leagueOwner?.email || undefined,
-  }).catch(() => {});
+  }).catch((err) => {
+    console.error('[approvalService] Admin confirmation email failed (league_approved):', (err as any)?.message || err);
+  });
 
   return { ok: true, org };
 }
@@ -207,14 +211,18 @@ export async function rejectOrganization(
     }).catch(() => {});
   }
 
+  // v1.0.2 audit fix: use centralized admin email + log errors
+  const { getPrimaryAdminEmail: getAdminEmail } = await import('./adminEmails.js');
   sendAdminActionConfirmationEmail({
-    to: 'emancero@varsityhub.app',
+    to: getAdminEmail(),
     action: 'league_rejected',
     leagueName: org.name,
     ownerName: org.leagueOwner?.display_name || undefined,
     ownerEmail: org.leagueOwner?.email || undefined,
     reason: reason || undefined,
-  }).catch(() => {});
+  }).catch((err) => {
+    console.error('[approvalService] Admin confirmation email failed (league_rejected):', (err as any)?.message || err);
+  });
 
   return { ok: true, org };
 }

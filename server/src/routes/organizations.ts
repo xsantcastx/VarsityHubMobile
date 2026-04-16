@@ -635,7 +635,7 @@ const inviteUserSchema = z.object({
 // Invite user to organization
 // Rule B: No plan gate on the inviting user — authorized users are covered by the org owner's plan.
 // The plan-based user limit is enforced inside the handler using the org owner's tier.
-organizationsRouter.post('/:id/invite', requireVerified as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const parsed = inviteUserSchema.safeParse(req.body);
@@ -1138,7 +1138,7 @@ organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: Aut
 });
 
 // Approve join request
-organizationsRouter.post('/join-requests/:requestId/approve', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
 
@@ -1263,7 +1263,7 @@ const denyJoinRequestSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests/:requestId/deny', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
   const parsed = denyJoinRequestSchema.safeParse(req.body);
@@ -1352,7 +1352,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireVerified as an
 // -----------------------------------------------
 // POST /organizations/:id/transfer-ownership
 // -----------------------------------------------
-organizationsRouter.post('/:id/transfer-ownership', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const orgId = req.params.id;
@@ -1563,7 +1563,7 @@ organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: 
  * POST /organizations/:id/coaches/:userId/approve
  * League owner approves a coach. Sets approval_status: APPROVED, paid_by_owner: true.
  */
-organizationsRouter.post('/:id/coaches/:userId/approve', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;
@@ -1720,7 +1720,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireVerified as any,
  * POST /organizations/:id/coaches/:userId/reject
  * League owner rejects a coach request.
  */
-organizationsRouter.post('/:id/coaches/:userId/reject', requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;

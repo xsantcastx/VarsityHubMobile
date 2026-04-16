@@ -1141,8 +1141,16 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           if (existingOrg) organizationId = existingOrg.id;
         } catch { /* ignore — continue without org */ }
       }
-      // Org creation failed — log for visibility but continue (user can link later)
-      console.warn('[teams] Organization auto-creation failed for team. Team will be created without org link.', orgError?.message || orgError);
+      // Org creation failed — surface to client instead of continuing with null org
+      console.error('[teams] Organization auto-creation failed for team. Aborting team creation.', orgError?.message || orgError);
+      if (!organizationId) {
+        return res.status(500).json({
+          error: 'Failed to create organization',
+          message: 'Could not create your organization. Please try again or select an existing organization.',
+          code: 'ORG_CREATION_FAILED',
+        });
+      }
+      // If we recovered an org ID from the P2002 fallback, continue with it
     }
   } else {
     // Validate organization_id if provided (fail fast if invalid)

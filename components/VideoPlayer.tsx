@@ -21,6 +21,8 @@ export function VideoPlayer({
   paused,
 }: VideoPlayerProps) {
   const player = useVideoPlayer(uri, (p) => {
+    p.volume = 1.0;
+    p.muted = false;
     if (autoPlay && !paused) {
       try { p.play(); } catch (e) {
         // Video player may not be ready yet - non-critical

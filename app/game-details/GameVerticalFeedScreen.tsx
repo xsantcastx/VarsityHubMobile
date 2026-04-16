@@ -162,6 +162,8 @@ const FeedCard = memo(
     insets: { top: number; bottom: number };
     colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
+    isMuted: boolean;
+    onToggleMute: () => void;
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
@@ -227,7 +229,8 @@ const FeedCard = memo(
     // Create per-card player
     const player = useVideoPlayer(post.media_url || null, (p) => {
       p.loop = true;
-      p.muted = true;
+      p.volume = 1.0;
+      p.muted = isMuted;
       if (isActive && post.media_type === 'video') {
         try { p.play(); } catch (e) {
           // Video player may not be ready - non-critical
@@ -235,6 +238,11 @@ const FeedCard = memo(
         }
       }
     });
+
+    // Sync mute state when user toggles
+    useEffect(() => {
+      try { player.muted = isMuted; } catch {}
+    }, [isMuted, player]);
 
     useEffect(() => {
       registerVideo(post.id, player);
@@ -379,6 +387,13 @@ const FeedCard = memo(
             <Ionicons name="ellipsis-horizontal" size={34} color="#fff" />
             <Text style={styles.railLabel}>Options</Text>
           </Pressable>
+
+          {post.media_type === 'video' && (
+            <Pressable onPress={onToggleMute} style={styles.railBtn}>
+              <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={34} color="#fff" />
+              <Text style={styles.railLabel}>{isMuted ? 'Unmute' : 'Mute'}</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Options Menu Modal */}
@@ -528,6 +543,7 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
   const [commentTarget, setCommentTarget] = useState<FeedPost | null>(null);
   const [meInfo, setMeInfo] = useState<{ id?: string; display_name?: string | null; username?: string | null } | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
   const headerTitle = title || game?.title || 'Game';
 
   // Store VideoPlayer instances by post id
@@ -1047,6 +1063,8 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
     [handleToggleUpvote],
   );
 
+  const handleToggleMute = useCallback(() => setIsMuted((m) => !m), []);
+
   const renderItem = useCallback(
     ({ item, index }: { item: FeedPost; index: number }) => (
       <FeedCard
@@ -1066,9 +1084,11 @@ function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = 
         insets={{ top: insets.top, bottom: insets.bottom }}
         colorScheme={colorScheme}
         meInfo={meInfo}
+        isMuted={isMuted}
+        onToggleMute={handleToggleMute}
       />
     ),
-    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleMoreOptions, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme, meInfo],
+    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleMoreOptions, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme, meInfo, isMuted, handleToggleMute],
   );
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);

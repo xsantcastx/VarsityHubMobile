@@ -1615,10 +1615,11 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
     data: updateData
   });
 
-  // Fire-and-forget: notify admins about new coach application
+  // Fire-and-forget: notify ALL admins about new coach application
   if (finalRole === 'coach' && updateData.approval_status === 'PENDING') {
-    const adminEmail = (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim();
-    if (adminEmail) {
+    const { getAllAdminEmails } = await import('../lib/adminEmails.js');
+    const adminEmails = getAllAdminEmails();
+    for (const adminEmail of adminEmails) {
       sendEmail({
         to: adminEmail,
         subject: `New coach application: ${updated.display_name || updated.email}`,
@@ -1626,8 +1627,6 @@ authRouter.post('/me/complete-onboarding', authLimiter, requireAuth as any, requ
       }).catch((err) => {
         console.error('[auth] Failed to send coach-application admin notification to', adminEmail, err?.message || err);
       });
-    } else {
-      console.warn('[auth] ADMIN_EMAILS env var is empty — coach application admin notification skipped for', updated.email);
     }
   }
 

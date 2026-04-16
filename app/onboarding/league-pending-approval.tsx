@@ -28,6 +28,8 @@ function LeaguePendingApproval() {
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
+  const completionStartedRef = useRef(false);
 
   // Poll organization status every 30 seconds
   const checkApproval = useCallback(async () => {
@@ -69,6 +71,9 @@ function LeaguePendingApproval() {
           intervalRef.current = null;
         }
         if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
+        if (completionStartedRef.current) return;
+        completionStartedRef.current = true;
         // Complete onboarding on server, then go to main app.
         // If completion fails, stay here and surface a retry action.
         let completed = false;
@@ -116,7 +121,8 @@ function LeaguePendingApproval() {
           }
         }
         if (!completed) {
-          setCompletionError('VarsityHub has approved your organization, but account setup failed. Tap retry below.');
+          setCompletionError('VarsityHub has approved your organization, but account setup failed. Tap retry below or continue as a fan.');
+          completionStartedRef.current = false; // allow retry
           return;
         }
         // Don't auto-redirect — let user tap Continue when ready
@@ -330,8 +336,12 @@ function LeaguePendingApproval() {
                 <Text style={[styles.supportText, { color: '#EF4444', marginTop: 16, marginBottom: 8 }]}>
                   {completionError}
                 </Text>
-                <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB', marginBottom: 12 }]} onPress={() => { void checkApproval(); }}>
+                <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB', marginBottom: 12 }]} onPress={() => { completionStartedRef.current = false; void checkApproval(); }}>
                   <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Retry Setup</Text>
+                </Pressable>
+                {/* v1.0.2 audit fix C-4: always provide fan fallback when completion fails */}
+                <Pressable style={[styles.primaryButton, { marginBottom: 12 }]} onPress={handleProceedAsFan}>
+                  <Text style={styles.primaryButtonText}>Continue as Fan</Text>
                 </Pressable>
               </>
             ) : (

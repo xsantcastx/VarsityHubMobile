@@ -272,7 +272,7 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, async (req: AuthedReq
   // Send admin notification email
   try {
     await sendAbuseReportEmail({
-      to: process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app',
+      to: (await import('../lib/adminEmails.js')).getPrimaryAdminEmail(),
       reporterName: reporter?.display_name || 'Unknown',
       reporterEmail: reporter?.email || 'unknown@email.com',
       reportedContentType: target_type,

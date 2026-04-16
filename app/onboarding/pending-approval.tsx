@@ -27,6 +27,8 @@ function PendingApproval() {
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // v1.0.2 audit fix C-3/H-4: prevent double completeOnboarding if screen re-mounts after approval
+  const completionStartedRef = useRef(false);
 
   // Poll /me every 30 seconds to check approval_status
   const checkApproval = useCallback(async () => {
@@ -61,6 +63,9 @@ function PendingApproval() {
           intervalRef.current = null;
         }
         if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        // v1.0.2 audit fix H-4: prevent double completeOnboarding on re-mount
+        if (completionStartedRef.current) return;
+        completionStartedRef.current = true;
         // Complete onboarding on server, then go to main app.
         // If completion fails, stay here and show a retry state instead of redirect loops.
         let completed = false;
@@ -121,6 +126,7 @@ function PendingApproval() {
             ? errMsg
             : 'Approval is complete, but final account setup failed. Tap retry below.';
           setCompletionError(userFacingMsg);
+          completionStartedRef.current = false; // allow retry
           return;
         }
         // Don't auto-redirect — let user tap Continue when ready

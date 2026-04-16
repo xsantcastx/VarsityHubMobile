@@ -91,9 +91,12 @@ export async function uploadBufferToCloudinary(
   const resourceType: CloudinaryResourceType =
     opts?.resourceType || (file.mimetype.startsWith('video/') ? 'video' : 'image');
 
-  const params = {
+  const isVideo = resourceType === 'video';
+
+  const params: Record<string, string> = {
     folder,
     timestamp: String(timestamp),
+    ...(isVideo ? { audio_codec: 'aac', video_codec: 'auto' } : {}),
   };
   const signature = createSignature(params, apiSecret);
 
@@ -108,6 +111,10 @@ export async function uploadBufferToCloudinary(
   form.set('timestamp', String(timestamp));
   form.set('folder', folder);
   form.set('signature', signature);
+  if (isVideo) {
+    form.set('audio_codec', 'aac');
+    form.set('video_codec', 'auto');
+  }
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
     method: 'POST',

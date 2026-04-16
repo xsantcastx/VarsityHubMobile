@@ -208,7 +208,9 @@ export async function sendAdPendingReviewEmail(params: {
   approveToken?: string;
   rejectToken?: string;
 }): Promise<boolean> {
-  const adminTo = params.to || process.env.ADMIN_EMAILS?.split(',')[0]?.trim() || 'emancero@varsityhub.app';
+  // v1.0.2 audit fix: use centralized admin email helper, fallback to customerservice
+  const { getPrimaryAdminEmail } = await import('./adminEmails.js');
+  const adminTo = params.to || getPrimaryAdminEmail();
   const subject = `Ad Pending Review — ${params.businessName || 'Unknown Business'}`;
 
   // Build one-click approve/reject URLs when tokens are provided
@@ -691,8 +693,9 @@ export async function sendLeagueApprovalRequestEmail(params: {
   const approveUrl = `${API_BASE_URL}/organizations/${params.leagueId}/approve?token=${params.approveToken}`;
   const rejectUrl = `${API_BASE_URL}/organizations/${params.leagueId}/reject?token=${params.rejectToken}`;
 
-  const to =
-    (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() || 'emancero@varsityhub.app';
+  // v1.0.2 audit fix: send to ALL admin emails, not just the first
+  const { getAllAdminEmails } = await import('./adminEmails.js');
+  const adminEmails = getAllAdminEmails();
 
   const templateId = TEMPLATE_IDS.LEAGUE_PENDING_APPROVAL;
   if (!templateId) {
@@ -700,27 +703,33 @@ export async function sendLeagueApprovalRequestEmail(params: {
     return false;
   }
 
-  return sendTemplateEmail(
-    templateId,
-    to,
-    `New League Awaiting Approval: ${params.leagueName}`,
-    {
-      ...getCommonTemplateData(),
-      league_name: params.leagueName,
-      owner_name: params.ownerName,
-      owner_email: params.ownerEmail,
-      sport: params.sport || 'Not specified',
-      org_type: params.orgType || 'Not specified',
-      created_date: new Date().toLocaleDateString(),
-      approve_url: approveUrl,
-      reject_url: rejectUrl,
-      supporting_document_url: params.supportingDocumentUrl || '',
-      supporting_document_link: params.supportingDocumentUrl
-        ? `<a href="${params.supportingDocumentUrl}">View Supporting Document</a>`
-        : '',
-    },
-    `League approval request sent to ${to}`
+  // Send to all admins in parallel
+  const results = await Promise.all(
+    adminEmails.map((to) =>
+      sendTemplateEmail(
+        templateId,
+        to,
+        `New League Awaiting Approval: ${params.leagueName}`,
+        {
+          ...getCommonTemplateData(),
+          league_name: params.leagueName,
+          owner_name: params.ownerName,
+          owner_email: params.ownerEmail,
+          sport: params.sport || 'Not specified',
+          org_type: params.orgType || 'Not specified',
+          created_date: new Date().toLocaleDateString(),
+          approve_url: approveUrl,
+          reject_url: rejectUrl,
+          supporting_document_url: params.supportingDocumentUrl || '',
+          supporting_document_link: params.supportingDocumentUrl
+            ? `<a href="${params.supportingDocumentUrl}">View Supporting Document</a>`
+            : '',
+        },
+        `League approval request sent to ${to}`
+      )
+    )
   );
+  return results.some(Boolean); // true if at least one email was sent
 }
 
 /**

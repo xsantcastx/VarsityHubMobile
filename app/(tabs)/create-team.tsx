@@ -490,6 +490,8 @@ function CreateTeamScreen() {
           { text: 'Cancel', style: 'cancel' },
           { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
         ]);
+      } else if (e?.data?.code === 'ORG_CREATION_FAILED' || e?.code === 'ORG_CREATION_FAILED') {
+        Alert.alert('Organization Error', 'Could not create your organization. Please try again or select an existing organization.');
       } else {
         Alert.alert('Error', e?.data?.error || e?.message || 'Failed to create team. Please try again.');
       }
@@ -556,11 +558,13 @@ function CreateTeamScreen() {
           { text: 'Cancel', style: 'cancel' },
           { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
         ]);
+      } else if (e?.data?.code === 'ORG_CREATION_FAILED' || e?.code === 'ORG_CREATION_FAILED') {
+        Alert.alert('Organization Error', 'Could not create your organization. Please try again or select an existing organization.');
       } else {
         Alert.alert('Error', e?.data?.error || e?.message || 'Failed to create team. Please try again.');
       }
-    } finally { 
-      setSubmitting(false); 
+    } finally {
+      setSubmitting(false);
     }
   };
 
