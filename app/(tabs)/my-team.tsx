@@ -2,6 +2,7 @@ import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -20,7 +21,7 @@ import {
   View,
 } from 'react-native';
 // @ts-ignore JS exports
-import { Team as TeamApi, User } from '@/api/entities';
+import { Team as TeamApi } from '@/api/entities';
 
 type ManagedTeam = {
   id: string;
@@ -79,7 +80,7 @@ function getRoleBadgeColor(role: string): { bg: string; text: string } {
 }
 
 function MyTeamScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
 
@@ -138,6 +139,9 @@ function MyTeamScreen() {
         setMembers([]);
       }
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'loading your teams')) {
+        return;
+      }
       if (__DEV__) console.error('Failed to load teams:', e);
       setError('Unable to load teams.');
       setTeams([]);
@@ -165,6 +169,9 @@ function MyTeamScreen() {
         })),
       );
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'loading team members')) {
+        return;
+      }
       if (__DEV__) console.error('Failed to load members:', e);
       setMembers([]);
     }
@@ -213,6 +220,9 @@ function MyTeamScreen() {
         setShowRoleModal(false);
         setSelectedMember(null);
       } catch (e: any) {
+        if (handleCoachAccessError(router, e, 'updating team roles')) {
+          return;
+        }
         Alert.alert('Error', e?.message || 'Failed to update role.');
       } finally {
         setMemberActionLoading(false);
@@ -231,6 +241,9 @@ function MyTeamScreen() {
       setSelectedMember(null);
       setPositionInput('');
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'updating team positions')) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to update position.');
     } finally {
       setMemberActionLoading(false);
@@ -246,6 +259,9 @@ function MyTeamScreen() {
       setShowRemoveModal(false);
       setSelectedMember(null);
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'removing team members')) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to remove member.');
     } finally {
       setMemberActionLoading(false);
@@ -263,6 +279,9 @@ function MyTeamScreen() {
       setInviteRole('player');
       await loadMembers(selectedTeamId);
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'sending team invites')) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to send invitation.');
     } finally {
       setInviting(false);
@@ -396,7 +415,7 @@ function MyTeamScreen() {
     );
   };
 
-  if (coachLoading || !isCoach) {
+  if (coachLoading || !canAccessCoachTools) {
     return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}><ActivityIndicator style={{ marginTop: 40 }} /></View>;
   }
 

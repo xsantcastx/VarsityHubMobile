@@ -83,32 +83,11 @@ interface TeamMember {
 }
 
 export default function TeamChatScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const _insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-
-  // Coach role guard
-  const [roleChecked, setRoleChecked] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        const { User } = await import('@/api/entities');
-        const me: any = await User.me();
-        if (!mounted) return;
-        if (me?.preferences?.role !== 'coach') {
-          safeGoBack(router);
-          return;
-        }
-        setRoleChecked(true);
-      } catch {
-        if (mounted) safeGoBack(router);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [router]);
 
   // Modal state for replacing Alert.alert
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
@@ -1512,7 +1491,7 @@ export default function TeamChatScreen() {
     </Pressable>
   );
 
-  if (!roleChecked || loading) {
+  if (coachLoading || !canAccessCoachTools || loading) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (

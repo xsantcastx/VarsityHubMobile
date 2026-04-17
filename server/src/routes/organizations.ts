@@ -23,6 +23,7 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -63,7 +64,7 @@ async function isCurrentUserPlatformAdmin(req: AuthedRequest): Promise<boolean> 
 }
 
 // List organizations (public, with optional search)
-organizationsRouter.get('/', async (req, res) => {
+organizationsRouter.get('/', asyncHandler(async (req, res) => {
   try {
     const authedReq = req as AuthedRequest;
     const currentUserId = authedReq.user?.id ?? null;
@@ -108,10 +109,10 @@ organizationsRouter.get('/', async (req, res) => {
     console.error('[organizations] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // List organizations where current user has admin access
-organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.get('/mine', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const orgs = await prisma.organization.findMany({
       where: {
@@ -139,7 +140,7 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
     console.error('[organizations] GET /mine error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Update organization (admin only)
 // H3: zip_code aligned with ads — 5-digit US format when provided
@@ -165,7 +166,7 @@ const updateOrgSchema = z.object({
   contact_info: z.string().max(500).optional().nullable(),
 });
 
-organizationsRouter.patch('/:id', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.patch('/:id', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const orgId = String(req.params.id);
     const userId = req.user!.id;
@@ -209,10 +210,10 @@ organizationsRouter.patch('/:id', requireAuth as any, requireVerified as any, re
     console.error('[organizations] PATCH /:id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Follow an organization
-organizationsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const orgId = String(req.params.id);
@@ -229,10 +230,10 @@ organizationsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRe
     console.error('[organizations] POST /:id/follow error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Unfollow an organization
-organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.delete('/:id/follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const orgId = String(req.params.id);
@@ -242,13 +243,13 @@ organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: Authed
     console.error('[organizations] DELETE /:id/follow error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // NOTE: GET /:id moved to bottom of file to avoid shadowing literal routes
 // like /invites/me, /search/nearby, /join-requests/me
 
 // Get organization members (requires auth + membership or admin)
-organizationsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.get('/:id/members', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const organization = await prisma.organization.findUnique({ where: { id } });
@@ -302,7 +303,7 @@ organizationsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRe
     console.error('[organizations] GET /:id/members error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // H3: zip_code aligned with ads — 5-digit US format when provided
 const createOrganizationSchema = z.object({
@@ -323,7 +324,7 @@ const createOrganizationSchema = z.object({
 });
 
 // Create organization
-organizationsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -441,7 +442,7 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
     console.error('[organizations] POST / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // H3: zip_code aligned with ads — 5-digit US format when provided
 const createOrganizationWithTeamsSchema = z.object({
@@ -468,7 +469,7 @@ const createOrganizationWithTeamsSchema = z.object({
 });
 
 // Enhanced create organization for onboarding
-organizationsRouter.post('/create', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/create', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -632,7 +633,7 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
     console.error('[organizations] POST /create error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 const inviteUserSchema = z.object({
   email: z.string().email(),
@@ -642,7 +643,7 @@ const inviteUserSchema = z.object({
 // Invite user to organization
 // Rule B: No plan gate on the inviting user — authorized users are covered by the org owner's plan.
 // The plan-based user limit is enforced inside the handler using the org owner's tier.
-organizationsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requireOnboarded as any, inviteLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const parsed = inviteUserSchema.safeParse(req.body);
@@ -742,10 +743,10 @@ organizationsRouter.post('/:id/invite', requireAuth as any, requireVerified as a
     console.error('[organizations] POST /:id/invite error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Get my organization invites
-organizationsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.get('/invites/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -762,10 +763,10 @@ organizationsRouter.get('/invites/me', requireAuth as any, async (req: AuthedReq
     console.error('[organizations] GET /invites/me error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Accept organization invite
-organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const inviteId = String(req.params.inviteId);
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
@@ -792,10 +793,10 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
     console.error('[organizations] POST /invites/:inviteId/accept error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Decline organization invite
-organizationsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/invites/:inviteId/decline', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const inviteId = String(req.params.inviteId);
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
@@ -812,14 +813,14 @@ organizationsRouter.post('/invites/:inviteId/decline', requireAuth as any, async
     console.error('[organizations] POST /invites/:inviteId/decline error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // ===========================================
 // Organization Join Request Endpoints
 // ===========================================
 
 // Search organizations by zip code / proximity
-organizationsRouter.get('/search/nearby', organizationsNearbyLimiter, async (req, res) => {
+organizationsRouter.get('/search/nearby', organizationsNearbyLimiter, asyncHandler(async (req, res) => {
   try {
     const query = String((req.query as any).query || '').trim();
     const sport = String((req.query as any).sport || '').trim();
@@ -876,10 +877,10 @@ organizationsRouter.get('/search/nearby', organizationsNearbyLimiter, async (req
     console.error('[organizations] GET /search/nearby error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Check for duplicate organizations using normalized name comparison
-organizationsRouter.post('/check-duplicate', requireAuth as any, async (req, res) => {
+organizationsRouter.post('/check-duplicate', requireAuth as any, asyncHandler(async (req, res) => {
   try {
     const checkDuplicateSchema = z.object({
       name: z.string().min(1).max(200),
@@ -928,7 +929,7 @@ organizationsRouter.post('/check-duplicate', requireAuth as any, async (req, res
     console.error('[organizations] POST /check-duplicate error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Create join request
 const createJoinRequestSchema = z.object({
@@ -936,7 +937,7 @@ const createJoinRequestSchema = z.object({
   message: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const parsed = createJoinRequestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -1091,10 +1092,10 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
     console.error('[organizations] POST /join-requests error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Get join requests for an organization (admin only)
-organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.get('/:id/join-requests', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const status = String((req.query as any).status || 'pending');
@@ -1138,10 +1139,10 @@ organizationsRouter.get('/:id/join-requests', requireAuth as any, async (req: Au
     console.error('[organizations] GET /:id/join-requests error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Get user's own join requests
-organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.get('/join-requests/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const joinRequests = await prisma.organizationJoinRequest.findMany({
       where: { user_id: req.user!.id },
@@ -1165,10 +1166,10 @@ organizationsRouter.get('/join-requests/me', requireAuth as any, async (req: Aut
     console.error('[organizations] GET /join-requests/me error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Approve join request
-organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
 
@@ -1300,14 +1301,14 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     console.error('[organizations] POST /join-requests/:requestId/approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Deny join request
 const denyJoinRequestSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const requestId = String(req.params.requestId);
   const parsed = denyJoinRequestSchema.safeParse(req.body);
@@ -1392,12 +1393,12 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
     console.error('[organizations] POST /join-requests/:requestId/deny error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // -----------------------------------------------
 // POST /organizations/:id/transfer-ownership
 // -----------------------------------------------
-organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const orgId = req.params.id;
@@ -1444,7 +1445,7 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireV
     console.error('[organizations] POST /:id/transfer-ownership error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // =====================================================
 // SUPER ADMIN LEAGUE APPROVAL (emancero@varsityhub.app)
@@ -1596,7 +1597,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
  * Returns all users with PENDING approval_status who have a join request for this org.
  * Requires league owner role.
  */
-organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: AuthedRequest, res) => {
+organizationsRouter.get('/:id/pending-coaches', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const orgId = req.params.id;
@@ -1626,13 +1627,13 @@ organizationsRouter.get('/:id/pending-coaches', requireAuth as any, async (req: 
     console.error('[organizations] GET /:id/pending-coaches error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 /**
  * POST /organizations/:id/coaches/:userId/approve
  * League owner approves a coach. Sets approval_status: APPROVED, paid_by_owner: true.
  */
-organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;
@@ -1790,13 +1791,13 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     console.error('[organizations] POST /:id/coaches/:userId/approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 /**
  * POST /organizations/:id/coaches/:userId/reject
  * League owner rejects a coach request.
  */
-organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requireVerified as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const { id: orgId, userId: coachId } = req.params;
@@ -1868,12 +1869,12 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
     console.error('[organizations] POST /:id/coaches/:userId/reject error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Get single organization
 // IMPORTANT: This catch-all /:id route MUST be last so it doesn't shadow
 // literal routes like /invites/me, /search/nearby, /join-requests/me
-organizationsRouter.get('/:id', async (req, res) => {
+organizationsRouter.get('/:id', asyncHandler(async (req, res) => {
   try {
     const id = String(req.params.id);
     const authedReq = req as AuthedRequest;
@@ -1949,4 +1950,4 @@ organizationsRouter.get('/:id', async (req, res) => {
     console.error('[organizations] GET /:id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));

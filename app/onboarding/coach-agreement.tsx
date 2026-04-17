@@ -42,7 +42,7 @@ function CoachAgreementScreen() {
       } else if (redirect === 'create-team') {
         router.replace({ pathname: '/(tabs)/create-team', params: { organization_id: prefs.organization_id } } as any);
       } else {
-        router.replace({ pathname: '/(tabs)/organization', params: { id: prefs.organization_id } } as any);
+        router.replace('/(tabs)/team-hub' as any);
       }
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to accept agreement. Please try again.');

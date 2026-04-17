@@ -5,10 +5,11 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { prisma } from '../lib/prisma.js';
 import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 import { validateContent } from '../lib/contentFilter.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
-groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
+groupChatsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -84,10 +85,10 @@ groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
     console.error('Error fetching group chats:', error);
     return res.status(500).json({ error: 'Failed to fetch group chats' });
   }
-});
+}));
 
 // Get messages for a specific group chat
-groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: AuthedRequest, res) => {
+groupChatsRouter.get('/:chatId/messages', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -125,7 +126,7 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
     console.error('Error fetching group chat messages:', error);
     return res.status(500).json({ error: 'Failed to fetch messages' });
   }
-});
+}));
 
 // Send a message to a group chat
 const sendMessageSchema = z.object({
@@ -139,7 +140,7 @@ groupChatsRouter.post(
   '/:chatId/messages',
   requireAuth as any,
   groupMessageLimiter as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -190,11 +191,11 @@ groupChatsRouter.post(
       console.error('Error sending group chat message:', error);
       return res.status(500).json({ error: 'Failed to send message' });
     }
-  }
+  })
 );
 
 // Mark messages as read
-groupChatsRouter.post('/:chatId/read', requireAuth as any, async (req: AuthedRequest, res) => {
+groupChatsRouter.post('/:chatId/read', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -216,7 +217,7 @@ groupChatsRouter.post('/:chatId/read', requireAuth as any, async (req: AuthedReq
     console.error('Error marking messages as read:', error);
     return res.status(500).json({ error: 'Failed to mark as read' });
   }
-});
+}));
 
 // Create a group chat (usually for a team)
 const createChatSchema = z.object({
@@ -225,7 +226,7 @@ const createChatSchema = z.object({
   teamId: z.string().min(1, 'teamId is required to create a group chat'),
 });
 
-groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+groupChatsRouter.post('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -303,14 +304,14 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
     console.error('Error creating group chat:', error);
     return res.status(500).json({ error: 'Failed to create group chat' });
   }
-});
+}));
 
 // v1.0.2 pass 8: leave a group chat (any member) or remove another member (creator only).
 // Previously there was no exit mechanism — members were trapped in chats forever.
 groupChatsRouter.delete(
   '/:chatId/members/:userId',
   requireAuth as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const chatId = String(req.params.chatId);
@@ -368,7 +369,7 @@ groupChatsRouter.delete(
       console.error('[group-chats] DELETE /:chatId/members/:userId error:', error?.message);
       return res.status(500).json({ error: 'Failed to remove member from group chat' });
     }
-  }
+  })
 );
 
 export { groupChatsRouter };

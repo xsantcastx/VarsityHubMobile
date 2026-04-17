@@ -10,11 +10,12 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const testNotificationsRouter = Router();
 
 // Test: Send a basic push notification to yourself
-testNotificationsRouter.post('/test/push', requireAdmin as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.post('/test/push', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     await sendPushNotification(
       req.user!.id,
@@ -22,21 +23,21 @@ testNotificationsRouter.post('/test/push', requireAdmin as any, async (req: Auth
       'If you see this, push notifications are working!',
       { type: 'test', timestamp: new Date().toISOString() }
     );
-    
-    res.json({ 
-      success: true, 
-      message: 'Test notification sent! Check your device.' 
+
+    res.json({
+      success: true,
+      message: 'Test notification sent! Check your device.'
     });
   } catch (error: any) {
-    res.status(500).json({ 
-      error: 'Failed to send notification', 
+    res.status(500).json({
+      error: 'Failed to send notification',
       details: process.env.NODE_ENV === 'production' ? undefined : error.message
     });
   }
-});
+}));
 
 // Test: Check if user has a valid push token
-testNotificationsRouter.get('/test/check-token', requireAdmin as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.get('/test/check-token', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -60,10 +61,10 @@ testNotificationsRouter.get('/test/check-token', requireAdmin as any, async (req
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Test: Simulate different notification types
-testNotificationsRouter.post('/test/simulate/:type', requireAdmin as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.post('/test/simulate/:type', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { type } = req.params;
   const userId = req.user!.id;
 
@@ -72,38 +73,38 @@ testNotificationsRouter.post('/test/simulate/:type', requireAdmin as any, async 
       case 'message':
         await notifyNewMessage(userId, userId, 'Test User', 'This is a test direct message!');
         break;
-      
+
       case 'like':
         await notifyPostInteraction(userId, 'like', userId, 'Test User', 'post_test_123');
         break;
-      
+
       case 'comment':
         await notifyPostInteraction(userId, 'comment', userId, 'Test User', 'post_test_123');
         break;
-      
+
       case 'follow':
         await notifyNewFollower(userId, userId, 'Test User');
         break;
-      
+
       default:
         return res.status(400).json({ error: 'Invalid type. Use: message, like, comment, or follow' });
     }
 
-    res.json({ 
-      success: true, 
-      message: `Sent ${type} notification! Check your device.` 
+    res.json({
+      success: true,
+      message: `Sent ${type} notification! Check your device.`
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Test: Check geofencing for an event
-testNotificationsRouter.post('/test/geofence', requireAdmin as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.post('/test/geofence', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { event_id, lat, lng } = req.body;
 
   if (!event_id || typeof lat !== 'number' || typeof lng !== 'number') {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Provide event_id, lat, and lng',
       example: {
         event_id: 'evt_123',
@@ -115,7 +116,7 @@ testNotificationsRouter.post('/test/geofence', requireAdmin as any, async (req: 
 
   try {
     const result = await verifyEventPostingPermission(event_id, req.user!.id, lat, lng);
-    
+
     // Get event details for context
     const event = await prisma.event.findUnique({
       where: { id: event_id },
@@ -137,7 +138,7 @@ testNotificationsRouter.post('/test/geofence', requireAdmin as any, async (req: 
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Test: Calculate distance between two points
 testNotificationsRouter.post('/test/distance', requireAdmin as any, (req, res) => {
@@ -169,7 +170,7 @@ testNotificationsRouter.post('/test/distance', requireAdmin as any, (req, res) =
 });
 
 // Test: Get all upcoming games that would trigger notifications
-testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, async (req: AuthedRequest, res) => {
+testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const now = new Date();
     const twelveHoursFromNow = new Date(now.getTime() + 12 * 60 * 60 * 1000);
@@ -228,4 +229,4 @@ testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, async (
   } catch (error: any) {
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));

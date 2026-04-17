@@ -53,7 +53,7 @@ type OwnedOrg = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ApprovalsScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const colorScheme = useCustomColorScheme();
   const C = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
@@ -326,7 +326,7 @@ export default function ApprovalsScreen() {
   );
 
   // Gate: must be a coach
-  if (coachLoading || !isCoach) {
+  if (coachLoading || !canAccessCoachTools) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
         <ActivityIndicator style={{ marginTop: 40 }} />

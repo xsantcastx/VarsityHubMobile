@@ -21,8 +21,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { httpGet, httpPost, httpPut } from '@/api/http';
-// @ts-ignore
-import { User } from '@/api/entities';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,7 +73,7 @@ const ROLE_LABELS: Record<string, string> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EventApprovalsScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const C = Colors[colorScheme];
@@ -167,43 +165,24 @@ export default function EventApprovalsScreen() {
 
   const loadAll = useCallback(async () => {
     setError(null);
-    let isApprovedCoach = false;
-    try {
-      const me = await User.me() as { preferences?: { role?: string }; approval_status?: string };
-      isApprovedCoach = me?.preferences?.role === 'coach' && me?.approval_status === 'APPROVED';
-    } catch {
-      // If me() fails, still try to load team invites (they don't require coach approval)
-    }
     // Team invites (Section 2) and org join request status (Section 3) are always loaded.
-    // Pitched events (Section 1) require approved coach status.
+    // Pitched events (Section 1) require full coach-tool access, matching requireOnboarded.
     const loaders: Promise<void>[] = [loadTeamInvites(), loadOrgRequests()];
-    if (isApprovedCoach) {
+    if (canAccessCoachTools) {
       loaders.push(loadEvents());
     } else {
       setEvents([]);
       setEventsLoading(false);
     }
     await Promise.allSettled(loaders);
-    if (loadInvitesFailedRef.current && loadOrgFailedRef.current && (!isApprovedCoach || loadEventsFailedRef.current)) {
+    if (
+      loadInvitesFailedRef.current &&
+      loadOrgFailedRef.current &&
+      (!canAccessCoachTools || loadEventsFailedRef.current)
+    ) {
       setError('Failed to load approvals. Pull down to refresh.');
     }
-  }, []);
-
-  // Guard: redirect non-coaches (fans should not see this screen at all)
-  useEffect(() => {
-    void (async () => {
-      try {
-        const me = await User.me() as { preferences?: { role?: string }; approval_status?: string };
-        const isCoachRole = me?.preferences?.role === 'coach';
-        if (!isCoachRole) {
-          Alert.alert('Restricted', 'Only coach accounts can access Approvals.');
-          safeGoBack(router);
-        }
-      } catch {
-        // silently ignore — auth errors handled elsewhere
-      }
-    })();
-  }, [router]);
+  }, [canAccessCoachTools]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   useEffect(() => { void loadAll(); }, []);
@@ -505,7 +484,7 @@ export default function EventApprovalsScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (coachLoading || !isCoach) {
+  if (coachLoading || !canAccessCoachTools) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
         <ActivityIndicator style={{ marginTop: 40 }} />

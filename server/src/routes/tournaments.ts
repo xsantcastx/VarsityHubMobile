@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const createTournamentSchema = z.object({
   name: z.string().min(1).max(255),
@@ -52,7 +53,7 @@ const toOptionalNumber = (value: unknown) => {
  * POST /tournaments
  * Create a new tournament organization
  */
-tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const parsed = createTournamentSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
@@ -83,13 +84,13 @@ tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, async (
     console.error('Failed to create tournament:', error);
     return res.status(500).json({ error: 'Failed to create tournament' });
   }
-});
+}));
 
 /**
  * GET /tournaments
  * List all tournaments
  */
-tournamentsRouter.get('/', async (_req: Request, res: Response) => {
+tournamentsRouter.get('/', asyncHandler(async (_req: Request, res: Response) => {
   try {
     const tournaments = await prisma.organization.findMany({
       where: { org_type: 'tournament' },
@@ -110,13 +111,13 @@ tournamentsRouter.get('/', async (_req: Request, res: Response) => {
     console.error('Failed to fetch tournaments:', error);
     return res.status(500).json({ error: 'Failed to fetch tournaments' });
   }
-});
+}));
 
 /**
  * GET /tournaments/:id
  * Get tournament details
  */
-tournamentsRouter.get('/:id', async (req: Request, res: Response) => {
+tournamentsRouter.get('/:id', asyncHandler(async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -146,13 +147,13 @@ tournamentsRouter.get('/:id', async (req: Request, res: Response) => {
     console.error('Failed to fetch tournament:', error);
     return res.status(500).json({ error: 'Failed to fetch tournament' });
   }
-});
+}));
 
 /**
  * PATCH /tournaments/:id
  * Update tournament
  */
-tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -183,13 +184,13 @@ tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asy
     console.error('Failed to update tournament:', error);
     return res.status(500).json({ error: 'Failed to update tournament' });
   }
-});
+}));
 
 /**
  * POST /tournaments/:id/teams
  * Add team to tournament
  */
-tournamentsRouter.post('/:id/teams', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/:id/teams', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { team_id } = req.body;
@@ -239,13 +240,13 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, requireOnboarded as any
     console.error('Failed to add team to tournament:', error);
     return res.status(500).json({ error: 'Failed to add team' });
   }
-});
+}));
 
 /**
  * POST /tournaments/:id/games
  * Create a tournament game/match
  */
-tournamentsRouter.post('/:id/games', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res: Response) => {
+tournamentsRouter.post('/:id/games', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -283,4 +284,4 @@ tournamentsRouter.post('/:id/games', requireAuth as any, requireOnboarded as any
     console.error('Failed to create tournament game:', error);
     return res.status(500).json({ error: 'Failed to create game' });
   }
-});
+}));

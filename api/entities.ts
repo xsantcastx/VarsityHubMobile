@@ -161,6 +161,8 @@ export const User = {
     httpPost('/auth/upgrade-to-coach', { plan }),
   // v1.0.2: rejected coaches can re-apply after 48hr cooldown
   reapplyCoach: () => httpPost('/auth/coach/reapply', {}),
+  // v1.0.2: escape paywall loop by downgrading to free rookie plan
+  skipPayment: () => httpPost('/auth/skip-payment', {}),
   deleteAccount: (payload?: { password?: string; delete_confirmation?: string }) =>
     httpDelete('/users/me', payload || {}),
   acceptFollow: (userId: string) =>

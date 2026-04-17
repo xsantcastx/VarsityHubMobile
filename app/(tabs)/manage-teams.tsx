@@ -14,6 +14,7 @@ import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal
 // @ts-ignore
 import { Game as GameApi } from '@/api/entities';
 import { EmptyState, SectionHeader, TeamCard, TeamCardSkeleton } from '@/components/ui';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 
 type Team = { 
@@ -35,7 +36,7 @@ type Team = {
 
 function ManageTeamsSimpleScreen() {
   const { user } = useAuth();
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
@@ -64,11 +65,14 @@ function ManageTeamsSimpleScreen() {
       }));
       setTeams(formattedTeams);
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'loading your teams')) {
+        return;
+      }
       if (__DEV__) console.error('Failed to load teams:', e);
       setError('Unable to load teams. Please try again.');
       setTeams([]);
     }
-  }, [user]);
+  }, [router, user]);
 
   useEffect(() => {
     void loadTeams().catch((e) => { if (__DEV__) console.warn('[ManageTeams] load error:', e); }).finally(() => setLoading(false)); // VAL-4: .catch() before .finally()
@@ -81,19 +85,12 @@ function ManageTeamsSimpleScreen() {
     }, [loadTeams])
   );
 
-  // Guard: redirect non-coach users away + check payment status
   useEffect(() => {
+    if (coachLoading || !canAccessCoachTools) return;
     void (async () => {
       try {
         const me: any = await User.me();
         const prefs = me?.preferences || {};
-        const role = prefs.role;
-        const isApprovedCoach = role === 'coach' && me?.approval_status === 'APPROVED';
-        if (!isApprovedCoach) {
-          Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
-          router.push('/(tabs)');
-          return;
-        }
         // Check deferred payment status for paid plans (Rule A: use pending_plan)
         const plan = prefs.pending_plan || prefs.plan;
         setUserPlan(plan);
@@ -111,7 +108,7 @@ function ManageTeamsSimpleScreen() {
         // silently ignore
       }
     })().catch(() => {});
-  }, [router]);
+  }, [canAccessCoachTools, coachLoading]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -253,6 +250,9 @@ function ManageTeamsSimpleScreen() {
         [{ text: 'OK', onPress: () => {} }]
       );
     } catch (error) {
+      if (handleCoachAccessError(router, error, 'creating games')) {
+        return;
+      }
       if (__DEV__) console.error('Error adding quick game:', error);
       Alert.alert(
         'Error',
@@ -262,7 +262,7 @@ function ManageTeamsSimpleScreen() {
     }
   };
 
-  if (coachLoading || !isCoach) {
+  if (coachLoading || !canAccessCoachTools) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <ActivityIndicator style={{ marginTop: 40 }} />

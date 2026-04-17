@@ -560,6 +560,27 @@ authRouter.post(
       let user = await prisma.user.findUnique({ where: { google_id: googleId } });
       let created = false;
 
+      // v1.0.2: Sync email/avatar from Google on re-auth. If the user changed their
+      // Google email, the DB should reflect it since they're authenticating with that
+      // Google account. Avatar updates only fill a blank avatar.
+      if (user) {
+        const syncUpdates: any = {};
+        if (user.email !== email) {
+          // Check that the new email isn't taken by another account
+          const emailTaken = await prisma.user.findUnique({ where: { email } });
+          if (!emailTaken) {
+            syncUpdates.email = email;
+            syncUpdates.email_verified = true;
+          }
+        }
+        if (avatarUrl && !user.avatar_url) syncUpdates.avatar_url = avatarUrl;
+        if (displayNameSource && !user.display_name) syncUpdates.display_name = displayNameSource;
+        if (Object.keys(syncUpdates).length) {
+          user = await prisma.user.update({ where: { id: user.id }, data: syncUpdates });
+          await invalidateMeCacheForUser(user.id);
+        }
+      }
+
       if (!user) {
         stage = 'user-resolve';
         const existingByEmail = await prisma.user.findUnique({ where: { email } });
@@ -1120,6 +1141,38 @@ authRouter.post(
         // v1.0.2: clear rejection tracking on fresh re-apply.
         rejected_at: null,
         rejection_reason: null,
+      },
+    });
+    await invalidateMeCacheForUser(updated.id);
+
+    return res.json({ ok: true, preferences: updated.preferences });
+  })
+);
+
+// v1.0.2: POST /auth/skip-payment
+// Allows a coach stuck with payment_pending=true to escape the paywall loop by
+// downgrading to the free rookie plan. Clears payment_pending, pending_plan, and
+// payment_approved so the AuthProvider redirect no longer fires.
+authRouter.post(
+  '/skip-payment',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { id: true, preferences: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const prefs = (user.preferences as any) || {};
+
+    if (!prefs.payment_pending) {
+      return res.json({ ok: true, message: 'No pending payment to skip.' });
+    }
+
+    const { payment_pending, payment_approved, pending_plan, ...restPrefs } = prefs;
+    const updated = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        preferences: { ...restPrefs, plan: 'rookie' },
       },
     });
     await invalidateMeCacheForUser(updated.id);
@@ -1866,7 +1919,7 @@ authRouter.post(
     // Get current preferences FIRST to preserve role if not in payload
     const current = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { preferences: true },
+      select: { preferences: true, approval_status: true },
     });
     const currentPrefs = (current?.preferences as any) || {};
 
@@ -1895,9 +1948,11 @@ authRouter.post(
     // CRITICAL: For coaches, validate required steps are completed
     // Fall back to existing DB values for retry scenarios where payload may be incomplete
     const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    let finalPlan = currentPrefs.plan || 'rookie';
     if (finalRole === 'coach') {
       const effectiveUsername = data.username || currentUser?.username;
       const effectivePlan = data.plan || currentPrefs.plan || 'rookie';
+      finalPlan = effectivePlan;
       const effectiveOrgId = data.organization_id || currentPrefs.organization_id;
       const effectiveTeamId = data.team_id || currentPrefs.team_id;
       if (!effectiveUsername) {
@@ -1931,7 +1986,7 @@ authRouter.post(
     const preferencesUpdate: any = {
       onboarding_completed: true,
       role: finalRole, // Always set role explicitly - never leave undefined
-      plan: 'rookie', // Always rookie at onboarding — paid plans set by Stripe webhook only
+      plan: currentPrefs.plan || 'rookie', // Preserve plan set by payment webhook; default rookie for new users
       affiliation: data.affiliation,
       dob: data.dob,
       zip_code: data.zip_code || data.zip,
@@ -1980,11 +2035,13 @@ authRouter.post(
     const merged = stripProtectedKeys(
       mergePreferences(normalizedCurrent || {}, preferencesUpdate)
     ) as any;
+    merged.plan = finalPlan;
     updateData.preferences = merged;
 
     // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING
     // This prevents a fan from completing onboarding with role='coach' and retaining APPROVED status
-    if (finalRole === 'coach' && currentPrefs.role !== 'coach') {
+    // v1.0.2: Also guard against overwriting an already-APPROVED status from a stale client call
+    if (finalRole === 'coach' && currentPrefs.role !== 'coach' && current?.approval_status !== 'APPROVED') {
       updateData.approval_status = 'PENDING';
     }
 

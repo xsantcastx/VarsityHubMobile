@@ -38,6 +38,7 @@ function ManageSubscription() {
   const [paidByOwner, setPaidByOwner] = useState(false);
   const [ownerLeagueName, setOwnerLeagueName] = useState<string | null>(null);
   const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
+  const [paymentPending, setPaymentPending] = useState(false);
 
 async function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -64,6 +65,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       setPlan(prefs.plan || null);
       setPaidByOwner(!!me?.paid_by_owner);
       setApprovalStatus(me?.approval_status || null);
+      setPaymentPending(prefs.payment_pending === true);
 
       // If covered by owner, fetch the league name
       if (me?.paid_by_owner) {
@@ -209,6 +211,30 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     }
   };
 
+  const onSkipPayment = async () => {
+    Alert.alert(
+      'Continue as Rookie?',
+      'You can upgrade to a paid plan anytime from Settings. Your team will be limited to 2 teams and 50 roster spots on the free plan.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue as Rookie',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await User.skipPayment();
+              await refreshPlan();
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Unable to skip payment');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Manage Subscription', headerBackTitle: 'Back', headerShown: true }} />
@@ -274,6 +300,16 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
                   <Button onPress={() => onSubscribe('veteran')} disabled={loading}><Text>Upgrade to Veteran</Text></Button>
                   <View style={{ height: 8 }} />
                   <Button onPress={() => onSubscribe('legend')} disabled={loading}><Text>Upgrade to Legend</Text></Button>
+                  {paymentPending && (
+                    <>
+                      <View style={{ height: 12 }} />
+                      <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                        Not ready to subscribe? You can continue with the free Rookie plan.
+                      </Text>
+                      <View style={{ height: 8 }} />
+                      <Button onPress={onSkipPayment} disabled={loading} variant="outline"><Text>Continue as Rookie</Text></Button>
+                    </>
+                  )}
                 </>
               )}
             </>

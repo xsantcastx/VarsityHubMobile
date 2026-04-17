@@ -608,7 +608,15 @@ export default function SettingsScreen() {
                                 setOB((prev) => ({ ...prev, role: 'coach', plan: 'rookie', step_2_visited: false, step_3_visited: false, step_4_visited: false }));
                               }
                               await markOnboardingIncompleteLocally();
-                              router.push('/onboarding/step-2-basic');
+                              // Skip step-2 if user already has bio & avatar filled
+                              const fresh = await User.me().catch(() => null);
+                              const hasBio = !!fresh?.bio?.trim();
+                              const hasAvatar = !!fresh?.avatar_url?.trim();
+                              if (hasBio && hasAvatar) {
+                                router.push('/onboarding/step-3-league');
+                              } else {
+                                router.push('/onboarding/step-2-basic');
+                              }
                               // Fire-and-forget — routing is already done
                               checkAuth().catch(() => {});
                             } catch (e: any) {
@@ -616,7 +624,7 @@ export default function SettingsScreen() {
                               // If already a coach, update local state and redirect to onboarding
                               if (msg.toLowerCase().includes('already a coach')) {
                                 setRole('coach');
-                                router.push('/onboarding/step-2-basic');
+                                router.push('/onboarding/step-3-league');
                                 return;
                               }
                               Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');

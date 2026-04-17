@@ -498,12 +498,7 @@ const FeedCard = memo(
             <Text style={styles.railLabel}>Options</Text>
           </Pressable>
 
-          {post.media_type === 'video' && (
-            <Pressable onPress={onToggleMute} style={styles.railBtn}>
-              <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={34} color="#fff" />
-              <Text style={styles.railLabel}>{isMuted ? 'Unmute' : 'Mute'}</Text>
-            </Pressable>
-          )}
+          {/* Mute button removed v1.0.2 — videos play muted by default */}
         </View>
 
         {/* Options Menu Modal */}
@@ -685,7 +680,7 @@ function GameVerticalFeedScreen({
     display_name?: string | null;
     username?: string | null;
   } | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted] = useState(true); // videos always muted v1.0.2
   const headerTitle = title || game?.title || 'Game';
 
   // Store VideoPlayer instances by post id
@@ -1241,7 +1236,7 @@ function GameVerticalFeedScreen({
     [handleToggleUpvote]
   );
 
-  const handleToggleMute = useCallback(() => setIsMuted(m => !m), []);
+  const handleToggleMute = useCallback(() => {}, []); // mute toggle disabled v1.0.2
 
   const renderItem = useCallback(
     ({ item, index }: { item: FeedPost; index: number }) => (

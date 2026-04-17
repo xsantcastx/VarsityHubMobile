@@ -349,7 +349,12 @@ function CreateFanEventScreen() {
       const errorCode = e?.code || e?.data?.code;
       const errorMessage = e?.message || e?.data?.message;
 
-      if (errorCode === 'APPROVAL_REQUIRED') {
+      if (errorCode === 'COACH_AGREEMENT_REQUIRED') {
+        Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating events.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
+        ]);
+      } else if (errorCode === 'APPROVAL_REQUIRED') {
         Alert.alert('Approval Required', 'Your coach account is pending approval. You can create events once a league admin approves your application.');
       } else if (errorCode === 'PAYMENT_REQUIRED') {
         Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating events.', [

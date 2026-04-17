@@ -154,7 +154,7 @@ const serializeEvent = (
   return base;
 };
 
-eventsRouter.get('/', async (req, res) => {
+eventsRouter.get('/', asyncHandler(async (req, res) => {
   try {
     const status = String(req.query.status || '').trim();
     const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
@@ -256,10 +256,10 @@ eventsRouter.get('/', async (req, res) => {
     console.error('[events] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // List current user's RSVPs with event basics
-eventsRouter.get('/my-rsvps', requireAuth as any, async (req: AuthedRequest, res) => {
+eventsRouter.get('/my-rsvps', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const rows = await prisma.eventRsvp.findMany({
@@ -296,10 +296,10 @@ eventsRouter.get('/my-rsvps', requireAuth as any, async (req: AuthedRequest, res
     console.error('[events] GET /my-rsvps error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // List current user's created events (for fans to track their submissions)
-eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, res) => {
+eventsRouter.get('/my-events', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     // req.user is guaranteed by requireAuth middleware
     const events = await prisma.event.findMany({
@@ -325,14 +325,14 @@ eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, re
     console.error('[events] GET /my-events error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
 eventsRouter.get(
   '/pending',
   requireAuth as any,
   requireOnboarded as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const userId = req.user!.id;
       const isAdmin = await getIsAdmin(req as any);
@@ -407,7 +407,7 @@ eventsRouter.get(
       console.error('[events] GET /pending error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );
 
 // Get single event with RSVP count (optionally includes can_cancel when authenticated)
@@ -553,27 +553,24 @@ eventsRouter.post(
 
     if (desired && !current) {
       // v1.0.2 pass 9: prevent capacity-overflow race by using SELECT ... FOR UPDATE on the
-      // event row inside a Serializable transaction. Previously two concurrent RSVPs could both
-      // pass the count check before either inserted, allowing the event to exceed capacity.
+      // event row. The row lock serializes concurrent RSVPs so only one count+insert runs at
+      // a time. Read Committed is sufficient here — after the lock is acquired each
+      // transaction sees committed inserts from prior transactions, keeping the count accurate.
+      // (Serializable was removed because SSI throws P2034 serialization failures on
+      // concurrent count+insert even with FOR UPDATE, causing spurious 500s.)
       try {
-        await prisma.$transaction(
-          async tx => {
-            // Lock the event row so concurrent RSVP transactions serialize at this point.
-            await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${id} FOR UPDATE`;
-            const currentCount = await tx.eventRsvp.count({ where: { event_id: id } });
-            const capacity = event.capacity ?? event.max_attendees;
-            if (capacity && currentCount >= capacity) {
-              throw new Error('EVENT_AT_CAPACITY');
-            }
-            await tx.eventRsvp.create({
-              data: { event_id: id, user_id: me.id, user_email: me.email },
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-
-        // Send RSVP confirmation email (best-effort, don't block response)
-        // RSVP confirmation email removed — non-mandatory transactional email
+        await prisma.$transaction(async tx => {
+          // Lock the event row so concurrent RSVP transactions serialize at this point.
+          await tx.$queryRaw`SELECT id FROM "Event" WHERE id = ${id} FOR UPDATE`;
+          const currentCount = await tx.eventRsvp.count({ where: { event_id: id } });
+          const capacity = event.capacity ?? event.max_attendees;
+          if (capacity && currentCount >= capacity) {
+            throw new Error('EVENT_AT_CAPACITY');
+          }
+          await tx.eventRsvp.create({
+            data: { event_id: id, user_id: me.id, user_email: me.email },
+          });
+        });
 
         // Schedule game reminder notifications (12h and 1h before)
         await scheduleGameReminders(id, me.id).catch(err =>
@@ -589,6 +586,13 @@ eventsRouter.post(
             count: currentCount,
             capacity,
           });
+        }
+        // Prisma P2002 = unique constraint violation (duplicate RSVP from race)
+        // Return settled state instead of 500
+        if (error.code === 'P2002') {
+          const count = await prisma.eventRsvp.count({ where: { event_id: id } });
+          const capacity = event.capacity ?? event.max_attendees;
+          return res.json({ going: true, attending: true, count, capacity: capacity ?? null });
         }
         throw error;
       }
@@ -927,7 +931,7 @@ eventsRouter.put(
           : result.error === 'Event already rejected'
             ? 'This event has already been rejected. Cannot approve a rejected event.'
             : 'Can only approve pending events.';
-      return res.status(result.status || 400).json({ error: result.error, message: msg });
+      return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
     return res.json({
@@ -1010,7 +1014,7 @@ eventsRouter.put(
           : result.error === 'Event already rejected'
             ? 'This event has already been rejected.'
             : 'Can only reject pending events.';
-      return res.status(result.status || 400).json({ error: result.error, message: msg });
+      return res.status(result.status || 400).json({ error: msg, code: result.error });
     }
 
     return res.json({
@@ -1069,7 +1073,7 @@ eventsRouter.patch(
   requireAuth as any,
   requireVerified as any,
   requireOnboarded as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const eventId = String(req.params.id);
       const userId = req.user!.id;
@@ -1273,7 +1277,7 @@ eventsRouter.patch(
       console.error('[events] PATCH /:id error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );
 
 // Cancel event (creator or team owner only)
@@ -1282,7 +1286,7 @@ eventsRouter.patch(
   requireAuth as any,
   requireVerified as any,
   requireOnboarded as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const eventId = String(req.params.id);
       const userId = req.user!.id;
@@ -1392,5 +1396,5 @@ eventsRouter.patch(
       console.error('[events] PATCH /:id/cancel error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );

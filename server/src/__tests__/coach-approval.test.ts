@@ -173,6 +173,55 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
+  describe('Coach agreement gate', () => {
+    it('APPROVED coach without coach_agreement_accepted_at gets COACH_AGREEMENT_REQUIRED on team creation', async () => {
+      const approvedOrg = await prisma.organization.findFirst({
+        where: { league_owner_id: approvedCoachId },
+      });
+      expect(approvedOrg).toBeTruthy();
+
+      const res = await request(app)
+        .post('/teams/create')
+        .set('Authorization', `Bearer ${approvedCoachToken}`)
+        .send({ name: 'Agreement Blocked Team', organization_id: approvedOrg!.id });
+
+      expect(res.status).toBe(403);
+      expect(res.body?.code).toBe('COACH_AGREEMENT_REQUIRED');
+      expect(String(res.body?.error || '')).toMatch(/coach agreement/i);
+    });
+
+    it('APPROVED coach with coach_agreement_accepted_at can create team', async () => {
+      const approvedOrg = await prisma.organization.findFirst({
+        where: { league_owner_id: approvedCoachId },
+      });
+      expect(approvedOrg).toBeTruthy();
+
+      await prisma.user.update({
+        where: { id: approvedCoachId },
+        data: {
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      const res = await request(app)
+        .post('/teams/create')
+        .set('Authorization', `Bearer ${approvedCoachToken}`)
+        .send({ name: 'Agreement Accepted Team', organization_id: approvedOrg!.id });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveProperty('id');
+
+      if (res.body?.id) {
+        await prisma.team.delete({ where: { id: res.body.id } }).catch(() => {});
+      }
+    });
+  });
+
   describe('POST /organizations sets creator to PENDING', () => {
     it('creator is PENDING after POST /organizations', async () => {
       const creatorHash = await bcrypt.hash(PASSWORD, 10);

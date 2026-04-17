@@ -117,6 +117,7 @@ function TeamScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes' | 'events'>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
   const [me, setMe] = useState<{ id?: string; username?: string; display_name?: string; avatar_url?: string } | null>(null);
   
@@ -674,18 +675,21 @@ function TeamScreen() {
                   {
                     backgroundColor: isFollowing ? '#10B981' : '#FFD600',
                     borderWidth: 0,
-                  }
+                  },
+                  followLoading && { opacity: 0.5 },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={isFollowing ? 'Unfollow team' : 'Follow team'}
+                disabled={followLoading}
                 onPress={async () => {
                   // eslint-disable-next-line no-console
                   if (__DEV__) console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
-                  if (!team?.id || team.id.startsWith('temp-')) {
+                  if (!team?.id || team.id.startsWith('temp-') || followLoading) {
                     // eslint-disable-next-line no-console
                     if (__DEV__) console.warn('[Follow] blocked: team or team.id is missing/temporary');
                     return;
                   }
+                  setFollowLoading(true);
                   try {
                     if (isFollowing) {
                       // eslint-disable-next-line no-console
@@ -708,6 +712,8 @@ function TeamScreen() {
                     const serverMsg = err?.data?.error || err?.data?.message || err?.message || 'Unknown error';
                     if (__DEV__) console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| server:', serverMsg, '| data:', JSON.stringify(err?.data));
                     Alert.alert('Follow Failed', `${serverMsg} (status: ${err?.status || 'unknown'})`);
+                  } finally {
+                    setFollowLoading(false);
                   }
                 }}
               >

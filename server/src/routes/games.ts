@@ -202,7 +202,7 @@ async function canViewGameRecord(
   return !!orgMembership;
 }
 
-gamesRouter.get('/', async (req, res) => {
+gamesRouter.get('/', asyncHandler(async (req, res) => {
   try {
     // Cache-aside for games list (TTL 120s) — key includes query params
     const gameCacheKey = `games:${req.url}`;
@@ -454,7 +454,7 @@ gamesRouter.get('/', async (req, res) => {
     console.error('[games] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Create a new game
 gamesRouter.post(
@@ -951,7 +951,7 @@ gamesRouter.post(
 );
 
 // Batch vote summaries - avoids N+1 when loading feed with many games (must be before /:id)
-gamesRouter.get('/votes-summary', authMiddleware as any, async (req: AuthedRequest, res) => {
+gamesRouter.get('/votes-summary', authMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const idsParam = String(req.query.ids || '').trim();
     if (!idsParam)
@@ -1009,10 +1009,10 @@ gamesRouter.get('/votes-summary', authMiddleware as any, async (req: AuthedReque
     console.error('[games] votes-summary error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Get single game by id
-gamesRouter.get('/:id', async (req, res) => {
+gamesRouter.get('/:id', asyncHandler(async (req, res) => {
   try {
     const id = String(req.params.id);
     const authedReq = req as AuthedRequest;
@@ -1036,13 +1036,13 @@ gamesRouter.get('/:id', async (req, res) => {
     console.error('[games] get-by-id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Compact summary payload for the Game Details screen.
 // Posts and stories are intentionally excluded here — the client fetches them
 // separately via GET /games/:id/posts and GET /games/:id/stories so this
 // endpoint stays fast (no heavy joins on potentially large post tables).
-gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
+gamesRouter.get('/:id/summary', asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const game = await (prisma.game.findUnique as any)({
@@ -1185,9 +1185,9 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     console.error('[games] summary error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
-gamesRouter.get('/:id/votes/summary', async (req: AuthedRequest, res) => {
+gamesRouter.get('/:id/votes/summary', asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const gameId = String(req.params.id);
     const summary = await summarizeVotes(gameId, req.user?.id);
@@ -1196,9 +1196,9 @@ gamesRouter.get('/:id/votes/summary', async (req: AuthedRequest, res) => {
     console.error('[games] votes-summary-single error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
-gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, async (req: AuthedRequest, res) => {
+gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const gameId = String(req.params.id);
@@ -1221,9 +1221,9 @@ gamesRouter.post('/:id/votes', requireAuth as any, voteLimiter, async (req: Auth
     console.error('[games] cast-vote error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
-gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.delete('/:id/votes', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const gameId = String(req.params.id);
@@ -1234,7 +1234,7 @@ gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, 
     console.error('[games] delete-vote error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Delete a game
 gamesRouter.delete(
@@ -1355,7 +1355,7 @@ gamesRouter.delete(
 );
 
 // Posts tied to a game
-gamesRouter.get('/:id/posts', authMiddleware as any, async (req: AuthedRequest, res) => {
+gamesRouter.get('/:id/posts', authMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100));
@@ -1379,7 +1379,7 @@ gamesRouter.get('/:id/posts', authMiddleware as any, async (req: AuthedRequest, 
     console.error('[games] get-posts error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Media (stories) tied to a game
 gamesRouter.get('/:id/media', makeListMediaHandler({ prisma }));
@@ -1443,7 +1443,7 @@ gamesRouter.patch(
   '/:id/result',
   requireAuth as any,
   requireOnboarded as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -1513,7 +1513,7 @@ gamesRouter.patch(
       console.error('[games] update-result error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );
 
 // Update cover image
@@ -1754,7 +1754,7 @@ gamesRouter.put(
   '/:id/approve',
   requireAuth as any,
   requireOnboarded as any,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -1872,5 +1872,5 @@ gamesRouter.put(
       console.error('[games] approve error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );

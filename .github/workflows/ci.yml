@@ -218,6 +218,7 @@ jobs:
         server-tests,
         test,
         format-check,
+        dependency-audit,
       ]
     if: always()
     steps:
@@ -231,11 +232,36 @@ jobs:
              [ "${{ needs.server-checks.result }}" != "success" ] || \
              [ "${{ needs.server-tests.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ] || \
-             [ "${{ needs.format-check.result }}" != "success" ]; then
+             [ "${{ needs.format-check.result }}" != "success" ] || \
+             [ "${{ needs.dependency-audit.result }}" != "success" ]; then
             echo "❌ One or more checks failed"
             exit 1
           fi
           echo "✅ All checks passed"
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Audit frontend dependencies
+        run: npm audit
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Audit server dependencies
+        working-directory: server
+        run: npm audit
 
   format-check:
     name: Format Check

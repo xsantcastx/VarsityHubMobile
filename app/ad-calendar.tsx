@@ -256,11 +256,11 @@ function AdCalendarScreen() {
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
   const taxCents = useMemo(() => {
-    // Simple client-side tax estimation (server will calculate exact amount)
-    // This is just for display purposes
+    // Client-side estimate only — server calculates exact amount at checkout
     if (!price || price <= 0) return 0;
-    // Rough average US sales tax ~6.5%
-    return Math.round(price * 100 * 0.065);
+    // Display "estimated tax" without committing to a specific rate.
+    // Actual tax is calculated server-side based on jurisdiction.
+    return Math.round(price * 100 * 0.07);
   }, [price]);
   const _priceWithTax = useMemo(() => price + (taxCents / 100), [price, taxCents]);
   const effectiveCents = useMemo(() => {
@@ -442,6 +442,18 @@ function AdCalendarScreen() {
       );
     } catch (err: any) {
       if (__DEV__) console.error('Submit for approval failed:', err);
+      const code = err?.data?.code || err?.code;
+      if (code === 'PLAN_UPGRADE_REQUIRED') {
+        Alert.alert(
+          'Upgrade Required',
+          'Local ads require a Veteran or Legend plan.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription' as any) },
+          ]
+        );
+        return;
+      }
       const msg = err?.data?.error || err?.message || 'Failed to submit for approval. Please try again.';
       Alert.alert('Error', msg);
     } finally {
@@ -600,6 +612,12 @@ function AdCalendarScreen() {
       if (status === 403 && (raw === 'Email verification required' || /verification/i.test(raw))) {
         title = 'Verify Your Email';
         msg = 'Please verify your email before paying. Check your inbox for the verification link.';
+      } else if (status === 403 && (err?.data?.code === 'PLAN_UPGRADE_REQUIRED' || /veteran|legend plan/i.test(raw))) {
+        title = 'Upgrade Required';
+        msg = 'Local ads require a Veteran or Legend plan.';
+      } else if (status === 403 && (raw === 'COACH_AGREEMENT_REQUIRED' || /coach agreement/i.test(raw))) {
+        title = 'Coach Agreement Required';
+        msg = 'You need to accept the coach agreement before booking ads.';
       } else if (status === 403 && (raw === 'APPROVAL_REQUIRED' || /approval.*required|must be approved/i.test(raw))) {
         title = 'Approval Required';
         msg = 'Your ad must be approved before payment. You\'ll be notified when you can pay.';
@@ -622,7 +640,14 @@ function AdCalendarScreen() {
       } else {
         msg = 'An error occurred starting checkout. Please try again.';
       }
-      Alert.alert(title, msg);
+      if (title === 'Upgrade Required') {
+        Alert.alert(title, msg, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription' as any) },
+        ]);
+      } else {
+        Alert.alert(title, msg);
+      }
     } finally {
       setSubmitting(false);
       // Re-enable unsaved changes guard if dates still selected
@@ -966,7 +991,7 @@ function AdCalendarScreen() {
                   <View style={styles.fullPriceNotice}>
                     <MaterialIcons name="info-outline" size={16} color="#92400E" />
                     <Text style={styles.fullPriceNoticeText}>
-                      Some selected dates are in the past. You are purchasing {totalHrs} hours total ({sortedDates.length} day{sortedDates.length !== 1 ? 's' : ''} × 24 hrs). Full price applies to all booked days.
+                      Past dates are charged at full price.
                     </Text>
                   </View>
                 )}
@@ -990,7 +1015,7 @@ function AdCalendarScreen() {
           </View>
           {taxCents > 0 && (
             <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Est. Tax (6.5%)*:</Text>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Est. Tax*:</Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           )}

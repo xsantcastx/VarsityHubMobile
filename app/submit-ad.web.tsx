@@ -114,6 +114,19 @@ function SubmitAdScreen() {
         }
       } catch (err: any) {
         if (err?.status === 403) {
+          const code = err?.data?.code || err?.code;
+          const message = err?.data?.message || err?.data?.error || err?.message || '';
+          if (code === 'PLAN_UPGRADE_REQUIRED' || /veteran|legend plan/i.test(String(message))) {
+            Alert.alert(
+              'Upgrade Required',
+              'Local ads require a Veteran or Legend plan.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription' as any) },
+              ]
+            );
+            return;
+          }
           Alert.alert('Verification Required', 'Please verify your email before submitting an ad.');
           return;
         }

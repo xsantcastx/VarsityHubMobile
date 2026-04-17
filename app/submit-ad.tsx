@@ -134,11 +134,20 @@ function SubmitAdScreen() {
             );
             return;
           }
-          // v1.0.2 audit fix: PLAN_REQUIRED gate removed — all users can book ads.
-          // Keeping this block as a no-op so the error code is documented if the
-          // server ever re-introduces a gate in the future.
+          // Legacy fallback if the server ever emits the older PLAN_REQUIRED code.
           if (code === 'PLAN_REQUIRED') {
             Alert.alert('Error', 'Unable to create ad. Please try again or contact support.');
+            return;
+          }
+          if (code === 'PLAN_UPGRADE_REQUIRED' || msg.includes('veteran') || msg.includes('legend plan')) {
+            Alert.alert(
+              'Upgrade Required',
+              'Local ads require a Veteran or Legend plan.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription' as any) },
+              ]
+            );
             return;
           }
         }

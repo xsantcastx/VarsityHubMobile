@@ -50,20 +50,22 @@ export function clearGeocodeCache() {
   geocodeCache.clear();
 }
 
-export async function autocompleteLocations(query: string, limit: number = 6): Promise<PlaceSuggestion[]> {
+export async function autocompleteLocations(query: string, limit: number = 6, zip?: string): Promise<PlaceSuggestion[]> {
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];
 
   const normalized = trimmed.toLowerCase();
-  const cached = suggestionCache.get(normalized);
+  const cacheKey = zip ? `${normalized}|${zip}` : normalized;
+  const cached = suggestionCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < SUGGESTION_TTL_MS) {
     return cached.suggestions.slice(0, limit);
   }
 
   try {
-    const res: any = await httpGet(`/geocoding/autocomplete?input=${encodeURIComponent(trimmed)}&limit=${limit}`);
+    const zipParam = zip ? `&zip=${encodeURIComponent(zip)}` : '';
+    const res: any = await httpGet(`/geocoding/autocomplete?input=${encodeURIComponent(trimmed)}&limit=${limit}${zipParam}`);
     const suggestions: PlaceSuggestion[] = Array.isArray(res?.suggestions) ? res.suggestions : [];
-    suggestionCache.set(normalized, { timestamp: Date.now(), suggestions });
+    suggestionCache.set(cacheKey, { timestamp: Date.now(), suggestions });
     return suggestions.slice(0, limit);
   } catch (error: any) {
     // If endpoint doesn't exist, return empty array

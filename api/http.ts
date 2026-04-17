@@ -20,8 +20,13 @@ export function getAuthToken(): string | null {
   return tokenCache;
 }
 
-// Refresh lock: prevents concurrent refresh attempts when multiple 401s fire simultaneously
+// Refresh lock: prevents concurrent refresh attempts when multiple 401s fire simultaneously.
+// v1.0.2: Keep the resolved result cached for REFRESH_CACHE_TTL_MS so that late-arriving
+// 401s reuse the fresh token instead of attempting a second refresh with a rotated
+// (now-invalid) token. This prevents the logout-on-concurrent-401 race condition.
 let refreshPromise: Promise<RefreshOutcome> | null = null;
+let refreshCacheTimer: ReturnType<typeof setTimeout> | null = null;
+const REFRESH_CACHE_TTL_MS = 5_000;
 
 export function getApiBaseUrl(): string {
   // Support environment-based configuration for testing/staging/preview builds
@@ -155,10 +160,19 @@ async function request(
         // Lazy-import to avoid circular dependency (auth.ts imports from http.ts)
         const { auth } = await import('./auth');
 
-        // Coalesce concurrent refresh attempts behind a single promise
+        // Coalesce concurrent refresh attempts behind a single promise.
+        // The result is cached for REFRESH_CACHE_TTL_MS so late-arriving 401s
+        // reuse the fresh token instead of attempting a second refresh with a
+        // now-rotated (invalid) token.
         if (!refreshPromise) {
           refreshPromise = auth.refreshToken().finally(() => {
-            refreshPromise = null;
+            // Keep the resolved promise around for a few seconds so late 401s
+            // reuse the result. Clear it after the TTL.
+            if (refreshCacheTimer) clearTimeout(refreshCacheTimer);
+            refreshCacheTimer = setTimeout(() => {
+              refreshPromise = null;
+              refreshCacheTimer = null;
+            }, REFRESH_CACHE_TTL_MS);
           });
         }
         const refreshResult = (await refreshPromise) as RefreshOutcome;
@@ -324,11 +338,32 @@ async function request(
         },
       });
 
-      // Aggressive retry for 502 errors - Railway infrastructure can be temporarily unstable
-      // For critical endpoints (payments, auth), allow more retries
-      // For Railway infrastructure errors, be even more aggressive
+      // v1.0.2: Only retry 502s for idempotent requests (GET) or safe auth endpoints.
+      // Retrying POST/PUT/DELETE/PATCH mutations on 502 can create duplicate records
+      // (posts, payments, RSVPs) because the original request may have succeeded on
+      // the server even though Railway returned a 502 to the client.
+      const method = (options.method || 'GET').toUpperCase();
+      const isSafeMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+      const isSafeAuthEndpoint =
+        path.includes('/auth/refresh') ||
+        path.includes('/auth/login') ||
+        path.includes('/auth/google') ||
+        path.includes('/auth/apple') ||
+        path === '/auth/me' ||
+        path === '/me';
+      const isRetryable = isSafeMethod || isSafeAuthEndpoint;
+
+      if (!isRetryable) {
+        if (__DEV__)
+          console.warn(
+            `[http] 502 on non-idempotent ${method} ${path} — NOT retrying to avoid duplicate mutations`
+          );
+        throw error;
+      }
+
+      // For retryable requests: Railway infrastructure can be temporarily unstable
+      // For critical endpoints (auth), allow more retries
       const isCriticalEndpoint =
-        path.includes('/payments/') ||
         path.includes('/auth/') ||
         path.includes('/me') ||
         path.includes('/notifications');

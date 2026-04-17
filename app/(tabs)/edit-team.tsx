@@ -5,43 +5,23 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Organization, Team, User } from '@/api/entities';
+import { Organization, Team } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 
 function EditTeamScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-
-  // Coach role guard — only coaches/owners/managers can edit teams
-  const [roleChecked, setRoleChecked] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        const me: any = await User.me();
-        if (!mounted) return;
-        if (me?.preferences?.role !== 'coach') {
-          Alert.alert('Access Denied', 'Only coach accounts can edit teams.');
-          safeGoBack(router);
-          return;
-        }
-        setRoleChecked(true);
-      } catch {
-        if (mounted) safeGoBack(router);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [router]);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -114,6 +94,9 @@ function EditTeamScreen() {
         setOrganizationName('');
       }
     } catch (error) {
+      if (handleCoachAccessError(router, error, 'editing teams')) {
+        return;
+      }
       if (__DEV__) console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
       safeGoBack(router);
@@ -284,6 +267,9 @@ function EditTeamScreen() {
         { text: 'OK', onPress: () => safeGoBack(router) }
       ]);
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'editing teams')) {
+        return;
+      }
       if (__DEV__) console.error('Team update error:', e);
       if (__DEV__) console.error('Team update error status:', e?.status);
       if (__DEV__) console.error('Team update error data:', e?.data);
@@ -295,7 +281,7 @@ function EditTeamScreen() {
     }
   };
 
-  if (!roleChecked || loading) {
+  if (coachLoading || !canAccessCoachTools || loading) {
     return (
       <View style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}>
         <Stack.Screen options={{ title: 'Edit Team', headerShown: false }} />

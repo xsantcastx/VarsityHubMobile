@@ -23,7 +23,7 @@ const publicUserSelect = {
 };
 
 // List users (admin only)
-usersRouter.get('/', requireAdmin as any, async (req, res) => {
+usersRouter.get('/', requireAdmin as any, asyncHandler(async (req, res) => {
   try {
     const q = String((req.query as any).q || '').trim().toLowerCase();
     const banned = String((req.query as any).banned || '') === '1';
@@ -45,10 +45,10 @@ usersRouter.get('/', requireAdmin as any, async (req, res) => {
     console.error('[users] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Ban/unban (admin only)
-usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
+usersRouter.post('/:id/ban', requireAdmin as any, asyncHandler(async (req, res) => {
   try {
     const id = String(req.params.id);
     const { reason } = req.body || {};
@@ -58,9 +58,9 @@ usersRouter.post('/:id/ban', requireAdmin as any, async (req, res) => {
     console.error('[users] POST /:id/ban error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
-usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
+usersRouter.post('/:id/unban', requireAdmin as any, asyncHandler(async (req, res) => {
   try {
     const id = String(req.params.id);
     const u = await updateUserAndInvalidate(prisma, { where: { id }, data: { banned: false, ban_reason: null, banned_until: null } });
@@ -69,10 +69,10 @@ usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
     console.error('[users] POST /:id/unban error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Full user detail with ads and their reservation dates (admin only)
-usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
+usersRouter.get('/:id/full', requireAdmin as any, asyncHandler(async (req, res) => {
   try {
     const id = String(req.params.id);
     const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
@@ -91,11 +91,11 @@ usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
     console.error('[users] GET /:id/full error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // GET /users/me/export - GDPR/CCPA data portability: export all user data as JSON
 // GDPR requires COMPLETE data — no truncation. Ceiling of 50k per category prevents OOM.
-usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/me/export', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = req.user!.id;
   const EXPORT_LIMIT = 50000; // Safety ceiling — no real user hits this
   try {
@@ -263,10 +263,10 @@ usersRouter.get('/me/export', requireAuth as any, async (req: AuthedRequest, res
     console.error('Data export error:', e);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // CSV export of user's ads and reservations (admin only)
-usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
+usersRouter.get('/:id/export', requireAdmin as any, asyncHandler(async (req, res) => {
   try {
     const id = String(req.params.id);
     const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true } });
@@ -295,7 +295,7 @@ usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
     console.error('[users] GET /:id/export error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // =============================
 // Profile: Posts & Interactions
@@ -349,7 +349,7 @@ function mapPostForPayload(post: any) {
 }
 
 // GET /users/:id/posts?cursor=...&limit=...&sort=...
-usersRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/posts', asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const id = String(req.params.id);
     const currentUserId = req.user?.id || null;
@@ -390,10 +390,10 @@ usersRouter.get('/:id/posts', async (req: AuthedRequest, res) => {
     console.error('[users] GET /:id/posts error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // GET /users/:id/interactions?type=like|comment|repost|save|all&cursor=...&limit=...&sort=...
-usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/interactions', asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const currentUserId = req.user?.id || null;
@@ -480,10 +480,10 @@ usersRouter.get('/:id/interactions', async (req: AuthedRequest, res) => {
     console.error('[users] GET /:id/interactions error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // GET /users/:id/teams - Teams the user is a member of (for athlete profile)
-usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/teams', asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const currentUserId = req.user?.id || null;
@@ -538,7 +538,7 @@ usersRouter.get('/:id/teams', async (req: AuthedRequest, res) => {
     console.error('[users] GET /:id/teams error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Delete own account (hard-delete user and all their data)
 // Password users must provide password. OAuth-only users must provide explicit "DELETE" confirmation.
@@ -546,7 +546,7 @@ const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Password is required').optional(),
   delete_confirmation: z.string().optional(),
 });
-usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.delete('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = req.user!.id;
   const parsed = deleteAccountSchema.safeParse(req.body || {});
   if (!parsed.success) {
@@ -657,7 +657,7 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
     console.error('Account deletion error:', e);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Username availability check (public - no auth required)
 // authMiddleware still populates req.user if a token is present, allowing exclusion of current user
@@ -916,7 +916,7 @@ usersRouter.post('/:id/reject-follow', requireAuth as any, asyncHandler(async (r
 }));
 
 // Get pending follow requests for current user
-usersRouter.get('/me/follow-requests', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/me/follow-requests', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const requests = await prisma.follows.findMany({
       where: { following_id: req.user!.id, status: 'pending' },
@@ -935,7 +935,7 @@ usersRouter.get('/me/follow-requests', requireAuth as any, async (req: AuthedReq
     console.error('Follow requests error:', error);
     res.status(500).json({ error: 'Something went wrong.' });
   }
-});
+}));
 
 // Get followers
 usersRouter.get('/:id/followers', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
@@ -1065,7 +1065,7 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
 // Get blocked users
 // NOTE: Must be defined BEFORE the /:id catch-all route, otherwise Express
 // matches "blocked" as an :id parameter and returns 404.
-usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/blocked', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const blocks = await prisma.blockedUser.findMany({
       where: { blocker_id: req.user!.id },
@@ -1088,7 +1088,7 @@ usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) 
     console.error('Get blocked users error:', error);
     return res.status(500).json({ error: 'Failed to get blocked users' });
   }
-});
+}));
 
 // Public profile: basic user info plus counts and is_following flag
 // When profile_private is true, non-followers see only display_name and avatar_url.

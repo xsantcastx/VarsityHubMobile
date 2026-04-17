@@ -11,6 +11,7 @@ import {
     sendEventDeniedEmail,
 } from '../lib/email.js';
 import { getEndOfDayReport } from '../lib/transactionLogger.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 
@@ -30,19 +31,19 @@ router.use((req: AuthedRequest, res, next) => {
   next();
 });
 
-router.post('/verification', async (req, res) => {
+router.post('/verification', asyncHandler(async (req, res) => {
   const { to = 'test@example.com', token = '123456', name = 'Test User' } = req.body || {};
   const ok = await sendVerificationEmail(to, token, name);
   return res.json({ ok });
-});
+}));
 
-router.post('/password-reset', async (req, res) => {
+router.post('/password-reset', asyncHandler(async (req, res) => {
   const { to = 'test@example.com', code = '654321' } = req.body || {};
   const ok = await sendPasswordResetEmail(to, code);
   return res.json({ ok });
-});
+}));
 
-router.post('/team-invite', async (req, res) => {
+router.post('/team-invite', asyncHandler(async (req, res) => {
   const {
     to = 'test@example.com',
     teamName = 'Dallas Lady Tigers',
@@ -64,9 +65,9 @@ router.post('/team-invite', async (req, res) => {
     primaryColor,
   });
   return res.json({ ok });
-});
+}));
 
-router.post('/org-invite', async (req, res) => {
+router.post('/org-invite', asyncHandler(async (req, res) => {
   const {
     to = 'test@example.com',
     organizationName = 'Texas Elite Sports',
@@ -84,9 +85,9 @@ router.post('/org-invite', async (req, res) => {
     primaryColor,
   });
   return res.json({ ok });
-});
+}));
 
-router.post('/billing', async (req, res) => {
+router.post('/billing', asyncHandler(async (req, res) => {
   const {
     to = 'user@example.com',
     type = 'payment_succeeded',
@@ -106,9 +107,9 @@ router.post('/billing', async (req, res) => {
     perks,
   });
   return res.json({ ok });
-});
+}));
 
-router.post('/transaction-report', async (req, res) => {
+router.post('/transaction-report', asyncHandler(async (req, res) => {
   const { date } = req.body || {};
 
   try {
@@ -130,6 +131,6 @@ router.post('/transaction-report', async (req, res) => {
       error: (error as any).message || 'Unknown error'
     });
   }
-});
+}));
 
 export const testEmailsRouter = router;

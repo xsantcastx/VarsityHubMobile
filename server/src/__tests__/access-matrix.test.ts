@@ -98,11 +98,18 @@ async function createUser(
   const hash = await bcrypt.hash(PASSWORD, 10);
   const preferences: any = { role, onboarding_completed: true };
   if (plan) preferences.plan = plan;
+  if (role === 'coach') {
+    preferences.coach_agreement_accepted_at = new Date().toISOString();
+  }
   const user = await prisma.user.create({
     data: {
       email,
       password_hash: hash,
       display_name: displayName,
+      username:
+        role === 'coach'
+          ? `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '')}${ts}`.slice(0, 20)
+          : undefined,
       email_verified: true,
       ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
       preferences,
@@ -169,7 +176,7 @@ beforeAll(async () => {
   // Create a post (by fan, since posts don't require coach)
   const postRes = await request(fullApp)
     .post('/posts')
-    .set('Authorization', `Bearer ${fanToken}`)
+    .set('Authorization', `Bearer ${rookieToken}`)
     .send({ content: `Matrix test post ${ts}` });
   if (postRes.status === 201) {
     testPostId = postRes.body.id;
@@ -519,9 +526,9 @@ describe('Access Matrix — Full Feature Scan', () => {
       const { fan, rookie, veteran } = await hitAll('post', '/posts', {
         content: `Access matrix post ${ts} ${Math.random()}`,
       });
-      record('Create post', 'POST /posts', fan, rookie, veteran);
-      // All roles can create posts (onboarding_completed=true)
-      expect(fan.status).toBe(201);
+      record('Create post', 'POST /posts', fan, rookie, veteran, { coachOnly: true });
+      // Posts are coach/staff only now.
+      expect(fan.status).toBe(403);
       expect(rookie.status).toBe(201);
       expect(veteran.status).toBe(201);
     });
@@ -571,13 +578,14 @@ describe('Access Matrix — Full Feature Scan', () => {
         description: 'Test ad',
       });
       record('Create ad', 'POST /ads', fan, rookie, veteran);
-      // All verified users can submit ads
-      expect(fan.status).toBeLessThan(500);
-      expect(rookie.status).toBeLessThan(500);
+      expect(fan.status).toBe(403);
+      expect(rookie.status).toBe(403);
       expect(veteran.status).toBeLessThan(500);
+      expect(fan.body?.error).toMatch(/PLAN_UPGRADE_REQUIRED/i);
+      expect(rookie.body?.error).toMatch(/PLAN_UPGRADE_REQUIRED/i);
 
       // Cleanup
-      for (const res of [fan, rookie, veteran]) {
+      for (const res of [veteran]) {
         const id = res.body?.id || res.body?.ad?.id;
         if (id) await prisma.ad.delete({ where: { id } }).catch(() => {});
       }

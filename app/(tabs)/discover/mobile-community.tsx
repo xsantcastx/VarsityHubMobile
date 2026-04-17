@@ -557,7 +557,12 @@ function CommunityDiscoverScreen() {
       if (__DEV__) console.error('Error adding quick game:', error);
       
       const code = error?.data?.code || error?.code;
-      if (code === 'APPROVAL_REQUIRED') {
+      if (code === 'COACH_AGREEMENT_REQUIRED') {
+        Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating games.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
+        ]);
+      } else if (code === 'APPROVAL_REQUIRED') {
         Alert.alert('Approval Required', 'Your coach account is pending approval. You can create games once a league admin approves your application.');
       } else if (code === 'PAYMENT_REQUIRED') {
         Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating games.', [
@@ -1293,8 +1298,14 @@ function CommunityDiscoverScreen() {
 
           {/* Full Map View */}
           {(() => {
-            // Show ALL games, not just filtered ones
-            const allGamesWithCoords = games.filter(g => typeof g.latitude === 'number' && typeof g.longitude === 'number');
+            // Filter to upcoming games with coordinates only
+            const now = new Date();
+            const allGamesWithCoords = games.filter(g => {
+              if (typeof g.latitude !== 'number' || typeof g.longitude !== 'number') return false;
+              if (!g.date) return true; // keep undated games
+              const d = new Date(g.date);
+              return !isNaN(d.getTime()) && d >= now;
+            });
             
             return (
               <EventMap

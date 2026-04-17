@@ -27,7 +27,7 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
 };
 
 // Get teams managed by current user (requires authentication)
-teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
 
@@ -97,10 +97,10 @@ teamsRouter.get('/managed', requireAuth as any, async (req: AuthedRequest, res) 
     console.error('[teams] managed error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Check team creation limits for current user
-teamsRouter.get('/limits', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.get('/limits', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(401).json({ error: 'User not found' });
@@ -140,10 +140,10 @@ teamsRouter.get('/limits', requireAuth as any, async (req: AuthedRequest, res) =
     console.error('[teams] limits error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // List teams with member counts; optional search q
-teamsRouter.get('/', async (req, res) => {
+teamsRouter.get('/', asyncHandler(async (req, res) => {
   try {
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const all = String((req.query as any).all || '') === '1';
@@ -222,10 +222,10 @@ teamsRouter.get('/', async (req, res) => {
     console.error('[teams] list error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Follow a team
-teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const teamId = String(req.params.id);
@@ -281,10 +281,10 @@ teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, async (req: A
     console.error('[teams] follow error:', e?.message || e);
     return res.status(500).json({ error: 'Failed to follow team' });
   }
-});
+}));
 
 // Unfollow a team
-teamsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.delete('/:id/follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
     const teamId = String(req.params.id);
@@ -294,10 +294,10 @@ teamsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
     console.error('[teams] unfollow error:', e?.message || e);
     return res.status(500).json({ error: 'Failed to unfollow team' });
   }
-});
+}));
 
 // Team details with counts
-teamsRouter.get('/:id', async (req, res) => {
+teamsRouter.get('/:id', asyncHandler(async (req, res) => {
   try {
   const id = String(req.params.id);
   const currentUserId = (req as AuthedRequest).user?.id ?? null;
@@ -346,11 +346,11 @@ teamsRouter.get('/:id', async (req, res) => {
     console.error('[teams] get-by-id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Team members list (auth required — roster visibility)
 // Restricted to team members, org admins (owner/manager), or platform admins
-teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.get('/:id/members', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id }, select: { id: true, organization_id: true } });
@@ -417,10 +417,10 @@ teamsRouter.get('/:id/members', requireAuth as any, async (req: AuthedRequest, r
     console.error('[teams] get-members error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // All members across teams (admin screens). Paged and DB-filtered to avoid unbounded scans.
-teamsRouter.get('/members/all', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.get('/members/all', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const isAdmin = await getIsAdmin(req);
   if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
@@ -481,7 +481,7 @@ teamsRouter.get('/members/all', requireAuth as any, async (req: AuthedRequest, r
     console.error('[teams] members-all error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Create team (auth required). Creator becomes owner.
 const createSchema = z.object({
@@ -492,7 +492,7 @@ const createSchema = z.object({
   season_end: z.string().optional(),
   onboarding: z.boolean().optional(),
 });
-teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   // req.user is guaranteed by requireVerified middleware
   const parsed = createSchema.safeParse(req.body);
@@ -635,7 +635,7 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     console.error('[teams] create error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Update team (auth required). Only owners/admins can update.
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
@@ -1519,7 +1519,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
 }));
 
 // List invites for the authed user's email
-teamsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.get('/invites/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
@@ -1531,10 +1531,10 @@ teamsRouter.get('/invites/me', requireAuth as any, async (req: AuthedRequest, re
     console.error('[teams] invites-me error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Accept invite
-teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
@@ -1657,10 +1657,10 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, async (req: Au
     console.error('[teams] accept-invite error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Decline invite
-teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
@@ -1712,10 +1712,10 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, async (req: A
     console.error('[teams] decline-invite error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Transfer team ownership
-teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const teamId = String(req.params.id);
@@ -1757,4 +1757,4 @@ teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireOnboarded
     console.error('[teams] transfer-ownership error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));

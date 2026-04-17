@@ -54,7 +54,7 @@ const createReportSchema = z.object({
  * Reports content for moderation review. Users can only report
  * the same content once per 24 hours to prevent spam.
  */
-reportsRouter.post('/', requireAuth as any, reportLimiter, async (req: AuthedRequest, res) => {
+reportsRouter.post('/', requireAuth as any, reportLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -312,14 +312,14 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, async (req: AuthedReq
     console.error('[Reports] POST / error:', error);
     return res.status(500).json({ error: 'Failed to submit report' });
   }
-});
+}));
 
 /**
  * GET /reports/reasons - Get available report reasons
  * 
  * Returns the list of valid report reasons with descriptions.
  */
-reportsRouter.get('/reasons', async (_req, res) => {
+reportsRouter.get('/reasons', asyncHandler(async (_req, res) => {
   const reasons = REPORT_REASONS.map((reason) => ({
     value: reason,
     label: reason.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
@@ -327,7 +327,7 @@ reportsRouter.get('/reasons', async (_req, res) => {
   }));
 
   return res.json({ reasons });
-});
+}));
 
 /**
  * GET /reports/my - Get user's submitted reports

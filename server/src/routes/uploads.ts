@@ -8,6 +8,7 @@ import { captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Magic byte signatures for file type validation (prevents MIME spoofing)
 const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
@@ -174,7 +175,7 @@ uploadsRouter.use((req, res, next) => {
 // Returns a signed payload for direct client-to-Cloudinary upload.
 // The file never touches this server — goes straight from phone to CDN.
 // -----------------------------------------------
-uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as any, (_req: Request, res: Response) => {
+uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!useCloudinary) {
     return res.status(503).json({ error: 'Direct upload not available — Cloudinary not configured' });
@@ -216,9 +217,9 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
     console.error('[uploads] Failed to generate Cloudinary signature:', error);
     return res.status(500).json({ error: 'Failed to generate upload signature' });
   }
-});
+}));
 
-uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, (req: MulterRequest, res) => {
+uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandler(async (req: MulterRequest, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const rawPath = String((req.query as any).path || '').trim();
   if (!rawPath) {
@@ -240,10 +241,10 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, (req: Multe
     console.error('[uploads] Failed to sign media path:', error);
     return res.status(500).json({ error: 'Failed to sign media URL' });
   }
-});
+}));
 
 // Original media upload endpoint (images/videos only)
-uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   // Validate file size for media uploads
@@ -326,10 +327,10 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
     captureException(error as Error, { context: 'media_upload_error', path: req.path });
     next(error);
   }
-});
+}));
 
 // General file upload endpoint (all file types)
-uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   // Validate file size for general uploads
@@ -401,7 +402,7 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
     captureException(error as Error, { context: 'file_upload_error', path: req.path });
     next(error);
   }
-});
+}));
 
 // Avatar upload endpoint (images only, 5MB limit, stricter rate limiting)
 const avatarMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -410,7 +411,7 @@ const AVATAR_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
 if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
 // snyk:ignore - endpoint is protected by requireAuth + uploadLimiter rate-limiting middleware
-uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMemory.single('file'), async (req: MulterRequest, res) => {
+uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMemory.single('file'), asyncHandler(async (req: MulterRequest, res) => {
   if (!(req as any).user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
 
@@ -439,7 +440,7 @@ uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMe
     console.error('[uploads] POST /avatar error:', e);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Error handler for multer and other upload errors
 uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) => {

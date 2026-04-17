@@ -4,6 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -83,7 +84,7 @@ interface PlayoffMatchup {
 }
 
 function ManageSeasonScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ teamId?: string }>();
@@ -119,31 +120,6 @@ function ManageSeasonScreen() {
   const [managedTeams, setManagedTeams] = useState<Array<{ id: string; name: string }>>([]);
   const [teamSelectorOpen, setTeamSelectorOpen] = useState<boolean>(false);
 
-  // Guard: restrict to coach role
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      try {
-        // @ts-ignore JS exports
-        const { User } = await import('@/api/entities');
-        const me: any = await User.me();
-        if (!mounted) return;
-        if (me?.preferences?.role !== 'coach') {
-          router.push('/(tabs)');
-        }
-      } catch (err) {
-        if (__DEV__)
-          console.warn(
-            '[manage-season] Failed to check coach role:',
-            (err as Error)?.message ?? err
-          );
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [router]);
-
   const loadTeam = useCallback(async () => {
     setLoading(true);
     try {
@@ -178,6 +154,9 @@ function ManageSeasonScreen() {
         });
       }
     } catch (error) {
+      if (handleCoachAccessError(router, error, 'managing your season')) {
+        return;
+      }
       if (__DEV__) console.error('Error loading team:', error);
     } finally {
       setLoading(false);
@@ -241,6 +220,9 @@ function ManageSeasonScreen() {
 
       setGames(convertedGames);
     } catch (error) {
+      if (handleCoachAccessError(router, error, 'managing your season')) {
+        return;
+      }
       if (__DEV__) console.error('Error loading games:', error);
       const errorMessage =
         error instanceof Error && error.message.includes('Too many requests')
@@ -498,6 +480,9 @@ function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             } catch (error) {
+              if (handleCoachAccessError(router, error, 'deleting games')) {
+                return;
+              }
               setActionModal({
                 visible: true,
                 title: 'Error',
@@ -541,6 +526,9 @@ function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             } catch (err: any) {
+              if (handleCoachAccessError(router, err, 'updating game status')) {
+                return;
+              }
               setActionModal({
                 visible: true,
                 title: 'Error',
@@ -622,6 +610,9 @@ function ManageSeasonScreen() {
                   options: [{ label: 'OK', onPress: () => {}, color: undefined }],
                 });
               } catch (error: any) {
+                if (handleCoachAccessError(router, error, 'saving game scores')) {
+                  return;
+                }
                 setActionModal({
                   visible: true,
                   title: 'Error',
@@ -668,6 +659,9 @@ function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {} }],
       });
     } catch (error: any) {
+      if (handleCoachAccessError(router, error, 'approving games')) {
+        return;
+      }
       if (__DEV__) console.error('Error approving game:', error);
       setActionModal({
         visible: true,
@@ -700,6 +694,9 @@ function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {} }],
               });
             } catch (error: any) {
+              if (handleCoachAccessError(router, error, 'rejecting games')) {
+                return;
+              }
               if (__DEV__) console.error('Error rejecting game:', error);
               setActionModal({
                 visible: true,
@@ -756,9 +753,8 @@ function ManageSeasonScreen() {
   };
 
   const handleSaveQuickGame = async (gameData: QuickGameData) => {
+    const isEditing = !!gameData.id;
     try {
-      const isEditing = !!gameData.id;
-
       const { year, month, day } = parseDateParts(gameData.date);
       const { hours, minutes } = parseMeridiemTime(gameData.time);
 
@@ -907,6 +903,9 @@ function ManageSeasonScreen() {
       setShowQuickAddModal(false);
       setEditingGame(null);
     } catch (error: any) {
+      if (handleCoachAccessError(router, error, isEditing ? 'updating games' : 'creating games')) {
+        return;
+      }
       if (__DEV__) console.error('Error adding quick game:', error);
       if (__DEV__) console.error('Error status:', error?.status);
       if (__DEV__) console.error('Error data:', error?.data);
@@ -971,6 +970,9 @@ function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     } catch (error) {
+      if (handleCoachAccessError(router, error, 'creating games')) {
+        return;
+      }
       setActionModal({
         visible: true,
         title: 'Error',
@@ -1048,6 +1050,9 @@ function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     } catch (error) {
+      if (handleCoachAccessError(router, error, 'creating games')) {
+        return;
+      }
       setActionModal({
         visible: true,
         title: 'Error',
@@ -1151,6 +1156,17 @@ function ManageSeasonScreen() {
       setPromptValue(promptModal.defaultValue || '');
     }
   }, [promptModal.visible, promptModal.defaultValue]);
+
+  if (coachLoading || !canAccessCoachTools) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView

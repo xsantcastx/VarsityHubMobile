@@ -5,6 +5,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { apiError } from '../lib/apiResponse.js';
 import { promoCodeLimiter } from '../middleware/rateLimiters.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const previewSchema = z.object({
   code: z.string().max(50),
@@ -20,7 +21,7 @@ const redeemSchema = z.object({
 
 export const promosRouter = Router();
 
-promosRouter.post('/preview', requireAuth as any, promoCodeLimiter as any, async (req: AuthedRequest, res) => {
+promosRouter.post('/preview', requireAuth as any, promoCodeLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return apiError(res, 401, 'Unauthorized');
     const parsed = previewSchema.safeParse(req.body || {});
@@ -37,9 +38,9 @@ promosRouter.post('/preview', requireAuth as any, promoCodeLimiter as any, async
     console.error('[promos] POST /preview error:', err);
     return apiError(res, 500, 'Internal server error', 'INTERNAL_ERROR');
   }
-});
+}));
 
-promosRouter.post('/redeem', requireAuth as any, promoCodeLimiter as any, async (req: AuthedRequest, res) => {
+promosRouter.post('/redeem', requireAuth as any, promoCodeLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return apiError(res, 401, 'Unauthorized');
     const parsed = redeemSchema.safeParse(req.body || {});
@@ -58,4 +59,4 @@ promosRouter.post('/redeem', requireAuth as any, promoCodeLimiter as any, async 
     console.error('[promos] POST /redeem error:', err);
     return apiError(res, 500, 'Internal server error', 'INTERNAL_ERROR');
   }
-});
+}));

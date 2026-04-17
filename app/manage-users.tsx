@@ -14,7 +14,7 @@ import { Team as TeamApi } from '@/api/entities';
 
 // TODO v1.1: Wire up navigation from admin-dashboard
 function ManageUsersScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [q, setQ] = useState('');
@@ -42,7 +42,7 @@ function ManageUsersScreen() {
     return rows.filter((u: any) => (u.user?.display_name || '').toLowerCase().includes(s) || (u.user?.email || '').toLowerCase().includes(s) || (u.team?.name || '').toLowerCase().includes(s));
   }, [q, rows]);
 
-  if (coachLoading || !isCoach) {
+  if (coachLoading || !canAccessCoachTools) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <ActivityIndicator style={{ marginTop: 40 }} />

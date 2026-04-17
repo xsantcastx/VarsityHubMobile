@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import expressPkg, { Router } from 'express';
+import expressPkg, { Router, type Response } from 'express';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
@@ -21,6 +21,8 @@ import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
+import { checkPlanAtLeast, getUserPlan } from '../middleware/subscription.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
   throw new Error('FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.');
@@ -45,6 +47,30 @@ if (process.env.NODE_ENV === 'production') {
 const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || '';
 
 export const paymentsRouter = Router();
+
+async function enforceAdPlan(req: AuthedRequest, res: Response) {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'AUTH_REQUIRED', message: 'Authentication required.' });
+    return false;
+  }
+
+  if (await getIsAdmin(req as any)) {
+    return true;
+  }
+
+  const currentPlan = await getUserPlan(req.user.id);
+  const gate = checkPlanAtLeast(currentPlan, 'veteran');
+  if (!gate) {
+    return true;
+  }
+
+  res.status(403).json({
+    ...gate,
+    message: 'Local ads require a Veteran or Legend plan.',
+    upgrade_url: '/settings/manage-subscription',
+  });
+  return false;
+}
 
 // Public config for coach onboarding and payment UI (no auth required)
 paymentsRouter.get('/config', (_req, res) => {
@@ -332,9 +358,39 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   return { url: session.url ?? null, sessionId: session.id };
 }
 
+async function getOrCreateStripeCustomer(userId: string, email?: string | null) {
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { stripe_customer_id: true },
+  });
+  if (existingUser?.stripe_customer_id) {
+    return existingUser.stripe_customer_id;
+  }
+
+  return prisma.$transaction(
+    async tx => {
+      const fresh = await tx.user.findUnique({
+        where: { id: userId },
+        select: { stripe_customer_id: true },
+      });
+      if (fresh?.stripe_customer_id) return fresh.stripe_customer_id;
+
+      const customer = await stripe.customers.create({
+        email: email || undefined,
+        metadata: { user_id: userId },
+      });
+      await tx.user.update({
+        where: { id: userId },
+        data: { stripe_customer_id: customer.id },
+      });
+      return customer.id;
+    },
+    { isolationLevel: 'Serializable' }
+  );
+}
+
 // Create a Stripe Checkout Session for ad reservations
 paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const checkoutSchema = z.object({
     ad_id: z.string().optional(),
     dates: z.array(z.string()).optional(),
@@ -347,6 +403,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
   const { ad_id, dates, promo_code, plan, team_count, organization_id } = parsed.data;
   if (typeof plan === 'string' && plan.trim()) {
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     try {
       const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code, team_count, organization_id);
       return res.json({ url, session_id: sessionId });
@@ -357,6 +414,8 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     }
   }
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
+  if (!(await enforceAdPlan(req, res))) return;
+  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
 
   // Enforce booking horizon — no dates beyond 56 days from today
@@ -643,7 +702,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
 // Returns client_secret, ephemeral key, customer id and publishable key
 // so the mobile app can present Stripe PaymentSheet without leaving the app.
 paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
   const userId = req.user!.id;
   const paymentSheetSchema = z.object({
@@ -657,33 +715,17 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const parsed = paymentSheetSchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
   const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
-
-  // ── Get or create Stripe Customer (race-safe) ──
-  // Re-check inside a serializable transaction to prevent two requests from creating
-  // duplicate Stripe customers for the same user.
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, stripe_customer_id: true, preferences: true } });
-  let customerId = user?.stripe_customer_id;
-  if (!customerId) {
-    // Use transaction to atomically check-and-set
-    customerId = await prisma.$transaction(async (tx) => {
-      const fresh = await tx.user.findUnique({ where: { id: userId }, select: { stripe_customer_id: true } });
-      if (fresh?.stripe_customer_id) return fresh.stripe_customer_id;
-      // No customer yet — create one in Stripe and save atomically
-      const customer = await stripe.customers.create({ email: user?.email || undefined, metadata: { user_id: userId } });
-      await tx.user.update({ where: { id: userId }, data: { stripe_customer_id: customer.id } });
-      return customer.id;
-    }, { isolationLevel: 'Serializable' });
-  }
-
-  // Create ephemeral key
-  const ephemeralKey = await stripe.ephemeralKeys.create(
-    { customer: customerId },
-    { apiVersion: '2024-06-20' }
-  );
 
   // ── SUBSCRIPTION FLOW ──
   if (typeof plan === 'string' && plan.trim()) {
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const customerId = await getOrCreateStripeCustomer(userId, user?.email);
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: '2024-06-20' }
+    );
 
     // Rule A: Fall back to pending_plan if plan param matches it, or use pending_plan directly
     const raw = plan.trim().toLowerCase();
@@ -823,6 +865,13 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
   // ── AD PAYMENT FLOW ──
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
+  if (!(await enforceAdPlan(req, res))) return;
+  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+  const customerId = await getOrCreateStripeCustomer(userId, user?.email);
+  const ephemeralKey = await stripe.ephemeralKeys.create(
+    { customer: customerId },
+    { apiVersion: '2024-06-20' }
+  );
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
 
   // Enforce booking horizon — no dates beyond 56 days from today
@@ -2769,6 +2818,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
     const parsed = appleAdReceiptSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { ad_id, dates, receipts } = parsed.data;
+    if (!(await enforceAdPlan(req, res))) return;
 
     const isoDateStrings: string[] = dates.map((d: any) => String(d));
     // Enforce booking horizon — no dates beyond 56 days from today

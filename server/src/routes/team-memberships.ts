@@ -8,6 +8,7 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { getMaxRosterSizePerTeam, resolvePlan } from '../lib/planLimits.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // 'owner' is intentionally excluded — ownership can only be assigned through org creation or transfer-ownership endpoint
 const VALID_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
@@ -37,7 +38,7 @@ const createMembershipSchema = z.object({
   role: z.string().optional(),
 });
 
-teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, requirePlan('rookie') as any, async (req: AuthedRequest, res) => {
+teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, requirePlan('rookie') as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const parsed = createMembershipSchema.safeParse(req.body);
@@ -115,7 +116,7 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
     console.error('[team-memberships] POST / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // PATCH /team-memberships/:id { role? }
 const updateMembershipSchema = z.object({
@@ -123,7 +124,7 @@ const updateMembershipSchema = z.object({
   custom_position: z.string().nullable().optional(),
 });
 
-teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id || '');
@@ -191,10 +192,10 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
     console.error('[team-memberships] PATCH /:id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // DELETE /team-memberships/:id
-teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, async (req: AuthedRequest, res) => {
+teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id || '');
@@ -258,4 +259,4 @@ teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any
     console.error('[team-memberships] DELETE /:id error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));

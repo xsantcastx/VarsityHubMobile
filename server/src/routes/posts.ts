@@ -16,11 +16,54 @@ import {
 } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import crypto from 'crypto';
 
 export const postsRouter = Router();
 registerIdValidation(postsRouter);
 
 const POST_UNDO_WINDOW_MS = 5 * 60 * 1000;
+
+// Dedup guard: prevent identical post creation within a short window.
+// Key = userId:contentHash, value = timestamp. Entries expire after 30s.
+const recentPostHashes = new Map<string, number>();
+const DEDUP_WINDOW_MS = 30_000;
+
+const recentCommentHashes = new Map<string, number>();
+
+function isDuplicateComment(userId: string, postId: string, content: string): boolean {
+  const raw = `${userId}:${postId}:${content?.trim() || ''}`;
+  const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
+  const key = `comment:${userId}:${hash}`;
+  const now = Date.now();
+  if (recentCommentHashes.size > 1000) {
+    for (const [k, ts] of recentCommentHashes) {
+      if (now - ts > DEDUP_WINDOW_MS) recentCommentHashes.delete(k);
+    }
+  }
+  const prev = recentCommentHashes.get(key);
+  if (prev && now - prev < DEDUP_WINDOW_MS) return true;
+  recentCommentHashes.set(key, now);
+  return false;
+}
+
+function isDuplicatePost(userId: string, content: string, gameId?: string): boolean {
+  const raw = `${userId}:${content?.trim() || ''}:${gameId || ''}`;
+  const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
+  const key = `${userId}:${hash}`;
+  const now = Date.now();
+
+  // Prune stale entries (max 1000 to bound memory)
+  if (recentPostHashes.size > 1000) {
+    for (const [k, ts] of recentPostHashes) {
+      if (now - ts > DEDUP_WINDOW_MS) recentPostHashes.delete(k);
+    }
+  }
+
+  const prev = recentPostHashes.get(key);
+  if (prev && now - prev < DEDUP_WINDOW_MS) return true;
+  recentPostHashes.set(key, now);
+  return false;
+}
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
@@ -101,7 +144,7 @@ const trendingScore = (upvotes: number, createdAt: Date): number => {
   return (upvotes || 0) / Math.pow(ageHours + 2, 1.5);
 };
 
-postsRouter.get('/', async (req: AuthedRequest, res) => {
+postsRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
     const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50));
@@ -559,9 +602,9 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     console.error('[posts] GET / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
-postsRouter.get('/trending', async (req: AuthedRequest, res) => {
+postsRouter.get('/trending', asyncHandler(async (req: AuthedRequest, res) => {
   try {
     // Set trending sort and reuse the main GET / handler
     req.query.sort = 'trending';
@@ -573,7 +616,7 @@ postsRouter.get('/trending', async (req: AuthedRequest, res) => {
     console.error('[posts] GET /trending error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
-});
+}));
 
 // Debug endpoint to check follow relationships (admin only)
 postsRouter.get(
@@ -689,7 +732,7 @@ postsRouter.post(
     if (banner?.banned || (banner?.banned_until && banner.banned_until > new Date())) {
       return res
         .status(403)
-        .json({ error: 'USER_BANNED', message: 'Your account is suspended from posting.' });
+        .json({ error: 'Your account is suspended from posting.', code: 'USER_BANNED' });
     }
 
     // v1.0.2 audit fix H-6: require coach role or team membership for post creation.
@@ -729,6 +772,14 @@ postsRouter.post(
       });
     }
     const data = parsed.data;
+
+    // Dedup guard: reject if identical post submitted within 30s window
+    if (isDuplicatePost(req.user!.id, data.content || '', (data as any).game_id)) {
+      return res.status(409).json({
+        error: 'Duplicate post detected. Please wait before posting again.',
+        code: 'DUPLICATE_POST',
+      });
+    }
 
     // Normalize and enrich location
     let lat: number | null = null;
@@ -1321,7 +1372,7 @@ postsRouter.post(
     if (sender?.banned || (sender?.banned_until && sender.banned_until > nowTs)) {
       return res
         .status(403)
-        .json({ error: 'USER_BANNED', message: 'Your account is suspended from posting.' });
+        .json({ error: 'Your account is suspended from posting.', code: 'USER_BANNED' });
     }
 
     const post = await prisma.post.findFirst({
@@ -1373,6 +1424,14 @@ postsRouter.post(
 
     const { content, parent_id } = parsed.data;
     const sanitizedContent = stripHtml(content);
+
+    // Dedup guard: reject if identical comment submitted within 30s window
+    if (isDuplicateComment(req.user!.id, id, sanitizedContent)) {
+      return res.status(409).json({
+        error: 'Duplicate comment detected. Please wait before commenting again.',
+        code: 'DUPLICATE_COMMENT',
+      });
+    }
 
     // Validate parent_id if provided (reply to comment)
     if (parent_id) {
@@ -1463,7 +1522,7 @@ postsRouter.post(
   '/:id/upvote',
   requireAuth as any,
   interactionLimiter,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const postId = String(req.params.id);
       const userId = req.user!.id;
@@ -1552,17 +1611,42 @@ postsRouter.post(
       }
       return res.json({ has_upvoted: true, upvotes_count, upvoted: true, count: upvotes_count });
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err || '');
+      const code = (err as any)?.code;
+      // Concurrent toggles can hit Serializable retry errors under load. Surface the
+      // settled state instead of leaking a 500 for a user double-tap.
+      if (
+        code === 'P2034' ||
+        /serialize|serialization|write conflict|deadlock/i.test(message)
+      ) {
+        const [existing, post] = await Promise.all([
+          prisma.postUpvote.findUnique({
+            where: { post_id_user_id: { post_id: String(req.params.id), user_id: req.user!.id } },
+          }),
+          prisma.post.findUnique({
+            where: { id: String(req.params.id) },
+            select: { upvotes_count: true },
+          }),
+        ]);
+        const upvotesCount = post?.upvotes_count ?? 0;
+        return res.json({
+          has_upvoted: !!existing,
+          upvotes_count: upvotesCount,
+          upvoted: !!existing,
+          count: upvotesCount,
+        });
+      }
       console.error('[posts] upvote error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );
 
 postsRouter.post(
   '/:id/bookmark',
   requireAuth as any,
   interactionLimiter,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const postId = String(req.params.id);
       const userId = req.user!.id;
@@ -1596,7 +1680,7 @@ postsRouter.post(
       console.error('[posts] bookmark error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );
 
 // Share post (tracks share for notifications)
@@ -1606,7 +1690,7 @@ postsRouter.post(
   '/:id/share',
   requireAuth as any,
   interactionLimiter,
-  async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const postId = String(req.params.id);
       const userId = req.user!.id;
@@ -1653,7 +1737,7 @@ postsRouter.post(
       console.error('[posts] share error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
-  }
+  })
 );
 
 // Delete post (author, or coach/owner of team the post is associated with)
@@ -1743,7 +1827,7 @@ postsRouter.post(
       if (post.author_id !== userId) {
         return res
           .status(403)
-          .json({ error: 'NOT_AUTHOR', message: 'Only the post author can restore it.' });
+          .json({ error: 'Only the post author can restore it.', code: 'NOT_AUTHOR' });
       }
       const elapsed = post.deleted_at ? Date.now() - new Date(post.deleted_at).getTime() : Infinity;
       if (elapsed > POST_UNDO_WINDOW_MS) {

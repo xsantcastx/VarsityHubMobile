@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client';
 import { verifyStoryPostingPermission } from '../lib/geofencing.js';
 import { getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const isVideoUrl = (url?: string | null) => {
   if (!url) return false;
@@ -117,7 +118,7 @@ async function canViewGameMedia(
 
 export const makeListMediaHandler =
   ({ prisma }: StoryDeps) =>
-  async (req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const id = String(req.params.id);
     try {
       const visibility = await canViewGameMedia(prisma, id, req as AuthedRequest);
@@ -182,11 +183,11 @@ export const makeListMediaHandler =
       console.error('[stories] Failed to list game media:', error);
       return res.status(500).json({ error: 'Failed to load game media' });
     }
-  };
+  });
 
 export const makeCreateStoryHandler =
   ({ prisma }: StoryDeps) =>
-  async (req: AuthedRequest, res: Response) => {
+  asyncHandler(async (req: AuthedRequest, res: Response) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id);
     const parsed = storySchema.safeParse(req.body || {});
@@ -331,4 +332,4 @@ export const makeCreateStoryHandler =
     }
 
     return res.status(201).json(story);
-  };
+  });

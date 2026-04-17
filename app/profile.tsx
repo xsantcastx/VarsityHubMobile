@@ -194,6 +194,19 @@ export default function ProfileScreen() {
           }
         } : null);
       }
+      // Refresh from server to get accurate follower count
+      try {
+        const refreshed = await User.getPublic(viewingUserId);
+        if (refreshed) {
+          setMe(prev => prev ? {
+            ...prev,
+            _count: refreshed._count ?? prev._count,
+          } : null);
+          setIsFollowing(refreshed.is_following ?? !previousState);
+        }
+      } catch {
+        // Non-critical — optimistic state is already set
+      }
     } catch (error) {
       console.error('[profile] Follow toggle failed:', error);
       setIsFollowing(previousState); // Revert on error

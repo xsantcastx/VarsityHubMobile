@@ -269,7 +269,19 @@ export default function EventDetailScreen() {
             </Pressable>
           </View>
         )}
-        {event && !loading && (
+        {event && !loading && eventHasPassed && (
+          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 16 }}>
+            <MaterialIcons name="event-busy" size={48} color={theme.mutedText} />
+            <Text style={[styles.title, { color: theme.text, textAlign: 'center' }]}>This event has ended</Text>
+            <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>
+              {event.date ? new Date(event.date).toLocaleString() : ''}
+            </Text>
+            {event.title && (
+              <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>{event.title}</Text>
+            )}
+          </View>
+        )}
+        {event && !loading && !eventHasPassed && (
           <View style={{ gap: 8 }}>
             {/* Match banner with persistent RSVP badge */}
             <MatchBanner

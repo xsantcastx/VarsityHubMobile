@@ -43,7 +43,7 @@ const formatPlanDisplay = (tier?: string | null) => {
 };
 
 function CreateTeamScreen() {
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
@@ -483,7 +483,12 @@ function CreateTeamScreen() {
       
     } catch (e: any) {
       if (__DEV__) console.error('Team creation error:', e);
-      if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
+      if (e?.data?.code === 'COACH_AGREEMENT_REQUIRED' || e?.code === 'COACH_AGREEMENT_REQUIRED') {
+        Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating teams.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
+        ]);
+      } else if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
         Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
       } else if (e?.data?.code === 'PAYMENT_REQUIRED' || e?.code === 'PAYMENT_REQUIRED') {
         Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating teams.', [
@@ -551,7 +556,12 @@ function CreateTeamScreen() {
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);
-      if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
+      if (e?.data?.code === 'COACH_AGREEMENT_REQUIRED' || e?.code === 'COACH_AGREEMENT_REQUIRED') {
+        Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating teams.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
+        ]);
+      } else if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
         Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
       } else if (e?.data?.code === 'PAYMENT_REQUIRED' || e?.code === 'PAYMENT_REQUIRED') {
         Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating teams.', [
@@ -567,6 +577,15 @@ function CreateTeamScreen() {
       setSubmitting(false);
     }
   };
+
+  if (coachLoading || !canAccessCoachTools) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+        <Stack.Screen options={{ title: 'Create Team', headerShown: false }} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>

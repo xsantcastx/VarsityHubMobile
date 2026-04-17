@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -52,6 +53,9 @@ export default function EditEventScreen() {
         }
       }
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'editing events')) {
+        return;
+      }
       if (__DEV__) console.error('[edit-event] Failed to load event:', e);
       Alert.alert('Error', 'Failed to load event data.');
       safeGoBack(router);
@@ -97,6 +101,9 @@ export default function EditEventScreen() {
         { text: 'OK', onPress: () => safeGoBack(router) },
       ]);
     } catch (e: any) {
+      if (handleCoachAccessError(router, e, 'editing events')) {
+        return;
+      }
       if (__DEV__) console.error('[edit-event] Update failed:', e);
       const msg = e?.data?.error || e?.message || 'Failed to update event.';
       Alert.alert('Error', msg);

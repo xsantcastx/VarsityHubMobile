@@ -36,7 +36,7 @@ const pickBanner = (event: any) => event?.game?.cover_image_url || event?.banner
 
 function TeamHubScreen() {
   const { user: _user } = useAuth();
-  const { isCoach, loading: coachLoading } = useRequireCoach();
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const palette = useMemo(() => buildPalette(colorScheme), [colorScheme]);
@@ -136,7 +136,7 @@ function TeamHubScreen() {
     }
   };
 
-  if (coachLoading || !isCoach) {
+  if (coachLoading || !canAccessCoachTools) {
     return <SafeAreaView style={S.page} edges={['top']}><ActivityIndicator style={{ marginTop: 40 }} /></SafeAreaView>;
   }
 
