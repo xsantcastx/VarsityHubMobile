@@ -167,19 +167,26 @@ fi
 # Note: Tokens are typically stored as secrets, not environment variables
 SENTRY_TOKEN_FOUND=0
 if command -v eas &> /dev/null; then
+    EAS_SECRET_CACHE=$(eas secret:list 2>/dev/null || true)
+    EAS_ENV_TOKEN_CACHE=$(eas env:list --environment production 2>/dev/null || true)
+    if [ -z "$EAS_SECRET_CACHE" ] && [ -z "$EAS_ENV_TOKEN_CACHE" ]; then
+        echo -e "${YELLOW}⚠️  Could not verify SENTRY_AUTH_TOKEN from EAS in the current shell${NC}"
+        WARNINGS=$((WARNINGS + 1))
     # Check if token exists as a secret (most common)
-    if eas secret:list 2>/dev/null | grep -q "SENTRY_AUTH_TOKEN"; then
+    elif echo "$EAS_SECRET_CACHE" | grep -q "SENTRY_AUTH_TOKEN"; then
         echo -e "${GREEN}✅ SENTRY_AUTH_TOKEN found in EAS secrets${NC}"
         SENTRY_TOKEN_FOUND=1
     # Fallback: check environment variables
-    elif eas env:list --environment production 2>/dev/null | grep -q "SENTRY_AUTH_TOKEN"; then
+    elif echo "$EAS_ENV_TOKEN_CACHE" | grep -q "SENTRY_AUTH_TOKEN"; then
         echo -e "${GREEN}✅ SENTRY_AUTH_TOKEN found in EAS production environment${NC}"
         SENTRY_TOKEN_FOUND=1
     else
-        mark_warning_or_error "SENTRY_AUTH_TOKEN not found in EAS (secrets/env)"
+        echo -e "${RED}❌ SENTRY_AUTH_TOKEN not found in EAS (secrets/env)${NC}"
+        ERRORS=$((ERRORS + 1))
     fi
 else
-    mark_warning_or_error "EAS CLI not found - cannot verify SENTRY_AUTH_TOKEN"
+    echo -e "${YELLOW}⚠️  EAS CLI not found - cannot verify SENTRY_AUTH_TOKEN${NC}"
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Validate native Sentry source of truth matches expected values

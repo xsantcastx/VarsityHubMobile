@@ -85,7 +85,7 @@ module.exports = ({ config }) => {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/images/icon.png',
+        foregroundImage: './assets/images/adaptive-icon.png',
         backgroundColor: '#000000',
       },
       softwareKeyboardLayoutMode: 'pan',

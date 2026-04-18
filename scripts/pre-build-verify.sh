@@ -68,14 +68,12 @@ echo -e "${BLUE}🔍 Linting${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 LINT_OUTPUT=$(npm run lint 2>&1)
-if echo "$LINT_OUTPUT" | grep -q "✖.*error"; then
+if echo "$LINT_OUTPUT" | grep -Eq "[1-9][0-9]* errors?"; then
     echo -e "${RED}❌ Linting errors found!${NC}"
-    echo "$LINT_OUTPUT" | grep "error" | head -10
+    echo "$LINT_OUTPUT" | grep -E "[1-9][0-9]* errors?" | head -10
     ERRORS=$((ERRORS + 1))
 else
-    WARN_COUNT=$(echo "$LINT_OUTPUT" | grep -c "warning" 2>/dev/null || echo "0")
-    # Ensure WARN_COUNT is a single integer (handle cases where grep returns multiple lines)
-    WARN_COUNT=$(echo "$WARN_COUNT" | head -1 | tr -d '\n' | grep -oE '[0-9]+' || echo "0")
+    WARN_COUNT=$(echo "$LINT_OUTPUT" | grep -oE "[0-9]+ warnings?" | tail -1 | grep -oE "[0-9]+" || echo "0")
     if [ -n "$WARN_COUNT" ] && [ "$WARN_COUNT" -gt 0 ] 2>/dev/null; then
         echo -e "${YELLOW}⚠️  $WARN_COUNT linting warnings (non-blocking)${NC}"
         WARNINGS=$((WARNINGS + WARN_COUNT))
