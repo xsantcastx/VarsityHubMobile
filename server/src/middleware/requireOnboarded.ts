@@ -104,6 +104,34 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     }
   }
 
+  // Additional Apple safety net: if the stored App Store expiry is already in the past,
+  // downgrade locally even if the S2S EXPIRED notification never arrived.
+  const appleExpiresAt = (prefs as any)?.apple_expires_date;
+  const currentPlan = String((prefs?.plan as string | undefined) || '').toLowerCase();
+  if (
+    appleExpiresAt &&
+    (currentPlan === 'veteran' || currentPlan === 'legend') &&
+    u?.paid_by_owner !== true
+  ) {
+    const expires = new Date(String(appleExpiresAt));
+    if (!Number.isNaN(expires.getTime()) && expires < new Date()) {
+      const downgradedPrefs = { ...(prefs as any), plan: 'rookie', apple_expires_date: null };
+      delete downgradedPrefs.apple_product_id;
+      await updateUserAndInvalidate(prisma, {
+        where: { id: req.user.id },
+        data: {
+          preferences: downgradedPrefs,
+          subscription_tier: 'free',
+          subscription_status: 'expired',
+          max_teams: 3,
+        },
+      });
+      console.warn('[requireOnboarded] Lazy-downgraded user after Apple expiry passed', {
+        userId: req.user.id,
+      });
+    }
+  }
+
   // Approved coach accounts that selected a paid tier must complete checkout
   // before accessing coach tools, unless their league owner covers billing.
   if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {

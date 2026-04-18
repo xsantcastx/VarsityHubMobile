@@ -43,6 +43,79 @@ export async function isOrganizationApproved(
   return org?.admin_approved === true;
 }
 
+async function notifyAllAdminsOfLeagueAction(params: {
+  action: 'league_approved' | 'league_rejected';
+  leagueName: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  reason?: string;
+}) {
+  const { getAllAdminEmails } = await import('./adminEmails.js');
+  const adminEmails = getAllAdminEmails();
+
+  await Promise.all(
+    adminEmails.map((to) =>
+      sendAdminActionConfirmationEmail({
+        to,
+        action: params.action,
+        leagueName: params.leagueName,
+        ownerName: params.ownerName,
+        ownerEmail: params.ownerEmail,
+        reason: params.reason,
+      }).catch((err) => {
+        console.error(
+          `[approvalService] Admin confirmation email failed (${params.action}) for ${to}:`,
+          (err as any)?.message || err
+        );
+      })
+    )
+  );
+}
+
+function getPreferencesObject(value: unknown): Record<string, any> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return { ...(value as Record<string, any>) };
+  }
+  return {};
+}
+
+function buildOrganizationOwnerApprovedPreferences(
+  currentPrefs: unknown,
+  organization: { id: string; name: string }
+) {
+  return {
+    ...getPreferencesObject(currentPrefs),
+    role: 'coach',
+    organization_id: organization.id,
+    organization_name: organization.name,
+    proceeding_as_fan: false,
+  };
+}
+
+function buildCoachApprovedPreferences(currentPrefs: unknown) {
+  const next = {
+    ...getPreferencesObject(currentPrefs),
+    role: 'coach',
+    join_request_pending: false,
+    proceeding_as_fan: false,
+  } as Record<string, any>;
+  delete next.pending_plan;
+  delete next.payment_pending;
+  delete next.payment_approved;
+  return next;
+}
+
+function buildCoachRejectedPreferences(currentPrefs: unknown) {
+  const next = {
+    ...getPreferencesObject(currentPrefs),
+    role: 'coach',
+    join_request_pending: false,
+  } as Record<string, any>;
+  delete next.team_id;
+  delete next.team_name;
+  return next;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Organization approval
 // ────────────────────────────────────────────────────────────────────────────
@@ -55,7 +128,7 @@ export async function approveOrganization(
 ) {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
+    include: { leagueOwner: { select: { id: true, display_name: true, email: true, preferences: true } } },
   });
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.admin_approved) return { already: true };
@@ -85,7 +158,15 @@ export async function approveOrganization(
     txOps.push(
       prisma.user.update({
         where: { id: ownerId },
-        data: { approval_status: 'APPROVED' },
+        data: {
+          approval_status: 'APPROVED',
+          rejected_at: null,
+          rejection_reason: null,
+          preferences: buildOrganizationOwnerApprovedPreferences(
+            org.leagueOwner?.preferences,
+            { id: orgId, name: org.name }
+          ),
+        },
       }),
     );
   }
@@ -124,16 +205,11 @@ export async function approveOrganization(
     }).catch((err) => console.error('[approvalService] org approved in-app notification failed:', (err as any)?.message || err));
   }
 
-  // v1.0.2 audit fix: use centralized admin email + log errors instead of swallowing
-  const { getPrimaryAdminEmail } = await import('./adminEmails.js');
-  sendAdminActionConfirmationEmail({
-    to: getPrimaryAdminEmail(),
+  await notifyAllAdminsOfLeagueAction({
     action: 'league_approved',
     leagueName: org.name,
     ownerName: org.leagueOwner?.display_name || undefined,
     ownerEmail: org.leagueOwner?.email || undefined,
-  }).catch((err) => {
-    console.error('[approvalService] Admin confirmation email failed (league_approved):', (err as any)?.message || err);
   });
 
   return { ok: true, org };
@@ -147,7 +223,7 @@ export async function rejectOrganization(
 ) {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
+    include: { leagueOwner: { select: { id: true, display_name: true, email: true, preferences: true } } },
   });
   if (!org) return { error: 'Organization not found', status: 404 };
 
@@ -178,9 +254,15 @@ export async function rejectOrganization(
         where: { id: org.leagueOwner.id },
         data: {
           approval_status: 'REJECTED',
+          paid_by_owner: false,
           // v1.0.2: mirror org cooldown onto owner so their re-apply path is gated too
           rejected_at: new Date(),
           rejection_reason: reason,
+          preferences: {
+            ...buildCoachRejectedPreferences(org.leagueOwner.preferences),
+            organization_id: orgId,
+            organization_name: org.name,
+          },
         },
       });
     }
@@ -218,17 +300,12 @@ export async function rejectOrganization(
     }).catch(() => {});
   }
 
-  // v1.0.2 audit fix: use centralized admin email + log errors
-  const { getPrimaryAdminEmail: getAdminEmail } = await import('./adminEmails.js');
-  sendAdminActionConfirmationEmail({
-    to: getAdminEmail(),
+  await notifyAllAdminsOfLeagueAction({
     action: 'league_rejected',
     leagueName: org.name,
     ownerName: org.leagueOwner?.display_name || undefined,
     ownerEmail: org.leagueOwner?.email || undefined,
     reason: reason || undefined,
-  }).catch((err) => {
-    console.error('[approvalService] Admin confirmation email failed (league_rejected):', (err as any)?.message || err);
   });
 
   return { ok: true, org };
@@ -269,7 +346,13 @@ export async function approveCoach(
   // BUG FIX: set paid_by_owner: true so the coach inherits the org owner's plan
   await updateUserAndInvalidate(prisma, {
     where: { id: userId },
-    data: { approval_status: 'APPROVED', paid_by_owner: true },
+    data: {
+      approval_status: 'APPROVED',
+      paid_by_owner: true,
+      rejected_at: null,
+      rejection_reason: null,
+      preferences: buildCoachApprovedPreferences(user.preferences),
+    },
   });
 
   const note = opts?.note;
@@ -327,8 +410,10 @@ export async function rejectCoach(
     where: { id: userId },
     data: {
       approval_status: 'REJECTED',
+      paid_by_owner: false,
       rejected_at: new Date(),
       rejection_reason: reason || null,
+      preferences: buildCoachRejectedPreferences(user.preferences),
     },
   });
 

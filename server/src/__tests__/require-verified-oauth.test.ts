@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockCacheDel = jest.fn(async () => undefined);
+const mockUserFindUnique = jest.fn();
 const mockUserUpdate = jest.fn();
 
 jest.unstable_mockModule('../lib/cache.js', () => ({
@@ -10,20 +11,28 @@ jest.unstable_mockModule('../lib/cache.js', () => ({
 jest.unstable_mockModule('../lib/prisma.js', () => ({
   prisma: {
     user: {
+      findUnique: mockUserFindUnique,
       update: mockUserUpdate,
     },
   },
 }));
 
-const { ensureOAuthUserVerified } = await import('../lib/oauthVerification.js');
+const { requireVerified } = await import('../middleware/requireVerified.js');
 
-describe('OAuth verification healing', () => {
+describe('requireVerified OAuth healing', () => {
   beforeEach(() => {
     mockCacheDel.mockClear();
+    mockUserFindUnique.mockReset();
     mockUserUpdate.mockReset();
   });
 
-  it('clears cached /me after repairing an unverified OAuth user', async () => {
+  it('auto-verifies OAuth-linked users instead of returning 403', async () => {
+    mockUserFindUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      email_verified: false,
+      apple_id: 'apple-123',
+      google_id: null,
+    });
     mockUserUpdate.mockResolvedValueOnce({
       id: 'user-1',
       email_verified: true,
@@ -31,14 +40,23 @@ describe('OAuth verification healing', () => {
       google_id: null,
     });
 
-    const repaired = await ensureOAuthUserVerified({
-      id: 'user-1',
-      email_verified: false,
-      apple_id: 'apple-123',
-      google_id: null,
-    });
+    const req = {
+      user: { id: 'user-1' },
+      baseUrl: '/ads',
+      method: 'POST',
+      path: '/',
+      body: {},
+    } as any;
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+    const next = jest.fn();
 
-    expect(repaired?.email_verified).toBe(true);
+    await requireVerified(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
     expect(mockUserUpdate).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: {
@@ -48,20 +66,5 @@ describe('OAuth verification healing', () => {
       },
     });
     expect(mockCacheDel).toHaveBeenCalledWith('me:user-1');
-  });
-
-  it('does not mutate regular email/password users', async () => {
-    const user = {
-      id: 'user-2',
-      email_verified: false,
-      apple_id: null,
-      google_id: null,
-    };
-
-    const result = await ensureOAuthUserVerified(user);
-
-    expect(result).toEqual(user);
-    expect(mockUserUpdate).not.toHaveBeenCalled();
-    expect(mockCacheDel).not.toHaveBeenCalled();
   });
 });

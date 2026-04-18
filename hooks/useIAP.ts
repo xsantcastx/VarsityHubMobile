@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useCallback, useState, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
 
@@ -50,6 +50,7 @@ export function useVHubIAP() {
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const purchaseResolveRef = useRef<((success: boolean) => void) | null>(null);
+  const lastPendingRecoveryAtRef = useRef(0);
 
   const {
     connected,
@@ -146,41 +147,68 @@ export function useVHubIAP() {
     });
   }, [connected, fetchProducts]);
 
-  // Recover pending/unacknowledged purchases on startup (prevents stuck purchases after crash)
-  const pendingRecoveryDone = useRef(false);
-  useEffect(() => {
-    if (isExpoGo || (!isIOS && !isAndroid) || !connected || pendingRecoveryDone.current) return;
-    pendingRecoveryDone.current = true;
-    (async () => {
-      try {
-        const purchases = await getAvailablePurchasesFn({ onlyIncludeActiveItemsIOS: true });
-        const pending = Array.isArray(purchases) ? purchases.filter((p: any) =>
-          PLAN_SKUS.veteran.includes(p.productId ?? '') || PLAN_SKUS.legend.includes(p.productId ?? '')
-        ) : [];
-        for (const p of pending) {
-          try {
-            if (isIOS) {
-              let receipt: string | undefined;
-              try { receipt = await getReceiptIOS(); } catch { receipt = (p as any).transactionReceipt; }
-              if (receipt) await httpPost('/payments/apple/verify-receipt', { receipt, productId: p.productId });
-            } else if (isAndroid && (p as any).purchaseToken) {
-              await httpPost('/payments/google/verify-purchase', {
-                purchase_token: (p as any).purchaseToken,
-                product_id: p.productId,
-                package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
-              });
+  const recoverPendingPurchases = useCallback(async () => {
+    if (isExpoGo || (!isIOS && !isAndroid) || !connected) return;
+    const now = Date.now();
+    if (now - lastPendingRecoveryAtRef.current < 10000) return;
+    lastPendingRecoveryAtRef.current = now;
+
+    try {
+      const purchases = await getAvailablePurchasesFn({ onlyIncludeActiveItemsIOS: true });
+      const pending = Array.isArray(purchases)
+        ? purchases.filter(
+            (p: any) =>
+              PLAN_SKUS.veteran.includes(p.productId ?? '') ||
+              PLAN_SKUS.legend.includes(p.productId ?? '')
+          )
+        : [];
+      for (const p of pending) {
+        try {
+          if (isIOS) {
+            let receipt: string | undefined;
+            try {
+              receipt = await getReceiptIOS();
+            } catch {
+              receipt = (p as any).transactionReceipt;
             }
-            await finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
-          } catch (e) {
-            if (__DEV__) console.warn('[useVHubIAP] Pending purchase recovery failed for', p.productId, e);
+            if (receipt) {
+              await httpPost('/payments/apple/verify-receipt', { receipt, productId: p.productId });
+            }
+          } else if (isAndroid && (p as any).purchaseToken) {
+            await httpPost('/payments/google/verify-purchase', {
+              purchase_token: (p as any).purchaseToken,
+              product_id: p.productId,
+              package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
+            });
           }
+          await finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
+        } catch (e) {
+          if (__DEV__)
+            console.warn('[useVHubIAP] Pending purchase recovery failed for', p.productId, e);
         }
-        if (pending.length && __DEV__) console.log(`[useVHubIAP] Recovered ${pending.length} pending purchase(s)`);
-      } catch (err) {
-        if (__DEV__) console.warn('[useVHubIAP] Pending purchase scan failed:', err);
       }
-    })();
+      if (pending.length && __DEV__) {
+        console.log(`[useVHubIAP] Recovered ${pending.length} pending purchase(s)`);
+      }
+    } catch (err) {
+      if (__DEV__) console.warn('[useVHubIAP] Pending purchase scan failed:', err);
+    }
   }, [connected, finishTransaction]);
+
+  // Recover pending/unacknowledged purchases on startup (prevents stuck purchases after crash)
+  useEffect(() => {
+    void recoverPendingPurchases();
+  }, [recoverPendingPurchases]);
+
+  // Retry pending purchase recovery when the app returns to foreground.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void recoverPendingPurchases();
+      }
+    });
+    return () => subscription.remove();
+  }, [recoverPendingPurchases]);
 
   const purchase = useCallback(
     async (plan: 'veteran' | 'legend'): Promise<boolean> => {

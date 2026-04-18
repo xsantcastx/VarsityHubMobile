@@ -37,8 +37,12 @@ const summarize = (n: any) => {
       return 'your ad needs changes';
     case 'ORG_APPROVED':
       return 'your organization has been approved';
+    case 'ORG_REJECTED':
+      return 'your organization was not approved';
     case 'JOIN_REQUEST_APPROVED':
       return 'your join request was approved';
+    case 'JOIN_REQUEST_DENIED':
+      return 'your join request was not approved';
     case 'TEAM_INVITE_ACCEPTED':
       return 'accepted your team invite';
     case 'TEAM_INVITE_DECLINED':

@@ -27,7 +27,7 @@ module.exports = ({ config }) => {
     name: 'VarsityHub',
     slug: 'varsityhub',
     owner: 'varsity-hub',
-    version: '1.0.1',
+    version: '1.0.2',
     runtimeVersion: { policy: 'appVersion' },
     description:
       'The ultimate sports team management and social platform for athletes, coaches, and fans.',

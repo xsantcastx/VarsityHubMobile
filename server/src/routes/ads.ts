@@ -321,29 +321,32 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
     const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '7d');
     const rejectToken = signJwt({ adId: id, action: 'reject_ad' }, '7d');
 
-    // v1.0.2 audit fix: use centralized admin email helper
-    const { getPrimaryAdminEmail } = await import('../lib/adminEmails.js');
-    sendAdPendingReviewEmail({
-      to: getPrimaryAdminEmail(),
-      businessName: ad.business_name || undefined,
-      contactName: ad.contact_name || undefined,
-      contactEmail: ad.contact_email || undefined,
-      zipCode: ad.target_zip_code || undefined,
-      bannerUrl: ad.banner_url || undefined,
-      adId: id,
-      approveToken,
-      rejectToken,
-    })
-      .then(sent => {
-        if (!sent)
-          console.error(
-            '[ads] submit-for-approval email returned false — email NOT delivered for ad',
-            id
-          );
-      })
-      .catch(err =>
-        console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
-      );
+    const { getAllAdminEmails } = await import('../lib/adminEmails.js');
+    const adminEmails = getAllAdminEmails();
+    void Promise.all(
+      adminEmails.map((to) =>
+        sendAdPendingReviewEmail({
+          to,
+          businessName: ad.business_name || undefined,
+          contactName: ad.contact_name || undefined,
+          contactEmail: ad.contact_email || undefined,
+          zipCode: ad.target_zip_code || undefined,
+          bannerUrl: ad.banner_url || undefined,
+          adId: id,
+          approveToken,
+          rejectToken,
+        }).then((sent) => {
+          if (!sent) {
+            console.error(
+              '[ads] submit-for-approval email returned false — email NOT delivered for ad',
+              { adId: id, to }
+            );
+          }
+        })
+      )
+    ).catch(err =>
+      console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
+    );
 
     const updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     return res.status(200).json(updated);

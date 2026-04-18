@@ -2945,7 +2945,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
 // ── Apple Server-to-Server (S2S) Notifications V2 ──────────────────
 // Apple sends JWS-signed payloads for subscription lifecycle events.
 // Configure this URL in App Store Connect → App → App Store Server Notifications.
-paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(async (req, res) => {
+paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], expressPkg.json(), asyncHandler(async (req, res) => {
   try {
     const { signedPayload } = req.body || {};
     if (!signedPayload) {
@@ -3187,6 +3187,7 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
 
     } else if (
       notificationType === 'EXPIRED' ||
+      notificationType === 'GRACE_PERIOD_EXPIRED' ||
       notificationType === 'REVOKE' ||
       notificationType === 'REFUND'
     ) {

@@ -35,6 +35,7 @@ import { cacheGet, cacheSet } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
+import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 
 export const authRouter = Router();
 
@@ -837,6 +838,8 @@ authRouter.post(
         }
       }
 
+      user = await ensureOAuthUserVerified(user);
+
       const sanitized = sanitizeUser(user);
       const access_token = signJwt({ id: sanitized.id });
       const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
@@ -1260,7 +1263,7 @@ authRouter.get(
     const cached = await cacheGet(cacheKey);
     if (cached) return res.json(cached);
 
-    const [user, activePostCount] = await Promise.all([
+    const [rawUser, activePostCount] = await Promise.all([
       prisma.user.findUnique({
         where: { id: req.user!.id },
         include: {
@@ -1276,6 +1279,7 @@ authRouter.get(
         where: { author_id: req.user!.id },
       }),
     ]);
+    const user = await ensureOAuthUserVerified(rawUser);
     if (!user) return res.status(404).json({ error: 'Not found' });
     const is_admin = isAdminEmail(user.email);
     const defaults = {
@@ -2083,7 +2087,8 @@ authRouter.post(
   '/verify/request',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    const rawUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    const user = await ensureOAuthUserVerified(rawUser);
     if (!user) return res.status(404).json({ error: 'Not found' });
     if (user.email_verified) return res.json({ ok: true, already_verified: true });
     // Redis-backed verification rate limiting: 1 per 30s, 5 per hour

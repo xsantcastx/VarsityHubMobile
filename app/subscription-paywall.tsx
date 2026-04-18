@@ -25,6 +25,7 @@ import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Linking,
     Platform,
     Pressable,
     ScrollView,
@@ -481,33 +482,57 @@ function SubscriptionPaywallScreen() {
 
           {/* Restore Purchases — required by Apple for IAP apps */}
           {(isIOS || Platform.OS === 'android') && selectedTier !== 'rookie' && (
-            <Pressable
-              style={[styles.restoreButton, { marginTop: 16 }]}
-              accessibilityRole="button"
-              accessibilityLabel="Restore Purchases"
-              onPress={async () => {
-                if (isProcessing) return;
-                setLoading(true);
-                try {
-                  const hadPurchases = await iapRestore();
-                  checkAuth().catch(() => {});
-                  if (hadPurchases) {
-                    Alert.alert('Restore Complete', 'Your subscription has been restored.', [
-                      { text: 'OK', onPress: () => safeGoBack(router) },
-                    ]);
-                  } else {
-                    Alert.alert('No Purchases Found', 'No previous subscription was found for this account.');
+            <>
+              <Pressable
+                style={[styles.restoreButton, { marginTop: 16 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Restore Purchases"
+                onPress={async () => {
+                  if (isProcessing) return;
+                  setLoading(true);
+                  try {
+                    const hadPurchases = await iapRestore();
+                    checkAuth().catch(() => {});
+                    if (hadPurchases) {
+                      Alert.alert('Restore Complete', 'Your subscription has been restored.', [
+                        { text: 'OK', onPress: () => safeGoBack(router) },
+                      ]);
+                    } else {
+                      Alert.alert('No Purchases Found', 'No previous subscription was found for this account.');
+                    }
+                  } catch {
+                    Alert.alert('Restore Failed', 'Unable to restore purchases. Please try again.');
+                  } finally {
+                    setLoading(false);
                   }
-                } catch {
-                  Alert.alert('Restore Failed', 'Unable to restore purchases. Please try again.');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={isProcessing}
-            >
-              <Text style={[styles.restoreButtonText, { color: Colors[colorScheme].tint }]}>Restore Purchases</Text>
-            </Pressable>
+                }}
+                disabled={isProcessing}
+              >
+                <Text style={[styles.restoreButtonText, { color: Colors[colorScheme].tint }]}>Restore Purchases</Text>
+              </Pressable>
+
+              <View style={styles.legalLinksRow}>
+                <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}>
+                  By subscribing, you agree to our{' '}
+                </Text>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Open Terms of Service"
+                  onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
+                >
+                  <Text style={[styles.legalLinkText, { color: theme.tint }]}>Terms of Service</Text>
+                </Pressable>
+                <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}> and </Text>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Open Privacy Policy"
+                  onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
+                >
+                  <Text style={[styles.legalLinkText, { color: theme.tint }]}>Privacy Policy</Text>
+                </Pressable>
+                <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}>.</Text>
+              </View>
+            </>
           )}
         </View>
       </ScrollView>
@@ -738,6 +763,23 @@ const styles = StyleSheet.create({
   restoreButtonText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 12,
+  },
+  legalLinksIntro: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  legalLinkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
 

@@ -487,7 +487,11 @@ export const defaultApiLimiter = createLimiter({
   max: rateLimitingDisabled ? 100000 : 120,
   skip: req => {
     const path = String(req.path || req.originalUrl || '');
-    return path === '/payments/webhook' || path === '/payments/apple/notifications';
+    return (
+      path === '/payments/webhook' ||
+      path === '/payments/apple/notifications' ||
+      path === '/payments/apple/server-notifications'
+    );
   },
 });
 

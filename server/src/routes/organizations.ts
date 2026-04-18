@@ -54,6 +54,72 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'manager';
 }
 
+function getPreferencesObject(value: unknown): Record<string, any> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return { ...(value as Record<string, any>) };
+  }
+  return {};
+}
+
+function buildPendingCoachPreferences(
+  currentPrefs: unknown,
+  organization: { id: string; name: string }
+): Record<string, any> {
+  return {
+    ...getPreferencesObject(currentPrefs),
+    role: 'coach',
+    organization_id: organization.id,
+    organization_name: organization.name,
+    join_request_pending: true,
+  };
+}
+
+function buildApprovedCoachPreferences(params: {
+  currentPrefs: unknown;
+  organization: { id: string; name: string };
+  teamId?: string | null;
+  teamName?: string | null;
+}): Record<string, any> {
+  const next = {
+    ...getPreferencesObject(params.currentPrefs),
+    role: 'coach',
+    organization_id: params.organization.id,
+    organization_name: params.organization.name,
+    join_request_pending: false,
+    proceeding_as_fan: false,
+  } as Record<string, any>;
+
+  if (params.teamId) next.team_id = params.teamId;
+  if (params.teamName) next.team_name = params.teamName;
+
+  delete next.pending_plan;
+  delete next.payment_pending;
+  delete next.payment_approved;
+
+  return next;
+}
+
+function buildRejectedCoachPreferences(params: {
+  currentPrefs: unknown;
+  organization?: { id: string; name: string } | null;
+}): Record<string, any> {
+  const next = {
+    ...getPreferencesObject(params.currentPrefs),
+    role: 'coach',
+    join_request_pending: false,
+  } as Record<string, any>;
+
+  if (params.organization) {
+    next.organization_id = params.organization.id;
+    next.organization_name = params.organization.name;
+  }
+
+  delete next.team_id;
+  delete next.team_name;
+
+  return next;
+}
+
 async function isCurrentUserPlatformAdmin(req: AuthedRequest): Promise<boolean> {
   if (!req.user?.id) return false;
   const user = await prisma.user.findUnique({
@@ -333,8 +399,12 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
     const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
     const applicant = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { approval_status: true, rejected_at: true, rejection_reason: true },
+      select: { approval_status: true, rejected_at: true, rejection_reason: true, preferences: true },
     });
+    const applicantPrefs = getPreferencesObject(applicant?.preferences);
+    if (applicantPrefs.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
+    }
     // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
     if (applicant?.approval_status === 'REJECTED') {
       let rejectedAt = applicant.rejected_at;
@@ -405,7 +475,9 @@ organizationsRouter.post('/', requireAuth as any, requireVerified as any, requir
       await tx.user.update({
         where: { id: req.user!.id },
         data: {
+          preferences: buildPendingCoachPreferences(applicantPrefs, { id: org.id, name: org.name }),
           approval_status: 'PENDING',
+          paid_by_owner: false,
           // v1.0.2: clear prior rejection tracking on a fresh application
           rejected_at: null,
           rejection_reason: null,
@@ -478,8 +550,12 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
     const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
     const applicant = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { approval_status: true, rejected_at: true, rejection_reason: true },
+      select: { approval_status: true, rejected_at: true, rejection_reason: true, preferences: true },
     });
+    const applicantPrefs = getPreferencesObject(applicant?.preferences);
+    if (applicantPrefs.role !== 'coach') {
+      return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
+    }
     // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
     if (applicant?.approval_status === 'REJECTED') {
       let rejectedAt = applicant.rejected_at;
@@ -552,7 +628,9 @@ organizationsRouter.post('/create', requireAuth as any, requireVerified as any, 
       await tx.user.update({
         where: { id: req.user!.id },
         data: {
+          preferences: buildPendingCoachPreferences(applicantPrefs, { id: org.id, name: org.name }),
           approval_status: 'PENDING',
+          paid_by_owner: false,
           // v1.0.2: clear prior rejection tracking on a fresh application
           rejected_at: null,
           rejection_reason: null,
@@ -937,7 +1015,7 @@ const createJoinRequestSchema = z.object({
   message: z.string().max(500).optional(),
 });
 
-organizationsRouter.post('/join-requests', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+organizationsRouter.post('/join-requests', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const parsed = createJoinRequestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -1002,8 +1080,14 @@ organizationsRouter.post('/join-requests', requireAuth as any, asyncHandler(asyn
     }
 
     // Check if requester is a coach before the write so we can set PENDING atomically
-    const requester = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { preferences: true } });
-    const isCoachRole = (requester?.preferences as any)?.role === 'coach';
+    const requester = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { preferences: true },
+    });
+    const requesterPrefs = getPreferencesObject(requester?.preferences);
+    if (requesterPrefs.role !== 'coach') {
+      return res.status(403).json({ error: 'Upgrade to a coach account before requesting to join a league.' });
+    }
 
     // Create join request + set coach to PENDING atomically
     const [joinRequest] = await prisma.$transaction([
@@ -1033,17 +1117,21 @@ organizationsRouter.post('/join-requests', requireAuth as any, asyncHandler(asyn
           }
         }
       }),
-      // Always update approval_status for coaches — atomic with join request
-      ...(isCoachRole ? [
-        prisma.user.update({
-          where: { id: req.user!.id },
-          data: { approval_status: 'PENDING' },
-        })
-      ] : []),
+      prisma.user.update({
+        where: { id: req.user!.id },
+        data: {
+          preferences: buildPendingCoachPreferences(requesterPrefs, {
+            id: organization.id,
+            name: organization.name,
+          }),
+          approval_status: 'PENDING',
+          paid_by_owner: false,
+          rejected_at: null,
+          rejection_reason: null,
+        },
+      }),
     ]);
-    if (isCoachRole) {
-      await invalidateMeCacheForUser(req.user!.id);
-    }
+    await invalidateMeCacheForUser(req.user!.id);
 
     // Send email + push + in-app notification to organization owner
     if (organization.memberships.length > 0) {
@@ -1181,7 +1269,8 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         select: {
           id: true,
           email: true,
-          display_name: true
+          display_name: true,
+          preferences: true,
         }
       }
     }
@@ -1230,8 +1319,15 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         reviewed_by: req.user!.id
       }
     });
-    await tx.organizationMembership.create({
-      data: {
+    await tx.organizationMembership.upsert({
+      where: {
+        organization_id_user_id: {
+          organization_id: joinRequest.organization_id,
+          user_id: joinRequest.user_id,
+        } as any
+      },
+      update: { role: 'coach', status: 'active' },
+      create: {
         organization_id: joinRequest.organization_id,
         user_id: joinRequest.user_id,
         role: 'coach',
@@ -1240,30 +1336,19 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     });
     await tx.user.update({
       where: { id: joinRequest.user_id },
-      data: { approval_status: 'APPROVED', paid_by_owner: true }
+      data: {
+        approval_status: 'APPROVED',
+        paid_by_owner: true,
+        rejected_at: null,
+        rejection_reason: null,
+        preferences: buildApprovedCoachPreferences({
+          currentPrefs: joinRequest.user.preferences,
+          organization: { id: joinRequest.organization_id, name: joinRequest.organization.name },
+        }),
+      }
     });
   }, { isolationLevel: 'Serializable' });
   await invalidateMeCacheForUser(joinRequest.user_id);
-  
-  // Persist org info into coach's preferences (non-blocking, non-fatal)
-  prisma.user.findUnique({ where: { id: joinRequest.user_id }, select: { preferences: true } })
-    .then((coachRecord) => {
-      const current = (coachRecord?.preferences as any) || {};
-      const merged = {
-        ...current,
-        organization_id: joinRequest.organization_id,
-        organization_name: joinRequest.organization.name,
-      };
-      return prisma.user
-        .update({ where: { id: joinRequest.user_id }, data: { preferences: merged } })
-        .then(async (updatedCoach) => {
-          await invalidateMeCacheForUser(updatedCoach.id);
-          return updatedCoach;
-        });
-    })
-    .catch((err) => {
-      console.warn('[orgs] failed to persist org_id into coach preferences on join-request approval:', (err as any)?.message || err);
-    });
 
   // Email the coach that they were approved (fire-and-forget)
   if (joinRequest.user.email) {
@@ -1333,7 +1418,8 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
         select: {
           id: true,
           email: true,
-          display_name: true
+          display_name: true,
+          preferences: true,
         }
       }
     }
@@ -1361,8 +1447,12 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
     return res.status(400).json({ error: 'This request has already been reviewed' });
   }
   
-  await prisma.$transaction([
-    prisma.organizationJoinRequest.update({
+  await prisma.$transaction(async (tx) => {
+    const fresh = await tx.organizationJoinRequest.findUnique({ where: { id: requestId } });
+    if (!fresh || fresh.status !== 'pending') {
+      throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
+    }
+    await tx.organizationJoinRequest.update({
       where: { id: requestId },
       data: {
         status: 'denied',
@@ -1370,13 +1460,21 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
         reviewed_by: req.user!.id,
         rejection_reason: reason || null,
       }
-    }),
-    // Set user approval_status to REJECTED so they don't stay PENDING forever
-    prisma.user.update({
+    });
+    await tx.user.update({
       where: { id: joinRequest.user.id },
-      data: { approval_status: 'REJECTED' },
-    }),
-  ]);
+      data: {
+        approval_status: 'REJECTED',
+        paid_by_owner: false,
+        rejected_at: new Date(),
+        rejection_reason: reason || null,
+        preferences: buildRejectedCoachPreferences({
+          currentPrefs: joinRequest.user.preferences,
+          organization: { id: joinRequest.organization_id, name: joinRequest.organization.name },
+        }),
+      },
+    });
+  }, { isolationLevel: 'Serializable' });
   await invalidateMeCacheForUser(joinRequest.user.id);
   
   // Email the coach that they were denied (fire-and-forget)
@@ -1387,6 +1485,19 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
       leagueName: joinRequest.organization.name,
       reason: reason || undefined,
     }).catch((err) => console.error('[orgs] Failed to send coach rejected email:', (err as any)?.message));
+  }
+
+  // Push notification so the coach sees the denial immediately
+  try {
+    await sendPushNotification(
+      joinRequest.user.id,
+      'Join Request Declined',
+      `Your request to join ${joinRequest.organization.name} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
+      { type: 'join_request_denied', organization_id: joinRequest.organization_id }
+    );
+    console.log(`[notif] push sent JOIN_REQUEST_DENIED to user=${joinRequest.user.id}`);
+  } catch (err) {
+    console.error('[notif] Failed to send push for JOIN_REQUEST_DENIED:', (err as any)?.message || err);
   }
 
   // Create in-app notification for the denied user
@@ -1408,7 +1519,10 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
   }
 
   return res.json({ message: 'Join request denied' });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
+      return res.status(400).json({ error: 'This request has already been reviewed' });
+    }
     console.error('[organizations] POST /join-requests/:requestId/deny error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -1681,18 +1795,20 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     });
     if (!joinRequest) return res.status(404).json({ error: 'No pending join request found for this coach' });
 
-    // If team_id provided, verify the team belongs to this organization
-    if (teamId) {
-      const team = await prisma.team.findUnique({ where: { id: teamId }, select: { organization_id: true } });
+  let approvedTeamName: string | null = null;
+  // If team_id provided, verify the team belongs to this organization
+  if (teamId) {
+      const team = await prisma.team.findUnique({ where: { id: teamId }, select: { organization_id: true, name: true } });
       if (!team || team.organization_id !== orgId) {
         return res.status(400).json({ error: 'Team does not belong to this organization' });
       }
+      approvedTeamName = team.name || null;
     }
 
     // Get org and coach info
     const [org, coach] = await Promise.all([
       prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, admin_approved: true } }),
-      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
+      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true, preferences: true } }),
     ]);
     if (!org) return res.status(404).json({ error: 'Organization not found' });
     if (!org.admin_approved) {
@@ -1707,20 +1823,35 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
         where: { id: joinRequest.id },
         data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user.id },
       }),
-      prisma.organizationMembership.create({
-        data: { organization_id: orgId, user_id: coachId, role: 'coach', status: 'active' },
-      }),
       prisma.user.update({
         where: { id: coachId },
-        data: { approval_status: 'APPROVED', paid_by_owner: true },
+        data: {
+          approval_status: 'APPROVED',
+          paid_by_owner: true,
+          rejected_at: null,
+          rejection_reason: null,
+          preferences: buildApprovedCoachPreferences({
+            currentPrefs: coach?.preferences,
+            organization: { id: orgId, name: org.name },
+            teamId: teamId || null,
+            teamName: approvedTeamName,
+          }),
+        },
+      }),
+      prisma.organizationMembership.upsert({
+        where: { organization_id_user_id: { organization_id: orgId, user_id: coachId } as any },
+        update: { role: 'coach', status: 'active' },
+        create: { organization_id: orgId, user_id: coachId, role: 'coach', status: 'active' },
       }),
     ];
 
     // Assign coach to specific team if provided
     if (teamId) {
       txOps.push(
-        prisma.teamMembership.create({
-          data: { team_id: teamId, user_id: coachId, role: 'coach', status: 'active' },
+        prisma.teamMembership.upsert({
+          where: { team_id_user_id: { team_id: teamId, user_id: coachId } as any },
+          update: { role: 'coach', status: 'active' },
+          create: { team_id: teamId, user_id: coachId, role: 'coach', status: 'active' },
         })
       );
     }
@@ -1743,27 +1874,6 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
 
     await prisma.$transaction(txOps);
     await invalidateMeCacheForUser(coachId);
-
-    // Persist org info into coach's preferences so complete-onboarding succeeds
-    // even if the coach never explicitly saved it (e.g. join-request path pre-fix).
-    prisma.user.findUnique({ where: { id: coachId }, select: { preferences: true } })
-      .then((coachRecord) => {
-        const current = (coachRecord?.preferences as any) || {};
-        const merged = {
-          ...current,
-          organization_id: orgId,
-          organization_name: org?.name || current.organization_name,
-        };
-        return prisma.user
-          .update({ where: { id: coachId }, data: { preferences: merged } })
-          .then(async (updatedCoach) => {
-            await invalidateMeCacheForUser(updatedCoach.id);
-            return updatedCoach;
-          });
-      })
-      .catch((err) => {
-        console.warn('[orgs] failed to persist org_id into coach preferences:', (err as any)?.message || err);
-      });
 
     // Non-blocking: email and push notifications fire after transaction succeeds.
     // If these fail the approval is still recorded — we log but don't roll back.
@@ -1790,23 +1900,6 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
 
     return res.json({ message: 'Coach approved', coach_id: coachId });
   } catch (err: any) {
-    // Handle unique constraint violation (coach already a member)
-    if (err?.code === 'P2002') {
-      // Already a member — atomically update join request + approval status
-      const { id: orgId, userId: coachId } = req.params;
-      await prisma.$transaction([
-        prisma.organizationJoinRequest.updateMany({
-          where: { organization_id: orgId, user_id: coachId, status: 'pending' },
-          data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user!.id },
-        }),
-        prisma.user.update({
-          where: { id: coachId },
-          data: { approval_status: 'APPROVED', paid_by_owner: true },
-        }),
-      ]);
-      await invalidateMeCacheForUser(coachId);
-      return res.json({ message: 'Coach approved (already a member)', coach_id: coachId });
-    }
     console.error('[organizations] POST /:id/coaches/:userId/approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -1835,19 +1928,32 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
 
     const [org, coach] = await Promise.all([
       prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } }),
-      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true } }),
+      prisma.user.findUnique({ where: { id: coachId }, select: { display_name: true, email: true, preferences: true } }),
     ]);
 
-    await prisma.$transaction([
-      prisma.organizationJoinRequest.update({
+    await prisma.$transaction(async (tx) => {
+      const fresh = await tx.organizationJoinRequest.findUnique({ where: { id: joinRequest.id } });
+      if (!fresh || fresh.status !== 'pending') {
+        throw new Error('COACH_REQUEST_ALREADY_REVIEWED');
+      }
+      await tx.organizationJoinRequest.update({
         where: { id: joinRequest.id },
         data: { status: 'denied', message: reason, reviewed_at: new Date(), reviewed_by: req.user.id },
-      }),
-      prisma.user.update({
+      });
+      await tx.user.update({
         where: { id: coachId },
-        data: { approval_status: 'REJECTED' },
-      }),
-    ]);
+        data: {
+          approval_status: 'REJECTED',
+          paid_by_owner: false,
+          rejected_at: new Date(),
+          rejection_reason: reason || null,
+          preferences: buildRejectedCoachPreferences({
+            currentPrefs: coach?.preferences,
+            organization: org ? { id: orgId, name: org.name || 'the league' } : null,
+          }),
+        },
+      });
+    }, { isolationLevel: 'Serializable' });
     await invalidateMeCacheForUser(coachId);
 
     if (coach?.email) {
@@ -1884,7 +1990,10 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
     }
 
     return res.json({ message: 'Coach request rejected', coach_id: coachId });
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message === 'COACH_REQUEST_ALREADY_REVIEWED') {
+      return res.status(400).json({ error: 'This coach request has already been reviewed' });
+    }
     console.error('[organizations] POST /:id/coaches/:userId/reject error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
