@@ -252,6 +252,8 @@ authRouter.post(
     if (process.env.NODE_ENV === 'development')
       console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
     const exp = new Date(Date.now() + 30 * 60 * 1000);
+    // AUTH-5: Hash verification code before storage (same SHA-256 as refresh tokens)
+    const codeHash = hashRefreshToken(code);
     const userRole = role || 'fan';
 
     // Set admin flag based on ADMIN_EMAILS env var
@@ -269,14 +271,14 @@ authRouter.post(
         password_hash,
         display_name,
         email_verified: false,
-        email_verification_code: code,
+        email_verification_code: codeHash,
         email_verification_expires: exp,
         preferences: initialPreferences,
       },
     });
     if (process.env.NODE_ENV === 'development')
       console.log(
-        `[verify-code] [register] Code stored in DB for user ${user.id} (expires ${exp.toISOString()})`
+        `[verify-code] [register] Code hash stored in DB for user ${user.id} (expires ${exp.toISOString()})`
       );
     const access_token = signJwt({ id: user.id });
     // Fire-and-forget email — don't block the HTTP response waiting for SendGrid

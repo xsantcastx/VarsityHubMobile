@@ -752,7 +752,7 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Ionicons name="chevron-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+            <Ionicons name="chevron-back" size={18} color={theme.text} />
           </Pressable>
         ) : null}
 
@@ -823,7 +823,7 @@ export default function ProfileScreen() {
               accessibilityRole="button"
               accessibilityLabel="Settings"
             >
-              <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+              <Ionicons name="settings-outline" size={18} color={theme.text} />
             </Pressable>
           ) : null}
         </View>

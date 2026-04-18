@@ -28,6 +28,10 @@ let refreshPromise: Promise<RefreshOutcome> | null = null;
 let refreshCacheTimer: ReturnType<typeof setTimeout> | null = null;
 const REFRESH_CACHE_TTL_MS = 5_000;
 
+// GET request deduplication: coalesce concurrent identical GET requests into a single network call.
+// Prevents duplicate fetches when multiple components mount simultaneously.
+const inflightGets = new Map<string, Promise<any>>();
+
 export function getApiBaseUrl(): string {
   // Support environment-based configuration for testing/staging/preview builds
   const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
@@ -486,7 +490,16 @@ export function httpGet(
   const defaultRetries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
   const retries =
     typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
-  return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries, behavior);
+
+  // Deduplicate concurrent identical GET requests (same path, same auth token)
+  const dedupeKey = `${path}::${getAuthToken() || 'anon'}`;
+  const existing = inflightGets.get(dedupeKey);
+  if (existing) return existing;
+
+  const promise = request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries, behavior)
+    .finally(() => inflightGets.delete(dedupeKey));
+  inflightGets.set(dedupeKey, promise);
+  return promise;
 }
 // Default POST should never retry automatically (prevents duplicate mutations).
 export function httpPost(path: string, body?: any, behavior?: HttpBehaviorOptions) {

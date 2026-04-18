@@ -207,7 +207,7 @@ export const Game = {
     if (options?.teamId) params.push(`team_id=${encodeURIComponent(options.teamId)}`);
     if (options?.mapView) params.push('map_view=true');
     const qs = params.length ? `?${params.join('&')}` : '';
-    return httpGet('/games' + qs);
+    return httpGet('/games' + qs, {}, 15000, 2);
   },
   // Lightweight record fetch used as fallback when summary is unavailable.
   get: (id: string) => httpGet('/games/' + encodeURIComponent(id), {}, 15000, 1),

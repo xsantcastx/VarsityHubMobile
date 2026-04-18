@@ -602,7 +602,7 @@ function TeamScreen() {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Ionicons name="arrow-back" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+            <Ionicons name="arrow-back" size={18} color={theme.text} />
           </Pressable>
         </View>
 
@@ -616,7 +616,7 @@ function TeamScreen() {
               accessibilityRole="button"
               accessibilityLabel="Team settings"
             >
-              <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
+              <Ionicons name="settings-outline" size={18} color={theme.text} />
             </Pressable>
           </View>
         )}
@@ -718,9 +718,9 @@ function TeamScreen() {
                 }}
               >
                 {isFollowing ? (
-                  <Ionicons name="checkmark" size={18} color="#000" />
+                  <Ionicons name="checkmark" size={18} color={theme.text} />
                 ) : (
-                  <Ionicons name="person-add" size={16} color="#000" />
+                  <Ionicons name="person-add" size={16} color={theme.text} />
                 )}
               </Pressable>
             )}
@@ -823,16 +823,16 @@ function TeamScreen() {
             <Ionicons
               name="trophy-outline"
               size={16}
-              color={team?.organization_id ? '#000' : theme.mutedText}
+              color={team?.organization_id ? theme.text : theme.mutedText}
             />
             <Text style={[
               styles.orgButtonText,
-              { color: team?.organization_id ? '#000' : theme.mutedText }
+              { color: team?.organization_id ? theme.text : theme.mutedText }
             ]}>
               {team?.organization_id ? 'My League' : 'No Organization'}
             </Text>
             {team?.organization_id && (
-              <Ionicons name="chevron-forward" size={14} color="#000" />
+              <Ionicons name="chevron-forward" size={14} color={theme.text} />
             )}
           </Pressable>
         </View>

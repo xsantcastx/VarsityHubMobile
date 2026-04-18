@@ -272,6 +272,11 @@ export default function FeedScreen() {
   const [isShowingPromoCard, setIsShowingPromoCard] = useState(false);
   const adCycleStartTimeRef = useRef(Date.now());
 
+  // Performance: cooldown to prevent re-fetching within 30s of the last successful load
+  const lastLoadTimestampRef = useRef(0);
+  const loadInFlightRef = useRef(false);
+  const LOAD_COOLDOWN_MS = 30_000;
+
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
       .map(game => ({ id: String(game.id), labels: deriveTeamLabels(game) }))
@@ -302,6 +307,11 @@ export default function FeedScreen() {
   }, []);
 
   const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    // Performance: skip silent reloads if data is fresh (< 30s old)
+    if (silent && Date.now() - lastLoadTimestampRef.current < LOAD_COOLDOWN_MS) return;
+    // Deduplicate concurrent load calls
+    if (loadInFlightRef.current && silent) return;
+    loadInFlightRef.current = true;
     if (!silent) setLoading(true);
     setError(null);
     try {
@@ -480,6 +490,8 @@ export default function FeedScreen() {
       setFollowedTeamsFeedMeta(undefined);
     } finally {
       if (!silent) setLoading(false);
+      loadInFlightRef.current = false;
+      lastLoadTimestampRef.current = Date.now();
     }
   }, []);
 
@@ -553,9 +565,9 @@ export default function FeedScreen() {
         }
       };
 
-      // Fire immediately on focus, then poll every 60 seconds
+      // Fire immediately on focus, then poll every 120 seconds (reduced from 60s for performance)
       void tick();
-      const id = setInterval(tick, 60000);
+      const id = setInterval(tick, 120000);
       return () => {
         mounted = false;
         clearInterval(id);

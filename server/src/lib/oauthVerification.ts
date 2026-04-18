@@ -28,5 +28,5 @@ export async function ensureOAuthUserVerified<T extends OAuthVerifiableUser | nu
     },
   });
   await invalidateMeCacheForUser(updated.id);
-  return updated as T;
+  return updated as unknown as T;
 }

@@ -138,7 +138,7 @@ async function isCoachOfPostTeam(
 }
 
 /** Time-decay trending score: upvotes / (hours_since_posted + 2)^1.5 */
-const TRENDING_POOL_SIZE = 500;
+const TRENDING_POOL_SIZE = 200;
 const trendingScore = (upvotes: number, createdAt: Date): number => {
   const ageHours = Math.max((Date.now() - createdAt.getTime()) / 3600000, 0);
   return (upvotes || 0) / Math.pow(ageHours + 2, 1.5);

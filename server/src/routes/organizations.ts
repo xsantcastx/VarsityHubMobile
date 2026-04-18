@@ -1821,7 +1821,7 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
     const txOps: any[] = [
       prisma.organizationJoinRequest.update({
         where: { id: joinRequest.id },
-        data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user.id },
+        data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user!.id },
       }),
       prisma.user.update({
         where: { id: coachId },
@@ -1938,7 +1938,7 @@ organizationsRouter.post('/:id/coaches/:userId/reject', requireAuth as any, requ
       }
       await tx.organizationJoinRequest.update({
         where: { id: joinRequest.id },
-        data: { status: 'denied', message: reason, reviewed_at: new Date(), reviewed_by: req.user.id },
+        data: { status: 'denied', message: reason, reviewed_at: new Date(), reviewed_by: req.user!.id },
       });
       await tx.user.update({
         where: { id: coachId },
