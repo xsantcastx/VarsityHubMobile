@@ -148,10 +148,10 @@ export function requirePlan(minPlan: AnyTier) {
 }
 
 // Helper to compute authorized user limit for a given plan & team count
-// Rookie: 1 total per team; Veteran: 2 per owned team (team_count_total * 2); Legend: unlimited (null)
+// Rookie: 6 authorized users per team; Veteran: 2 per owned team (team_count_total * 2); Legend: unlimited (null)
 export function computeAuthorizedUserLimit(plan: AnyTier, teamCountTotal: number): number | null {
   const canonical = toCanonical(plan);
-  if (canonical === 'free') return 1; // rookie
+  if (canonical === 'free') return 6; // rookie
   if (canonical === 'premium') return Math.max(2, teamCountTotal * 2); // veteran (fallback minimum 2 if teamCountTotal missing)
   return null; // pro / legend unlimited
 }

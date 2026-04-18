@@ -52,8 +52,8 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Every screen implements its own back button (`headerShown: false` globally)
 
 ## Plans (Billing)
-- Rookie: free, 2 teams, 50 roster
-- Veteran: $0.99/mo/team, 100 roster, 5 authorized users/team
+- Rookie: free, 3 teams, 50 roster, 6 authorized users/team
+- Veteran: $0.99/mo/team (teams over 3), 100 roster, 5 authorized users/team
 - Legend: $19.99/yr, unlimited teams + clubs + authorized users
 
 ## OTA Updates

@@ -7,8 +7,8 @@
  * ──────────────────────────────────────────────────────────────────────
  *  Plan definitions (shared/plan-definitions.json)
  *
- *  Rookie   – max 2 teams, 1 authorized user/team, no extracurricular
- *  Veteran  – unlimited teams ($0.99/mo per team beyond 2), 5 auth users/team, no extracurricular
+ *  Rookie   – max 3 teams, 6 authorized users/team, no extracurricular
+ *  Veteran  – unlimited teams ($0.99/mo per team beyond 3), 5 auth users/team, no extracurricular
  *  Legend   – unlimited teams ($20/yr), unlimited auth users, extracurricular clubs
  * ──────────────────────────────────────────────────────────────────────
  *
@@ -66,12 +66,16 @@ async function createUser(
   const hash = await bcrypt.hash(PASSWORD, 10);
   const preferences: any = { role, onboarding_completed: true };
   if (plan) preferences.plan = plan;
+  if (role === 'coach') {
+    preferences.coach_agreement_accepted_at = new Date().toISOString();
+  }
   const user = await prisma.user.create({
     data: {
       email,
       password_hash: hash,
       display_name: displayName,
       email_verified: true,
+      ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
       preferences,
       ...extras,
     },
@@ -239,7 +243,7 @@ describe('Fan account restrictions', () => {
 });
 
 // =============================================================================
-//  2. ROOKIE COACH – 2 FREE TEAMS, 1 AUTHORIZED USER, NO EXTRACURRICULAR
+//  2. ROOKIE COACH – 3 FREE TEAMS, 6 AUTHORIZED USERS, NO EXTRACURRICULAR
 // =============================================================================
 
 describe('Rookie Coach plan limits', () => {
@@ -257,8 +261,15 @@ describe('Rookie Coach plan limits', () => {
     rookieTeamIds.push(res.body.team.id);
   });
 
-  it('Rookie is BLOCKED on team #3 (exceeds free limit of 2)', async () => {
+  it('Rookie can create team #3 (still within free limit)', async () => {
     const res = await createTeamViaApi(rookieToken, `Rookie Team 3 ${ts}`, rookieOrgId);
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('team');
+    rookieTeamIds.push(res.body.team.id);
+  });
+
+  it('Rookie is BLOCKED on team #4 (exceeds free limit of 3)', async () => {
+    const res = await createTeamViaApi(rookieToken, `Rookie Team 4 ${ts}`, rookieOrgId);
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/Team limit|TEAM_LIMIT/i);
     expect(res.body.code || res.body.error).toMatch(/TEAM_LIMIT_EXCEEDED|Team limit/);
@@ -273,16 +284,16 @@ describe('Rookie Coach plan limits', () => {
     expect(team?.organization_id).toBe(rookieOrgId);
   });
 
-  it('Rookie can invite 1 authorized user to a team', async () => {
+  it('Rookie can invite authorized users to a team (up to 6)', async () => {
     if (!rookieTeamIds[0]) return;
     const res = await inviteToTeam(rookieToken, rookieTeamIds[0], `rookie-invite1-${ts}@example.com`);
     expect(res.status).toBe(201);
   });
 
-  it('Rookie is BLOCKED on 2nd authorized user (limit is 1 per team)', async () => {
+  it('Rookie can invite a 2nd authorized user (within limit of 6)', async () => {
     if (!rookieTeamIds[0]) return;
     const res = await inviteToTeam(rookieToken, rookieTeamIds[0], `rookie-invite2-${ts}@example.com`);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
     expect(res.body.error).toMatch(/USER_LIMIT_REACHED/);
   });
 
@@ -574,11 +585,11 @@ describe('Plan definitions integrity', () => {
     expect(plans).toHaveProperty('legend');
   });
 
-  it('Rookie: max_teams=2, max_authorized_users_per_team=1, supports_extracurricular=false', async () => {
+  it('Rookie: max_teams=3, max_authorized_users_per_team=6, supports_extracurricular=false', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const rookie = (getAllPlanDefinitions() as any).rookie;
-    expect(rookie.max_teams).toBe(2);
-    expect(rookie.max_authorized_users_per_team).toBe(1);
+    expect(rookie.max_teams).toBe(3);
+    expect(rookie.max_authorized_users_per_team).toBe(6);
     expect(rookie.supports_extracurricular).toBe(false);
   });
 

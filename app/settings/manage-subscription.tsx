@@ -214,7 +214,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const onSkipPayment = async () => {
     Alert.alert(
       'Continue as Rookie?',
-      'You can upgrade to a paid plan anytime from Settings. Your team will be limited to 2 teams and 50 roster spots on the free plan.',
+      'You can upgrade to a paid plan anytime from Settings. Your team will be limited to 3 teams and 50 roster spots on the free plan.',
       [
         { text: 'Cancel', style: 'cancel' },
         {

@@ -670,7 +670,7 @@ gamesRouter.post(
           return res.status(403).json({
             error: 'Event limit reached',
             message:
-              "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
+              "You've reached your limit of 3 pending events. Wait for one to be approved or rejected before submitting another.",
             code: 'EVENT_LIMIT_EXCEEDED',
             limit: 3,
             current: pendingCount,

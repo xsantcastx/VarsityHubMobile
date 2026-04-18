@@ -241,11 +241,11 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     console.warn('[payments] Ignoring invalid Stripe price id for plan', chosen, normalizedPriceId);
   }
 
-  // Calculate billable quantity for Veteran plan (only teams beyond the first two are billed)
-  const billableQuantity = chosen === 'veteran' && typeof teamCount === 'number' ? Math.max(0, teamCount - 2) : 1;
-  // If user selected only 2 or fewer teams, they should remain on Rookie (defensive check)
+  // Calculate billable quantity for Veteran plan (only teams beyond the first three are billed)
+  const billableQuantity = chosen === 'veteran' && typeof teamCount === 'number' ? Math.max(0, teamCount - 3) : 1;
+  // If user selected only 3 or fewer teams, they should remain on Rookie (defensive check)
   if (chosen === 'veteran' && billableQuantity === 0) {
-    throw membershipError(400, 'Select at least one billable team (3 total) to use Veteran plan');
+    throw membershipError(400, 'Select at least one billable team (4 total) to use Veteran plan');
   }
 
   if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
@@ -773,9 +773,9 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     const currentPlan = prefs.plan || 'rookie';
     if (currentPlan === chosen) return res.status(400).json({ error: 'You already have this subscription plan' });
 
-    const billableQuantity = chosen === 'veteran' ? Math.max(0, effectiveTeamCount - 2) : 1;
+    const billableQuantity = chosen === 'veteran' ? Math.max(0, effectiveTeamCount - 3) : 1;
     if (chosen === 'veteran' && billableQuantity === 0) {
-      return res.status(400).json({ error: 'Select at least one billable team (3 total) to use Veteran plan' });
+      return res.status(400).json({ error: 'Select at least one billable team (4 total) to use Veteran plan' });
     }
 
     // Build price / line items
@@ -1350,7 +1350,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
               preferences: { ...prefs, plan: 'rookie', subscription_id: null, subscription_period_end: null },
               subscription_tier: 'free',
               subscription_status: 'cancelled',
-              max_teams: 2,
+              max_teams: 3,
             },
           });
           await invalidateMeCacheForUser(tx.user_id);
@@ -1761,14 +1761,14 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
 
     const userId = req.user!.id;
     const updateQuantitySchema = z.object({
-      team_count: z.number().int().min(3, 'Minimum 3 total teams required for Veteran plan.'),
+      team_count: z.number().int().min(4, 'Minimum 4 total teams required for Veteran plan.'),
     });
     const parsed = updateQuantitySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { team_count } = parsed.data;
-    const billable = Math.max(0, team_count - 2); // Only teams beyond first two are billed
+    const billable = Math.max(0, team_count - 3); // Only teams beyond first three are billed
     if (billable === 0) {
-      return res.status(400).json({ error: 'No billable teams (only 2). Remain on Rookie plan instead.' });
+      return res.status(400).json({ error: 'No billable teams (only 3). Remain on Rookie plan instead.' });
     }
     
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });

@@ -183,7 +183,7 @@ runStartupChecks().catch(err => {
         approval_status: 'APPROVED',
         subscription_tier: 'free',
         subscription_status: 'active',
-        max_teams: 2,
+        max_teams: 3,
         preferences: {
           onboarding_completed: true,
           role: 'fan',

@@ -96,7 +96,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
           preferences: downgradedPrefs,
           subscription_tier: 'free',
           subscription_status: 'expired',
-          max_teams: 2,
+          max_teams: 3,
         },
       });
       console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', { userId: req.user.id });

@@ -1,0 +1,103 @@
+{
+  "ad-pending-review": {
+    "env_var": "SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID",
+    "subject": "New Ad Submission — {{business_name}}",
+    "test_data": {
+      "business_name": "Joe's Pizza Shop",
+      "contact_name": "Joe Martinez",
+      "contact_email": "joe@joespizza.com",
+      "zip_code": "90210",
+      "ad_id": "abc123-test-ad",
+      "banner_url": "https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png",
+      "approve_url": "https://your-api.up.railway.app/admin/ads/abc123-test-ad/approve",
+      "reject_url": "https://your-api.up.railway.app/admin/ads/abc123-test-ad/reject"
+    }
+  },
+  "ad-approved": {
+    "env_var": "SENDGRID_AD_APPROVED_TEMPLATE_ID",
+    "subject": "Your Ad Has Been Approved — {{business_name}}",
+    "test_data": {
+      "business_name": "Joe's Pizza Shop",
+      "admin_note": "Great creative! Your ad looks perfect and is ready to go live.",
+      "app_url": "https://apps.apple.com/app/varsityhub/id6504893881"
+    }
+  },
+  "ad-rejected": {
+    "env_var": "SENDGRID_AD_REJECTED_TEMPLATE_ID",
+    "subject": "Your Ad Needs Changes — {{business_name}}",
+    "test_data": {
+      "business_name": "Joe's Pizza Shop",
+      "rejection_reason": "The banner image resolution is too low and the text is difficult to read on mobile devices. Please upload a higher-resolution image (minimum 1080x400).",
+      "support_email": "support@varsityhub.co",
+      "app_url": "https://apps.apple.com/app/varsityhub/id6504893881"
+    }
+  },
+  "org-approval": {
+    "env_var": "SENDGRID_ORG_APPROVAL_TEMPLATE_ID",
+    "subject": "Organization Approved! — {{org_name}}",
+    "test_data": {
+      "owner_name": "Coach Williams",
+      "org_name": "Westside Youth Basketball League",
+      "org_logo_url": "https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png",
+      "admin_note": "Welcome to VarsityHub! Your league looks great.",
+      "dashboard_url": "https://apps.apple.com/app/varsityhub/id6504893881"
+    }
+  },
+  "org-denial": {
+    "env_var": "SENDGRID_ORG_DENIAL_TEMPLATE_ID",
+    "subject": "Update on Your Organization — {{org_name}}",
+    "test_data": {
+      "owner_name": "Coach Williams",
+      "org_name": "Westside Youth Basketball League",
+      "org_logo_url": "https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png",
+      "reason": "We were unable to verify that this is an active youth sports league. Please provide additional documentation such as a league website or registration records."
+    }
+  },
+  "admin-action-confirmation": {
+    "env_var": "SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID",
+    "subject": "Admin Action — {{action}} {{league_name}}",
+    "test_data": {
+      "action": "Approved",
+      "league_name": "Westside Youth Basketball League",
+      "owner_name": "Coach Williams",
+      "owner_email": "coach.williams@email.com",
+      "reason": "Organization verified. All documentation checks passed."
+    }
+  },
+  "join-request-admin": {
+    "env_var": "SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID",
+    "subject": "New Coach Request — {{org_name}}",
+    "test_data": {
+      "admin_name": "Coach Williams",
+      "org_name": "Westside Youth Basketball League",
+      "requester_name": "Sarah Johnson",
+      "org_logo_url": "https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png",
+      "coach_notes": "I coach the U12 girls team and was referred by Coach Davis.",
+      "approve_url": "https://your-api.up.railway.app/admin/join-requests/xyz789/approve",
+      "deny_url": "https://your-api.up.railway.app/admin/join-requests/xyz789/deny"
+    }
+  },
+  "coach-approved": {
+    "env_var": "SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID",
+    "subject": "Any text (code overrides with: Congratulations on being accepted!)",
+    "test_data": {
+      "user_name": "Sarah Johnson",
+      "org_name": "Westside Youth Basketball League",
+      "admin_name": "VarsityHub",
+      "admin_note": "Welcome to the team! Looking forward to a great season.",
+      "dashboard_url": "https://apps.apple.com/app/varsityhub/id6504893881",
+      "org_logo_url": "https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png"
+    }
+  },
+  "coach-denied": {
+    "env_var": "SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID",
+    "subject": "Any text (code overrides with: Coach request for {org} — declined)",
+    "test_data": {
+      "user_name": "Sarah Johnson",
+      "org_name": "Westside Youth Basketball League",
+      "reason": "We are not currently accepting new coaching staff. Please try again next season or reach out to us directly.",
+      "org_logo_url": "",
+      "app_url": "https://apps.apple.com/app/varsityhub/id6504893881"
+    }
+  }
+}

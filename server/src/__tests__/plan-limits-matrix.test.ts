@@ -53,15 +53,15 @@ describe('resolvePlan', () => {
 // ---------------------------------------------------------------------------
 describe('getMaxTeamsForPlan', () => {
   const cases: [string | null | undefined, number | null][] = [
-    ['rookie', 2],
+    ['rookie', 3],
     ['veteran', null],
     ['legend', null],
-    ['free', 2],
+    ['free', 3],
     ['premium', null],
     ['pro', null],
-    [null, 2],
-    [undefined, 2],
-    ['garbage', 2],
+    [null, 3],
+    [undefined, 3],
+    ['garbage', 3],
   ];
 
   it.each(cases)('getMaxTeamsForPlan(%j) → %j', (plan, expected) => {
@@ -95,11 +95,11 @@ describe('getMaxRosterSizePerTeam', () => {
 // ---------------------------------------------------------------------------
 describe('getAuthorizedUsersPerTeam', () => {
   const cases: [string | null | undefined, number | null][] = [
-    ['rookie', 1],
+    ['rookie', 6],
     ['veteran', 5],
     ['legend', null],
-    [null, 1],
-    ['garbage', 1],
+    [null, 6],
+    ['garbage', 6],
   ];
 
   it.each(cases)('getAuthorizedUsersPerTeam(%j) → %j', (plan, expected) => {
@@ -111,12 +111,12 @@ describe('getAuthorizedUsersPerTeam', () => {
 // 5. Authorized users org-wide limit (strategy-based)
 // ---------------------------------------------------------------------------
 describe('getAuthorizedUsersOrgLimit', () => {
-  // Rookie: fixed strategy, value=1
+  // Rookie: fixed strategy, value=6
   it.each([
-    [0, 1],
-    [1, 1],
-    [5, 1],
-    [100, 1],
+    [0, 6],
+    [1, 6],
+    [5, 6],
+    [100, 6],
   ])('rookie with %d teams → %d (fixed)', (teamCount, expected) => {
     expect(getAuthorizedUsersOrgLimit('rookie', teamCount)).toBe(expected);
   });

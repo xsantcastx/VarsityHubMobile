@@ -38,6 +38,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === 'web' && moduleName === '@stripe/stripe-react-native') {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/stripe-react-native.js') };
   }
+  if (platform === 'web' && moduleName === 'react-native-iap') {
+    return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/react-native-iap.js') };
+  }
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);
   }

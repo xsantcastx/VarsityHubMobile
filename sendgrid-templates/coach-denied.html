@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>New Coach Request</title>
+  <title>Coach Request Declined</title>
 </head>
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#ecfeff;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background-color:#ecfeff;">
@@ -14,9 +14,9 @@
           <tr>
             <td style="padding:32px 28px 12px;text-align:center;">
               <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" width="68" height="68" alt="VarsityHub" style="display:block;margin:0 auto 16px;" />
-              <p style="margin:0 0 10px;font-size:13px;color:#0e7490;font-weight:600;letter-spacing:1px;text-transform:uppercase;">New coach request</p>
-              <h1 style="margin:0;font-size:30px;color:#0f172a;">{{requester_name}} wants to join {{org_name}}</h1>
-              <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#475569;">Hi {{admin_name}}, a new coach has requested to join your organization. Review the details below and approve or deny the request.</p>
+              <p style="margin:0 0 10px;font-size:13px;color:#dc2626;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Request declined</p>
+              <h1 style="margin:0;font-size:30px;color:#0f172a;">Update on your coach request</h1>
+              <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#475569;">Hi {{user_name}}, your request to join <strong style="color:#0f172a;">{{org_name}}</strong> as a coach was not approved at this time.</p>
             </td>
           </tr>
 
@@ -24,53 +24,67 @@
           {{#if org_logo_url}}
           <tr>
             <td align="center" style="padding:0 28px 20px;">
-              <img src="{{org_logo_url}}" alt="{{org_name}}" width="64" height="64" style="display:block;border-radius:12px;border:1px solid #e2e8f0;" />
+              <img src="{{org_logo_url}}" alt="{{org_name}}" width="80" height="80" style="display:block;border-radius:16px;border:1px solid #e2e8f0;" />
             </td>
           </tr>
           {{/if}}
 
-          <!-- Request Details Card -->
+          <!-- Reason (conditional) -->
+          {{#if reason}}
           <tr>
             <td style="padding:0 28px 20px;">
-              <table role="presentation" width="100%" style="border-collapse:collapse;background-color:#f0f9ff;border-radius:14px;border:1px solid #bae6fd;">
+              <table role="presentation" width="100%" style="border-collapse:collapse;background-color:#fef2f2;border-radius:14px;border:1px solid #fecaca;">
                 <tr>
                   <td style="padding:20px;">
-                    <p style="margin:0 0 14px;font-size:13px;color:#0ea5e9;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Request details</p>
-                    <table role="presentation" width="100%" style="border-collapse:collapse;">
-                      <tr>
-                        <td style="padding:8px 0;font-size:14px;color:#64748b;">Coach</td>
-                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;">{{requester_name}}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">League</td>
-                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e0f2fe;">{{org_name}}</td>
-                      </tr>
-                      {{#if coach_notes}}
-                      <tr>
-                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">Notes</td>
-                        <td style="padding:8px 0;font-size:14px;color:#0f172a;text-align:right;border-top:1px solid #e0f2fe;">{{coach_notes}}</td>
-                      </tr>
-                      {{/if}}
-                    </table>
+                    <p style="margin:0 0 6px;font-size:13px;color:#dc2626;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Reason provided</p>
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#0f172a;">{{reason}}</p>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
+          {{/if}}
 
-          <!-- Action Buttons -->
+          <!-- What You Can Do -->
+          <tr>
+            <td style="padding:0 28px 24px;">
+              <div style="border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                <p style="margin:0 0 6px;font-size:13px;color:#0ea5e9;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">What you can do</p>
+                <table role="presentation" width="100%" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;">
+                      <strong style="color:#0f172a;">Re-apply later</strong>
+                      <p style="margin:6px 0 0;font-size:14px;color:#475569;">You can submit a new request after the cooldown period.</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;">
+                      <strong style="color:#0f172a;">Try another organization</strong>
+                      <p style="margin:6px 0 0;font-size:14px;color:#475569;">Search for other organizations in the VarsityHub app.</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 0;">
+                      <strong style="color:#0f172a;">Need help?</strong>
+                      <p style="margin:6px 0 0;font-size:14px;color:#475569;">Contact us at <a href="mailto:support@varsityhub.app" style="color:#0284c7;text-decoration:none;">support@varsityhub.app</a></p>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CTA -->
           <tr>
             <td style="padding:0 28px 32px;">
               <table role="presentation" width="100%" style="border-collapse:collapse;">
                 <tr>
                   <td align="center" style="padding-bottom:12px;">
-                    <a href="{{approve_url}}" style="display:inline-block;background-color:#16a34a;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:999px;font-weight:700;font-size:16px;">Approve</a>
+                    <a href="{{app_url}}" style="display:inline-block;background-color:#0284c7;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:999px;font-weight:700;font-size:16px;">Open VarsityHub</a>
                   </td>
                 </tr>
                 <tr>
-                  <td align="center" style="padding-bottom:12px;">
-                    <a href="{{deny_url}}" style="display:inline-block;background-color:#dc2626;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:999px;font-weight:700;font-size:16px;">Deny</a>
-                  </td>
+                  <td align="center" style="font-size:14px;color:#475569;">Explore other coaching opportunities.</td>
                 </tr>
               </table>
             </td>

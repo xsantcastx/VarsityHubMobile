@@ -78,6 +78,18 @@ const TEMPLATE_IDS = {
   // Billing
   PAYMENT_FAILED: process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID || '',
   SUBSCRIPTION_EXPIRING: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID || '',
+
+  // Ads
+  AD_PENDING_REVIEW: process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID || '',
+  AD_APPROVED: process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID || '',
+  AD_REJECTED: process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID || '',
+
+  // Organization approval/rejection (sent to org owner after admin action)
+  ORG_APPROVED: process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID || '',
+  ORG_DENIED: process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID || '',
+
+  // Admin confirmation (sent to admin after they approve/reject)
+  ADMIN_ACTION_CONFIRMATION: process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -194,10 +206,36 @@ export async function sendAdPendingReviewEmail(params: {
   approveToken?: string;
   rejectToken?: string;
 }): Promise<boolean> {
-  return blockUnapprovedEmail('AD_PENDING_REVIEW', {
-    to: params.to,
-    adId: params.adId,
-  });
+  const templateId = TEMPLATE_IDS.AD_PENDING_REVIEW;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID — admin will not receive ad review email');
+    return false;
+  }
+
+  const approveUrl = params.approveToken
+    ? `${API_BASE_URL}/ads/${params.adId}/approve?token=${params.approveToken}`
+    : '';
+  const rejectUrl = params.rejectToken
+    ? `${API_BASE_URL}/ads/${params.adId}/reject?token=${params.rejectToken}`
+    : '';
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Ad Pending Review: ${params.businessName || 'New Ad'}`,
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || 'Unknown Business',
+      contact_name: params.contactName || '',
+      contact_email: params.contactEmail || '',
+      zip_code: params.zipCode || '',
+      ad_id: params.adId || '',
+      banner_url: params.bannerUrl || '',
+      approve_url: approveUrl,
+      reject_url: rejectUrl,
+    },
+    `Ad pending review email sent to ${params.to} for ad ${params.adId}`
+  );
 }
 
 export async function sendAbuseReportEmail(params: {
@@ -223,10 +261,24 @@ export async function sendAdApprovedEmail(params: {
   businessName?: string;
   note?: string;
 }): Promise<boolean> {
-  return blockUnapprovedEmail('AD_APPROVED', {
-    to: params.to,
-    businessName: params.businessName,
-  });
+  const templateId = TEMPLATE_IDS.AD_APPROVED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_AD_APPROVED_TEMPLATE_ID — advertiser will not receive approval email');
+    return false;
+  }
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Your ad for "${params.businessName || 'your business'}" has been approved`,
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || 'your business',
+      admin_note: params.note || '',
+      app_url: APP_BASE_URL,
+    },
+    `Ad approved email sent to ${params.to}`
+  );
 }
 
 export async function sendAdRejectedEmail(params: {
@@ -234,10 +286,25 @@ export async function sendAdRejectedEmail(params: {
   businessName?: string;
   reason?: string;
 }): Promise<boolean> {
-  return blockUnapprovedEmail('AD_REJECTED', {
-    to: params.to,
-    businessName: params.businessName,
-  });
+  const templateId = TEMPLATE_IDS.AD_REJECTED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_AD_REJECTED_TEMPLATE_ID — advertiser will not receive rejection email');
+    return false;
+  }
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Ad update for "${params.businessName || 'your business'}"`,
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || 'your business',
+      rejection_reason: params.reason || '',
+      support_email: CUSTOMER_SERVICE_EMAIL,
+      app_url: APP_BASE_URL,
+    },
+    `Ad rejected email sent to ${params.to}`
+  );
 }
 
 // sendDormantUserDigestEmail removed — non-mandatory
@@ -779,7 +846,6 @@ export async function sendCoachApplicationAdminEmail(params: {
 
 /**
  * Notify league owner that their league has been approved by super admin.
- * Blocked by policy: no approved organization-approval template exists in the allowed catalog.
  */
 export async function sendLeagueApprovedEmail(params: {
   to: string;
@@ -787,15 +853,30 @@ export async function sendLeagueApprovedEmail(params: {
   leagueName: string;
   note?: string;
 }): Promise<boolean> {
-  return blockUnapprovedEmail('LEAGUE_APPROVED', {
-    to: params.to,
-    leagueName: params.leagueName,
-  });
+  const templateId = TEMPLATE_IDS.ORG_APPROVED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_ORG_APPROVAL_TEMPLATE_ID — org owner will not receive approval email');
+    return false;
+  }
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Your organization "${params.leagueName}" has been approved!`,
+    {
+      ...getCommonTemplateData(),
+      owner_name: params.ownerName || 'League Owner',
+      org_name: params.leagueName,
+      org_logo_url: '',
+      admin_note: params.note || '',
+      dashboard_url: `${APP_BASE_URL}/team-hub`,
+    },
+    `League approved email sent to ${params.to}`
+  );
 }
 
 /**
  * Notify league owner that their league was rejected by super admin.
- * Blocked by policy: no approved organization-denial template exists in the allowed catalog.
  */
 export async function sendLeagueRejectedEmail(params: {
   to: string;
@@ -803,10 +884,25 @@ export async function sendLeagueRejectedEmail(params: {
   leagueName: string;
   reason?: string;
 }): Promise<boolean> {
-  return blockUnapprovedEmail('LEAGUE_REJECTED', {
-    to: params.to,
-    leagueName: params.leagueName,
-  });
+  const templateId = TEMPLATE_IDS.ORG_DENIED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_ORG_DENIAL_TEMPLATE_ID — org owner will not receive rejection email');
+    return false;
+  }
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Update on your organization "${params.leagueName}"`,
+    {
+      ...getCommonTemplateData(),
+      owner_name: params.ownerName || 'League Owner',
+      org_name: params.leagueName,
+      org_logo_url: '',
+      reason: params.reason || '',
+    },
+    `League rejected email sent to ${params.to}`
+  );
 }
 
 /**
@@ -876,7 +972,7 @@ export async function sendCoachRejectedEmail(params: {
 }
 
 /**
- * Blocked by policy: no approved internal admin-confirmation template exists in the allowed catalog.
+ * Confirm to admin that their approve/reject action was processed.
  */
 export async function sendAdminActionConfirmationEmail(params: {
   to: string;
@@ -886,11 +982,28 @@ export async function sendAdminActionConfirmationEmail(params: {
   ownerEmail?: string;
   reason?: string;
 }): Promise<boolean> {
-  return blockUnapprovedEmail('ADMIN_ACTION_CONFIRMATION', {
-    to: params.to,
-    action: params.action,
-    leagueName: params.leagueName,
-  });
+  const templateId = TEMPLATE_IDS.ADMIN_ACTION_CONFIRMATION;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID — admin will not receive confirmation');
+    return false;
+  }
+
+  const actionLabel = params.action === 'league_approved' ? 'Approved' : 'Rejected';
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Admin Action: ${params.leagueName} — ${actionLabel}`,
+    {
+      ...getCommonTemplateData(),
+      action: actionLabel,
+      league_name: params.leagueName,
+      owner_name: params.ownerName || '',
+      owner_email: params.ownerEmail || '',
+      reason: params.reason || '',
+    },
+    `Admin action confirmation (${params.action}) sent to ${params.to}`
+  );
 }
 
 // Non-mandatory email functions removed:

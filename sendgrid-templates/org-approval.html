@@ -1,90 +1,130 @@
-<!-- Template: Organization Approved (ORG_APPROVAL) -->
-<!-- Template ID: (pending) -->
-<!-- Subject: Organization Approved! - {{org_name}} -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organization Approved</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organization Approved</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
-    <table role="presentation" style="width: 100%; border-collapse: collapse;">
-        <tr>
-            <td align="center" style="padding: 40px 20px;">
-                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
-                    <tr>
-                        <td align="center" style="padding-bottom: 32px;">
-                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px;" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <td align="center" style="padding-bottom: 24px;">
-                            <h1 style="margin: 0; font-size: 28px; color: #111827; font-weight: 700;">
-                                Organization Approved!
-                            </h1>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 0 20px 32px;">
-                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                Hi {{owner_name}},
-                            </p>
-                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                Great news! Your organization <strong>{{org_name}}</strong> has been approved on VarsityHub. You can now start managing your teams and inviting coaches.
-                            </p>
-
-                            {{#if org_logo_url}}
-                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-                                <tr>
-                                    <td align="center">
-                                        <img src="{{org_logo_url}}" alt="{{org_name}}" style="width: 64px; height: 64px; border-radius: 12px;" />
-                                    </td>
-                                </tr>
-                            </table>
-                            {{/if}}
-
-                            {{#if admin_note}}
-                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-                                <tr>
-                                    <td style="padding: 20px; background-color: #f3f4f6; border-radius: 12px; border: 1px solid #e5e7eb;">
-                                        <p style="margin: 0 0 4px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Admin Note</p>
-                                        <p style="margin: 0; font-size: 14px; color: #374151; line-height: 1.6;">{{admin_note}}</p>
-                                    </td>
-                                </tr>
-                            </table>
-                            {{/if}}
-
-                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-                                <tr>
-                                    <td align="center">
-                                        <a href="{{dashboard_url}}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                                            View Your Organization
-                                        </a>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
-                            <table role="presentation" style="border-collapse: collapse; margin: 0 auto 20px auto;">
-                                <tr>
-                                    <td style="padding: 0 10px;"><a href="https://www.instagram.com/varsityhubapp/"><img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" style="width: 32px; height: 32px;" /></a></td>
-                                    <td style="padding: 0 10px;"><a href="https://www.tiktok.com/@varsityhubapp"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width: 32px; height: 32px;" /></a></td>
-                                    <td style="padding: 0 10px;"><a href="https://www.facebook.com/varsityhubapp/"><img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" style="width: 32px; height: 32px;" /></a></td>
-                                    <td style="padding: 0 10px;"><a href="https://www.youtube.com/@varsityhubapp"><img src="https://cdn-icons-png.flaticon.com/512/174/174883.png" alt="YouTube" style="width: 32px; height: 32px;" /></a></td>
-                                    <td style="padding: 0 10px;"><a href="https://limeprod.com"><img src="https://cdn-icons-png.flaticon.com/512/1006/1006771.png" alt="Website" style="width: 32px; height: 32px;" /></a></td>
-                                </tr>
-                            </table>
-                            <p style="margin: 0 0 8px; font-size: 14px; text-align: center; color: #9ca3af;">&copy; 2025 LIME PRODUCTIONS</p>
-                            <p style="margin: 0; font-size: 12px; text-align: center;"><a href="https://limeprod.com/VarsityHubPrivacy" style="color: #9ca3af; text-decoration: underline;">Privacy Policy</a></p>
-                        </td>
-                    </tr>
-                </table>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#ecfeff;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background-color:#ecfeff;">
+    <tr>
+      <td align="center" style="padding:28px 16px;">
+        <table role="presentation" width="100%" style="max-width:640px;border-collapse:collapse;background-color:#ffffff;border-radius:18px;border:1px solid #cffafe;">
+          <!-- Logo + Header -->
+          <tr>
+            <td style="padding:32px 28px 12px;text-align:center;">
+              <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" width="68" height="68" alt="VarsityHub" style="display:block;margin:0 auto 16px;" />
+              <p style="margin:0 0 10px;font-size:13px;color:#16a34a;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Organization approved</p>
+              <h1 style="margin:0;font-size:30px;color:#0f172a;">Welcome to VarsityHub, {{owner_name}}!</h1>
+              <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#475569;">Your organization <strong style="color:#0f172a;">{{org_name}}</strong> has been approved. You can now start managing your teams and inviting coaches.</p>
             </td>
-        </tr>
-    </table>
+          </tr>
+
+          <!-- Org Logo (conditional) -->
+          {{#if org_logo_url}}
+          <tr>
+            <td align="center" style="padding:0 28px 20px;">
+              <img src="{{org_logo_url}}" alt="{{org_name}}" width="80" height="80" style="display:block;border-radius:16px;border:1px solid #e2e8f0;" />
+            </td>
+          </tr>
+          {{/if}}
+
+          <!-- Admin Note (conditional) -->
+          {{#if admin_note}}
+          <tr>
+            <td style="padding:0 28px 20px;">
+              <table role="presentation" width="100%" style="border-collapse:collapse;background-color:#f0fdf4;border-radius:14px;border:1px solid #bbf7d0;">
+                <tr>
+                  <td style="padding:20px;">
+                    <p style="margin:0 0 6px;font-size:13px;color:#16a34a;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Note from reviewer</p>
+                    <p style="margin:0;font-size:15px;line-height:1.6;color:#0f172a;">{{admin_note}}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {{/if}}
+
+          <!-- Getting Started -->
+          <tr>
+            <td style="padding:0 28px 24px;">
+              <div style="border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                <p style="margin:0 0 6px;font-size:13px;color:#0ea5e9;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Getting started</p>
+                <table role="presentation" width="100%" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;">
+                      <strong style="color:#0f172a;">Create your teams</strong>
+                      <p style="margin:6px 0 0;font-size:14px;color:#475569;">Add teams to your organization and set up rosters.</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;">
+                      <strong style="color:#0f172a;">Invite coaches</strong>
+                      <p style="margin:6px 0 0;font-size:14px;color:#475569;">Bring your coaching staff on board to manage teams.</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:12px 0;">
+                      <strong style="color:#0f172a;">Schedule events</strong>
+                      <p style="margin:6px 0 0;font-size:14px;color:#475569;">Create games, practices, and events for your teams.</p>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td style="padding:0 28px 32px;">
+              <table role="presentation" width="100%" style="border-collapse:collapse;">
+                <tr>
+                  <td align="center" style="padding-bottom:12px;">
+                    <a href="{{dashboard_url}}" style="display:inline-block;background-color:#0284c7;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:999px;font-weight:700;font-size:16px;">View Your Organization</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="font-size:14px;color:#475569;">Open the app to start building your teams.</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:32px 24px;text-align:center;background-color:#f9fafb;border-top:1px solid #e5e7eb;">
+              <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Follow us on social media</p>
+              <div style="text-align:center;">
+                <a href="https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://x.com/varsityhub00" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg" alt="X" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://limeprod.com" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png" alt="LimeProd.com" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+              </div>
+              <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">
+                <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Privacy Policy</a>
+                &nbsp;•&nbsp;
+                <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Community Guidelines</a>
+              </p>
+              <p style="margin:0;font-size:12px;color:#9ca3af;">© 2025 LIME PRODUCTIONS. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>

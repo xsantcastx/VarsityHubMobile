@@ -206,7 +206,7 @@ describe('API Team Endpoints', () => {
         where: { id: coachUserId },
       });
 
-      const maxTeams = (user as any)?.max_teams ?? 2;
+      const maxTeams = (user as any)?.max_teams ?? 3;
 
       // If at limit, should reject
       if (ownedTeamsCount >= maxTeams) {

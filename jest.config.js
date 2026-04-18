@@ -46,7 +46,6 @@ module.exports = {
     '/server/',
     '/tests/',
     '/__tests__/__mocks__/',
-    'GameDetailsScreen.vote.test.tsx',
     'onboarding.e2e.test.tsx',
   ],
   modulePathIgnorePatterns: [

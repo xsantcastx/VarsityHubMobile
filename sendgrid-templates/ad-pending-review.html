@@ -1,154 +1,123 @@
-<!-- Template: Ad Pending Review (AD_PENDING_REVIEW) -->
-<!-- Key: AD_PENDING_REVIEW -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Ad Submission for Review</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New Ad Submission for Review</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
-    <table role="presentation" style="width: 100%; border-collapse: collapse;">
-        <tr>
-            <td align="center" style="padding: 40px 20px;">
-                <!-- Main Container -->
-                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
-
-                    <!-- Logo -->
-                    <tr>
-                        <td align="center" style="padding-bottom: 32px;">
-                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px; display: block;" />
-                        </td>
-                    </tr>
-
-                    <!-- Header -->
-                    <tr>
-                        <td align="center" style="padding-bottom: 24px;">
-                            <h1 style="margin: 0; font-size: 24px; color: #111827; font-weight: 700;">
-                                New Ad Submission
-                            </h1>
-                        </td>
-                    </tr>
-
-                    <!-- Body Content -->
-                    <tr>
-                        <td style="padding: 0 20px 32px;">
-                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
-                                A new ad has been submitted and is awaiting your review.
-                            </p>
-
-                            <!-- Business Details -->
-                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 24px;">
-                                <tr>
-                                    <td style="padding: 20px;">
-                                        <p style="margin: 0 0 16px; font-size: 16px; color: #111827; font-weight: 700;">
-                                            Business Details
-                                        </p>
-                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Business Name:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{business_name}}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Contact Name:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{contact_name}}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Contact Email:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{contact_email}}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Zip Code:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{zip_code}}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280; border-top: 1px solid #e5e7eb;">Ad ID:</td>
-                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">{{ad_id}}</td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <!-- Banner Preview -->
-                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 24px;">
-                                <tr>
-                                    <td style="padding: 20px;">
-                                        <p style="margin: 0 0 12px; font-size: 14px; color: #6b7280; font-weight: 600;">
-                                            Banner Preview
-                                        </p>
-                                        <img src="{{banner_url}}" alt="Ad Banner" style="width: 100%; max-width: 560px; height: auto; display: block; border-radius: 6px; border: 1px solid #e5e7eb;" />
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <!-- Action Buttons -->
-                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
-                                <tr>
-                                    <td align="center" style="padding: 0 0 12px 0;">
-                                        <a href="{{approve_url}}" style="display: inline-block; padding: 14px 28px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                                            Approve Ad
-                                        </a>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td align="center" style="padding: 0;">
-                                        <a href="{{reject_url}}" style="display: inline-block; padding: 14px 28px; background-color: #dc2626; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                                            Reject Ad
-                                        </a>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-
-                    <!-- Footer -->
-                    <tr>
-                        <td align="center" style="padding: 32px 20px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
-                            <table role="presentation" style="border-collapse: collapse; margin-bottom: 16px;">
-                                <tr>
-                                    <td style="padding: 0 8px;">
-                                        <a href="https://www.instagram.com/varsityhubapp/" style="display: block;">
-                                            <img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" style="width: 32px; height: 32px; display: block;" />
-                                        </a>
-                                    </td>
-                                    <td style="padding: 0 8px;">
-                                        <a href="https://www.tiktok.com/@varsityhubapp" style="display: block;">
-                                            <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width: 32px; height: 32px; display: block;" />
-                                        </a>
-                                    </td>
-                                    <td style="padding: 0 8px;">
-                                        <a href="https://www.facebook.com/varsityhubapp/" style="display: block;">
-                                            <img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" style="width: 32px; height: 32px; display: block;" />
-                                        </a>
-                                    </td>
-                                    <td style="padding: 0 8px;">
-                                        <a href="https://www.youtube.com/@varsityhubapp" style="display: block;">
-                                            <img src="https://cdn-icons-png.flaticon.com/512/174/174883.png" alt="YouTube" style="width: 32px; height: 32px; display: block;" />
-                                        </a>
-                                    </td>
-                                    <td style="padding: 0 8px;">
-                                        <a href="https://limeprod.com" style="display: block;">
-                                            <img src="https://cdn-icons-png.flaticon.com/512/1006/1006771.png" alt="Lime Productions" style="width: 32px; height: 32px; display: block;" />
-                                        </a>
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <p style="margin: 0 0 16px; font-size: 12px; color: #6b7280; text-align: center;">
-                                <a href="https://limeprod.com/VarsityHubPrivacy" style="color: #2563eb; text-decoration: none;">Privacy Policy</a>
-                            </p>
-
-                            <p style="margin: 0; font-size: 12px; color: #6b7280;">
-                                &copy; 2025 LIME PRODUCTIONS
-                            </p>
-                        </td>
-                    </tr>
-
-                </table>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#ecfeff;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background-color:#ecfeff;">
+    <tr>
+      <td align="center" style="padding:28px 16px;">
+        <table role="presentation" width="100%" style="max-width:640px;border-collapse:collapse;background-color:#ffffff;border-radius:18px;border:1px solid #cffafe;">
+          <!-- Logo -->
+          <tr>
+            <td style="padding:32px 28px 12px;text-align:center;">
+              <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" width="68" height="68" alt="VarsityHub" style="display:block;margin:0 auto 16px;" />
+              <p style="margin:0 0 10px;font-size:13px;color:#0e7490;font-weight:600;letter-spacing:1px;text-transform:uppercase;">New ad submission</p>
+              <h1 style="margin:0;font-size:30px;color:#0f172a;">{{business_name}} submitted an ad</h1>
+              <p style="margin:12px 0 0;font-size:15px;line-height:1.7;color:#475569;">A new ad has been submitted and is awaiting your review. Check the details below and approve or reject.</p>
             </td>
-        </tr>
-    </table>
+          </tr>
+
+          <!-- Business Details Card -->
+          <tr>
+            <td style="padding:0 28px 20px;">
+              <table role="presentation" width="100%" style="border-collapse:collapse;background-color:#f0f9ff;border-radius:14px;border:1px solid #bae6fd;">
+                <tr>
+                  <td style="padding:20px;">
+                    <p style="margin:0 0 14px;font-size:13px;color:#0ea5e9;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Business details</p>
+                    <table role="presentation" width="100%" style="border-collapse:collapse;">
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#64748b;">Business Name</td>
+                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;">{{business_name}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">Contact Name</td>
+                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e0f2fe;">{{contact_name}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">Contact Email</td>
+                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e0f2fe;">{{contact_email}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">Zip Code</td>
+                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e0f2fe;">{{zip_code}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">Ad ID</td>
+                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e0f2fe;">{{ad_id}}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Banner Preview -->
+          <tr>
+            <td style="padding:0 28px 24px;">
+              <div style="border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                <p style="margin:0 0 12px;font-size:13px;color:#0ea5e9;font-weight:600;text-transform:uppercase;letter-spacing:.8px;">Banner preview</p>
+                <img src="{{banner_url}}" alt="Ad Banner" style="width:100%;border-radius:12px;" />
+              </div>
+            </td>
+          </tr>
+
+          <!-- Action Buttons -->
+          <tr>
+            <td style="padding:0 28px 32px;">
+              <table role="presentation" width="100%" style="border-collapse:collapse;">
+                <tr>
+                  <td align="center" style="padding-bottom:12px;">
+                    <a href="{{approve_url}}" style="display:inline-block;background-color:#16a34a;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:999px;font-weight:700;font-size:16px;">Approve Ad</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-bottom:12px;">
+                    <a href="{{reject_url}}" style="display:inline-block;background-color:#dc2626;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:999px;font-weight:700;font-size:16px;">Reject Ad</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:32px 24px;text-align:center;background-color:#f9fafb;border-top:1px solid #e5e7eb;">
+              <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Follow us on social media</p>
+              <div style="text-align:center;">
+                <a href="https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://x.com/varsityhub00" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg" alt="X" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://limeprod.com" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png" alt="LimeProd.com" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+              </div>
+              <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">
+                <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Privacy Policy</a>
+                &nbsp;•&nbsp;
+                <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Community Guidelines</a>
+              </p>
+              <p style="margin:0;font-size:12px;color:#9ca3af;">© 2025 LIME PRODUCTIONS. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>

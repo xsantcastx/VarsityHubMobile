@@ -6,22 +6,22 @@
     "price": "Free",
     "period": "",
     "priceId": null,
-    "max_teams": 2,
-    "max_authorized_users_per_team": 1,
+    "max_teams": 3,
+    "max_authorized_users_per_team": 6,
     "max_roster_size_per_team": 50,
     "authorized_users_org_strategy": {
       "type": "fixed",
-      "value": 1
+      "value": 6
     },
     "supports_extracurricular": false,
     "features": [
-      "Up to 2 teams, perfect for small leagues",
-      "Up to 1 staff per team",
+      "Up to 3 teams, perfect for small leagues",
+      "Up to 6 staff per team",
       "50 athletes per team roster",
       "Covers all approved coaches at no extra cost"
     ],
     "billing": {
-      "description": "Free — up to 2 teams, perfect for small leagues.",
+      "description": "Free — up to 3 teams, perfect for small leagues.",
       "cta": "Get started with your league for free."
     }
   },
@@ -30,7 +30,7 @@
     "name": "Veteran",
     "icon": "trophy",
     "price": "$0.99",
-    "period": "/ month per team over 2",
+    "period": "/ month per team over 3",
     "priceId": "price_1SVco4GJt8CsPE1EBNNlHYPB",
     "max_teams": null,
     "max_authorized_users_per_team": 5,
@@ -48,7 +48,7 @@
       "Covers all approved coaches at no extra cost"
     ],
     "billing": {
-      "description": "$0.99/month per team over 2 — for growing leagues.",
+      "description": "$0.99/month per team over 3 — for growing leagues.",
       "cta": "Scale your league with predictable monthly pricing."
     }
   },

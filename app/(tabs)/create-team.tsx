@@ -351,11 +351,11 @@ function CreateTeamScreen() {
           return;
         }
 
-        if (userPlan === 'rookie' && teamCount >= 2) {
+        if (userPlan === 'rookie' && teamCount >= 3) {
           const newTeamCount = teamCount + 1;
           Alert.alert(
             'Upgrade Required',
-            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${(newTeamCount * 0.99).toFixed(2)}/month (${newTeamCount} teams × $0.99).`,
+            `First three teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${((newTeamCount - 3) * 0.99).toFixed(2)}/month (${newTeamCount - 3} billable team${newTeamCount - 3 === 1 ? '' : 's'} × $0.99).`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               {

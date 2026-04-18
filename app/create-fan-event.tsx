@@ -364,10 +364,9 @@ function CreateFanEventScreen() {
       } else if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
         Alert.alert(
           'Event Limit Reached',
-          errorMessage || "You've reached your limit of 3 pending events. Upgrade to create more.",
+          errorMessage || "You've reached your limit of 3 pending events. Wait for one to be approved or rejected before submitting another.",
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Upgrade', onPress: () => router.push('/billing') },
+            { text: 'OK' },
           ]
         );
       } else {

@@ -1265,6 +1265,15 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
       console.warn('[orgs] failed to persist org_id into coach preferences on join-request approval:', (err as any)?.message || err);
     });
 
+  // Email the coach that they were approved (fire-and-forget)
+  if (joinRequest.user.email) {
+    sendCoachApprovedEmail({
+      to: joinRequest.user.email,
+      coachName: joinRequest.user.display_name || 'Coach',
+      leagueName: joinRequest.organization.name,
+    }).catch((err) => console.error('[orgs] Failed to send coach approved email:', (err as any)?.message));
+  }
+
   // Push notification so coach knows they were approved
   try {
     await sendPushNotification(
@@ -1370,6 +1379,16 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
   ]);
   await invalidateMeCacheForUser(joinRequest.user.id);
   
+  // Email the coach that they were denied (fire-and-forget)
+  if (joinRequest.user.email) {
+    sendCoachRejectedEmail({
+      to: joinRequest.user.email,
+      coachName: joinRequest.user.display_name || 'Coach',
+      leagueName: joinRequest.organization.name,
+      reason: reason || undefined,
+    }).catch((err) => console.error('[orgs] Failed to send coach rejected email:', (err as any)?.message));
+  }
+
   // Create in-app notification for the denied user
   try {
     await prisma.notification.create({

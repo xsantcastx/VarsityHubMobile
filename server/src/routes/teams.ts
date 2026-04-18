@@ -120,7 +120,7 @@ teamsRouter.get('/limits', requireAuth as any, asyncHandler(async (req: AuthedRe
   // Get max teams from plan definitions (source of truth)
   const maxTeamsFromPlan = getMaxTeamsForPlan(plan);
   // Use plan-based limit if available, otherwise fallback to database column, then default to 2
-  const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? 2;
+  const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? 3;
   
   // For unlimited plans (null), set to a high number for UI display
   const maxTeamsDisplay = maxTeamsFromPlan === null ? 999 : maxTeams;
@@ -1009,7 +1009,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
     });
   }
 
-  // Rookie plan: max 2 teams
+  // Rookie plan: max 3 teams
   // NOTE: This check is duplicated inside the transaction below for race condition protection
   if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
     const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
@@ -1018,14 +1018,14 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           where: { user_id: me.id, role: 'owner', status: 'active' },
         });
 
-    if (ownedTeamsCount >= 2) {
+    if (ownedTeamsCount >= 3) {
       return res.status(403).json({
         error: 'Team limit reached',
         message: me.paid_by_owner
-          ? "Your organization has reached the free limit (2 teams). The league owner needs to upgrade."
-          : "You've reached your free limit (2 teams). Upgrade to add more.",
+          ? "Your organization has reached the free limit (3 teams). The league owner needs to upgrade."
+          : "You've reached your free limit (3 teams). Upgrade to add more.",
         code: 'TEAM_LIMIT_EXCEEDED',
-        limit: 2,
+        limit: 3,
         current: ownedTeamsCount,
       });
     }
@@ -1217,8 +1217,8 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       });
 
       if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
-        if (ownedTeamsInTx >= 2) {
-          throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 2 teams');
+        if (ownedTeamsInTx >= 3) {
+          throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 3 teams');
         }
       } else if (userPlan === 'veteran') {
         // Re-verify Stripe quantity inside transaction to prevent race condition
@@ -1348,9 +1348,9 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
     if (teamError?.message?.includes('TEAM_LIMIT_EXCEEDED')) {
       return res.status(403).json({
         error: 'Team limit reached',
-        message: "You've reached your free limit (2 teams). Upgrade to add more.",
+        message: "You've reached your free limit (3 teams). Upgrade to add more.",
         code: 'TEAM_LIMIT_EXCEEDED',
-        limit: 2
+        limit: 3
       });
     }
 
