@@ -17,6 +17,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
 import { getConfig } from '@/config/env';
+import { calculateSalesTax, getTaxInfo } from '@/shared/salesTaxEstimate';
 
 const weekdayRate = 4.99;   // Per week (Mon-Thu slot)
 const weekendRate = 7.99;   // Per week (Fri-Sun slot)
@@ -255,13 +256,26 @@ function AdCalendarScreen() {
   };
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
+  const zipDigits = useMemo(() => zipCode.replace(/\D/g, '').slice(0, 5), [zipCode]);
+
   const taxCents = useMemo(() => {
     // Client-side estimate only — server calculates exact amount at checkout
     if (!price || price <= 0) return 0;
-    // Display "estimated tax" without committing to a specific rate.
-    // Actual tax is calculated server-side based on jurisdiction.
-    return Math.round(price * 100 * 0.07);
-  }, [price]);
+    const subtotalCents = Math.round(price * 100);
+    if (zipDigits.length === 5) {
+      return calculateSalesTax(subtotalCents, zipDigits);
+    }
+    // No target ZIP yet — rough US average for display only (checkout uses ad ZIP)
+    return Math.round(subtotalCents * 0.065);
+  }, [price, zipDigits]);
+
+  const taxPercentLabel = useMemo(() => {
+    if (zipDigits.length === 5) {
+      const { ratePercent } = getTaxInfo(zipDigits);
+      return ratePercent;
+    }
+    return '~6.5%';
+  }, [zipDigits]);
   const _priceWithTax = useMemo(() => price + (taxCents / 100), [price, taxCents]);
   const effectiveCents = useMemo(() => {
     const subtotalCents = Math.round(price * 100);
@@ -999,7 +1013,7 @@ function AdCalendarScreen() {
                   <View style={styles.fullPriceNotice}>
                     <MaterialIcons name="info-outline" size={16} color="#92400E" />
                     <Text style={styles.fullPriceNoticeText}>
-                      Full price is charged regardless of when your ad goes live during a booked day.
+                      Full day rate applies for any go-live time that day.
                     </Text>
                   </View>
                 )}
@@ -1015,7 +1029,9 @@ function AdCalendarScreen() {
           </View>
           {taxCents > 0 && (
             <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Est. Tax*:</Text>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>
+                Est. state tax ({taxPercentLabel})*:
+              </Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           )}

@@ -1,6 +1,6 @@
 # VarsityHub Audit Execution Guide
 
-This guide explains how to run an audit against [AUDIT_STANDARD.md](./AUDIT_STANDARD.md), how to document findings, and how to verify fixes without turning routine audits into documentation-heavy theater.
+This guide explains how to run an audit against [AUDIT_STANDARD.md](./AUDIT_STANDARD.md), how to document findings, and how to verify fixes without turning routine audits into documentation-heavy theater. For a **short, testable checklist** (slides or PR self-review), use [AUDIT_COMMANDMENTS.md](./AUDIT_COMMANDMENTS.md) when present.
 
 ## When To Run Which Audit
 

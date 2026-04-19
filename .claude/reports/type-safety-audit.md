@@ -1,157 +1,152 @@
 # Type Safety Audit - VarsityHub Mobile
-Generated: 2026-04-01
-
-## 1. any-Typed API Calls
-
-### High-signal instances (fixable with real types)
-
-| File | Lines | Pattern | Notes |
-|------|-------|---------|-------|
-| api/games.ts | 34, 56 | create/update: (data: any) | Server createGameSchema has known required fields |
-| api/events.ts | 23, 42 | create/update: (data: any) | Server createEventSchema/updateEventSchema have full shape |
-| api/posts.ts | 28, 98 | create/createCollage: (data: any) | Server createPostSchema shape is known |
-| api/user.ts | 11-14 | updateMe/patchMe/updatePreferences/completeOnboarding: (data: any) | All hit strict Zod schemas |
-| api/misc.ts | 21, 25 | Advertisement.create/update: (data: any) | Server adCreateSchema has required fields |
-| api/organizations.ts | 33 | createWithTeams: (data: any) | No type guard at all |
-
-### Lower-signal / acceptable any usages
-- api/http.ts: HTTP plumbing, unavoidable
-- api/upload.ts: XHR/FormData interop with native modules
-- api/codex.ts: response shape varies per model, intentional
-- catch (e: any) with || fallback: acceptable pattern throughout
-- api/entities.ts normalizePostItems/normalizePostPage: normalizers for uncertain shapes
+Date: 2026-04-10
+Scope: api/*.ts, create flows, catch blocks, useLocalSearchParams
 
 ---
 
-## 2. Client-Server Field Mismatches
+## Status vs Previous Audit (2026-04-06)
 
-### POST /teams/create
-api/teams.ts -> POST /teams/create -> createTeamSchema
-
-Client sends but server does not expect: None. Extra fields stripped by Zod.
-
-Server accepts but client never exposes (all optional, non-breaking):
-club_type, extracurricular_category, primary_color, city, state, league,
-venue_place_id, venue_lat, venue_lng, venue_address
-
-The client create() type in api/teams.ts:24-36 does not include these, so screens
-cannot pass them via the typed helper even though the server accepts them.
+Confirmed fixed since last run:
+- CreateEventPayload.location is now required (matches server)
+- CreateAdPayload required fields now correctly required in client type
+- CreatePostPayload now includes event_id?
+- following.tsx and followers.tsx now declare id? (optional)
 
 ---
 
-### POST /games (Risk: Medium)
-api/games.ts:34 -> POST /games -> createGameSchema (server games.ts:347)
+## 1. any-typed API calls in api/*.ts
 
-Game.create typed (data: any). Server REQUIRES:
-  location: z.string().trim().min(1, 'Location is required')
+Still outstanding (unchanged from last audit):
 
-All current callers in manage-season.tsx pass location but no compile-time
-enforcement prevents a future caller from silently omitting it.
+| File | Line | Pattern | Suggested fix |
+|------|------|---------|---------------|
+| api/games.ts | 34 | create: (data: any) | Use CreateGamePayload |
+| api/games.ts | 56 | update: (id, data: any) | Use Partial<CreateGamePayload> |
+| api/auth.ts | 172-173 | (res as any)?.access_token | Add AuthResponse interface |
+| api/entities.ts | 317 | Message.filter(_where: any) | Narrow to { conversation_id? } |
+| api/entities.ts | 369 | createWithTeams(data: any) | Add inline type |
+| api/entities.ts | 484 | available_plans: any[] | Add PlanConfig interface |
+| api/geocoding.ts | 64 | const res: any | Inline prediction array type |
 
----
-
-### POST /events (Risk: Medium)
-api/events.ts:23 -> POST /events -> createEventSchema (server events.ts:483)
-
-Event.create typed (data: any). Server REQUIRES:
-  title: z.string().trim().min(1).max(200)
-  date: z.string().refine(...) -- must parse as valid date
-  location: z.string().trim().min(1, 'Location is required')
-
-No compile-time guarantee that callers pass all three required fields.
+Acceptable (unchanged): api/http.ts body, api/upload.ts FormData/XHR, normalizePost* helpers.
 
 ---
 
-### POST /posts (Risk: Low)
-api/posts.ts:28 -> POST /posts -> createPostSchema (server posts.ts:513)
+## 2. Client-Server field mismatches
 
-Post.create typed (data: any). Server requires at least one of content or
-media_url via .refine(). Omitting both yields HTTP 400 with content path error.
-Post creation UI always passes one; no compile-time guarantee.
+### POST /teams/create - Team.create() vs createTeamSchema
 
----
+NEW FINDING: Incomplete client type
 
-### PUT /auth/me (Risk: Medium)
-api/user.ts:11 -> PUT /auth/me -> updateMeSchema (server auth.ts:941)
+Team.create() in api/entities.ts:414 declares:
+  name, description?, sport?, season?, season_start?, season_end?,
+  organization_id?, organization_name?, logo_url?, authorized_users?
 
-User.updateMe typed (data: any). Server strict validations silently return 400:
-  username: regex /^[a-z0-9_.]+$/ -- uppercase or spaces fail
-  grade_level: enum [Freshman, Sophomore, Junior, Senior]
-  dm_policy: enum [everyone, following, no_one]
-  comment_permission: enum [everyone, following, none]
-  graduation_year: z.number().int().min(2020).max(2040)
-  header_image_focus_y: z.number().min(-1).max(1)
+create-team.tsx:517-528 also sends: club_type, extracurricular_category, primary_color.
 
-No client-side type guards enforce these constraints before the API call.
+All three accepted by createTeamSchema on the server but absent from the TS type.
+Works at runtime (payload built as Record<string, any>) but TypeScript cannot catch
+typos in these field names.
 
----
+Action: Add club_type?, extracurricular_category?, primary_color? to Team.create() params.
 
-### POST /ads (Risk: Medium -- CONCRETE BUG)
-api/misc.ts:21 -> POST /ads -> adCreateSchema (server ads.ts:20)
-
-Advertisement.create typed (data: any). Server REQUIRED: contact_name,
-contact_email, business_name, target_url, target_zip_code.
-
-Bug in app/submit-ad.web.tsx:107:
-  target_url: normalizeUrl(targetUrl) || undefined
-
-If normalizeUrl() returns falsy, target_url is sent as undefined. Since target_url
-is REQUIRED in adCreateSchema (not .optional()), server returns HTTP 400.
-UI should block submission if target_url resolves to empty.
-
-Pre-existing known issue (CLAUDE.md): target_lat/target_lng in server ads.ts are
-not in Zod schema -- dead fields, already documented.
+Server also accepts city, state, league, venue_place_id, venue_lat/lng/address, onboarding
+which the client never sends. No required-field gap.
 
 ---
 
-## 3. Missing Error Types in Catch Blocks
+### POST /games - CreateGamePayload vs server schema
 
-### Unsafe -- error.message used directly, no fallback
+CARRIES OVER: Missing optional fields
 
-| File | Line | Context |
-|------|------|---------|
-| app/settings/manage-subscription.tsx | 153 | Alert.alert('Payment Failed', error.message) -- IAP/Stripe PurchaseError, .message may be undefined |
-| app/subscription-paywall.tsx | 184 | Same IAP/Stripe pattern |
-| app/ad-calendar.tsx | 585 | Same Stripe PaymentSheet pattern |
+CreateGamePayload (api/types.ts:70) is missing server-accepted fields:
 
-All three are in IAP/Stripe SDK callbacks where error is a SDK-specific object,
-not necessarily an Error instance. .message may be undefined, causing alert to
-show "undefined" to the user.
+| Field | Server type | Impact |
+|-------|-------------|--------|
+| watch_location_lat | z.number().optional | Watch party GPS silently unsendable |
+| watch_location_lng | z.number().optional | Watch party GPS silently unsendable |
+| watch_location_place_id | z.string().optional | Watch party place ID silently unsendable |
+| latitude | z.number().optional | Event coordinates silently unsendable |
+| longitude | z.number().optional | Event coordinates silently unsendable |
+| autoGeocode | z.boolean().optional | Server geocode trigger silently unsendable |
 
-Fix:
-  Alert.alert('Payment Failed', error instanceof Error ? error.message : 'Payment failed');
-
-### Acceptable (have || fallback -- not bugs)
-- app/post-detail.tsx lines 576, 600, 621, 643: error.message || 'Failed to...'
-- app/message-thread.tsx line 436: error.message || 'Failed to block user'
+Action: Add missing optional fields to CreateGamePayload in api/types.ts.
 
 ---
 
-## 4. Unsafe useLocalSearchParams() Access
+### POST /posts - create-post.tsx payload vs createPostSchema
 
-### Params declared required but actually optional at runtime
+NEW FINDING: Client sends field server silently drops
 
-| File | Line | Declared type | Runtime guard? |
-|------|------|---------------|----------------|
-| app/(tabs)/following.tsx | 20 | { id: string } | Yes -- if (!id) return at line 28 |
-| app/(tabs)/followers.tsx | 20 | { id: string } | Yes -- if (!id) return at line 28 |
-| app/game-details/GameDetailsScreen.tsx | 435 | { id: string; eventId?: string } | Yes -- null check at line 1475 |
-| app/organization-join-requests.tsx | 44 | { organization_id: string } | Yes -- if (!params.organization_id) at line 56 |
+app/(tabs)/create-post.tsx:684 sends preview_url: finalThumbnailUrl.
 
-No active runtime bugs -- all four have guards. But TypeScript types claim non-optional
-when useLocalSearchParams can return undefined. Should be typed as id?: string to
-match what the hook actually returns.
+Server createPostSchema does NOT include preview_url. Zod strips unknown fields,
+so the value is silently dropped. Server auto-derives preview_url from media_url via
+getVideoPreviewUrl() on read (posts.ts:337,452,789,1024).
 
-All other useLocalSearchParams calls are correctly typed as optional or checked before use.
+Risk: If a video thumbnail URL differs from what getVideoPreviewUrl() generates, the
+client-supplied value is permanently lost. No current functional impact, but misleading.
+
+Note: CreatePostPayload type correctly excludes preview_url (consistent with server schema)
+but the actual UI payload sends it via Record<string, any> so no TypeScript error surfaces.
+
+Action: Either add preview_url to createPostSchema and store it, OR remove it from the
+create-post payload and rely on server derivation.
 
 ---
 
-## Summary
+### PUT /users/me - UpdateMePayload vs updateMeSchema
 
-| Category | Severity | Count | Recommended Action |
-|----------|----------|-------|--------------------|
-| any-typed create/update API functions | Medium | 6 files | Add typed interfaces matching server Zod schemas |
-| Required server fields not enforced at client | Medium | 4 flows | Add typed wrappers with required fields |
-| target_url can be undefined on required ads field | Medium | 1 screen | Block submit if URL empty in submit-ad.web.tsx |
-| error.message on untyped IAP/Stripe errors | Low-Medium | 3 screens | Add instanceof Error guard with fallback |
-| useLocalSearchParams type-lies (runtime-safe) | Low | 4 screens | Change id: string to id?: string |
+No mismatches. display_name?, username?, avatar_url?, bio? match on both sides.
+
+### POST /ads - CreateAdPayload vs adCreateSchema
+
+No mismatches. Required/optional fields align on both sides.
+
+---
+
+## 3. Missing error types in catch blocks
+
+No unsafe patterns found (consistent with previous audit).
+
+catch (error) blocks that only log or show static messages: safe.
+manage-season.tsx:211,978 explicitly use instanceof Error before .message - correct.
+(tabs)/manage-teams.tsx:255 uses error instanceof Error ternary - correct.
+
+Stripe patterns (manage-subscription.tsx:151, create-team.tsx:395, ad-calendar.tsx:583,
+subscription-paywall.tsx:182): error is StripeError from presentPaymentSheet().
+.code and .message access matches Stripe SDK shape - not runtime-unsafe.
+
+All other error.message accesses use catch (error: any) - explicitly typed, safe.
+
+---
+
+## 4. Unsafe useLocalSearchParams access
+
+No unsafe patterns found. All previously flagged issues resolved.
+
+| File | Param | Guard |
+|------|-------|-------|
+| game-photos.tsx | game_id | if (!game_id) return |
+| game-highlights.tsx | game_id | if (!game_id) return |
+| admin-user-detail.tsx | id | if (!isAdmin or !id) return |
+| edit-ad.tsx | id | canSave = !!id |
+| manage-season.tsx | teamId | guarded before API call |
+| post-detail.tsx | id, postIds | nullish coalesce + fallback |
+| reset-password.tsx | email, code | typeof guard on init |
+| following.tsx | id? | if (!id) return (fixed since last audit) |
+| followers.tsx | id? | if (!id) return (fixed since last audit) |
+
+---
+
+## Summary by priority
+
+| Priority | Finding | Location |
+|----------|---------|----------|
+| Medium | create-post.tsx sends preview_url server silently drops | app/(tabs)/create-post.tsx:684 |
+| Medium | Team.create() type missing club_type/extracurricular_category/primary_color | api/entities.ts:414 |
+| Medium | CreateGamePayload missing 6 optional server fields | api/types.ts:70 |
+| Low | api/games.ts create/update still typed data: any | api/games.ts:34,56 |
+| Low | api/auth.ts (res as any) on register response | api/auth.ts:172 |
+| Low | api/entities.ts Message.filter/createWithTeams/available_plans: any | api/entities.ts |
+| Resolved | All 4 high-priority issues from 2026-04-06 audit fixed | - |

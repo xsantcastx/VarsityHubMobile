@@ -162,8 +162,6 @@ const FeedCard = memo(
     insets,
     colorScheme,
     meInfo,
-    isMuted,
-    onToggleMute,
   }: {
     post: FeedPost;
     isActive: boolean;
@@ -180,8 +178,6 @@ const FeedCard = memo(
     insets: { top: number; bottom: number };
     colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
-    isMuted: boolean;
-    onToggleMute: () => void;
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
@@ -255,7 +251,7 @@ const FeedCard = memo(
     const player = useVideoPlayer(videoSource, p => {
       p.loop = true;
       p.volume = 1.0;
-      p.muted = isMuted;
+      p.muted = false;
       if (isActive && post.media_type === 'video') {
         try {
           p.play();
@@ -288,13 +284,6 @@ const FeedCard = memo(
         setVideoError(error?.message || 'Video unavailable');
       }
     });
-
-    // Sync mute state when user toggles
-    useEffect(() => {
-      try {
-        player.muted = isMuted;
-      } catch {}
-    }, [isMuted, player]);
 
     useEffect(() => {
       registerVideo(post.id, player);
@@ -425,7 +414,7 @@ const FeedCard = memo(
                 </View>
                 <ExpandableText
                   text={post.caption || 'No content'}
-                  maxLines={6}
+                  maxLines={4}
                   style={styles.textOnlyCaption}
                   expandStyle={styles.textOnlyCaptionToggle}
                 />
@@ -680,7 +669,6 @@ function GameVerticalFeedScreen({
     display_name?: string | null;
     username?: string | null;
   } | null>(null);
-  const [isMuted] = useState(true); // videos always muted v1.0.2
   const headerTitle = title || game?.title || 'Game';
 
   // Store VideoPlayer instances by post id
@@ -1236,8 +1224,6 @@ function GameVerticalFeedScreen({
     [handleToggleUpvote]
   );
 
-  const handleToggleMute = useCallback(() => {}, []); // mute toggle disabled v1.0.2
-
   const renderItem = useCallback(
     ({ item, index }: { item: FeedPost; index: number }) => (
       <FeedCard
@@ -1257,8 +1243,6 @@ function GameVerticalFeedScreen({
         insets={{ top: insets.top, bottom: insets.bottom }}
         colorScheme={colorScheme}
         meInfo={meInfo}
-        isMuted={isMuted}
-        onToggleMute={handleToggleMute}
       />
     ),
     [
@@ -1277,8 +1261,6 @@ function GameVerticalFeedScreen({
       registerVideo,
       colorScheme,
       meInfo,
-      isMuted,
-      handleToggleMute,
     ]
   );
 

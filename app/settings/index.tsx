@@ -598,33 +598,39 @@ export default function SettingsScreen() {
                         Alert.alert('Upgrade to Coach Account', 'Your account will be upgraded to a coach account. You\'ll complete the coach setup steps next.', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Continue', onPress: async () => {
+                            const routeCoachOnboarding = async () => {
+                              try {
+                                const fresh = (await User.me().catch(() => null)) as any;
+                                const prefs = fresh?.preferences || {};
+                                const hasUsername = !!(fresh?.username && String(fresh.username).trim());
+                                const dob = prefs.dob || prefs.date_of_birth || fresh?.dob;
+                                const zip = prefs.zip_code || prefs.zip || fresh?.zip_code;
+                                const hasDob = !!dob && String(dob).trim().length > 0;
+                                const hasZip = !!zip && String(zip).trim().length > 0;
+                                if (hasUsername && hasDob && hasZip) {
+                                  router.push('/onboarding/step-3-league');
+                                } else {
+                                  router.push('/onboarding/step-2-basic');
+                                }
+                              } catch {
+                                router.push('/onboarding/step-2-basic');
+                              }
+                            };
                             try {
                               await User.upgradeToCoach('rookie');
-                              // v1.0.2 audit fix: route to step-2-basic so user is walked through
-                              // ALL coach-required fields (background photo, bio) before step-3.
-                              // Previously we skipped straight to step-3-league, leaving profile data gaps.
                               setRole('coach');
                               if (setOB) {
                                 setOB((prev) => ({ ...prev, role: 'coach', plan: 'rookie', step_2_visited: false, step_3_visited: false, step_4_visited: false }));
                               }
                               await markOnboardingIncompleteLocally();
-                              // Skip step-2 if user already has bio & avatar filled
-                              const fresh = await User.me().catch(() => null);
-                              const hasBio = !!fresh?.bio?.trim();
-                              const hasAvatar = !!fresh?.avatar_url?.trim();
-                              if (hasBio && hasAvatar) {
-                                router.push('/onboarding/step-3-league');
-                              } else {
-                                router.push('/onboarding/step-2-basic');
-                              }
-                              // Fire-and-forget — routing is already done
-                              checkAuth().catch(() => {});
+                              await checkAuth().catch(() => {});
+                              await routeCoachOnboarding();
                             } catch (e: any) {
                               const msg = e?.data?.error || e?.message || '';
-                              // If already a coach, update local state and redirect to onboarding
                               if (msg.toLowerCase().includes('already a coach')) {
                                 setRole('coach');
-                                router.push('/onboarding/step-3-league');
+                                await checkAuth().catch(() => {});
+                                await routeCoachOnboarding();
                                 return;
                               }
                               Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');

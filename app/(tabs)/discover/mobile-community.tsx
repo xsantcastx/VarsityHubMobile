@@ -1299,12 +1299,12 @@ function CommunityDiscoverScreen() {
           {/* Full Map View */}
           {(() => {
             // Filter to upcoming games with coordinates only
-            const now = new Date();
+            const nowMs = Date.now();
             const allGamesWithCoords = games.filter(g => {
               if (typeof g.latitude !== 'number' || typeof g.longitude !== 'number') return false;
               if (!g.date) return true; // keep undated games
               const d = new Date(g.date);
-              return !isNaN(d.getTime()) && d >= now;
+              return !isNaN(d.getTime()) && d.getTime() >= nowMs;
             });
             
             return (
@@ -1319,7 +1319,7 @@ function CommunityDiscoverScreen() {
                   type: 'game',
                 }))}
                 onEventPress={(eventId) => {
-                  router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: eventId } });
+                  router.push({ pathname: '/game/[id]', params: { id: eventId } });
                 }}
                 showUserLocation={true}
               />

@@ -687,7 +687,12 @@ authRouter.post(
       return res.json({
         access_token,
         refresh_token: rawRefresh,
-        user: { ...sanitized, is_admin: isOAuthAdmin, ...(isOAuthAdmin ? { role: 'admin' } : {}) },
+        user: {
+          ...sanitized,
+          email_verified: true,
+          is_admin: isOAuthAdmin,
+          ...(isOAuthAdmin ? { role: 'admin' } : {}),
+        },
         needs_onboarding: needsOnboarding,
         created,
       });
@@ -884,10 +889,16 @@ authRouter.post(
         },
       });
 
+      const isAppleOAuthAdmin = isAdminEmail(sanitized.email);
       return res.json({
         access_token,
         refresh_token: appleRawRefresh,
-        user: sanitized,
+        user: {
+          ...sanitized,
+          email_verified: true,
+          is_admin: isAppleOAuthAdmin,
+          ...(isAppleOAuthAdmin ? { role: 'admin' } : {}),
+        },
         needs_onboarding: needsOnboarding,
         created,
       });

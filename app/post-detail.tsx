@@ -1007,7 +1007,7 @@ export default function PostDetailScreen() {
             </Text>
           )}
 
-          {/* Content */}
+          {/* Content — read-only on post detail (edit removed per product policy) */}
           {postData.content ? (
             <ExpandableText
               text={postData.content}

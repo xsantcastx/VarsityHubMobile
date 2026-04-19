@@ -22,6 +22,8 @@ interface LocationPickerProps {
   }) => void;
   placeholder?: string;
   error?: string;
+  /** When set (e.g. user zip from onboarding), biases Google Places autocomplete toward that area */
+  zipBias?: string;
 }
 
 export default function LocationPicker({
@@ -29,6 +31,7 @@ export default function LocationPicker({
   onLocationSelect,
   placeholder = 'Enter location',
   error,
+  zipBias,
 }: LocationPickerProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
@@ -64,7 +67,8 @@ export default function LocationPicker({
     setQuerying(true);
     timerRef.current = setTimeout(async () => {
       try {
-        const results = await autocompleteLocations(text, 6);
+        const zip = zipBias?.replace(/\D/g, '').slice(0, 5);
+        const results = await autocompleteLocations(text, 6, zip?.length === 5 ? zip : undefined);
         setSuggestions(results);
       } catch (err) {
         if (__DEV__) console.warn('[LocationPicker] Autocomplete failed:', err);
@@ -73,7 +77,7 @@ export default function LocationPicker({
         setQuerying(false);
       }
     }, 300);
-  }, []);
+  }, [zipBias]);
 
   const handleChangeText = useCallback(
     (text: string) => {
