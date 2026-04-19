@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { isAdminEmail, ADMIN_EMAILS } from '../lib/adminEmails.js';
@@ -9,7 +10,7 @@ export const rsvpsRouter = Router();
 
 // GET /rsvps?user_id=...&limit=...
 // Requires auth. Non-admins can only query their own RSVPs.
-rsvpsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+rsvpsRouter.get('/', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const limit = Math.max(1, Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 200));
 
   // Determine if caller is admin
@@ -38,4 +39,3 @@ rsvpsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest,
   }));
   return res.json(list);
 }));
-

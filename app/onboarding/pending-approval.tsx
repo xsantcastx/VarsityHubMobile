@@ -141,8 +141,8 @@ function PendingApproval() {
   useEffect(() => {
     // Initial check
     void checkApproval();
-    // Poll every 30 seconds — approvals are admin actions that take minutes at minimum
-    intervalRef.current = setInterval(() => void checkApproval(), 30000);
+    // Poll every 60 seconds — approvals are admin actions that take minutes at minimum
+    intervalRef.current = setInterval(() => void checkApproval(), 60000);
     // Stop polling after 30 minutes — admin has been notified, user should continue as fan
     timeoutRef.current = setTimeout(() => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }

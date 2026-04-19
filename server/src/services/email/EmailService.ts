@@ -19,7 +19,8 @@ import type {
 } from './types.js';
 import { EmailErrorCode } from './types.js';
 import { SendGridProvider } from './providers/SendGridProvider.js';
-import { debugLog } from '../../lib/debugLog.js';
+// debugLog import removed — info-level email logs now use console.log
+// so they're visible in Railway production logs (not gated by ENABLE_SERVER_DEBUG_LOGS)
 
 export class EmailService {
   private provider: EmailProvider;
@@ -305,7 +306,7 @@ export class EmailService {
 
     switch (level) {
       case 'info':
-        debugLog(`[EmailService] ${message}`, logData);
+        console.log(`[EmailService] ${message}`, JSON.stringify(logData));
         break;
       case 'warn':
         console.warn(`[EmailService] ${message}`, logData);

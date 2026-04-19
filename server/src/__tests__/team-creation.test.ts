@@ -15,8 +15,18 @@ const TEST_PASSWORD = 'TestPassword123!';
 describe('Team Creation with Role Validation', () => {
   let coachUserId: string;
   let fanUserId: string;
+  let organizationId: string;
 
   beforeAll(async () => {
+    // Create organization (required FK for teams)
+    const org = await prisma.organization.create({
+      data: {
+        name: `Test Org ${Date.now()}`,
+        admin_approved: true,
+      },
+    });
+    organizationId = org.id;
+
     // Create coach user
     const coachPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
     const coach = await prisma.user.create({
@@ -71,6 +81,11 @@ describe('Team Creation with Role Validation', () => {
           },
         },
       });
+
+      // Clean up organization
+      if (organizationId) {
+        await prisma.organization.delete({ where: { id: organizationId } }).catch(() => {});
+      }
     } catch (error) {
       console.warn('Cleanup error (non-critical):', error);
     }
@@ -82,6 +97,7 @@ describe('Team Creation with Role Validation', () => {
         data: {
           name: 'Test Team',
           description: 'A test team',
+          organization_id: organizationId,
           memberships: {
             create: {
               user_id: coachUserId,
@@ -161,6 +177,7 @@ describe('Team Creation with Role Validation', () => {
           data: {
             name: '', // Empty name should fail
             description: 'Test',
+            organization_id: organizationId,
             memberships: {
               create: {
                 user_id: coachUserId,

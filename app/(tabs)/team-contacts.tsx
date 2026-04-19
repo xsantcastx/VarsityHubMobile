@@ -18,6 +18,13 @@ import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
+// Pre-generated waveform bar heights — avoids Array allocation + Math.random() on every render
+const VOICE_WAVE_HEIGHTS = Array.from({ length: 20 }, (_, i) => {
+  // Deterministic pseudo-random using a simple hash so heights are stable across renders
+  const h = ((i * 7 + 3) * 13) % 20 + 8;
+  return h;
+});
+
 // Temporary Audio stub for expo-av migration
 const Audio = {
   requestPermissionsAsync: () => Promise.resolve({ status: 'denied' }),
@@ -1273,16 +1280,16 @@ export default function TeamChatScreen() {
                     backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.5)' : Colors[colorScheme].tint + '80'
                   }]} />
                   <View style={styles.voiceWaves}>
-                    {[...Array(20)].map((_, i) => (
-                      <View 
-                        key={i} 
+                    {VOICE_WAVE_HEIGHTS.map((h, i) => (
+                      <View
+                        key={i}
                         style={[
-                          styles.voiceWave, 
-                          { 
-                            height: Math.random() * 20 + 8,
+                          styles.voiceWave,
+                          {
+                            height: h,
                             backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.3)' : Colors[colorScheme].mutedText + '60'
                           }
-                        ]} 
+                        ]}
                       />
                     ))}
                   </View>

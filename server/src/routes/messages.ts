@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { messageLimiter } from '../middleware/rateLimiters.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -47,6 +48,7 @@ async function resolveWithToUserId(withParam?: string) {
 messagesRouter.get(
   '/unread-count',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
     const count = await prisma.message.count({
@@ -59,6 +61,7 @@ messagesRouter.get(
 messagesRouter.get(
   '/',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
     const orderBy = parseSort((req.query as any).sort);
@@ -145,6 +148,7 @@ const sendSchema = z.object({
 messagesRouter.post(
   '/',
   requireAuth as any,
+  requireVerified as any,
   messageLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
@@ -350,6 +354,7 @@ messagesRouter.post(
 messagesRouter.post(
   '/mark-read',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
 

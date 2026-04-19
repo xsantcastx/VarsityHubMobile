@@ -41,6 +41,7 @@ const uploadAvatar = uploadFile.uploadFile;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+const SKELETON_8 = Array.from({ length: 8 });
 const HEADER_IMAGE_DRAG_LIMIT = 120;
 const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -1050,13 +1051,13 @@ export default function ProfileScreen() {
     return item?.post || item?.target?.post || item?.target || item;
   }, []);
 
-  const SkeletonList = ({ count = 8 }: { count?: number }) => (
+  const SkeletonList = useCallback(({ count = 8 }: { count?: number }) => (
     <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-      {Array.from({ length: count }).map((_, i) => (
+      {SKELETON_8.slice(0, count).map((_, i) => (
         <View key={i} style={{ height: 100, backgroundColor: theme.surface || '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
       ))}
     </View>
-  );
+  ), [theme.surface]);
 
   // Only show loading skeleton on initial load when we have no data
   if (loading && !me && !hasLoadedOnce.current) {

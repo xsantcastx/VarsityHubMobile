@@ -102,6 +102,14 @@ export default function Step2Basic() {
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
+  // Prerequisite guard: step-1 must be completed (role selected) before step-2
+  useEffect(() => {
+    if (!ob.role) {
+      if (__DEV__) console.warn('[step-2-basic] No role set — redirecting to step-1');
+      router.replace('/onboarding/step-1-role');
+    }
+  }, [ob.role, router]);
+
   // Check email verification status when screen focuses
   useFocusEffect(
     useCallback(() => {

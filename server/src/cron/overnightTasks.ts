@@ -14,7 +14,7 @@ export function startOvernightMonitoring() {
     debugLog('[overnight] Running queue health check...');
 
     if (!emailQueue) {
-      debugLog('[overnight] Email queue not initialized, skipping health check');
+      console.warn('[overnight] Email queue not initialized, skipping health check');
       return;
     }
 
@@ -26,7 +26,7 @@ export function startOvernightMonitoring() {
         emailQueue.getFailedCount(),
       ]);
 
-      debugLog('[overnight] Queue status:', { waiting, active, completed, failed });
+      console.log('[overnight] Queue status:', { waiting, active, completed, failed });
 
       // Alert if too many failures (lowered threshold: >5 to catch problems early)
       if (failed > 5) {
@@ -58,14 +58,14 @@ export function startOvernightMonitoring() {
         console.warn(`[overnight] ${stuckJobs.length} jobs stuck in delayed state`);
       }
 
-      debugLog('[overnight] Health check complete');
+      console.log('[overnight] Health check complete');
     } catch (error) {
       console.error('[overnight] Health check failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'overnight_health_check' } });
     }
   });
 
-  debugLog('Overnight monitoring started (runs every 4 hours)');
+  console.log('Overnight monitoring started (runs every 4 hours)');
 }
 
 /**
@@ -78,7 +78,7 @@ export function startQueueCleanup() {
     debugLog('[cleanup] Starting queue cleanup...');
 
     if (!emailQueue) {
-      debugLog('[cleanup] Email queue not initialized, skipping cleanup');
+      console.warn('[cleanup] Email queue not initialized, skipping cleanup');
       return;
     }
 
@@ -92,7 +92,7 @@ export function startQueueCleanup() {
         emailQueue.clean(thirtyDays, 1000, 'failed'),
       ]);
 
-      debugLog(`[cleanup] Removed ${removedCompleted.length} completed jobs, ${removedFailed.length} failed jobs`);
+      console.log(`[cleanup] Removed ${removedCompleted.length} completed jobs, ${removedFailed.length} failed jobs`);
     } catch (error) {
       console.error('[cleanup] Cleanup failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'queue_cleanup' } });
@@ -247,7 +247,7 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Cleaned up ${deletedEvents.count} old Stripe event dedup records`);
       }
 
-      debugLog('[ad-lifecycle] Daily check complete ✅');
+      console.log('[ad-lifecycle] Daily check complete ✅');
     } catch (error) {
       console.error('[ad-lifecycle] Check failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'ad_lifecycle_check' } });
@@ -273,7 +273,7 @@ export function startMessageCleanup() {
       if (deleted.count > 0) {
         console.log(`[message-cleanup] Deleted ${deleted.count} messages older than 1 year`);
       }
-      debugLog('[message-cleanup] Done ✅');
+      console.log('[message-cleanup] Done ✅');
     } catch (error) {
       console.error('[message-cleanup] Failed:', error);
       captureException(error instanceof Error ? error : new Error(String(error)), { extra: { context: 'message_cleanup' } });

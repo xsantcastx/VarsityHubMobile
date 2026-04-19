@@ -8,7 +8,6 @@ import {
   Modal,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -54,6 +53,19 @@ type GameItem = {
   away_score?: number | null;
   winner?: string | null;
 };
+
+type FeedItem =
+  | { _t: 'email_reminder' }
+  | { _t: 'location_prompt' }
+  | { _t: 'seed_banner' }
+  | { _t: 'game'; data: GameItem; idx: number }
+  | { _t: 'ad'; ad: any | null; idx: number }
+  | { _t: 'section_header'; title: string; key: string }
+  | { _t: 'followed_post'; data: any; idx: number }
+  | { _t: 'followed_empty'; section: 'people' | 'teams' }
+  | { _t: 'followed_teams_post'; data: any; idx: number }
+  | { _t: 'past_game'; data: GameItem; idx: number }
+  | { _t: 'footer' };
 
 const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours — must match GameDetailsScreen
 
@@ -735,6 +747,85 @@ export default function FeedScreen() {
     return result;
   }, [upcomingEvents, sponsoredAds, currentAdIndex, isShowingPromoCard]);
 
+  // Build flat feed items array for FlatList
+  const feedItems = useMemo(() => {
+    const items: FeedItem[] = [];
+
+    // Add email reminder if needed
+    if (me && !emailVerified) {
+      items.push({ _t: 'email_reminder' });
+    }
+
+    // Add location prompt if needed
+    if (me && !locationPromptDismissed && !hasDeviceLocation && sponsoredAds.length === 0) {
+      items.push({ _t: 'location_prompt' });
+    }
+
+    // Add seed banner if showing
+    if (showSeedBanner) {
+      items.push({ _t: 'seed_banner' });
+    }
+
+    // Add upcoming games and ads
+    if (upcomingWithAds.length > 0) {
+      upcomingWithAds.forEach((item, idx) => {
+        if ('type' in item && item.type === 'ad') {
+          items.push({ _t: 'ad', ad: item.ad, idx });
+        } else {
+          items.push({ _t: 'game', data: item as GameItem, idx });
+        }
+      });
+    }
+
+    // Add followed posts section
+    if (me) {
+      items.push({ _t: 'section_header', title: 'From people you follow', key: 'followed_posts_header' });
+      if (followedPosts.length > 0) {
+        followedPosts.forEach((post: any, idx: number) => {
+          items.push({ _t: 'followed_post', data: post, idx });
+        });
+      } else {
+        items.push({ _t: 'followed_empty', section: 'people' });
+      }
+    }
+
+    // Add followed teams posts section
+    if (me) {
+      items.push({ _t: 'section_header', title: 'From teams you follow', key: 'followed_teams_header' });
+      if (followedTeamsPosts.length > 0) {
+        followedTeamsPosts.forEach((post: any, idx: number) => {
+          items.push({ _t: 'followed_teams_post', data: post, idx });
+        });
+      } else {
+        items.push({ _t: 'followed_empty', section: 'teams' });
+      }
+    }
+
+    // Add past events section
+    if (pastEvents.length > 0) {
+      items.push({ _t: 'section_header', title: 'Past Events', key: 'past_events_header' });
+      pastEvents.forEach((game: GameItem, idx: number) => {
+        items.push({ _t: 'past_game', data: game, idx });
+      });
+    }
+
+    // Add footer
+    items.push({ _t: 'footer' });
+
+    return items;
+  }, [
+    me,
+    emailVerified,
+    locationPromptDismissed,
+    hasDeviceLocation,
+    sponsoredAds.length,
+    showSeedBanner,
+    upcomingWithAds,
+    followedPosts,
+    followedTeamsPosts,
+    pastEvents,
+  ]);
+
   const verticalFeedTitle = 'All Highlights';
   const verticalFeedPreviewImage =
     typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
@@ -871,6 +962,695 @@ export default function FeedScreen() {
       </View>
     );
   }, [me, locationPromptDismissed, hasDeviceLocation, sponsoredAds.length, colorScheme, router]);
+
+  const keyExtractor = useCallback((item: FeedItem) => {
+    switch (item._t) {
+      case 'email_reminder':
+        return 'email_reminder';
+      case 'location_prompt':
+        return 'location_prompt';
+      case 'seed_banner':
+        return 'seed_banner';
+      case 'game':
+        return `game-${item.data.id}`;
+      case 'ad':
+        return `ad-${item.idx}`;
+      case 'section_header':
+        return `section-${item.key}`;
+      case 'followed_post':
+        return `followed_post-${item.data.id}`;
+      case 'followed_empty':
+        return `followed_empty-${item.section}`;
+      case 'followed_teams_post':
+        return `followed_teams_post-${item.data.id}`;
+      case 'past_game':
+        return `past_game-${item.data.id}`;
+      case 'footer':
+        return 'footer';
+      default:
+        return 'unknown';
+    }
+  }, []);
+
+  // Helper function to render a game/past game card (shared between upcoming and past games)
+  const renderGameCard = useCallback(
+    (gameItem: GameItem, isLive: boolean, testIDPrefix: string) => {
+      if (!gameItem.id) return null;
+      const raw = gameItem as any;
+      const firstMediaUrl =
+        Array.isArray(raw?.media) && raw.media.length > 0
+          ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
+          : Array.isArray(raw?.posts) && raw.posts.length > 0
+            ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
+            : null;
+      const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
+      const hasBanner = typeof banner === 'string' && banner.length > 0;
+      const gradient: [string, string] = Math.random() > 0.5 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+      const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
+      const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
+      const locationText = gameItem.location
+        ? String(gameItem.location).split(',')[0]
+        : 'Location TBD';
+      const reviewsCount =
+        typeof raw?.reviews_count === 'number'
+          ? raw.reviews_count
+          : Array.isArray(raw?.reviews)
+            ? raw.reviews.length
+            : raw?._count && typeof raw._count.reviews === 'number'
+              ? raw._count.reviews
+              : 0;
+      const mediaCount =
+        typeof raw?.media_count === 'number'
+          ? raw.media_count
+          : Array.isArray(raw?.media)
+            ? raw.media.length
+            : 0;
+      const summary = voteSummaries[String(gameItem.id)] || null;
+      const voteText = summary
+        ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
+        : null;
+      const scoreText =
+        typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
+          ? `${raw.home_score} - ${raw.away_score}`
+          : null;
+
+      return (
+        <Pressable
+          testID={`${testIDPrefix}-game-card-${gameItem.id}`}
+          style={[
+            styles.singleEventCard,
+            isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null,
+          ]}
+          onPress={() =>
+            void router.push({
+              pathname: '/game/[id]',
+              params: { id: String(gameItem.id) },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
+        >
+          <LinearGradient
+            colors={gradient}
+            style={StyleSheet.absoluteFillObject}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+          {hasBanner && (
+            <Image
+              source={{ uri: optimizeImageUrl(banner!, 400) }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+            />
+          )}
+          <LinearGradient
+            colors={
+              colorScheme === 'dark'
+                ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
+                : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
+            }
+            style={styles.gridShade}
+            pointerEvents="none"
+          />
+          <View style={styles.gridContent}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={styles.gridDateChip}>
+                <MaterialIcons name="event" size={12} color="#FFFFFF" />
+                <Text style={styles.gridDateText}>{eventDate}</Text>
+              </View>
+              {isLive ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: '#EF4444',
+                    borderRadius: 4,
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    gap: 4,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      backgroundColor: '#fff',
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: '#fff',
+                      fontSize: 10,
+                      fontWeight: '800',
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    LIVE
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.gridTitle} numberOfLines={2}>
+              {gameItem.title ? String(gameItem.title) : 'Game'}
+            </Text>
+            <Text style={styles.gridMeta} numberOfLines={1}>
+              {scoreText
+                ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}`
+                : eventTime
+                  ? `${eventTime} • ${locationText}`
+                  : locationText}
+            </Text>
+            <View style={styles.gridStatsRow}>
+              <View style={styles.gridStat}>
+                <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
+                <Text style={styles.gridStatText}>{reviewsCount}</Text>
+              </View>
+              <View style={styles.gridStat}>
+                <MaterialIcons name="image" size={12} color="#F9FAFB" />
+                <Text style={styles.gridStatText}>{mediaCount}</Text>
+              </View>
+            </View>
+            {voteText ? (
+              <Text style={styles.gridVoteText} numberOfLines={1}>
+                {voteText}
+              </Text>
+            ) : null}
+          </View>
+          <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
+        </Pressable>
+      );
+    },
+    [colorScheme, voteSummaries, router, onRefresh]
+  );
+
+  const renderFeedItem = useCallback(
+    ({ item }: { item: FeedItem }) => {
+      switch (item._t) {
+        case 'email_reminder':
+          return renderEmailReminder();
+
+        case 'location_prompt':
+          return renderLocationPrompt();
+
+        case 'seed_banner':
+          return (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: colorScheme === 'dark' ? '#1e3a5f' : '#EFF6FF',
+                borderWidth: 1,
+                borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE',
+                borderRadius: 8,
+                padding: 10,
+                marginHorizontal: 16,
+                marginBottom: 12,
+                gap: 8,
+              }}
+            >
+              <MaterialIcons
+                name="info-outline"
+                size={18}
+                color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'}
+              />
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 12,
+                  color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF',
+                  lineHeight: 17,
+                }}
+              >
+                These are example games to help you explore VarsityHub. Real games will appear once
+                coaches in your area sign up.
+              </Text>
+              <Pressable
+                testID="feed-dismiss-seed-banner"
+                onPress={() => setShowSeedBanner(false)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss sample content notice"
+              >
+                <MaterialIcons
+                  name="close"
+                  size={16}
+                  color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'}
+                />
+              </Pressable>
+            </View>
+          );
+
+        case 'game': {
+          const gameStartMs = item.data.date ? new Date(item.data.date).getTime() : null;
+          const nowMs = Date.now();
+          const isLive =
+            gameStartMs != null &&
+            gameStartMs <= nowMs &&
+            nowMs - gameStartMs <= LIVE_WINDOW_MS;
+          return (
+            <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+              {renderGameCard(item.data, isLive, 'feed')}
+            </View>
+          );
+        }
+
+        case 'ad': {
+          const adData = item.ad;
+          if (!adData) {
+            // Promo card
+            return (
+              <View
+                style={[
+                  styles.sponsoredFeedCard,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
+                >
+                  AD SPACE AVAILABLE
+                </Text>
+                <Pressable
+                  style={[
+                    styles.promoPlaceholder,
+                    {
+                      backgroundColor: colorScheme === 'dark' ? '#111827' : '#F5F9FF',
+                      borderColor: colorScheme === 'dark' ? '#1F2937' : '#C7DBFF',
+                    },
+                  ]}
+                  onPress={() => void router.push('/submit-ad')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reserve your ad space"
+                >
+                  <View
+                    style={[
+                      styles.promoIcon,
+                      {
+                        borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="campaign"
+                      size={24}
+                      color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'}
+                    />
+                  </View>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text
+                      style={[
+                        styles.promoTitle,
+                        { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A' },
+                      ]}
+                    >
+                      Reserve Your Ad Space Now
+                    </Text>
+                    <Text
+                      style={[
+                        styles.promoSubtitle,
+                        { color: colorScheme === 'dark' ? '#94A3B8' : '#64748B' },
+                      ]}
+                    >
+                      Promote your program, fundraiser, or business to local fans.
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.promoteCtaBanner,
+                      { backgroundColor: colorScheme === 'dark' ? '#2563EB' : '#2563EB' },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.promoteCtaIcon,
+                        {
+                          borderColor: '#FFFFFF',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        },
+                      ]}
+                    >
+                      <MaterialIcons name="arrow-forward" size={12} color="#FFFFFF" />
+                    </View>
+                    <Text style={styles.promoteCtaText}>Click Here</Text>
+                  </View>
+                </Pressable>
+              </View>
+            );
+          }
+          // Actual ad
+          return (
+            <View
+              style={[
+                styles.sponsoredFeedCard,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
+              >
+                SPONSORED
+              </Text>
+              {adData.banner_url ? (
+                <BannerAd
+                  bannerUrl={adData.banner_url}
+                  fitMode={adData.banner_fit_mode || 'fill'}
+                  targetUrl={adData.target_url}
+                  businessName={adData.business_name}
+                  description={adData.description}
+                  aspectRatio={3.5}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.adPlaceholder,
+                    { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' },
+                  ]}
+                >
+                  <MaterialIcons
+                    name="campaign"
+                    size={48}
+                    color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'}
+                  />
+                </View>
+              )}
+            </View>
+          );
+        }
+
+        case 'section_header':
+          return (
+            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+              {item.title}
+            </Text>
+          );
+
+        case 'followed_post': {
+          const post = item.data;
+          return (
+            <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+              <PostCard
+                post={post}
+                showAuthorHeader
+                onPress={() =>
+                  void router.push(
+                    `/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedPosts.map((p: any) => String(p.id)).join(',')}&index=${item.idx}`
+                  )
+                }
+                onDeleted={postId =>
+                  setFollowedPosts(prev => prev.filter(p => String(p.id) !== postId))
+                }
+                onUpdated={updated =>
+                  setFollowedPosts(prev =>
+                    prev.map(p =>
+                      String(p.id) === String(updated.id) ? { ...p, ...updated } : p
+                    )
+                  )
+                }
+              />
+            </View>
+          );
+        }
+
+        case 'followed_empty': {
+          const isPeople = item.section === 'people';
+          return (
+            <View
+              style={[
+                styles.socialFeedEmpty,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              {isPeople ? (
+                <MaterialIcons name="group" size={48} color={Colors[colorScheme].mutedText} />
+              ) : (
+                <Ionicons
+                  name="american-football-outline"
+                  size={48}
+                  color={Colors[colorScheme].mutedText}
+                />
+              )}
+              <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
+                {isPeople
+                  ? followedFeedMeta?.following_count === 0
+                    ? 'Follow users or teams to see their posts here'
+                    : 'No posts from people you follow yet'
+                  : followedTeamsFeedMeta?.followed_teams_count === 0
+                    ? 'Follow teams to see their posts here'
+                    : 'No posts from teams you follow yet'}
+              </Text>
+              <Text
+                style={[
+                  styles.socialFeedEmptySubtitle,
+                  { color: Colors[colorScheme].mutedText },
+                ]}
+              >
+                {isPeople
+                  ? followedFeedMeta?.following_count === 0
+                    ? 'Discover and follow athletes, coaches, and teams to build your feed.'
+                    : 'Check back soon — when they post, it will show up here.'
+                  : followedTeamsFeedMeta?.followed_teams_count === 0
+                    ? 'Discover and follow teams to see their updates and game content.'
+                    : 'Check back soon — when they post, it will show up here.'}
+              </Text>
+              <Pressable
+                testID={
+                  isPeople ? 'feed-discover-users-button' : 'feed-discover-teams-button'
+                }
+                style={[
+                  styles.socialFeedEmptyButton,
+                  { backgroundColor: Colors[colorScheme].tint },
+                ]}
+                onPress={() => void router.push('/(tabs)/discover')}
+                accessibilityLabel={
+                  isPeople
+                    ? followedFeedMeta?.following_count === 0
+                      ? 'Find people to follow'
+                      : 'Discover more'
+                    : followedTeamsFeedMeta?.followed_teams_count === 0
+                      ? 'Find teams to follow'
+                      : 'Discover more'
+                }
+                accessibilityRole="button"
+              >
+                <Text style={styles.socialFeedEmptyButtonText}>
+                  {isPeople
+                    ? followedFeedMeta?.following_count === 0
+                      ? 'Find people to follow'
+                      : 'Discover more'
+                    : followedTeamsFeedMeta?.followed_teams_count === 0
+                      ? 'Find teams to follow'
+                      : 'Discover more'}
+                </Text>
+              </Pressable>
+            </View>
+          );
+        }
+
+        case 'followed_teams_post': {
+          const post = item.data;
+          const team = post.team || {};
+          const teamName = team.name || 'Team';
+          const teamLogo = team.logo_url || null;
+          const mediaUrl = post.media_url || post.mediaUrl || null;
+          const caption = post.caption || post.content || '';
+          const gradient: [string, string] = item.idx % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+          return (
+            <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+              <Pressable
+                testID={`feed-team-post-card-${post.id}`}
+                style={styles.singleEventCard}
+                onPress={() =>
+                  void router.push(
+                    `/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${item.idx}`
+                  )
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`View post from ${teamName}`}
+              >
+                <LinearGradient
+                  colors={gradient}
+                  style={StyleSheet.absoluteFillObject}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+                {mediaUrl && (
+                  <Image
+                    source={{ uri: optimizeImageUrl(mediaUrl, 400) }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                  />
+                )}
+                <LinearGradient
+                  colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
+                  style={styles.gridShade}
+                  pointerEvents="none"
+                />
+                <View style={styles.gridContent}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {teamLogo ? (
+                      <Image
+                        source={{ uri: teamLogo }}
+                        style={{ width: 28, height: 28, borderRadius: 14 }}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          backgroundColor: '#374151',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
+                          {(teamName || 'T').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={[styles.gridTitle, { marginBottom: 0 }]} numberOfLines={1}>
+                      {teamName}
+                    </Text>
+                  </View>
+                  {caption ? (
+                    <Text
+                      style={[styles.gridMeta, { color: '#F9FAFB', marginBottom: 6 }]}
+                      numberOfLines={2}
+                    >
+                      {caption}
+                    </Text>
+                  ) : null}
+                  <View style={styles.gridStatsRow}>
+                    <View style={styles.gridStat}>
+                      <MaterialIcons name="arrow-upward" size={12} color="#F9FAFB" />
+                      <Text style={styles.gridStatText}>{post.upvotes_count ?? 0}</Text>
+                    </View>
+                    <View style={styles.gridStat}>
+                      <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
+                      <Text style={styles.gridStatText}>{post.comments_count ?? 0}</Text>
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+          );
+        }
+
+        case 'past_game': {
+          return (
+            <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+              {renderGameCard(item.data, false, 'feed-nearby')}
+            </View>
+          );
+        }
+
+        case 'footer':
+          return (
+            <View style={styles.gridFooter}>
+              <View style={styles.verticalFeedSection}>
+                <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
+                <Pressable
+                  testID="feed-vertical-feed-button"
+                  onPress={openVerticalFeed}
+                  style={styles.verticalFeedCard}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open highlights reel"
+                >
+                  {verticalFeedPreviewImage ? (
+                    <Image
+                      source={{ uri: optimizeImageUrl(verticalFeedPreviewImage, 800) }}
+                      style={styles.verticalFeedImage}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={
+                        colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']
+                      }
+                      style={styles.verticalFeedImage}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                  )}
+                  <LinearGradient
+                    colors={
+                      colorScheme === 'dark'
+                        ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)']
+                        : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']
+                    }
+                    style={styles.verticalFeedShade}
+                  />
+                  <View style={styles.verticalFeedContent}>
+                    <View style={styles.verticalFeedBadge}>
+                      <MaterialIcons name="play-arrow" size={18} color="#fff" />
+                    </View>
+                    <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
+                    {verticalFeedAuthorText ? (
+                      <Text style={styles.verticalFeedCaption} numberOfLines={1}>
+                        {verticalFeedAuthorText}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
+                      {verticalFeedSubtitleText}
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+
+              {loadingMore ? (
+                <View style={styles.loadingMore}>
+                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+                </View>
+              ) : null}
+            </View>
+          );
+
+        default:
+          return null;
+      }
+    },
+    [
+      colorScheme,
+      router,
+      onRefresh,
+      followedPosts,
+      followedTeamsPosts,
+      voteSummaries,
+      renderGameCard,
+      renderEmailReminder,
+      renderLocationPrompt,
+      verticalFeedTitle,
+      verticalFeedPreviewImage,
+      verticalFeedSubtitleText,
+      verticalFeedAuthorText,
+      openVerticalFeed,
+      loadingMore,
+      followedFeedMeta,
+      followedTeamsFeedMeta,
+      setFollowedPosts,
+    ]
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -1125,7 +1905,10 @@ export default function FeedScreen() {
           </View>
         )}
 
-        <ScrollView
+        <FlatList
+          data={feedItems}
+          renderItem={renderFeedItem}
+          keyExtractor={keyExtractor}
           style={{ flex: 1, overflow: 'hidden' }}
           contentContainerStyle={{
             paddingVertical: 12,
@@ -1140,792 +1923,13 @@ export default function FeedScreen() {
             />
           }
           showsVerticalScrollIndicator={false}
-          onScroll={({ nativeEvent }) => {
-            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-            const distanceFromBottom =
-              contentSize.height - layoutMeasurement.height - contentOffset.y;
-            if (distanceFromBottom < 400) {
-              void _loadMore();
-            }
-          }}
-          scrollEventThrottle={400}
-        >
-          {renderEmailReminder()}
-          {renderLocationPrompt()}
-
-          {/* Sample content banner — shown when no real games exist and seeds were injected */}
-          {showSeedBanner && (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: colorScheme === 'dark' ? '#1e3a5f' : '#EFF6FF',
-                borderWidth: 1,
-                borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE',
-                borderRadius: 8,
-                padding: 10,
-                marginHorizontal: 16,
-                marginBottom: 12,
-                gap: 8,
-              }}
-            >
-              <MaterialIcons
-                name="info-outline"
-                size={18}
-                color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'}
-              />
-              <Text
-                style={{
-                  flex: 1,
-                  fontSize: 12,
-                  color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF',
-                  lineHeight: 17,
-                }}
-              >
-                These are example games to help you explore VarsityHub. Real games will appear once
-                coaches in your area sign up.
-              </Text>
-              <Pressable
-                testID="feed-dismiss-seed-banner"
-                onPress={() => setShowSeedBanner(false)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss sample content notice"
-              >
-                <MaterialIcons
-                  name="close"
-                  size={16}
-                  color={colorScheme === 'dark' ? '#93C5FD' : '#2563EB'}
-                />
-              </Pressable>
-            </View>
-          )}
-
-          {/* Upcoming Events with Ads — Dark hero game cards at top */}
-          {upcomingWithAds.length > 0 && (
-            <View style={{ gap: 20, marginBottom: 24 }}>
-              {upcomingWithAds.map((item, index) => {
-                // Check if this is an ad
-                if ('type' in item && item.type === 'ad') {
-                  const adData = item.ad;
-
-                  // If no ad data, show promotional card
-                  if (!adData) {
-                    return (
-                      <View
-                        key={`promo-${index}`}
-                        style={[
-                          styles.sponsoredFeedCard,
-                          {
-                            backgroundColor: Colors[colorScheme].card,
-                            borderColor: Colors[colorScheme].border,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
-                        >
-                          AD SPACE AVAILABLE
-                        </Text>
-                        <Pressable
-                          style={[
-                            styles.promoPlaceholder,
-                            {
-                              backgroundColor: colorScheme === 'dark' ? '#111827' : '#F5F9FF',
-                              borderColor: colorScheme === 'dark' ? '#1F2937' : '#C7DBFF',
-                            },
-                          ]}
-                          onPress={() => void router.push('/submit-ad')}
-                          accessibilityRole="button"
-                          accessibilityLabel="Reserve your ad space"
-                        >
-                          <View
-                            style={[
-                              styles.promoIcon,
-                              {
-                                borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                              },
-                            ]}
-                          >
-                            <MaterialIcons
-                              name="campaign"
-                              size={24}
-                              color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'}
-                            />
-                          </View>
-                          <View style={{ flex: 1, paddingRight: 12 }}>
-                            <Text
-                              style={[
-                                styles.promoTitle,
-                                { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A' },
-                              ]}
-                            >
-                              Reserve Your Ad Space Now
-                            </Text>
-                            <Text
-                              style={[
-                                styles.promoSubtitle,
-                                { color: colorScheme === 'dark' ? '#94A3B8' : '#64748B' },
-                              ]}
-                            >
-                              Promote your program, fundraiser, or business to local fans.
-                            </Text>
-                          </View>
-                          <View
-                            style={[
-                              styles.promoteCtaBanner,
-                              { backgroundColor: colorScheme === 'dark' ? '#2563EB' : '#2563EB' },
-                            ]}
-                          >
-                            <View
-                              style={[
-                                styles.promoteCtaIcon,
-                                {
-                                  borderColor: '#FFFFFF',
-                                  justifyContent: 'center',
-                                  alignItems: 'center',
-                                },
-                              ]}
-                            >
-                              <MaterialIcons name="arrow-forward" size={12} color="#FFFFFF" />
-                            </View>
-                            <Text style={styles.promoteCtaText}>Click Here</Text>
-                          </View>
-                        </Pressable>
-                      </View>
-                    );
-                  }
-
-                  // Otherwise show actual ad
-                  return (
-                    <View
-                      key={`ad-${index}`}
-                      style={[
-                        styles.sponsoredFeedCard,
-                        {
-                          backgroundColor: Colors[colorScheme].card,
-                          borderColor: Colors[colorScheme].border,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
-                      >
-                        SPONSORED
-                      </Text>
-                      {adData.banner_url ? (
-                        <BannerAd
-                          bannerUrl={adData.banner_url}
-                          fitMode={adData.banner_fit_mode || 'fill'}
-                          targetUrl={adData.target_url}
-                          businessName={adData.business_name}
-                          description={adData.description}
-                          aspectRatio={3.5}
-                        />
-                      ) : (
-                        <View
-                          style={[
-                            styles.adPlaceholder,
-                            { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' },
-                          ]}
-                        >
-                          <MaterialIcons
-                            name="campaign"
-                            size={48}
-                            color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'}
-                          />
-                        </View>
-                      )}
-                    </View>
-                  );
-                }
-
-                // Otherwise it's a regular event (game card)
-                const gameItem = item as GameItem;
-                if (!gameItem.id) return null;
-                const raw = gameItem as any;
-                const gameStartMs = gameItem.date ? new Date(gameItem.date).getTime() : null;
-                const nowMs = Date.now();
-                const isLive =
-                  gameStartMs != null &&
-                  gameStartMs <= nowMs &&
-                  nowMs - gameStartMs <= LIVE_WINDOW_MS;
-                const firstMediaUrl =
-                  Array.isArray(raw?.media) && raw.media.length > 0
-                    ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
-                    : Array.isArray(raw?.posts) && raw.posts.length > 0
-                      ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
-                      : null;
-                const banner = gameItem.cover_image_url || raw?.banner_url || firstMediaUrl || null;
-                const hasBanner = typeof banner === 'string' && banner.length > 0;
-                const gradient: [string, string] =
-                  index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-                const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
-                const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
-                const locationText = gameItem.location
-                  ? String(gameItem.location).split(',')[0]
-                  : 'Location TBD';
-                const reviewsCount =
-                  typeof raw?.reviews_count === 'number'
-                    ? raw.reviews_count
-                    : Array.isArray(raw?.reviews)
-                      ? raw.reviews.length
-                      : raw?._count && typeof raw._count.reviews === 'number'
-                        ? raw._count.reviews
-                        : 0;
-                const mediaCount =
-                  typeof raw?.media_count === 'number'
-                    ? raw.media_count
-                    : Array.isArray(raw?.media)
-                      ? raw.media.length
-                      : 0;
-                const summary = voteSummaries[String(gameItem.id)] || null;
-                const voteText = summary
-                  ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
-                  : null;
-                const scoreText =
-                  typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
-                    ? `${raw.home_score} - ${raw.away_score}`
-                    : null;
-
-                return (
-                  <Pressable
-                    testID={`feed-game-card-${gameItem.id}`}
-                    key={String(gameItem.id)}
-                    style={[
-                      styles.singleEventCard,
-                      isLive ? { borderWidth: 2, borderColor: '#EF4444' } : null,
-                    ]}
-                    onPress={() =>
-                      void router.push({
-                        pathname: '/game/[id]',
-                        params: { id: String(gameItem.id) },
-                      })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={`${gameItem.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}${isLive ? ' — LIVE NOW' : ''}`}
-                  >
-                    <LinearGradient
-                      colors={gradient}
-                      style={StyleSheet.absoluteFillObject}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    />
-                    {hasBanner && (
-                      <Image
-                        source={{ uri: optimizeImageUrl(banner!, 400) }}
-                        style={StyleSheet.absoluteFillObject}
-                        contentFit="cover"
-                      />
-                    )}
-                    <LinearGradient
-                      colors={
-                        colorScheme === 'dark'
-                          ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
-                          : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
-                      }
-                      style={styles.gridShade}
-                      pointerEvents="none"
-                    />
-                    <View style={styles.gridContent}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={styles.gridDateChip}>
-                          <MaterialIcons name="event" size={12} color="#FFFFFF" />
-                          <Text style={styles.gridDateText}>{eventDate}</Text>
-                        </View>
-                        {isLive ? (
-                          <View
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              backgroundColor: '#EF4444',
-                              borderRadius: 4,
-                              paddingHorizontal: 6,
-                              paddingVertical: 2,
-                              gap: 4,
-                            }}
-                          >
-                            <View
-                              style={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: 3,
-                                backgroundColor: '#fff',
-                              }}
-                            />
-                            <Text
-                              style={{
-                                color: '#fff',
-                                fontSize: 10,
-                                fontWeight: '800',
-                                letterSpacing: 0.5,
-                              }}
-                            >
-                              LIVE
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={styles.gridTitle} numberOfLines={2}>
-                        {gameItem.title ? String(gameItem.title) : 'Game'}
-                      </Text>
-                      <Text style={styles.gridMeta} numberOfLines={1}>
-                        {scoreText
-                          ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}`
-                          : eventTime
-                            ? `${eventTime} • ${locationText}`
-                            : locationText}
-                      </Text>
-                      <View style={styles.gridStatsRow}>
-                        <View style={styles.gridStat}>
-                          <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
-                          <Text style={styles.gridStatText}>{reviewsCount}</Text>
-                        </View>
-                        <View style={styles.gridStat}>
-                          <MaterialIcons name="image" size={12} color="#F9FAFB" />
-                          <Text style={styles.gridStatText}>{mediaCount}</Text>
-                        </View>
-                      </View>
-                      {voteText ? (
-                        <Text style={styles.gridVoteText} numberOfLines={1}>
-                          {voteText}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Social Feed — Posts from people you follow */}
-          {me && (
-            <View style={{ marginBottom: 24 }}>
-              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
-                From people you follow
-              </Text>
-              {followedPosts.length > 0 ? (
-                <View style={{ gap: 12, marginTop: 8 }}>
-                  {followedPosts.map((post: any, idx: number) => (
-                    <PostCard
-                      key={String(post.id)}
-                      post={post}
-                      showAuthorHeader
-                      onPress={() =>
-                        void router.push(
-                          `/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedPosts.map((p: any) => String(p.id)).join(',')}&index=${idx}`
-                        )
-                      }
-                      onDeleted={postId =>
-                        setFollowedPosts(prev => prev.filter(p => String(p.id) !== postId))
-                      }
-                      onUpdated={updated =>
-                        setFollowedPosts(prev =>
-                          prev.map(p =>
-                            String(p.id) === String(updated.id) ? { ...p, ...updated } : p
-                          )
-                        )
-                      }
-                    />
-                  ))}
-                </View>
-              ) : (
-                <View
-                  style={[
-                    styles.socialFeedEmpty,
-                    {
-                      backgroundColor: Colors[colorScheme].card,
-                      borderColor: Colors[colorScheme].border,
-                    },
-                  ]}
-                >
-                  <MaterialIcons name="group" size={48} color={Colors[colorScheme].mutedText} />
-                  <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
-                    {followedFeedMeta?.following_count === 0
-                      ? 'Follow users or teams to see their posts here'
-                      : 'No posts from people you follow yet'}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.socialFeedEmptySubtitle,
-                      { color: Colors[colorScheme].mutedText },
-                    ]}
-                  >
-                    {followedFeedMeta?.following_count === 0
-                      ? 'Discover and follow athletes, coaches, and teams to build your feed.'
-                      : 'Check back soon — when they post, it will show up here.'}
-                  </Text>
-                  <Pressable
-                    testID="feed-discover-users-button"
-                    style={[
-                      styles.socialFeedEmptyButton,
-                      { backgroundColor: Colors[colorScheme].tint },
-                    ]}
-                    onPress={() => void router.push('/(tabs)/discover')}
-                    accessibilityLabel={
-                      followedFeedMeta?.following_count === 0
-                        ? 'Find people to follow'
-                        : 'Discover more'
-                    }
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.socialFeedEmptyButtonText}>
-                      {followedFeedMeta?.following_count === 0
-                        ? 'Find people to follow'
-                        : 'Discover more'}
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Social Feed — Posts from teams you follow (dark game card style) */}
-          {me && (
-            <View style={{ marginBottom: 24 }}>
-              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
-                From teams you follow
-              </Text>
-              {followedTeamsPosts.length > 0 ? (
-                <View style={{ gap: 20, marginTop: 8 }}>
-                  {followedTeamsPosts.map((post: any, index: number) => {
-                    const team = post.team || {};
-                    const teamName = team.name || 'Team';
-                    const teamLogo = team.logo_url || null;
-                    const mediaUrl = post.media_url || post.mediaUrl || null;
-                    const caption = post.caption || post.content || '';
-                    const gradient: [string, string] =
-                      index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-                    return (
-                      <Pressable
-                        testID={`feed-team-post-card-${post.id}`}
-                        key={String(post.id)}
-                        style={styles.singleEventCard}
-                        onPress={() =>
-                          void router.push(
-                            `/post-detail?id=${encodeURIComponent(String(post.id))}&postIds=${followedTeamsPosts.map((p: any) => String(p.id)).join(',')}&index=${index}`
-                          )
-                        }
-                        accessibilityRole="button"
-                        accessibilityLabel={`View post from ${teamName}`}
-                      >
-                        <LinearGradient
-                          colors={gradient}
-                          style={StyleSheet.absoluteFillObject}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        />
-                        {mediaUrl && (
-                          <Image
-                            source={{ uri: optimizeImageUrl(mediaUrl, 400) }}
-                            style={StyleSheet.absoluteFillObject}
-                            contentFit="cover"
-                          />
-                        )}
-                        <LinearGradient
-                          colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']}
-                          style={styles.gridShade}
-                          pointerEvents="none"
-                        />
-                        <View style={styles.gridContent}>
-                          <View
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 8,
-                              marginBottom: 4,
-                            }}
-                          >
-                            {teamLogo ? (
-                              <Image
-                                source={{ uri: teamLogo }}
-                                style={{ width: 28, height: 28, borderRadius: 14 }}
-                                contentFit="cover"
-                              />
-                            ) : (
-                              <View
-                                style={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: 14,
-                                  backgroundColor: '#374151',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                }}
-                              >
-                                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
-                                  {(teamName || 'T').charAt(0).toUpperCase()}
-                                </Text>
-                              </View>
-                            )}
-                            <Text style={[styles.gridTitle, { marginBottom: 0 }]} numberOfLines={1}>
-                              {teamName}
-                            </Text>
-                          </View>
-                          {caption ? (
-                            <Text
-                              style={[styles.gridMeta, { color: '#F9FAFB', marginBottom: 6 }]}
-                              numberOfLines={2}
-                            >
-                              {caption}
-                            </Text>
-                          ) : null}
-                          <View style={styles.gridStatsRow}>
-                            <View style={styles.gridStat}>
-                              <MaterialIcons name="arrow-upward" size={12} color="#F9FAFB" />
-                              <Text style={styles.gridStatText}>{post.upvotes_count ?? 0}</Text>
-                            </View>
-                            <View style={styles.gridStat}>
-                              <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
-                              <Text style={styles.gridStatText}>{post.comments_count ?? 0}</Text>
-                            </View>
-                          </View>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View
-                  style={[
-                    styles.socialFeedEmpty,
-                    {
-                      backgroundColor: Colors[colorScheme].card,
-                      borderColor: Colors[colorScheme].border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="american-football-outline"
-                    size={48}
-                    color={Colors[colorScheme].mutedText}
-                  />
-                  <Text style={[styles.socialFeedEmptyTitle, { color: Colors[colorScheme].text }]}>
-                    {followedTeamsFeedMeta?.followed_teams_count === 0
-                      ? 'Follow teams to see their posts here'
-                      : 'No posts from teams you follow yet'}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.socialFeedEmptySubtitle,
-                      { color: Colors[colorScheme].mutedText },
-                    ]}
-                  >
-                    {followedTeamsFeedMeta?.followed_teams_count === 0
-                      ? 'Discover and follow teams to see their updates and game content.'
-                      : 'Check back soon — when they post, it will show up here.'}
-                  </Text>
-                  <Pressable
-                    testID="feed-discover-teams-button"
-                    style={[
-                      styles.socialFeedEmptyButton,
-                      { backgroundColor: Colors[colorScheme].tint },
-                    ]}
-                    onPress={() => void router.push('/(tabs)/discover')}
-                    accessibilityLabel={
-                      followedTeamsFeedMeta?.followed_teams_count === 0
-                        ? 'Find teams to follow'
-                        : 'Discover more'
-                    }
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.socialFeedEmptyButtonText}>
-                      {followedTeamsFeedMeta?.followed_teams_count === 0
-                        ? 'Find teams to follow'
-                        : 'Discover more'}
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Past Events Section */}
-          {pastEvents.length > 0 && (
-            <View style={{ marginTop: 32 }}>
-              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
-                Past Events
-              </Text>
-              <View style={{ gap: 20, marginTop: 12 }}>
-                {pastEvents.map((item, index) => {
-                  const raw = item as any;
-                  const firstMediaUrl =
-                    Array.isArray(raw?.media) && raw.media.length > 0
-                      ? raw.media[0]?.thumbnail_url || raw.media[0]?.url || null
-                      : Array.isArray(raw?.posts) && raw.posts.length > 0
-                        ? raw.posts[0]?.media_url || raw.posts[0]?.thumbnail_url || null
-                        : null;
-                  const banner = item.cover_image_url || raw?.banner_url || firstMediaUrl || null;
-                  const hasBanner = typeof banner === 'string' && banner.length > 0;
-                  const gradient: [string, string] =
-                    index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-                  const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
-                  const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
-                  const locationText = item.location
-                    ? String(item.location).split(',')[0]
-                    : 'Location TBD';
-                  const reviewsCount =
-                    typeof raw?.reviews_count === 'number'
-                      ? raw.reviews_count
-                      : Array.isArray(raw?.reviews)
-                        ? raw.reviews.length
-                        : raw?._count && typeof raw._count.reviews === 'number'
-                          ? raw._count.reviews
-                          : 0;
-                  const mediaCount =
-                    typeof raw?.media_count === 'number'
-                      ? raw.media_count
-                      : Array.isArray(raw?.media)
-                        ? raw.media.length
-                        : 0;
-                  const summary = voteSummaries[String(item.id)] || null;
-                  const voteText = summary
-                    ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
-                    : null;
-                  const scoreText =
-                    typeof raw?.home_score === 'number' && typeof raw?.away_score === 'number'
-                      ? `${raw.home_score} - ${raw.away_score}`
-                      : null;
-
-                  return (
-                    <Pressable
-                      testID={`feed-nearby-game-card-${item.id}`}
-                      key={String(item.id)}
-                      style={styles.singleEventCard}
-                      onPress={() =>
-                        void router.push({
-                          pathname: '/game/[id]',
-                          params: { id: String(item.id) },
-                        })
-                      }
-                      accessibilityRole="button"
-                      accessibilityLabel={`${item.title || 'Game'} on ${eventDate}${eventTime ? ` at ${eventTime}` : ''}`}
-                    >
-                      <LinearGradient
-                        colors={gradient}
-                        style={StyleSheet.absoluteFillObject}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      />
-                      {hasBanner && (
-                        <Image
-                          source={{ uri: optimizeImageUrl(banner!, 400) }}
-                          style={StyleSheet.absoluteFillObject}
-                          contentFit="cover"
-                        />
-                      )}
-                      <LinearGradient
-                        colors={
-                          colorScheme === 'dark'
-                            ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)']
-                            : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']
-                        }
-                        style={styles.gridShade}
-                        pointerEvents="none"
-                      />
-                      <View style={styles.gridContent}>
-                        <View style={styles.gridDateChip}>
-                          <MaterialIcons name="event" size={12} color="#FFFFFF" />
-                          <Text style={styles.gridDateText}>{eventDate}</Text>
-                        </View>
-                        <Text style={styles.gridTitle} numberOfLines={2}>
-                          {item.title ? String(item.title) : 'Game'}
-                        </Text>
-                        <Text style={styles.gridMeta} numberOfLines={1}>
-                          {scoreText
-                            ? `${scoreText} • ${eventTime ? `${eventTime} • ${locationText}` : locationText}`
-                            : eventTime
-                              ? `${eventTime} • ${locationText}`
-                              : locationText}
-                        </Text>
-                        <View style={styles.gridStatsRow}>
-                          <View style={styles.gridStat}>
-                            <MaterialIcons name="chat-bubble-outline" size={12} color="#F9FAFB" />
-                            <Text style={styles.gridStatText}>{reviewsCount}</Text>
-                          </View>
-                          <View style={styles.gridStat}>
-                            <MaterialIcons name="image" size={12} color="#F9FAFB" />
-                            <Text style={styles.gridStatText}>{mediaCount}</Text>
-                          </View>
-                        </View>
-                        {voteText ? (
-                          <Text style={styles.gridVoteText} numberOfLines={1}>
-                            {voteText}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Footer Content */}
-          <View style={styles.gridFooter}>
-            {/* Removed static sponsored card - ads now appear in feed */}
-
-            <View style={styles.verticalFeedSection}>
-              <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
-              <Pressable
-                testID="feed-vertical-feed-button"
-                onPress={openVerticalFeed}
-                style={styles.verticalFeedCard}
-                accessibilityRole="button"
-                accessibilityLabel="Open highlights reel"
-              >
-                {verticalFeedPreviewImage ? (
-                  <Image
-                    source={{ uri: optimizeImageUrl(verticalFeedPreviewImage, 800) }}
-                    style={styles.verticalFeedImage}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={
-                      colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']
-                    }
-                    style={styles.verticalFeedImage}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
-                )}
-                <LinearGradient
-                  colors={
-                    colorScheme === 'dark'
-                      ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)']
-                      : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']
-                  }
-                  style={styles.verticalFeedShade}
-                />
-                <View style={styles.verticalFeedContent}>
-                  <View style={styles.verticalFeedBadge}>
-                    <MaterialIcons name="play-arrow" size={18} color="#fff" />
-                  </View>
-                  <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
-                  {verticalFeedAuthorText ? (
-                    <Text style={styles.verticalFeedCaption} numberOfLines={1}>
-                      {verticalFeedAuthorText}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
-                    {verticalFeedSubtitleText}
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
-
-            {loadingMore ? (
-              <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
-              </View>
-            ) : null}
-          </View>
-        </ScrollView>
+          onEndReached={_loadMore}
+          onEndReachedThreshold={0.3}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          removeClippedSubviews={true}
+        />
       </View>
 
       {/* Notifications & Messages Menu Modal */}

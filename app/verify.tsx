@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 export default function VerifyScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ delivery?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const { pendingVerificationEmail, checkAuth, user, markOnboardingCompleteLocally: _markOnboardingCompleteLocally } = useAuth();
   const [code, setCode] = useState('');
@@ -34,6 +35,22 @@ export default function VerifyScreen() {
     const id = setTimeout(() => setResendCooldown(c => Math.max(0, c - 1)), 1000);
     return () => clearTimeout(id);
   }, [resendCooldown]);
+
+  useEffect(() => {
+    const deliveryStatus = typeof params.delivery === 'string' ? params.delivery : '';
+    if (!deliveryStatus) return;
+
+    if (deliveryStatus === 'EMAIL_DELIVERY_TIMEOUT') {
+      setError(
+        'Your account was created, but the first verification email is delayed. Check spam, then tap Resend Code if nothing arrives.'
+      );
+      return;
+    }
+
+    setError(
+      'Your account was created, but the first verification email may not have been delivered. Tap Resend Code to send a fresh code.'
+    );
+  }, [params.delivery]);
 
   const onVerify = async () => {
     if (!code.trim()) return;

@@ -55,7 +55,7 @@ check('POST /organizations/create sets creator to PENDING', createHasUserUpdate)
 // 4. League approval sets league owner to APPROVED
 check(
   'League approval sets league owner to APPROVED',
-  orgRoutes.includes('leagueOwner') && orgRoutes.includes("approval_status: 'APPROVED'") && 
+  orgRoutes.includes('league_owner_id') && orgRoutes.includes("approval_status: 'APPROVED'") &&
   orgRoutes.includes('approveLeagueHandler'),
 );
 

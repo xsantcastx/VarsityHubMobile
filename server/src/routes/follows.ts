@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { sendError } from '../lib/http/sendError.js';
@@ -12,6 +13,7 @@ export const followsRouter = Router();
 followsRouter.get(
   '/teams',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return sendError(res, 401, 'Unauthorized');
 

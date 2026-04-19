@@ -36,6 +36,7 @@ import { sanitizeText } from '@/utils/formUtils';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SKELETON_3 = Array.from({ length: 3 });
 
 const getSportCategory = (title?: string | null, content?: string | null) => {
   const text = ((title || '') + ' ' + (content || '')).toLowerCase();
@@ -268,7 +269,7 @@ export default function PostDetailScreen() {
             />
           </View>
 
-          {Array.from({ length: 3 }).map((_, i) => (
+          {SKELETON_3.map((_, i) => (
             <View key={i} style={styles.commentCard}>
               <View style={styles.commentHeader}>
                 <View style={styles.commentAuthor}>

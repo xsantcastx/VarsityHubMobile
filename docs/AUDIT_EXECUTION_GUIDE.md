@@ -1,6 +1,6 @@
 # VarsityHub Audit Execution Guide
 
-This guide explains how to run an audit against [AUDIT_METHODOLOGY.md](./AUDIT_METHODOLOGY.md), how to document findings, and how to verify fixes without turning routine audits into documentation-heavy theater.
+This guide explains how to run an audit against [AUDIT_STANDARD.md](./AUDIT_STANDARD.md), how to document findings, and how to verify fixes without turning routine audits into documentation-heavy theater.
 
 ## When To Run Which Audit
 
@@ -198,11 +198,11 @@ An audit is ready to close when:
 - each finding maps to a rule in the audit standard
 - each accepted fix includes a verification step
 - false positives are called out explicitly
-- any invariant changes are reflected in `docs/AUDIT_METHODOLOGY.md`
-- any checklist-impacting changes are reflected in `docs/AUDIT_REVIEW_GATE.md`
+- any invariant changes are reflected in `docs/AUDIT_STANDARD.md`
+- any checklist-impacting changes are reflected in `docs/PR_CHECKLIST.md`
 
 ## Related Documents
 
-- [Audit Standard](./AUDIT_METHODOLOGY.md)
-- [Audit Review Gate](./AUDIT_REVIEW_GATE.md)
+- [Audit Standard](./AUDIT_STANDARD.md)
+- [PR Checklist](./PR_CHECKLIST.md)
 - `docs/SYSTEM_ARCHITECTURE_AUDIT_REPORT.json` for generated or archived raw findings

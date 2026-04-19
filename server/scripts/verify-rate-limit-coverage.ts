@@ -28,11 +28,11 @@ const checks: Check[] = [
     label: 'default API limiter mounted',
   },
 
-  // Auth — uses inline rate limiting (authRate map + MAX_AUTH_ATTEMPTS)
+  // Auth — uses Redis-backed rate limiting (rlIncr + MAX_AUTH_ATTEMPTS)
   {
     file: 'src/routes/auth.ts',
-    mustContain: 'const authRate: Map<string',
-    label: 'auth inline rate limiter',
+    mustContain: 'checkAuthRateLimit',
+    label: 'auth rate limiter function',
   },
   {
     file: 'src/routes/auth.ts',
@@ -41,22 +41,22 @@ const checks: Check[] = [
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "authRouter.post('/register'",
+    mustContain: "'/register',",
     label: 'auth register endpoint',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "authRouter.post('/login'",
+    mustContain: "'/login',",
     label: 'auth login endpoint',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "authRouter.post('/verify/request'",
+    mustContain: "'/verify/request',",
     label: 'auth verify/request endpoint',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "authRouter.post('/verify/send'",
+    mustContain: "'/verify/send',",
     label: 'auth verify/send endpoint',
   },
 
@@ -106,19 +106,19 @@ const checks: Check[] = [
   {
     file: 'src/routes/payments.ts',
     mustContain:
-      "paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireAuth as any, paymentLimiter",
+      "paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, paymentLimiter",
     label: 'payments apple receipt limiter',
   },
   {
     file: 'src/routes/payments.ts',
     mustContain:
-      "paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter",
+      "paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerified as any, paymentLimiter",
     label: 'payments apple ad receipt limiter',
   },
   {
     file: 'src/routes/payments.ts',
     mustContain:
-      "paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireAuth as any, paymentLimiter",
+      "paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerified as any, paymentLimiter",
     label: 'payments google purchase limiter',
   },
 

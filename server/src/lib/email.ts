@@ -1,4 +1,3 @@
-import { debugLog } from './debugLog.js';
 import type { FounderMetricsReport } from './founderMetrics.js';
 import type { EmailResult } from '../services/email/types.js';
 import type { EmailService } from '../services/email/EmailService.js';
@@ -567,7 +566,7 @@ async function sendTemplateEmail(
     });
 
     if (result.success) {
-      debugLog(`✅ ${logMessage}`);
+      console.log(`✅ ${logMessage}`);
       return true;
     } else {
       console.error(`❌ Failed: ${logMessage}`, result.error);

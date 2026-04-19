@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { isCloudinaryConfigured } from '../lib/cloudinary.js';
-import { getMissingEmailTemplates, getMissingRecommendedTemplates, isSendGridConfigured } from '../lib/email.js';
+import { getMissingEmailTemplates, getMissingRecommendedTemplates, isSendGridConfigured, sendVerificationEmail } from '../lib/email.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
@@ -128,6 +128,49 @@ healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
   const serviceReady = emailService.isConfigured() && emailService.validateConfig().valid;
   const sendgridOk = isSendGridConfigured();
   const ready = sendgridOk && serviceReady && missingEmailTemplates.length === 0;
+  // If ?probe=<email> is provided, send a real verification-style email
+  // to test end-to-end deliverability (not just config).
+  const probeAddress = req.query.probe as string | undefined;
+  if (probeAddress) {
+    if (!ready) {
+      return res.status(503).json({
+        status: 'not_ready',
+        message: 'Email service not configured — cannot send probe',
+        sendgrid_configured: sendgridOk,
+        service_ready: serviceReady,
+        missing_critical_templates: missingEmailTemplates,
+      });
+    }
+
+    // Basic email format check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(probeAddress)) {
+      return res.status(400).json({ status: 'invalid_email', probe: probeAddress });
+    }
+
+    const probeCode = '000000';
+    const startMs = Date.now();
+    try {
+      const sent = await sendVerificationEmail(probeAddress, probeCode, 'VarsityHub Probe');
+      const durationMs = Date.now() - startMs;
+      return res.status(sent ? 200 : 502).json({
+        status: sent ? 'delivered' : 'rejected',
+        probe: probeAddress,
+        duration_ms: durationMs,
+        message: sent
+          ? 'SendGrid accepted the email — check inbox/spam for delivery confirmation'
+          : 'sendVerificationEmail returned false — check Railway logs for EMAIL_AUDIT and SendGridProvider errors',
+      });
+    } catch (error: any) {
+      const durationMs = Date.now() - startMs;
+      return res.status(502).json({
+        status: 'error',
+        probe: probeAddress,
+        duration_ms: durationMs,
+        error: error.message || 'Unknown error',
+      });
+    }
+  }
+
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ok' : 'degraded',
     sendgrid_configured: sendgridOk,

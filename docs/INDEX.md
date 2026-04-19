@@ -4,9 +4,9 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 
 ## Audit
 
-- [Audit Standard](./AUDIT_METHODOLOGY.md)
+- [Audit Standard](./AUDIT_STANDARD.md)
 - [Audit Execution Guide](./AUDIT_EXECUTION_GUIDE.md)
-- [Audit Review Gate](./AUDIT_REVIEW_GATE.md)
+- [PR Checklist](./PR_CHECKLIST.md)
 - [Security Architecture Audit (Historical)](./SECURITY_ARCHITECTURE_AUDIT_2026-03.md)
 - [Comprehensive Security Architecture Audit (Historical)](./COMPREHENSIVE_SECURITY_ARCHITECTURE_AUDIT_2026.md)
 
@@ -86,7 +86,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 
 ## Release
 
-- [Audit Review Gate](./AUDIT_REVIEW_GATE.md)
+- [PR Checklist](./PR_CHECKLIST.md)
 - [Release Checklist](./release/CHECKLIST.md)
 - [Production Readiness](./release/PRODUCTION_READINESS.md)
 - [Production Readiness Audit](./release/PRODUCTION_READINESS_AUDIT.md)

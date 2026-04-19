@@ -28,6 +28,17 @@ function Step3League() {
   const { markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   
+  // Prerequisite guard: steps 1-2 must be completed before step-3
+  useEffect(() => {
+    if (!ob.role) {
+      if (__DEV__) console.warn('[step-3-league] No role set — redirecting to step-1');
+      router.replace('/onboarding/step-1-role');
+    } else if (!ob.step_2_visited) {
+      if (__DEV__) console.warn('[step-3-league] Step-2 not completed — redirecting');
+      router.replace('/onboarding/step-2-basic');
+    }
+  }, [ob.role, ob.step_2_visited, router]);
+
   // Form state
   const [orgName, setOrgName] = useState('');
   const [location, setLocation] = useState('');

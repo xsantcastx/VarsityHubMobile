@@ -44,6 +44,7 @@ const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_RESET_FAILURES = 5;
 const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+const REGISTER_EMAIL_SOFT_TIMEOUT_MS = 5000;
 
 // v1.0.2 audit fix: unified truthy parsing — must match middleware/rateLimiters.ts.
 // Previously this checked "true" while rateLimiters.ts checked "1", so setting either
@@ -281,18 +282,6 @@ authRouter.post(
         `[verify-code] [register] Code hash stored in DB for user ${user.id} (expires ${exp.toISOString()})`
       );
     const access_token = signJwt({ id: user.id });
-    // Fire-and-forget email — don't block the HTTP response waiting for SendGrid
-    sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0])
-      .then(result => {
-        if (result === false) {
-          console.error('[register] sendVerificationEmail returned false — email NOT sent');
-        } else {
-          console.log('[register] sendVerificationEmail accepted by SendGrid');
-        }
-      })
-      .catch(e => {
-        console.error('[register] sendVerificationEmail threw:', e);
-      });
     // Issue refresh token on registration
     const rawRefreshReg = generateRefreshToken();
     const regTokenHash = hashRefreshToken(rawRefreshReg);
@@ -306,7 +295,43 @@ authRouter.post(
       },
     });
 
-    const payload: any = { access_token, refresh_token: rawRefreshReg, user: sanitizeUser(user) };
+    const emailSendAttempt = sendVerificationEmail(
+      email,
+      code,
+      display_name || sanitizedEmail.split('@')[0]
+    )
+      .then(sent => ({
+        sent,
+        error: sent ? undefined : 'EMAIL_DELIVERY_FAILED',
+      }))
+      .catch(e => {
+        console.error('[register] sendVerificationEmail threw:', e);
+        return { sent: false, error: 'EMAIL_DELIVERY_EXCEPTION' as const };
+      });
+
+    const emailDelivery = await Promise.race([
+      emailSendAttempt,
+      new Promise<{ sent: false; error: 'EMAIL_DELIVERY_TIMEOUT' }>(resolve =>
+        setTimeout(
+          () => resolve({ sent: false, error: 'EMAIL_DELIVERY_TIMEOUT' }),
+          REGISTER_EMAIL_SOFT_TIMEOUT_MS
+        )
+      ),
+    ]);
+
+    if (!emailDelivery.sent) {
+      console.error(
+        `[register] Initial verification email not confirmed: ${emailDelivery.error ?? 'unknown'}`
+      );
+    }
+
+    const payload: any = {
+      access_token,
+      refresh_token: rawRefreshReg,
+      user: sanitizeUser(user),
+      verification_email_sent: emailDelivery.sent,
+      verification_email_error: emailDelivery.error,
+    };
     if (shouldExposeDevCodes) payload.dev_verification_code = code;
     debugLog('[register] Completed in', Date.now() - start, 'ms');
     res.status(201).json(payload);

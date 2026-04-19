@@ -871,8 +871,20 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // If on public route and doesn't need onboarding (but NOT verify-email)
-      if (isPublic && !needsOnboarding && firstSegment !== 'verify-email') {
+      // Payment redirect screens must stay mounted long enough to reconcile
+      // webhook/finalize-session state. Redirecting an authenticated user away
+      // from /payment-success or /payment-cancel causes a bounce back into
+      // paywall logic before Stripe state is finalized.
+      const isPaymentRedirectScreen =
+        firstSegment === 'payment-success' || firstSegment === 'payment-cancel';
+
+      // If on public route and doesn't need onboarding (but NOT verify-email or payment redirects)
+      if (
+        isPublic &&
+        !needsOnboarding &&
+        firstSegment !== 'verify-email' &&
+        !isPaymentRedirectScreen
+      ) {
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {
           redirectWithTelemetry(landingRoute, 'public_route_authenticated');

@@ -1521,6 +1521,7 @@ postsRouter.post(
 postsRouter.post(
   '/:id/upvote',
   requireAuth as any,
+  requireVerified as any,
   interactionLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
@@ -1645,6 +1646,7 @@ postsRouter.post(
 postsRouter.post(
   '/:id/bookmark',
   requireAuth as any,
+  requireVerified as any,
   interactionLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
@@ -1689,6 +1691,7 @@ postsRouter.post(
 postsRouter.post(
   '/:id/share',
   requireAuth as any,
+  requireVerified as any,
   interactionLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {

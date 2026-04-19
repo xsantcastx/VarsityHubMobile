@@ -119,12 +119,17 @@ export default function SignUpScreen() {
       // Registration response already saved tokens — AuthProvider will pick them up.
       // Don't call checkAuth() here to avoid a navigation race with router.replace below.
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'email', role: 'fan' });
+      const verifyParams = new URLSearchParams();
+      if (res?.verification_email_sent === false) {
+        verifyParams.set('delivery', String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED'));
+      }
       // After successful signup, redirect to email verification screen
       // Pass dev code only in __DEV__ for easier testing (never in production)
       if (__DEV__ && res?.dev_verification_code) {
-        router.replace(`/verify?devCode=${res.dev_verification_code}`);
+        verifyParams.set('devCode', String(res.dev_verification_code));
+        router.replace(`/verify?${verifyParams.toString()}`);
       } else {
-        router.replace('/verify');
+        router.replace(verifyParams.size > 0 ? `/verify?${verifyParams.toString()}` : '/verify');
       }
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Registration failed after all attempts:', e);

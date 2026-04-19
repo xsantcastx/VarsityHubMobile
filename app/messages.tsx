@@ -162,7 +162,7 @@ function MessagesScreen() {
       } catch {
         // Silently fail - don't disrupt inbox
       }
-    }, 15000);
+    }, 30000);
     return () => {
       mounted = false;
       clearInterval(interval);

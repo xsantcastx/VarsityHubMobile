@@ -124,7 +124,7 @@ function MessageThreadScreen() {
       } catch {
         // Silently fail - don't disrupt conversation
       }
-    }, 15000);
+    }, 30000);
 
     return () => {
       mounted = false;

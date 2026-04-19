@@ -1,5 +1,5 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
-import auth from './auth';
+import auth, { invalidateMeCache } from './auth';
 import {
   httpDelete,
   httpGet,
@@ -31,11 +31,13 @@ export const User = {
   loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
   loginViaApple: (identityToken: string) => auth.loginWithApple(identityToken),
   logout: () => auth.logout(),
-  updateMe: (data: UpdateMePayload) => httpPut('/auth/me', data),
-  patchMe: (data: UpdateMePayload) => httpPatch('/me', data),
-  updatePreferences: (patch: UpdatePreferencesPayload) => httpPatch('/me/preferences', patch),
-  completeOnboarding: (data: CompleteOnboardingPayload) =>
-    httpPost('/me/complete-onboarding', data),
+  updateMe: (data: UpdateMePayload) => { invalidateMeCache(); return httpPut('/auth/me', data); },
+  patchMe: (data: UpdateMePayload) => { invalidateMeCache(); return httpPatch('/me', data); },
+  updatePreferences: (patch: UpdatePreferencesPayload) => { invalidateMeCache(); return httpPatch('/me/preferences', patch); },
+  completeOnboarding: (data: CompleteOnboardingPayload) => {
+    invalidateMeCache();
+    return httpPost('/me/complete-onboarding', data);
+  },
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) =>
@@ -726,13 +728,17 @@ export const Payments = {
 export const Subscriptions = {
   createCheckout: (plan: string, teamCount?: number) =>
     httpPost('/payments/checkout', { plan, team_count: teamCount }),
-  finalizeSession: (sessionId: string) =>
-    httpPost('/payments/finalize-session', { session_id: sessionId }),
-  cancel: () => httpPost('/payments/subscription/cancel', {}),
+  finalizeSession: (sessionId: string) => {
+    invalidateMeCache();
+    return httpPost('/payments/finalize-session', { session_id: sessionId });
+  },
+  cancel: () => { invalidateMeCache(); return httpPost('/payments/subscription/cancel', {}); },
   // v1.0.2: undo a cancel-at-period-end before the period actually ends
-  resume: () => httpPost('/payments/subscription/resume', {}),
-  updateQuantity: (teamCount: number) =>
-    httpPost('/payments/update-subscription-quantity', { team_count: teamCount }),
+  resume: () => { invalidateMeCache(); return httpPost('/payments/subscription/resume', {}); },
+  updateQuantity: (teamCount: number) => {
+    invalidateMeCache();
+    return httpPost('/payments/update-subscription-quantity', { team_count: teamCount });
+  },
   getSummary: () => httpGet('/payments/subscription/summary'),
   // v1.0.2: billing history for current user
   history: (limit: number = 50) =>

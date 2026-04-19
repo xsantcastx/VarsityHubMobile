@@ -15,6 +15,7 @@ import bcrypt from 'bcrypt';
 
 let prisma: any;
 let signJwt: any;
+let hashRefreshToken: (token: string) => string;
 
 const TEST_EMAIL = `test-api-auth-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
@@ -28,6 +29,7 @@ describe('API Authentication Endpoints', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
+    ({ hashRefreshToken } = await import('../lib/jwt.js'));
   });
 
   afterAll(async () => {
@@ -65,16 +67,13 @@ describe('API Authentication Endpoints', () => {
       accessToken = response.body.access_token;
       userId = response.body.user.id;
 
-      // In dev/test, verification code might be included
+      // In dev/test, verification code might be included as plaintext
       if (response.body.dev_verification_code) {
         verificationCode = response.body.dev_verification_code;
-      } else {
-        // Fetch from database if not in response
-        const user = await prisma.user.findUnique({
-          where: { email: TEST_EMAIL },
-        });
-        verificationCode = user?.email_verification_code || '';
       }
+      // NOTE: Cannot read plaintext code from DB — auth.ts now hashes before storage.
+      // If dev_verification_code is not in the response, the verify test will be skipped.
+      // Set ENABLE_DEV_CODES=1 in test env to enable.
     });
 
     it('should reject duplicate email registration', async () => {
@@ -266,15 +265,8 @@ describe('API Authentication Endpoints', () => {
   describe('POST /auth/verify/confirm', () => {
     it('should verify email with correct code', async () => {
       if (!verificationCode) {
-        // Fetch code from database
-        const user = await prisma.user.findUnique({
-          where: { email: TEST_EMAIL },
-        });
-        verificationCode = user?.email_verification_code || '';
-      }
-
-      if (!verificationCode) {
-        console.warn('Skipping verify test - no verification code available');
+        // DB stores a hash — cannot recover plaintext. Need ENABLE_DEV_CODES=1.
+        console.warn('Skipping verify test — no plaintext code available (set ENABLE_DEV_CODES=1)');
         return;
       }
 
@@ -293,11 +285,12 @@ describe('API Authentication Endpoints', () => {
     it('should reject incorrect verification code', async () => {
       const badEmail = `test-bad-code-${Date.now()}@example.com`;
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const plainCode = '123456';
       const badUser = await prisma.user.create({
         data: {
           email: badEmail,
           password_hash: passwordHash,
-          email_verification_code: '123456',
+          email_verification_code: hashRefreshToken(plainCode),
           email_verification_expires: new Date(Date.now() + 30 * 60 * 1000),
           preferences: {},
         },
@@ -316,16 +309,15 @@ describe('API Authentication Endpoints', () => {
     });
 
     it('should reject expired verification code', async () => {
-      // Create user with expired code
       const expiredEmail = `test-expired-${Date.now()}@example.com`;
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      
+      const plainCode = String(Math.floor(100000 + Math.random() * 900000));
+
       const expiredUser = await prisma.user.create({
         data: {
           email: expiredEmail,
           password_hash: passwordHash,
-          email_verification_code: code,
+          email_verification_code: hashRefreshToken(plainCode),
           email_verification_expires: new Date(Date.now() - 1000), // Expired
           preferences: {},
         },
@@ -335,12 +327,11 @@ describe('API Authentication Endpoints', () => {
       const response = await request(app)
         .post('/auth/verify/confirm')
         .set('Authorization', `Bearer ${expiredToken}`)
-        .send({ code })
+        .send({ code: plainCode })
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
 
-      // Cleanup
       await prisma.user.delete({ where: { id: expiredUser.id } });
     });
   });

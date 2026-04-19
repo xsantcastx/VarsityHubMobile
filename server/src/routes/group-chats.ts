@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { prisma } from '../lib/prisma.js';
 import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 import { validateContent } from '../lib/contentFilter.js';
@@ -9,7 +10,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
-groupChatsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+groupChatsRouter.get('/', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -88,7 +89,7 @@ groupChatsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedReq
 }));
 
 // Get messages for a specific group chat
-groupChatsRouter.get('/:chatId/messages', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+groupChatsRouter.get('/:chatId/messages', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -139,6 +140,7 @@ const sendMessageSchema = z.object({
 groupChatsRouter.post(
   '/:chatId/messages',
   requireAuth as any,
+  requireVerified as any,
   groupMessageLimiter as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
@@ -195,7 +197,7 @@ groupChatsRouter.post(
 );
 
 // Mark messages as read
-groupChatsRouter.post('/:chatId/read', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+groupChatsRouter.post('/:chatId/read', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -226,7 +228,7 @@ const createChatSchema = z.object({
   teamId: z.string().min(1, 'teamId is required to create a group chat'),
 });
 
-groupChatsRouter.post('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+groupChatsRouter.post('/', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -311,6 +313,7 @@ groupChatsRouter.post('/', requireAuth as any, asyncHandler(async (req: AuthedRe
 groupChatsRouter.delete(
   '/:chatId/members/:userId',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });

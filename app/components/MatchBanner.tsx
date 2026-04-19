@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Dimensions, Easing, Image, ImageBackground, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MatchBannerLottie from './MatchBannerLottie';
 import MatchBannerOverlayLayer from './MatchBannerOverlayLayer';
@@ -30,7 +30,7 @@ type Props = {
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export default function MatchBanner({ leftImage, rightImage, leftName = '', rightName = '', leftScore, rightScore, height = 260, variant = 'full', leftColor, rightColor, appearance = 'classic', hero = false, onVsPress, onLeftPress, onRightPress, onGoingPress, goingCount, headerFade, onPress }: Props) {
+export default React.memo(function MatchBanner({ leftImage, rightImage, leftName = '', rightName = '', leftScore, rightScore, height = 260, variant = 'full', leftColor, rightColor, appearance = 'classic', hero = false, onVsPress, onLeftPress, onRightPress, onGoingPress, goingCount, headerFade, onPress }: Props) {
   const halfStyle = { width: SCREEN_WIDTH / 2 };
   const colorScheme = useColorScheme() ?? 'light';
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
@@ -313,7 +313,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
       {rsvpBadge}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   root: {

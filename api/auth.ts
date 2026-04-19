@@ -15,6 +15,20 @@ const TOKEN_KEY = 'auth_token_key';
 const REFRESH_TOKEN_KEY = 'refresh_token_key';
 const FRESH_INSTALL_KEY = '@varsityhub_installed';
 
+// ── User.me() client-side TTL cache ──────────────────────────────────
+// Caches the /me response for up to 30 seconds to cut redundant GETs.
+// Invalidated explicitly on login, logout, register, verify-email,
+// onboarding completion, plan change, and profile update.
+const ME_CACHE_TTL_MS = 30_000;
+let _meCacheData: any = null;
+let _meCacheTs = 0;
+
+/** Force the next User.me() call to hit the network. */
+export function invalidateMeCache() {
+  _meCacheData = null;
+  _meCacheTs = 0;
+}
+
 /**
  * Clear stale Keychain tokens on fresh install.
  * iOS Keychain persists across app delete/reinstall, but AsyncStorage does not.
@@ -97,6 +111,8 @@ function clearLegacyWebToken(key: string) {
 type AuthTokenResponse = {
   access_token?: string;
   refresh_token?: string;
+  verification_email_sent?: boolean;
+  verification_email_error?: string;
 };
 
 export type RefreshTokenResult =
@@ -112,6 +128,12 @@ function parseAuthTokenResponse(value: unknown): AuthTokenResponse {
   const parsed: AuthTokenResponse = {};
   if (typeof response.access_token === 'string') parsed.access_token = response.access_token;
   if (typeof response.refresh_token === 'string') parsed.refresh_token = response.refresh_token;
+  if (typeof response.verification_email_sent === 'boolean') {
+    parsed.verification_email_sent = response.verification_email_sent;
+  }
+  if (typeof response.verification_email_error === 'string') {
+    parsed.verification_email_error = response.verification_email_error;
+  }
   return parsed;
 }
 
@@ -196,6 +218,7 @@ export const auth = {
     }
   },
   async register(email: string, password: string, display_name?: string) {
+    invalidateMeCache();
     const res = parseAuthTokenResponse(
       await httpPostLongTimeout('/auth/register', { email, password, display_name })
     );
@@ -204,12 +227,14 @@ export const auth = {
     return res;
   },
   async login(email: string, password: string) {
+    invalidateMeCache();
     const res = await httpPost('/auth/login', { email, password });
     if (res?.access_token) await saveToken(res.access_token);
     if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async loginWithGoogle(idToken: string) {
+    invalidateMeCache();
     // Google auth involves server-side token verification with Google — allow longer timeout
     const res = await httpPostLongTimeout('/auth/google', { id_token: idToken });
     if (res?.access_token) await saveToken(res.access_token);
@@ -217,6 +242,7 @@ export const auth = {
     return res;
   },
   async loginWithApple(identityToken: string) {
+    invalidateMeCache();
     // Apple auth can be slow on real devices; allow longer timeout
     const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
     if (res?.access_token) await saveToken(res.access_token);
@@ -224,6 +250,10 @@ export const auth = {
     return res;
   },
   async me() {
+    // Return cached response if still fresh (30 s TTL)
+    if (_meCacheData && Date.now() - _meCacheTs < ME_CACHE_TTL_MS) {
+      return _meCacheData;
+    }
     await loadToken();
     const options = {
       headers: {
@@ -232,9 +262,15 @@ export const auth = {
         'If-None-Match': '',
       },
     };
-    return httpGet('/me', options);
+    const data = await httpGet('/me', options);
+    if (data && !data.error) {
+      _meCacheData = data;
+      _meCacheTs = Date.now();
+    }
+    return data;
   },
   async logout() {
+    invalidateMeCache();
     // Invalidate refresh token server-side first (best-effort)
     try {
       const refreshToken = await loadRefreshToken();
@@ -260,6 +296,7 @@ export const auth = {
     return httpPost('/auth/verify/request', {});
   },
   async verifyEmail(code: string) {
+    invalidateMeCache();
     await loadToken();
     return httpPost('/auth/verify/confirm', { code });
   },

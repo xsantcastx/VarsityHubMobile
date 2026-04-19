@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { followLimiter, mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -546,7 +547,7 @@ const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Password is required').optional(),
   delete_confirmation: z.string().optional(),
 });
-usersRouter.delete('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.delete('/me', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = req.user!.id;
   const parsed = deleteAccountSchema.safeParse(req.body || {});
   if (!parsed.success) {
@@ -713,7 +714,7 @@ usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, asyncHandler(a
 }));
 
 // Follow a user
-usersRouter.post('/:id/follow', requireAuth as any, followLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/follow', requireAuth as any, requireVerified as any, followLimiter as any, asyncHandler(async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;
   const following_id = req.params.id;
 
@@ -818,7 +819,7 @@ usersRouter.post('/:id/follow', requireAuth as any, followLimiter as any, asyncH
 }));
 
 // Unfollow a user
-usersRouter.delete('/:id/follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.delete('/:id/follow', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;
   const following_id = req.params.id;
 
@@ -834,7 +835,7 @@ usersRouter.delete('/:id/follow', requireAuth as any, asyncHandler(async (req: A
 }));
 
 // Accept a follow request (for private profiles)
-usersRouter.post('/:id/accept-follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/accept-follow', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const followerId = req.params.id;
 
@@ -883,7 +884,7 @@ usersRouter.post('/:id/accept-follow', requireAuth as any, asyncHandler(async (r
 }));
 
 // Reject a follow request (for private profiles)
-usersRouter.post('/:id/reject-follow', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/reject-follow', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const followerId = req.params.id;
 
@@ -916,7 +917,7 @@ usersRouter.post('/:id/reject-follow', requireAuth as any, asyncHandler(async (r
 }));
 
 // Get pending follow requests for current user
-usersRouter.get('/me/follow-requests', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.get('/me/follow-requests', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const requests = await prisma.follows.findMany({
       where: { following_id: req.user!.id, status: 'pending' },
@@ -938,7 +939,7 @@ usersRouter.get('/me/follow-requests', requireAuth as any, asyncHandler(async (r
 }));
 
 // Get followers
-usersRouter.get('/:id/followers', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/followers', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
@@ -975,7 +976,7 @@ usersRouter.get('/:id/followers', requireAuth as any, asyncHandler(async (req: A
 }));
 
 // Get following
-usersRouter.get('/:id/following', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/following', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const hidden = await isProfileHiddenFromViewer(id, currentUserId || null);
