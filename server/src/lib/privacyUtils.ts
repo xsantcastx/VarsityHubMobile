@@ -43,6 +43,7 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
       status: 'accepted',
     },
     select: { following_id: true },
+    take: Math.min(privateIds.length, 50000),
   });
 
   const allowedSet = new Set(followed.map((f) => f.following_id));

@@ -1,5 +1,6 @@
 import { Advertisement } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { flushPendingAdVerifications } from '@/hooks/useAdIAP';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,6 +35,10 @@ function AdConfirmationScreen() {
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [pollError, setPollError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    void flushPendingAdVerifications();
+  }, []);
 
   useEffect(() => {
     if (params.ad_id) {

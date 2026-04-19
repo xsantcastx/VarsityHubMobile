@@ -353,62 +353,37 @@ function TeamScreen() {
       setTeam(teamData);
       setIsFollowing(!!(teamData as any).is_following);
 
-      // Load current user to check permissions
-      if (!me) {
-        try {
-          const currentUser = await User.me();
-          if (!mounted.current) return;
-          
-          setMe(currentUser);
-          
-          if (currentUser && teamData.id) {
-            try {
-              const memberships = await Team.members(teamData.id);
-              if (!mounted.current) return;
-              
-          const memberList = Array.isArray(memberships) ? memberships : [];
-          const membership = memberList.find((m: TeamMember) => {
-            const memberUserId = m.user_id || m.user?.id;
-            if (memberUserId !== currentUser.id) return false;
-            const role = String(m.role || '').toLowerCase();
-            return ['owner', 'coach', 'admin'].includes(role);
-          });
-              // Also check if user is the org owner (league admin can edit all teams)
-              let isOrgOwner = false;
-              if (orgId && currentUser.id) {
-                try {
-                  const org = await Organization.get(orgId);
-                  isOrgOwner = org?.league_owner_id === currentUser.id;
-                } catch { /* ignore */ }
-              }
-              if (mounted.current) setIsTeamAdmin(!!membership || isOrgOwner);
-            } catch (err: any) {
-              if (__DEV__) console.error('[team-page] Failed to check team admin status:', err);
-              if (mounted.current) setIsTeamAdmin(false);
-            }
+      // Load current user, team memberships, and org data in parallel
+      // (was sequential: User.me → Team.members → Organization.get)
+      {
+        const currentUser = me || await User.me().catch(() => null);
+        if (!mounted.current) return;
+        if (currentUser && !me) setMe(currentUser);
+
+        if (currentUser && teamData.id) {
+          try {
+            // Parallelize membership check and org owner check
+            const [memberships, org] = await Promise.all([
+              Team.members(teamData.id).catch(() => []),
+              orgId ? Organization.get(orgId).catch(() => null) : Promise.resolve(null),
+            ]);
+            if (!mounted.current) return;
+
+            const memberList = Array.isArray(memberships) ? memberships : [];
+            const membership = memberList.find((m: TeamMember) => {
+              const memberUserId = m.user_id || m.user?.id;
+              if (memberUserId !== currentUser.id) return false;
+              const role = String(m.role || '').toLowerCase();
+              return ['owner', 'coach', 'admin'].includes(role);
+            });
+            const isOrgOwner = !!(org?.league_owner_id && org.league_owner_id === currentUser.id);
+            if (mounted.current) setIsTeamAdmin(!!membership || isOrgOwner);
+          } catch (err: any) {
+            if (__DEV__) console.error('[team-page] Failed to check team admin status:', err);
+            if (mounted.current) setIsTeamAdmin(false);
           }
-        } catch {
-          if (mounted.current) {
-            setMe(null);
-            setIsTeamAdmin(false);
-          }
-        }
-      } else if (me && teamData.id) {
-        try {
-          const memberships = await Team.members(teamData.id);
-          if (!mounted.current) return;
-          
-          const memberList = Array.isArray(memberships) ? memberships : [];
-          const membership = memberList.find((m: TeamMember) => {
-            const memberUserId = m.user_id || m.user?.id;
-            if (memberUserId !== me.id) return false;
-            const role = String(m.role || '').toLowerCase();
-            return ['owner', 'coach', 'admin'].includes(role);
-          });
-          if (mounted.current) setIsTeamAdmin(!!membership);
-        } catch (err: any) {
-          if (__DEV__) console.error('[team-page] Failed to re-check team admin status:', err);
-          if (mounted.current) setIsTeamAdmin(false);
+        } else if (!currentUser) {
+          if (mounted.current) { setMe(null); setIsTeamAdmin(false); }
         }
       }
 

@@ -343,17 +343,62 @@ export async function approveCoach(
     }
   }
 
-  // BUG FIX: set paid_by_owner: true so the coach inherits the org owner's plan
-  await updateUserAndInvalidate(prisma, {
-    where: { id: userId },
-    data: {
-      approval_status: 'APPROVED',
-      paid_by_owner: true,
-      rejected_at: null,
-      rejection_reason: null,
-      preferences: buildCoachApprovedPreferences(user.preferences),
-    },
-  });
+  // BUG FIX: set paid_by_owner: true so the coach inherits the org owner's plan.
+  // When the coach came through a league join request (has organization_id in prefs),
+  // also create org/team memberships — otherwise the coach is "approved" but not
+  // actually attached to the league they requested to join.
+  const teamId = prefs?.team_id as string | undefined;
+
+  const txOps: any[] = [
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        approval_status: 'APPROVED',
+        paid_by_owner: true,
+        rejected_at: null,
+        rejection_reason: null,
+        preferences: buildCoachApprovedPreferences(user.preferences),
+      },
+    }),
+  ];
+
+  // Create org membership if the coach has an organization
+  if (orgId) {
+    txOps.push(
+      prisma.organizationMembership.upsert({
+        where: { organization_id_user_id: { organization_id: orgId, user_id: userId } as any },
+        update: { role: 'coach', status: 'active' },
+        create: { organization_id: orgId, user_id: userId, role: 'coach', status: 'active' },
+      }),
+    );
+
+    // If there's a pending join request, mark it approved
+    const pendingJoinRequest = await prisma.organizationJoinRequest.findFirst({
+      where: { organization_id: orgId, user_id: userId, status: 'pending' },
+    });
+    if (pendingJoinRequest) {
+      txOps.push(
+        prisma.organizationJoinRequest.update({
+          where: { id: pendingJoinRequest.id },
+          data: { status: 'approved', reviewed_at: new Date(), reviewed_by: adminId },
+        }),
+      );
+    }
+  }
+
+  // Create team membership if the coach was assigned to a specific team
+  if (teamId) {
+    txOps.push(
+      prisma.teamMembership.upsert({
+        where: { team_id_user_id: { team_id: teamId, user_id: userId } as any },
+        update: { role: 'coach', status: 'active' },
+        create: { team_id: teamId, user_id: userId, role: 'coach', status: 'active' },
+      }),
+    );
+  }
+
+  await prisma.$transaction(txOps);
+  await invalidateMeCacheForUser(userId);
 
   const note = opts?.note;
 

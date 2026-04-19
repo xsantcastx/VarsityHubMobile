@@ -3,6 +3,7 @@
  * iOS: Apple IAP. Android: Stripe fallback.
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -40,6 +41,82 @@ type PendingAd = {
 };
 
 const pendingAdRef = { current: null as PendingAd | null };
+const PENDING_AD_IAP_KEY = 'vh_pending_ad_iap_receipt_verifications_v1';
+
+type PendingAdVerification = {
+  id: string;
+  adId: string;
+  dates: string[];
+  receipts: { receipt: string; productId: string; quantity: number }[];
+  attemptCount: number;
+};
+
+let flushQueuePromise: Promise<void> | null = null;
+
+async function readPendingAdVerifications(): Promise<PendingAdVerification[]> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_AD_IAP_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writePendingAdVerifications(items: PendingAdVerification[]) {
+  if (items.length === 0) {
+    await AsyncStorage.removeItem(PENDING_AD_IAP_KEY).catch(() => {});
+    return;
+  }
+  await AsyncStorage.setItem(PENDING_AD_IAP_KEY, JSON.stringify(items)).catch(() => {});
+}
+
+async function enqueuePendingAdVerification(item: PendingAdVerification) {
+  const existing = await readPendingAdVerifications();
+  await writePendingAdVerifications([
+    ...existing.filter(entry => entry.id !== item.id),
+    item,
+  ]);
+}
+
+function getVerificationErrorMessage(err: any) {
+  return err?.message || err?.data?.error || 'Receipt verification is taking longer than usual';
+}
+
+export async function flushPendingAdVerifications(onError?: (message: string) => void) {
+  if (flushQueuePromise) return flushQueuePromise;
+
+  flushQueuePromise = (async () => {
+    const queue = await readPendingAdVerifications();
+    if (queue.length === 0) return;
+
+    const remaining: PendingAdVerification[] = [];
+    for (const item of queue) {
+      try {
+        await httpPost('/payments/apple/verify-ad-receipt', {
+          ad_id: item.adId,
+          dates: item.dates,
+          receipts: item.receipts,
+        });
+      } catch (err: any) {
+        const message = getVerificationErrorMessage(err);
+        onError?.(message);
+        remaining.push({
+          ...item,
+          attemptCount: item.attemptCount + 1,
+        });
+        if (__DEV__) console.error('[useAdIAP] background verify-ad-receipt error:', err);
+      }
+    }
+
+    await writePendingAdVerifications(remaining);
+  })().finally(() => {
+    flushQueuePromise = null;
+  });
+
+  return flushQueuePromise;
+}
 
 export function useAdIAP() {
   const [purchasing, setPurchasing] = useState(false);
@@ -85,21 +162,25 @@ export function useAdIAP() {
       const complete = (needWeekday ? hasWeekday : true) && (needWeekend ? hasWeekend : true);
 
       if (complete) {
+        const verification: PendingAdVerification = {
+          id: `${pending.adId}:${Date.now()}`,
+          adId: pending.adId,
+          dates: pending.dates,
+          receipts: pending.receipts,
+          attemptCount: 0,
+        };
+        await enqueuePendingAdVerification(verification);
+
         pendingAdRef.current = null;
         setPurchasing(false);
-        try {
-          const res = await httpPost('/payments/apple/verify-ad-receipt', {
-            ad_id: pending.adId,
-            dates: pending.dates,
-            receipts: pending.receipts,
-          });
-          pending.resolve({ ok: !!res?.ok });
-        } catch (err: any) {
-          if (__DEV__) console.error('[useAdIAP] verify-ad-receipt error:', err);
-          const msg = err?.message || 'Verification failed';
-          setError(msg);
-          pending.resolve({ ok: false, error: msg });
-        }
+
+        // Persist the verification work before resolving so a slow connection or
+        // app background does not drop the activation request after finishTransaction.
+        pending.resolve({ ok: true });
+
+        void flushPendingAdVerifications((message) => {
+          setError(message);
+        });
       } else if (needWeekend && !hasWeekend) {
         // Set a 2-minute timeout to prevent UI getting stuck if Apple IAP stalls
         const iapTimeout = setTimeout(() => {
@@ -150,6 +231,13 @@ export function useAdIAP() {
       setError(err instanceof Error ? err.message : 'Failed to load ad products');
     });
   }, [connected, fetchProducts]);
+
+  useEffect(() => {
+    if (isExpoGo || !isIOS) return;
+    void flushPendingAdVerifications((message) => {
+      setError(message);
+    });
+  }, []);
 
   const purchaseAd = useCallback(
     async (params: {

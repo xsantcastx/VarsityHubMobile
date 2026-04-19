@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { User } from '@/api/entities';
+import { Payments, User } from '@/api/entities';
 // @ts-ignore
-import { httpGet, httpPost } from '@/api/http';
+import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
@@ -37,8 +37,8 @@ function PaymentSuccessScreen() {
 
   const isAdPayment = params.type === 'ad';
   const isSubscription = params.type === 'subscription';
-  const maxAttempts = 10;      // subscription: 10 × 3s = 30s
-  const adMaxAttempts = 15;    // ad: 15 × 2s = 30s
+  const maxAttempts = 5;       // subscription: 5 × 2s = 10s (down from 10 × 3s = 30s)
+  const adMaxAttempts = 5;     // ad: 5 × 2s = 10s (down from 15 × 2s = 30s)
 
   const clearRetry = () => {
     if (retryTimeoutRef.current) {
@@ -58,10 +58,13 @@ function PaymentSuccessScreen() {
     ]).start();
   };
 
-  const verifiedRef = useRef(false);
+  const attemptKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (verifiedRef.current) return; // Prevent duplicate finalization calls
-    verifiedRef.current = true;
+    const rawSessionId = params.session_id?.trim() || '';
+    const attemptKey = `${params.type || 'unknown'}:${rawSessionId}:${verificationAttempt}`;
+    if (attemptKeyRef.current === attemptKey) return;
+    attemptKeyRef.current = attemptKey;
+
     let mounted = true;
     const verify = async () => {
       try {
@@ -79,35 +82,44 @@ function PaymentSuccessScreen() {
           return;
         }
 
-        if (isAdPayment) {
-          // First attempt: call finalize-session to register payment and capture ad_id
-          if (verificationAttempt === 0) {
-            try {
-              const result = await httpPost('/payments/finalize-session', { session_id: sessionId });
-              if (!mounted) return;
-              if (result?.ad) {
-                setAdDetails(result.ad);
-                setAmountCents(result.amount_cents || 0);
-                adIdRef.current = result.ad.id ? String(result.ad.id) : null;
-                if (result.ad.status === 'active') {
-                  showSuccessState();
-                  return;
-                }
-              }
-            } catch (err: any) {
-              if (__DEV__) console.warn('[payment-success] finalize failed:', err?.message);
-            }
-          }
-
+        // Call finalize-session on every attempt.
+        // This keeps the fallback loop moving when the first request returned `pending`,
+        // and refreshes the cached /me response before subscription checks.
+        try {
+          const result = await Payments.finalizeSession(sessionId);
           if (!mounted) return;
 
-          // Poll GET /ads/{id} every 2s until status === 'active'
+          if (isAdPayment && result?.ad) {
+            setAdDetails(result.ad);
+            setAmountCents(result.amount_cents || 0);
+            adIdRef.current = result.ad.id ? String(result.ad.id) : null;
+            if (result.ad.status === 'active' || result.ad.payment_status === 'paid') {
+              showSuccessState();
+              return;
+            }
+          } else if (isSubscription) {
+            const me = await User.me();
+            if (!mounted) return;
+            const plan = me?.preferences?.plan;
+            if ((plan === 'veteran' || plan === 'legend') && !me?.preferences?.payment_pending && !me?.preferences?.pending_plan) {
+              showSuccessState();
+              return;
+            }
+          }
+        } catch (err: any) {
+          if (__DEV__) console.warn('[payment-success] finalize attempt failed:', err?.message);
+        }
+
+        if (!mounted) return;
+
+        // ── Step 2: Polling fallback — finalize didn't confirm yet, check raw status
+        if (isAdPayment) {
           const adId = adIdRef.current;
           if (adId) {
             try {
               const adData: any = await httpGet(`/ads/${adId}`);
               if (!mounted) return;
-              if (adData?.status === 'active') {
+              if (adData?.status === 'active' || adData?.payment_status === 'paid') {
                 setAdDetails(adData);
                 showSuccessState();
                 return;
@@ -116,69 +128,33 @@ function PaymentSuccessScreen() {
               if (__DEV__) console.warn('[payment-success] ad status poll:', e);
             }
           }
-
-          if (!mounted) return;
-          if (verificationAttempt < adMaxAttempts - 1) {
-            clearRetry();
-            retryTimeoutRef.current = setTimeout(() => {
-              verifiedRef.current = false;
-              setVerificationAttempt((a) => a + 1);
-            }, 2000);
-          } else {
-            setError("Your ad is being processed — you'll receive an email confirmation shortly.");
-            setLoading(false);
-          }
         } else {
-          // Subscription flow — poll for plan upgrade (Rule A: plan set = payment done)
           try {
             const me = await User.me();
             if (!mounted) return;
             const plan = me?.preferences?.plan;
-            const pending = me?.preferences?.payment_pending;
-            const pendingPlan = me?.preferences?.pending_plan;
-            if ((plan === 'veteran' || plan === 'legend') && pending === false && !pendingPlan) {
+            if ((plan === 'veteran' || plan === 'legend') && !me?.preferences?.payment_pending && !me?.preferences?.pending_plan) {
               showSuccessState();
-            } else if (verificationAttempt < maxAttempts - 1) {
-              // Midway fallback: try finalize-session to nudge the server
-              if (verificationAttempt === 4) {
-                try {
-                  await httpPost('/payments/finalize-session', { session_id: sessionId });
-                } catch (e) { if (__DEV__) console.warn('[PaymentSuccess] finalize-session:', e); }
-              }
-              if (!mounted) return;
-              clearRetry();
-              retryTimeoutRef.current = setTimeout(() => {
-                verifiedRef.current = false;
-                setVerificationAttempt((a) => a + 1);
-              }, 3000);
-            } else {
-              // Last attempt — try finalize
-              try {
-                await httpPost('/payments/finalize-session', { session_id: sessionId });
-                const meAfter = await User.me();
-                if (!mounted) return;
-                if ((meAfter?.preferences?.plan === 'veteran' || meAfter?.preferences?.plan === 'legend') && meAfter?.preferences?.payment_pending === false && !meAfter?.preferences?.pending_plan) {
-                  showSuccessState();
-                  return;
-                }
-              } catch (e) { if (__DEV__) console.warn('[PaymentSuccess] poll error:', e); }
-              if (!mounted) return;
-              setError('This is taking longer than usual — you\'ll receive a confirmation email shortly.');
-              setLoading(false);
+              return;
             }
-          } catch {
-            if (!mounted) return;
-            if (verificationAttempt >= maxAttempts - 1) {
-              setError('Unable to verify payment. Please contact support.');
-              setLoading(false);
-            } else {
-              clearRetry();
-              retryTimeoutRef.current = setTimeout(() => {
-                verifiedRef.current = false;
-                setVerificationAttempt((a) => a + 1);
-              }, 2000);
-            }
+          } catch (e) {
+            if (__DEV__) console.warn('[payment-success] subscription poll:', e);
           }
+        }
+
+        if (!mounted) return;
+        const currentMax = isAdPayment ? adMaxAttempts : maxAttempts;
+        if (verificationAttempt < currentMax - 1) {
+          clearRetry();
+          retryTimeoutRef.current = setTimeout(() => {
+            attemptKeyRef.current = null;
+            setVerificationAttempt((a) => a + 1);
+          }, 2000);
+        } else {
+          setError(isAdPayment
+            ? "Your ad is being processed — you'll receive an email confirmation shortly."
+            : "This is taking longer than usual — you'll receive a confirmation email shortly.");
+          setLoading(false);
         }
       } catch (err: any) {
         if (!mounted) return;
@@ -191,7 +167,7 @@ function PaymentSuccessScreen() {
     void verify();
     return () => { mounted = false; clearRetry(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- checkOpacity and contentOpacity are Animated.Values (ref-like), adding them causes infinite loops
-  }, [params.session_id, isAdPayment, verificationAttempt]);
+  }, [params.session_id, params.type, isAdPayment, isSubscription, verificationAttempt]);
 
   const formatDate = (iso: string) => {
     try {
@@ -217,7 +193,12 @@ function PaymentSuccessScreen() {
             <Text style={[styles.errorBody, { color: theme.mutedText }]}>{error}</Text>
             <Pressable
               style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-              onPress={() => { setLoading(true); setError(null); setVerificationAttempt(0); }}
+              onPress={() => {
+                attemptKeyRef.current = null;
+                setLoading(true);
+                setError(null);
+                setVerificationAttempt(0);
+              }}
             >
               <Text style={styles.primaryBtnText}>Try Again</Text>
             </Pressable>

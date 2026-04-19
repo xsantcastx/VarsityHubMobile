@@ -209,9 +209,11 @@ function ManageSeasonScreen() {
           type: game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away',
           status: game.winner
             ? 'completed'
-            : game.status === 'completed' || game.status === 'cancelled'
-              ? game.status
-              : 'upcoming',
+            : game.approval_status === 'rejected'
+              ? 'cancelled'
+              : game.approval_status === 'pending'
+                ? 'pending'
+                : 'upcoming',
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
         };
@@ -415,21 +417,20 @@ function ManageSeasonScreen() {
   );
 
   const upcomingGames: Game[] = (games ?? []).filter(g => {
+    if (g.approval_status === 'pending' || g.approval_status === 'rejected') return false;
+    if (g.status === 'completed' || g.status === 'cancelled') return false;
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const status = g.status;
-    const isUpcomingStatus = status === 'upcoming' || status === 'live' || status === 'in-progress';
-    return gameDate >= today && isUpcomingStatus && g.approval_status !== 'pending';
+    return gameDate >= today;
   });
 
   const recentGames: Game[] = (games ?? []).filter(g => {
+    if (g.approval_status === 'pending') return false;
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const status = g.status;
-    const isRecentStatus = status === 'completed' || status === 'cancelled';
-    return (gameDate < today || isRecentStatus) && g.approval_status !== 'pending';
+    return gameDate < today || g.status === 'completed' || g.status === 'cancelled';
   });
 
   // Load games on mount

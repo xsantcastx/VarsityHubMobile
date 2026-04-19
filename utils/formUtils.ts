@@ -46,6 +46,9 @@ export interface ValidationResult {
   error?: string;
 }
 
+export const DISPLAY_NAME_MAX_LENGTH = 120;
+export const BIO_MAX_LENGTH = 300;
+
 /**
  * Validate email format
  */
@@ -128,6 +131,29 @@ export function validateUsername(username: string): ValidationResult {
     return { valid: false, error: 'Username can only contain lowercase letters, numbers, dots, and underscores' };
   }
   return { valid: true };
+}
+
+/**
+ * Validate display name against backend limits.
+ */
+export function validateDisplayName(displayName: string): ValidationResult {
+  if (!displayName?.trim()) return { valid: true };
+  return validateTextField(displayName.trim(), 'Display name', {
+    required: false,
+    minLength: 1,
+    maxLength: DISPLAY_NAME_MAX_LENGTH,
+  });
+}
+
+/**
+ * Validate bio against backend limits.
+ */
+export function validateBio(bio: string): ValidationResult {
+  if (!bio?.trim()) return { valid: true };
+  return validateTextField(bio, 'Bio', {
+    required: false,
+    maxLength: BIO_MAX_LENGTH,
+  });
 }
 
 /**

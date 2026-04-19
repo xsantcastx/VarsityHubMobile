@@ -42,13 +42,19 @@ export function usePostInteractions({
   const onUpvote = async () => {
     if (upvoteInFlight.current) return;
     upvoteInFlight.current = true;
+
+    // Optimistic update — increment immediately, reconcile with server response
+    const prevCount = upvotesCount;
+    setUpvotesCount(prev => prev + 1);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
     try {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const r: any = await Post.toggleUpvote(String(postId));
       if (r && typeof r.count === 'number') {
-        setUpvotesCount(r.count);
+        setUpvotesCount(r.count); // Reconcile with actual server count
       }
     } catch (error) {
+      setUpvotesCount(prevCount); // Revert on failure
       if (__DEV__) console.error(`[${tag}] Failed to toggle upvote:`, error);
     } finally {
       upvoteInFlight.current = false;
@@ -58,14 +64,24 @@ export function usePostInteractions({
   const onBookmark = async () => {
     if (bookmarkInFlight.current) return;
     bookmarkInFlight.current = true;
+
+    // Optimistic update — toggle immediately
+    const prevBookmarked = bookmarked;
+    const prevCount = bookmarksCount;
+    setBookmarked(prev => !prev);
+    setBookmarksCount(prev => prevBookmarked ? Math.max(0, prev - 1) : prev + 1);
+    void Haptics.selectionAsync().catch(() => {});
+
     try {
-      void Haptics.selectionAsync().catch(() => {});
       const r: any = await Post.toggleBookmark(String(postId));
       if (r && typeof r.bookmarks_count === 'number') {
         setBookmarksCount(r.bookmarks_count);
       }
       if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
     } catch (error) {
+      // Revert on failure
+      setBookmarked(prevBookmarked);
+      setBookmarksCount(prevCount);
       if (__DEV__) console.error(`[${tag}] Failed to toggle bookmark:`, error);
     } finally {
       bookmarkInFlight.current = false;

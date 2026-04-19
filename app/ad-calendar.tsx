@@ -144,6 +144,7 @@ function AdCalendarScreen() {
   const freeSuccessOpacity = useRef(new Animated.Value(0)).current;
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const { purchaseAd } = useAdIAP();
+
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates

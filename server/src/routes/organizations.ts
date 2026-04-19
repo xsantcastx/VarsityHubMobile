@@ -1817,13 +1817,20 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
       });
     }
 
-    // Approve: update join request, create org membership, assign to team, set coach approval status
-    const txOps: any[] = [
-      prisma.organizationJoinRequest.update({
+    // Approve with Serializable isolation + re-check to prevent double-tap race conditions.
+    // Matches the pattern used in POST /join-requests/:requestId/approve (ORG-8 + ORG-4).
+    await prisma.$transaction(async (tx) => {
+      // Re-check join request status inside transaction to prevent race condition
+      const fresh = await tx.organizationJoinRequest.findUnique({ where: { id: joinRequest.id } });
+      if (!fresh || fresh.status !== 'pending') {
+        throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
+      }
+
+      await tx.organizationJoinRequest.update({
         where: { id: joinRequest.id },
         data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user!.id },
-      }),
-      prisma.user.update({
+      });
+      await tx.user.update({
         where: { id: coachId },
         data: {
           approval_status: 'APPROVED',
@@ -1837,28 +1844,24 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
             teamName: approvedTeamName,
           }),
         },
-      }),
-      prisma.organizationMembership.upsert({
+      });
+      await tx.organizationMembership.upsert({
         where: { organization_id_user_id: { organization_id: orgId, user_id: coachId } as any },
         update: { role: 'coach', status: 'active' },
         create: { organization_id: orgId, user_id: coachId, role: 'coach', status: 'active' },
-      }),
-    ];
+      });
 
-    // Assign coach to specific team if provided
-    if (teamId) {
-      txOps.push(
-        prisma.teamMembership.upsert({
+      // Assign coach to specific team if provided
+      if (teamId) {
+        await tx.teamMembership.upsert({
           where: { team_id_user_id: { team_id: teamId, user_id: coachId } as any },
           update: { role: 'coach', status: 'active' },
           create: { team_id: teamId, user_id: coachId, role: 'coach', status: 'active' },
-        })
-      );
-    }
+        });
+      }
 
-    // Add notification record to the transaction for atomicity
-    txOps.push(
-      prisma.notification.create({
+      // Add notification record to the transaction for atomicity
+      await tx.notification.create({
         data: {
           user_id: coachId,
           actor_id: req.user!.id,
@@ -1869,10 +1872,8 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
             organization_name: org?.name || 'your league',
           },
         },
-      })
-    );
-
-    await prisma.$transaction(txOps);
+      });
+    }, { isolationLevel: 'Serializable' });
     await invalidateMeCacheForUser(coachId);
 
     // Non-blocking: email and push notifications fire after transaction succeeds.
@@ -1900,6 +1901,9 @@ organizationsRouter.post('/:id/coaches/:userId/approve', requireAuth as any, req
 
     return res.json({ message: 'Coach approved', coach_id: coachId });
   } catch (err: any) {
+    if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
+      return res.status(409).json({ error: 'This join request has already been reviewed' });
+    }
     console.error('[organizations] POST /:id/coaches/:userId/approve error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }

@@ -131,7 +131,7 @@ export async function notifyNewMessage(
   senderName: string,
   messagePreview: string,
   conversationId?: string
-): Promise<void> {
+): Promise<string[]> {
   const user = await prisma.user.findUnique({
     where: { id: recipientId },
     select: { preferences: true },
@@ -139,9 +139,9 @@ export async function notifyNewMessage(
   const prefs = user?.preferences as any;
   if (prefs?.notifications?.messages_notifications === false) {
     debugLog(`Messages notifications disabled for user ${recipientId}`);
-    return;
+    return [];
   }
-  await sendPushNotification(
+  return sendPushNotification(
     recipientId,
     `New message from ${senderName}`,
     messagePreview.substring(0, 100),
@@ -163,10 +163,10 @@ export async function notifyPostInteraction(
   actorId: string,
   actorName: string,
   postId: string
-): Promise<void> {
+): Promise<string[]> {
   // Don't notify if user interacted with their own post
   if (postAuthorId === actorId) {
-    return;
+    return [];
   }
 
   // Check if user has disabled comments & upvotes notifications
@@ -178,7 +178,7 @@ export async function notifyPostInteraction(
     const prefs = user?.preferences as any;
     if (prefs?.notifications?.comments_upvotes === false) {
       debugLog(`Comments & upvotes notifications disabled for user ${postAuthorId}`);
-      return;
+      return [];
     }
   }
 
@@ -188,7 +188,7 @@ export async function notifyPostInteraction(
     share: `${actorName} shared your post`,
   };
 
-  await sendPushNotification(
+  return sendPushNotification(
     postAuthorId,
     titles[interactionType],
     `Tap to view`,
@@ -212,8 +212,8 @@ export async function notifyCommentReply(
   replierName: string,
   postId: string,
   commentId: string
-): Promise<void> {
-  if (parentCommentAuthorId === replierId) return;
+): Promise<string[]> {
+  if (parentCommentAuthorId === replierId) return [];
 
   const user = await prisma.user.findUnique({
     where: { id: parentCommentAuthorId },
@@ -222,10 +222,10 @@ export async function notifyCommentReply(
   const prefs = user?.preferences as any;
   if (prefs?.notifications?.comments_upvotes === false) {
     debugLog(`Comments & upvotes notifications disabled for user ${parentCommentAuthorId}`);
-    return;
+    return [];
   }
 
-  await sendPushNotification(
+  return sendPushNotification(
     parentCommentAuthorId,
     `${replierName} replied to your comment`,
     'Tap to view',
@@ -248,7 +248,7 @@ export async function notifyNewFollower(
   userId: string,
   followerId: string,
   followerName: string
-): Promise<void> {
+): Promise<string[]> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { preferences: true },
@@ -256,9 +256,9 @@ export async function notifyNewFollower(
   const prefs = user?.preferences as any;
   if (prefs?.notifications?.follows_notifications === false) {
     debugLog(`Follows notifications disabled for user ${userId}`);
-    return;
+    return [];
   }
-  await sendPushNotification(
+  return sendPushNotification(
     userId,
     `${followerName} started following you`,
     `Tap to view their profile`,
@@ -296,6 +296,7 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
     },
     include: {
       rsvps: {
+        take: 5000,
         include: {
           user: {
             select: {
@@ -307,6 +308,7 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
         },
       },
     },
+    take: 1000,
   });
 
   debugLog(`Found ${upcomingEvents.length} events happening in ${hoursBeforeGame} hours`);

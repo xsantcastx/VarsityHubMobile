@@ -720,18 +720,21 @@ async function getPaymentsConfig(): Promise<{
   }
 }
 
+function finalizePaymentSession(sessionId: string) {
+  invalidateMeCache();
+  return httpPost('/payments/finalize-session', { session_id: sessionId });
+}
+
 export const Payments = {
   configStatus: getPaymentsConfig,
   getConfig: getPaymentsConfig,
+  finalizeSession: finalizePaymentSession,
 };
 
 export const Subscriptions = {
   createCheckout: (plan: string, teamCount?: number) =>
     httpPost('/payments/checkout', { plan, team_count: teamCount }),
-  finalizeSession: (sessionId: string) => {
-    invalidateMeCache();
-    return httpPost('/payments/finalize-session', { session_id: sessionId });
-  },
+  finalizeSession: finalizePaymentSession,
   cancel: () => { invalidateMeCache(); return httpPost('/payments/subscription/cancel', {}); },
   // v1.0.2: undo a cancel-at-period-end before the period actually ends
   resume: () => { invalidateMeCache(); return httpPost('/payments/subscription/resume', {}); },

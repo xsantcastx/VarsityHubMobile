@@ -100,8 +100,9 @@ async function clearResetFailures(email: string): Promise<void> {
 }
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.NODE_ENV === 'production') return console.log(...args);
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
-    console.log(...args);
+    return console.log(...args);
   }
 };
 const shouldExposeDevCodes =

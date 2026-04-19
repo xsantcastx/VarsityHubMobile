@@ -4,7 +4,7 @@ import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
 import { Prisma } from '@prisma/client';
-import { debugLog } from '../lib/debugLog.js';
+import { debugLog as baseDebugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
@@ -47,6 +47,11 @@ if (process.env.NODE_ENV === 'production') {
 const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || '';
 
 export const paymentsRouter = Router();
+
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.NODE_ENV === 'production') return console.log(...args);
+  return baseDebugLog(...args);
+};
 
 async function enforceAdPlan(req: AuthedRequest, res: Response) {
   if (!req.user?.id) {

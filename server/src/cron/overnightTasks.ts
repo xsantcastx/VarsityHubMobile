@@ -137,8 +137,10 @@ export function startAdGoLiveCheck() {
         include: {
           reservations: {
             orderBy: { date: 'asc' },
+            take: 1,
           },
         },
+        take: 1000,
       });
 
       // Only notify if today is the FIRST reservation date (not a mid-run date)
@@ -150,7 +152,12 @@ export function startAdGoLiveCheck() {
       debugLog(`[ad-lifecycle] ${firstDayAds.length} ads starting today`);
 
       for (const ad of firstDayAds) {
-        const lastDate = ad.reservations[ad.reservations.length - 1]?.date;
+        const lastReservation = await prisma.adReservation.findFirst({
+          where: { ad_id: ad.id },
+          orderBy: { date: 'desc' },
+          select: { date: true },
+        });
+        const lastDate = lastReservation?.date;
 
         await emailQueue?.add('ads.goes_live', {
           to: ad.contact_email || '',
@@ -182,6 +189,7 @@ export function startAdGoLiveCheck() {
             },
           },
         },
+        take: 1000,
       });
 
       if (expiredAds.length > 0) {
@@ -200,6 +208,7 @@ export function startAdGoLiveCheck() {
           updated_at: { lt: oneHourAgo },
         },
         select: { id: true },
+        take: 1000,
       });
       if (staleHoldAds.length > 0) {
         const staleAdIds = staleHoldAds.map(a => a.id);
@@ -226,6 +235,7 @@ export function startAdGoLiveCheck() {
           updated_at: { lt: thirtyDaysAgo },
         },
         select: { id: true },
+        take: 1000,
       });
       if (unpaidAds.length > 0) {
         const unpaidAdIds = unpaidAds.map(a => a.id);

@@ -13,12 +13,21 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getApiBaseUrl } from '@/api/http';
-import { validateZipCode, validateYear, sanitizeText } from '@/utils/formUtils';
+import {
+  BIO_MAX_LENGTH,
+  DISPLAY_NAME_MAX_LENGTH,
+  sanitizeText,
+  validateBio,
+  validateDisplayName,
+  validateYear,
+  validateZipCode,
+} from '@/utils/formUtils';
 import { safeGoBack } from '@/utils/navigation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // Field validation errors
 interface FieldErrors {
+  displayName?: string;
   zipCode?: string;
   graduationYear?: string;
   bio?: string;
@@ -393,6 +402,14 @@ export default function EditProfileScreen() {
   const onSave = async () => {
     // Validate fields before saving
     const errors: FieldErrors = {};
+    const displayNameResult = validateDisplayName(displayName);
+    if (displayNameResult.error) {
+      errors.displayName = displayNameResult.error;
+    }
+    const bioResult = validateBio(bio);
+    if (bioResult.error) {
+      errors.bio = bioResult.error;
+    }
     if (zipCode) {
       const zipResult = validateZipCode(zipCode);
       if (zipResult.error) errors.zipCode = zipResult.error;
@@ -688,6 +705,37 @@ export default function EditProfileScreen() {
               
               {/* Username is edited via Settings > Edit Username */}
               <View style={styles.fieldGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Display Name</Text>
+                  <Text style={[styles.charCount, { color: displayName.length > DISPLAY_NAME_MAX_LENGTH ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                    {displayName.length}/{DISPLAY_NAME_MAX_LENGTH}
+                  </Text>
+                </View>
+                <Input
+                  value={displayName}
+                  onChangeText={(text) => {
+                    if (text.length <= DISPLAY_NAME_MAX_LENGTH) {
+                      setDisplayName(text);
+                    }
+                    if (fieldErrors.displayName) {
+                      setFieldErrors(prev => ({ ...prev, displayName: undefined }));
+                    }
+                  }}
+                  placeholder="How should your name appear?"
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                  maxLength={DISPLAY_NAME_MAX_LENGTH}
+                  style={[styles.input, {
+                    borderColor: fieldErrors.displayName ? '#DC2626' : Colors[colorScheme].border,
+                    backgroundColor: Colors[colorScheme].surface,
+                    color: Colors[colorScheme].text,
+                  }]}
+                />
+                {fieldErrors.displayName && (
+                  <Text style={[styles.errorText, { color: '#DC2626' }]}>{fieldErrors.displayName}</Text>
+                )}
+              </View>
+
+              <View style={styles.fieldGroup}>
                 <Text style={[styles.label, { color: Colors[colorScheme].mutedText }]}>Username</Text>
                 <Pressable 
                   onPress={() => router.push('/settings/edit-username')}
@@ -714,28 +762,34 @@ export default function EditProfileScreen() {
               <View style={styles.fieldGroup}>
                 <View style={styles.labelRow}>
                   <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Bio</Text>
-                  <Text style={[styles.charCount, { color: bio.length > 300 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
-                    {bio.length}/300
+                  <Text style={[styles.charCount, { color: bio.length > BIO_MAX_LENGTH ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                    {bio.length}/{BIO_MAX_LENGTH}
                   </Text>
                 </View>
                 <Input 
                   value={bio} 
                   onChangeText={(text) => {
-                    if (text.length <= 300) {
+                    if (text.length <= BIO_MAX_LENGTH) {
                       setBio(text);
+                    }
+                    if (fieldErrors.bio) {
+                      setFieldErrors(prev => ({ ...prev, bio: undefined }));
                     }
                   }} 
                   placeholder="Tell everyone about yourself..." 
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   multiline
                   numberOfLines={3}
-                  maxLength={300}
+                  maxLength={BIO_MAX_LENGTH}
                   style={[styles.textArea, { 
-                    borderColor: bio.length > 300 ? '#DC2626' : Colors[colorScheme].border,
+                    borderColor: fieldErrors.bio ? '#DC2626' : Colors[colorScheme].border,
                     backgroundColor: Colors[colorScheme].surface,
                     color: Colors[colorScheme].text,
                   }]} 
                 />
+                {fieldErrors.bio && (
+                  <Text style={[styles.errorText, { color: '#DC2626' }]}>{fieldErrors.bio}</Text>
+                )}
               </View>
             </View>
 
@@ -1123,6 +1177,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     lineHeight: 16,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 6,
+    lineHeight: 16,
+    fontWeight: '500',
   },
   sportsGrid: {
     flexDirection: 'row',

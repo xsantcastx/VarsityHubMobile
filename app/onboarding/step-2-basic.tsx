@@ -110,54 +110,49 @@ export default function Step2Basic() {
     }
   }, [ob.role, router]);
 
-  // Check email verification status when screen focuses
+  // Track the user's server-side username so availability checks can exclude it.
+  // Keyed on the actual server value (not the edited input) to avoid mid-edit mismatches.
+  const serverUsernameRef = useRef<string>('');
+  const initialLoadDone = useRef(false);
+
+  // Single User.me() call on focus — handles both email verification check and initial data load.
+  // The 30s client-side cache on User.me() prevents redundant network calls on rapid focus events.
   useFocusEffect(
     useCallback(() => {
       void (async () => {
         try {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
+
+          // First focus: also load username, zip, and check availability
+          if (!initialLoadDone.current) {
+            initialLoadDone.current = true;
+            const existingUsername = me?.username || '';
+            const legacyDisplayName = me?.display_name || '';
+            const normalized = existingUsername || legacyDisplayName.trim().toLowerCase().replace(/\s+/g, '_');
+            serverUsernameRef.current = existingUsername.toLowerCase();
+            setUsername(normalized);
+            setZip(me?.preferences?.zip_code || '');
+
+            if (normalized && existingUsername && normalized === existingUsername.toLowerCase()) {
+              setAvailable(true);
+            } else if (normalized && usernameRe.test(normalized)) {
+              try {
+                const r: any = await User.usernameAvailable(normalized);
+                setAvailable(!!r?.available);
+              } catch (error) {
+                if (__DEV__) console.warn('[step-2-basic] Username availability check failed:', error);
+                setAvailable(null);
+              }
+            }
+          }
         } catch (error) {
-          if (__DEV__) console.warn('[step-2-basic] Failed to check email verification:', error);
+          if (__DEV__) console.warn('[step-2-basic] Failed to load user data:', error);
           setEmailVerified(null);
         }
       })();
     }, [])
   );
-
-  // Track the user's server-side username so availability checks can exclude it.
-  // Keyed on the actual server value (not the edited input) to avoid mid-edit mismatches.
-  const serverUsernameRef = useRef<string>('');
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const me: any = await User.me();
-        // Use username if available, otherwise try to normalize from display_name (legacy)
-        const existingUsername = me?.username || '';
-        const legacyDisplayName = me?.display_name || '';
-        const normalized = existingUsername || legacyDisplayName.trim().toLowerCase().replace(/\s+/g, '_');
-        serverUsernameRef.current = existingUsername.toLowerCase();
-        setUsername(normalized);
-        setZip(me?.preferences?.zip_code || '');
-
-        // If the user already has this username on the server, it's theirs — mark as available
-        if (normalized && existingUsername && normalized === existingUsername.toLowerCase()) {
-          setAvailable(true);
-        } else if (normalized && usernameRe.test(normalized)) {
-          try {
-            const r: any = await User.usernameAvailable(normalized);
-            setAvailable(!!r?.available);
-          } catch (error) {
-            if (__DEV__) console.warn('[step-2-basic] Username availability check failed:', error);
-            setAvailable(null);
-          }
-        }
-      } catch (error) {
-        if (__DEV__) console.warn('[step-2-basic] Failed to load user data:', error);
-      }
-    })();
-  }, []);
   useEffect(() => {
     if (ob.affiliation) setAffiliation(ob.affiliation);
     if (ob.dob) setDob(ob.dob || '');

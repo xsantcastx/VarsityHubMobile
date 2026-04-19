@@ -1108,6 +1108,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
           status: 'active',
         },
         select: { id: true, name: true },
+        take: 5,
       });
 
       if (possibleDuplicates.length > 0) {

@@ -1796,21 +1796,28 @@ gamesRouter.put(
         return res.status(403).json({ error: 'Only coaches and admins can approve events' });
       }
 
+      const isApproved = parsed.data.approval_status === 'approved';
+      const rejectionReason = (req.body as any)?.reason || null;
+
       const updatedGame = await (prisma.game.update as any)({
         where: { id },
         data: {
           approval_status: parsed.data.approval_status,
-          approved_by_id: parsed.data.approval_status === 'approved' ? req.user.id : null,
-          approved_at: parsed.data.approval_status === 'approved' ? new Date() : null,
+          approved_by_id: isApproved ? req.user.id : null,
+          approved_at: isApproved ? new Date() : null,
         },
       });
 
-      // Sync linked events to match the game's approval status
+      // Sync linked events to match the game's approval status.
+      // Events have a real `status` column — transition it so event screens sort correctly.
       await prisma.event.updateMany({
         where: { game_id: id },
         data: {
           approval_status: parsed.data.approval_status,
-          ...(parsed.data.approval_status === 'approved' ? { approved_at: new Date() } : {}),
+          status: isApproved ? 'approved' : 'rejected',
+          ...(isApproved
+            ? { approved_at: new Date() }
+            : { rejected_reason: rejectionReason }),
         },
       });
       await invalidateGamesListCache();

@@ -486,19 +486,40 @@ export default function PostDetailScreen() {
     if (!currentPostId || !comment.trim()) return;
     setCommenting(true);
     const parentId = replyingToComment?.id;
+    const commentText = sanitizeText(comment);
+
+    // Optimistic insert — show the comment immediately with a temporary ID.
+    // The server response will replace it with the real record.
+    const tempId = `temp-${Date.now()}`;
+    const optimisticComment = {
+      id: tempId,
+      text: commentText,
+      parent_id: parentId || null,
+      created_at: new Date().toISOString(),
+      user: { id: 'self', display_name: 'You', avatar_url: null },
+      _optimistic: true,
+    };
+    const prevComments = comments;
+    const nextOptimistic = [optimisticComment, ...comments];
+    setComments(nextOptimistic as any);
+    setCommentsById(prev => ({ ...prev, [currentPostId]: nextOptimistic as any }));
+    setReplyingToComment(null);
+    setComment('');
+
     try {
-      const created = await PostApi.addComment(currentPostId, sanitizeText(comment), parentId);
-      // Fix: build next array once, then update both states separately (not nested setState)
-      const next = [created, ...comments];
-      setComments(next);
-      setCommentsById(prev => ({ ...prev, [currentPostId]: next }));
-      setReplyingToComment(null);
+      const created = await PostApi.addComment(currentPostId, commentText, parentId);
+      // Replace optimistic comment with real server response
+      const nextReal = [created, ...prevComments];
+      setComments(nextReal);
+      setCommentsById(prev => ({ ...prev, [currentPostId]: nextReal }));
     } catch (error) {
+      // Revert optimistic insert on failure
+      setComments(prevComments);
+      setCommentsById(prev => ({ ...prev, [currentPostId]: prevComments }));
       const err = error as any;
       if (__DEV__) console.error('Error adding comment:', err?.message || error);
       Alert.alert('Comment Failed', err?.message || 'Failed to post comment. Please try again.');
     } finally {
-      setComment('');
       setCommenting(false);
     }
   };
