@@ -158,8 +158,9 @@ export const User = {
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
-  // GDPR/CCPA data portability - export all user data as JSON (longer timeout for large exports)
-  exportMyData: () => httpGet('/users/me/export', {}, 60000),
+  // Legacy alias kept for backward compatibility. New flow is async and
+  // returns a DataExport row rather than a direct JSON download.
+  exportMyData: () => httpPost('/me/data-export', {}),
   upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') =>
     httpPost('/auth/upgrade-to-coach', { plan }),
   // v1.0.2: rejected coaches can re-apply after 48hr cooldown
@@ -172,6 +173,14 @@ export const User = {
     httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
   rejectFollow: (userId: string) =>
     httpPost(`/users/${encodeURIComponent(userId)}/reject-follow`, {}),
+};
+
+export const DataExport = {
+  request: () => httpPost('/me/data-export', {}),
+  list: () => httpGet('/me/data-exports'),
+  get: (id: string) => httpGet(`/me/data-export/${encodeURIComponent(id)}`),
+  download: (id: string) => httpGet(`/me/data-export/${encodeURIComponent(id)}/download`),
+  delete: (id: string) => httpDelete(`/me/data-export/${encodeURIComponent(id)}`),
 };
 
 export const Game = {

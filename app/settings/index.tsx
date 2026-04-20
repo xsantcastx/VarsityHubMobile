@@ -518,6 +518,11 @@ export default function SettingsScreen() {
 
                     {/* Legal */}
                     <SectionCard title="Legal">
+                      <NavRow
+                        title="Download My Data"
+                        subtitle="Request and download a privacy export archive"
+                        onPress={() => void router.push('/settings/data-export' as any)}
+                      />
                       <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
                       <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
                       <NavRow title="DMCA Policy" onPress={() => void router.push('/settings/dmca')} />

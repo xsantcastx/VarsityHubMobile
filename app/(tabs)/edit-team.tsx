@@ -33,6 +33,7 @@ function EditTeamScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<any>(null);
+  const [isPrivate, setIsPrivate] = useState(false);
   const { user: currentUser } = useAuth();
 
   // Transfer ownership state
@@ -62,14 +63,34 @@ function EditTeamScreen() {
       setSport(teamData.sport || '');
       setSeason(teamData.season || '');
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
-      
-      // Check if current user is the team owner and load members
+      setIsPrivate(!!teamData.is_private);
+
+      // Check if current user can manage this team. Mirrors the server's
+      // canManageTeam: team staff role OR org owner/manager fallback.
+      // Previously only checked team membership, which locked out org admins
+      // even though the backend permits them.
       try {
         const membersList = await Team.members(params.id);
         const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
         setMembers(arr);
+        const STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'];
         const myMembership = arr.find((m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id);
-        if (!myMembership || !['owner', 'manager', 'coach', 'assistant_coach'].includes(String(myMembership.role || '').toLowerCase())) {
+        const isTeamStaff = !!myMembership && STAFF_ROLES.includes(String(myMembership.role || '').toLowerCase());
+
+        let isOrgAdmin = false;
+        if (!isTeamStaff && teamData.organization_id && currentUser?.id) {
+          try {
+            const orgMembers = await Organization.members(teamData.organization_id);
+            const orgArr = Array.isArray(orgMembers) ? orgMembers : (orgMembers?.members || []);
+            const myOrgMembership = orgArr.find((m: any) => (m.user_id || m.user?.id) === currentUser.id);
+            const myOrgRole = String(myOrgMembership?.role || '').toLowerCase();
+            isOrgAdmin = ['owner', 'manager'].includes(myOrgRole);
+          } catch (orgErr) {
+            if (__DEV__) console.warn('[EditTeam] org membership check failed:', orgErr);
+          }
+        }
+
+        if (!isTeamStaff && !isOrgAdmin) {
           Alert.alert('Access Denied', 'You must be team staff or an organization admin to edit this team.');
           safeGoBack(router);
           return;
@@ -237,6 +258,7 @@ function EditTeamScreen() {
         name: name.trim(),
         description: description.trim() || undefined,
         sport: sport || undefined,
+        is_private: isPrivate,
         // Note: season is stored as display text in team state but database uses season_start/season_end
         // Don't send 'season' field - it doesn't exist in Team model
       };
@@ -247,7 +269,7 @@ function EditTeamScreen() {
       if (organizationId !== undefined) {
         teamData.organization_id = organizationId;
       }
-      
+
       await Team.update(params.id, teamData);
       setExistingLogoUrl(logoUrl || null);
       setLogoUri(null);
@@ -441,6 +463,45 @@ function EditTeamScreen() {
                 ))}
               </ScrollView>
             </View>
+          </View>
+
+          {/* Privacy Toggle */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Team Privacy</Text>
+            <Pressable
+              style={[
+                styles.privacyToggle,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: isPrivate ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                },
+              ]}
+              onPress={() => setIsPrivate(p => !p)}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: isPrivate }}
+              accessibilityLabel={isPrivate ? 'Team is private' : 'Team is public'}
+            >
+              <MaterialIcons
+                name={isPrivate ? 'lock' : 'public'}
+                size={22}
+                color={isPrivate ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+              />
+              <View style={styles.privacyToggleText}>
+                <Text style={[styles.privacyToggleLabel, { color: Colors[colorScheme].text }]}>
+                  {isPrivate ? 'Private team' : 'Public team'}
+                </Text>
+                <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+                  {isPrivate
+                    ? 'Hidden from public search. Only members, followers, and org admins can see the roster and full profile.'
+                    : 'Discoverable in search. Anyone can view the team profile and follow.'}
+                </Text>
+              </View>
+              <MaterialIcons
+                name={isPrivate ? 'toggle-on' : 'toggle-off'}
+                size={36}
+                color={isPrivate ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+              />
+            </Pressable>
           </View>
         </View>
 
@@ -779,6 +840,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  privacyToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  privacyToggleText: {
+    flex: 1,
+  },
+  privacyToggleLabel: {
+    fontSize: 15,
+    fontWeight: '700',
   },
   transferButton: {
     flexDirection: 'row',

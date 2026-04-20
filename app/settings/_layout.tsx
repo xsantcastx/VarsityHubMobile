@@ -65,6 +65,12 @@ export default function SettingsLayout() {
         }}
       />
       <Stack.Screen
+        name="data-export"
+        options={{
+          title: 'Data Export',
+        }}
+      />
+      <Stack.Screen
         name="followed-teams"
         options={{
           title: 'Followed Teams',

@@ -362,10 +362,16 @@ function TeamScreen() {
 
         if (currentUser && teamData.id) {
           try {
-            // Parallelize membership check and org owner check
-            const [memberships, org] = await Promise.all([
+            // Parallelize membership check and org-admin check. Org-admin
+            // fallback now mirrors the server's canManageTeam: BOTH owner
+            // (`league_owner_id` shortcut) AND manager (membership role).
+            // Previously only league_owner_id counted, so org managers had
+            // no admin controls in the UI even though the backend allowed
+            // them to manage the team.
+            const [memberships, org, orgMemberships] = await Promise.all([
               Team.members(teamData.id).catch(() => []),
               orgId ? Organization.get(orgId).catch(() => null) : Promise.resolve(null),
+              orgId ? Organization.members(orgId).catch(() => []) : Promise.resolve([]),
             ]);
             if (!mounted.current) return;
 
@@ -376,8 +382,11 @@ function TeamScreen() {
               const role = String(m.role || '').toLowerCase();
               return ['owner', 'manager', 'coach', 'assistant_coach', 'admin'].includes(role);
             });
-            const isOrgOwner = !!(org?.league_owner_id && org.league_owner_id === currentUser.id);
-            if (mounted.current) setIsTeamAdmin(!!membership || isOrgOwner);
+            const isLeagueOwner = !!(org?.league_owner_id && org.league_owner_id === currentUser.id);
+            const orgMembersList = Array.isArray(orgMemberships) ? orgMemberships : ((orgMemberships as any)?.members || []);
+            const myOrgMembership = orgMembersList.find((m: any) => (m.user_id || m.user?.id) === currentUser.id);
+            const isOrgManager = ['owner', 'manager'].includes(String(myOrgMembership?.role || '').toLowerCase());
+            if (mounted.current) setIsTeamAdmin(!!membership || isLeagueOwner || isOrgManager);
           } catch (err: any) {
             if (__DEV__) console.error('[team-page] Failed to check team admin status:', err);
             if (mounted.current) setIsTeamAdmin(false);
