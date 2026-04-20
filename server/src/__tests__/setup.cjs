@@ -32,3 +32,12 @@ if (!process.env.VERBOSE) {
     error: noop,
   };
 }
+
+afterAll(async () => {
+  try {
+    const mod = await import('../lib/prisma.js');
+    await mod.prisma.$disconnect();
+  } catch {
+    // Ignore teardown cleanup errors; many suites never touch Prisma.
+  }
+});
