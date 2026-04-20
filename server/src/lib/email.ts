@@ -125,8 +125,7 @@ const TEMPLATE_IDS = {
   AD_PENDING_REVIEW: process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID || '',
   AD_APPROVED: process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID || '',
   AD_REJECTED: process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID || '',
-  AD_TAKEN_DOWN_PENDING_REVIEW:
-    process.env.SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID || '',
+  AD_TAKEN_DOWN_PENDING_REVIEW: process.env.SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID || '',
 
   // Organization approval/rejection (sent to org owner after admin action)
   ORG_APPROVED: process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID || '',
@@ -272,7 +271,9 @@ export async function sendAdPendingReviewEmail(params: {
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.AD_PENDING_REVIEW;
   if (!templateId) {
-    console.error('[email] Missing SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID — admin will not receive ad review email');
+    console.error(
+      '[email] Missing SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID — admin will not receive ad review email'
+    );
     return false;
   }
 
@@ -327,7 +328,9 @@ export async function sendAdApprovedEmail(params: {
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.AD_APPROVED;
   if (!templateId) {
-    console.error('[email] Missing SENDGRID_AD_APPROVED_TEMPLATE_ID — advertiser will not receive approval email');
+    console.error(
+      '[email] Missing SENDGRID_AD_APPROVED_TEMPLATE_ID — advertiser will not receive approval email'
+    );
     return false;
   }
 
@@ -352,7 +355,9 @@ export async function sendAdRejectedEmail(params: {
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.AD_REJECTED;
   if (!templateId) {
-    console.error('[email] Missing SENDGRID_AD_REJECTED_TEMPLATE_ID — advertiser will not receive rejection email');
+    console.error(
+      '[email] Missing SENDGRID_AD_REJECTED_TEMPLATE_ID — advertiser will not receive rejection email'
+    );
     return false;
   }
 
@@ -1002,7 +1007,9 @@ export async function sendLeagueApprovedEmail(params: {
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.ORG_APPROVED;
   if (!templateId) {
-    console.error('[email] Missing SENDGRID_ORG_APPROVAL_TEMPLATE_ID — org owner will not receive approval email');
+    console.error(
+      '[email] Missing SENDGRID_ORG_APPROVAL_TEMPLATE_ID — org owner will not receive approval email'
+    );
     return false;
   }
 
@@ -1033,7 +1040,9 @@ export async function sendLeagueRejectedEmail(params: {
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.ORG_DENIED;
   if (!templateId) {
-    console.error('[email] Missing SENDGRID_ORG_DENIAL_TEMPLATE_ID — org owner will not receive rejection email');
+    console.error(
+      '[email] Missing SENDGRID_ORG_DENIAL_TEMPLATE_ID — org owner will not receive rejection email'
+    );
     return false;
   }
 
@@ -1131,7 +1140,9 @@ export async function sendAdminActionConfirmationEmail(params: {
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.ADMIN_ACTION_CONFIRMATION;
   if (!templateId) {
-    console.error('[email] Missing SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID — admin will not receive confirmation');
+    console.error(
+      '[email] Missing SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID — admin will not receive confirmation'
+    );
     return false;
   }
 
