@@ -35,6 +35,7 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 
 const isIOS = Platform.OS === 'ios';
 
@@ -116,7 +117,7 @@ function SubscriptionPaywallScreen() {
           for (let i = 0; i < 15; i++) {
             await new Promise(r => setTimeout(r, 2000));
             try {
-              const me: any = await User.me();
+              const me: any = await User.refresh();
               if ((me?.preferences?.plan === 'veteran' || me?.preferences?.plan === 'legend') && !me?.preferences?.payment_pending) {
                 planActivated = true;
                 break;
@@ -193,7 +194,7 @@ function SubscriptionPaywallScreen() {
         for (let i = 0; i < 15; i++) {
           await new Promise(r => setTimeout(r, 2000));
           try {
-            const me: any = await User.me();
+            const me: any = await User.refresh();
             if ((me?.preferences?.plan === 'veteran' || me?.preferences?.plan === 'legend') && !me?.preferences?.payment_pending) {
               planActivated = true;
               break;
@@ -518,7 +519,7 @@ function SubscriptionPaywallScreen() {
                 <Pressable
                   accessibilityRole="link"
                   accessibilityLabel="Open Terms of Service"
-                  onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
+                  onPress={() => Linking.openURL(PUBLIC_TERMS_URL).catch(() => {})}
                 >
                   <Text style={[styles.legalLinkText, { color: theme.tint }]}>Terms of Service</Text>
                 </Pressable>
@@ -526,7 +527,7 @@ function SubscriptionPaywallScreen() {
                 <Pressable
                   accessibilityRole="link"
                   accessibilityLabel="Open Privacy Policy"
-                  onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
+                  onPress={() => Linking.openURL(PUBLIC_PRIVACY_POLICY_URL).catch(() => {})}
                 >
                   <Text style={[styles.legalLinkText, { color: theme.tint }]}>Privacy Policy</Text>
                 </Pressable>

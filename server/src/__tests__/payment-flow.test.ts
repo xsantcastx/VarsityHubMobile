@@ -11,6 +11,8 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
+import { SERVER_LEGEND_PRICE_CENTS } from '../lib/planDefinitions.js';
+import { redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 
 const TEST_USER_EMAIL = `test-payment-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
@@ -44,6 +46,10 @@ describe('Payment Flow', () => {
         where: { user_id: userId },
       });
 
+      await prisma.promoCode.deleteMany({
+        where: { code: { startsWith: 'TESTPAY' } },
+      });
+
       // Clean up user
       await prisma.user.delete({
         where: { id: userId },
@@ -61,9 +67,9 @@ describe('Payment Flow', () => {
           status: 'PENDING',
           user_id: userId,
           user_email: TEST_USER_EMAIL,
-          subtotal_cents: 2999, // $29.99
+          subtotal_cents: SERVER_LEGEND_PRICE_CENTS,
           tax_cents: 0,
-          total_cents: 2999,
+          total_cents: SERVER_LEGEND_PRICE_CENTS,
           currency: 'usd',
         },
       });
@@ -71,7 +77,7 @@ describe('Payment Flow', () => {
       expect(transaction).toBeDefined();
       expect(transaction.transaction_type).toBe('SUBSCRIPTION_PURCHASE');
       expect(transaction.status).toBe('PENDING');
-      expect(transaction.total_cents).toBe(2999);
+      expect(transaction.total_cents).toBe(SERVER_LEGEND_PRICE_CENTS);
     });
 
     it('should update transaction status', async () => {
@@ -81,7 +87,7 @@ describe('Payment Flow', () => {
           status: 'PENDING',
           user_id: userId,
           user_email: TEST_USER_EMAIL,
-          total_cents: 2999,
+          total_cents: SERVER_LEGEND_PRICE_CENTS,
           currency: 'usd',
         },
       });
@@ -101,30 +107,87 @@ describe('Payment Flow', () => {
 
   describe('Price Calculation', () => {
     it('should calculate correct membership price', () => {
-      const basePrice = 2999; // $29.99 in cents
+      const basePrice = SERVER_LEGEND_PRICE_CENTS;
       const tax = 0;
       const discount = 0;
       const total = basePrice + tax - discount;
 
-      expect(total).toBe(2999);
+      expect(total).toBe(SERVER_LEGEND_PRICE_CENTS);
     });
 
     it('should apply promo code discount', () => {
-      const basePrice = 2999;
+      const basePrice = SERVER_LEGEND_PRICE_CENTS;
       const discount = 500; // $5.00 discount
       const total = basePrice - discount;
 
-      expect(total).toBe(2499);
+      expect(total).toBe(SERVER_LEGEND_PRICE_CENTS - 500);
       expect(total).toBeLessThan(basePrice);
     });
 
     it('should calculate net amount after Stripe fees', () => {
-      const total = 2999;
-      const stripeFee = 87; // ~2.9% + $0.30
+      const total = SERVER_LEGEND_PRICE_CENTS;
+      const stripeFee = 88; // ~2.9% + $0.30 at the shared Legend price
       const net = total - stripeFee;
 
-      expect(net).toBe(2912);
+      expect(net).toBe(SERVER_LEGEND_PRICE_CENTS - 88);
       expect(net).toBeLessThan(total);
+    });
+  });
+
+  describe('Promo Redemption Lifecycle', () => {
+    it('should reverse promo usage on refund references idempotently', async () => {
+      const code = `TESTPAY${Date.now()}`;
+      const orderId = `pi_test_${Date.now()}`;
+
+      const promo = await prisma.promoCode.create({
+        data: {
+          code,
+          type: 'PERCENT_OFF',
+          percent_off: 25,
+          enabled: true,
+          max_redemptions: 5,
+          per_user_limit: 1,
+          applies_to_service: 'booking',
+        },
+      });
+
+      const redeemed = await redeemPromo({
+        code,
+        subtotalCents: 2000,
+        userId,
+        service: 'booking',
+        orderId,
+      });
+
+      expect(redeemed.ok).toBe(true);
+
+      const promoAfterRedeem = await prisma.promoCode.findUnique({
+        where: { id: promo.id },
+        select: { uses: true },
+      });
+      expect(promoAfterRedeem?.uses).toBe(1);
+
+      const reversed = await reversePromoRedemption({ orderReferences: [orderId] });
+      expect(reversed.reversed).toBe(true);
+      expect(reversed.count).toBe(1);
+
+      const promoAfterReverse = await prisma.promoCode.findUnique({
+        where: { id: promo.id },
+        select: { uses: true },
+      });
+      const redemptionAfterReverse = await prisma.promoRedemption.findMany({
+        where: { promo_id: promo.id, order_id: orderId },
+        select: { id: true },
+      });
+
+      expect(promoAfterReverse?.uses).toBe(0);
+      expect(redemptionAfterReverse).toHaveLength(0);
+
+      const reversedAgain = await reversePromoRedemption({ orderReferences: [orderId] });
+      expect(reversedAgain.reversed).toBe(false);
+      expect(reversedAgain.count).toBe(0);
+
+      await prisma.promoCode.delete({ where: { id: promo.id } });
     });
   });
 

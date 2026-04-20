@@ -9,10 +9,15 @@ import swaggerUi from 'swagger-ui-express';
 import {
   startAdGoLiveCheck,
   startMessageCleanup,
+  startNotificationCleanup,
   startOvernightMonitoring,
+  startParentalConsentExpiry,
   startQueueCleanup,
+  startRefreshTokenCleanup,
+  startStripeSubscriptionReconciliation,
 } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
+import { SERVER_LEGEND_PRICE_LABEL, SERVER_ROOKIE_TEAM_LIMIT } from './lib/planDefinitions.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
@@ -21,11 +26,13 @@ import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireVerified } from './middleware/requireVerified.js';
 import { requireOnboarded } from './middleware/requireOnboarded.js';
+import { requireParentalConsent } from './middleware/requireParentalConsent.js';
 import { defaultApiLimiter } from './middleware/rateLimiters.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter, handleAdSubmitForApproval } from './routes/ads.js';
 import { authRouter } from './routes/auth.js';
+import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { eventsRouter } from './routes/events.js';
 import { followsRouter } from './routes/follows.js';
 import { gamesRouter } from './routes/games.js';
@@ -266,8 +273,17 @@ const meProxy = (req: any, res: any, next: any) => {
 
 function mountApiRoutes(parent: any) {
   parent.use(defaultApiLimiter);
+  // Parental consent firewall — must run BEFORE route dispatch so pending /
+  // denied minors hit the gate on every route except the allowlist.
+  // Auth middleware (which populates req.user) runs at the top-level app.use
+  // before mountApiRoutes is called, so req.user is already set here.
+  parent.use(requireParentalConsent);
   parent.use('/auth', authLimiter, authRouter);
   parent.use('/me', noStore, meProxy);
+  // Parental consent — public landing+approve+deny via token, plus
+  // authenticated minor's own resend endpoint at /me/consent/resend.
+  parent.use('/consent', consentRouter);
+  parent.post('/me/consent/resend', noStore, ...handleConsentResend);
   parent.use('/games', gamesRouter);
   parent.use('/posts', postsRouter);
   parent.use('/notifications', noStore, notificationsRouter);
@@ -342,7 +358,7 @@ app.get('/terms', (_req, res) => {
 <h2>3. Your Account</h2><p>Provide accurate info. Keep credentials secure. You are responsible for all activity on your account.</p>
 <h2>4. Rules</h2><p>Do not: post illegal or abusive content; impersonate others; upload content you don't own; spam; interfere with the app; bully or threaten users; upload broadcast/official sports footage.</p>
 <h2>5. Content</h2><p>You own your content. By posting, you grant us a license to display it. All fan content must be personally filmed. Official broadcast content is prohibited. VarsityHub has no affiliation with any league or broadcaster.</p>
-<h2>6. Subscriptions</h2><p>Rookie: Free (3 teams). Veteran: $0.99/mo per additional team (beyond 3). Legend: $20/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Cancel anytime in Settings.</p>
+<h2>6. Subscriptions</h2><p>Rookie: Free (${SERVER_ROOKIE_TEAM_LIMIT} teams). Veteran: $0.99/mo per additional team (beyond ${SERVER_ROOKIE_TEAM_LIMIT}). Legend: ${SERVER_LEGEND_PRICE_LABEL} unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Cancel anytime in Settings.</p>
 <h2>7. DMCA</h2><p>Registered DMCA Designated Service Provider (No. DMCA-1070362). Takedown notices: <a href="mailto:support@varsityhub.app">support@varsityhub.app</a>. Response within 24 hours.</p>
 <h2>8. Disclaimers</h2><p>App provided "AS IS." Not liable for indirect damages. Total liability capped at 12 months of payments. You indemnify us against claims from your use.</p>
 <h2>9. Disputes</h2><p>Connecticut law. Binding arbitration (small claims excepted). Class action waiver.</p>
@@ -384,8 +400,12 @@ if (!isTest) {
   startOvernightMonitoring();
   startQueueCleanup();
   startMessageCleanup();
+  startRefreshTokenCleanup();
+  startNotificationCleanup();
+  startStripeSubscriptionReconciliation();
+  startParentalConsentExpiry();
   debugLog(
-    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup)'
+    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup, refresh token cleanup, notification cleanup, subscription reconciliation)'
   );
 }
 

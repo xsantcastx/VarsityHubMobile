@@ -8,10 +8,13 @@ import { gamesRouter } from './routes/games.js';
 import { organizationsRouter } from './routes/organizations.js';
 import { paymentsRouter } from './routes/payments.js';
 import { postsRouter } from './routes/posts.js';
+import { messagesRouter } from './routes/messages.js';
+import { reportsRouter } from './routes/reports.js';
 import { teamsRouter } from './routes/teams.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
 import { groupChatsRouter } from './routes/group-chats.js';
+import { adminReportsRouter } from './routes/adminReports.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -26,10 +29,13 @@ app.use('/games', gamesRouter);
 app.use('/organizations', organizationsRouter);
 app.use('/payments', paymentsRouter);
 app.use('/posts', postsRouter);
+app.use('/messages', messagesRouter);
+app.use('/reports', reportsRouter);
 app.use('/teams', teamsRouter);
 app.use('/uploads', uploadsRouter);
 app.use('/users', usersRouter);
 app.use('/group-chats', groupChatsRouter);
+app.use('/admin/reports', adminReportsRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;

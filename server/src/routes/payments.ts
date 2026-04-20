@@ -3,16 +3,24 @@ import expressPkg, { Router, type Response } from 'express';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
-import { Prisma } from '@prisma/client';
+import { AdStatus, Prisma } from '@prisma/client';
 import { debugLog as baseDebugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
-import { previewPromo, redeemPromo } from '../lib/promos.js';
+import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 import { captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
+import {
+  SERVER_LEGEND_PRICE_CENTS,
+  SERVER_LEGEND_PRICE_LABEL,
+  SERVER_ROOKIE_TEAM_LIMIT,
+  SERVER_VETERAN_MIN_TOTAL_TEAMS,
+  SERVER_VETERAN_PRICE_CENTS,
+  SERVER_VETERAN_PRICE_LABEL,
+} from '../lib/planDefinitions.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -21,7 +29,6 @@ import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
-import { checkPlanAtLeast, getUserPlan } from '../middleware/subscription.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
@@ -31,6 +38,8 @@ if (!process.env.STRIPE_SECRET_KEY) {
   console.error('[payments] STRIPE_SECRET_KEY is not set — payment features will fail');
 }
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', { apiVersion: '2024-06-20' });
+const MAX_AD_SLOTS = 2;
+const webhookEventLocks = new Map<string, Promise<any>>();
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
@@ -53,29 +62,6 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   return baseDebugLog(...args);
 };
 
-async function enforceAdPlan(req: AuthedRequest, res: Response) {
-  if (!req.user?.id) {
-    res.status(401).json({ error: 'AUTH_REQUIRED', message: 'Authentication required.' });
-    return false;
-  }
-
-  if (await getIsAdmin(req as any)) {
-    return true;
-  }
-
-  const currentPlan = await getUserPlan(req.user.id);
-  const gate = checkPlanAtLeast(currentPlan, 'veteran');
-  if (!gate) {
-    return true;
-  }
-
-  res.status(403).json({
-    ...gate,
-    message: 'Local ads require a Veteran or Legend plan.',
-    upgrade_url: '/settings/manage-subscription',
-  });
-  return false;
-}
 
 // Public config for coach onboarding and payment UI (no auth required)
 paymentsRouter.get('/config', (_req, res) => {
@@ -127,9 +113,9 @@ async function sendSubscriptionEmail({
   if (!email) return;
   const planName = plan === 'veteran' ? 'Veteran Membership' : plan === 'legend' ? 'Legend Membership' : 'VarsityHub Subscription';
   const perks = plan === 'veteran'
-    ? ['Add unlimited teams beyond the first two', 'Priority scheduling support']
+    ? [`Add unlimited teams beyond the first ${SERVER_ROOKIE_TEAM_LIMIT}`, 'Priority scheduling support']
     : plan === 'legend'
-      ? ['Unlimited teams included', 'Annual discounted pricing']
+      ? ['Unlimited teams included', `${SERVER_LEGEND_PRICE_LABEL} pricing`]
       : ['Premium access activated'];
   try {
     await sendBillingNoticeEmail({
@@ -179,10 +165,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     }
   }
 
-  // Validate team count for Veteran plan (total teams including the first two free)
+  // Validate team count for Veteran plan (total teams including the free Rookie allowance)
   if (chosen === 'veteran') {
-    if (typeof teamCount !== 'number' || teamCount < 3) {
-      throw membershipError(400, 'Veteran plan requires at least 3 total teams (first 2 are free)');
+    if (typeof teamCount !== 'number' || teamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
+      throw membershipError(
+        400,
+        `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`
+      );
     }
     // Verify the claimed team count matches actual count — org teams if org provided, else user-owned
     const actualTeamCount = organizationId
@@ -263,13 +252,14 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         quantity: chosen === 'veteran' ? billableQuantity : 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 99 : 2999, // Veteran: $0.99/month per additional team, Legend: $29.99/year
+          unit_amount:
+            chosen === 'veteran' ? SERVER_VETERAN_PRICE_CENTS : SERVER_LEGEND_PRICE_CENTS,
           recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
-              ? `Veteran plan - $0.99/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-              : 'Legend plan - $29.99/year unlimited',
+              ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${teamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+              : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
           },
         },
       }];
@@ -337,7 +327,9 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 99 * billableQuantity : 2999; // Veteran: $0.99/month per additional team, Legend: $29.99/year
+  const amount = chosen === 'veteran'
+    ? SERVER_VETERAN_PRICE_CENTS * billableQuantity
+    : SERVER_LEGEND_PRICE_CENTS;
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -419,7 +411,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     }
   }
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
-  if (!(await enforceAdPlan(req, res))) return;
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
 
@@ -447,7 +438,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
 
   // Slot availability check — reject before Stripe if any date is already full.
   // Up to MAX_AD_SLOTS different ads may run per date per zip.
-  const MAX_AD_SLOTS = 2;
   if (ad.target_zip_code) {
     // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
     const reservedAdsInZip = await prisma.ad.findMany({
@@ -504,11 +494,22 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
     }
     try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
-        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
+      await prisma.$transaction(async (tx) => {
+        await reserveAdSlots(tx, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'paid',
+          status: 'active',
+        });
+      }, { isolationLevel: 'Serializable' });
     } catch (e) {
+      if ((e as any)?.slotFull) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: (e as any).dates,
+        });
+      }
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
@@ -659,14 +660,21 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
   // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
   // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
   try {
-    await prisma.$transaction([
-      prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'hold' } }),
-      prisma.adReservation.createMany({
-        data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-        skipDuplicates: true,
-      }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await reserveAdSlots(tx, {
+        adId: String(ad_id),
+        targetZipCode: ad.target_zip_code,
+        isoDates,
+        paymentStatus: 'hold',
+      });
+    }, { isolationLevel: 'Serializable' });
   } catch (holdErr) {
+    if ((holdErr as any)?.slotFull) {
+      return res.status(409).json({
+        error: 'One or more selected dates are fully booked',
+        dates: (holdErr as any).dates,
+      });
+    }
     console.error('[payments] Failed to create slot hold — aborting checkout:', (holdErr as any)?.message);
     captureException(holdErr as Error, { context: 'ad_slot_hold_failed', adId: String(ad_id), userId: req.user!.id });
     return res.status(500).json({ error: 'Failed to reserve ad slot. Please try again.' });
@@ -760,8 +768,10 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     // Validate team count for Veteran plan (fall back to stored value)
     const effectiveTeamCount = typeof team_count === 'number' ? team_count : Number(prefs.team_count_total) || 0;
     if (chosen === 'veteran') {
-      if (effectiveTeamCount < 3) {
-        return res.status(400).json({ error: 'Veteran plan requires at least 3 total teams (first 2 are free)' });
+      if (effectiveTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
+        return res.status(400).json({
+          error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`,
+        });
       }
       // Verify the claimed team count — org teams if org provided, else user-owned
       const actualTeamCount = orgIdBody
@@ -798,13 +808,14 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
           quantity: chosen === 'veteran' ? billableQuantity : 1,
           price_data: {
             currency: 'usd',
-            unit_amount: chosen === 'veteran' ? 99 : 2999,
+            unit_amount:
+              chosen === 'veteran' ? SERVER_VETERAN_PRICE_CENTS : SERVER_LEGEND_PRICE_CENTS,
             recurring: { interval: chosen === 'veteran' ? ('month' as const) : ('year' as const) },
             product_data: {
               name: 'Membership - ' + chosen,
               description: chosen === 'veteran'
-                ? `Veteran plan - $0.99/month per additional team (${billableQuantity} billable of ${effectiveTeamCount} total, 2 free)`
-                : 'Legend plan - $29.99/year unlimited',
+                ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${effectiveTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+                : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
             },
           },
         }];
@@ -833,8 +844,9 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         return res.status(500).json({ error: 'Subscription created but payment could not be initialized. Please contact support.' });
       }
 
-      // Log transaction (must match actual Stripe charge: $0.99/team veteran, $29.99/year legend)
-      const amount = chosen === 'veteran' ? 99 * billableQuantity : 2999;
+      const amount = chosen === 'veteran'
+        ? SERVER_VETERAN_PRICE_CENTS * billableQuantity
+        : SERVER_LEGEND_PRICE_CENTS;
       await logTransaction({
         transactionType: 'SUBSCRIPTION_PURCHASE',
         status: 'PENDING',
@@ -870,7 +882,6 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
   // ── AD PAYMENT FLOW ──
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
-  if (!(await enforceAdPlan(req, res))) return;
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const customerId = await getOrCreateStripeCustomer(userId, user?.email);
   const ephemeralKey = await stripe.ephemeralKeys.create(
@@ -1002,32 +1013,13 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     // Hold slots atomically — re-check capacity inside transaction to prevent race conditions
     try {
       await prisma.$transaction(async (tx) => {
-        // Re-verify slot capacity inside transaction to prevent concurrent overbooking
-        if (ad.target_zip_code) {
-          const competingAds = await tx.ad.findMany({
-            where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
-            select: { id: true },
-            take: 100,
-          });
-          if (competingAds.length > 0) {
-            const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
-            const bookedSlots = await tx.adReservation.groupBy({
-              by: ['date'],
-              where: { ad_id: { in: competingAds.map((a) => a.id) }, date: { in: dateObjects } },
-              _count: { date: true },
-            });
-            const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
-            if (fullDates.length > 0) {
-              throw Object.assign(new Error('Slots full'), { slotFull: true, dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)) });
-            }
-          }
-        }
-        await tx.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'hold' } });
-        await tx.adReservation.createMany({
-          data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-          skipDuplicates: true,
+        await reserveAdSlots(tx, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'hold',
         });
-      });
+      }, { isolationLevel: 'Serializable' });
     } catch (holdErr: any) {
       // Cancel the payment intent since we can't hold the slots
       try {
@@ -1099,31 +1091,38 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
-  let dedupRecorded = false;
-  const releaseWebhookDedup = async () => {
-    if (!dedupRecorded) return;
-    try {
-      await prisma.processedStripeEvent.deleteMany({ where: { event_id: event.id } });
-      dedupRecorded = false;
-    } catch (rollbackErr) {
-      console.warn('[webhook] Failed to release dedup lock after processing error:', (rollbackErr as any)?.message || rollbackErr);
-    }
-  };
-
-  // Event-level deduplication: reject replayed webhook events
+  // Event-level deduplication: retain the row and mark it processed only after success.
+  // Failed events remain retryable instead of deleting the dedup row and risking partial-work replays.
   try {
-    await prisma.processedStripeEvent.create({
-      data: { event_id: event.id, event_type: event.type },
+    const existing = await prisma.processedStripeEvent.findUnique({
+      where: { event_id: event.id },
+      select: { processed: true },
     });
-    dedupRecorded = true;
-  } catch (dedupErr: any) {
-    if (dedupErr instanceof Prisma.PrismaClientKnownRequestError && dedupErr.code === 'P2002') {
+    if (existing?.processed) {
       debugLog('[webhook] Duplicate event skipped', { event_id: event.id, event_type: event.type });
       return res.json({ received: true, deduplicated: true });
     }
-    // Non-unique error — return 500 so Stripe retries later when DB is healthy.
-    // Processing without dedup risks duplicate charges/subscriptions.
-    console.error('[webhook] Failed to record event for dedup, rejecting for retry:', dedupErr?.message || dedupErr);
+    if (!existing) {
+      await prisma.processedStripeEvent.create({
+        data: {
+          event_id: event.id,
+          event_type: event.type,
+          processed: false,
+          processing_started_at: new Date(),
+        },
+      });
+    } else {
+      await prisma.processedStripeEvent.update({
+        where: { event_id: event.id },
+        data: {
+          event_type: event.type,
+          processing_started_at: new Date(),
+          last_error: null,
+        },
+      });
+    }
+  } catch (dedupErr: any) {
+    console.error('[webhook] Failed to record event state for dedup, rejecting for retry:', dedupErr?.message || dedupErr);
     return res.status(500).json({ error: 'Dedup recording failed, will retry' });
   }
 
@@ -1132,13 +1131,13 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     const session = event.data.object as Stripe.Checkout.Session;
     if (!session?.id) {
       console.error('[webhook] Malformed checkout.session.completed — missing session.id', { eventId: event.id });
-      await releaseWebhookDedup();
+      await markStripeEventFailed(event.id, new Error('Invalid session object'));
       return res.status(400).json({ error: 'Invalid session object' });
     }
     try {
       await finalizeFromSession(session);
     } catch (e) {
-      await releaseWebhookDedup();
+      await markStripeEventFailed(event.id, e);
       console.error('[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:', (e as any)?.message || e);
       captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
       return res.status(500).json({ error: 'Finalization failed' });
@@ -1328,47 +1327,76 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
         console.error('[webhook] charge.refunded without matching transactionLog', { charge_id: charge.id, pi: piId });
         captureException(new Error('charge.refunded: no matching transaction'), { context: 'refund_no_tx', chargeId: charge.id });
       } else {
-        // Mark the transaction REFUNDED with the actual refunded amount
-        await prisma.transactionLog.update({
-          where: { id: tx.id },
-          data: {
-            status: 'REFUNDED' as any,
-            metadata: {
-              ...(tx.metadata as any || {}),
-              refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
-              refunded_amount_cents: refundAmount,
-              stripe_charge_id: charge.id,
-              refunded_at: new Date().toISOString(),
-            },
-          },
-        });
+        const promoRollbackRefs = Array.from(
+          new Set(
+            [tx.stripe_payment_intent_id, tx.stripe_session_id]
+              .map((value) => String(value || '').trim())
+              .filter(Boolean)
+          )
+        );
 
-        // Cascade based on transaction type:
-        // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
-        // - AD_PURCHASE → mark ad refunded + release reservations
-        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
-          const u = await prisma.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
-          const prefs = (u?.preferences as any) || {};
-          await prisma.user.update({
-            where: { id: tx.user_id },
+        const { promoRollback } = await prisma.$transaction(async (db) => {
+          const promoRollbackResult = await reversePromoRedemption(
+            { orderReferences: promoRollbackRefs },
+            db
+          );
+
+          await db.transactionLog.update({
+            where: { id: tx.id },
             data: {
-              preferences: { ...prefs, plan: 'rookie', subscription_id: null, subscription_period_end: null },
-              subscription_tier: 'free',
-              subscription_status: 'cancelled',
-              max_teams: 3,
+              status: 'REFUNDED' as any,
+              metadata: {
+                ...(tx.metadata as any || {}),
+                refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+                refunded_amount_cents: refundAmount,
+                stripe_charge_id: charge.id,
+                refunded_at: new Date().toISOString(),
+                promo_redemption_reversed: promoRollbackResult.reversed,
+                promo_reversal_count: promoRollbackResult.count,
+                promo_reversal_refs: promoRollbackResult.orderReferences,
+              },
             },
           });
+
+          // Cascade based on transaction type:
+          // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+          // - AD_PURCHASE → mark ad refunded + release reservations
+          if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+            const u = await db.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
+            const prefs = (u?.preferences as any) || {};
+            await db.user.update({
+              where: { id: tx.user_id },
+              data: {
+                preferences: { ...prefs, plan: 'rookie', subscription_id: null, subscription_period_end: null },
+                subscription_tier: 'free',
+                subscription_status: 'cancelled',
+                max_teams: 3,
+              },
+            });
+          } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+            await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
+            await db.ad.updateMany({
+              where: { id: tx.order_id },
+              data: { status: 'draft', payment_status: 'refunded' },
+            });
+          }
+
+          return { promoRollback: promoRollbackResult };
+        });
+
+        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
           await invalidateMeCacheForUser(tx.user_id);
           console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
         } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-          await prisma.$transaction([
-            prisma.adReservation.deleteMany({ where: { ad_id: tx.order_id } }),
-            prisma.ad.updateMany({
-              where: { id: tx.order_id },
-              data: { status: 'draft', payment_status: 'refunded' },
-            }),
-          ]);
           console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
+        }
+
+        if (promoRollback.reversed) {
+          console.warn('[webhook] Promo redemption reversed after refund', {
+            transaction_id: tx.id,
+            refs: promoRollback.orderReferences,
+            count: promoRollback.count,
+          });
         }
       }
     } catch (refundErr: any) {
@@ -1560,27 +1588,28 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
               await updateTransactionStatus(pi.id, 'FAILED', {
                 metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
               }).catch(err => { console.error('[transaction-log] PI slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full_pi' }); });
-              await releaseWebhookDedup();
+              await markStripeEventFailed(event.id, refundErr);
               return res.status(500).json({ error: 'Auto-refund failed; retrying webhook' });
             }
           } else {
-            await releaseWebhookDedup();
-            console.error('[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry', { ad_id: adId, pi_id: pi.id, error: e });
-            captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
-            return res.status(500).json({ error: 'Ad processing failed' });
+              await markStripeEventFailed(event.id, e);
+              console.error('[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry', { ad_id: adId, pi_id: pi.id, error: e });
+              captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
+              return res.status(500).json({ error: 'Ad processing failed' });
+            }
           }
-        }
       }
     }
   }
 
   } catch (eventErr: any) {
-    await releaseWebhookDedup();
+    await markStripeEventFailed(event.id, eventErr);
     console.error('[webhook] CRITICAL: Unhandled webhook processing failure:', eventErr?.message || eventErr);
     captureException(eventErr as Error, { context: 'stripe_webhook_unhandled_processing_error', eventType: event.type, eventId: event.id });
     return res.status(500).json({ error: 'Webhook processing failed' });
   }
 
+  await markStripeEventProcessed(event.id);
   return res.json({ received: true });
 }));
 
@@ -1965,8 +1994,7 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, asyncHandler
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
     } else if (plan === 'legend') {
-      // Annual cost fixed at $29.99
-      annual_cost = 29.99;
+      annual_cost = Number((SERVER_LEGEND_PRICE_CENTS / 100).toFixed(2));
       // status can be determined if subscription id exists
       if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {
@@ -2646,6 +2674,321 @@ const AD_PRODUCT_CENTS: Record<string, number> = {
   FRI_SUN: 799,
 };
 
+function isUniqueConstraintError(error: unknown, fieldName?: string): boolean {
+  const err = error as { code?: string; meta?: { target?: unknown } } | undefined;
+  if (err?.code !== 'P2002') return false;
+  if (!fieldName) return true;
+  const target = err.meta?.target;
+  if (Array.isArray(target)) return target.includes(fieldName);
+  return String(target || '').includes(fieldName);
+}
+
+function buildAppleTransactionClaimConflictError() {
+  const error = new Error('APPLE_TRANSACTION_ALREADY_CLAIMED');
+  (error as any).statusCode = 409;
+  (error as any).body = {
+    error: 'APPLE_TRANSACTION_ALREADY_CLAIMED',
+    message: 'One or more Apple purchase receipts were already used by a different purchase.',
+  };
+  return error;
+}
+
+function claimMatchesPurchase(
+  claim: {
+    transaction_type: string;
+    user_id: string | null;
+    ad_id: string | null;
+    order_id: string | null;
+  },
+  expected: {
+    transactionType: string;
+    userId: string;
+    adId?: string | null;
+    orderId?: string | null;
+  },
+) {
+  return (
+    claim.transaction_type === expected.transactionType &&
+    claim.user_id === expected.userId &&
+    (expected.adId == null || claim.ad_id === expected.adId) &&
+    (expected.orderId == null || claim.order_id === expected.orderId)
+  );
+}
+
+async function reserveAppleTransactionClaims(
+  tx: Prisma.TransactionClient,
+  params: {
+    appleTransactionIds: string[];
+    transactionType: 'AD_PURCHASE';
+    userId: string;
+    adId: string;
+    orderId: string;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  const normalizedIds = Array.from(new Set(params.appleTransactionIds.map((id) => String(id).trim()).filter(Boolean))).sort();
+  if (normalizedIds.length === 0) {
+    const error = new Error('APPLE_TRANSACTION_IDS_REQUIRED');
+    (error as any).statusCode = 400;
+    (error as any).body = { error: 'APPLE_TRANSACTION_IDS_REQUIRED', message: 'Missing Apple transaction ids.' };
+    throw error;
+  }
+
+  const existingClaims = await tx.appleTransactionClaim.findMany({
+    where: { apple_transaction_id: { in: normalizedIds } },
+    select: {
+      apple_transaction_id: true,
+      transaction_type: true,
+      user_id: true,
+      ad_id: true,
+      order_id: true,
+    },
+  });
+
+  const conflictingClaim = existingClaims.find((claim) => !claimMatchesPurchase(claim, params));
+  if (conflictingClaim) {
+    throw buildAppleTransactionClaimConflictError();
+  }
+
+  const existingIds = new Set(existingClaims.map((claim) => claim.apple_transaction_id));
+  const missingIds = normalizedIds.filter((id) => !existingIds.has(id));
+
+  for (const appleTransactionId of missingIds) {
+    try {
+      await tx.appleTransactionClaim.create({
+        data: {
+          apple_transaction_id: appleTransactionId,
+          transaction_type: params.transactionType as any,
+          user_id: params.userId,
+          ad_id: params.adId,
+          order_id: params.orderId,
+          metadata: params.metadata as any,
+        },
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error, 'apple_transaction_id')) {
+        const concurrentClaim = await tx.appleTransactionClaim.findUnique({
+          where: { apple_transaction_id: appleTransactionId },
+          select: {
+            transaction_type: true,
+            user_id: true,
+            ad_id: true,
+            order_id: true,
+          },
+        });
+        if (!concurrentClaim || !claimMatchesPurchase(concurrentClaim, params)) {
+          throw buildAppleTransactionClaimConflictError();
+        }
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return {
+    appleTransactionIds: normalizedIds,
+    idempotent: missingIds.length === 0,
+  };
+}
+
+async function finalizeAppleAdPurchase(params: {
+  userId: string;
+  adId: string;
+  dates: string[];
+  appleTransactionIds: string[];
+  receiptsCount: number;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const orderId = String(params.adId);
+    const claimResult = await reserveAppleTransactionClaims(tx, {
+      appleTransactionIds: params.appleTransactionIds,
+      transactionType: 'AD_PURCHASE',
+      userId: params.userId,
+      adId: String(params.adId),
+      orderId,
+      metadata: {
+        source: 'apple_iap',
+        receipts_count: params.receiptsCount,
+      },
+    });
+
+    const existingTx = await tx.transactionLog.findFirst({
+      where: {
+        user_id: params.userId,
+        order_id: orderId,
+        transaction_type: 'AD_PURCHASE',
+        status: 'COMPLETED',
+      } as any,
+      select: { id: true },
+    });
+
+    await tx.ad.update({
+      where: { id: String(params.adId) },
+      data: { payment_status: 'paid', status: 'active' },
+    });
+
+    await tx.adReservation.createMany({
+      data: params.dates.map((s: string) => ({ ad_id: String(params.adId), date: new Date(s + 'T00:00:00.000Z') })),
+      skipDuplicates: true,
+    });
+
+    if (!existingTx) {
+      await tx.transactionLog.create({
+        data: {
+          transaction_type: 'AD_PURCHASE',
+          status: 'COMPLETED',
+          user_id: params.userId,
+          order_id: orderId,
+          apple_transaction_id: claimResult.appleTransactionIds.length === 1 ? claimResult.appleTransactionIds[0] : null,
+          metadata: {
+            source: 'apple_iap',
+            ad_id: String(params.adId),
+            dates: params.dates,
+            receipts_count: params.receiptsCount,
+            apple_transaction_ids: claimResult.appleTransactionIds,
+          },
+        } as any,
+      });
+    }
+
+    return {
+      ok: true,
+      idempotent: !!existingTx && claimResult.idempotent,
+      appleTransactionIds: claimResult.appleTransactionIds,
+    };
+  }, { isolationLevel: 'Serializable' });
+}
+
+function verifyAppleSignedJws(token: string): any {
+  const decoded = jwt.decode(token, { complete: true });
+  const header = decoded?.header as any;
+  if (!header?.x5c?.length) {
+    throw new Error('Missing certificate chain');
+  }
+  if (header.alg !== 'ES256') {
+    throw new Error(`Invalid Apple JWS algorithm: ${header.alg}`);
+  }
+
+  const x5cCerts = (header.x5c as string[]).map(
+    (cert: string) => `-----BEGIN CERTIFICATE-----\n${cert}\n-----END CERTIFICATE-----`
+  );
+  const rootCert = new crypto.X509Certificate(x5cCerts[x5cCerts.length - 1]);
+  if (!rootCert.subject.includes('Apple Root CA') || !rootCert.issuer.includes('Apple Root CA')) {
+    throw new Error('Invalid Apple root certificate');
+  }
+  if (!rootCert.checkIssued(rootCert)) {
+    throw new Error('Apple root certificate is not self-signed');
+  }
+  for (let i = 0; i < x5cCerts.length - 1; i++) {
+    const cert = new crypto.X509Certificate(x5cCerts[i]);
+    const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
+    if (!cert.checkIssued(issuerCert)) {
+      throw new Error(`Broken Apple certificate chain at index ${i}`);
+    }
+  }
+
+  const leafKey = crypto.createPublicKey(x5cCerts[0]);
+  const payload = jwt.verify(token, leafKey, { algorithms: ['ES256'] }) as any;
+
+  const expectedBundleId = process.env.APPLE_BUNDLE_ID?.trim();
+  if (process.env.NODE_ENV === 'production' && !expectedBundleId) {
+    throw new Error('APPLE_BUNDLE_ID is required for Apple JWS verification in production');
+  }
+
+  const bundleId = String(payload.bundleId || payload.appBundleId || payload.bid || '').trim();
+  if (expectedBundleId && bundleId && bundleId !== expectedBundleId) {
+    throw new Error(`Apple bundle mismatch: ${bundleId}`);
+  }
+
+  const environment = String(payload.environment || payload.environmentIOS || '').trim();
+  if (process.env.NODE_ENV === 'production' && environment === 'Sandbox') {
+    throw new Error('Sandbox Apple transaction rejected in production');
+  }
+
+  return payload;
+}
+
+function buildSlotFullError(dates: string[]) {
+  const err = new Error('SLOT_FULL') as any;
+  err.slotFull = true;
+  err.dates = dates;
+  return err;
+}
+
+async function reserveAdSlots(
+  tx: Prisma.TransactionClient,
+  params: {
+    adId: string;
+    targetZipCode?: string | null;
+    isoDates: string[];
+    paymentStatus: 'hold' | 'paid';
+    status?: AdStatus;
+  },
+) {
+  if (params.targetZipCode) {
+    const competingAds = await tx.ad.findMany({
+      where: {
+        target_zip_code: params.targetZipCode,
+        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+        NOT: { id: params.adId },
+      },
+      select: { id: true },
+      take: 100,
+    });
+    if (competingAds.length > 0) {
+      const dateObjects = params.isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+      const bookedSlots = await tx.adReservation.groupBy({
+        by: ['date'],
+        where: { ad_id: { in: competingAds.map((a) => a.id) }, date: { in: dateObjects } },
+        _count: { date: true },
+      });
+      const fullDates = bookedSlots
+        .filter((slot) => slot._count.date >= MAX_AD_SLOTS)
+        .map((slot) => slot.date.toISOString().slice(0, 10));
+      if (fullDates.length > 0) {
+        throw buildSlotFullError(fullDates);
+      }
+    }
+  }
+
+  await tx.ad.update({
+    where: { id: params.adId },
+    data: {
+      payment_status: params.paymentStatus,
+      ...(params.status ? { status: params.status } : {}),
+    },
+  });
+  await tx.adReservation.createMany({
+    data: params.isoDates.map((s) => ({ ad_id: params.adId, date: new Date(s + 'T00:00:00.000Z') })),
+    skipDuplicates: true,
+  });
+}
+
+async function markStripeEventProcessed(eventId: string) {
+  await prisma.processedStripeEvent.update({
+    where: { event_id: eventId },
+    data: {
+      processed: true,
+      processed_at: new Date(),
+      processing_started_at: null,
+      last_error: null,
+    },
+  });
+}
+
+async function markStripeEventFailed(eventId: string, error: unknown) {
+  await prisma.processedStripeEvent.update({
+    where: { event_id: eventId },
+    data: {
+      processed: false,
+      processing_started_at: null,
+      last_error: String((error as any)?.message || error || 'unknown_error').slice(0, 2000),
+    },
+  }).catch((updateErr) => {
+    console.warn('[webhook] Failed to record event processing error:', (updateErr as any)?.message || updateErr);
+  });
+}
+
 async function verifyAppleReceipt(receiptData: string, useSandbox = false): Promise<any> {
   const url = useSandbox ? APPLE_VERIFY_URL_SANDBOX : APPLE_VERIFY_URL_PRODUCTION;
   const body = JSON.stringify({
@@ -2671,62 +3014,97 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
 // Apple IAP receipt validation
 paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
-    if (!APPLE_SHARED_SECRET) {
+    const appleReceiptSchema = z.object({
+      jws: z.string().min(1).optional().nullable(),
+      receipt: z.string().min(1).optional(),
+      productId: z.string().min(1),
+    });
+    const parsed = appleReceiptSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { jws, receipt, productId } = parsed.data;
+
+    if (!jws && !receipt) {
+      return res.status(400).json({ error: 'Apple verification requires a signed transaction or receipt' });
+    }
+    if (!jws && process.env.NODE_ENV === 'production') {
+      return res.status(400).json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
+    }
+    if (!jws && !APPLE_SHARED_SECRET) {
       console.warn('[apple-iap] APPLE_IAP_SHARED_SECRET not configured — cannot verify receipts');
       return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
     }
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
 
-    const appleReceiptSchema = z.object({
-      receipt: z.string().min(1),
-      productId: z.string().min(1),
-    });
-    const parsed = appleReceiptSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-    const { receipt, productId } = parsed.data;
-
     const plan = APPLE_PRODUCT_TO_PLAN[productId];
     if (!plan) {
       return res.status(400).json({ error: `Unknown product: ${productId}` });
     }
 
-    // Verify with Apple — production only. Sandbox receipts rejected in production.
-    let result = await verifyAppleReceipt(receipt, false);
-    if (result.status === 21007) {
-      if (process.env.NODE_ENV === 'production') {
-        return res.status(400).json({ error: 'Sandbox receipts are not accepted in production' });
+    let originalTransactionId = '';
+    let expiresMs = 0;
+    let appleTransactionId = '';
+
+    if (jws) {
+      let signedTransaction: any;
+      try {
+        signedTransaction = verifyAppleSignedJws(jws);
+      } catch (error: any) {
+        return res.status(400).json({ error: error?.message || 'Invalid Apple transaction signature' });
       }
-      // Development/staging only: fall back to sandbox verification
-      result = await verifyAppleReceipt(receipt, true);
+
+      const signedProductId = String(signedTransaction.productId || signedTransaction.product_id || '').trim();
+      if (signedProductId !== productId) {
+        return res.status(400).json({ error: 'Signed Apple transaction does not match requested product' });
+      }
+
+      originalTransactionId = String(
+        signedTransaction.originalTransactionId ||
+        signedTransaction.originalTransactionIdentifierIOS ||
+        signedTransaction.original_transaction_id ||
+        signedTransaction.transactionId ||
+        ''
+      ).trim();
+      appleTransactionId = String(signedTransaction.transactionId || signedTransaction.id || originalTransactionId).trim();
+      expiresMs = Number(
+        signedTransaction.expiresDate ||
+        signedTransaction.expires_date_ms ||
+        signedTransaction.expirationDateIOS ||
+        0
+      );
+    } else {
+      let result = await verifyAppleReceipt(receipt!, false);
+      if (result.status === 21007) {
+        result = await verifyAppleReceipt(receipt!, true);
+      }
+
+      if (result.status !== 0) {
+        console.error('[apple-iap] Verification failed, status:', result.status);
+        return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
+      }
+
+      const latestReceipts = result.latest_receipt_info || [];
+      const matchingReceipt = latestReceipts.find((r: any) => r.product_id === productId);
+
+      if (!matchingReceipt) {
+        return res.status(400).json({ error: 'No matching subscription found in receipt' });
+      }
+
+      originalTransactionId = String(matchingReceipt.original_transaction_id || '').trim();
+      appleTransactionId = String(matchingReceipt.transaction_id || matchingReceipt.original_transaction_id || '').trim();
+      expiresMs = parseInt(matchingReceipt.expires_date_ms, 10);
     }
 
-    if (result.status !== 0) {
-      console.error('[apple-iap] Verification failed, status:', result.status);
-      return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
-    }
-
-    // Find the latest receipt info for this product
-    const latestReceipts = result.latest_receipt_info || [];
-    const matchingReceipt = latestReceipts.find((r: any) => r.product_id === productId);
-
-    if (!matchingReceipt) {
-      return res.status(400).json({ error: 'No matching subscription found in receipt' });
-    }
-
-    // Check if subscription is still active
-    const expiresMs = parseInt(matchingReceipt.expires_date_ms, 10);
     if (expiresMs < Date.now()) {
       return res.status(400).json({ error: 'Subscription has expired' });
     }
 
-    const orderId = String(matchingReceipt.original_transaction_id || '');
-    if (!orderId) {
+    if (!originalTransactionId) {
       return res.status(400).json({ error: 'Missing original transaction id' });
     }
     const existingApplePurchase = await prisma.transactionLog.findFirst({
       where: {
-        order_id: orderId,
+        order_id: originalTransactionId,
         transaction_type: 'SUBSCRIPTION_PURCHASE',
         status: 'COMPLETED',
       } as any,
@@ -2751,33 +3129,55 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     // Rule A: Clear pending_plan, payment_pending, payment_approved after successful payment
     const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
 
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: {
-          subscription_tier: plan === 'legend' ? 'pro' : 'premium',
-          subscription_status: 'active',
-          preferences: {
-            ...restPrefs,
-            plan,
-            pending_plan: null,
-            payment_pending: false,
-            apple_product_id: productId,
-            apple_original_transaction_id: matchingReceipt.original_transaction_id,
-            apple_expires_date: new Date(expiresMs).toISOString(),
+    try {
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+            subscription_status: 'active',
+            preferences: {
+              ...restPrefs,
+              plan,
+              pending_plan: null,
+              payment_pending: false,
+              apple_product_id: productId,
+              apple_original_transaction_id: originalTransactionId,
+              apple_expires_date: new Date(expiresMs).toISOString(),
+            } as any,
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_PURCHASE',
+            status: 'COMPLETED',
+            user_id: userId,
+            order_id: originalTransactionId,
+            apple_transaction_id: appleTransactionId || null,
+            metadata: { source: jws ? 'apple_iap_jws' : 'apple_iap_receipt', productId, plan },
           } as any,
-        },
-      }),
-      prisma.transactionLog.create({
-        data: {
-          transaction_type: 'SUBSCRIPTION_PURCHASE',
-          status: 'COMPLETED',
-          user_id: userId,
-          order_id: orderId,
-          metadata: { source: 'apple_iap', productId, plan },
-        } as any,
-      }),
-    ]);
+        }),
+      ]);
+    } catch (error) {
+      if (appleTransactionId && isUniqueConstraintError(error, 'apple_transaction_id')) {
+        const existing = await prisma.transactionLog.findUnique({
+          where: { apple_transaction_id: appleTransactionId },
+          select: { user_id: true },
+        });
+        if (existing?.user_id === userId) {
+          return res.json({
+            ok: true,
+            plan,
+            expires: new Date(expiresMs).toISOString(),
+            idempotent: true,
+          });
+        }
+        if (existing?.user_id && existing.user_id !== userId) {
+          return res.status(409).json({ error: 'Receipt already used by another account' });
+        }
+      }
+      throw error;
+    }
     await invalidateMeCacheForUser(userId);
 
     // Send confirmation email
@@ -2808,9 +3208,6 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
 // Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
 paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
-    if (!APPLE_SHARED_SECRET) {
-      return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
-    }
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
 
@@ -2818,7 +3215,8 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
       ad_id: z.string().min(1),
       dates: z.array(z.string()).min(1),
       receipts: z.array(z.object({
-        receipt: z.string().min(1),
+        jws: z.string().min(1).optional().nullable(),
+        receipt: z.string().min(1).optional(),
         productId: z.string().min(1),
         quantity: z.number().optional(),
       })).min(1),
@@ -2826,7 +3224,15 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
     const parsed = appleAdReceiptSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { ad_id, dates, receipts } = parsed.data;
-    if (!(await enforceAdPlan(req, res))) return;
+    if (receipts.some((entry) => !entry.jws && !entry.receipt)) {
+      return res.status(400).json({ error: 'Each Apple purchase must include a signed transaction or receipt' });
+    }
+    if (receipts.some((entry) => !entry.jws) && process.env.NODE_ENV === 'production') {
+      return res.status(400).json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
+    }
+    if (receipts.some((entry) => !entry.jws) && !APPLE_SHARED_SECRET) {
+      return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
+    }
 
     const isoDateStrings: string[] = dates.map((d: any) => String(d));
     // Enforce booking horizon — no dates beyond 56 days from today
@@ -2847,46 +3253,68 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
 
     const expectedPricing = calculateAdPriceCents(dates);
     let verifiedCents = 0;
-    const orderIds: string[] = [];
+    const appleTransactionIds: string[] = [];
 
     for (const r of receipts) {
-      const { receipt, productId, quantity } = r;
-      if (!receipt || !productId || !(APPLE_AD_PRODUCTS as readonly string[]).includes(productId)) {
+      const { jws, receipt, productId } = r;
+      if ((!jws && !receipt) || !productId || !(APPLE_AD_PRODUCTS as readonly string[]).includes(productId)) {
         return res.status(400).json({ error: `Invalid receipt: unknown product ${productId}` });
+      }
+      if (!jws && process.env.NODE_ENV === 'production') {
+        return res.status(400).json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
       }
       const unitCents = AD_PRODUCT_CENTS[productId];
       if (!unitCents) return res.status(400).json({ error: `Unknown ad product: ${productId}` });
 
-      let result = await verifyAppleReceipt(receipt, false);
-      if (result.status === 21007) result = await verifyAppleReceipt(receipt, true);
-      if (result.status !== 0) {
-        return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
-      }
+      if (jws) {
+        let signedTransaction: any;
+        try {
+          signedTransaction = verifyAppleSignedJws(jws);
+        } catch (error: any) {
+          return res.status(400).json({ error: error?.message || 'Invalid Apple transaction signature' });
+        }
+        const signedProductId = String(signedTransaction.productId || signedTransaction.product_id || '').trim();
+        if (signedProductId !== productId) {
+          return res.status(400).json({ error: 'Signed Apple transaction does not match requested product' });
+        }
+        const purchasedQty = Math.max(
+          1,
+          Number(signedTransaction.quantity || signedTransaction.quantityIOS || 1)
+        );
+        verifiedCents += unitCents * purchasedQty;
+        const txId = String(
+          signedTransaction.transactionId ||
+          signedTransaction.id ||
+          signedTransaction.originalTransactionId ||
+          signedTransaction.originalTransactionIdentifierIOS ||
+          ''
+        ).trim();
+        if (txId) appleTransactionIds.push(txId);
+      } else {
+        let result = await verifyAppleReceipt(receipt!, false);
+        if (result.status === 21007) result = await verifyAppleReceipt(receipt!, true);
+        if (result.status !== 0) {
+          return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
+        }
 
-      const inApp = result.receipt?.in_app || [];
-      const matching = inApp.filter((t: any) => t.product_id === productId);
-      if (matching.length === 0) {
-        return res.status(400).json({ error: 'No matching transactions in receipt for product', product_id: productId });
-      }
-      // Apple consumable IAP with quantity > 1 creates ONE transaction entry with a quantity field,
-      // not multiple entries. Use the transaction's quantity, not matching.length.
-      const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
-      verifiedCents += unitCents * purchasedQty;
+        const inApp = result.receipt?.in_app || [];
+        const matching = inApp.filter((t: any) => t.product_id === productId);
+        if (matching.length === 0) {
+          return res.status(400).json({ error: 'No matching transactions in receipt for product', product_id: productId });
+        }
+        const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
+        verifiedCents += unitCents * purchasedQty;
 
-      const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
-      if (txId) orderIds.push(String(txId));
+        const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
+        if (txId) appleTransactionIds.push(String(txId));
+      }
     }
 
     if (verifiedCents < expectedPricing.totalCents) {
       return res.status(400).json({ error: 'Receipt total does not match expected amount' });
     }
-
-    const orderId = orderIds.join('_') || `ad_iap_${ad_id}_${crypto.randomUUID()}`;
-    const existing = await prisma.transactionLog.findFirst({
-      where: { order_id: orderId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' } as any,
-    });
-    if (existing) {
-      return res.json({ ok: true, idempotent: true });
+    if (Array.from(new Set(appleTransactionIds.filter(Boolean))).length === 0) {
+      return res.status(400).json({ error: 'Missing Apple transaction ids in purchase data' });
     }
 
     const MAX_AD_SLOTS = 2;
@@ -2919,30 +3347,28 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
       return res.status(403).json({ error: 'Ad must be approved before payment', current_status: ad.status });
     }
 
-    await prisma.$transaction([
-      prisma.ad.update({
-        where: { id: String(ad_id) },
-        data: { payment_status: 'paid', status: 'active' },
-      }),
-      prisma.adReservation.createMany({
-        data: dates.map((s: string) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
-        skipDuplicates: true,
-      }),
-      prisma.transactionLog.create({
-        data: {
-          transaction_type: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          user_id: userId,
-          order_id: orderId,
-          metadata: { source: 'apple_iap', ad_id: String(ad_id), dates, receipts_count: receipts.length },
-        } as any,
-      }),
-    ]);
-
-    // Ad payment confirmation email removed — non-mandatory
-
-    debugLog('apple-iap-ad', `User ${userId} paid for ad ${ad_id} via Apple IAP`);
-    return res.json({ ok: true });
+    try {
+      const finalizeResult = await finalizeAppleAdPurchase({
+        userId,
+        adId: String(ad_id),
+        dates,
+        appleTransactionIds,
+        receiptsCount: receipts.length,
+      });
+      debugLog('apple-iap-ad', `User ${userId} paid for ad ${ad_id} via Apple IAP`);
+      return res.json(finalizeResult);
+    } catch (error: any) {
+      if (error?.statusCode && error?.body) {
+        return res.status(error.statusCode).json(error.body);
+      }
+      if (isUniqueConstraintError(error, 'apple_transaction_id')) {
+        return res.status(409).json({
+          error: 'APPLE_TRANSACTION_ALREADY_CLAIMED',
+          message: 'One or more Apple purchase receipts were already used by a different purchase.',
+        });
+      }
+      throw error;
+    }
   } catch (err: any) {
     console.error('[apple-iap] verify-ad-receipt error:', err);
     captureException(err, { tags: { context: 'apple-iap-verify-ad' } });
@@ -3066,6 +3492,7 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
     }
 
+    const appleTransactionId: string = transactionInfo.transactionId || '';
     const originalTransactionId: string = transactionInfo.originalTransactionId || '';
     const productId: string = transactionInfo.productId || '';
     const expiresDate: number = transactionInfo.expiresDate || 0; // ms timestamp
@@ -3153,6 +3580,7 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
             status: 'COMPLETED',
             user_id: userId,
             order_id: originalTransactionId,
+            apple_transaction_id: appleTransactionId || null,
             metadata: { source: 'apple_s2s', notificationType, subtype, productId, plan },
           } as any,
         }),
@@ -3531,4 +3959,5 @@ paymentsRouter.get('/cancel', (_req, res) => {
 export const __paymentsInternal = {
   finalizeFromSession,
   runFinalizeFromSession,
+  finalizeAppleAdPurchase,
 };

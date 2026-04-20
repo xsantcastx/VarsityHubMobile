@@ -6,6 +6,7 @@ import path from 'node:path';
 import { getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -244,7 +245,7 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
 }));
 
 // Original media upload endpoint (images/videos only)
-uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/', requireAuth as any, requireOnboarded as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   // Validate file size for media uploads
@@ -330,7 +331,7 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
 }));
 
 // General file upload endpoint (all file types)
-uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/files', requireAuth as any, requireOnboarded as any, uploadLimiter as any, fileUpload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   // Validate file size for general uploads
@@ -411,13 +412,32 @@ const AVATAR_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
 if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
 // snyk:ignore - endpoint is protected by requireAuth + uploadLimiter rate-limiting middleware
-uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMemory.single('file'), asyncHandler(async (req: MulterRequest, res) => {
+uploadsRouter.post('/avatar', requireAuth as any, requireOnboarded as any, uploadLimiter as any, avatarMemory.single('file'), asyncHandler(async (req: MulterRequest, res) => {
   if (!(req as any).user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
 
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
   if (!allowedMimes.includes(req.file.mimetype)) {
     return res.status(400).json({ error: 'Invalid file type. Only images are allowed.' });
+  }
+
+  // Magic-byte validation to catch MIME spoofing (client-claimed type vs actual
+  // bytes). Parity with POST / and POST /files. Avatar uses memoryStorage so
+  // the buffer is always populated.
+  const avatarBuf = req.file.buffer;
+  if (!avatarBuf || avatarBuf.length < 12) {
+    return res.status(400).json({ error: 'Empty or truncated avatar upload.' });
+  }
+  const avatarMime = req.file.mimetype;
+  const avatarIsHeic = avatarMime === 'image/heic' || avatarMime === 'image/heif';
+  const avatarMagicValid = avatarIsHeic
+    ? isHeicBuffer(avatarBuf)
+    : validateMagicBytes(avatarBuf, avatarMime);
+  if (!avatarMagicValid) {
+    console.warn(`[uploads] Magic byte mismatch on /avatar: claimed ${avatarMime}, rejected`);
+    return res
+      .status(400)
+      .json({ error: 'File content does not match declared type. Upload rejected.' });
   }
 
   try {

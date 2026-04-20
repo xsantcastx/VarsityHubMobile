@@ -9,7 +9,7 @@
  *
  *  Rookie   – max 3 teams, 6 authorized users/team, no extracurricular
  *  Veteran  – unlimited teams ($0.99/mo per team beyond 3), 5 auth users/team, no extracurricular
- *  Legend   – unlimited teams ($20/yr), unlimited auth users, extracurricular clubs
+ *  Legend   – unlimited teams ($19.99/yr), unlimited auth users, extracurricular clubs
  * ──────────────────────────────────────────────────────────────────────
  *
  *  Accounts are fully separate: fan ≠ coach. A fan should never reach
@@ -93,6 +93,9 @@ async function createOrgForUser(userId: string, orgName: string): Promise<string
       name: orgName,
       description: 'Test org',
       org_type: 'club',
+      admin_approved: true,
+      approved_at: new Date(),
+      league_owner_id: userId,
       updated_at: new Date(),
     },
   });
@@ -294,7 +297,7 @@ describe('Rookie Coach plan limits', () => {
     if (!rookieTeamIds[0]) return;
     const res = await inviteToTeam(rookieToken, rookieTeamIds[0], `rookie-invite2-${ts}@example.com`);
     expect(res.status).toBe(201);
-    expect(res.body.error).toMatch(/USER_LIMIT_REACHED/);
+    expect(res.body.error).toBeUndefined();
   });
 
   it('Rookie CANNOT create extracurricular clubs', async () => {
@@ -319,7 +322,7 @@ describe('Rookie Coach plan limits', () => {
       where: { user_id: rookieId, role: 'owner', status: 'active' },
     });
     expect(orgMembership).toBeTruthy();
-    expect(teamMemberships.length).toBe(2); // owns 2 teams + the league page
+    expect(teamMemberships.length).toBe(3); // owns 3 teams + the league page
   });
 });
 
@@ -367,7 +370,7 @@ describe('Veteran Coach plan limits', () => {
     const planDefs = (await import('../lib/planLimits.js')).getAllPlanDefinitions();
     const veteran = (planDefs as any).veteran;
     expect(veteran.price).toBe('$0.99');
-    expect(veteran.period).toContain('per additional team');
+    expect(veteran.period).toContain('team over 3');
   });
 
   it('Veteran can have up to 5 authorized users per team', async () => {
@@ -426,10 +429,10 @@ describe('Legend Coach plan limits', () => {
     expect(planSupportsExtracurricular('legend')).toBe(true);
   });
 
-  it('Legend is charged $20/year (plan pricing check)', async () => {
+  it('Legend is charged $19.99/year (plan pricing check)', async () => {
     const planDefs = (await import('../lib/planLimits.js')).getAllPlanDefinitions();
     const legend = (planDefs as any).legend;
-    expect(legend.price).toBe('$20.00');
+    expect(legend.price).toBe('$19.99');
     expect(legend.period).toContain('year');
   });
 });
@@ -557,14 +560,14 @@ describe('Plan tier hierarchy and middleware', () => {
   it('computeAuthorizedUserLimit returns correct limits per tier', async () => {
     const { computeAuthorizedUserLimit } = await import('../middleware/subscription.js');
 
-    // Rookie: 1 per team
-    expect(computeAuthorizedUserLimit('rookie', 1)).toBe(1);
-    expect(computeAuthorizedUserLimit('free', 5)).toBe(1); // synonym
+    // Rookie: fixed org-wide allowance from shared definitions
+    expect(computeAuthorizedUserLimit('rookie', 1)).toBe(6);
+    expect(computeAuthorizedUserLimit('free', 5)).toBe(6); // synonym
 
-    // Veteran: max(2, teamCount * 2)
-    expect(computeAuthorizedUserLimit('veteran', 1)).toBe(2);
-    expect(computeAuthorizedUserLimit('veteran', 3)).toBe(6);
-    expect(computeAuthorizedUserLimit('premium', 5)).toBe(10); // synonym
+    // Veteran: scales per team from shared definitions
+    expect(computeAuthorizedUserLimit('veteran', 1)).toBe(5);
+    expect(computeAuthorizedUserLimit('veteran', 3)).toBe(15);
+    expect(computeAuthorizedUserLimit('premium', 5)).toBe(25); // synonym
 
     // Legend: null (unlimited)
     expect(computeAuthorizedUserLimit('legend', 10)).toBeNull();
@@ -613,17 +616,17 @@ describe('Plan definitions integrity', () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const veteran = (getAllPlanDefinitions() as any).veteran;
     expect(veteran.price).toBe('$0.99');
-    expect(veteran.period).toContain('per additional team');
+    expect(veteran.period).toContain('team over 3');
   });
 
-  it('Legend pricing: $20.00 per year', async () => {
+  it('Legend pricing: $19.99 per year', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const legend = (getAllPlanDefinitions() as any).legend;
-    expect(legend.price).toBe('$20.00');
+    expect(legend.price).toBe('$19.99');
     expect(legend.period).toContain('year');
   });
 
-  it('Rookie pricing: first two teams free', async () => {
+  it('Rookie pricing: first three teams free', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const rookie = (getAllPlanDefinitions() as any).rookie;
     expect(rookie.price.toLowerCase()).toContain('free');

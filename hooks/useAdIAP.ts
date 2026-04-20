@@ -34,7 +34,7 @@ const AD_SKUS = [AD_IAP_PRODUCT_IDS.weekday, AD_IAP_PRODUCT_IDS.weekend];
 type PendingAd = {
   adId: string;
   dates: string[];
-  receipts: { receipt: string; productId: string; quantity: number }[];
+  receipts: { jws?: string | null; receipt?: string; productId: string; quantity: number }[];
   weekdayBlocks: number;
   weekendBlocks: number;
   resolve: (result: { ok: boolean; error?: string }) => void;
@@ -47,7 +47,7 @@ type PendingAdVerification = {
   id: string;
   adId: string;
   dates: string[];
-  receipts: { receipt: string; productId: string; quantity: number }[];
+  receipts: { jws?: string | null; receipt?: string; productId: string; quantity: number }[];
   attemptCount: number;
 };
 
@@ -137,13 +137,17 @@ export function useAdIAP() {
 
       try {
         let receipt: string | undefined;
-        try {
-          receipt = await getReceiptIOS();
-        } catch {
-          receipt = (purchase as any).transactionReceipt;
+        const jws = (purchase as any).purchaseToken || null;
+        if (!jws) {
+          try {
+            receipt = await getReceiptIOS();
+          } catch {
+            receipt = (purchase as any).transactionReceipt;
+          }
         }
-        if (receipt) {
+        if (jws || receipt) {
           pending.receipts.push({
+            jws,
             receipt,
             productId: pid,
             quantity: (purchase as any).quantity ?? 1,

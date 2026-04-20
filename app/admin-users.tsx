@@ -35,17 +35,31 @@ function AdminUsersScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const toggleBan = async (id: string, banned: boolean) => {
-    try {
-      if (banned) {
-        await User.unban(id);
-      } else {
-        await User.ban(id);
-      }
-      await load();
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || `Failed to ${banned ? 'unban' : 'ban'} user`);
-    }
+  const toggleBan = (id: string, banned: boolean) => {
+    const action = banned ? 'unban' : 'ban';
+    Alert.alert(
+      `${banned ? 'Unban' : 'Ban'} User`,
+      `Are you sure you want to ${action} this user?${!banned ? ' They will lose access to the app immediately.' : ''}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: banned ? 'Unban' : 'Ban',
+          style: banned ? 'default' : 'destructive',
+          onPress: async () => {
+            try {
+              if (banned) {
+                await User.unban(id);
+              } else {
+                await User.ban(id);
+              }
+              await load();
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || `Failed to ${action} user`);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (adminLoading) {

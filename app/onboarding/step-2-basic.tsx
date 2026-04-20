@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { uploadFile } from '@/api/upload';
 import { getConfig } from '@/config/env';
 import Notifications from '@/utils/notifications';
+import { BIO_MAX_LENGTH } from '@/utils/formUtils';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation
@@ -553,11 +554,11 @@ export default function Step2Basic() {
       <TextInput
         testID="onboarding-step2-bio-input"
         value={bio}
-        onChangeText={(t) => setBio(t.slice(0, 160))}
+        onChangeText={(t) => setBio(t.slice(0, BIO_MAX_LENGTH))}
         placeholder="Fan trying to show the most school spirit"
         placeholderTextColor={Colors[colorScheme].mutedText}
         multiline
-        maxLength={160}
+        maxLength={BIO_MAX_LENGTH}
         style={{
           minHeight: 60,
           borderWidth: 1,

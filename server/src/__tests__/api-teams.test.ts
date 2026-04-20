@@ -42,6 +42,7 @@ describe('API Team Endpoints', () => {
           role: 'coach',
           plan: 'rookie',
           onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
         },
       },
     });
@@ -53,6 +54,8 @@ describe('API Team Endpoints', () => {
       data: {
         name: `Test League ${Date.now()}`,
         org_type: 'club',
+        admin_approved: true,
+        league_owner_id: coachUserId,
         updated_at: new Date(),
       },
     });
@@ -81,6 +84,27 @@ describe('API Team Endpoints', () => {
 
   afterAll(async () => {
     try {
+      const orgTeams = testOrgId
+        ? await prisma.team.findMany({
+            where: { organization_id: testOrgId },
+            select: { id: true },
+          })
+        : [];
+      const teamIds = orgTeams.map((team: any) => team.id);
+
+      if (teamIds.length > 0) {
+        await prisma.post.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
+        await prisma.event.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
+        await prisma.game.deleteMany({
+          where: {
+            OR: [
+              { home_team_id: { in: teamIds } },
+              { away_team_id: { in: teamIds } },
+            ],
+          },
+        }).catch(() => {});
+      }
+
       // Clean up team memberships
       await prisma.teamMembership.deleteMany({
         where: { user_id: { in: [coachUserId, fanUserId] } },
@@ -88,15 +112,7 @@ describe('API Team Endpoints', () => {
 
       // Clean up teams
       await prisma.team.deleteMany({
-        where: {
-          memberships: {
-            some: {
-              user_id: {
-                in: [coachUserId, fanUserId],
-              },
-            },
-          },
-        },
+        where: { organization_id: testOrgId },
       });
 
       // Clean up org memberships and org
@@ -202,11 +218,7 @@ describe('API Team Endpoints', () => {
         },
       });
 
-      const user = await prisma.user.findUnique({
-        where: { id: coachUserId },
-      });
-
-      const maxTeams = (user as any)?.max_teams ?? 3;
+      const maxTeams = 3;
 
       // If at limit, should reject
       if (ownedTeamsCount >= maxTeams) {
@@ -223,6 +235,98 @@ describe('API Team Endpoints', () => {
         expect(response.body).toHaveProperty('error');
         expect(response.body.error).toContain('limit');
       }
+    });
+  });
+
+  describe('DELETE /teams/:id', () => {
+    it('should archive the team and preserve linked posts, events, and games', async () => {
+      const team = await prisma.team.create({
+        data: {
+          name: `Delete Flow Team ${Date.now()}`,
+          description: 'Team to archive',
+          organization_id: testOrgId,
+          status: 'active',
+        },
+      });
+
+      await prisma.teamMembership.create({
+        data: {
+          team_id: team.id,
+          user_id: coachUserId,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+
+      const game = await prisma.game.create({
+        data: {
+          title: 'Archived Team Game',
+          date: new Date(Date.now() + 86400000),
+          home_team_id: team.id,
+          home_team: team.name,
+          approval_status: 'approved',
+          created_by_id: coachUserId,
+        },
+      });
+
+      const event = await prisma.event.create({
+        data: {
+          title: 'Archived Team Event',
+          date: new Date(Date.now() + 86400000),
+          team_id: team.id,
+          creator_id: coachUserId,
+          creator_role: 'coach',
+          approval_status: 'approved',
+          status: 'approved',
+        },
+      });
+
+      const post = await prisma.post.create({
+        data: {
+          author_id: coachUserId,
+          team_id: team.id,
+          title: 'Archived Team Post',
+          content: 'Should keep team reference',
+          type: 'post',
+        },
+      });
+
+      const response = await request(app)
+        .delete(`/teams/${team.id}`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      expect(response.body.ok).toBe(true);
+      expect(response.body.archived).toBe(true);
+
+      const refreshedTeam = await prisma.team.findUnique({
+        where: { id: team.id },
+        select: { status: true },
+      });
+      const refreshedGame = await prisma.game.findUnique({
+        where: { id: game.id },
+        select: { home_team_id: true },
+      });
+      const refreshedEvent = await prisma.event.findUnique({
+        where: { id: event.id },
+        select: { team_id: true },
+      });
+      const refreshedPost = await prisma.post.findUnique({
+        where: { id: post.id },
+        select: { team_id: true },
+      });
+
+      expect(refreshedTeam?.status).toBe('archived');
+      expect(refreshedGame?.home_team_id).toBe(team.id);
+      expect(refreshedEvent?.team_id).toBe(team.id);
+      expect(refreshedPost?.team_id).toBe(team.id);
+
+      const listResponse = await request(app)
+        .get('/teams')
+        .expect(200);
+
+      expect(Array.isArray(listResponse.body)).toBe(true);
+      expect(listResponse.body.some((entry: any) => entry.id === team.id)).toBe(false);
     });
   });
 

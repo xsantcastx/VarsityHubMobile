@@ -3,6 +3,7 @@ import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
+import { isMinor } from '../lib/userAge.js';
 
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
@@ -13,15 +14,53 @@ import { updateUserAndInvalidate } from '../lib/userCache.js';
 export async function requireOnboarded(req: AuthedRequest, res: Response, next: NextFunction) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const u = await prisma.user.findUnique({
+  // Intentionally cast to `any` via an intermediate — Prisma's generated
+  // types may not yet expose `date_of_birth` / `parental_consent_status`
+  // until `prisma generate` runs post-schema-change. Accessing through a
+  // typed shadow keeps the rest of the handler type-safe.
+  const u = (await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { preferences: true, approval_status: true, paid_by_owner: true, email: true },
-  });
-  const prefs = u?.preferences as Record<string, unknown> | null;
+    select: {
+      preferences: true,
+      approval_status: true,
+      paid_by_owner: true,
+      email: true,
+      date_of_birth: true,
+      parental_consent_status: true,
+    } as any,
+  })) as {
+    preferences: Record<string, unknown> | null;
+    approval_status: string;
+    paid_by_owner: boolean;
+    email: string;
+    date_of_birth: Date | null;
+    parental_consent_status: 'not_required' | 'pending' | 'approved' | 'denied';
+  } | null;
+  const uAny = u as any;
+  const prefs = (u?.preferences ?? null) as Record<string, unknown> | null;
 
   // God-admins bypass all onboarding/approval checks
   if (isEmailAdmin(u?.email)) {
     return next();
+  }
+
+  // Parental-consent gate: 13-17 minors with a `pending` or `denied` consent
+  // status must not be allowed through onboarded-only routes. The error codes
+  // are distinct so the mobile client can show "waiting for parent" vs
+  // "account denied" screens instead of a generic 403.
+  if (
+    isMinor({ date_of_birth: uAny?.date_of_birth ?? null, preferences: uAny?.preferences }) &&
+    uAny?.parental_consent_status &&
+    uAny.parental_consent_status !== 'approved' &&
+    uAny.parental_consent_status !== 'not_required'
+  ) {
+    const isDenied = uAny.parental_consent_status === 'denied';
+    return res.status(403).json({
+      error: isDenied ? 'PARENTAL_CONSENT_DENIED' : 'PARENTAL_CONSENT_PENDING',
+      message: isDenied
+        ? 'A parent or guardian denied this account. Contact support@varsityhub.app if this was in error.'
+        : 'Waiting for your parent or guardian to approve this account.',
+    });
   }
 
   // Allow team creation during onboarding (coach creates team in step 3 before onboarding completes)

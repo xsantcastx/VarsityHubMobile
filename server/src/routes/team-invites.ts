@@ -9,6 +9,7 @@ import { getAuthorizedUsersPerTeam } from '../lib/planLimits.js';
 import { inviteLimiter } from '../middleware/rateLimiters.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 
 export const teamInvitesRouter = Router();
 
@@ -38,19 +39,11 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
 
-  // CRITICAL: Verify requester is team owner/manager/coach (can invite members)
-  const requesterMembership = await prisma.teamMembership.findFirst({
-    where: {
-      team_id: teamId,
-      user_id: req.user.id,
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active',
-    },
-  });
-  if (!requesterMembership) {
+  const canManage = await canManageTeamScoped(req.user.id, teamId);
+  if (!canManage) {
     return res.status(403).json({
       error: 'PERMISSION_DENIED',
-      message: 'Only team owners, managers, or coaches can invite members to teams.',
+      message: 'Only team staff or organization admins can invite members to teams.',
     });
   }
 
@@ -114,4 +107,3 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
 
   return res.status(201).json(invite);
 }));
-

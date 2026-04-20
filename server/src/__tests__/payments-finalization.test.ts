@@ -3,6 +3,13 @@ import bcrypt from 'bcrypt';
 
 let prisma: any;
 let runFinalizeFromSession: (session: any) => Promise<void>;
+let finalizeAppleAdPurchase: (params: {
+  userId: string;
+  adId: string;
+  dates: string[];
+  appleTransactionIds: string[];
+  receiptsCount: number;
+}) => Promise<{ ok: true; idempotent: boolean; appleTransactionIds: string[] }>;
 let dbReady = false;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
@@ -13,11 +20,13 @@ describeDb('Checkout session finalization', () => {
   const createdUserIds: string[] = [];
   const createdAdIds: string[] = [];
   const createdSessionIds: string[] = [];
+  const createdAppleTransactionIds: string[] = [];
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     const paymentsModule = await import('../routes/payments.js');
     runFinalizeFromSession = paymentsModule.__paymentsInternal.runFinalizeFromSession;
+    finalizeAppleAdPurchase = paymentsModule.__paymentsInternal.finalizeAppleAdPurchase;
     try {
       await prisma.$queryRawUnsafe('SELECT 1');
       dbReady = true;
@@ -32,6 +41,12 @@ describeDb('Checkout session finalization', () => {
     if (createdSessionIds.length) {
       await prisma.transactionLog.deleteMany({
         where: { stripe_session_id: { in: createdSessionIds } },
+      }).catch(() => {});
+    }
+
+    if (createdAppleTransactionIds.length) {
+      await prisma.appleTransactionClaim.deleteMany({
+        where: { apple_transaction_id: { in: createdAppleTransactionIds } },
       }).catch(() => {});
     }
 
@@ -195,5 +210,156 @@ describeDb('Checkout session finalization', () => {
     expect(reservations).toHaveLength(2);
     expect(tx?.status).toBe('COMPLETED');
     expect(tx?.stripe_payment_intent_id).toBe('pi_ad_finalize_test');
+  });
+
+  it('claims each Apple ad receipt transaction id and treats same-user retries as idempotent', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const user = await prisma.user.create({
+      data: {
+        email: `apple-ad-claim-${now}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Apple Ad Claim User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+      },
+    });
+    createdUserIds.push(user.id);
+
+    const ad = await prisma.ad.create({
+      data: {
+        user_id: user.id,
+        business_name: 'Apple Claim Ad',
+        contact_email: user.email,
+        target_zip_code: '10002',
+        status: 'approved',
+        payment_status: 'hold',
+      },
+    });
+    createdAdIds.push(ad.id);
+
+    const appleTransactionIds = [`apple-ad-${now}-1`, `apple-ad-${now}-2`];
+    createdAppleTransactionIds.push(...appleTransactionIds);
+
+    const first = await finalizeAppleAdPurchase({
+      userId: user.id,
+      adId: ad.id,
+      dates: ['2035-02-01', '2035-02-02'],
+      appleTransactionIds,
+      receiptsCount: 2,
+    });
+
+    expect(first.ok).toBe(true);
+    expect(first.idempotent).toBe(false);
+
+    const claims = await prisma.appleTransactionClaim.findMany({
+      where: { apple_transaction_id: { in: appleTransactionIds } },
+      orderBy: { apple_transaction_id: 'asc' },
+    });
+    expect(claims).toHaveLength(2);
+    expect(claims.every((claim: any) => claim.ad_id === ad.id && claim.order_id === ad.id)).toBe(true);
+
+    const tx = await prisma.transactionLog.findFirst({
+      where: { user_id: user.id, order_id: ad.id, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' },
+      orderBy: { created_at: 'desc' },
+    });
+    expect(tx).toBeTruthy();
+    expect(tx?.apple_transaction_id).toBeNull();
+    expect((tx?.metadata as any)?.apple_transaction_ids).toEqual(appleTransactionIds);
+
+    const second = await finalizeAppleAdPurchase({
+      userId: user.id,
+      adId: ad.id,
+      dates: ['2035-02-01', '2035-02-02'],
+      appleTransactionIds,
+      receiptsCount: 2,
+    });
+
+    expect(second.ok).toBe(true);
+    expect(second.idempotent).toBe(true);
+
+    const txCount = await prisma.transactionLog.count({
+      where: { user_id: user.id, order_id: ad.id, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' },
+    });
+    expect(txCount).toBe(1);
+  });
+
+  it('rejects Apple ad receipt replay across different purchases', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const [firstUser, secondUser] = await Promise.all([
+      prisma.user.create({
+        data: {
+          email: `apple-ad-replay-a-${now}@example.com`,
+          password_hash: await bcrypt.hash('TestPassword123!', 10),
+          display_name: 'Apple Replay A',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+        },
+      }),
+      prisma.user.create({
+        data: {
+          email: `apple-ad-replay-b-${now}@example.com`,
+          password_hash: await bcrypt.hash('TestPassword123!', 10),
+          display_name: 'Apple Replay B',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+        },
+      }),
+    ]);
+    createdUserIds.push(firstUser.id, secondUser.id);
+
+    const [firstAd, secondAd] = await Promise.all([
+      prisma.ad.create({
+        data: {
+          user_id: firstUser.id,
+          business_name: 'Apple Replay Ad A',
+          contact_email: firstUser.email,
+          target_zip_code: '10003',
+          status: 'approved',
+          payment_status: 'hold',
+        },
+      }),
+      prisma.ad.create({
+        data: {
+          user_id: secondUser.id,
+          business_name: 'Apple Replay Ad B',
+          contact_email: secondUser.email,
+          target_zip_code: '10004',
+          status: 'approved',
+          payment_status: 'hold',
+        },
+      }),
+    ]);
+    createdAdIds.push(firstAd.id, secondAd.id);
+
+    const sharedAppleTransactionId = `apple-ad-replay-${now}`;
+    createdAppleTransactionIds.push(sharedAppleTransactionId);
+
+    await finalizeAppleAdPurchase({
+      userId: firstUser.id,
+      adId: firstAd.id,
+      dates: ['2035-03-01'],
+      appleTransactionIds: [sharedAppleTransactionId],
+      receiptsCount: 1,
+    });
+
+    await expect(
+      finalizeAppleAdPurchase({
+        userId: secondUser.id,
+        adId: secondAd.id,
+        dates: ['2035-03-02'],
+        appleTransactionIds: [sharedAppleTransactionId],
+        receiptsCount: 1,
+      })
+    ).rejects.toMatchObject({
+      message: 'APPLE_TRANSACTION_ALREADY_CLAIMED',
+      statusCode: 409,
+    });
   });
 });

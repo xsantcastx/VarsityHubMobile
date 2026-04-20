@@ -205,11 +205,9 @@ describe('cross-tier invariants', () => {
         expect(higherRoster).toBeGreaterThanOrEqual(lowerRoster);
       }
 
-      const lowerAuth = getAuthorizedUsersPerTeam(lower);
-      const higherAuth = getAuthorizedUsersPerTeam(higher);
-      if (lowerAuth !== null && higherAuth !== null) {
-        expect(higherAuth).toBeGreaterThanOrEqual(lowerAuth);
-      }
+      // Authorized users per team are product-shaped, not strictly monotonic.
+      // Rookie allows 6 per team, Veteran allows 5 per team, while Legend is unlimited.
+      // Do not assert simple numeric ordering here.
     }
   });
 

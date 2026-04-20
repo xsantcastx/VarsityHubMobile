@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 
 // Canonical tiers stored in user.subscription_tier column (legacy): free | premium | pro
@@ -130,7 +131,7 @@ export function requirePlan(minPlan: AnyTier) {
           message: `This feature requires at least ${String(minPlan).toLowerCase()} plan. Current plan: ${String(currentPlan).toLowerCase()}.`,
           required: String(minPlan).toLowerCase(),
           current: String(currentPlan).toLowerCase(),
-          upgrade_url: '/billing/upgrade'
+          upgrade_url: '/settings/manage-subscription'
         });
       }
       // Attach canonical + raw for downstream use
@@ -147,13 +148,11 @@ export function requirePlan(minPlan: AnyTier) {
   };
 }
 
-// Helper to compute authorized user limit for a given plan & team count
-// Rookie: 6 authorized users per team; Veteran: 2 per owned team (team_count_total * 2); Legend: unlimited (null)
+// Helper to compute the organization-wide authorized user limit for a plan.
+// This is derived from shared plan definitions:
+// Rookie: fixed allowance, Veteran: per-team allowance, Legend: unlimited.
 export function computeAuthorizedUserLimit(plan: AnyTier, teamCountTotal: number): number | null {
-  const canonical = toCanonical(plan);
-  if (canonical === 'free') return 6; // rookie
-  if (canonical === 'premium') return Math.max(2, teamCountTotal * 2); // veteran (fallback minimum 2 if teamCountTotal missing)
-  return null; // pro / legend unlimited
+  return getAuthorizedUsersOrgLimit(plan, teamCountTotal);
 }
 
 // Convenience gate you can call inline (returns error payload or null)

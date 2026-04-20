@@ -149,9 +149,6 @@ function AdminTeamsScreen() {
                   color={bulkMode ? '#dc2626' : theme.tint} 
                 />
               </Pressable>
-              <Pressable onPress={() => void router.push('/create-team')} style={{ padding: 8 }}>
-                <Ionicons name="add-circle" size={24} color={theme.tint} />
-              </Pressable>
             </View>
           )
         }} 

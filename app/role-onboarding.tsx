@@ -8,6 +8,11 @@ import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleShe
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
+import {
+  LEGEND_YEARLY_PRICE_LABEL,
+  ROOKIE_TEAM_LIMIT,
+  VETERAN_MONTHLY_TEAM_PRICE_LABEL,
+} from '@/constants/plans';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -205,12 +210,12 @@ function RoleOnboardingScreenInner() {
     },
   ];
 
-  // Rookie Coach actions - entry level (2 free teams)
+  // Rookie Coach actions - entry level
   const rookieActions: OnboardingAction[] = [
     {
       icon: 'add-circle',
       title: 'Create Your Teams',
-      description: 'Set up your first 2 teams - completely free!',
+      description: `Set up your first ${ROOKIE_TEAM_LIMIT} teams - completely free!`,
       route: '/create-team',
       gradient: ['#2563eb', '#1d4ed8'],
     },
@@ -242,7 +247,7 @@ function RoleOnboardingScreenInner() {
     {
       icon: 'trophy',
       title: 'Unlimited Teams',
-      description: 'First 2 teams free, then $0.99/month per additional team',
+      description: `First ${ROOKIE_TEAM_LIMIT} teams free, then ${VETERAN_MONTHLY_TEAM_PRICE_LABEL}`,
       route: '/manage-teams',
       gradient: ['#f59e0b', '#d97706'],
     },
@@ -406,10 +411,14 @@ function RoleOnboardingScreenInner() {
             </View>
             <View style={styles.accountTypeInfo}>
               <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Rookie Coach</Text>
-              <Text style={[styles.accountTypePrice, { color: '#10b981' }]}>FREE • 2 Teams Max</Text>
+              <Text style={[styles.accountTypePrice, { color: '#10b981' }]}>
+                {`FREE • ${ROOKIE_TEAM_LIMIT} Teams Max`}
+              </Text>
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• Perfect for first-time coaches</Text>
-                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• First two teams free</Text>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>
+                  • First {ROOKIE_TEAM_LIMIT} teams free
+                </Text>
                 <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• (ex: Men's and Women's Soccer)</Text>
                 <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• Create events including games, fundraisers, and watch parties</Text>
               </View>
@@ -427,9 +436,11 @@ function RoleOnboardingScreenInner() {
             </View>
             <View style={styles.accountTypeInfo}>
               <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Veteran Coach</Text>
-              <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>$0.99/month per team (after first 2)</Text>
+              <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>
+                {VETERAN_MONTHLY_TEAM_PRICE_LABEL}
+              </Text>
               <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
-                For coaches managing multiple teams. First 2 free, then $0.99/month each
+                {`For coaches managing multiple teams. First ${ROOKIE_TEAM_LIMIT} free, then ${VETERAN_MONTHLY_TEAM_PRICE_LABEL}`}
               </Text>
             </View>
           </Pressable>
@@ -452,7 +463,9 @@ function RoleOnboardingScreenInner() {
                 <Text style={styles.legendBadgeText}>PREMIUM</Text>
               </View>
               <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Legend Coach</Text>
-              <Text style={[styles.accountTypePrice, { color: '#7c3aed' }]}>Contact for Pricing</Text>
+              <Text style={[styles.accountTypePrice, { color: '#7c3aed' }]}>
+                {LEGEND_YEARLY_PRICE_LABEL}
+              </Text>
               <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
                 Unlimited teams • Unlimited authorized users • Priority support
               </Text>
@@ -493,11 +506,11 @@ function RoleOnboardingScreenInner() {
     if (coachTier === 'rookie') {
       actions = rookieActions;
       welcomeTitle = 'Welcome, Rookie Coach! 🏀';
-      welcomeSubtitle = 'First two teams free';
+      welcomeSubtitle = `First ${ROOKIE_TEAM_LIMIT} teams free`;
     } else if (coachTier === 'veteran') {
       actions = veteranActions;
       welcomeTitle = 'Welcome, Veteran Coach! 🏆';
-      welcomeSubtitle = 'Unlimited teams at $0.99/month per additional team (first 2 free)';
+      welcomeSubtitle = `Unlimited teams at ${VETERAN_MONTHLY_TEAM_PRICE_LABEL}`;
     } else if (coachTier === 'legend') {
       actions = legendActions;
       welcomeTitle = 'Welcome, Legend Coach! ⚡';

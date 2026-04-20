@@ -24,7 +24,8 @@ import type {
 } from './types';
 
 export const User = {
-  me: () => auth.me(),
+  me: (options?: { force?: boolean }) => auth.me(options),
+  refresh: () => auth.me({ force: true }),
   register: (email: string, password: string, display_name?: string) =>
     auth.register(email, password, display_name),
   loginViaEmailPassword: (email: string, password: string) => auth.login(email, password),
@@ -538,7 +539,8 @@ export const Organization = {
     zip_code?: string;
     latitude?: number;
     longitude?: number;
-  }) => httpPost('/organizations', data),
+    onboarding?: boolean;
+  }) => httpPost(data.onboarding === true ? '/organizations/create' : '/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),

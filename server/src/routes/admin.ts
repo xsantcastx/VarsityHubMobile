@@ -220,6 +220,81 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
 }));
 
 /**
+ * PATCH /admin/users/:id/parental-consent
+ * Admin override for parental consent state. Lets support correct mistakes —
+ * e.g., a parent accidentally clicked Deny, or a legitimate minor's guardian
+ * never received the email and support wants to approve manually. The change
+ * is recorded in the admin activity log and (on approve) unbans the user.
+ */
+const consentOverrideSchema = z.object({
+  status: z.enum(['approved', 'denied', 'pending']),
+  reason: z.string().max(500).optional(),
+});
+adminRouter.patch(
+  '/users/:id/parental-consent',
+  requireVerified as any,
+  requireAdminMiddleware as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const userId = String(req.params.id);
+    const parsed = consentOverrideSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+    }
+    const { status, reason } = parsed.data;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, display_name: true, parental_consent_status: true } as any,
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const fromState = (user as any).parental_consent_status as
+      | 'not_required' | 'pending' | 'approved' | 'denied';
+
+    const now = new Date();
+    const updateData: Record<string, unknown> = {
+      parental_consent_status: status,
+      parental_consent_at: status === 'pending' ? null : now,
+      // Any override invalidates outstanding email links.
+      parental_consent_token_hash: null,
+    };
+    if (status === 'approved') {
+      // Unban the user if they were denied and are now approved.
+      updateData.banned = false;
+      updateData.ban_reason = null;
+    } else if (status === 'denied') {
+      updateData.banned = true;
+      updateData.ban_reason = reason?.trim() || 'Parental consent denied by admin';
+    }
+
+    // Atomically: update user + write COPPA-grade audit row. The dedicated
+    // ParentalConsentAudit table is append-only and survives any purge of the
+    // generic admin activity log, satisfying COPPA recordkeeping requirements.
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: updateData as any }),
+      (prisma as any).parentalConsentAudit.create({
+        data: {
+          user_id: userId,
+          actor_admin_id: req.user!.id,
+          from_state: fromState,
+          to_state: status,
+          reason: reason?.trim() || `Admin override: ${fromState} → ${status}`,
+        },
+      }),
+    ]);
+
+    await logAdminActivityFromReq(
+      req,
+      'OVERRIDE_PARENTAL_CONSENT',
+      'user',
+      userId,
+      `Set parental_consent_status=${status}${reason ? ` — ${reason}` : ''}`
+    );
+
+    return res.json({ ok: true, status, from_state: fromState });
+  })
+);
+
+/**
  * GET /admin/metrics
  * Founder metrics (new users, reports, messages) over a time range
  */
@@ -325,41 +400,6 @@ adminRouter.get('/activity-log', requireVerified as any, requireAdminMiddleware 
 type AuthedRequest = express.Request & { user?: { id: string } };
 
 /**
- * Middleware to check if user is admin (LEGACY - use requireAdminMiddleware for new routes)
- */
-async function requireAdmin(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
-  try {
-    if (!req.user?.id) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true, email_verified: true }
-    });
-
-    if (!user?.email_verified) {
-      return res.status(403).json({ error: 'Email verification required' });
-    }
-
-    // Check if user is admin using ADMIN_EMAILS environment variable
-    const adminEmails = (process.env.ADMIN_EMAILS || '')
-      .split(',')
-      .map(e => e.trim().toLowerCase())
-      .filter(Boolean);
-
-    if (!adminEmails.includes(user.email?.toLowerCase() || '')) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    next();
-  } catch (error) {
-    console.error('[admin] Error checking admin status:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-/**
  * GET /admin/transactions
  * Get all transactions with optional filters
  * Query params:
@@ -371,7 +411,7 @@ async function requireAdmin(req: AuthedRequest, res: express.Response, next: exp
  * - limit: number of results (default 50)
  * - offset: pagination offset (default 0)
  */
-adminRouter.get('/transactions', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
+adminRouter.get('/transactions', requireVerified as any, requireAdminMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const {
       type,
@@ -424,7 +464,7 @@ adminRouter.get('/transactions', requireVerified as any, requireAdmin as any, as
  * - startDate: start of date range (ISO string, optional)
  * - endDate: end of date range (ISO string, optional)
  */
-adminRouter.get('/transactions/summary', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
+adminRouter.get('/transactions/summary', requireVerified as any, requireAdminMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -451,7 +491,7 @@ adminRouter.get('/transactions/summary', requireVerified as any, requireAdmin as
  * GET /admin/transactions/:sessionId
  * Get a specific transaction by Stripe session ID
  */
-adminRouter.get('/transactions/:sessionId', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
+adminRouter.get('/transactions/:sessionId', requireVerified as any, requireAdminMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const { sessionId } = req.params;
 

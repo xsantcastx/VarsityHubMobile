@@ -6,9 +6,10 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
-import { getMaxRosterSizePerTeam, resolvePlan } from '../lib/planLimits.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
+import { canManageTeam as canManageTeamShared } from '../lib/teamAuthorization.js';
 
 // 'owner' is intentionally excluded — ownership can only be assigned through org creation or transfer-ownership endpoint
 const VALID_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
@@ -17,17 +18,11 @@ type ValidRole = typeof VALID_ROLES[number];
 export const teamMembershipsRouter = Router();
 registerIdValidation(teamMembershipsRouter);
 
+// Thin wrapper preserving the existing (req, teamId) signature used by handlers
+// in this router. Delegates to the shared lib so the boundary logic lives in
+// one place.
 async function canManageTeam(req: AuthedRequest, teamId: string): Promise<boolean> {
-  if (!req.user) return false;
-  const membership = await prisma.teamMembership.findFirst({
-    where: {
-      team_id: teamId,
-      user_id: req.user.id,
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active',
-    },
-  });
-  return Boolean(membership);
+  return canManageTeamShared(req.user?.id ?? null, teamId);
 }
 
 // POST /team-memberships { team_id, user_id, role }
@@ -45,20 +40,11 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
     if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
     const { team_id, user_id, role } = parsed.data;
 
-    // Verify requester is team owner/manager/coach
-    const requesterMembership = await prisma.teamMembership.findFirst({
-      where: {
-        team_id: String(team_id),
-        user_id: req.user.id,
-        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-        status: 'active'
-      }
-    });
-
-    if (!requesterMembership) {
+    const canManage = await canManageTeam(req, String(team_id));
+    if (!canManage) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
-        message: 'Only team owners, managers, or coaches can add members to teams.'
+        message: 'Only team staff or organization admins can add members to teams.'
       });
     }
 
@@ -78,23 +64,20 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
     const userIdStr = String(user_id);
 
     const m = await prisma.$transaction(async (tx) => {
-      // Check roster limit inside transaction to prevent race conditions
-      const ownerMembership = await tx.teamMembership.findFirst({
-        where: { team_id: teamIdStr, role: 'owner', status: 'active' },
-        include: { user: true },
+      const existingMembership = await tx.teamMembership.findUnique({
+        where: { team_id_user_id: { team_id: teamIdStr, user_id: userIdStr } } as any,
+        select: { role: true, status: true },
       });
-      if (ownerMembership) {
-        const ownerPrefs = (ownerMembership.user as any)?.preferences || {};
-        const ownerPlan = resolvePlan(ownerPrefs.plan);
-        const maxRoster = getMaxRosterSizePerTeam(ownerPlan);
-        if (maxRoster !== null) {
-          const currentCount = await tx.teamMembership.count({
-            where: { team_id: teamIdStr, status: 'active' },
-          });
-          if (currentCount >= maxRoster) {
-            throw new Error(`ROSTER_LIMIT_REACHED:${maxRoster}`);
-          }
-        }
+      const guard = await guardTeamMembershipMutation(tx, {
+        teamId: teamIdStr,
+        nextRole: assignedRole,
+        existingMembership,
+      });
+      if (!guard.ok) {
+        const error = new Error(guard.body.code || guard.body.error || 'TEAM_MEMBERSHIP_GUARD_FAILED');
+        (error as any).status = guard.status;
+        (error as any).body = guard.body;
+        throw error;
       }
 
       return tx.teamMembership.upsert({
@@ -105,13 +88,8 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
     }, { isolationLevel: 'Serializable' });
     return res.status(201).json(m);
   } catch (err: any) {
-    const msg = err?.message || '';
-    if (msg.startsWith('ROSTER_LIMIT_REACHED:')) {
-      const limit = msg.split(':')[1];
-      return res.status(403).json({
-        error: 'ROSTER_LIMIT_REACHED',
-        message: `This team has reached its roster limit of ${limit} members. Upgrade your plan for more.`,
-      });
+    if (err?.status && err?.body) {
+      return res.status(err.status).json(err.body);
     }
     console.error('[team-memberships] POST / error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -140,7 +118,7 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
     if (!canManage) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
-        message: 'Only team owners, managers, or coaches can update roles.',
+        message: 'Only team staff or organization admins can update roles.',
       });
     }
 
@@ -151,6 +129,16 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
       const validatedRole = String(role) as ValidRole;
       if (!VALID_ROLES.includes(validatedRole)) {
         return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
+      }
+
+      const guard = await guardTeamMembershipMutation(prisma, {
+        teamId: membership.team_id,
+        nextRole: validatedRole,
+        existingMembership: { role: membership.role, status: membership.status },
+        nextStatus: membership.status,
+      });
+      if (!guard.ok) {
+        return res.status(guard.status).json(guard.body);
       }
       data.role = validatedRole;
     }
@@ -209,7 +197,7 @@ teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any
     if (!canManage && !isSelf) {
       return res.status(403).json({
         error: 'PERMISSION_DENIED',
-        message: 'Only team owners, managers, or coaches can remove members.',
+        message: 'Only team staff or organization admins can remove members.',
       });
     }
 

@@ -1,7 +1,13 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 
-type PromoDb = Pick<typeof prisma, 'promoCode' | 'promoRedemption'>;
+type PromoDb = {
+  promoCode: Pick<typeof prisma.promoCode, 'findUnique' | 'update' | 'updateMany'>;
+  promoRedemption: Pick<
+    typeof prisma.promoRedemption,
+    'count' | 'create' | 'findMany' | 'deleteMany'
+  >;
+};
 
 export type PromoPreviewInput = {
   code: string;
@@ -101,4 +107,84 @@ export async function redeemPromo(
 ) {
   if (db) return redeemPromoWithDb(input, db);
   return prisma.$transaction((tx) => redeemPromoWithDb(input, tx), { isolationLevel: 'Serializable' });
+}
+
+export type ReversePromoRedemptionInput = {
+  orderReferences: string[];
+};
+
+async function reversePromoRedemptionWithDb(
+  input: ReversePromoRedemptionInput,
+  db: PromoDb
+) {
+  const orderReferences = Array.from(
+    new Set((input.orderReferences || []).map((value) => String(value || '').trim()).filter(Boolean))
+  );
+
+  if (orderReferences.length === 0) {
+    return {
+      ok: true,
+      reversed: false,
+      count: 0,
+      orderReferences: [],
+      promoIds: [],
+      reason: 'no_references',
+    } as const;
+  }
+
+  const redemptions = await db.promoRedemption.findMany({
+    where: { order_id: { in: orderReferences } },
+    select: { id: true, promo_id: true, order_id: true },
+  });
+
+  if (redemptions.length === 0) {
+    return {
+      ok: true,
+      reversed: false,
+      count: 0,
+      orderReferences,
+      promoIds: [],
+      reason: 'not_found',
+    } as const;
+  }
+
+  await db.promoRedemption.deleteMany({
+    where: { id: { in: redemptions.map((redemption) => redemption.id) } },
+  });
+
+  const promoCounts = new Map<string, number>();
+  for (const redemption of redemptions) {
+    promoCounts.set(redemption.promo_id, (promoCounts.get(redemption.promo_id) || 0) + 1);
+  }
+
+  for (const [promoId, count] of promoCounts.entries()) {
+    const promo = await db.promoCode.findUnique({
+      where: { id: promoId },
+      select: { uses: true },
+    });
+    if (!promo) continue;
+    await db.promoCode.update({
+      where: { id: promoId },
+      data: { uses: Math.max(0, promo.uses - count) },
+    });
+  }
+
+  return {
+    ok: true,
+    reversed: true,
+    count: redemptions.length,
+    orderReferences,
+    promoIds: Array.from(promoCounts.keys()),
+    reason: 'reversed',
+  } as const;
+}
+
+export async function reversePromoRedemption(
+  input: ReversePromoRedemptionInput,
+  db?: PromoDb
+) {
+  if (db) return reversePromoRedemptionWithDb(input, db);
+  return prisma.$transaction((tx) => reversePromoRedemptionWithDb(input, tx), {
+    isolationLevel: 'Serializable',
+  });
 }

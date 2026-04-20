@@ -20,6 +20,7 @@ describeDb('Posts API Endpoints', () => {
   let testUser: any;
   let testUserToken: string;
   let testPostId: string;
+  const missingPostId = `c${'0'.repeat(24)}`;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -31,13 +32,19 @@ describeDb('Posts API Endpoints', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Test Posts User',
         email_verified: true,
-        preferences: { role: 'fan', onboarding_completed: true },
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
       },
     });
     testUserToken = signJwt({ id: testUser.id });
   });
 
   afterAll(async () => {
+    await prisma.notification.deleteMany({ where: { user_id: testUser.id } }).catch(() => {});
     // Clean up test data
     if (testPostId) {
       await prisma.post.delete({ where: { id: testPostId } }).catch(() => {});
@@ -133,14 +140,100 @@ describeDb('Posts API Endpoints', () => {
         .set('Authorization', `Bearer ${testUserToken}`);
 
       expect(del.statusCode).toEqual(200);
-      expect(del.body.undo_until).toBeDefined();
+      expect(del.body.deleted_at).toBeDefined();
 
       const restore = await request(app)
         .post(`/posts/${postId}/restore`)
         .set('Authorization', `Bearer ${testUserToken}`);
 
       expect(restore.statusCode).toEqual(200);
-      expect(restore.body.deleted_at).toBeNull();
+      expect(restore.body.ok).toBe(true);
+      expect(restore.body.post_id).toBe(postId);
+
+      await prisma.post.delete({ where: { id: postId } }).catch(() => {});
+    });
+
+    it('should remove post-linked notifications when a post is soft-deleted', async () => {
+      const created = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${testUserToken}`)
+        .send({
+          title: 'Post with notifications',
+          content: 'Delete should clean notifications',
+          type: 'post',
+        });
+
+      const postId = created.body.id;
+      expect(postId).toBeDefined();
+
+      await prisma.notification.create({
+        data: {
+          user_id: testUser.id,
+          type: 'SHARE',
+          post_id: postId,
+          meta: { source: 'api-posts-test' },
+        },
+      });
+
+      const del = await request(app)
+        .delete(`/posts/${postId}`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
+      expect(del.statusCode).toBe(200);
+
+      const notifications = await prisma.notification.findMany({
+        where: { post_id: postId },
+        select: { id: true },
+      });
+
+      expect(notifications).toHaveLength(0);
+
+      await prisma.post.delete({ where: { id: postId } }).catch(() => {});
+    });
+
+    it('should remove comment-linked notifications when a comment is deleted', async () => {
+      const created = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${testUserToken}`)
+        .send({
+          title: 'Comment cleanup post',
+          content: 'Comment delete should clean notifications',
+          type: 'post',
+        });
+
+      const postId = created.body.id;
+      expect(postId).toBeDefined();
+
+      const comment = await prisma.comment.create({
+        data: {
+          post_id: postId,
+          author_id: testUser.id,
+          content: 'Temporary comment',
+        },
+      });
+
+      await prisma.notification.create({
+        data: {
+          user_id: testUser.id,
+          type: 'COMMENT_REPLY',
+          post_id: postId,
+          comment_id: comment.id,
+          meta: { source: 'api-posts-test' },
+        },
+      });
+
+      const del = await request(app)
+        .delete(`/posts/${postId}/comments/${comment.id}`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
+      expect(del.statusCode).toBe(200);
+
+      const notifications = await prisma.notification.findMany({
+        where: { comment_id: comment.id },
+        select: { id: true },
+      });
+
+      expect(notifications).toHaveLength(0);
 
       await prisma.post.delete({ where: { id: postId } }).catch(() => {});
     });
@@ -181,7 +274,7 @@ describeDb('Posts API Endpoints', () => {
 
     it('should return 404 for non-existent post', async () => {
       const res = await request(app)
-        .get('/posts/non-existent-id');
+        .get(`/posts/${missingPostId}`);
 
       expect(res.statusCode).toEqual(404);
     });

@@ -16,6 +16,7 @@ import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { useAuth } from '@/context/AuthProvider';
 import { captureException } from '@/utils/sentry';
+import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -268,14 +269,14 @@ export default function SignUpScreen() {
               I agree to the{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
+                onPress={() => Linking.openURL(PUBLIC_TERMS_URL).catch(() => {})}
               >
                 Terms of Service
               </Text>
               {' '}and{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
+                onPress={() => Linking.openURL(PUBLIC_PRIVACY_POLICY_URL).catch(() => {})}
               >
                 Privacy Policy
               </Text>
@@ -434,14 +435,14 @@ export default function SignUpScreen() {
               I agree to the{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => Linking.openURL('https://varsityhub.app/terms').catch(() => {})}
+                onPress={() => Linking.openURL(PUBLIC_TERMS_URL).catch(() => {})}
               >
                 Terms of Service
               </Text>
               {' '}and{' '}
               <Text
                 style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-                onPress={() => Linking.openURL('https://varsityhub.app/privacy').catch(() => {})}
+                onPress={() => Linking.openURL(PUBLIC_PRIVACY_POLICY_URL).catch(() => {})}
               >
                 Privacy Policy
               </Text>

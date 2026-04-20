@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
-import { signJwt, verifyJwt } from '../lib/jwt.js';
+import { hashRefreshToken, signJwt, verifyJwt } from '../lib/jwt.js';
 
 // Test user data
 const TEST_EMAIL = `test-auth-${Date.now()}@example.com`;
@@ -243,13 +243,13 @@ describe('Authentication Flow', () => {
 
   describe('Password Reset', () => {
     it('should generate password reset code', async () => {
-      const resetCode = String(Math.floor(100000 + Math.random() * 900000));
+      const rawResetCode = String(Math.floor(100000 + Math.random() * 900000));
       const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
       
       await prisma.user.update({
         where: { id: userId },
         data: {
-          password_reset_code: resetCode,
+          password_reset_code: hashRefreshToken(rawResetCode),
           password_reset_expires: expires,
         },
       });
@@ -258,7 +258,7 @@ describe('Authentication Flow', () => {
         where: { id: userId },
       });
 
-      expect(user?.password_reset_code).toBe(resetCode);
+      expect(user?.password_reset_code).toBe(hashRefreshToken(rawResetCode));
       expect(user?.password_reset_expires).toBeDefined();
     });
 

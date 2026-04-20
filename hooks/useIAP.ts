@@ -62,19 +62,18 @@ export function useVHubIAP() {
     onPurchaseSuccess: async (purchase: Purchase) => {
       try {
         if (isIOS) {
-          // iOS: Get receipt and verify with Apple endpoint
+          const jws = (purchase as any).purchaseToken || null;
           let receipt: string | undefined;
-          try {
-            receipt = await getReceiptIOS();
-          } catch {
-            receipt = (purchase as any).transactionReceipt;
-          }
-
-          if (!receipt) {
-            throw new Error('No receipt available for validation');
+          if (!jws) {
+            try {
+              receipt = await getReceiptIOS();
+            } catch {
+              receipt = (purchase as any).transactionReceipt;
+            }
           }
 
           await httpPost('/payments/apple/verify-receipt', {
+            jws,
             receipt,
             productId: purchase.productId,
           });
@@ -165,15 +164,16 @@ export function useVHubIAP() {
       for (const p of pending) {
         try {
           if (isIOS) {
+            const jws = (p as any).purchaseToken || null;
             let receipt: string | undefined;
-            try {
-              receipt = await getReceiptIOS();
-            } catch {
-              receipt = (p as any).transactionReceipt;
+            if (!jws) {
+              try {
+                receipt = await getReceiptIOS();
+              } catch {
+                receipt = (p as any).transactionReceipt;
+              }
             }
-            if (receipt) {
-              await httpPost('/payments/apple/verify-receipt', { receipt, productId: p.productId });
-            }
+            await httpPost('/payments/apple/verify-receipt', { jws, receipt, productId: p.productId });
           } else if (isAndroid && (p as any).purchaseToken) {
             await httpPost('/payments/google/verify-purchase', {
               purchase_token: (p as any).purchaseToken,
@@ -275,11 +275,12 @@ export function useVHubIAP() {
       for (const p of ourSubs) {
         try {
           if (isIOS) {
+            const jws = (p as any).purchaseToken || null;
             let receipt: string | undefined;
-            try { receipt = await getReceiptIOS(); } catch { receipt = (p as any).transactionReceipt; }
-            if (receipt) {
-              await httpPost('/payments/apple/verify-receipt', { receipt, productId: p.productId });
+            if (!jws) {
+              try { receipt = await getReceiptIOS(); } catch { receipt = (p as any).transactionReceipt; }
             }
+            await httpPost('/payments/apple/verify-receipt', { jws, receipt, productId: p.productId });
           } else if (isAndroid) {
             const token = (p as any).purchaseToken;
             if (token) {

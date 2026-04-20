@@ -16,12 +16,14 @@ Rules:
 - [ ] Shared behavior was reused instead of duplicating hooks, utils, or API logic.
 - [ ] No deep relative cross-feature imports were introduced.
 - [ ] Screens did not add direct raw `fetch` calls where typed API clients should exist.
+- [ ] No duplicate logic was added for a rule already enforced elsewhere.
 
 ### Validation And Data Integrity
 
 - [ ] Backend validation remains authoritative for protected behavior.
 - [ ] Client input cannot set paid plan, approval state, privileged role, or ownership.
 - [ ] Frontend validation does not drift from backend rules without an intentional documented reason.
+- [ ] Frontend regexes, length limits, and enum lists are consistent with server Zod schemas.
 - [ ] Critical multi-step writes remain transactional or otherwise race-safe.
 - [ ] Async side-effect failure (promo, notification, billing) does not silently mark protected work complete.
 
@@ -32,6 +34,7 @@ Rules:
 - [ ] Deep-link or callback params for protected flows are validated before use.
 - [ ] Owner removal, approval, or transfer flows preserve tenant safety and valid ownership state.
 - [ ] Pending coach or onboarding flows that continue as fan use explicit server-safe preference updates, not implicit role escalation.
+- [ ] Client TTL caches are invalidated on relevant mutation paths.
 
 ### Reliability And User Recovery
 
@@ -45,6 +48,8 @@ Rules:
 - [ ] Admin or protected state changes still emit audit logs or equivalent structured logs.
 - [ ] Payment, auth, or approval changes preserve useful debugging context.
 - [ ] Silent fallback behavior does not weaken security posture.
+- [ ] Critical-path logs (email, payments, auth) use `console.log`/`console.error`, not `debugLog`.
+- [ ] New production-observable operations include structured log context (correlation ID, actor, target).
 
 ### Tests And Canonical Docs
 
@@ -62,6 +67,7 @@ Rules:
 - [ ] Auth, onboarding, payments, approvals, and deep links were smoke-tested if touched.
 - [ ] Security fixes include before/after exploit verification or equivalent proof.
 - [ ] Payment success, webhook, retry, and cancellation paths were verified if billing changed.
+- [ ] Real-device smoke testing was done for payment, messaging, and dark mode changes.
 
 ### Quality Gates
 
@@ -74,12 +80,14 @@ Rules:
 - [ ] Schema or contract changes include migration state and regeneration steps where needed.
 - [ ] A rollback or safe revert path is documented for risky data or payment changes.
 - [ ] Source-of-truth ownership is still clear for any changed protected state.
+- [ ] Migrations are reversible, or a forward-fix strategy is documented.
 
 ### Observability And Operations
 
 - [ ] Logs, audit trails, or monitoring are sufficient to debug the changed flow in production.
 - [ ] New env vars, secrets, or third-party dependencies are documented and verified.
 - [ ] Risky launch items have a named owner for post-deploy verification.
+- [ ] Health endpoints are functional for any changed critical integration (email, payments, push).
 
 ## Derived From
 

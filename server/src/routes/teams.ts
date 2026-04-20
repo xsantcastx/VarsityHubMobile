@@ -12,9 +12,17 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
-import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
+import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { isOrganizationApproved } from '../lib/approvalService.js';
+import {
+  buildTeamPlanLockedError,
+  getTeamEntitlementState,
+  isAuthorizedTeamRole,
+  isManagementRole,
+  TEAM_AUTHORIZED_ROLES,
+} from '../lib/teamEntitlements.js';
+import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 
 import { registerIdValidation } from '../middleware/validateParams.js';
 
@@ -36,6 +44,7 @@ teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedR
   const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
   
   let where: any = {
+    status: 'active',
     memberships: {
       some: {
         user_id: userId,
@@ -72,8 +81,15 @@ teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedR
       }
     },
   });
+
+  const entitlements = await Promise.all(rows.map((team) => getTeamEntitlementState(prisma, team.id)));
+  const manageableTeamIds = new Set(
+    entitlements.filter((entitlement) => !entitlement.teamLocked).map((entitlement) => entitlement.teamId)
+  );
   
-  const list = rows.map((t) => ({
+  const list = rows
+    .filter((team) => manageableTeamIds.has(team.id))
+    .map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description,
@@ -158,7 +174,7 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
   }
   
-  let where: any = {};
+  let where: any = all ? {} : { status: 'active' };
   
   // Directory search: search across name, city, league, sport
   if (directory && q) {
@@ -231,6 +247,7 @@ teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, asyncHandler(
     const teamId = String(req.params.id);
     const team = await prisma.team.findUnique({ where: { id: teamId } });
     if (!team) return res.status(404).json({ error: 'Team not found' });
+    if (team.status !== 'active') return res.status(404).json({ error: 'Team not found' });
     try {
       await prisma.teamFollow.create({ data: { user_id: userId, team_id: teamId } });
 
@@ -316,6 +333,36 @@ teamsRouter.get('/:id', asyncHandler(async (req, res) => {
     },
   });
   if (!t) return res.status(404).json({ error: 'Not found' });
+
+  if (currentUserId) {
+    const [membership, isAdmin, orgMembership] = await Promise.all([
+      prisma.teamMembership.findFirst({
+        where: { team_id: id, user_id: currentUserId, status: 'active' },
+        select: { role: true },
+      }),
+      getIsAdmin(req as any),
+      t.organization_id
+        ? prisma.organizationMembership.findFirst({
+            where: {
+              organization_id: t.organization_id,
+              user_id: currentUserId,
+              role: { in: ['owner', 'manager'] },
+              status: 'active',
+            },
+            select: { role: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    const hasPrivilegedAccess = !!isAdmin || !!orgMembership || isManagementRole(membership?.role);
+    if (hasPrivilegedAccess) {
+      const entitlement = await getTeamEntitlementState(prisma, id);
+      if (entitlement.teamLocked) {
+        return res.status(403).json(buildTeamPlanLockedError(entitlement));
+      }
+    }
+  }
+
   return res.json({
     id: t.id,
     name: t.name,
@@ -357,9 +404,9 @@ teamsRouter.get('/:id/members', requireAuth as any, asyncHandler(async (req: Aut
   if (!team) return res.status(404).json({ error: 'Team not found' });
 
   const isAdmin = await getIsAdmin(req as any);
-  const isTeamMember = await prisma.teamMembership.findFirst({
+  const teamMembership = await prisma.teamMembership.findFirst({
     where: { team_id: id, user_id: req.user!.id, status: 'active' },
-    select: { id: true },
+    select: { id: true, role: true },
   });
   let isOrgAdmin = false;
   if (team.organization_id) {
@@ -374,8 +421,15 @@ teamsRouter.get('/:id/members', requireAuth as any, asyncHandler(async (req: Aut
     });
     isOrgAdmin = !!orgMembership;
   }
-  if (!isAdmin && !isTeamMember && !isOrgAdmin) {
+  if (!isAdmin && !teamMembership && !isOrgAdmin) {
     return res.status(403).json({ error: 'Only team members, league admins, or platform admins can view the roster' });
+  }
+
+  if (isAdmin || isOrgAdmin || isManagementRole(teamMembership?.role)) {
+    const entitlement = await getTeamEntitlementState(prisma, id);
+    if (entitlement.teamLocked) {
+      return res.status(403).json(buildTeamPlanLockedError(entitlement));
+    }
   }
 
   const mems = await prisma.teamMembership.findMany({
@@ -676,21 +730,15 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
-  // Check if user is team owner/manager/coach, org owner, or platform admin
-  const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
-  });
   const isAdmin = await getIsAdmin(req as any);
-  const isTeamStaff = membership && ['owner', 'manager', 'coach'].includes(membership.role);
-  let isOrgOwner = false;
-  if (team.organization_id) {
-    const orgMembership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: team.organization_id, user_id: req.user.id, role: 'owner', status: 'active' },
-    });
-    isOrgOwner = !!orgMembership;
+  const canManage = await canManageTeamScoped(req.user.id, teamId);
+  if (!isAdmin && !canManage) {
+    return res.status(403).json({ error: 'Only team staff, organization admins, or platform admins can update team information' });
   }
-  if (!isAdmin && !isOrgOwner && !isTeamStaff) {
-    return res.status(403).json({ error: 'Only team staff, league owners, or admins can update team information' });
+
+  const entitlement = await getTeamEntitlementState(prisma, teamId);
+  if (entitlement.teamLocked) {
+    return res.status(403).json(buildTeamPlanLockedError(entitlement));
   }
   
   const updateData: any = {};
@@ -829,30 +877,23 @@ teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, asyn
   if (!isAdmin && (!membership || membership.role !== 'owner')) {
     return res.status(403).json({ error: 'Only team owners can delete teams' });
   }
+  if (team.status !== 'active') {
+    return res.json({ ok: true, archived: true, already_archived: true });
+  }
   
   try {
-    // Cascade delete: remove all related data, then the team itself
+    // Archive the team instead of deleting it so historical games/events/posts
+    // keep a resolvable team reference instead of degrading into null orphans.
     await prisma.$transaction([
-      // Delete team memberships
       prisma.teamMembership.deleteMany({ where: { team_id: teamId } }),
-      // Delete team invites
       prisma.teamInvite.deleteMany({ where: { team_id: teamId } }),
-      // Delete team follows
       prisma.teamFollow.deleteMany({ where: { team_id: teamId } }),
-      // Unlink posts (soft: set team_id to null so posts are preserved)
-      prisma.post.updateMany({ where: { team_id: teamId }, data: { team_id: null } }),
-      // Unlink group chats
+      // Team-scoped chats should no longer appear as team chats after archival.
       prisma.groupChat.updateMany({ where: { team_id: teamId }, data: { team_id: null } }),
-      // Unlink games (home and away)
-      prisma.game.updateMany({ where: { home_team_id: teamId }, data: { home_team_id: null } }),
-      prisma.game.updateMany({ where: { away_team_id: teamId }, data: { away_team_id: null } }),
-      // Unlink events
-      prisma.event.updateMany({ where: { team_id: teamId }, data: { team_id: null } }),
-      // Delete the team itself
-      prisma.team.delete({ where: { id: teamId } }),
+      prisma.team.update({ where: { id: teamId }, data: { status: 'archived' } }),
     ]);
 
-    return res.json({ ok: true, message: 'Team deleted successfully' });
+    return res.json({ ok: true, archived: true, message: 'Team archived successfully' });
   } catch (err: any) {
     console.error('[teams] delete error:', err);
     return res.status(500).json({ error: 'Internal server error' });
@@ -1389,19 +1430,12 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   // CRITICAL: Verify requester is team owner/manager/coach (can invite members)
-  const requesterMembership = await prisma.teamMembership.findFirst({
-    where: {
-      team_id: id,
-      user_id: req.user.id,
-      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-      status: 'active'
-    }
-  });
-  
-  if (!requesterMembership) {
+  const canManage = await canManageTeamScoped(req.user.id, id);
+
+  if (!canManage) {
     return res.status(403).json({
       error: 'PERMISSION_DENIED',
-      message: 'Only team owners, managers, or coaches can invite members to teams.'
+      message: 'Only team staff or organization admins can invite members to teams.'
     });
   }
   
@@ -1410,30 +1444,26 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
   // CRITICAL: Use transaction to prevent race condition bypassing user limits.
   let invite;
   try {
-    // Look up the team OWNER's plan (not the inviting user's plan)
-    const ownerMembership = await prisma.teamMembership.findFirst({
-      where: { team_id: id, role: 'owner', status: 'active' },
-      select: { user_id: true },
-    });
-    const ownerId = ownerMembership?.user_id || req.user.id;
-    const owner = await prisma.user.findUnique({ where: { id: ownerId } });
-    const ownerPrefs = (owner?.preferences || {}) as any;
-    // Use confirmed plan only — pending_plan is not yet paid for
-    const plan = ownerPrefs.payment_pending ? 'rookie' : (ownerPrefs.plan || 'rookie');
-
-    // Get per-team limit from the owner's plan definitions
-    const limit = getAuthorizedUsersPerTeam(plan);
-
     // Create invite within transaction to prevent race conditions
     invite = await prisma.$transaction(async (tx) => {
-      if (limit !== null) {
-        // Count atomically within transaction
-        const inviteCount = await tx.teamInvite.count({ where: { team_id: id, status: 'pending' } });
-        const memberCount = await tx.teamMembership.count({ where: { team_id: id, status: 'active', role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
-        const totalAuthorized = inviteCount + memberCount;
+      const entitlement = await getTeamEntitlementState(tx, id);
+      if (entitlement.teamLocked) {
+        throw new Error('TEAM_PLAN_LOCKED');
+      }
 
-        if (totalAuthorized >= limit) {
-          throw new Error(`USER_LIMIT_REACHED:${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team`);
+      if (isAuthorizedTeamRole(assignedRole)) {
+        const limit = entitlement.maxAuthorizedUsers;
+        if (limit !== null) {
+          // Count atomically within transaction
+          const inviteCount = await tx.teamInvite.count({ where: { team_id: id, status: 'pending' } });
+          const memberCount = await tx.teamMembership.count({
+            where: { team_id: id, status: 'active', role: { in: [...TEAM_AUTHORIZED_ROLES] as any } },
+          });
+          const totalAuthorized = inviteCount + memberCount;
+
+          if (totalAuthorized >= limit) {
+            throw new Error(`USER_LIMIT_REACHED:${limit}`);
+          }
         }
       }
 
@@ -1441,12 +1471,20 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
       return await tx.teamInvite.create({ data: { team_id: id, email, role: assignedRole as any } });
     });
   } catch (e: any) {
+    if (e?.message === 'TEAM_PLAN_LOCKED') {
+      const entitlement = await getTeamEntitlementState(prisma, id);
+      return res.status(403).json(buildTeamPlanLockedError(entitlement));
+    }
     // Handle specific limit errors
     if (e?.message?.includes('USER_LIMIT_REACHED')) {
-      const [, message] = e.message.split(':');
+      const [, rawLimit] = e.message.split(':');
+      const limit = Number.parseInt(String(rawLimit || ''), 10);
       return res.status(403).json({
         error: 'USER_LIMIT_REACHED',
-        message: message || 'Plan limit reached for authorized users.'
+        code: 'USER_LIMIT_REACHED',
+        message: Number.isFinite(limit)
+          ? `Plan limit reached for authorized users. This team allows ${limit} authorized user${limit === 1 ? '' : 's'}.`
+          : 'Plan limit reached for authorized users.',
       });
     }
 
@@ -1552,14 +1590,46 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(a
     },
   });
   const roleToApply = existingMembership?.role || invite.role;
-  await prisma.$transaction([
-    prisma.teamMembership.upsert({
-      where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
-      update: { role: roleToApply, status: 'active' },
-      create: { team_id: invite.team_id, user_id: user.id, role: roleToApply, status: 'active' },
-    }),
-    prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const entitlement = await getTeamEntitlementState(tx, invite.team_id);
+      if (entitlement.teamLocked) {
+        throw new Error('TEAM_PLAN_LOCKED');
+      }
+
+      if (entitlement.maxRoster !== null) {
+        const currentActiveCount = await tx.teamMembership.count({
+          where: { team_id: invite.team_id, status: 'active' },
+        });
+        const existingActive = existingMembership?.status === 'active';
+        const nextActiveCount = currentActiveCount + (existingActive ? 0 : 1);
+        if (nextActiveCount > entitlement.maxRoster) {
+          throw new Error(`ROSTER_LIMIT_REACHED:${entitlement.maxRoster}`);
+        }
+      }
+
+      await tx.teamMembership.upsert({
+        where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
+        update: { role: roleToApply, status: 'active' },
+        create: { team_id: invite.team_id, user_id: user.id, role: roleToApply, status: 'active' },
+      });
+      await tx.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } });
+    }, { isolationLevel: 'Serializable' });
+  } catch (error: any) {
+    if (error?.message === 'TEAM_PLAN_LOCKED') {
+      const entitlement = await getTeamEntitlementState(prisma, invite.team_id);
+      return res.status(403).json(buildTeamPlanLockedError(entitlement));
+    }
+    if (error?.message?.startsWith('ROSTER_LIMIT_REACHED:')) {
+      const limit = Number.parseInt(error.message.split(':')[1], 10);
+      return res.status(403).json({
+        error: 'ROSTER_LIMIT_REACHED',
+        code: 'ROSTER_LIMIT_REACHED',
+        message: `This team has reached its roster limit of ${limit} members. Upgrade your plan for more.`,
+      });
+    }
+    throw error;
+  }
 
   // Check if team group chat exists, if not create it
   try {

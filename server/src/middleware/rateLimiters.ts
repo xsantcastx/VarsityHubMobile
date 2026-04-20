@@ -375,6 +375,19 @@ export const adCreationLimiter = createLimiter({
 });
 
 /**
+ * Ad moderation actions (approve / reject / review)
+ * 30 per 15 minutes per admin. Threat model is a compromised or misbehaving
+ * admin account spamming moderation; legitimate queue work rarely exceeds
+ * 2 actions/min sustained. Keyed by user because the upstream chain requires
+ * an authenticated admin before this limiter runs.
+ */
+export const adModerationLimiter = createLimiter({
+  name: 'ad-moderation',
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: rateLimitingDisabled ? 100000 : 30,
+});
+
+/**
  * Payment/Checkout attempts
  * 10 per hour per user
  */
@@ -518,6 +531,7 @@ export const rateLimiters = {
   rsvp: rsvpLimiter,
   vote: voteLimiter,
   adCreation: adCreationLimiter,
+  adModeration: adModerationLimiter,
   payment: paymentLimiter,
   promoCode: promoCodeLimiter,
   userLookup: userLookupLimiter,

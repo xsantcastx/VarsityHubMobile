@@ -15,6 +15,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
+import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -603,7 +604,6 @@ gamesRouter.post(
       }
 
       // Approval workflow: Check if user is a coach/manager OR if user is admin
-      const managementRoles: any[] = ['owner', 'manager', 'coach', 'assistant_coach'];
       let isCoach = false;
 
       // Check if user is super admin (can create events for ANY team)
@@ -621,15 +621,7 @@ gamesRouter.post(
       }
 
       if (parsed.data.home_team_id && !isAdmin) {
-        // Regular users must be a coach/manager of the team
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: parsed.data.home_team_id,
-            user_id: req.user.id,
-            role: { in: managementRoles },
-          },
-        });
-        isCoach = !!membership;
+        isCoach = await canManageTeamScoped(req.user.id, parsed.data.home_team_id);
 
         // Verify the team's org is admin-approved (if team has an org)
         if (isCoach) {
@@ -1102,16 +1094,7 @@ gamesRouter.get('/:id/summary', asyncHandler(async (req: AuthedRequest, res) => 
     if (req.user) {
       const teamIds = [gameData.home_team_id, gameData.away_team_id].filter(Boolean) as string[];
       if (teamIds.length > 0) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: { in: teamIds },
-            user_id: req.user.id,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-          select: { id: true },
-        });
-        if (membership) canEditResult = true;
+        canEditResult = await canManageAnyTeam(req.user.id, teamIds);
       }
       if (!canEditResult && gameData.created_by_id === req.user.id) canEditResult = true;
       if (!canEditResult) {
@@ -1266,19 +1249,8 @@ gamesRouter.delete(
       const isAdmin = isAdminEmail(user?.email);
 
       // Check if user is coach/manager of either team
-      let isCoach = false;
       const deleteTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-      if (deleteTeamIds.length > 0) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: { in: deleteTeamIds },
-            user_id: req.user.id,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-        });
-        isCoach = !!membership;
-      }
+      const isCoach = await canManageAnyTeam(req.user.id, deleteTeamIds);
 
       // Deny access if user is not authorized
       if (!isCreator && !isCoach && !isAdmin) {
@@ -1465,19 +1437,7 @@ gamesRouter.patch(
       if (!game) return res.status(404).json({ error: 'Game not found' });
 
       const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-      let isCoach = false;
-      if (teamIds.length > 0) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: { in: teamIds },
-            user_id: req.user.id,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-          select: { id: true },
-        });
-        isCoach = !!membership;
-      }
+      const isCoach = await canManageAnyTeam(req.user.id, teamIds);
 
       const isCreator = game.created_by_id === req.user.id;
       const user = await prisma.user.findUnique({
@@ -1552,19 +1512,8 @@ gamesRouter.patch(
       const isAdmin = isAdminEmail(user?.email);
 
       // Check if user is coach/manager of either team
-      let isCoach = false;
       const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-      if (teamIds.length > 0) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: { in: teamIds },
-            user_id: req.user.id,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-        });
-        isCoach = !!membership;
-      }
+      const isCoach = await canManageAnyTeam(req.user.id, teamIds);
 
       // Deny access if user is not authorized
       if (!isCreator && !isCoach && !isAdmin) {
@@ -1667,20 +1616,8 @@ gamesRouter.put(
       });
       const isAdmin = isEmailAdmin(currentUser?.email);
 
-      let isCoach = false;
       const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-      if (gameTeamIds.length > 0) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: { in: gameTeamIds },
-            user_id: req.user.id,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-          select: { id: true },
-        });
-        isCoach = !!membership;
-      }
+      const isCoach = await canManageAnyTeam(req.user.id, gameTeamIds);
 
       if (!isCreator && !isCoach && !isAdmin) {
         return res
@@ -1775,25 +1712,15 @@ gamesRouter.put(
 
       if (!game) return res.status(404).json({ error: 'Event not found' });
 
-      // Check if user is coach/manager of either the home or away team
-      let isCoach = false;
+      // Check if user is coach/manager of either the home or away team,
+      // or an owner/manager of the organization that owns either team.
       const gameTeamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
-      if (gameTeamIds.length > 0) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: { in: gameTeamIds },
-            user_id: req.user.id,
-            role: { in: ['coach', 'manager', 'owner', 'assistant_coach'] },
-            status: 'active',
-          },
-        });
-        isCoach = !!membership;
-      }
+      const canApprove = await canManageAnyTeam(req.user.id, gameTeamIds);
 
       const isAdmin = await getIsAdmin(req as any);
 
-      if (!isCoach && !isAdmin) {
-        return res.status(403).json({ error: 'Only coaches and admins can approve events' });
+      if (!canApprove && !isAdmin) {
+        return res.status(403).json({ error: 'Only coaches, org admins, and platform admins can approve events' });
       }
 
       const isApproved = parsed.data.approval_status === 'approved';

@@ -8,6 +8,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
+import {
+  LEGEND_YEARLY_PRICE_LABEL,
+  ROOKIE_TEAM_LIMIT,
+  VETERAN_MONTHLY_TEAM_PRICE_LABEL,
+} from '@/constants/plans';
 
 export type CoachTier = 'rookie' | 'veteran' | 'legend';
 
@@ -149,7 +154,7 @@ function getTierBenefits(tier: CoachTier) {
   switch (tier) {
     case 'legend':
       return {
-        price: '$20/year',
+        price: LEGEND_YEARLY_PRICE_LABEL,
         description: 'Best value for established multi-team programs',
         features: [
           'Unlimited teams',
@@ -164,17 +169,17 @@ function getTierBenefits(tier: CoachTier) {
       };
     case 'veteran':
       return {
-        price: '$0.99/month per team',
+        price: VETERAN_MONTHLY_TEAM_PRICE_LABEL,
         description: 'Flexible pay-per-team pricing as you grow',
         features: [
-          'Add teams beyond first 2 free',
+          `Add teams beyond the first ${ROOKIE_TEAM_LIMIT} free`,
           'Standard support',
           'Per-team administrators',
           'Silver shield badge on profile',
           'Event scheduling tools',
           'Parent communication',
         ],
-        limitations: 'Each team beyond 2 incurs monthly charge',
+        limitations: `Each team beyond ${ROOKIE_TEAM_LIMIT} incurs a monthly charge`,
       };
     case 'rookie':
     default:
@@ -182,7 +187,7 @@ function getTierBenefits(tier: CoachTier) {
         price: 'Free',
         description: 'Perfect for getting started',
         features: [
-          'First two teams free',
+          `First ${ROOKIE_TEAM_LIMIT} teams free`,
           'Ex: Mens and Womens soccer',
           'Basic scheduling',
           'Roster management',
@@ -190,7 +195,7 @@ function getTierBenefits(tier: CoachTier) {
           'Photo/video sharing',
           'Community support',
         ],
-        limitations: 'Limited to 2 teams maximum',
+        limitations: `Limited to ${ROOKIE_TEAM_LIMIT} teams maximum`,
       };
   }
 }

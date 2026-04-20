@@ -23,6 +23,7 @@ import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
@@ -883,38 +884,9 @@ eventsRouter.put(
 
     // Scope approval: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
-      let canApprove = false;
-      // Events without a team_id cannot be approved by non-admins
-      if (event.team_id) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: event.team_id,
-            user_id: userId,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-        });
-        canApprove = !!membership;
-
-        // Fall back to org-level check, scoped to the team's own organization
-        if (!canApprove) {
-          const team = await prisma.team.findUnique({
-            where: { id: event.team_id },
-            select: { organization_id: true },
-          });
-          if (team?.organization_id) {
-            const orgMembership = await prisma.organizationMembership.findFirst({
-              where: {
-                organization_id: team.organization_id,
-                user_id: userId,
-                role: { in: ['owner', 'manager'] },
-                status: 'active',
-              },
-            });
-            canApprove = !!orgMembership;
-          }
-        }
-      }
+      const canApprove = event.team_id
+        ? await canManageTeamScoped(userId, event.team_id)
+        : false;
       if (!canApprove) {
         return res
           .status(403)
@@ -963,38 +935,9 @@ eventsRouter.put(
 
     // Scope rejection: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
-      let canReject = false;
-      // Events without a team_id cannot be rejected by non-admins
-      if (event.team_id) {
-        const membership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: event.team_id,
-            user_id: userId,
-            role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-            status: 'active',
-          },
-        });
-        canReject = !!membership;
-
-        // Fall back to org-level check, scoped to the team's own organization
-        if (!canReject) {
-          const team = await prisma.team.findUnique({
-            where: { id: event.team_id },
-            select: { organization_id: true },
-          });
-          if (team?.organization_id) {
-            const orgMembership = await prisma.organizationMembership.findFirst({
-              where: {
-                organization_id: team.organization_id,
-                user_id: userId,
-                role: { in: ['owner', 'manager'] },
-                status: 'active',
-              },
-            });
-            canReject = !!orgMembership;
-          }
-        }
-      }
+      const canReject = event.team_id
+        ? await canManageTeamScoped(userId, event.team_id)
+        : false;
       if (!canReject) {
         return res
           .status(403)

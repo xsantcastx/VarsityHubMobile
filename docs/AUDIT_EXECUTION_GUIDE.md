@@ -35,18 +35,52 @@ Output required:
 - one list of trust boundaries crossed
 - one statement of the source of truth for each critical state
 
-### 2. Check Controls
+### 2. Run The Threat Model
+
+Review the flow against the explicit threat list from the audit standard:
+
+| Threat                      | What To Check                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| Auth bypass                 | Can the action execute without a valid token? Does middleware enforce `requireAuth`?              |
+| Privilege escalation        | Can a non-owner/non-admin trigger owner/admin behavior? Are role checks server-side?             |
+| IDOR / cross-tenant access  | Can user A operate on user B's resources by manipulating IDs in params or body?                   |
+| Payment spoofing            | Can checkout intent alone persist a paid plan? Are webhooks signature-verified?                   |
+| Duplicate finalization      | Can the same webhook/callback apply entitlements twice? Is there an idempotency key or guard?    |
+| Webhook/callback replay     | Are stale or replayed callbacks handled safely? Do they check current state before acting?        |
+| Validation drift            | Does the frontend allow values the backend rejects, or vice versa?                               |
+| Deep-link abuse             | Can malformed or missing deep-link params bypass auth gates or produce undefined behavior?       |
+| Silent fallback degradation | Does any catch block or fallback path skip auth, approval, payment, or role checks?              |
+| Stale cache                 | Does cached data gate security-critical decisions? Is it invalidated on the relevant mutations?   |
+| Client-controlled state     | Can the client set paid plan, approval status, role, or ownership through request payloads?       |
+
+For each applicable threat, record: checked/not applicable, and if a gap is found, fill out a finding.
+
+### 3. Verify Trust Boundaries
+
+For each boundary crossing in the flow:
+
+| Boundary                            | Verification Question                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------- |
+| Untrusted client input              | Is it validated server-side before any persistence or privileged action?                |
+| Authenticated client input          | Does the server re-derive ownership/role from the token, not from request body?        |
+| Admin or owner actions              | Is the caller verified as admin/owner server-side, not just UI-gated?                  |
+| Third-party callbacks (Stripe, IAP) | Is the callback signature-verified? Is the handler idempotent? Is failure non-silent?  |
+| Background jobs                     | Can the job replay safely? Does it check current state before mutating?                |
+| External providers (SendGrid, etc.) | Is failure handled without blocking the primary operation? Is it logged?                |
+
+### 4. Check Controls
 
 Review:
 
 - auth, role, plan, and ownership enforcement
 - request validation and protected field filtering
-- frontend/backend/schema drift
+- frontend/backend/schema drift (compare Zod schemas, regexes, enums)
 - transactions, idempotency, and replay safety
 - logging, audit logs, and failure visibility
 - deep-link or navigation safety where routes are involved
+- observability — critical paths use production-visible logging
 
-### 3. Reproduce The Gap
+### 5. Reproduce The Gap
 
 For each finding:
 
@@ -61,7 +95,7 @@ For high/critical findings also capture:
 - exploitability
 - whether the issue crosses a trust boundary or source-of-truth rule
 
-### 4. Verify The Fix
+### 6. Verify The Fix
 
 Verification should include the smallest set that proves the issue is fixed:
 
@@ -78,10 +112,11 @@ Do not close a finding on code inspection alone if the issue is user-visible, pa
 
 Check:
 
-- protected routes use the right middleware
+- protected routes use the right middleware (`requireAuth`, `requireOnboarded`)
 - refresh/verification/reset flows do not trust client-only state
 - role and onboarding gates are server-side
 - invalid token or code paths are logged without leaking secrets
+- client TTL caches are invalidated on auth mutations (login, logout, verify)
 
 ### Payments And Billing
 
@@ -91,6 +126,8 @@ Check:
 - webhook handling is signature-verified and replay-safe
 - payment success routes verify backend state, not just query params
 - retry or promo failures do not silently mark work complete
+- Stripe re-verification exists before finalization applies entitlements
+- billing quantities and plan limits are server-derived
 
 ### Organizations, Teams, And Approvals
 
@@ -100,6 +137,7 @@ Check:
 - approval or rejection cannot target another tenant's records
 - joins, approvals, and transfers are race-safe
 - owner removal and transfer flows preserve a valid owner
+- teams always have an `organization_id`
 
 ### Navigation And Deep Links
 
@@ -116,6 +154,15 @@ Check:
 - async screens show loading, error, empty, and recovery states
 - duplicate submit is blocked
 - user-facing catches log context and surface a clear recovery path
+
+### Observability And Email
+
+Check:
+
+- email send attempts and results are visible in production logs (not `debugLog`)
+- `EMAIL_AUDIT` structured logs emit for every outgoing email
+- required template IDs are validated at boot
+- health endpoints exist for email, payment, and push integrations
 
 ## Finding Templates
 

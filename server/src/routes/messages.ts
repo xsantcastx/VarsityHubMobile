@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import { getUserAge } from '../lib/userAge.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -14,17 +15,6 @@ import { sendError } from '../lib/http/sendError.js';
 
 export const messagesRouter = Router();
 registerIdValidation(messagesRouter);
-
-function ageFromDob(dob: string | null | undefined): number | null {
-  if (!dob || typeof dob !== 'string') return null;
-  const d = new Date(dob);
-  if (isNaN(d.getTime())) return null;
-  const now = new Date();
-  let a = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
-  return a;
-}
 
 const baseUserSelect = { id: true, display_name: true, avatar_url: true, username: true };
 
@@ -244,8 +234,14 @@ messagesRouter.post(
 
     // AGE POLICY: Fetch both users' DOB for age checks
     const [me, recipient] = await Promise.all([
-      prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } }),
-      prisma.user.findUnique({ where: { id: toId! }, select: { preferences: true } }),
+      prisma.user.findUnique({
+        where: { id: meId },
+        select: { date_of_birth: true, preferences: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: toId! },
+        select: { date_of_birth: true, preferences: true },
+      }),
     ]);
 
     if (!recipient) {
@@ -279,8 +275,8 @@ messagesRouter.post(
       }
     }
 
-    const senderAge = ageFromDob((me?.preferences as any)?.dob);
-    const recipientAge = ageFromDob(recipientPrefs?.dob);
+    const senderAge = getUserAge(me);
+    const recipientAge = getUserAge(recipient);
 
     // Minor (under 18) may only message accounts they follow
     if (senderAge !== null && senderAge < 18) {

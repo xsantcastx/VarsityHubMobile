@@ -32,12 +32,3 @@ if (!process.env.VERBOSE) {
     error: noop,
   };
 }
-
-afterAll(async () => {
-  try {
-    const mod = await import('../lib/prisma.js');
-    await mod.prisma.$disconnect();
-  } catch (_error) {
-    // Ignore cleanup errors in test teardown.
-  }
-});

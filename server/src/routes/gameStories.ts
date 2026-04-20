@@ -128,13 +128,41 @@ export const makeListMediaHandler =
       // v1.0.2 pass 9: lazy-delete expired stories on each list request. Without a cron job
       // the Story table grew unbounded. Done as fire-and-forget so list latency isn't affected.
       // Only delete stories that are clearly expired (expires_at set and past).
-      prisma.story
-        .deleteMany({
-          where: { game_id: id, expires_at: { lt: new Date() } },
-        })
-        .catch(err =>
-          console.warn('[gameStories] lazy expired-cleanup failed:', err?.message || err)
-        );
+      //
+      // v1.0.3: also destroy the corresponding Cloudinary assets. A DB-only
+      // delete left public URLs retrievable indefinitely, which is both a
+      // child-safety issue (expired story photos stayed accessible) and a
+      // cost issue (Cloudinary billed for orphan storage).
+      void (async () => {
+        try {
+          const expired = await prisma.story.findMany({
+            where: { game_id: id, expires_at: { lt: new Date() } },
+            select: { id: true, media_url: true },
+            take: 200, // cap so a backlog doesn't stall a single list request
+          });
+          if (expired.length === 0) return;
+
+          await prisma.story.deleteMany({ where: { id: { in: expired.map(s => s.id) } } });
+
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
+            '../lib/cloudinary.js'
+          );
+          for (const story of expired) {
+            if (!story.media_url) continue;
+            const parsed = extractCloudinaryPublicId(story.media_url);
+            if (!parsed) continue;
+            destroyCloudinaryAsset(parsed.publicId, parsed.resourceType).catch(err =>
+              console.warn(
+                '[gameStories] Cloudinary destroy failed for expired story',
+                story.id,
+                err?.message || err
+              )
+            );
+          }
+        } catch (err: any) {
+          console.warn('[gameStories] lazy expired-cleanup failed:', err?.message || err);
+        }
+      })();
 
       const items = await prisma.story.findMany({
         where: { game_id: id },

@@ -37,10 +37,39 @@ export async function notifyMentions(params: {
       id: { not: actorId },
       banned: false,
     },
-    select: { id: true },
+    select: { id: true, preferences: true },
   });
 
-  const recipientIds = users.map((u) => u.id);
+  if (users.length === 0) return;
+
+  // Respect per-user `mentions_notifications` preference. Default: enabled.
+  // Also respect blocking in both directions — a blocked mentioner must not be
+  // able to notify the blocker (or vice versa).
+  const [blocks, filteredRecipients] = await Promise.all([
+    prisma.blockedUser.findMany({
+      where: {
+        OR: [
+          { blocker_id: actorId, blocked_id: { in: users.map((u) => u.id) } },
+          { blocked_id: actorId, blocker_id: { in: users.map((u) => u.id) } },
+        ],
+      },
+      select: { blocker_id: true, blocked_id: true },
+    }),
+    Promise.resolve(users),
+  ]);
+  const blockedIds = new Set<string>();
+  for (const b of blocks) {
+    blockedIds.add(b.blocker_id === actorId ? b.blocked_id : b.blocker_id);
+  }
+
+  const recipients = filteredRecipients.filter((u) => {
+    if (blockedIds.has(u.id)) return false;
+    const prefs = u.preferences as any;
+    if (prefs?.notifications?.mentions === false) return false;
+    return true;
+  });
+
+  const recipientIds = recipients.map((u) => u.id);
   if (recipientIds.length === 0) return;
 
   const title = context === 'post'

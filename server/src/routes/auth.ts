@@ -36,6 +36,15 @@ import { isAdminEmail } from '../lib/adminEmails.js';
 import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
+import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
+import {
+  evaluateDobUpdate,
+  formatDobYmd,
+  getCanonicalDob,
+  getUserAge,
+  isVerifiedAdult,
+  requiresParentalConsent,
+} from '../lib/userAge.js';
 
 export const authRouter = Router();
 
@@ -44,7 +53,19 @@ const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_RESET_FAILURES = 5;
 const RESET_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_LOGIN_FAILURES = 5;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 const REGISTER_EMAIL_SOFT_TIMEOUT_MS = 5000;
+
+// Constant-time bcrypt hash used when the looked-up user doesn't exist or has
+// no password set (OAuth-only account, for example). Running bcrypt.compare
+// against this hash equalizes login timing so the endpoint cannot be used to
+// enumerate which emails have an account. Generated once at boot from a random
+// input so the hash itself is not predictable.
+const DUMMY_BCRYPT_HASH = bcrypt.hashSync(
+  `const-time-${crypto.randomBytes(16).toString('hex')}`,
+  10
+);
 
 // v1.0.2 audit fix: unified truthy parsing — must match middleware/rateLimiters.ts.
 // Previously this checked "true" while rateLimiters.ts checked "1", so setting either
@@ -97,6 +118,51 @@ async function recordResetFailure(email: string): Promise<void> {
 
 async function clearResetFailures(email: string): Promise<void> {
   await rlDel(`resetfail:${email}`);
+}
+
+// ── Per-account login lockout ──
+// Tracks failed login attempts keyed by email. Complements the per-IP / per-email
+// velocity limiter (`checkAuthRateLimit`) which counts every call; this one only
+// counts failures and resets on a successful login, so legit users who sign in
+// repeatedly never trip it.
+
+async function checkLoginAttempt(
+  email: string
+): Promise<{ allowed: boolean; retryAfterMs?: number }> {
+  const key = `loginfail:${email}`;
+  const raw = await rlGet(key);
+  if (!raw) return { allowed: true };
+  try {
+    const record = JSON.parse(raw) as { attempts: number; lockedUntil: number };
+    if (record.attempts >= MAX_LOGIN_FAILURES && record.lockedUntil > Date.now()) {
+      return { allowed: false, retryAfterMs: record.lockedUntil - Date.now() };
+    }
+    return { allowed: true };
+  } catch {
+    return { allowed: true };
+  }
+}
+
+async function recordLoginFailure(email: string): Promise<void> {
+  const key = `loginfail:${email}`;
+  const raw = await rlGet(key);
+  let record: { attempts: number; lockedUntil: number };
+  try {
+    record = raw
+      ? (JSON.parse(raw) as { attempts: number; lockedUntil: number })
+      : { attempts: 0, lockedUntil: 0 };
+  } catch {
+    record = { attempts: 0, lockedUntil: 0 };
+  }
+  record.attempts += 1;
+  if (record.attempts >= MAX_LOGIN_FAILURES) {
+    record.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+  }
+  await rlSet(key, JSON.stringify(record), LOGIN_LOCKOUT_MS);
+}
+
+async function clearLoginFailures(email: string): Promise<void> {
+  await rlDel(`loginfail:${email}`);
 }
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
@@ -182,6 +248,13 @@ function isUnder13(dob: string | null | undefined): boolean {
   return age < 13;
 }
 
+function deriveParentalConsentFields(dob: Date | null) {
+  if (!dob) return {};
+  return requiresParentalConsent({ date_of_birth: dob })
+    ? { parental_consent_status: 'pending' as const, parental_consent_at: null }
+    : { parental_consent_status: 'not_required' as const, parental_consent_at: null };
+}
+
 const passwordRequirement = z
   .string()
   .min(8)
@@ -240,6 +313,25 @@ authRouter.post(
       );
     }
 
+    // Canonical DOB column write (dual-writes preferences.dob below for
+    // transition compatibility). If the DOB string is malformed, reject the
+    // registration rather than silently drop it.
+    let dobColumnWrite: { date_of_birth: Date; dob_set_at: Date } | null = null;
+    if (dob) {
+      const decision = evaluateDobUpdate({
+        currentDob: null,
+        currentSetAt: null,
+        incomingDob: dob,
+      });
+      if (!decision.ok) {
+        throw new ValidationError('Invalid date of birth', { errorCode: 'INVALID_DOB' });
+      }
+      dobColumnWrite = {
+        date_of_birth: decision.newDob,
+        dob_set_at: decision.newSetAt ?? new Date(),
+      };
+    }
+
     // Prevent duplicate accounts - check if email already exists
     // Users can create multiple accounts with different emails, but not duplicate the same email
     debugLog('[register] Checking for existing user');
@@ -264,6 +356,9 @@ authRouter.post(
       role: userRole,
       onboarding_completed: false,
       ...(isAdmin && { is_admin: true }),
+      // Dual-write DOB to preferences.dob during transition so legacy readers
+      // keep working while the codebase migrates to reading the column.
+      ...(dob ? { dob } : {}),
     };
 
     debugLog('[register] Creating user record');
@@ -276,6 +371,8 @@ authRouter.post(
         email_verification_code: codeHash,
         email_verification_expires: exp,
         preferences: initialPreferences,
+        ...(dobColumnWrite ? deriveParentalConsentFields(dobColumnWrite.date_of_birth) : {}),
+        ...(dobColumnWrite ?? {}),
       },
     });
     if (process.env.NODE_ENV === 'development')
@@ -349,17 +446,43 @@ authRouter.post(
     const { email, password } = parsed.data;
     const sanitizedEmail = email.trim().toLowerCase();
 
-    // Rate limiting
+    // Per-account lockout: if this account is currently locked out due to
+    // too many failed attempts, refuse before doing any DB or bcrypt work.
+    const lockCheck = await checkLoginAttempt(sanitizedEmail);
+    if (!lockCheck.allowed) {
+      return res.status(429).json({
+        error: 'Too many failed login attempts. Please try again later.',
+        retry_after_ms: lockCheck.retryAfterMs,
+      });
+    }
+
+    // Velocity limiter — counts every call (success or fail) per email.
     if (!(await checkAuthRateLimit(sanitizedEmail))) {
       return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
     }
 
     const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    // Run bcrypt.compare unconditionally — against the real hash if the user
+    // exists, against the dummy hash otherwise — so login timing cannot be used
+    // to enumerate which emails have an account.
+    const hashToCompare = user?.password_hash || DUMMY_BCRYPT_HASH;
+    const passwordMatches = await bcrypt.compare(password, hashToCompare);
+
+    if (!user) {
+      await recordLoginFailure(sanitizedEmail);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
     if (user.banned) return res.status(403).json({ error: 'Account banned' });
-    if (!user.password_hash) return res.status(401).json({ error: 'Invalid credentials' });
-    const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!user.password_hash) {
+      await recordLoginFailure(sanitizedEmail);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    if (!passwordMatches) {
+      await recordLoginFailure(sanitizedEmail);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    // Success — clear the failure counter so this account isn't half-locked.
+    await clearLoginFailures(sanitizedEmail);
     const access_token = signJwt({ id: user.id });
 
     // AUTH-4: Issue refresh token with device fingerprint binding
@@ -508,9 +631,141 @@ authRouter.post(
     const { refresh_token } = req.body || {};
     if (refresh_token && typeof refresh_token === 'string') {
       const tokenHash = hashRefreshToken(refresh_token);
+      // Resolve the user from the refresh token BEFORE deleting it, so we can
+      // also proactively clear their push token. Stale push tokens on logged-out
+      // devices are a privacy leak (the device keeps receiving pushes for a user
+      // who is no longer signed in) and an abuse vector if the device is shared.
+      const row = await prisma.refreshToken
+        .findUnique({ where: { token_hash: tokenHash }, select: { user_id: true } })
+        .catch(() => null);
       await prisma.refreshToken.deleteMany({ where: { token_hash: tokenHash } }).catch(() => {});
+      if (row?.user_id) {
+        try {
+          const user = await prisma.user.findUnique({
+            where: { id: row.user_id },
+            select: { preferences: true },
+          });
+          const prefs =
+            user?.preferences && typeof user.preferences === 'object'
+              ? (user.preferences as Record<string, unknown>)
+              : null;
+          if (prefs && 'push_token' in prefs) {
+            const { push_token: _removed, ...rest } = prefs;
+            await prisma.user.update({
+              where: { id: row.user_id },
+              data: { preferences: rest as any },
+            });
+          }
+        } catch (err) {
+          console.warn(
+            '[auth] logout push_token clear failed:',
+            (err as any)?.message || err
+          );
+        }
+      }
     }
     return res.json({ ok: true });
+  })
+);
+
+/**
+ * DELETE /auth/account
+ *
+ * Self-serve account deletion. Required for GDPR Art. 17 ("right to erasure")
+ * and CCPA § 1798.105. The request is idempotent: calling on an already-
+ * deleted account returns 200 with a no-op.
+ *
+ * Behavior:
+ *   1. Re-authenticate with current password (for password accounts). OAuth-
+ *      only accounts can bypass this check since they don't hold a password.
+ *   2. Anonymize PII fields in place — email, display_name, username, avatar,
+ *      bio, preferences — using the user's own id as the anonymization seed
+ *      so uniqueness constraints hold without collision.
+ *   3. Soft-delete: set `deleted_at`, `deletion_anonymized=true`, and `banned`
+ *      so auth middleware refuses further access even if a stale token leaks.
+ *   4. Revoke all refresh tokens.
+ *   5. Related rows (posts, messages, memberships, etc.) continue to exist
+ *      under the anonymized user id. A scheduled hard-delete job will remove
+ *      them after the retention window — that's a follow-up pass.
+ *
+ * Response: 200 { ok: true, deleted_at, already_deleted?: true }
+ */
+const deleteAccountSchema = z.object({
+  password: z.string().optional(),
+});
+authRouter.post(
+  '/account/delete',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = deleteAccountSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload' });
+    }
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        password_hash: true,
+        deleted_at: true,
+        deletion_anonymized: true,
+      },
+    });
+    if (!user) return res.status(404).json({ error: 'Not found' });
+
+    // Idempotent: already deleted → return 200 with already_deleted flag.
+    if (user.deleted_at || user.deletion_anonymized) {
+      return res.json({
+        ok: true,
+        already_deleted: true,
+        deleted_at: user.deleted_at?.toISOString(),
+      });
+    }
+
+    // Re-authentication gate. Password accounts require the current password.
+    // OAuth-only accounts (no password_hash) bypass — they've already proven
+    // identity via the valid access token used to hit this endpoint.
+    if (user.password_hash) {
+      const suppliedPassword = parsed.data.password;
+      if (!suppliedPassword) {
+        return res.status(400).json({
+          error: 'PASSWORD_REQUIRED',
+          message: 'Password is required to delete your account.',
+        });
+      }
+      const ok = await bcrypt.compare(suppliedPassword, user.password_hash);
+      if (!ok) {
+        return res.status(401).json({
+          error: 'INVALID_PASSWORD',
+          message: 'Password does not match.',
+        });
+      }
+    }
+
+    try {
+      await assertCanSelfDeleteUser(userId);
+    } catch (err) {
+      if ((err as any)?.code === 'SOLE_ORG_OWNER') {
+        return res.status(400).json({
+          error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
+          code: 'SOLE_ORG_OWNER',
+          organization_id: (err as any).organization_id,
+        });
+      }
+      throw err;
+    }
+
+    const result = await softDeleteUserAccount(userId);
+
+    await invalidateMeCacheForUser(userId).catch(() => {});
+
+    console.log(`[auth] Account soft-deleted and anonymized: ${userId}`);
+
+    return res.json({
+      ok: true,
+      deleted_at: result.deletedAt.toISOString(),
+      ...(result.alreadyDeleted ? { already_deleted: true } : {}),
+    });
   })
 );
 
@@ -928,11 +1183,12 @@ authRouter.post(
 
     const code = String(crypto.randomInt(100000, 999999)); // 6-digit cryptographically secure code
     const expires = new Date(Date.now() + 30 * 60 * 1000);
+    const codeHash = hashRefreshToken(code);
 
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        password_reset_code: code,
+        password_reset_code: codeHash,
         password_reset_expires: expires,
       },
     });
@@ -993,12 +1249,12 @@ authRouter.post(
     }
     // v1.0.2 audit fix: use timingSafeEqual on the reset code comparison.
     // Previously `!==` leaked timing info, and only the submitted code was trimmed.
-    const submittedCode = String(code).trim();
-    const storedCode = String(user.password_reset_code).trim();
+    const submittedCodeHash = hashRefreshToken(String(code).trim());
+    const storedCodeHash = String(user.password_reset_code).trim();
     const codesMatch = (() => {
-      if (submittedCode.length !== storedCode.length) return false;
+      if (submittedCodeHash.length !== storedCodeHash.length) return false;
       try {
-        return crypto.timingSafeEqual(Buffer.from(submittedCode), Buffer.from(storedCode));
+        return crypto.timingSafeEqual(Buffer.from(submittedCodeHash), Buffer.from(storedCodeHash));
       } catch {
         return false;
       }
@@ -1102,6 +1358,7 @@ authRouter.post(
         approval_status: true,
         rejected_at: true,
         rejection_reason: true,
+        date_of_birth: true,
       },
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -1140,19 +1397,11 @@ authRouter.post(
     }
 
     // Server-side 18+ age gate — coaches must be adults
-    const dob = currentPrefs.dob || currentPrefs.date_of_birth;
-    if (dob) {
-      const birthDate = parseDobLocal(dob);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
-      if (age < 18) {
-        return res.status(403).json({
-          error: 'You must be at least 18 years old to become a coach.',
-          code: 'AGE_REQUIREMENT',
-        });
-      }
+    if (!isVerifiedAdult(user)) {
+      return res.status(403).json({
+        error: 'You must be at least 18 years old to become a coach.',
+        code: 'AGE_REQUIREMENT',
+      });
     }
 
     // Update role to coach and set plan, reset onboarding so they complete coach steps
@@ -1698,9 +1947,47 @@ authRouter.patch(
     }
     const current = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { preferences: true, email: true, approval_status: true },
+      select: {
+        preferences: true,
+        email: true,
+        approval_status: true,
+        date_of_birth: true,
+        dob_set_at: true,
+      },
     });
     const currentPrefs = (current?.preferences as any) || {};
+
+    // Canonical DOB gate: once the column is set and the 24h grace window has
+    // lapsed, DOB is locked to normal users. Admins can still update via admin
+    // routes. Within-window edits and first-time writes both flow through
+    // `evaluateDobUpdate`, which returns the Date object + timestamp to write.
+    let patchDobColumnWrite: { date_of_birth: Date; dob_set_at?: Date } | null = null;
+    if (incoming.dob !== undefined && incoming.dob !== null && incoming.dob !== '') {
+      const decision = evaluateDobUpdate({
+        currentDob: current?.date_of_birth ?? null,
+        currentSetAt: current?.dob_set_at ?? null,
+        incomingDob: incoming.dob,
+      });
+      if (!decision.ok) {
+        if (decision.reason === 'dob_locked') {
+          return res.status(403).json({
+            error: 'DOB_LOCKED',
+            message:
+              'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
+          });
+        }
+        return res.status(400).json({
+          error: 'INVALID_DOB',
+          message: 'Date of birth is not a valid date.',
+        });
+      }
+      if (decision.changed) {
+        patchDobColumnWrite = {
+          date_of_birth: decision.newDob,
+          ...(decision.newSetAt ? { dob_set_at: decision.newSetAt } : {}),
+        };
+      }
+    }
 
     // SECURITY: Prevent role changes after onboarding is completed.
     // The only legitimate path to change role post-onboarding is POST /auth/upgrade-to-coach.
@@ -1755,19 +2042,18 @@ authRouter.patch(
 
     // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach and /complete-onboarding)
     if (incoming.role === 'coach' && currentPrefs.role !== 'coach') {
-      const effectiveDob = incoming.dob || currentPrefs.dob || currentPrefs.date_of_birth;
-      if (effectiveDob) {
-        const birthDate = parseDobLocal(effectiveDob);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
-        if (age < 18) {
-          return res.status(403).json({
-            error: 'You must be at least 18 years old to become a coach.',
-            code: 'AGE_REQUIREMENT',
-          });
-        }
+      const adultEligible = isVerifiedAdult({
+        date_of_birth: patchDobColumnWrite?.date_of_birth ?? current?.date_of_birth ?? null,
+        preferences: {
+          ...currentPrefs,
+          ...(incoming.dob !== undefined ? { dob: incoming.dob } : {}),
+        },
+      });
+      if (!adultEligible) {
+        return res.status(403).json({
+          error: 'You must be at least 18 years old to become a coach.',
+          code: 'AGE_REQUIREMENT',
+        });
       }
     }
 
@@ -1807,6 +2093,10 @@ authRouter.patch(
       data: {
         preferences: merged,
         ...(forceApprovalPending ? { approval_status: 'PENDING' } : {}),
+        ...(patchDobColumnWrite
+          ? deriveParentalConsentFields(patchDobColumnWrite.date_of_birth)
+          : {}),
+        ...(patchDobColumnWrite ?? {}),
       },
     });
 
@@ -1856,6 +2146,9 @@ const completeOnboardingSchema = z.object({
     ])
     .optional(),
   dob: z.string().optional(),
+  // For 13-17 minors, parent_email is required to initiate the consent flow.
+  // For adults and under-13 (rejected at COPPA gate), it's ignored.
+  parent_email: z.string().email().max(320).optional(),
   zip: z.string().optional(),
   zip_code: z.string().optional(),
 
@@ -1951,9 +2244,88 @@ authRouter.post(
     // Get current preferences FIRST to preserve role if not in payload
     const current = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { preferences: true, approval_status: true },
+      select: {
+        preferences: true,
+        approval_status: true,
+        date_of_birth: true,
+        dob_set_at: true,
+      },
     });
     const currentPrefs = (current?.preferences as any) || {};
+
+    // COPPA gate: onboarding cannot complete without a canonical DOB. The
+    // helper `isMinor()` fails closed for null DOB, but the real defense is
+    // here — `onboarding_completed === true` must GUARANTEE a non-null
+    // `date_of_birth`. Either the payload provides a new DOB or the user
+    // already has one from registration / an earlier onboarding attempt.
+    const willHaveDob =
+      (data.dob !== undefined && data.dob !== null && data.dob !== '') ||
+      current?.date_of_birth !== null;
+    if (!willHaveDob) {
+      return res.status(400).json({
+        error: 'DOB_REQUIRED',
+        message: 'Date of birth is required to complete onboarding.',
+      });
+    }
+
+    // Canonical DOB gate — same grace-window logic as PATCH /me/preferences.
+    let onboardingDobColumnWrite: { date_of_birth: Date; dob_set_at?: Date } | null = null;
+    if (data.dob !== undefined && data.dob !== null && data.dob !== '') {
+      const decision = evaluateDobUpdate({
+        currentDob: current?.date_of_birth ?? null,
+        currentSetAt: current?.dob_set_at ?? null,
+        incomingDob: data.dob,
+      });
+      if (!decision.ok) {
+        if (decision.reason === 'dob_locked') {
+          return res.status(403).json({
+            error: 'DOB_LOCKED',
+            message:
+              'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
+          });
+        }
+        return res.status(400).json({
+          error: 'INVALID_DOB',
+          message: 'Date of birth is not a valid date.',
+        });
+      }
+      if (decision.changed) {
+        onboardingDobColumnWrite = {
+          date_of_birth: decision.newDob,
+          ...(decision.newSetAt ? { dob_set_at: decision.newSetAt } : {}),
+        };
+      }
+    }
+
+    // Detect if this user is a 13-17 minor after applying any pending DOB
+    // change. If so, parental consent must be initiated. The check runs against
+    // the PROSPECTIVE DOB (post-update) so a first-time DOB set in this call
+    // immediately triggers the consent requirement rather than waiting for the
+    // next request.
+    const prospectiveDob =
+      onboardingDobColumnWrite?.date_of_birth ?? current?.date_of_birth ?? null;
+    const minorRequiringConsent = requiresParentalConsent({
+      date_of_birth: prospectiveDob,
+      preferences: { ...currentPrefs, ...(data.dob !== undefined ? { dob: data.dob } : {}) },
+    });
+    if (minorRequiringConsent) {
+      // Parent email is required exactly once, at the point we detect a minor.
+      // Subsequent re-calls (e.g. resend flow) skip this because the user's
+      // parental_consent_status will already be pending/approved.
+      // TypeScript: `parent_email` lives on User but the Prisma client for this
+      // checkout may not yet expose it; the runtime behavior is correct and
+      // the cast narrows the field access only.
+      const existingParentEmail = (current as any)?.parent_email as string | null | undefined;
+      const providedParentEmail = data.parent_email?.trim().toLowerCase();
+      const effectiveParentEmail = providedParentEmail || existingParentEmail || null;
+      if (!effectiveParentEmail) {
+        return res.status(400).json({
+          error: 'PARENT_EMAIL_REQUIRED',
+          message:
+            'A parent or guardian email is required to complete onboarding for users under 18.',
+        });
+      }
+    }
 
     // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
     // If role is undefined in payload, use existing role from preferences (set during step-1)
@@ -1961,19 +2333,18 @@ authRouter.post(
 
     // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach validation)
     if (finalRole === 'coach') {
-      const effectiveDob = data.dob || currentPrefs.dob || currentPrefs.date_of_birth;
-      if (effectiveDob) {
-        const birthDate = parseDobLocal(effectiveDob);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
-        if (age < 18) {
-          return res.status(403).json({
-            error: 'You must be at least 18 years old to become a coach.',
-            code: 'AGE_REQUIREMENT',
-          });
-        }
+      const adultEligible = isVerifiedAdult({
+        date_of_birth: onboardingDobColumnWrite?.date_of_birth ?? current?.date_of_birth ?? null,
+        preferences: {
+          ...currentPrefs,
+          ...(data.dob !== undefined ? { dob: data.dob } : {}),
+        },
+      });
+      if (!adultEligible) {
+        return res.status(403).json({
+          error: 'You must be at least 18 years old to become a coach.',
+          code: 'AGE_REQUIREMENT',
+        });
       }
     }
 
@@ -2077,12 +2448,67 @@ authRouter.post(
       updateData.approval_status = 'PENDING';
     }
 
+    // Persist parent_email when we detected a minor — stored alongside the
+    // canonical DOB so the consent flow (below) has the address to email.
+    const parentEmailToPersist = minorRequiringConsent
+      ? data.parent_email?.trim().toLowerCase() || null
+      : null;
+
     // Update user
     const updated = await prisma.user.update({
       where: { id: req.user!.id },
-      data: updateData,
+      data: {
+        ...updateData,
+        ...(onboardingDobColumnWrite
+          ? deriveParentalConsentFields(onboardingDobColumnWrite.date_of_birth)
+          : {}),
+        ...(onboardingDobColumnWrite ?? {}),
+        ...(parentEmailToPersist ? { parent_email: parentEmailToPersist } : {}),
+      } as any,
     });
     await invalidateMeCacheForUser(updated.id);
+
+    // Kick off the parental-consent email if this is a 13-17 minor who does
+    // not already have an active consent token outstanding. Fire-and-forget
+    // so email provider hiccups don't 500 the onboarding request — the
+    // resend endpoint handles recovery if the email fails to arrive.
+    if (minorRequiringConsent) {
+      void (async () => {
+        try {
+          const fresh = await prisma.user.findUnique({
+            where: { id: updated.id },
+            select: {
+              parent_email: true,
+              display_name: true,
+              email: true,
+              parental_consent_status: true,
+              parental_consent_token_hash: true,
+            } as any,
+          });
+          const freshAny = fresh as any;
+          if (!freshAny) return;
+          if (freshAny.parental_consent_status !== 'pending') return;
+          if (freshAny.parental_consent_token_hash) return; // active link exists, don't re-issue
+          if (!freshAny.parent_email) return;
+
+          const { issueConsentToken } = await import('../lib/parentalConsent.js');
+          const rawToken = await issueConsentToken(updated.id);
+          const { sendParentalConsentRequestEmail } = await import('../lib/email.js');
+          await sendParentalConsentRequestEmail({
+            to: freshAny.parent_email,
+            minorDisplayName: freshAny.display_name || undefined,
+            minorEmail: freshAny.email,
+            consentToken: rawToken,
+            expiresInDays: 14,
+          });
+        } catch (err) {
+          console.error(
+            '[auth] Failed to send parental consent request:',
+            (err as any)?.message || err
+          );
+        }
+      })();
+    }
 
     // Fire-and-forget: notify ALL admins about new coach application
     if (finalRole === 'coach' && updateData.approval_status === 'PENDING') {
@@ -2226,7 +2652,20 @@ function sanitizeUser(u: any) {
     ban_reason,
     ...rest
   } = u as any;
-  return rest;
+  const normalizedDob = formatDobYmd(getCanonicalDob(rest));
+  const normalizedPreferences =
+    rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
+      ? { ...(rest.preferences as Record<string, unknown>) }
+      : {};
+  if (normalizedDob) {
+    normalizedPreferences.dob = normalizedDob;
+  }
+  return {
+    ...rest,
+    preferences: normalizedPreferences,
+    dob: normalizedDob,
+    date_of_birth: normalizedDob,
+  };
 }
 
 // Test email endpoint (development only)

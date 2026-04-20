@@ -13,6 +13,8 @@ import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
+import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
+import { formatDobYmd, getUserAge, parseDobLocal, requiresParentalConsent } from '../lib/userAge.js';
 
 export const usersRouter = Router();
 registerIdValidation(usersRouter);
@@ -70,6 +72,70 @@ usersRouter.post('/:id/unban', requireAdmin as any, asyncHandler(async (req, res
     console.error('[users] POST /:id/unban error:', err);
     return res.status(500).json({ error: 'Internal server error' });
   }
+}));
+
+usersRouter.patch('/:id/date-of-birth', requireAdmin as any, asyncHandler(async (req, res) => {
+  const schema = z.object({ dob: z.string().min(1) });
+  const parsed = schema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map(issue => ({ path: issue.path, message: issue.message })),
+    });
+  }
+
+  const dob = parsed.data.dob.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+    return res.status(400).json({ error: 'INVALID_DOB', message: 'Date of birth must be YYYY-MM-DD.' });
+  }
+  // Route the parse through the shared helper so the stored date matches what
+  // every other DOB write path produces. Using `new Date(y, m, d)` here
+  // silently corrupted the stored date by one day on positive-offset servers;
+  // `parseDobLocal` returns a UTC-midnight Date that is Postgres-safe.
+  const parsedDob = parseDobLocal(dob);
+  if (!parsedDob) {
+    return res.status(400).json({ error: 'INVALID_DOB', message: 'Date of birth is not a valid date.' });
+  }
+  // Age check uses the same UTC-based helper as every other consumer.
+  const age = getUserAge({ date_of_birth: parsedDob });
+  if (age !== null && age < 13) {
+    return res.status(403).json({
+      error: 'COPPA_UNDER_13',
+      message: 'VarsityHub is not available for users under 13.',
+    });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: String(req.params.id) },
+    select: { id: true, preferences: true, dob_set_at: true },
+  });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const prefs =
+    user.preferences && typeof user.preferences === 'object' && !Array.isArray(user.preferences)
+      ? { ...(user.preferences as Record<string, unknown>) }
+      : {};
+  prefs.dob = dob;
+
+  const updated = await updateUserAndInvalidate(prisma, {
+    where: { id: user.id },
+    data: {
+      preferences: prefs as any,
+      date_of_birth: parsedDob,
+      dob_set_at: user.dob_set_at ?? new Date(),
+      parental_consent_status: requiresParentalConsent({ date_of_birth: parsedDob })
+        ? 'pending'
+        : 'not_required',
+      parental_consent_at: null,
+    },
+  });
+
+  return res.json({
+    ok: true,
+    id: updated.id,
+    date_of_birth: formatDobYmd(updated.date_of_birth),
+    parental_consent_status: updated.parental_consent_status,
+  });
 }));
 
 // Full user detail with ads and their reservation dates (admin only)
@@ -541,7 +607,7 @@ usersRouter.get('/:id/teams', asyncHandler(async (req: AuthedRequest, res) => {
   }
 }));
 
-// Delete own account (hard-delete user and all their data)
+// Delete own account (soft-delete + anonymize)
 // Password users must provide password. OAuth-only users must provide explicit "DELETE" confirmation.
 const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Password is required').optional(),
@@ -558,8 +624,26 @@ usersRouter.delete('/me', requireAuth as any, requireVerified as any, asyncHandl
   }
   const { password, delete_confirmation } = parsed.data;
   try {
-    const user = await prisma.user.findUnique({ where: { id }, select: { email: true, password_hash: true, google_id: true, apple_id: true } });
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        email: true,
+        password_hash: true,
+        google_id: true,
+        apple_id: true,
+        deleted_at: true,
+        deletion_anonymized: true,
+      },
+    });
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.deleted_at || user.deletion_anonymized) {
+      return res.status(202).json({
+        deleted: true,
+        already_deleted: true,
+        deleted_at: user.deleted_at?.toISOString(),
+      });
+    }
 
     if (user.password_hash) {
       if (!password) {
@@ -587,59 +671,21 @@ usersRouter.delete('/me', requireAuth as any, requireVerified as any, asyncHandl
       }
     }
 
-    // Block deletion if user is the sole owner of any organization
-    const ownedOrgs = await prisma.organizationMembership.findMany({
-      where: { user_id: id, role: 'owner', status: 'active' },
-      select: { organization_id: true },
-      take: 100,
-    });
-    for (const { organization_id } of ownedOrgs) {
-      const otherOwners = await prisma.organizationMembership.count({
-        where: { organization_id, role: { in: ['owner', 'manager'] }, status: 'active', NOT: { user_id: id } },
-      });
-      if (otherOwners === 0) {
+    try {
+      await assertCanSelfDeleteUser(id);
+    } catch (err) {
+      if ((err as any)?.code === 'SOLE_ORG_OWNER') {
         return res.status(400).json({
           error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
           code: 'SOLE_ORG_OWNER',
-          organization_id,
+          organization_id: (err as any).organization_id,
         });
       }
+      throw err;
     }
 
-    const userEmail = user.email; // Capture before deletion
-    await prisma.$transaction(async (tx) => {
-      // Delete user's interactions
-      await tx.postUpvote.deleteMany({ where: { user_id: id } });
-      await tx.postBookmark.deleteMany({ where: { user_id: id } });
-      await tx.comment.deleteMany({ where: { author_id: id } as any });
-      await tx.follows.deleteMany({
-        where: {
-          OR: [
-            { follower_id: id },
-            { following_id: id }
-          ]
-        }
-      });
-
-      // Delete messages where user is recipient (prevent ghost messages)
-      await tx.message.deleteMany({ where: { recipient_id: id } });
-
-      // Delete refresh tokens
-      await tx.refreshToken.deleteMany({ where: { user_id: id } });
-
-      // Delete ad records (and dependent reservations) to avoid orphaned PII on account deletion.
-      await tx.ad.deleteMany({ where: { user_id: id } });
-
-      // Delete user-created stories and events that otherwise retain nullable foreign keys.
-      await tx.story.deleteMany({ where: { user_id: id } });
-      await tx.event.deleteMany({ where: { creator_id: id } });
-
-      // Delete user's posts
-      await tx.post.deleteMany({ where: { author_id: id } });
-
-      // Delete the user record entirely so they can re-register
-      await tx.user.delete({ where: { id } });
-    });
+    const userEmail = user.email;
+    const result = await softDeleteUserAccount(id);
 
     // Send deletion confirmation email (best-effort, user record already deleted)
     if (userEmail) {
@@ -653,7 +699,11 @@ usersRouter.delete('/me', requireAuth as any, requireVerified as any, asyncHandl
       } catch { /* best-effort */ }
     }
 
-    return res.json({ deleted: true, message: 'Account deleted successfully' });
+    return res.status(202).json({
+      deleted: true,
+      deleted_at: result.deletedAt.toISOString(),
+      message: 'Account deletion accepted',
+    });
   } catch (e: any) {
     console.error('Account deletion error:', e);
     return res.status(500).json({ error: 'Internal server error' });

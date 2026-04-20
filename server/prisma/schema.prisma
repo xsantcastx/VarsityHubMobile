@@ -39,6 +39,12 @@ enum AdPaymentStatus {
   refunded
 }
 
+enum AdBannerModerationStatus {
+  clean
+  flagged
+  error
+}
+
 // ===========================
 // Team Membership Enums
 // ===========================
@@ -100,6 +106,21 @@ enum GameApprovalStatus {
 }
 
 // ===========================
+// Minors / Parental Consent
+// ===========================
+
+// Parental consent state for users aged 13–17. For adults (18+) and unknown-age
+// users, the value is `not_required`. The actual consent-gathering flow lives
+// in a later pass; this enum exists now so every consumer can read a canonical
+// field instead of probing preferences JSON.
+enum ParentalConsentStatus {
+  not_required
+  pending
+  approved
+  denied
+}
+
+// ===========================
 // Core Models
 // ===========================
 
@@ -124,6 +145,36 @@ model User {
   ban_reason                 String?   @db.Text
   banned_until               DateTime?
   preferences                Json      @default("{}")
+
+  // ── Canonical date of birth (replaces preferences.dob) ──
+  // Stored as DATE, not DATETIME, because the relevant precision is day-level.
+  // `dob_set_at` records when the field was first populated so the 24-hour
+  // grace-window (typo correction) can be enforced by route handlers without
+  // another round-trip. After the grace window, only admins may change the DOB.
+  date_of_birth DateTime? @db.Date
+  dob_set_at    DateTime?
+
+  // ── Parental consent (13–17 only; enum default handles everyone else) ──
+  // `parent_email` is captured at signup / first minor detection. The actual
+  // consent-verification flow is a follow-up; these fields exist now so the
+  // data model doesn't have to churn again when the flow lands.
+  parent_email                   String?                @db.VarChar(320)
+  parental_consent_status        ParentalConsentStatus  @default(not_required)
+  parental_consent_at            DateTime?
+  // When the parent was emailed (starts the 14-day expiry clock). Null outside
+  // an active consent request.
+  parental_consent_requested_at  DateTime?
+  // SHA-256 hash of the single-use consent-link token. Storing the hash (not
+  // the raw token) matches the pattern used for refresh_token and password
+  // reset codes — a DB leak doesn't expose active consent links.
+  parental_consent_token_hash    String?                @db.VarChar(128)
+
+  // ── Account deletion (soft-delete + anonymize) ──
+  // Self-serve deletion anonymizes PII immediately and sets `deleted_at`; a
+  // scheduled job hard-deletes the row after the retention window (to preserve
+  // downstream referential integrity in the meantime).
+  deleted_at           DateTime?
+  deletion_anonymized  Boolean   @default(false)
 
   // Coach approval status — APPROVED for fans, PENDING for new coaches until league owner approves
   approval_status  ApprovalStatus @default(APPROVED)
@@ -195,12 +246,37 @@ model User {
   warnings       UserWarning[] @relation("warned_user")
   issuedWarnings UserWarning[] @relation("warning_issuer")
 
+  // Parental consent audit trail (admin override history)
+  parentalConsentAuditsAsSubject ParentalConsentAudit[] @relation("consent_audit_user")
+  parentalConsentAuditsAsActor   ParentalConsentAudit[] @relation("consent_audit_actor")
+
   @@index([subscription_status])
   @@index([banned])
   @@index([email_verified])
   @@index([approval_status])
   @@index([username])
   @@index([display_name])
+  @@index([deleted_at])
+  @@index([parental_consent_status])
+}
+
+// Parental consent admin-override audit trail. Append-only: every admin
+// override (approve/deny/reset) writes a new row. Use for COPPA compliance
+// records — never UPDATE or DELETE rows here.
+model ParentalConsentAudit {
+  id              String                @id @default(cuid())
+  user_id         String
+  actor_admin_id  String
+  from_state      ParentalConsentStatus
+  to_state        ParentalConsentStatus
+  reason          String                @db.Text
+  created_at      DateTime              @default(now())
+
+  user        User @relation("consent_audit_user", fields: [user_id], references: [id], onDelete: Cascade)
+  actor_admin User @relation("consent_audit_actor", fields: [actor_admin_id], references: [id], onDelete: Restrict)
+
+  @@index([user_id, created_at])
+  @@index([actor_admin_id, created_at])
 }
 
 model RefreshToken {
@@ -594,6 +670,12 @@ model Ad {
   status              AdStatus        @default(draft)
   payment_status      AdPaymentStatus @default(unpaid)
   admin_note          String?         @db.VarChar(2000) // Note from admin when approving/rejecting
+  banner_moderation_status   AdBannerModerationStatus?
+  banner_moderation_labels   Json?
+  banner_moderation_score    Float?
+  banner_moderation_provider String?   @db.VarChar(50)
+  banner_moderation_error    String?   @db.VarChar(500)
+  banner_moderated_at        DateTime?
   go_live_notified_at DateTime? // Set after go-live email sent to prevent duplicates
   created_at          DateTime        @default(now())
   updated_at          DateTime        @updatedAt
@@ -605,6 +687,7 @@ model Ad {
   @@index([target_zip_code, payment_status])
   @@index([status, payment_status])
   @@index([target_lat, target_lng])
+  @@index([banner_moderation_status])
 }
 
 model Category {
@@ -1107,13 +1190,35 @@ model TransactionLog {
   @@index([created_at])
 }
 
+model AppleTransactionClaim {
+  id                   String          @id @default(cuid())
+  apple_transaction_id String          @unique
+  transaction_type     TransactionType
+  user_id              String?
+  order_id             String?
+  ad_id                String?
+  metadata             Json?
+  claimed_at           DateTime        @default(now())
+
+  @@index([transaction_type])
+  @@index([user_id])
+  @@index([order_id])
+  @@index([ad_id])
+  @@index([claimed_at])
+}
+
 model ProcessedStripeEvent {
-  id         String   @id @default(cuid())
-  event_id   String   @unique
-  event_type String
-  created_at DateTime @default(now())
+  id                   String    @id @default(cuid())
+  event_id             String    @unique
+  event_type           String
+  processed            Boolean   @default(false)
+  processing_started_at DateTime?
+  processed_at         DateTime?
+  last_error           String?
+  created_at           DateTime  @default(now())
 
   @@index([created_at])
+  @@index([processed])
 }
 
 // ===========================

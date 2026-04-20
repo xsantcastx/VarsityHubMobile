@@ -25,6 +25,8 @@ describe('API Event Endpoints', () => {
   let fanUserId: string;
   let fanToken: string;
   let testOrgId: string;
+  let testTeamId: string;
+  let testTeamMembershipId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -42,6 +44,7 @@ describe('API Event Endpoints', () => {
           role: 'coach',
           plan: 'rookie',
           onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
         },
       },
     });
@@ -58,8 +61,24 @@ describe('API Event Endpoints', () => {
     });
     testOrgId = org.id;
     await prisma.organizationMembership.create({
-      data: { organization_id: testOrgId, user_id: coachUserId, role: 'owner' },
+      data: { organization_id: testOrgId, user_id: coachUserId, role: 'owner', status: 'active' },
     });
+    const team = await prisma.team.create({
+      data: {
+        name: `Test Event Team ${Date.now()}`,
+        organization_id: testOrgId,
+      },
+    });
+    testTeamId = team.id;
+    const membership = await prisma.teamMembership.create({
+      data: {
+        team_id: testTeamId,
+        user_id: coachUserId,
+        role: 'owner',
+        status: 'active',
+      },
+    });
+    testTeamMembershipId = membership.id;
 
     // Create fan user
     const fanPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -91,6 +110,12 @@ describe('API Event Endpoints', () => {
       });
 
       // Clean up org memberships and org
+      if (testTeamMembershipId) {
+        await prisma.teamMembership.delete({ where: { id: testTeamMembershipId } }).catch(() => {});
+      }
+      if (testTeamId) {
+        await prisma.team.delete({ where: { id: testTeamId } }).catch(() => {});
+      }
       if (testOrgId) {
         await prisma.organizationMembership.deleteMany({ where: { organization_id: testOrgId } });
         await prisma.organization.delete({ where: { id: testOrgId } }).catch(() => {});
@@ -120,6 +145,7 @@ describe('API Event Endpoints', () => {
           title: 'Coach Event',
           date: futureDate.toISOString(),
           location: 'Test Stadium',
+          team_id: testTeamId,
           event_type: 'game',
         })
         .expect(201);

@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
+import { APP_ROUTES } from '@/utils/appRoutes';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
 import { Game, Team as TeamAPI, User } from '@/api/entities';
@@ -453,7 +454,12 @@ function CreateFanEventScreen() {
             <MaterialIcons name="warning" size={20} color="#B45309" />
             <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: '#92400E' }}>
               You have {pendingEventCount} pending events (limit: 3). Wait for approval or{' '}
-              <Text style={{ fontWeight: '700' }} onPress={() => router.push('/billing' as any)}>upgrade your plan</Text>
+              <Text
+                style={{ fontWeight: '700' }}
+                onPress={() => router.push(APP_ROUTES.manageSubscription as any)}
+              >
+                upgrade your plan
+              </Text>
               {' '}to create more.
             </Text>
           </View>

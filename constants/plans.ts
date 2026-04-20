@@ -87,6 +87,23 @@ export const PLAN_DEFINITIONS: Record<Plan, PlanDefinition> = Object.fromEntries
   Object.entries(RAW_PLAN_DEFINITIONS).map(([id, raw]) => [id, mapRawPlan(raw)])
 ) as Record<Plan, PlanDefinition>;
 
+export const ROOKIE_TEAM_LIMIT = PLAN_DEFINITIONS.rookie.max_teams ?? 0;
+export const VETERAN_MIN_TOTAL_TEAMS = ROOKIE_TEAM_LIMIT + 1;
+export const VETERAN_MONTHLY_TEAM_PRICE_LABEL = `${PLAN_DEFINITIONS.veteran.price}/month per team over ${ROOKIE_TEAM_LIMIT}`;
+export const LEGEND_YEARLY_PRICE_LABEL = `${PLAN_DEFINITIONS.legend.price}/year`;
+
+export function formatIncludedTeamAllowance(): string {
+  return `${ROOKIE_TEAM_LIMIT} team${ROOKIE_TEAM_LIMIT === 1 ? '' : 's'}`;
+}
+
+export function formatVeteranPlanSummary(): string {
+  return `First ${ROOKIE_TEAM_LIMIT} teams free, then ${PLAN_DEFINITIONS.veteran.price}/month per additional team.`;
+}
+
+export function formatLegendPlanSummary(): string {
+  return `${LEGEND_YEARLY_PRICE_LABEL} unlimited.`;
+}
+
 /**
  * Get plan definition by plan ID
  */

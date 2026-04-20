@@ -169,6 +169,23 @@ export async function notifyPostInteraction(
     return [];
   }
 
+  // Respect blocking in both directions — a blocked user must not be able to
+  // keep generating notifications via likes/comments. Messages already do this
+  // check; parity here closes the harassment vector.
+  const blocked = await prisma.blockedUser.findFirst({
+    where: {
+      OR: [
+        { blocker_id: postAuthorId, blocked_id: actorId },
+        { blocker_id: actorId, blocked_id: postAuthorId },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blocked) {
+    debugLog(`Post interaction notification suppressed by block between ${actorId} and ${postAuthorId}`);
+    return [];
+  }
+
   // Check if user has disabled comments & upvotes notifications
   if (interactionType === 'like' || interactionType === 'comment') {
     const user = await prisma.user.findUnique({
@@ -214,6 +231,21 @@ export async function notifyCommentReply(
   commentId: string
 ): Promise<string[]> {
   if (parentCommentAuthorId === replierId) return [];
+
+  // Respect blocking both directions.
+  const blocked = await prisma.blockedUser.findFirst({
+    where: {
+      OR: [
+        { blocker_id: parentCommentAuthorId, blocked_id: replierId },
+        { blocker_id: replierId, blocked_id: parentCommentAuthorId },
+      ],
+    },
+    select: { id: true },
+  });
+  if (blocked) {
+    debugLog(`Comment-reply notification suppressed by block between ${replierId} and ${parentCommentAuthorId}`);
+    return [];
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: parentCommentAuthorId },

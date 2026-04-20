@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { debugLog } from '../lib/debugLog.js';
+import { runStripeSubscriptionReconciliation } from '../lib/billingLifecycle.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../jobs/queues.js';
 import { captureException } from '../lib/sentry.js';
@@ -290,4 +291,167 @@ export function startMessageCleanup() {
     }
   });
   debugLog('✅ Message cleanup started (runs daily at 3:30 AM)');
+}
+
+/**
+ * Refresh token cleanup — runs daily at 3:45 AM.
+ * Deletes RefreshToken rows whose expires_at is in the past. Expired tokens
+ * are already rejected by the auth middleware, but leaving them in the table
+ * causes unbounded growth and slows session lookups over time.
+ */
+export function startRefreshTokenCleanup() {
+  cron.schedule('45 3 * * *', async () => {
+    debugLog('[refresh-token-cleanup] Starting expired refresh token cleanup...');
+    try {
+      const deleted = await prisma.refreshToken.deleteMany({
+        where: { expires_at: { lt: new Date() } },
+      });
+      if (deleted.count > 0) {
+        console.log(`[refresh-token-cleanup] Deleted ${deleted.count} expired refresh tokens`);
+      }
+      console.log('[refresh-token-cleanup] Done ✅');
+    } catch (error) {
+      console.error('[refresh-token-cleanup] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'refresh_token_cleanup' },
+      });
+    }
+  });
+  debugLog('✅ Refresh token cleanup started (runs daily at 3:45 AM)');
+}
+
+/**
+ * Notification cleanup — runs daily at 4:00 AM.
+ * Deletes notifications older than NOTIFICATION_RETENTION_DAYS (default 90).
+ * Prevents unbounded notification-table growth. Batches via Prisma's deleteMany
+ * which is fine for Postgres; if the table grows past several million rows, a
+ * chunked delete would be safer — revisit then.
+ */
+export function startNotificationCleanup() {
+  cron.schedule('0 4 * * *', async () => {
+    debugLog('[notification-cleanup] Starting old notification cleanup...');
+    try {
+      const retentionDays = Number(process.env.NOTIFICATION_RETENTION_DAYS) || 90;
+      const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+      const deleted = await prisma.notification.deleteMany({
+        where: { created_at: { lt: cutoff } },
+      });
+      if (deleted.count > 0) {
+        console.log(`[notification-cleanup] Deleted ${deleted.count} notifications older than ${retentionDays} days`);
+      }
+      console.log('[notification-cleanup] Done ✅');
+    } catch (error) {
+      console.error('[notification-cleanup] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'notification_cleanup' },
+      });
+    }
+  });
+  debugLog('✅ Notification cleanup started (runs daily at 4:00 AM)');
+}
+
+
+/**
+ * Stripe subscription reconciliation — runs daily at 4:15 AM.
+ * Webhooks are still the primary source of truth, but this catches drift from
+ * dropped `customer.subscription.*` events and customer deletions.
+ */
+export function startStripeSubscriptionReconciliation() {
+  cron.schedule('15 4 * * *', async () => {
+    debugLog('[billing-reconcile] Starting nightly Stripe subscription reconciliation...');
+    try {
+      const result = await runStripeSubscriptionReconciliation();
+      console.log(
+        `[billing-reconcile] Done ✅ scanned=${result.scanned} updated=${result.updated} failed=${result.failed}`
+      );
+
+      // Alert policy (per the billing-cleanup design):
+      //   - Per-fix drift lands in stdout (Railway logs) via runStripeSubscriptionReconciliation()
+      //   - A summary Sentry event fires only when updated > threshold OR any failed.
+      //     Silent on quiet nights; noisy when something real is moving.
+      //   - `SUPPRESS_RECONCILIATION_ALERTS=1` silences the threshold alert for one deploy
+      //     cycle — intended use: set on first-deploy so the baseline-cleanup burst doesn't
+      //     wake anyone, then unset once Sentry noise returns to a real drift rate.
+      const suppress = ['1', 'true', 'yes', 'on'].includes(
+        String(process.env.SUPPRESS_RECONCILIATION_ALERTS || '').toLowerCase()
+      );
+      const threshold = Number(process.env.SUBSCRIPTION_RECONCILIATION_ALERT_THRESHOLD) || 10;
+      if (!suppress && (result.updated > threshold || result.failed > 0)) {
+        captureException(
+          new Error(
+            `Stripe reconciliation summary: updated=${result.updated}, failed=${result.failed}, scanned=${result.scanned}`
+          ),
+          {
+            extra: {
+              context: 'stripe_subscription_reconciliation_summary',
+              ...result,
+            },
+          }
+        );
+      }
+    } catch (error) {
+      console.error('[billing-reconcile] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'stripe_subscription_reconciliation_cron' },
+      });
+    }
+  });
+  debugLog('✅ Stripe subscription reconciliation started (runs daily at 4:15 AM)');
+}
+
+/**
+ * Parental consent auto-expiry — runs daily at 4:30 AM.
+ *
+ * Any user whose `parental_consent_requested_at` is older than 14 days and
+ * still `pending` flips to `denied` + `banned=true`. Mirrors the COPPA
+ * industry norm: if a parent hasn't approved within two weeks, treat it as
+ * implicit deny. The minor can still contact support to reset.
+ *
+ * Token hash is cleared so stale email links stop working. Refresh tokens
+ * are revoked to match `recordConsentDenial` semantics.
+ */
+export function startParentalConsentExpiry() {
+  cron.schedule('30 4 * * *', async () => {
+    debugLog('[consent-expiry] Starting parental consent auto-expiry sweep...');
+    try {
+      const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+      // Pull the expiring users first so we can revoke their refresh tokens
+      // in the same sweep. A partial index supports the where clause.
+      const expiring = await prisma.user.findMany({
+        where: {
+          parental_consent_status: 'pending',
+          parental_consent_requested_at: { lt: cutoff },
+        } as any,
+        select: { id: true } as any,
+        take: 500,
+      });
+      if (expiring.length === 0) {
+        console.log('[consent-expiry] Nothing to do ✅');
+        return;
+      }
+      const ids = (expiring as any[]).map(u => u.id);
+      await prisma.$transaction([
+        prisma.user.updateMany({
+          where: { id: { in: ids } } as any,
+          data: {
+            parental_consent_status: 'denied',
+            parental_consent_at: new Date(),
+            parental_consent_token_hash: null,
+            banned: true,
+            ban_reason: 'Parental consent not received within 14 days',
+          } as any,
+        }),
+        prisma.refreshToken.deleteMany({ where: { user_id: { in: ids } } }),
+      ]);
+      console.log(
+        `[consent-expiry] Auto-denied ${ids.length} accounts past the 14-day consent window`
+      );
+    } catch (error) {
+      console.error('[consent-expiry] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'parental_consent_expiry_cron' },
+      });
+    }
+  });
+  debugLog('✅ Parental consent expiry started (runs daily at 4:30 AM)');
 }

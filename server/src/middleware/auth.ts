@@ -43,7 +43,14 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     try {
       user = await prisma.user.findUnique({
         where: { id: payload.id },
-        select: { password_changed_at: true, banned: true, banned_until: true, ban_reason: true },
+        select: {
+          password_changed_at: true,
+          banned: true,
+          banned_until: true,
+          ban_reason: true,
+          deleted_at: true,
+          deletion_anonymized: true,
+        },
       });
     } catch (dbErr) {
       // DB error — return 503 instead of silently degrading to anonymous access
@@ -52,8 +59,10 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
       return _res.status(503).json({ error: 'Service temporarily unavailable. Please try again.' });
     }
 
-    // Reject deleted users silently
-    if (!user) {
+    // Deleted accounts should behave like anonymous traffic. Check this before
+    // the ban path so stale tokens from self-deleted accounts don't leak an
+    // "account banned" response.
+    if (!user || (user as any).deleted_at || (user as any).deletion_anonymized) {
       clearUserContext();
       return next();
     }
@@ -81,4 +90,3 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   }
   next();
 }
-

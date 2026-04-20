@@ -33,6 +33,7 @@ export default {
     },
   },
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.cjs'],
+  globalTeardown: '<rootDir>/src/__tests__/globalTeardown.cjs',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^zod$': '<rootDir>/node_modules/zod/index.cjs',

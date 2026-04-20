@@ -1,0 +1,122 @@
+/**
+ * Team-scoped authorization helpers — single source of truth.
+ *
+ * Why this file exists:
+ *   Authorization checks for team-scoped resources used to be duplicated
+ *   across every route file. The org-admin fallback was added piecemeal,
+ *   leading to inconsistencies (some endpoints honored org owner/manager
+ *   roles, others didn't). Six bugs of this shape were caught one-at-a-time
+ *   over the audit pass before this helper landed.
+ *
+ *   Every route that needs to ask "can this user manage this team?" should
+ *   call `canManageTeam` here. Every route that needs "is this user an admin
+ *   of this org?" should call `isOrgAdmin`. New role rules go in this file
+ *   and propagate everywhere.
+ *
+ * Behavior:
+ *   - canManageTeam: TRUE if user has direct team staff role
+ *     (owner/manager/coach/assistant_coach) OR if user is owner/manager of
+ *     the team's organization.
+ *   - isOrgAdmin: TRUE if user has owner or manager role in the specified
+ *     organization, with active status.
+ *   - canApproveTeamGame: TRUE if user can approve games involving the team
+ *     (team coach/manager/owner OR org admin of the team's org).
+ *
+ * All helpers fail closed — null/undefined inputs return false.
+ */
+
+import { prisma } from './prisma.js';
+
+export const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
+export const ORG_ADMIN_ROLES = ['owner', 'manager'] as const;
+
+/**
+ * Can `userId` manage members + settings of `teamId`?
+ *
+ * Direct check: user has an active team-staff membership on the team.
+ * Fallback: user is an active owner/manager of the team's organization.
+ */
+export async function canManageTeam(userId: string | null | undefined, teamId: string): Promise<boolean> {
+  return canManageAnyTeam(userId, [teamId]);
+}
+
+/**
+ * Can `userId` manage ANY of the supplied team IDs?
+ *
+ * Direct check: active team-staff membership on at least one team.
+ * Fallback: active owner/manager membership in an organization that owns at
+ * least one of the teams.
+ */
+export async function canManageAnyTeam(
+  userId: string | null | undefined,
+  teamIds: Array<string | null | undefined>
+): Promise<boolean> {
+  if (!userId) return false;
+  const filteredTeamIds = [...new Set(teamIds.filter((id): id is string => Boolean(id)))];
+  if (filteredTeamIds.length === 0) return false;
+
+  const membership = await prisma.teamMembership.findFirst({
+    where: {
+      team_id: { in: filteredTeamIds },
+      user_id: userId,
+      role: { in: [...TEAM_STAFF_ROLES] },
+      status: 'active',
+    },
+  });
+  if (membership) return true;
+
+  const teams = await prisma.team.findMany({
+    where: { id: { in: filteredTeamIds } },
+    select: { organization_id: true },
+  });
+  const organizationIds = teams
+    .map(team => team.organization_id)
+    .filter((id): id is string => Boolean(id));
+  if (organizationIds.length === 0) return false;
+  return isAdminOfAnyOrg(userId, organizationIds);
+}
+
+/**
+ * Is `userId` an active admin (owner OR manager) of `orgId`?
+ */
+export async function isOrgAdmin(userId: string | null | undefined, orgId: string | null | undefined): Promise<boolean> {
+  if (!userId || !orgId) return false;
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      organization_id: orgId,
+      user_id: userId,
+      role: { in: [...ORG_ADMIN_ROLES] },
+      status: 'active',
+    },
+  });
+  return Boolean(membership);
+}
+
+/**
+ * Can `userId` approve a game involving `teamId`?
+ *
+ * Same boundary as `canManageTeam` — team staff OR org admin. Provided as a
+ * named helper so call sites read clearly at the approval endpoint.
+ */
+export async function canApproveTeamGame(userId: string | null | undefined, teamId: string): Promise<boolean> {
+  return canManageTeam(userId, teamId);
+}
+
+/**
+ * Convenience: check whether `userId` is admin (owner or manager) in ANY of
+ * the supplied org IDs. Used by game-approval to check across home/away orgs.
+ */
+export async function isAdminOfAnyOrg(userId: string | null | undefined, orgIds: string[]): Promise<boolean> {
+  if (!userId || orgIds.length === 0) return false;
+  const filtered = orgIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  if (filtered.length === 0) return false;
+  const membership = await prisma.organizationMembership.findFirst({
+    where: {
+      organization_id: { in: filtered },
+      user_id: userId,
+      role: { in: [...ORG_ADMIN_ROLES] },
+      status: 'active',
+    },
+  });
+  return Boolean(membership);
+}

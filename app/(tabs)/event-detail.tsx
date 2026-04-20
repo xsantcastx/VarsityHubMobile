@@ -130,6 +130,8 @@ export default function EventDetailScreen() {
       const message = String(e?.message || e?.data?.error || '');
       if (status === 400 && /event has passed/i.test(message)) {
         Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      } else if (status === 403 && /at capacity|is full/i.test(message)) {
+        Alert.alert('Event Full', 'This event is at capacity. Please check back later for cancellations.');
       } else if (status === 401 || message.includes('Unauthorized')) {
         Alert.alert('Session Expired', 'Please sign in again to RSVP.', [
           { text: 'Cancel', style: 'cancel' },

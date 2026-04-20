@@ -19,6 +19,11 @@ describe('API Group chats', () => {
   let userBId: string;
   let tokenA: string;
   let chatId: string;
+  let orgId: string;
+  let teamId: string;
+  let orgManagerId: string;
+  let orgManagerToken: string;
+  let rosterMemberId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -46,6 +51,71 @@ describe('API Group chats', () => {
     userAId = userA.id;
     userBId = userB.id;
     tokenA = signJwt({ id: userAId });
+
+    const orgManager = await prisma.user.create({
+      data: {
+        email: `test-gc-org-manager-${Date.now()}@example.com`,
+        password_hash: hash,
+        display_name: 'GC Org Manager',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
+      },
+    });
+    orgManagerId = orgManager.id;
+    orgManagerToken = signJwt({ id: orgManagerId });
+
+    const rosterMember = await prisma.user.create({
+      data: {
+        email: `test-gc-roster-member-${Date.now()}@example.com`,
+        password_hash: hash,
+        display_name: 'GC Roster Member',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'fan', onboarding_completed: true },
+      },
+    });
+    rosterMemberId = rosterMember.id;
+
+    const org = await prisma.organization.create({
+      data: {
+        name: `GC Org ${Date.now()}`,
+        org_type: 'club',
+        admin_approved: true,
+        updated_at: new Date(),
+      },
+    });
+    orgId = org.id;
+
+    const team = await prisma.team.create({
+      data: {
+        name: `GC Team ${Date.now()}`,
+        organization_id: org.id,
+      },
+    });
+    teamId = team.id;
+
+    await prisma.organizationMembership.create({
+      data: {
+        organization_id: org.id,
+        user_id: orgManagerId,
+        role: 'manager',
+        status: 'active',
+      },
+    });
+    await prisma.teamMembership.create({
+      data: {
+        team_id: team.id,
+        user_id: rosterMemberId,
+        role: 'member',
+        status: 'active',
+      },
+    });
 
     const chat = await prisma.groupChat.create({
       data: { name: `Test GC ${Date.now()}` },
@@ -79,8 +149,13 @@ describe('API Group chats', () => {
         await prisma.groupChatMember.deleteMany({ where: { chat_id: chatId } });
         await prisma.groupChat.delete({ where: { id: chatId } }).catch(() => {});
       }
+      await prisma.groupChat.deleteMany({ where: { team_id: teamId } }).catch(() => {});
+      await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
+      await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
+      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+      await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
       await prisma.user.deleteMany({
-        where: { id: { in: [userAId, userBId] } },
+        where: { id: { in: [userAId, userBId, orgManagerId, rosterMemberId] } },
       });
     } catch (e) {
       console.warn('group-chats test cleanup:', e);
@@ -133,5 +208,24 @@ describe('API Group chats', () => {
       .expect(200);
     const row2 = (res2.body as any[]).find((c) => c.id === chatId);
     expect(row2?.unreadCount).toBe(1);
+  });
+
+  it('allows an org manager to create a team chat without direct team membership', async () => {
+    const res = await request(app)
+      .post('/group-chats')
+      .set('Authorization', `Bearer ${orgManagerToken}`)
+      .send({
+        name: 'Org Manager Team Chat',
+        teamId,
+        memberIds: [rosterMemberId],
+      })
+      .expect(201);
+
+    expect(res.body.team_id).toBe(teamId);
+    expect(res.body.created_by).toBe(orgManagerId);
+    expect(Array.isArray(res.body.members)).toBe(true);
+    expect(res.body.members.map((m: any) => m.user_id).sort()).toEqual(
+      [orgManagerId, rosterMemberId].sort()
+    );
   });
 });

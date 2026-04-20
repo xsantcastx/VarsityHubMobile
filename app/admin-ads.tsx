@@ -63,28 +63,40 @@ function AdminAdsScreen() {
     }
   };
 
-  const bulkApprove = async () => {
+  const bulkApprove = () => {
     const pendingIds = Array.from(selectedAds).filter((id) => items.find((a) => String(a.id) === id)?.status === 'pending');
     if (pendingIds.length === 0) return;
-    setUpdating(true);
-    try {
-      const results = await Promise.allSettled(
-        pendingIds.map((adId) => AdsApi.review(adId, 'approve'))
-      );
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      if (failed > 0) {
-        Alert.alert('Partial Success', `Approved ${pendingIds.length - failed} ad(s), ${failed} failed`);
-      } else {
-        Alert.alert('Success', `Approved ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
-      }
-      setSelectedAds(new Set());
-      setBulkMode(false);
-      await load();
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to approve ads');
-    } finally {
-      setUpdating(false);
-    }
+    Alert.alert(
+      'Approve Ads',
+      `Approve ${pendingIds.length} pending ad${pendingIds.length > 1 ? 's' : ''}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          onPress: async () => {
+            setUpdating(true);
+            try {
+              const results = await Promise.allSettled(
+                pendingIds.map((adId) => AdsApi.review(adId, 'approve'))
+              );
+              const failed = results.filter((r) => r.status === 'rejected').length;
+              if (failed > 0) {
+                Alert.alert('Partial Success', `Approved ${pendingIds.length - failed} ad(s), ${failed} failed`);
+              } else {
+                Alert.alert('Success', `Approved ${pendingIds.length} ad${pendingIds.length > 1 ? 's' : ''}`);
+              }
+              setSelectedAds(new Set());
+              setBulkMode(false);
+              await load();
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Failed to approve ads');
+            } finally {
+              setUpdating(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const bulkReject = async () => {

@@ -20,6 +20,7 @@ describeDb('Users API Endpoints', () => {
   let testUser: any;
   let testUserToken: string;
   let otherUser: any;
+  const missingUserId = `c${'f'.repeat(24)}`;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -69,7 +70,7 @@ describeDb('Users API Endpoints', () => {
 
     it('should return 404 for non-existent user', async () => {
       const res = await request(app)
-        .get('/users/non-existent-id');
+        .get(`/users/${missingUserId}`);
 
       expect(res.statusCode).toEqual(404);
     });

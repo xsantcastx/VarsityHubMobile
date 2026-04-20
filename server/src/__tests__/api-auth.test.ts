@@ -362,24 +362,21 @@ describe('API Authentication Endpoints', () => {
 
   describe('POST /auth/password/reset', () => {
     it('consumes the reset code so it cannot be reused', async () => {
-      await request(app)
-        .post('/auth/password/forgot')
-        .send({ email: TEST_EMAIL })
-        .expect(200);
-
-      const resetUser = await prisma.user.findUnique({
+      const rawResetCode = '654321';
+      await prisma.user.update({
         where: { email: TEST_EMAIL },
-        select: { password_reset_code: true, password_hash: true },
+        data: {
+          password_reset_code: hashRefreshToken(rawResetCode),
+          password_reset_expires: new Date(Date.now() + 30 * 60 * 1000),
+        },
       });
-
-      expect(resetUser?.password_reset_code).toBeTruthy();
 
       const firstPassword = 'ResetPassword123!';
       await request(app)
         .post('/auth/password/reset')
         .send({
           email: TEST_EMAIL,
-          code: resetUser!.password_reset_code,
+          code: rawResetCode,
           password: firstPassword,
         })
         .expect(200);
@@ -388,7 +385,7 @@ describe('API Authentication Endpoints', () => {
         .post('/auth/password/reset')
         .send({
           email: TEST_EMAIL,
-          code: resetUser!.password_reset_code,
+          code: rawResetCode,
           password: 'AnotherPassword123!',
         })
         .expect(400);

@@ -2,9 +2,15 @@ import { Stack } from 'expo-router';
 import { ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
+import {
+  LEGEND_YEARLY_PRICE_LABEL,
+  ROOKIE_TEAM_LIMIT,
+  VETERAN_MONTHLY_TEAM_PRICE_LABEL,
+} from '@/constants/plans';
 
 export default function TermsOfServiceScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const subscriptionTerms = `Rookie: Free (${ROOKIE_TEAM_LIMIT} teams). Veteran: ${VETERAN_MONTHLY_TEAM_PRICE_LABEL}. Legend: ${LEGEND_YEARLY_PRICE_LABEL} unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Refunds case-by-case. Cancel anytime in Settings.`;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
@@ -30,7 +36,7 @@ export default function TermsOfServiceScreen() {
           body={'You own your content. By posting, you grant us a license to display it in the app. All fan content must be personally filmed from your own vantage point. Official broadcast content (ESPN, CBS, Fox, NBC, etc.) is prohibited. VarsityHub has no affiliation with any league, conference, or broadcast partner.'} />
 
         <TermSection colorScheme={colorScheme} title="6. Subscriptions"
-          body={'Rookie: Free (2 teams). Veteran: $0.99/mo per additional team. Legend: $19.99/yr unlimited. Auto-renew unless cancelled. Payments via Apple IAP (iOS), Google Play (Android), or Stripe. Refunds case-by-case. Cancel anytime in Settings.'} />
+          body={subscriptionTerms} />
 
         <TermSection colorScheme={colorScheme} title="7. Ads"
           body={'Advertisers promote via our Ad Calendar. Ads must comply with content guidelines. We may reject or remove any ad.'} />

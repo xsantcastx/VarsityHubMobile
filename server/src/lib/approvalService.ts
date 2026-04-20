@@ -500,18 +500,74 @@ export async function approveAd(
   adId: string,
   adminId: string | null,
   prisma: PrismaClient,
-  opts?: { note?: string },
+  opts?: {
+    note?: string;
+    /**
+     * Required when `banner_moderation_status === 'flagged'`. The reason is
+     * persisted in `admin_note` alongside the top moderation labels so the
+     * decision is auditable after the fact.
+     */
+    bannerOverride?: { reason: string };
+  },
 ) {
   const ad = await prisma.ad.findUnique({ where: { id: adId } });
   if (!ad) return { error: 'Ad not found', status: 404 };
   if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+
+  // Banner moderation gate. A flagged banner requires an explicit override +
+  // reason so a flagged image can never silently reach production. Moderation
+  // errors (could-not-scan) are allowed through but annotated automatically so
+  // support can tell the difference between "scanned clean" and "scan failed".
+  const moderationStatus = (ad as any).banner_moderation_status as
+    | 'clean'
+    | 'flagged'
+    | 'error'
+    | null;
+  const rawLabels = (ad as any).banner_moderation_labels;
+  const moderationLabels: Array<{ name: string; confidence: number }> = Array.isArray(rawLabels)
+    ? (rawLabels as any[]).filter((l) => l && typeof l === 'object' && typeof l.name === 'string')
+    : [];
+  const moderationScore = (ad as any).banner_moderation_score as number | null;
+  const moderationError = (ad as any).banner_moderation_error as string | null;
+
+  let derivedAdminNote: string | null = opts?.note?.trim() || null;
+
+  if (moderationStatus === 'flagged') {
+    const reason = opts?.bannerOverride?.reason?.trim() || '';
+    if (reason.length < 10 || reason.length > 2000) {
+      return {
+        error: 'banner_moderation_flag_requires_override',
+        status: 409 as const,
+        moderation: {
+          status: moderationStatus,
+          score: moderationScore,
+          labels: moderationLabels.slice(0, 5),
+        },
+      };
+    }
+    const topLabels = moderationLabels
+      .slice(0, 3)
+      .map((l) => `${l.name} (${Math.round(l.confidence)}%)`)
+      .join(', ');
+    const overrideLine = `[moderation override] reason: ${reason} | top labels: ${topLabels || 'none captured'} | admin: ${adminId || 'unknown'}`;
+    derivedAdminNote = derivedAdminNote ? `${overrideLine}\n${derivedAdminNote}` : overrideLine;
+    console.warn(
+      `[approvalService] Ad ${adId} approved over moderation flag by ${adminId || 'unknown'}. Reason: ${reason}. Labels: ${topLabels}`
+    );
+  } else if (moderationStatus === 'error') {
+    const note = `[moderation] Approved without successful scan: ${(moderationError || 'unknown').slice(0, 200)}`;
+    derivedAdminNote = derivedAdminNote ? `${note}\n${derivedAdminNote}` : note;
+    console.warn(
+      `[approvalService] Ad ${adId} approved despite moderation error: ${moderationError || 'unknown'}`
+    );
+  }
 
   const updated = await prisma.ad.update({
     where: { id: adId },
     data: {
       status: 'approved',
       payment_status: ad.payment_status === 'paid' ? 'paid' : 'pending_approval',
-      ...(opts?.note ? { admin_note: opts.note } : {}),
+      ...(derivedAdminNote ? { admin_note: derivedAdminNote } : {}),
     },
   });
 

@@ -1,7 +1,7 @@
 /**
  * Content Reporting Endpoints
  * 
- * Allows users to report specific content (posts, users, comments, messages)
+ * Allows users to report specific content (posts, users, comments, messages, ads)
  * for moderation review.
  * 
  * @module routes/reports
@@ -37,7 +37,7 @@ const REPORT_REASONS = [
 type ReportReason = typeof REPORT_REASONS[number];
 
 // Valid content types that can be reported
-const REPORTABLE_TYPES = ['post', 'user', 'comment', 'message', 'team'] as const;
+const REPORTABLE_TYPES = ['post', 'user', 'comment', 'message', 'team', 'ad'] as const;
 type ReportableType = typeof REPORTABLE_TYPES[number];
 
 // Schema for creating a report
@@ -204,6 +204,40 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, asyncHandler(async (r
         }
         break;
       }
+      case 'ad': {
+        const ad = await prisma.ad.findUnique({
+          where: { id: target_id },
+          select: {
+            id: true,
+            user_id: true,
+            business_name: true,
+            description: true,
+            banner_url: true,
+            target_url: true,
+            status: true,
+            payment_status: true,
+            created_at: true,
+          },
+        });
+        if (ad) {
+          targetExists = true;
+          targetContext = {
+            ad_owner_id: ad.user_id,
+            business_name: ad.business_name,
+            description_preview: ad.description?.substring(0, 200),
+            banner_url: ad.banner_url,
+            target_url: ad.target_url,
+            status: ad.status,
+            payment_status: ad.payment_status,
+            created_at: ad.created_at,
+          };
+
+          if (ad.user_id && ad.user_id === req.user.id) {
+            return res.status(400).json({ error: 'You cannot report your own ad' });
+          }
+        }
+        break;
+      }
     }
   } catch (error) {
     console.error('[Reports] Failed to validate target:', error);
@@ -295,6 +329,7 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, asyncHandler(async (r
       (targetContext as any)?.post_author_id ||
       (targetContext as any)?.comment_author_id ||
       (targetContext as any)?.sender_id ||
+      (targetContext as any)?.ad_owner_id ||
       null;
     if (targetUserId) {
       escalation = await autoEscalate(targetUserId);

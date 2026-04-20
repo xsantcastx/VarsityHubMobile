@@ -27,6 +27,9 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional().transform(toOptional),
   CLOUDINARY_API_KEY: z.string().optional().transform(toOptional),
   CLOUDINARY_API_SECRET: z.string().optional().transform(toOptional),
+  AD_IMAGE_MODERATION_ENABLED: z.string().optional().transform(toOptional),
+  AD_IMAGE_MODERATION_MIN_CONFIDENCE: z.string().optional(),
+  REKOGNITION_REGION: z.string().optional().transform(toOptional),
   GOOGLE_OAUTH_CLIENT_IDS: z.string().optional().transform(toOptional),
   GOOGLE_MAPS_API_KEY: z.string().optional().transform(toOptional),
   SMTP_HOST: z.string().optional().transform(toOptional),
@@ -113,6 +116,11 @@ if (isProd) {
   if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
     throw new Error(
       'FATAL: Cloudinary env vars (CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET) are not all set. Without them uploads fall back to ephemeral Railway disk and are lost on every deploy. Set these in Railway env vars immediately.'
+    );
+  }
+  if (env.AD_IMAGE_MODERATION_ENABLED && !env.REKOGNITION_REGION && !process.env.AWS_REGION) {
+    warnings.push(
+      'REKOGNITION_REGION or AWS_REGION (required when AD_IMAGE_MODERATION_ENABLED is on)'
     );
   }
   // v1.0.2 audit: geocoding silently returns null when API key missing → map/ad targeting broken.

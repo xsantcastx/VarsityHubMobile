@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma.js';
 import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 import { validateContent } from '../lib/contentFilter.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
@@ -239,19 +240,8 @@ groupChatsRouter.post('/', requireAuth as any, requireVerified as any, asyncHand
         .json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
     const { name, teamId, memberIds } = parsed.data;
 
-    // Verify requester has permission (coach/manager/owner/assistant_coach)
-    const membership = await prisma.teamMembership.findFirst({
-      where: {
-        team_id: teamId,
-        user_id: req.user.id,
-        role: {
-          in: ['coach', 'assistant_coach', 'manager', 'owner'] as any,
-        },
-        status: 'active',
-      },
-    });
-
-    if (!membership) {
+    const canManage = await canManageTeamScoped(req.user.id, teamId);
+    if (!canManage) {
       return res.status(403).json({ error: 'No permission to create team chat' });
     }
 

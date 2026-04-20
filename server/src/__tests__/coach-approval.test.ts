@@ -432,6 +432,159 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
+  describe('Org manager can govern pending coaches (org-roles-govern parity)', () => {
+    let managerId: string;
+    let managerToken: string;
+
+    beforeAll(async () => {
+      const hash = await bcrypt.hash(PASSWORD, 10);
+      const manager = await prisma.user.create({
+        data: {
+          email: `org-manager-${ts}@example.com`,
+          password_hash: hash,
+          display_name: 'Org Manager',
+          email_verified: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          approval_status: 'APPROVED',
+        },
+      });
+      managerId = manager.id;
+      managerToken = signJwt({ id: managerId });
+      await prisma.organizationMembership.create({
+        data: { organization_id: orgId, user_id: managerId, role: 'manager', status: 'active' },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.organizationMembership.deleteMany({ where: { user_id: managerId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: managerId } }).catch(() => {});
+    });
+
+    it('manager can GET /organizations/:id/pending-coaches', async () => {
+      const hash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `pending-list-${ts}-${Math.random()}@example.com`,
+          password_hash: hash,
+          display_name: 'Pending Coach',
+          email_verified: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+      await prisma.organizationJoinRequest.create({
+        data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
+      });
+
+      const res = await request(app)
+        .get(`/organizations/${orgId}/pending-coaches`)
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.some((r: any) => r.user_id === coach.id)).toBe(true);
+
+      await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
+      await prisma.user.delete({ where: { id: coach.id } });
+    });
+
+    it('manager can POST /organizations/:id/coaches/:userId/approve', async () => {
+      const hash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `manager-approve-${ts}-${Math.random()}@example.com`,
+          password_hash: hash,
+          display_name: 'Manager Approves',
+          email_verified: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+      await prisma.organizationJoinRequest.create({
+        data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
+      });
+
+      const res = await request(app)
+        .post(`/organizations/${orgId}/coaches/${coach.id}/approve`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({});
+
+      expect(res.status).toBe(200);
+      const userAfter = await prisma.user.findUnique({
+        where: { id: coach.id },
+        select: { approval_status: true },
+      });
+      expect(userAfter?.approval_status).toBe('APPROVED');
+
+      await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
+      await prisma.organizationMembership.deleteMany({ where: { user_id: coach.id } });
+      await prisma.user.delete({ where: { id: coach.id } });
+    });
+
+    it('manager can POST /organizations/:id/coaches/:userId/reject', async () => {
+      const hash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `manager-reject-${ts}-${Math.random()}@example.com`,
+          password_hash: hash,
+          display_name: 'Manager Rejects',
+          email_verified: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+      await prisma.organizationJoinRequest.create({
+        data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
+      });
+
+      const res = await request(app)
+        .post(`/organizations/${orgId}/coaches/${coach.id}/reject`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({ reason: 'Not a fit' });
+
+      expect(res.status).toBe(200);
+      const reqAfter = await prisma.organizationJoinRequest.findFirst({
+        where: { user_id: coach.id, organization_id: orgId },
+      });
+      expect(reqAfter?.status).toBe('denied');
+
+      await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
+      await prisma.user.delete({ where: { id: coach.id } });
+    });
+
+    it('non-admin org member cannot view or approve pending coaches', async () => {
+      const hash = await bcrypt.hash(PASSWORD, 10);
+      const member = await prisma.user.create({
+        data: {
+          email: `non-admin-member-${ts}-${Math.random()}@example.com`,
+          password_hash: hash,
+          display_name: 'Plain Member',
+          email_verified: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          approval_status: 'APPROVED',
+        },
+      });
+      const memberToken = signJwt({ id: member.id });
+      await prisma.organizationMembership.create({
+        data: { organization_id: orgId, user_id: member.id, role: 'coach', status: 'active' },
+      });
+
+      const listRes = await request(app)
+        .get(`/organizations/${orgId}/pending-coaches`)
+        .set('Authorization', `Bearer ${memberToken}`);
+      expect(listRes.status).toBe(403);
+
+      const approveRes = await request(app)
+        .post(`/organizations/${orgId}/coaches/${member.id}/approve`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({});
+      expect(approveRes.status).toBe(403);
+
+      await prisma.organizationMembership.deleteMany({ where: { user_id: member.id } });
+      await prisma.user.delete({ where: { id: member.id } });
+    });
+  });
+
   describe('League owner approval sets coach to APPROVED', () => {
     it('league owner approving coach sets coach to APPROVED', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);

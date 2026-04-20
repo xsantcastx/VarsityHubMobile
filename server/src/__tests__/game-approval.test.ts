@@ -22,6 +22,8 @@ const PASSWORD = 'TestPassword123!';
 describe('Game Approval Flow', () => {
   let coachId: string;
   let coachToken: string;
+  let orgManagerId: string;
+  let orgManagerToken: string;
   let fanId: string;
   let fanToken: string;
   let orgId: string;
@@ -76,6 +78,28 @@ describe('Game Approval Flow', () => {
       data: { team_id: teamId, user_id: coachId, role: 'coach', status: 'active' },
     });
 
+    const orgManager = await prisma.user.create({
+      data: {
+        email: `game-approve-org-manager-${ts}@example.com`,
+        password_hash: hash,
+        display_name: 'Org Manager',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
+      },
+    });
+    orgManagerId = orgManager.id;
+    orgManagerToken = signJwt({ id: orgManagerId });
+
+    await prisma.organizationMembership.create({
+      data: { organization_id: orgId, user_id: orgManagerId, role: 'manager', status: 'active' },
+    });
+
     // Fan user (approved, onboarded, no team membership)
     const fan = await prisma.user.create({
       data: {
@@ -126,7 +150,7 @@ describe('Game Approval Flow', () => {
   afterAll(async () => {
     try {
       await prisma.notification.deleteMany({
-        where: { user_id: { in: [coachId, fanId].filter(Boolean) } },
+        where: { user_id: { in: [coachId, orgManagerId, fanId].filter(Boolean) } },
       }).catch(() => {});
       await prisma.event.deleteMany({
         where: { creator_id: { in: [fanId].filter(Boolean) } },
@@ -147,7 +171,7 @@ describe('Game Approval Flow', () => {
         where: { id: orgId },
       }).catch(() => {});
       await prisma.user.deleteMany({
-        where: { id: { in: [coachId, fanId].filter(Boolean) } },
+        where: { id: { in: [coachId, orgManagerId, fanId].filter(Boolean) } },
       }).catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
@@ -202,6 +226,23 @@ describe('Game Approval Flow', () => {
       .set('Authorization', `Bearer ${fanToken}`)
       .send({ approval_status: 'approved' })
       .expect(403);
+  });
+
+  it('should allow an org manager to approve a game for a team in their organization', async () => {
+    const { game, event } = await createPendingGame(`Org Manager Approve Test ${ts}`);
+
+    const res = await request(app)
+      .put(`/games/${game.id}/approve`)
+      .set('Authorization', `Bearer ${orgManagerToken}`)
+      .send({ approval_status: 'approved' })
+      .expect(200);
+
+    expect(res.body.approval_status).toBe('approved');
+    expect(res.body.approved_by_id).toBe(orgManagerId);
+
+    const updatedEvent = await prisma.event.findUnique({ where: { id: event.id } });
+    expect(updatedEvent?.approval_status).toBe('approved');
+    expect(updatedEvent?.status).toBe('approved');
   });
 
   it('should return 400 for invalid approval_status', async () => {

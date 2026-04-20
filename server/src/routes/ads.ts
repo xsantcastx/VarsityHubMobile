@@ -1,20 +1,26 @@
 import escapeHtml from 'escape-html';
-import { Router, type Response, type NextFunction } from 'express';
+import { Router, type Response } from 'express';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { getIsAdmin, isEmailAdmin, requireAdmin } from '../middleware/requireAdmin.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { checkPlanAtLeast, getUserPlan } from '../middleware/subscription.js';
 import { debugLog } from '../lib/debugLog.js';
-import { adCreationLimiter, alternativeZipsLimiter } from '../middleware/rateLimiters.js';
+import {
+  adCreationLimiter,
+  adModerationLimiter,
+  alternativeZipsLimiter,
+} from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/notifications.js';
+import {
+  clearBannerModerationFields,
+  moderateAndStoreAdBanner,
+} from '../lib/adImageModeration.js';
 import {
   approveAd as approveAdService,
   rejectAd as rejectAdService,
@@ -95,30 +101,6 @@ async function getZipCoordinatesWithFallback(
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
 
-async function enforceAdPlan(req: AuthedRequest, res: Response) {
-  if (!req.user?.id) {
-    res.status(401).json({ error: 'AUTH_REQUIRED', message: 'Authentication required.' });
-    return false;
-  }
-
-  if (await getIsAdmin(req as any)) {
-    return true;
-  }
-
-  const currentPlan = await getUserPlan(req.user.id);
-  const gate = checkPlanAtLeast(currentPlan, 'veteran');
-  if (!gate) {
-    return true;
-  }
-
-  res.status(403).json({
-    ...gate,
-    message: 'Local ads require a Veteran or Legend plan.',
-    upgrade_url: '/settings/manage-subscription',
-  });
-  return false;
-}
-
 // One-time backfill: populate target_lat/target_lng for existing ads that predate the column.
 // Runs once at startup, fire-and-forget — safe to repeat (skips ads already populated).
 void (async () => {
@@ -166,8 +148,6 @@ adsRouter.post(
   requireOnboarded as any,
   adCreationLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!(await enforceAdPlan(req, res))) return;
-
     const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
     const parsed = adCreateSchema.safeParse(safeBody);
     if (!parsed.success) {
@@ -217,8 +197,6 @@ adsRouter.post(
 // Submit ad for approval — handler exported for app-level registration (guarantees route is hit)
 export async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
   try {
-    if (!(await enforceAdPlan(req, res))) return;
-
     const id = String(req.params.id).trim();
     if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
       return res.status(400).json({ error: 'Invalid ad ID' });
@@ -238,7 +216,6 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       if (!isoDateRegex.test(ds)) {
         return res.status(400).json({ error: `Invalid date format: ${ds}. Use YYYY-MM-DD.` });
       }
-      // Past dates are allowed for booking
     }
     const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
     const ad = await prisma.ad.findUnique({ where: { id } });
@@ -261,7 +238,15 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
         dates: pastHorizon,
       });
     }
-    // Past dates are allowed — no rejection needed
+
+    const todayUtc = new Date(today + 'T00:00:00.000Z');
+    const pastDates = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') < todayUtc);
+    if (pastDates.length > 0) {
+      return res.status(400).json({
+        error: 'Ad dates must be today or in the future',
+        dates: pastDates,
+      });
+    }
 
     const MAX_AD_SLOTS = 2;
     const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
@@ -317,6 +302,12 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       });
     }
 
+    let updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
+    if (updated?.banner_url) {
+      await moderateAndStoreAdBanner(updated.id, updated.banner_url);
+      updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
+    }
+
     // Generate signed tokens for one-click approve/reject from email (7-day expiry)
     const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '7d');
     const rejectToken = signJwt({ adId: id, action: 'reject_ad' }, '7d');
@@ -327,11 +318,11 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       adminEmails.map((to) =>
         sendAdPendingReviewEmail({
           to,
-          businessName: ad.business_name || undefined,
-          contactName: ad.contact_name || undefined,
-          contactEmail: ad.contact_email || undefined,
-          zipCode: ad.target_zip_code || undefined,
-          bannerUrl: ad.banner_url || undefined,
+          businessName: updated?.business_name || ad.business_name || undefined,
+          contactName: updated?.contact_name || ad.contact_name || undefined,
+          contactEmail: updated?.contact_email || ad.contact_email || undefined,
+          zipCode: updated?.target_zip_code || ad.target_zip_code || undefined,
+          bannerUrl: updated?.banner_url || ad.banner_url || undefined,
           adId: id,
           approveToken,
           rejectToken,
@@ -348,7 +339,6 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
       console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
     );
 
-    const updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     return res.status(200).json(updated);
   } catch (err) {
     console.error('[ads] POST /:id/submit-for-approval error:', err);
@@ -428,7 +418,24 @@ adsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, r
 }));
 
 // Ads for feed: return ads with a reservation for a specific date (default: today), filtered by location radius
-adsRouter.get('/for-feed', asyncHandler(async (req, res) => {
+adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  // Age gate — under-18 users never see ads. Reads the canonical DOB column
+  // with fallback to preferences.dob for users whose backfill hasn't run.
+  // requireAuth above guarantees req.user is populated, so we can always
+  // resolve an age — no anonymous bypass.
+  if (req.user?.id) {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { date_of_birth: true, preferences: true },
+    });
+    if (me) {
+      const { isMinor } = await import('../lib/userAge.js');
+      if (isMinor(me)) {
+        return res.json({ date: new Date().toISOString().slice(0, 10), ads: [] });
+      }
+    }
+  }
+
   const dateParam = req.query.date ? String(req.query.date) : undefined; // yyyy-MM-dd
   const zip = req.query.zip ? String(req.query.zip) : undefined;
   const lat = req.query.lat ? Number(req.query.lat) : undefined;
@@ -595,6 +602,22 @@ adsRouter.put(
       if (k in safeBody) data[k] = v;
     }
 
+    const businessNameChanged =
+      'business_name' in data && data.business_name !== ad.business_name;
+    const descriptionChanged =
+      'description' in data && data.description !== ad.description;
+    const textChanged = businessNameChanged || descriptionChanged;
+
+    if (textChanged) {
+      const filterResult = validateContent({
+        title: (('business_name' in data ? data.business_name : ad.business_name) ?? undefined),
+        content: (('description' in data ? data.description : ad.description) ?? undefined),
+      });
+      if (!filterResult.valid) {
+        return res.status(400).json({ error: filterResult.error, code: filterResult.code });
+      }
+    }
+
     // Populate lat/lng when zip code changes
     if ('target_zip_code' in data && data.target_zip_code) {
       const zipCoords = await getZipCoordinatesWithFallback(data.target_zip_code);
@@ -602,18 +625,33 @@ adsRouter.put(
       data.target_lng = zipCoords?.lon ?? null;
     }
 
-    // If banner_url or target_url changed, ALWAYS require re-approval regardless of payment status
+    // Approved/live ads must go back through review when any user-visible content changes.
     const bannerChanged = 'banner_url' in data && data.banner_url !== ad.banner_url;
     const targetUrlChanged = 'target_url' in data && data.target_url !== ad.target_url;
-    if ((bannerChanged && data.banner_url) || targetUrlChanged) {
+    if (bannerChanged) {
+      Object.assign(data, clearBannerModerationFields());
+    }
+    const requiresReapproval =
+      ad.status !== 'draft' &&
+      ((bannerChanged && data.banner_url) || targetUrlChanged || textChanged);
+    if (requiresReapproval) {
       data.status = 'pending';
-      data.admin_note = `[Auto] Content changed${ad.payment_status === 'paid' ? ' after payment' : ''} — banner: ${bannerChanged}, target_url: ${targetUrlChanged}. Ad removed from feed pending re-approval.`;
+      data.admin_note =
+        `[Auto] Content changed${ad.payment_status === 'paid' ? ' after payment' : ''}` +
+        ` — business_name: ${businessNameChanged}, description: ${descriptionChanged},` +
+        ` banner: ${bannerChanged}, target_url: ${targetUrlChanged}.` +
+        ' Ad removed from feed pending re-approval.';
     }
 
-    const updated = await prisma.ad.update({ where: { id }, data });
+    let updated = await prisma.ad.update({ where: { id }, data });
+    const shouldModerateBannerNow = bannerChanged && !!updated.banner_url && requiresReapproval;
+    if (shouldModerateBannerNow) {
+      const remoderated = await moderateAndStoreAdBanner(updated.id, updated.banner_url);
+      if (remoderated) updated = remoderated;
+    }
 
-    // Notify admin when banner or target URL needs review
-    if ((bannerChanged && data.banner_url) || targetUrlChanged) {
+    // Notify admin when content changes require another moderation pass.
+    if (requiresReapproval) {
       const { getPrimaryAdminEmail: getAdmin } = await import('../lib/adminEmails.js');
       void sendAdPendingReviewEmail({
         to: getAdmin(),
@@ -680,6 +718,12 @@ adsRouter.delete(
       deleted_by_admin: isAdmin && !isOwner,
     };
 
+    // Capture banner URL before deletion so we can destroy the Cloudinary
+    // asset after the DB state is committed. Deleted ads that leave their
+    // banner live on Cloudinary are both a cost drip and a privacy issue
+    // (the URL is still publicly retrievable).
+    const bannerUrl = existing.banner_url || null;
+
     // Delete reservations and ad in transaction, create audit log
     await prisma.$transaction([
       prisma.adReservation.deleteMany({ where: { ad_id: id } }),
@@ -695,6 +739,32 @@ adsRouter.delete(
       }),
     ]);
     debugLog('[ads] DELETE /:id - Ad deleted with audit trail', { id });
+
+    // Fire-and-forget Cloudinary cleanup. Failure here must NOT rollback the
+    // user's successful delete — the DB is the source of truth and the asset
+    // just becomes an orphan that a future cleanup job can sweep.
+    if (bannerUrl) {
+      void (async () => {
+        try {
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
+            '../lib/cloudinary.js'
+          );
+          const parsed = extractCloudinaryPublicId(bannerUrl);
+          if (!parsed) return;
+          const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+          if (!result.ok) {
+            console.warn(
+              '[ads] Cloudinary destroy failed for deleted ad',
+              id,
+              parsed.publicId,
+              result.error
+            );
+          }
+        } catch (err) {
+          console.warn('[ads] Cloudinary destroy threw for deleted ad', id, err);
+        }
+      })();
+    }
 
     return res.json({ ok: true, message: 'Ad deleted successfully' });
   })
@@ -1015,12 +1085,31 @@ adsRouter.get(
 
 // ── Shared helpers for ad moderation (used by POST, GET, and /review routes) ──
 
-async function approveAd(id: string, note?: string | null) {
-  return approveAdService(id, null, prisma, { note: note || undefined });
+async function approveAd(
+  id: string,
+  note?: string | null,
+  adminId?: string | null,
+  bannerOverride?: { reason: string },
+) {
+  return approveAdService(id, adminId || null, prisma, {
+    note: note || undefined,
+    bannerOverride,
+  });
 }
 
 async function rejectAd(id: string, reason?: string | null) {
   return rejectAdService(id, null, prisma, { reason: reason || undefined });
+}
+
+/** Coerce a loose "true-ish" value into a boolean. Form checkboxes, JSON booleans,
+ *  and hidden fields all flow through the same body, so accept the common shapes. */
+function isTruthyFlag(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase();
+    return v === 'true' || v === '1' || v === 'on' || v === 'yes';
+  }
+  return false;
 }
 
 /** Verify a signed moderation token and check it matches the ad + action */
@@ -1039,24 +1128,104 @@ function confirmationPage(safeTitle: string, safeMessage: string, success: boole
 </body></html>`;
 }
 
-/** Require auth only when no moderation token is present (email links skip auth) */
-function requireAuthUnlessToken(req: AuthedRequest, res: Response, next: NextFunction) {
-  if (req.query?.token) return next();
-  return requireAuth(req, res, next);
-}
-
-/** HTML confirmation form — safeName must be pre-escaped via escapeHtml() before calling */
-function confirmationForm(action: string, adId: string, token: string, safeName: string) {
+/** HTML confirmation form — safeName must be pre-escaped via escapeHtml() before calling.
+ *  When the ad's banner has been flagged by moderation, the form surfaces the flag and
+ *  requires a typed override reason before the approval POST is sent. Submission uses
+ *  fetch+JSON so the server's existing JSON body parser handles the payload (no
+ *  urlencoded middleware change needed). */
+function confirmationForm(
+  action: string,
+  adId: string,
+  token: string,
+  safeName: string,
+  moderation?: {
+    status: 'clean' | 'flagged' | 'error' | null;
+    score: number | null;
+    labels: Array<{ name: string; confidence: number }>;
+    error?: string | null;
+  } | null,
+  errorBanner?: string,
+) {
   const color = action === 'approve' ? '#16A34A' : '#DC2626';
   const verb = action === 'approve' ? 'Approve' : 'Reject';
+  const isApprove = action === 'approve';
+  const isFlagged = isApprove && moderation?.status === 'flagged';
+  const isScanError = isApprove && moderation?.status === 'error';
+
+  const flaggedHtml = isFlagged
+    ? `<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px 16px;margin:16px 0;text-align:left;">
+  <p style="margin:0 0 8px;color:#991B1B;font-weight:600;">⚠️ Banner flagged by automated review</p>
+  ${moderation!.labels.length > 0
+    ? `<p style="margin:0;color:#7F1D1D;font-size:13px;">${moderation!.labels
+        .slice(0, 5)
+        .map((l) => `${escapeHtml(l.name)} (${Math.round(l.confidence)}%)`)
+        .join(', ')}</p>`
+    : `<p style="margin:0;color:#7F1D1D;font-size:13px;">No label detail captured.</p>`}
+  <p style="margin:8px 0 0;color:#7F1D1D;font-size:12px;">Approving this ad requires a written override reason.</p>
+</div>
+<label for="override_reason" style="display:block;text-align:left;margin:12px 0 4px;font-size:14px;color:#374151;">Override reason (required, 10–2000 chars)</label>
+<textarea id="override_reason" name="override_reason" rows="4" required minlength="10" maxlength="2000" style="width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:6px;font-family:inherit;font-size:14px;" placeholder="Why is this banner acceptable despite the automated flag?"></textarea>`
+    : '';
+
+  const scanErrorHtml = isScanError
+    ? `<div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:12px 16px;margin:16px 0;text-align:left;">
+  <p style="margin:0;color:#92400E;font-weight:600;font-size:14px;">Banner could not be scanned</p>
+  <p style="margin:4px 0 0;color:#78350F;font-size:12px;">${escapeHtml((moderation?.error || 'Unknown scan error').slice(0, 200))}</p>
+</div>`
+    : '';
+
+  const topErrorHtml = errorBanner
+    ? `<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 12px;margin:8px 0;text-align:left;color:#991B1B;font-size:13px;">${escapeHtml(errorBanner)}</div>`
+    : '';
+
+  // The submit handler builds a JSON body including the override fields when
+  // present and POSTs to the same URL with the token still in the query string.
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${verb} Ad</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:540px;margin:60px auto;padding:20px;text-align:center;">
 <h2>${verb} this ad?</h2>
 <p style="color:#374151;">Ad: <strong>${safeName}</strong></p>
-<form method="POST" action="?token=${encodeURIComponent(token)}">
-<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:16px;">${verb} Ad</button>
+${topErrorHtml}
+${flaggedHtml}
+${scanErrorHtml}
+<form id="moderation-form" onsubmit="return submitModeration(event)">
+  <button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:16px;">${verb} Ad</button>
 </form>
-<p style="margin-top:24px;color:#9CA3AF;font-size:12px;">Click the button to confirm. This link is single-use.</p>
+<p id="moderation-status" style="margin-top:16px;color:#6B7280;font-size:13px;"></p>
+<p style="margin-top:24px;color:#9CA3AF;font-size:12px;">Click the button to confirm.</p>
+<script>
+async function submitModeration(event) {
+  event.preventDefault();
+  const statusEl = document.getElementById('moderation-status');
+  statusEl.textContent = 'Submitting...';
+  const body = {};
+  const reasonEl = document.getElementById('override_reason');
+  if (reasonEl) {
+    const reason = reasonEl.value.trim();
+    if (!reason || reason.length < 10) {
+      statusEl.textContent = 'Override reason must be at least 10 characters.';
+      statusEl.style.color = '#DC2626';
+      return false;
+    }
+    body.override_banner_flag = true;
+    body.override_reason = reason;
+  }
+  try {
+    const res = await fetch(window.location.pathname + window.location.search, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/html' },
+      body: JSON.stringify(body),
+    });
+    const html = await res.text();
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (err) {
+    statusEl.textContent = 'Network error. Please retry.';
+    statusEl.style.color = '#DC2626';
+  }
+  return false;
+}
+</script>
 </body></html>`;
 }
 
@@ -1064,6 +1233,41 @@ function confirmationForm(action: string, adId: string, token: string, safeName:
 // GET with token → shows confirmation form (safe from email scanners)
 // POST with token → performs the approval
 // POST with admin auth → performs the approval (admin dashboard)
+/** Fetch the moderation fields needed to render the confirmation form when the
+ *  banner has been flagged or could not be scanned. Returns null when the ad
+ *  does not exist (caller should 404). */
+async function loadAdModerationSummary(id: string) {
+  const ad = await prisma.ad.findUnique({
+    where: { id },
+    select: {
+      business_name: true,
+      banner_moderation_status: true,
+      banner_moderation_labels: true,
+      banner_moderation_score: true,
+      banner_moderation_error: true,
+    },
+  });
+  if (!ad) return null;
+  const rawLabels = ad.banner_moderation_labels as any;
+  const labels: Array<{ name: string; confidence: number }> = Array.isArray(rawLabels)
+    ? rawLabels
+        .filter((l: any) => l && typeof l.name === 'string')
+        .map((l: any) => ({
+          name: String(l.name),
+          confidence: Number(l.confidence) || 0,
+        }))
+    : [];
+  return {
+    businessName: ad.business_name || 'Unknown',
+    moderation: {
+      status: (ad.banner_moderation_status as 'clean' | 'flagged' | 'error' | null) || null,
+      score: ad.banner_moderation_score,
+      labels,
+      error: ad.banner_moderation_error,
+    },
+  };
+}
+
 async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
@@ -1085,9 +1289,16 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       }
       // GET: show confirmation form, don't perform the action
       if (req.method === 'GET') {
-        const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
+        const summary = await loadAdModerationSummary(id);
+        if (!summary) return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
         return res.send(
-          confirmationForm('approve', id, token, escapeHtml(ad?.business_name || 'Unknown'))
+          confirmationForm(
+            'approve',
+            id,
+            token,
+            escapeHtml(summary.businessName),
+            summary.moderation
+          )
         );
       }
     } else {
@@ -1095,16 +1306,45 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
-    const result = await approveAd(
-      id,
-      typeof req.body?.note === 'string' ? req.body.note.trim() : null
-    );
+    const body = req.body || {};
+    const note = typeof body.note === 'string' ? body.note.trim() : null;
+    const overrideRequested = isTruthyFlag(body.override_banner_flag);
+    const overrideReasonRaw = typeof body.override_reason === 'string' ? body.override_reason.trim() : '';
+    const bannerOverride =
+      overrideRequested && overrideReasonRaw
+        ? { reason: overrideReasonRaw }
+        : undefined;
+
+    const result = await approveAd(id, note, req.user?.id || null, bannerOverride);
     if (result.error) {
+      // Special case: flagged-banner 409 from the token-POST path re-renders the
+      // confirmation form with the override UI so the admin can supply a reason
+      // inline instead of hitting a dead-end error page.
+      if (
+        result.error === 'banner_moderation_flag_requires_override' &&
+        req.method === 'POST' &&
+        token
+      ) {
+        const summary = await loadAdModerationSummary(id);
+        return res.status(409).send(
+          confirmationForm(
+            'approve',
+            id,
+            token,
+            escapeHtml(summary?.businessName || 'Unknown'),
+            (result as any).moderation,
+            'This banner was flagged. Provide an override reason to approve.'
+          )
+        );
+      }
       return req.method === 'POST' && token
         ? res
             .status(result.status!)
             .send(confirmationPage('Error', escapeHtml(result.error), false))
-        : res.status(result.status!).json({ error: result.error });
+        : res.status(result.status!).json({
+            error: result.error,
+            ...((result as any).moderation ? { moderation: (result as any).moderation } : {}),
+          });
     }
 
     return req.method === 'POST' && token
@@ -1122,10 +1362,20 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
   }
 }
 
-adsRouter.get('/:id([a-z0-9]{15,50})/approve', authMiddleware as any, handleAdApprove as any);
+adsRouter.get(
+  '/:id([a-z0-9]{15,50})/approve',
+  requireAuth as any,
+  requireVerified as any,
+  requireAdmin as any,
+  adModerationLimiter as any,
+  handleAdApprove as any
+);
 adsRouter.post(
   '/:id([a-z0-9]{15,50})/approve',
-  requireAuthUnlessToken as any,
+  requireAuth as any,
+  requireVerified as any,
+  requireAdmin as any,
+  adModerationLimiter as any,
   handleAdApprove as any
 );
 
@@ -1184,32 +1434,57 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
   }
 }
 
-adsRouter.get('/:id([a-z0-9]{15,50})/reject', authMiddleware as any, handleAdReject as any);
+adsRouter.get(
+  '/:id([a-z0-9]{15,50})/reject',
+  requireAuth as any,
+  requireVerified as any,
+  requireAdmin as any,
+  adModerationLimiter as any,
+  handleAdReject as any
+);
 adsRouter.post(
   '/:id([a-z0-9]{15,50})/reject',
-  requireAuthUnlessToken as any,
+  requireAuth as any,
+  requireVerified as any,
+  requireAdmin as any,
+  adModerationLimiter as any,
   handleAdReject as any
 );
 
-// Admin: Review an ad (approve or reject) — used by admin-ads screen
+// Admin: Review an ad (approve or reject) — used by admin-ads screen.
+// Auth chain mirrors the token-link moderation routes so the dashboard
+// path can't be used by an unverified admin when the email-link path can't.
 adsRouter.post(
   '/:id([a-z0-9]{15,50})/review',
+  requireAuth as any,
+  requireVerified as any,
   requireAdmin as any,
+  adModerationLimiter as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const id = String(req.params.id);
     const reviewSchema = z.object({
       action: z.enum(['approve', 'reject']),
       note: z.string().max(2000).optional(),
+      override_banner_flag: z.boolean().optional(),
+      override_reason: z.string().max(2000).optional(),
     });
     const parsed = reviewSchema.safeParse(req.body);
     if (!parsed.success)
       return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-    const { action, note: rawNote } = parsed.data;
+    const { action, note: rawNote, override_banner_flag, override_reason } = parsed.data;
     const note = rawNote?.trim() || null;
 
     if (action === 'approve') {
-      const result = await approveAd(id, note);
-      if (result.error) return res.status(result.status!).json({ error: result.error });
+      const overrideReasonTrim = override_reason?.trim() || '';
+      const bannerOverride =
+        override_banner_flag && overrideReasonTrim ? { reason: overrideReasonTrim } : undefined;
+      const result = await approveAd(id, note, req.user?.id || null, bannerOverride);
+      if (result.error) {
+        return res.status(result.status!).json({
+          error: result.error,
+          ...((result as any).moderation ? { moderation: (result as any).moderation } : {}),
+        });
+      }
       return res.json(result.ad);
     } else {
       const result = await rejectAd(id, note);

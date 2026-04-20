@@ -249,20 +249,23 @@ export const auth = {
     if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
-  async me() {
+  async me(config?: { force?: boolean }) {
+    if (config?.force) {
+      invalidateMeCache();
+    }
     // Return cached response if still fresh (30 s TTL)
     if (_meCacheData && Date.now() - _meCacheTs < ME_CACHE_TTL_MS) {
       return _meCacheData;
     }
     await loadToken();
-    const options = {
+    const requestOptions = {
       headers: {
         'Cache-Control': 'no-store',
         Pragma: 'no-cache',
         'If-None-Match': '',
       },
     };
-    const data = await httpGet('/me', options);
+    const data = await httpGet('/me', requestOptions);
     if (data && !data.error) {
       _meCacheData = data;
       _meCacheTs = Date.now();

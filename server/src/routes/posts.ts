@@ -17,6 +17,7 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import crypto from 'crypto';
+import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 
 export const postsRouter = Router();
 registerIdValidation(postsRouter);
@@ -108,8 +109,6 @@ const serializePoll = (poll: any, postContent: string | null, userVote: string |
   };
 };
 
-const MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
-
 /** Check if user is coach/owner of any team associated with the post (team_id or game's teams) */
 async function isCoachOfPostTeam(
   userId: string,
@@ -125,16 +124,7 @@ async function isCoachOfPostTeam(
     if (game?.home_team_id) teamIds.push(game.home_team_id);
     if (game?.away_team_id) teamIds.push(game.away_team_id);
   }
-  if (teamIds.length === 0) return false;
-  const membership = await prisma.teamMembership.findFirst({
-    where: {
-      team_id: { in: teamIds },
-      user_id: userId,
-      role: { in: [...MANAGEMENT_ROLES] },
-      status: 'active',
-    },
-  });
-  return !!membership;
+  return canManageAnyTeam(userId, teamIds);
 }
 
 /** Time-decay trending score: upvotes / (hours_since_posted + 2)^1.5 */
@@ -937,18 +927,11 @@ postsRouter.post(
     if (data.team_id) {
       const team = await prisma.team.findUnique({ where: { id: data.team_id } });
       if (!team) return res.status(404).json({ error: 'Team not found' });
-      const membership = await prisma.teamMembership.findFirst({
-        where: {
-          team_id: data.team_id,
-          user_id: req.user.id,
-          role: { in: [...MANAGEMENT_ROLES] },
-          status: 'active',
-        },
-      });
-      if (!membership) {
+      const canManage = await canManageTeamScoped(req.user.id, data.team_id);
+      if (!canManage) {
         return res
           .status(403)
-          .json({ error: 'Only team coaches or owners can post to their team page' });
+          .json({ error: 'Only team staff or organization admins can post to their team page' });
       }
       finalTeamId = data.team_id;
     }
@@ -1755,7 +1738,7 @@ postsRouter.delete(
     try {
       const post = await prisma.post.findFirst({
         where: { id: postId, deleted_at: null },
-        select: { id: true, author_id: true, team_id: true, game_id: true },
+        select: { id: true, author_id: true, team_id: true, game_id: true, media_url: true },
       });
 
       if (!post) {
@@ -1772,7 +1755,51 @@ postsRouter.delete(
       }
 
       const deletedAt = new Date();
-      await prisma.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
+      await prisma.$transaction(async (tx) => {
+        const commentIds = await tx.comment.findMany({
+          where: { post_id: postId },
+          select: { id: true },
+        });
+        const notificationWhere: any = { post_id: postId };
+        if (commentIds.length > 0) {
+          notificationWhere.OR = [
+            { post_id: postId },
+            { comment_id: { in: commentIds.map((comment) => comment.id) } },
+          ];
+          delete notificationWhere.post_id;
+        }
+
+        await tx.notification.deleteMany({ where: notificationWhere });
+        await tx.post.update({ where: { id: postId }, data: { deleted_at: deletedAt } });
+      });
+
+      // Destroy the Cloudinary asset so deleted media doesn't stay publicly
+      // retrievable by URL. Fire-and-forget — we don't want a Cloudinary hiccup
+      // to block the user's delete action. The `post` row is already soft-deleted
+      // by the update above, so the DB state is consistent regardless of outcome.
+      const mediaUrl = (post as any).media_url as string | null | undefined;
+      if (mediaUrl) {
+        void (async () => {
+          try {
+            const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
+              '../lib/cloudinary.js'
+            );
+            const parsed = extractCloudinaryPublicId(mediaUrl);
+            if (!parsed) return;
+            const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+            if (!result.ok) {
+              console.warn(
+                '[posts] Cloudinary destroy failed for post',
+                postId,
+                parsed.publicId,
+                result.error
+              );
+            }
+          } catch (err) {
+            console.warn('[posts] Cloudinary destroy threw for post', postId, err);
+          }
+        })();
+      }
 
       // Notify post author when admin takes down their post (not when they delete their own)
       if (isAdminUser && !isAuthor && post.author_id) {
@@ -1950,8 +1977,10 @@ postsRouter.delete(
           .json({ error: 'You can only delete your own comments or comments on your posts' });
       }
 
-      // Delete the comment
-      await prisma.comment.delete({ where: { id: commentId } });
+      await prisma.$transaction([
+        prisma.notification.deleteMany({ where: { comment_id: commentId } }),
+        prisma.comment.delete({ where: { id: commentId } }),
+      ]);
 
       res.json({ message: 'Comment deleted successfully' });
     } catch (error) {

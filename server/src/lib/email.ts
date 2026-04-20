@@ -82,6 +82,8 @@ const TEMPLATE_IDS = {
   AD_PENDING_REVIEW: process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID || '',
   AD_APPROVED: process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID || '',
   AD_REJECTED: process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID || '',
+  AD_TAKEN_DOWN_PENDING_REVIEW:
+    process.env.SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID || '',
 
   // Organization approval/rejection (sent to org owner after admin action)
   ORG_APPROVED: process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID || '',
@@ -89,16 +91,35 @@ const TEMPLATE_IDS = {
 
   // Admin confirmation (sent to admin after they approve/reject)
   ADMIN_ACTION_CONFIRMATION: process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID || '',
+
+  // Parental consent for 13-17 users (sent to parent_email on complete-onboarding)
+  PARENTAL_CONSENT_REQUEST: process.env.SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
 
-// Critical for launch — server exits if missing in production
+// Critical for launch — server exits if missing in production.
+// These keys back every transactional template currently exercised by production flows.
 const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'VERIFICATION',
   'PASSWORD_RESET',
   'TEAM_INVITE',
   'ORG_INVITE',
+  'JOIN_REQUEST_ADMIN',
+  'JOIN_REQUEST_APPROVED',
+  'JOIN_REQUEST_DENIED',
+  'EVENT_APPROVED',
+  'EVENT_DENIED',
+  'EVENT_CANCELED',
+  'PAYMENT_FAILED',
+  'SUBSCRIPTION_EXPIRING',
+  'AD_PENDING_REVIEW',
+  'AD_APPROVED',
+  'AD_REJECTED',
+  'ORG_APPROVED',
+  'ORG_DENIED',
+  'ADMIN_ACTION_CONFIRMATION',
+  'PARENTAL_CONSENT_REQUEST',
 ];
 
 // All templates are now mandatory — no recommended list
@@ -306,6 +327,34 @@ export async function sendAdRejectedEmail(params: {
   );
 }
 
+export async function sendAdTakenDownPendingReviewEmail(params: {
+  to: string;
+  businessName?: string;
+  reason?: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.AD_TAKEN_DOWN_PENDING_REVIEW;
+  if (!templateId) {
+    console.warn(
+      '[email] Missing SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID — advertiser will not receive takedown email'
+    );
+    return false;
+  }
+
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Ad update for "${params.businessName || 'your business'}"`,
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || 'your business',
+      review_reason: params.reason || '',
+      support_email: CUSTOMER_SERVICE_EMAIL,
+      app_url: APP_BASE_URL,
+    },
+    `Ad takedown pending-review email sent to ${params.to}`
+  );
+}
+
 // sendDormantUserDigestEmail removed — non-mandatory
 
 export async function sendEventApprovedEmail(params: any): Promise<boolean> {
@@ -407,6 +456,48 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
  * Send verification email with 6-digit code
  * Uses SendGrid dynamic template
  */
+/**
+ * Send the parental consent request email to the minor's parent.
+ * The `consentToken` is the RAW token — hashed form is already stored on the
+ * user row. The URL format matches the existing email-link moderation pattern
+ * (token in query string, server-rendered confirmation page on click).
+ */
+export async function sendParentalConsentRequestEmail(params: {
+  to: string;
+  minorDisplayName?: string;
+  minorEmail?: string;
+  consentToken: string;
+  expiresInDays?: number;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.PARENTAL_CONSENT_REQUEST;
+  if (!templateId) {
+    console.error(
+      '[email] Missing SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID — parent will not receive consent email'
+    );
+    return false;
+  }
+  const approveUrl = `${API_BASE_URL}/auth/parental-consent/${encodeURIComponent(
+    params.consentToken
+  )}?action=approve`;
+  const denyUrl = `${API_BASE_URL}/auth/parental-consent/${encodeURIComponent(
+    params.consentToken
+  )}?action=deny`;
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    `Approve ${params.minorDisplayName || 'your child'}'s VarsityHub account`,
+    {
+      ...getCommonTemplateData(),
+      minor_display_name: params.minorDisplayName || 'your child',
+      minor_email: params.minorEmail || '',
+      approve_url: approveUrl,
+      deny_url: denyUrl,
+      expires_in_days: params.expiresInDays ?? 14,
+    },
+    `Parental consent request sent to ${params.to}`
+  );
+}
+
 export async function sendVerificationEmail(
   email: string,
   token: string,
