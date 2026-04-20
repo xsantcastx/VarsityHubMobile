@@ -1,3 +1,9 @@
+/**
+ * Ad calendar pricing is **per calendar week block**, not per day:
+ * - One fee covers all selected Mon–Thu days in that week (weekday block).
+ * - One fee covers all selected Fri–Sun days in that week (weekend block).
+ * UI copy must not imply a per-day rate unless product intentionally changes this model.
+ */
 const WEEKDAY_BLOCK_PRICE = 4.99; // USD per Mon–Thu slot
 const WEEKEND_BLOCK_PRICE = 7.99; // USD per Fri–Sun slot
 

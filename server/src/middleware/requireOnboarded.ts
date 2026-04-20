@@ -6,6 +6,39 @@ import { updateUserAndInvalidate } from '../lib/userCache.js';
 import { isMinor } from '../lib/userAge.js';
 
 /**
+ * Fans can get stuck with onboarding_completed=false after OAuth or legacy flows
+ * even when profile fields are complete. Heal in middleware (server-only) so
+ * ads, comments, and posts are not blocked incorrectly. Coaches are never auto-healed.
+ */
+async function healFanOnboardingIfEligible(
+  userId: string,
+  prefs: Record<string, unknown> | null | undefined
+): Promise<Record<string, unknown> | null> {
+  if (prefs?.onboarding_completed === true) return null;
+  const role = String(prefs?.role || 'fan');
+  if (role === 'coach') return null;
+
+  const row = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { username: true, email_verified: true, preferences: true },
+  });
+  if (!row?.email_verified || !row.username) return null;
+  const p = (row.preferences as Record<string, unknown>) || {};
+  const dob = (p.dob || p.date_of_birth) as string | undefined;
+  const zip = (p.zip_code || p.zip) as string | undefined;
+  if (!dob || !String(dob).trim()) return null;
+  if (!zip || !String(zip).trim()) return null;
+
+  const merged = { ...p, onboarding_completed: true };
+  const updated = await updateUserAndInvalidate(prisma, {
+    where: { id: userId },
+    data: { preferences: merged },
+  });
+  console.warn('[requireOnboarded] Healed stuck onboarding_completed for fan', { userId });
+  return (updated.preferences as Record<string, unknown>) || merged;
+}
+
+/**
  * Middleware that rejects requests from users who haven't completed onboarding.
  * Also blocks coaches with PENDING approval_status from coach-only actions.
  * For coaches, verifies their org is admin_approved (god-admin gated).
@@ -70,6 +103,11 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     (req.path === '/' || req.path === '/create');
   if (req.body?.onboarding === true && isTeamsCreateRoute && prefs?.onboarding_completed !== true && prefs?.role === 'coach') {
     return next();
+  }
+
+  if (prefs?.onboarding_completed !== true) {
+    const healed = await healFanOnboardingIfEligible(req.user.id, prefs);
+    if (healed) prefs = healed;
   }
 
   if (prefs?.onboarding_completed !== true) {

@@ -1,112 +1,124 @@
----
-# VarsityHub Mobile — Security Scan Report
+# Security Scan Report
+Date: 2026-04-10
+Codebase: VarsityHub Mobile
+Prior scan: 2026-04-03
 
-**Date:** 2026-04-01
-**Scan type:** Automated scheduled audit
-**Scope:** Full codebase — client (React Native/Expo) + server (Express/Prisma)
-
----
 
 ## Summary
-
-| Severity | Count |
-|----------|---------|
-| HIGH     | 1     |
-| MEDIUM   | 3     |
-| LOW      | 2     |
-| PASS     | 10+   |
+| Severity | Count | Status vs Prior Scan |
+|----------|-------|----------------------|
+| HIGH     | 3     | All 3 remain open (unchanged) |
+| MEDIUM   | 4     | 3 carried over, 1 new |
+| LOW      | 2     | 1 carried over, 1 new |
+| INFO     | 2     | Unchanged |
+| **Total**| **11**| |
 
 ---
-
 ## Findings
-### HIGH
 
-#### 1. Google Maps API Key Hardcoded in Version-Controlled Config Files
-**Files:** `app.json:172`, `eas.json:93`
-**Key:** `AIzaSyDhct-4heIbBF1w9l_64SC8VafmyQWWQlg`
+### [HIGH] Live API Keys Committed to Git-Tracked Files
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** app.json:170-175, eas.json:93-94
+**Description:** EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY (pk_live_51Rtgd...), EXPO_PUBLIC_GOOGLE_MAPS_API_KEY (AIzaSyDhct...), EXPO_PUBLIC_POSTHOG_API_KEY (phc_8y7VeT...) hardcoded in git-tracked files. Same values in app.config.js. All baked into the app bundle.
+**Risk:** Maps key can accumulate billing charges. PostHog key allows fake analytics injection. All exposed if repo becomes public.
+**Recommendation:** Move all EXPO_PUBLIC_* production values to EAS secrets. Remove hardcoded fallbacks from app.config.js. Restrict Maps key to iOS bundle ID + Android package in Google Cloud Console.
+---
+### [HIGH] plan Preference Is Client-Settable - Bypasses Paid Feature Gates
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** server/src/routes/auth.ts:1114-1119, auth.ts:1144
+**Description:** PROTECTED_PREF_KEYS only strips approval_status, is_admin, paid_by_owner, payment_approved. The 'plan' field (rookie/veteran/legend) is accepted by PATCH /auth/me/preferences Zod schema at line 1144. Any user can POST {plan:legend} to self-upgrade with no payment verification. teams.ts reads prefs.plan for creation limits (Legend=Infinity). ads.ts gate also reads preferences.plan without verifying payment.
+**Risk:** Direct revenue bypass. Any user can self-assign Legend and create unlimited teams/ads for free.
+**Recommendation:** Add 'plan' to PROTECTED_PREF_KEYS at auth.ts:1114. Only server-side payment handlers (Stripe webhook, Apple /verify-receipt, Google Play /verify-purchase) should write this field.
 
-The Google Maps API key is hardcoded in both `app.json` and `eas.json`, both committed to git. Anyone with repo access (or who forks it) obtains this key. If the key has no API restrictions or quota limits in Google Cloud Console, an attacker could make geocoding/Maps API requests and run up costs.
+---
+### [HIGH] Apple Developer Personal Email and Team ID Committed to Git
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** eas.json:111-113, app.config.js:56, app.json:31
+**Description:** appleId: sanchezemil82@gmail.com, appleTeamId: B5H8F69RW5, ascAppId: 6758405187 all in git-tracked files.
+**Risk:** Personal email + team ID enables targeted phishing or social engineering against the Apple Developer account owner.
+**Recommendation:** Remove from eas.json. Use EAS interactive ASC auth or EAS secrets. Replace personal Gmail with a dedicated service Apple ID.
 
-**Recommendation:** Restrict the key in Google Cloud Console to the required APIs and app bundle IDs/SHA fingerprints. Rotate the key and move it to EAS Secrets (`eas secret:create`) rather than hardcoding in `app.json`. The `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` env var pattern already exists; use it via EAS.
+---
+### [MEDIUM] queryRaw LIKE Scan on Serialized JSON - No Index, False Positive Risk
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** server/src/routes/payments.ts:2808-2815
+**Description:** Apple S2S handler searches for user via preferences::text LIKE '%txId%'. Prisma template literal parameterizes correctly - NOT SQL injection. But: full sequential scan on serialized JSON, no index, and false positive risk if transaction ID appears in other preference fields.
+**Recommendation:** Add indexed column apple_original_transaction_id to User model. Replace with prisma.user.findFirst({ where: { apple_original_transaction_id: txId } }).
+---
+### [MEDIUM] Upload Error Message Claims 100 MB When Actual Limit Is 25 MB
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** server/src/routes/uploads.ts:92, uploads.ts:405
+**Description:** multer enforces fileSize: 25MB (line 92), but LIMIT_FILE_SIZE handler at line 405 returns 'File too large. Maximum size is 100MB.' Limit is correctly enforced but message is stale.
+**Risk:** Users will retry with files up to 100 MB which will always fail.
+**Recommendation:** Change uploads.ts:405 to say 'File too large. Maximum size is 25MB.'
+
+---
+### [MEDIUM] Auth Token Stored in sessionStorage on Web Platform
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** api/auth.ts:93-100
+**Description:** On Platform.OS === 'web', JWT tokens fall back to window.sessionStorage. Native iOS/Android correctly use expo-secure-store. Legacy migration path (lines 57-65) reads localStorage and migrates to sessionStorage.
+**Risk:** sessionStorage readable by any JS in same origin. XSS in web version allows token theft. Limited impact since web is secondary.
+**Recommendation:** Accept as known web-platform limitation. Confirm no code path writes tokens to localStorage outside the migration shim.
+
+---
+### [MEDIUM] NEW - Direct sgMail.send() Bypasses EmailService
+**Status:** NEW finding (2026-04-10)
+**File:** server/src/lib/email.ts:460-477
+**Description:** sendAdPendingReviewEmail contains a last-resort fallback that calls sgMail.send() directly after two upstream failures. Violates CLAUDE.md: 'Emails MUST go through EmailService/sendTemplateEmail - never sgMail.send() directly.' Note: SendGridProvider.ts usages are fine (they are the provider implementation).
+**Risk:** Low - fires only after two upstream failures. Bypasses service layer error handling and logging.
+**Recommendation:** Remove the direct sgMail.send() fallback at email.ts:460-477. The sendEmail() call at line 455 is already a sufficient fallback.
+---
+### [LOW] AsyncStorage Stores blocked_users Without Encryption
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** api/settings.ts
+**Description:** blocked_users (user ID array), dm_policy, private_account stored in AsyncStorage (unencrypted). Auth tokens correctly in SecureStore.
+**Risk:** On rooted/jailbroken device attacker could read blocked user IDs. Not a credential theft risk.
+**Recommendation:** Accept for non-credential data. Migrate blocked_users to expo-secure-store if privacy becomes a concern.
+
+---
+### [LOW] NEW - dbBackupSync Uses Unsafe Prisma Raw Query APIs
+**Status:** NEW finding (2026-04-10)
+**File:** server/src/lib/dbBackupSync.ts:104, 107, 136, 165
+**Description:** Database backup utility uses $queryRawUnsafe and $executeRawUnsafe. All inputs are internal: table names from hardcoded TABLES_IN_ORDER constant, column names from Object.keys(rows[0]), values parameterized with $1..$N. Not exploitable currently. But Unsafe APIs mean a future developer could add user-controlled input without realizing parameterization is bypassed.
+**Risk:** Low currently. Future maintenance risk.
+**Recommendation:** Add code comments on each Unsafe call noting all inputs are DB-internal. Low urgency.
+
+---
+### [INFO] GitHub Repository URL Embedded in App Bundle
+**Status:** OPEN - unchanged since 2026-04-03
+**File:** app.config.js:35
+**Description:** https://github.com/xsantcastx/VarsityHubMobile hardcoded in githubUrl extra, compiled into the app bundle.
+**Risk:** Low - leaks GitHub username and repo name if private.
+**Recommendation:** Remove githubUrl if the repository is private.
+
+---
+### [INFO] Redis eval() Usage Is Safe - Not JavaScript eval()
+**Status:** Unchanged since 2026-04-03
+**File:** server/src/lib/redisRateLimit.ts, server/src/lib/distributedLock.ts
+**Description:** redis.eval() calls are Redis server-side Lua scripting, not JavaScript eval(). Scripts are hardcoded with no user input path.
+**Risk:** None.
 
 ---
 
-### MEDIUM
+## Clean Areas (Verified 2026-04-10)
 
-#### 2. Stripe Live Publishable Key Hardcoded in Version-Controlled Config
-**Files:** `app.json:171`, `eas.json:93`
-**Key prefix:** `pk_live_51Rtgd...`
+### XSS Vectors
+No dangerouslySetInnerHTML found. No WebView components in the codebase. No eval() or new Function() in application code. SVG uploads explicitly blocked (uploads.ts:83). User-generated content rendered through React Native Text/Image only.
 
-The Stripe publishable key is hardcoded in committed files. Publishable keys cannot initiate charges or access account data — they are intentionally public-facing for client-side tokenization. However, hardcoding a live key in version control means it appears in git history and any forks. A compromised publishable key can be used for card testing (carding) against the Stripe account, potentially triggering fraud flags.
+### SQL Injection
+All route-level queries use Prisma ORM with parameterized tagged template literals. $queryRaw in gameStories.ts:184 and payments.ts:2811 are properly parameterized. No raw string interpolation into route-level queries.
 
-**Recommendation:** Move to EAS Secrets and remove the literal value from app.json/eas.json. Restrict the key to the app bundle ID in the Stripe dashboard.
+### Auth Middleware
+authMiddleware applied globally at app.ts:177. Grep for req.user without requireAuth in route files returned no matches. Test endpoints gated to NODE_ENV !== 'production'. Swagger UI behind requireAuth + requireAdmin in production.
 
----
+### Token Storage
+JWT access and refresh tokens in expo-secure-store (iOS Keychain / Android Keystore) on native platforms. Only non-sensitive flags use AsyncStorage.
 
-#### 3. `$executeRawUnsafe` Usage in Admin Route
-**File:** `server/src/routes/admin.ts:746-772`
+### Upload Validation
+25 MB size limit enforced at multer layer. MIME type whitelist (no SVG). Magic byte signature validation prevents MIME spoofing. Extension cross-check required.
 
-The `/admin/wipe-production` endpoint uses 30+ `prisma.$executeRawUnsafe(...)` calls. All statements are static string literals with no user input interpolated, so there is no current SQL injection risk. However, `$executeRawUnsafe` bypasses Prisma parameterization. If a future maintainer adds user-controlled values without using tagged template literals, injection would result.
+### Rate Limiting
+Comprehensive coverage: authLimiter (10/15min IP-keyed), passwordResetLimiter (5/hr), oauthLimiter (10/15min), verificationConfirmLimiter (5/15min - prevents 6-digit brute force), uploadLimiter (30/hr), paymentLimiter (10/hr). Redis store used when REDIS_URL is set. DISABLE_RATE_LIMITING never set in Railway production.
 
-**Recommendation:** Replace with `prisma.$executeRaw` tagged template literals which enforce parameterization by design.
-
----
-
-#### 4. `/auth/upgrade-to-coach` Missing Explicit `requireAuth` Middleware
-**File:** `server/src/routes/auth.ts:865`
-
-`requireVerified` internally checks `if (!req.user) return res.status(401)`, so this endpoint IS functionally protected. However, the absent explicit `requireAuth` guard is inconsistent — all other mutating auth routes chain `requireAuth` before `requireVerified`. This is easy to misread in code review and fragile if `requireVerified` is ever refactored.
-
-**Recommendation:** Add `requireAuth as any` before `requireVerified as any` for consistency and defense-in-depth.
-
----
-
-### LOW
-
-#### 5. Known Test Password for Demo Account in Committed Script
-**File:** `server/scripts/create-demo-account.ts:15`
-
-A known password for `demo@varsityhub.app` is committed to the repo. If this account exists in production and the password was never rotated after running the script, it is a known-credential account.
-
-**Recommendation:** Verify the demo account password has been rotated. Load passwords from environment variables in dev scripts to avoid committing any credentials.
-
----
-
-#### 6. `redis.eval()` Flagged — Not a JavaScript eval() Risk
-**Files:** `server/src/lib/distributedLock.ts:82,90`, `server/src/lib/redisRateLimit.ts:138`
-
-All `eval(` matches are `redis.eval()` (Redis Lua script evaluation) using static Lua scripts and fully parameterized arguments. No JavaScript `eval()` with user-controlled input exists anywhere.
-
-**No action required** — documented for completeness.
-
----
-
-## Audit Passes (No Issues Found)
-
-| Area | Result | Notes |
-|------|--------|-------|
-| Token storage | PASS | JWT + refresh tokens use expo-secure-store (iOS Keychain / Android Keystore). AsyncStorage only used for non-sensitive state (onboarding flags, recent searches). |
-| XSS vectors | PASS | No dangerouslySetInnerHTML, no user-controlled eval(), no WebViews found. |
-| SQL injection | PASS | The one $queryRaw with a variable (gameStories.ts:174) uses Prisma tagged template literal (parameterized), plus an alphanumeric regex guard. |
-| Auth bypass | PASS | authMiddleware applied globally (app.ts:177). All sensitive routes chain requireAuth / requireVerified / requireAdmin. requireAdmin re-checks DB for admin email + verification. |
-| Test routes in production | PASS | /test-notifications and /test-emails only mounted when NODE_ENV != production (app.ts:287-288). |
-| Admin route protection | PASS | adminRouter applies adminLimiter globally. Destructive routes additionally require requireVerified + requireAdminMiddleware. Wipe endpoint requires x-confirm-wipe header. |
-| Login rate limiting | PASS | Two layers: parent app limiter (300 req/15min per IP) + per-email Redis counter (5 attempts/15min). |
-| Register rate limiting | PASS | Same dual layer as login. |
-| Password reset rate limiting | PASS | /password/forgot uses per-email Redis counter. /password/reset has failure-based lockout (5 failures = 15min lock). |
-| OAuth rate limiting | PASS | /auth/google and /auth/apple use oauthLimiter (10 req/15min per IP). |
-| File upload validation | PASS | MIME type + extension cross-check whitelist, 100MB limit for media, 5MB for avatars. Rate limiting applied. |
-| .gitignore coverage | PASS | .env, *.p8, *.p12, *.key, *.pem, *.keystore, service-account-key.json, credentials.json all ignored. |
-| Input validation | PASS | All auth endpoints validated with Zod schemas before any processing. |
-
----
-
-## Recommendations by Priority
-
-1. Rotate and restrict the Google Maps API key — already in git history; restrict in Google Cloud Console immediately.
-2. Rotate and restrict the Stripe publishable key — lower urgency, but clean up git exposure.
-3. Move both keys to EAS Secrets to prevent future commits.
-4. Refactor $executeRawUnsafe to $executeRaw tagged templates in admin.ts (safety by construction).
-5. Add explicit requireAuth to /upgrade-to-coach for consistency.
-6. Verify demo account password has been rotated post-script.
----
+### .gitignore Coverage
+server/.env, service-account-key.json, *.key, *.p8, *.p12, *.pem, *.keystore, android/keystore.properties, credentials.json all gitignored. Comprehensive for sensitive file types.

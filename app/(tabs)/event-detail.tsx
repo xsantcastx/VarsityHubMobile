@@ -8,6 +8,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
+import { safeGoBack } from '@/utils/navigation';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
 import { Colors } from '@/constants/Colors';
@@ -271,16 +272,22 @@ export default function EventDetailScreen() {
             </Pressable>
           </View>
         )}
-        {event && !loading && eventHasPassed && (
-          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 16 }}>
+        {event && !loading && !error && eventHasPassed && (
+          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 16, paddingHorizontal: 8 }}>
             <MaterialIcons name="event-busy" size={48} color={theme.mutedText} />
             <Text style={[styles.title, { color: theme.text, textAlign: 'center' }]}>This event has ended</Text>
+            <Text style={{ color: theme.mutedText, textAlign: 'center', fontSize: 15, lineHeight: 22 }}>
+              You can no longer RSVP or change attendance for this event.
+            </Text>
             <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>
               {event.date ? new Date(event.date).toLocaleString() : ''}
             </Text>
-            {event.title && (
+            {event.title ? (
               <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>{event.title}</Text>
-            )}
+            ) : null}
+            <Pressable style={styles.primaryBtn} onPress={() => safeGoBack(router)}>
+              <Text style={styles.primaryBtnText}>Go back</Text>
+            </Pressable>
           </View>
         )}
         {event && !loading && !eventHasPassed && (

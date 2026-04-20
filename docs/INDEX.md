@@ -7,6 +7,10 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Audit Standard](./AUDIT_STANDARD.md)
 - [Audit Execution Guide](./AUDIT_EXECUTION_GUIDE.md)
 - [PR Checklist](./PR_CHECKLIST.md)
+- [Audit Review Gate](./AUDIT_REVIEW_GATE.md)
+- [Audit Commandments](./AUDIT_COMMANDMENTS.md) — one-page summary of audit expectations
+- [Audit Claim Verification](./AUDIT_CLAIM_VERIFICATION.md) — maps external audit claims to current `main`
+- [Railway Email Env Checklist](./RAILWAY_EMAIL_ENV_CHECKLIST.md) — SendGrid/Railway variables vs `email.ts`
 - [Security Architecture Audit (Historical)](./SECURITY_ARCHITECTURE_AUDIT_2026-03.md)
 - [Comprehensive Security Architecture Audit (Historical)](./COMPREHENSIVE_SECURITY_ARCHITECTURE_AUDIT_2026.md)
 

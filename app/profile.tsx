@@ -213,6 +213,20 @@ export default function ProfileScreen() {
       setIsFollowing(previousState); // Revert on error
     } finally {
       setFollowLoading(false);
+      // Fresh server counts (avoid stale _count after follow/unfollow)
+      if (viewingUserId) {
+        void (async () => {
+          try {
+            const u = await User.getPublic(viewingUserId);
+            if (u) {
+              setMe(u);
+              setIsFollowing(!!u.is_following);
+            }
+          } catch {
+            /* ignore */
+          }
+        })();
+      }
     }
   }, [viewingUserId, isFollowing, followLoading]);
 
@@ -759,32 +773,6 @@ export default function ProfileScreen() {
 
         {/* Settings Button & Follow Button - Top Right Corner */}
         <View style={[styles.headerControls, { top: 12 }]}>
-          {/* Follow Button - Only for viewing other users */}
-          {viewingUserId && viewingUserId !== currentUserId ? (
-            <Pressable
-              testID="profile-follow-button"
-              style={[
-                styles.headerFollowButton,
-                isFollowing
-                  ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
-                  : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 },
-                followLoading && { opacity: 0.5 }
-              ]}
-              onPress={handleFollowToggle}
-              disabled={followLoading}
-              accessibilityRole="button"
-              accessibilityLabel={isFollowing ? "Unfollow" : "Follow"}
-            >
-              {isFollowing ? (
-                <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
-              ) : (
-                <>
-                  <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
-                  <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Follow</Text>
-                </>
-              )}
-            </Pressable>
-          ) : null}
           {/* Block & Report menu for other users */}
           {viewingUserId && viewingUserId !== currentUserId ? (
             <Pressable
@@ -858,8 +846,18 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
 
-          {/* Edit/Message button — aligned right, same row as avatar */}
-          <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: 16, paddingBottom: 8 }}>
+          {/* Edit (self) or Message + Follow (others) — one compact row */}
+          <View
+            style={{
+              flex: 1,
+              alignItems: 'flex-end',
+              justifyContent: 'flex-end',
+              paddingRight: 12,
+              paddingBottom: 8,
+              flexDirection: 'row',
+              gap: 8,
+            }}
+          >
             {(!viewingUserId || viewingUserId === currentUserId) && (
               <Pressable
                 testID="profile-edit-button"
@@ -872,16 +870,41 @@ export default function ProfileScreen() {
               </Pressable>
             )}
             {viewingUserId && viewingUserId !== currentUserId && (
-              <Pressable
-                testID="profile-message-button"
-                style={[styles.editButtonBelowBanner, { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' }]}
-                onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
-                accessibilityRole="button"
-                accessibilityLabel="Send message"
-              >
-                <Ionicons name="chatbubble-outline" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <Text style={[styles.editButtonBelowBannerText, { color: '#FFFFFF' }]}>Message</Text>
-              </Pressable>
+              <>
+                <Pressable
+                  testID="profile-message-button"
+                  style={[styles.headerFollowButton, { borderColor: '#FFFFFF', borderWidth: 1.5, backgroundColor: 'transparent' }]}
+                  onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send message"
+                >
+                  <Ionicons name="chatbubble-outline" size={15} color="#FFFFFF" />
+                  <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Message</Text>
+                </Pressable>
+                <Pressable
+                  testID="profile-follow-button"
+                  style={[
+                    styles.headerFollowButton,
+                    isFollowing
+                      ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
+                      : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 },
+                    followLoading && { opacity: 0.5 },
+                  ]}
+                  onPress={handleFollowToggle}
+                  disabled={followLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel={isFollowing ? 'Unfollow' : 'Follow'}
+                >
+                  {isFollowing ? (
+                    <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
+                  ) : (
+                    <>
+                      <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
+                      <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Follow</Text>
+                    </>
+                  )}
+                </Pressable>
+              </>
             )}
           </View>
 

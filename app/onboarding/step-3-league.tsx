@@ -850,6 +850,7 @@ function Step3League() {
                 value={location}
                 onLocationSelect={handleLocationSelect}
                 placeholder="Start typing an address, school, or city"
+                zipBias={searchZip.replace(/\D/g, '').length === 5 ? searchZip : undefined}
               />
             </View>
             {duplicateOrg && (
