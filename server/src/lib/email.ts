@@ -28,7 +28,7 @@ export async function resolveMinorAuditMetadata(
 ): Promise<Record<string, string> | undefined> {
   if (!email) return undefined;
   try {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } } as any,
       select: { date_of_birth: true, preferences: true } as any,
     });
