@@ -19,7 +19,17 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -64,9 +74,14 @@ const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
   if (!id) return null;
   const media = typeof item?.media_url === 'string' ? item.media_url : null;
-  const explicit = typeof item?.media_type === 'string' ? String(item.media_type).toLowerCase() : null;
+  const explicit =
+    typeof item?.media_type === 'string' ? String(item.media_type).toLowerCase() : null;
   const media_type: 'video' | 'image' = media
-    ? (explicit === 'video' || explicit === 'image' ? (explicit as any) : (VIDEO_EXT.test(media) ? 'video' : 'image'))
+    ? explicit === 'video' || explicit === 'image'
+      ? (explicit as any)
+      : VIDEO_EXT.test(media)
+        ? 'video'
+        : 'image'
     : 'image';
   return {
     id,
@@ -77,7 +92,13 @@ const toFeedPost = (item: any): FeedPost | null => {
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
     bookmarks_count: item?.bookmarks_count ?? 0,
     created_at: item?.created_at ?? null,
-    author: item?.author ? { id: String(item.author.id ?? id), username: item.author.username ?? null, avatar_url: item.author.avatar_url ?? null } : null,
+    author: item?.author
+      ? {
+          id: String(item.author.id ?? id),
+          username: item.author.username ?? null,
+          avatar_url: item.author.avatar_url ?? null,
+        }
+      : null,
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),
@@ -118,7 +139,12 @@ export default function ProfileScreen() {
   const lastUsernameRef = useRef<string | null>(null);
   const meRef = useRef<CurrentUser | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
-    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
+    try {
+      return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts';
+    } catch (error) {
+      console.warn('[profile] Failed to read activeTab from localStorage:', error);
+      return 'posts';
+    }
   });
   const [posts, setPosts] = useState<any[]>([]);
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -131,14 +157,20 @@ export default function ProfileScreen() {
   const [repliesHasMore, setRepliesHasMore] = useState(true);
   const [repliesLoading, setRepliesLoading] = useState(false);
   const repliesRequestInFlight = useRef(false);
-  
+
   const [upvotes, setUpvotes] = useState<any[]>([]);
   const [upvotesCursor, setUpvotesCursor] = useState<string | null>(null);
   const [upvotesHasMore, setUpvotesHasMore] = useState(true);
   const [upvotesLoading, setUpvotesLoading] = useState(false);
   const upvotesRequestInFlight = useRef(false);
   const [sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
-  const [_counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
+  const [_counts, setCounts] = useState<{
+    posts: number;
+    likes: number;
+    comments: number;
+    reposts: number;
+    saves: number;
+  } | null>(null);
   const _rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [_organizations, setOrganizations] = useState<any[]>([]);
@@ -149,7 +181,17 @@ export default function ProfileScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<Array<{ id: string; name: string; logo_url?: string | null; avatar_url?: string | null; role?: string; position?: string | null; jersey_number?: string | number | null }>>([]);
+  const [userTeams, setUserTeams] = useState<
+    Array<{
+      id: string;
+      name: string;
+      logo_url?: string | null;
+      avatar_url?: string | null;
+      role?: string;
+      position?: string | null;
+      jersey_number?: string | number | null;
+    }>
+  >([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
@@ -177,32 +219,44 @@ export default function ProfileScreen() {
       if (isFollowing) {
         await User.unfollow(viewingUserId);
         // Update follower count
-        setMe(prev => prev ? {
-          ...prev,
-          _count: {
-            ...prev._count,
-            followers: Math.max(0, (prev._count?.followers || 0) - 1)
-          }
-        } : null);
+        setMe(prev =>
+          prev
+            ? {
+                ...prev,
+                _count: {
+                  ...prev._count,
+                  followers: Math.max(0, (prev._count?.followers || 0) - 1),
+                },
+              }
+            : null
+        );
       } else {
         await User.follow(viewingUserId);
         // Update follower count
-        setMe(prev => prev ? {
-          ...prev,
-          _count: {
-            ...prev._count,
-            followers: (prev._count?.followers || 0) + 1
-          }
-        } : null);
+        setMe(prev =>
+          prev
+            ? {
+                ...prev,
+                _count: {
+                  ...prev._count,
+                  followers: (prev._count?.followers || 0) + 1,
+                },
+              }
+            : null
+        );
       }
       // Refresh from server to get accurate follower count
       try {
         const refreshed = await User.getPublic(viewingUserId);
         if (refreshed) {
-          setMe(prev => prev ? {
-            ...prev,
-            _count: refreshed._count ?? prev._count,
-          } : null);
+          setMe(prev =>
+            prev
+              ? {
+                  ...prev,
+                  _count: refreshed._count ?? prev._count,
+                }
+              : null
+          );
           setIsFollowing(refreshed.is_following ?? !previousState);
         }
       } catch {
@@ -230,69 +284,89 @@ export default function ProfileScreen() {
     }
   }, [viewingUserId, isFollowing, followLoading]);
 
-  const refreshPosts = useCallback(async (userId: string) => {
-    if (postsRequestInFlight.current) return;
-    if (!userId || userId === 'undefined' || userId === 'null') return;
-    postsRequestInFlight.current = true;
-    setPostsLoading(true);
-    try {
-      const page = await User.postsForProfile(String(userId), { limit: 10, sort });
-      setIfDifferent(setPosts, page.items || []);
-      setPostsCursor(page.nextCursor || null);
-      setPostsHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      postsRequestInFlight.current = false;
-      setPostsLoading(false);
-    }
-  }, [sort, setIfDifferent]);
+  const refreshPosts = useCallback(
+    async (userId: string) => {
+      if (postsRequestInFlight.current) return;
+      if (!userId || userId === 'undefined' || userId === 'null') return;
+      postsRequestInFlight.current = true;
+      setPostsLoading(true);
+      try {
+        const page = await User.postsForProfile(String(userId), { limit: 10, sort });
+        setIfDifferent(setPosts, page.items || []);
+        setPostsCursor(page.nextCursor || null);
+        setPostsHasMore(Boolean(page.nextCursor));
+        if (page.counts) setCounts(page.counts);
+      } finally {
+        postsRequestInFlight.current = false;
+        setPostsLoading(false);
+      }
+    },
+    [sort, setIfDifferent]
+  );
 
-  const refreshReplies = useCallback(async (userId: string) => {
-    if (repliesRequestInFlight.current) return;
-    if (!userId || userId === 'undefined' || userId === 'null') return;
-    repliesRequestInFlight.current = true;
-    setRepliesLoading(true);
-    try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: 'comment', sort });
-      setIfDifferent(setReplies, page.items || []);
-      setRepliesCursor(page.nextCursor || null);
-      setRepliesHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      repliesRequestInFlight.current = false;
-      setRepliesLoading(false);
-    }
-  }, [sort, setIfDifferent]);
+  const refreshReplies = useCallback(
+    async (userId: string) => {
+      if (repliesRequestInFlight.current) return;
+      if (!userId || userId === 'undefined' || userId === 'null') return;
+      repliesRequestInFlight.current = true;
+      setRepliesLoading(true);
+      try {
+        const page = await User.interactionsForProfile(String(userId), {
+          limit: 10,
+          type: 'comment',
+          sort,
+        });
+        setIfDifferent(setReplies, page.items || []);
+        setRepliesCursor(page.nextCursor || null);
+        setRepliesHasMore(Boolean(page.nextCursor));
+        if (page.counts) setCounts(page.counts);
+      } finally {
+        repliesRequestInFlight.current = false;
+        setRepliesLoading(false);
+      }
+    },
+    [sort, setIfDifferent]
+  );
 
-  const refreshUpvotes = useCallback(async (userId: string) => {
-    if (upvotesRequestInFlight.current) return;
-    if (!userId || userId === 'undefined' || userId === 'null') return;
-    upvotesRequestInFlight.current = true;
-    setUpvotesLoading(true);
-    try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: 'like', sort });
-      setIfDifferent(setUpvotes, page.items || []);
-      setUpvotesCursor(page.nextCursor || null);
-      setUpvotesHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      upvotesRequestInFlight.current = false;
-      setUpvotesLoading(false);
-    }
-  }, [sort, setIfDifferent]);
+  const refreshUpvotes = useCallback(
+    async (userId: string) => {
+      if (upvotesRequestInFlight.current) return;
+      if (!userId || userId === 'undefined' || userId === 'null') return;
+      upvotesRequestInFlight.current = true;
+      setUpvotesLoading(true);
+      try {
+        const page = await User.interactionsForProfile(String(userId), {
+          limit: 10,
+          type: 'like',
+          sort,
+        });
+        setIfDifferent(setUpvotes, page.items || []);
+        setUpvotesCursor(page.nextCursor || null);
+        setUpvotesHasMore(Boolean(page.nextCursor));
+        if (page.counts) setCounts(page.counts);
+      } finally {
+        upvotesRequestInFlight.current = false;
+        setUpvotesLoading(false);
+      }
+    },
+    [sort, setIfDifferent]
+  );
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
   const _profileResetCount = useRef(0);
-  
+
   const handleAvatarPress = async () => {
     setIsUploadingAvatar(true);
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        Alert.alert(
+          'Permission required',
+          "You've refused to allow this app to access your photos."
+        );
         return;
       }
 
@@ -313,19 +387,23 @@ export default function ProfileScreen() {
       // v1.0.2: force iCloud download before manipulation (fixes "old images" crash)
       const { materializeICloudAssetIfNeeded } = await import('@/utils/materializeICloudAsset');
       const localUri = await materializeICloudAssetIfNeeded(uri);
-      const manipulated = await ImageManipulator.manipulateAsync(localUri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
-      const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
+      const manipulated = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 800 } }],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const name =
+        fileName && String(fileName).includes('.') ? String(fileName) : `avatar_${Date.now()}.jpg`;
 
       // Use shared upload helper with consistent auth/retry logic
       const { url } = await uploadAvatar(null, manipulated.uri, name);
       await User.updateMe({ avatar_url: url });
-      setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
-
-  } catch (error) {
-    console.error('[profile] Avatar upload failed:', error);
-    // Avatar upload failed - error handled via Alert below
-    Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
-  } finally {
+      setMe(prev => (prev ? { ...prev, avatar_url: url } : null));
+    } catch (error) {
+      console.error('[profile] Avatar upload failed:', error);
+      // Avatar upload failed - error handled via Alert below
+      Alert.alert('Upload failed', 'Could not upload your new profile picture. Please try again.');
+    } finally {
       setIsUploadingAvatar(false);
     }
   };
@@ -335,7 +413,10 @@ export default function ProfileScreen() {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        Alert.alert(
+          'Permission required',
+          "You've refused to allow this app to access your photos."
+        );
         return;
       }
 
@@ -356,107 +437,125 @@ export default function ProfileScreen() {
       // v1.0.2: force iCloud download before manipulation
       const { materializeICloudAssetIfNeeded } = await import('@/utils/materializeICloudAsset');
       const localUri = await materializeICloudAssetIfNeeded(uri);
-      const manipulated = await ImageManipulator.manipulateAsync(localUri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
-      const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
-      
+      const manipulated = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const name =
+        fileName && String(fileName).includes('.')
+          ? String(fileName)
+          : `background_${Date.now()}.jpg`;
+
       const { url } = await uploadAvatar(null, manipulated.uri, name);
       await User.updatePreferences({ header_image_url: url });
-      setMe((prev) => (prev ? { ...prev, preferences: { ...(prev.preferences || {}), header_image_url: url } } : null));
-
-  } catch (error) {
-    console.error('[profile] Background image upload failed:', error);
-    Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
-  } finally {
+      setMe(prev =>
+        prev
+          ? { ...prev, preferences: { ...(prev.preferences || {}), header_image_url: url } }
+          : null
+      );
+    } catch (error) {
+      console.error('[profile] Background image upload failed:', error);
+      Alert.alert('Upload failed', 'Could not upload your background image. Please try again.');
+    } finally {
       setIsUploadingAvatar(false);
     }
   };
 
-  const loadProfile = useCallback(async (options?: { silent?: boolean }) => {
-    if (profileRequestInFlight.current) return;
-    profileRequestInFlight.current = true;
-    
-    // Only show loading skeleton on very first load (initial mount with no data)
-    const isInitialLoad = isInitialMount.current && !hasLoadedOnce.current && !meRef.current;
-    if (!options?.silent && isInitialLoad) {
-      setLoading(true);
-    }
-    // If silent refresh or already loaded, ensure loading is false
-    if (options?.silent || hasLoadedOnce.current) {
-      setLoading(false);
-    }
-    setError(null);
-    
-    try {
-      // Step 1: Get current user first
-      const currentUser: any = await User.me();
-      setCurrentUserId(currentUser?.id || null);
-      
-      let u: any;
-      // If viewing another user's profile
-      if (viewingUserId && viewingUserId !== currentUser?.id) {
-        u = await User.getPublic(viewingUserId);
-        if (u) {
-          setIsFollowing(u.is_following || false);
-        }
-      } else {
-        // Viewing own profile
-        u = currentUser;
+  const loadProfile = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (profileRequestInFlight.current) return;
+      profileRequestInFlight.current = true;
+
+      // Only show loading skeleton on very first load (initial mount with no data)
+      const isInitialLoad = isInitialMount.current && !hasLoadedOnce.current && !meRef.current;
+      if (!options?.silent && isInitialLoad) {
+        setLoading(true);
       }
-      
-      if (u) {
-        meRef.current = u ?? null;
-        setMe(u ?? null);
-      }
-      if (!u?.id) { 
-        setError(viewingUserId ? 'User not found.' : 'You need to sign in to view your profile.');
+      // If silent refresh or already loaded, ensure loading is false
+      if (options?.silent || hasLoadedOnce.current) {
         setLoading(false);
-        return;
       }
+      setError(null);
 
-      // Mark as loaded and not initial mount anymore
-      hasLoadedOnce.current = true;
-      isInitialMount.current = false;
+      try {
+        // Step 1: Get current user first
+        const currentUser: any = await User.me();
+        setCurrentUserId(currentUser?.id || null);
 
-      // Extract theme color from preferences - only for coach/organization accounts
-      const userRole = (u?.preferences?.role || u?.role || '').toLowerCase();
-      const isCoachOrOrg = userRole === 'coach' || userRole === 'admin' || userRole === 'organization';
-      const themeColor = isCoachOrOrg ? (u?.preferences?.theme_color || '#3B82F6') : '#6B7280'; // Default gray for fans
-      setUserThemeColor(themeColor);
-
-      // Load first page for active tab (only if initial load or tab changed)
-      if (isInitialLoad || !options?.silent) {
-        if (activeTab === 'posts') {
-          await refreshPosts(u.id);
-        } else if (activeTab === 'replies') {
-          await refreshReplies(u.id);
-        } else if (activeTab === 'upvotes') {
-          await refreshUpvotes(u.id);
-        }
-      }
-    } catch (e: any) {
-      if (e?.status !== 404) {
-        console.error('[Profile] Failed to load profile:', e);
-      }
-      // Only show error if not silent refresh
-      if (!options?.silent) {
-        if (e && e.status === 401) {
-          setError('You need to sign in to view your profile.');
-        } else if (e?.status === 404 && viewingUserId) {
-          setError('This user was not found or may have been deleted.');
-        } else if (e?.isNetworkError || e?.status === 0) {
-          setError('Unable to connect to server. Please check your internet connection.');
+        let u: any;
+        // If viewing another user's profile
+        if (viewingUserId && viewingUserId !== currentUser?.id) {
+          u = await User.getPublic(viewingUserId);
+          if (u) {
+            setIsFollowing(u.is_following || false);
+          }
         } else {
-          setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile. Please try again.');
+          // Viewing own profile
+          u = currentUser;
         }
-        // Clear me on error to prevent stale data
-        setMe(null);
+
+        if (u) {
+          meRef.current = u ?? null;
+          setMe(u ?? null);
+        }
+        if (!u?.id) {
+          setError(viewingUserId ? 'User not found.' : 'You need to sign in to view your profile.');
+          setLoading(false);
+          return;
+        }
+
+        // Mark as loaded and not initial mount anymore
+        hasLoadedOnce.current = true;
+        isInitialMount.current = false;
+
+        // Extract theme color from preferences - only for coach/organization accounts
+        const userRole = (u?.preferences?.role || u?.role || '').toLowerCase();
+        const isCoachOrOrg =
+          userRole === 'coach' || userRole === 'admin' || userRole === 'organization';
+        const themeColor = isCoachOrOrg ? u?.preferences?.theme_color || '#3B82F6' : '#6B7280'; // Default gray for fans
+        setUserThemeColor(themeColor);
+
+        // Load first page for active tab (only if initial load or tab changed)
+        if (isInitialLoad || !options?.silent) {
+          if (activeTab === 'posts') {
+            await refreshPosts(u.id);
+          } else if (activeTab === 'replies') {
+            await refreshReplies(u.id);
+          } else if (activeTab === 'upvotes') {
+            await refreshUpvotes(u.id);
+          }
+        }
+      } catch (e: any) {
+        if (e?.status !== 404) {
+          console.error('[Profile] Failed to load profile:', e);
+        }
+        // Only show error if not silent refresh
+        if (!options?.silent) {
+          if (e && e.status === 401) {
+            setError('You need to sign in to view your profile.');
+          } else if (e?.status === 404 && viewingUserId) {
+            setError('This user was not found or may have been deleted.');
+          } else if (e?.isNetworkError || e?.status === 0) {
+            setError('Unable to connect to server. Please check your internet connection.');
+          } else {
+            setError(
+              e?.message
+                ? `Unable to load profile: ${e.message}`
+                : 'Unable to load profile. Please try again.'
+            );
+          }
+          // Clear me on error to prevent stale data
+          setMe(null);
+        }
+      } finally {
+        profileRequestInFlight.current = false;
+        setLoading(false);
       }
-    } finally {
-      profileRequestInFlight.current = false;
-      setLoading(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, viewingUserId]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [activeTab, refreshPosts, refreshReplies, refreshUpvotes, viewingUserId]
+  );
 
   // Initial load on mount - only once
   useEffect(() => {
@@ -470,7 +569,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     const currentUsername = userFromHook?.username || userFromAuth?.username;
     const previousUsername = lastUsernameRef.current;
-    
+
     // Only refresh if the username actually changed from what we last saw
     if (currentUsername && currentUsername !== previousUsername) {
       lastUsernameRef.current = currentUsername;
@@ -486,10 +585,9 @@ export default function ProfileScreen() {
     useCallback(() => {
       if (hasLoadedOnce.current) {
         // Refresh hooks first to get latest username
-        Promise.all([
-          refreshUserFromHook().catch(() => {}),
-          loadProfile({ silent: true })
-        ]).catch(() => {});
+        Promise.all([refreshUserFromHook().catch(() => {}), loadProfile({ silent: true })]).catch(
+          () => {}
+        );
       } else if (isInitialMount.current && !profileRequestInFlight.current) {
         void loadProfile();
       }
@@ -500,16 +598,16 @@ export default function ProfileScreen() {
   // Load organizations separately to avoid blocking profile render
   useEffect(() => {
     if (!me?.id) return;
-    
+
     const loadOrganizations = async () => {
       try {
         const myTeams = await Team.list('', true); // mine=true
-        
+
         if (Array.isArray(myTeams) && myTeams.length > 0) {
           // Extract unique organization IDs from teams
           const orgIds = new Set<string>();
           const orgNames = new Set<string>();
-          
+
           myTeams.forEach((team: any) => {
             if (team.organization_id) {
               orgIds.add(team.organization_id);
@@ -525,32 +623,33 @@ export default function ProfileScreen() {
 
           // Try to fetch by ID first
           if (orgIds.size > 0) {
-            const orgPromises = Array.from(orgIds).map(id => 
+            const orgPromises = Array.from(orgIds).map(id =>
               Organization.get(id).catch((_err: any) => null)
             );
-            
+
             const orgsData = await Promise.all(orgPromises);
             const validOrgs = orgsData.filter(org => org !== null);
-            
+
             if (validOrgs.length > 0) {
               setOrganizations(validOrgs);
             }
           }
-          
+
           // If no orgs found by ID, try searching by name
           if (orgIds.size === 0 && orgNames.size > 0) {
-            const searchPromises = Array.from(orgNames).map(name => 
+            const searchPromises = Array.from(orgNames).map(name =>
               Organization.list(name, 5).catch((_err: any) => [])
             );
-            
+
             const searchResults = await Promise.all(searchPromises);
             const flatResults = searchResults.flat();
-            
+
             // Deduplicate by ID
-            const uniqueOrgs = flatResults.filter((org: any, index: number, self: any[]) => 
-              org && org.id && self.findIndex((o: any) => o?.id === org.id) === index
+            const uniqueOrgs = flatResults.filter(
+              (org: any, index: number, self: any[]) =>
+                org && org.id && self.findIndex((o: any) => o?.id === org.id) === index
             );
-            
+
             setOrganizations(uniqueOrgs);
           }
         }
@@ -558,7 +657,7 @@ export default function ProfileScreen() {
         console.error('Failed to load organizations', err);
       }
     };
-    
+
     void loadOrganizations();
   }, [me?.id]);
 
@@ -597,54 +696,79 @@ export default function ProfileScreen() {
         void refreshReplies(String(me.id));
       }
     });
-    return () => { off(); };
+    return () => {
+      off();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, me?.id]);
 
-  const loadMorePosts = useCallback(async (userId: string) => {
-    if (postsLoading || !postsHasMore) return;
-    if (!userId || userId === 'undefined' || userId === 'null') return;
-    setPostsLoading(true);
-    try {
-      const page = await User.postsForProfile(String(userId), { limit: 10, sort, cursor: postsCursor || undefined });
-      setPosts((prev) => [...prev, ...(page.items || [])]);
-      setPostsCursor(page.nextCursor || null);
-      setPostsHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      setPostsLoading(false);
-    }
-  }, [postsCursor, postsHasMore, postsLoading, sort]);
+  const loadMorePosts = useCallback(
+    async (userId: string) => {
+      if (postsLoading || !postsHasMore) return;
+      if (!userId || userId === 'undefined' || userId === 'null') return;
+      setPostsLoading(true);
+      try {
+        const page = await User.postsForProfile(String(userId), {
+          limit: 10,
+          sort,
+          cursor: postsCursor || undefined,
+        });
+        setPosts(prev => [...prev, ...(page.items || [])]);
+        setPostsCursor(page.nextCursor || null);
+        setPostsHasMore(Boolean(page.nextCursor));
+        if (page.counts) setCounts(page.counts);
+      } finally {
+        setPostsLoading(false);
+      }
+    },
+    [postsCursor, postsHasMore, postsLoading, sort]
+  );
 
-  const loadMoreReplies = useCallback(async (userId: string) => {
-    if (repliesLoading || !repliesHasMore) return;
-    if (!userId || userId === 'undefined' || userId === 'null') return;
-    setRepliesLoading(true);
-    try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'comment', cursor: repliesCursor || undefined });
-      setReplies((prev) => [...prev, ...(page.items || [])]);
-      setRepliesCursor(page.nextCursor || null);
-      setRepliesHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      setRepliesLoading(false);
-    }
-  }, [repliesCursor, repliesHasMore, repliesLoading, sort]);
+  const loadMoreReplies = useCallback(
+    async (userId: string) => {
+      if (repliesLoading || !repliesHasMore) return;
+      if (!userId || userId === 'undefined' || userId === 'null') return;
+      setRepliesLoading(true);
+      try {
+        const page = await User.interactionsForProfile(String(userId), {
+          limit: 10,
+          sort,
+          type: 'comment',
+          cursor: repliesCursor || undefined,
+        });
+        setReplies(prev => [...prev, ...(page.items || [])]);
+        setRepliesCursor(page.nextCursor || null);
+        setRepliesHasMore(Boolean(page.nextCursor));
+        if (page.counts) setCounts(page.counts);
+      } finally {
+        setRepliesLoading(false);
+      }
+    },
+    [repliesCursor, repliesHasMore, repliesLoading, sort]
+  );
 
-  const loadMoreUpvotes = useCallback(async (userId: string) => {
-    if (upvotesLoading || !upvotesHasMore) return;
-    if (!userId || userId === 'undefined' || userId === 'null') return;
-    setUpvotesLoading(true);
-    try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'like', cursor: upvotesCursor || undefined });
-      setUpvotes((prev) => [...prev, ...(page.items || [])]);
-      setUpvotesCursor(page.nextCursor || null);
-      setUpvotesHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      setUpvotesLoading(false);
-    }
-  }, [upvotesCursor, upvotesHasMore, upvotesLoading, sort]);
+  const loadMoreUpvotes = useCallback(
+    async (userId: string) => {
+      if (upvotesLoading || !upvotesHasMore) return;
+      if (!userId || userId === 'undefined' || userId === 'null') return;
+      setUpvotesLoading(true);
+      try {
+        const page = await User.interactionsForProfile(String(userId), {
+          limit: 10,
+          sort,
+          type: 'like',
+          cursor: upvotesCursor || undefined,
+        });
+        setUpvotes(prev => [...prev, ...(page.items || [])]);
+        setUpvotesCursor(page.nextCursor || null);
+        setUpvotesHasMore(Boolean(page.nextCursor));
+        if (page.counts) setCounts(page.counts);
+      } finally {
+        setUpvotesLoading(false);
+      }
+    },
+    [upvotesCursor, upvotesHasMore, upvotesLoading, sort]
+  );
 
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
@@ -652,15 +776,20 @@ export default function ProfileScreen() {
   const approvalStatus = (me as any)?.approval_status;
   // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
   // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
-  const roleLabel = roleRaw === 'coach'
-    ? (approvalStatus === 'APPROVED' ? 'Coach / Organizer' : 'Fan')
-    : roleRaw === 'fan' ? 'Fan' : null;
+  const roleLabel =
+    roleRaw === 'coach'
+      ? approvalStatus === 'APPROVED'
+        ? 'Coach / Organizer'
+        : 'Fan'
+      : roleRaw === 'fan'
+        ? 'Fan'
+        : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || // UUID
     /^c[0-9a-z]{20,}$/.test(s); // CUID
   const displayUsername = me?.username && !isInternalId(me.username) ? `@${me.username}` : 'User';
-  
+
   // Athlete-specific data from preferences (currently unused but may be needed for future features)
   const _isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
   const _jerseyNumber = preferences?.jersey_number || me?.jersey_number;
@@ -670,11 +799,15 @@ export default function ProfileScreen() {
   const _accolades = preferences?.accolades;
   const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
-  const headerImageFocusY = clampValue(typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0, -1, 1);
+  const headerImageFocusY = clampValue(
+    typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0,
+    -1,
+    1
+  );
   const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
-  
+
   // Helper function to determine text color based on background contrast
   // White is default, but switches to black if white has insufficient contrast
   const getTextColorForBackground = (bgColor: string): string => {
@@ -686,16 +819,18 @@ export default function ProfileScreen() {
         const r = parseInt(match[1], 10);
         const g = parseInt(match[2], 10);
         const b = parseInt(match[3], 10);
-        hexColor = `#${[r, g, b].map(x => {
-          const hex = x.toString(16);
-          return hex.length === 1 ? '0' + hex : hex;
-        }).join('')}`;
+        hexColor = `#${[r, g, b]
+          .map(x => {
+            const hex = x.toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+          })
+          .join('')}`;
       }
     }
-    
+
     // Calculate contrast ratio for white text (default)
     const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
-    
+
     // If white has sufficient contrast (>= 3.0 for large text), use white
     // Otherwise, use black
     if (whiteContrast && whiteContrast >= 3.0) {
@@ -703,11 +838,11 @@ export default function ProfileScreen() {
     }
     return '#000000';
   };
-  
+
   // Get the first gradient color to determine text color
   const firstGradientColor = heroGradientColors[0] || userThemeColor;
   const _userNameTextColor = getTextColorForBackground(firstGradientColor);
-  
+
   const _stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
     { label: 'followers', value: me?._count?.followers ?? 0 },
@@ -763,7 +898,18 @@ export default function ProfileScreen() {
             testID="profile-back-button"
             onPress={() => safeGoBack(router)}
             hitSlop={12}
-            style={[styles.controlButton, { position: 'absolute', left: 16, top: 12, zIndex: 200, elevation: 200, backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+            style={[
+              styles.controlButton,
+              {
+                position: 'absolute',
+                left: 16,
+                top: 12,
+                zIndex: 200,
+                elevation: 200,
+                backgroundColor:
+                  colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
@@ -778,22 +924,28 @@ export default function ProfileScreen() {
             <Pressable
               testID="profile-options-button"
               onPress={() => {
-                Alert.alert(
-                  'Options',
-                  undefined,
-                  [
-                    { text: 'Report User', onPress: () => router.push(`/report-abuse?target_type=user&target_id=${encodeURIComponent(viewingUserId)}` as any) },
-                    { text: 'Block User', style: 'destructive', onPress: async () => {
+                Alert.alert('Options', undefined, [
+                  {
+                    text: 'Report User',
+                    onPress: () =>
+                      router.push(
+                        `/report-abuse?target_type=user&target_id=${encodeURIComponent(viewingUserId)}` as any
+                      ),
+                  },
+                  {
+                    text: 'Block User',
+                    style: 'destructive',
+                    onPress: async () => {
                       try {
                         await User.block(viewingUserId);
                         Alert.alert('Blocked', 'This user has been blocked.');
                       } catch (e: any) {
                         Alert.alert('Error', e?.message || 'Failed to block user');
                       }
-                    }},
-                    { text: 'Cancel', style: 'cancel' },
-                  ]
-                );
+                    },
+                  },
+                  { text: 'Cancel', style: 'cancel' },
+                ]);
               }}
               hitSlop={12}
               style={[styles.controlButton, { backgroundColor: 'rgba(0,0,0,0.5)', marginLeft: 6 }]}
@@ -808,7 +960,13 @@ export default function ProfileScreen() {
               testID="profile-settings-button"
               onPress={() => router.push('/settings')}
               hitSlop={12}
-              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+              style={[
+                styles.controlButton,
+                {
+                  backgroundColor:
+                    colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
+                },
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Settings"
             >
@@ -816,25 +974,41 @@ export default function ProfileScreen() {
             </Pressable>
           ) : null}
         </View>
-        
+
         {/* Profile Content - Avatar on Bottom-Left of Banner */}
         <View style={styles.profileContent}>
           {/* Large Avatar - Overlapping Banner */}
           <Pressable
             testID="profile-avatar"
-            onPress={me?.avatar_url
-              ? () => setAvatarViewerVisible(true)
-              : (isOwnProfile ? handleAvatarPress : undefined)}
+            onPress={
+              me?.avatar_url
+                ? () => setAvatarViewerVisible(true)
+                : isOwnProfile
+                  ? handleAvatarPress
+                  : undefined
+            }
             disabled={isOwnProfile && isUploadingAvatar}
             style={styles.avatarSection}
             accessibilityRole="button"
-            accessibilityLabel={isOwnProfile ? "Edit profile picture" : "View profile picture"}
+            accessibilityLabel={isOwnProfile ? 'Edit profile picture' : 'View profile picture'}
           >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
-                <Image source={{ uri: String(me?.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
+                <Image
+                  source={{ uri: String(me?.avatar_url) }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
               ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB' }]}>
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    {
+                      backgroundColor:
+                        colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB',
+                    },
+                  ]}
+                >
                   <Ionicons name="person" size={48} color={theme.mutedText} />
                 </View>
               )}
@@ -861,19 +1035,27 @@ export default function ProfileScreen() {
             {(!viewingUserId || viewingUserId === currentUserId) && (
               <Pressable
                 testID="profile-edit-button"
-                style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
+                style={[
+                  styles.editButtonBelowBanner,
+                  { backgroundColor: theme.surface || theme.background, borderColor: theme.border },
+                ]}
                 onPress={() => void router.push('/edit-profile')}
                 accessibilityRole="button"
                 accessibilityLabel="Edit profile"
               >
-                <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
+                <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>
+                  Edit profile
+                </Text>
               </Pressable>
             )}
             {viewingUserId && viewingUserId !== currentUserId && (
               <>
                 <Pressable
                   testID="profile-message-button"
-                  style={[styles.headerFollowButton, { borderColor: '#FFFFFF', borderWidth: 1.5, backgroundColor: 'transparent' }]}
+                  style={[
+                    styles.headerFollowButton,
+                    { borderColor: '#FFFFFF', borderWidth: 1.5, backgroundColor: 'transparent' },
+                  ]}
                   onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
                   accessibilityRole="button"
                   accessibilityLabel="Send message"
@@ -887,7 +1069,11 @@ export default function ProfileScreen() {
                     styles.headerFollowButton,
                     isFollowing
                       ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
-                      : { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 1.5 },
+                      : {
+                          backgroundColor: 'transparent',
+                          borderColor: '#FFFFFF',
+                          borderWidth: 1.5,
+                        },
                     followLoading && { opacity: 0.5 },
                   ]}
                   onPress={handleFollowToggle}
@@ -900,14 +1086,15 @@ export default function ProfileScreen() {
                   ) : (
                     <>
                       <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
-                      <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Follow</Text>
+                      <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>
+                        Follow
+                      </Text>
                     </>
                   )}
                 </Pressable>
               </>
             )}
           </View>
-
         </View>
       </View>
 
@@ -918,12 +1105,22 @@ export default function ProfileScreen() {
           <View style={styles.nameRow}>
             <Text style={[styles.userName, { color: theme.text }]}>{displayUsername}</Text>
             {roleLabel && (
-              <View style={[styles.roleBadge,
-                roleRaw === 'coach' && (approvalStatus === 'APPROVED' ? styles.coachBadge : styles.fanBadge),
-                roleRaw === 'player' && styles.playerBadge,
-                roleRaw === 'fan' && styles.fanBadge
-              ]}>
-                <Text style={styles.roleText}>{roleRaw === 'coach' ? (approvalStatus === 'APPROVED' ? 'COACH' : 'FAN') : roleRaw.toUpperCase()}</Text>
+              <View
+                style={[
+                  styles.roleBadge,
+                  roleRaw === 'coach' &&
+                    (approvalStatus === 'APPROVED' ? styles.coachBadge : styles.fanBadge),
+                  roleRaw === 'player' && styles.playerBadge,
+                  roleRaw === 'fan' && styles.fanBadge,
+                ]}
+              >
+                <Text style={styles.roleText}>
+                  {roleRaw === 'coach'
+                    ? approvalStatus === 'APPROVED'
+                      ? 'COACH'
+                      : 'FAN'
+                    : roleRaw.toUpperCase()}
+                </Text>
               </View>
             )}
           </View>
@@ -931,60 +1128,128 @@ export default function ProfileScreen() {
 
         {/* User Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
-          {me?.bio && (
-            <Text style={[styles.userBio, { color: theme.text }]}>{me.bio}</Text>
-          )}
-          
+          {me?.bio && <Text style={[styles.userBio, { color: theme.text }]}>{me.bio}</Text>}
+
           {/* Joined Date */}
           {me?.created_at && (
             <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={colorScheme === 'dark' ? theme.mutedText : '#4B5563'} />
-              <Text style={[styles.metaText, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}>
-                Joined {new Date(me.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              <Ionicons
+                name="calendar-outline"
+                size={14}
+                color={colorScheme === 'dark' ? theme.mutedText : '#4B5563'}
+              />
+              <Text
+                style={[
+                  styles.metaText,
+                  { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' },
+                ]}
+              >
+                Joined{' '}
+                {new Date(me.created_at).toLocaleDateString('en-US', {
+                  month: 'long',
+                  year: 'numeric',
+                })}
               </Text>
             </View>
           )}
-          
+
           {/* Following/Followers - Separate with Bold Numbers, tight spacing */}
           <View style={styles.statsRow}>
-            <Pressable style={styles.statTappable} onPress={() => { const uid = viewingUserId || me?.id; if (uid) router.push(`/following?id=${uid}&username=${encodeURIComponent(me?.username || '')}`); }}>
+            <Pressable
+              style={styles.statTappable}
+              onPress={() => {
+                const uid = viewingUserId || me?.id;
+                if (uid)
+                  router.push(
+                    `/following?id=${uid}&username=${encodeURIComponent(me?.username || '')}`
+                  );
+              }}
+            >
               <Text style={[styles.statNumber, { color: theme.text }]}>
                 {me?._count?.following ?? 0}
               </Text>
-              <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Following </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' },
+                ]}
+              >
+                {' '}
+                Following{' '}
+              </Text>
             </Pressable>
-            <Pressable style={styles.statTappable} onPress={() => { const uid = viewingUserId || me?.id; if (uid) router.push(`/followers?id=${uid}&username=${encodeURIComponent(me?.username || '')}`); }}>
+            <Pressable
+              style={styles.statTappable}
+              onPress={() => {
+                const uid = viewingUserId || me?.id;
+                if (uid)
+                  router.push(
+                    `/followers?id=${uid}&username=${encodeURIComponent(me?.username || '')}`
+                  );
+              }}
+            >
               <Text style={[styles.statNumber, { color: theme.text }]}>
                 {me?._count?.followers ?? 0}
               </Text>
-              <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Followers</Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' },
+                ]}
+              >
+                {' '}
+                Followers
+              </Text>
             </Pressable>
           </View>
 
           {/* Teams - Athlete profile section */}
           {userTeams.length > 0 && (
-            <View style={[styles.teamsSection, { borderColor: theme.border, backgroundColor: theme.surface || theme.background }]}>
+            <View
+              style={[
+                styles.teamsSection,
+                { borderColor: theme.border, backgroundColor: theme.surface || theme.background },
+              ]}
+            >
               <Text style={[styles.teamsSectionTitle, { color: theme.text }]}>Teams</Text>
               <View style={styles.teamsList}>
-                {userTeams.map((t) => (
+                {userTeams.map(t => (
                   <Pressable
                     key={t.id}
                     style={({ pressed }) => [
                       styles.teamChip,
-                      { borderColor: theme.border, backgroundColor: pressed ? theme.background : theme.card },
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: pressed ? theme.background : theme.card,
+                      },
                     ]}
-                    onPress={() => void router.push({ pathname: '/team-page', params: { id: t.id, name: t.name } } as any)}
+                    onPress={() =>
+                      void router.push({
+                        pathname: '/team-page',
+                        params: { id: t.id, name: t.name },
+                      } as any)
+                    }
                   >
                     {t.logo_url || t.avatar_url ? (
-                      <Image source={{ uri: t.logo_url || t.avatar_url || '' }} style={styles.teamChipAvatar} contentFit="cover" />
+                      <Image
+                        source={{ uri: t.logo_url || t.avatar_url || '' }}
+                        style={styles.teamChipAvatar}
+                        contentFit="cover"
+                      />
                     ) : (
-                      <View style={[styles.teamChipPlaceholder, { backgroundColor: theme.tint + '30' }]}>
+                      <View
+                        style={[styles.teamChipPlaceholder, { backgroundColor: theme.tint + '30' }]}
+                      >
                         <Ionicons name="people" size={14} color={theme.tint} />
                       </View>
                     )}
-                    <Text style={[styles.teamChipName, { color: theme.text }]} numberOfLines={1}>{t.name}</Text>
+                    <Text style={[styles.teamChipName, { color: theme.text }]} numberOfLines={1}>
+                      {t.name}
+                    </Text>
                     {t.role && (
-                      <Text style={[styles.teamChipRole, { color: theme.mutedText }]}>{String(t.role).replace(/_/g, ' ')}</Text>
+                      <Text style={[styles.teamChipRole, { color: theme.mutedText }]}>
+                        {String(t.role).replace(/_/g, ' ')}
+                      </Text>
                     )}
                     <Ionicons name="chevron-forward" size={12} color={theme.mutedText} />
                   </Pressable>
@@ -999,33 +1264,84 @@ export default function ProfileScreen() {
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
         <Pressable
           testID="profile-posts-tab"
-          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          onPress={() => {
+            setActiveTab('posts');
+            try {
+              globalThis?.localStorage?.setItem('profile.activeTab', 'posts');
+            } catch (error) {
+              if (__DEV__) console.warn('[profile] localStorage error:', error);
+            }
+          }}
+          style={[
+            styles.tab,
+            activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Posts"
           accessibilityState={{ selected: activeTab === 'posts' }}
         >
-          <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'posts' ? theme.tint : theme.mutedText },
+            ]}
+          >
+            Posts
+          </Text>
         </Pressable>
         <Pressable
           testID="profile-replies-tab"
-          onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          onPress={() => {
+            setActiveTab('replies');
+            try {
+              globalThis?.localStorage?.setItem('profile.activeTab', 'replies');
+            } catch (error) {
+              if (__DEV__) console.warn('[profile] localStorage error:', error);
+            }
+          }}
+          style={[
+            styles.tab,
+            activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Replies"
           accessibilityState={{ selected: activeTab === 'replies' }}
         >
-          <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'replies' ? theme.tint : theme.mutedText },
+            ]}
+          >
+            Replies
+          </Text>
         </Pressable>
         <Pressable
           testID="profile-upvotes-tab"
-          onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
-          style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          onPress={() => {
+            setActiveTab('upvotes');
+            try {
+              globalThis?.localStorage?.setItem('profile.activeTab', 'upvotes');
+            } catch (error) {
+              if (__DEV__) console.warn('[profile] localStorage error:', error);
+            }
+          }}
+          style={[
+            styles.tab,
+            activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Upvotes"
           accessibilityState={{ selected: activeTab === 'upvotes' }}
         >
-          <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText },
+            ]}
+          >
+            Upvotes
+          </Text>
         </Pressable>
       </View>
     </>
@@ -1034,21 +1350,30 @@ export default function ProfileScreen() {
   const renderEmptyPosts = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>No posts yet</Text>
-      <Text style={[styles.emptySubtitle, { 
-        color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' // Darker grey for better contrast in light mode
-      }]}>Share your first moment with the community!</Text>
-      <Pressable 
-        onPress={() => void router.push('/create-post')} 
+      <Text
+        style={[
+          styles.emptySubtitle,
+          {
+            color: colorScheme === 'dark' ? theme.mutedText : '#4B5563', // Darker grey for better contrast in light mode
+          },
+        ]}
+      >
+        Share your first moment with the community!
+      </Text>
+      <Pressable
+        onPress={() => void router.push('/create-post')}
         style={({ pressed }) => [
-          styles.createPostButton, 
-          { 
+          styles.createPostButton,
+          {
             backgroundColor: theme.tint,
             borderColor: theme.tint,
             opacity: pressed ? 0.9 : 1,
-          }
+          },
         ]}
       >
-        <Text style={[styles.createPostButtonText, { color: '#FFFFFF', fontWeight: '700' }]}>Create Your First Post</Text>
+        <Text style={[styles.createPostButtonText, { color: '#FFFFFF', fontWeight: '700' }]}>
+          Create Your First Post
+        </Text>
       </Pressable>
     </View>
   );
@@ -1065,27 +1390,47 @@ export default function ProfileScreen() {
     </View>
   );
 
-  const onEndReachedPosts = useCallback(() => { if (me?.id) void loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
-  const onEndReachedReplies = useCallback(() => { if (me?.id) void loadMoreReplies(String(me.id)); }, [me?.id, loadMoreReplies]);
-  const onEndReachedUpvotes = useCallback(() => { if (me?.id) void loadMoreUpvotes(String(me.id)); }, [me?.id, loadMoreUpvotes]);
+  const onEndReachedPosts = useCallback(() => {
+    if (me?.id) void loadMorePosts(String(me.id));
+  }, [me?.id, loadMorePosts]);
+  const onEndReachedReplies = useCallback(() => {
+    if (me?.id) void loadMoreReplies(String(me.id));
+  }, [me?.id, loadMoreReplies]);
+  const onEndReachedUpvotes = useCallback(() => {
+    if (me?.id) void loadMoreUpvotes(String(me.id));
+  }, [me?.id, loadMoreUpvotes]);
 
   // Some interaction items may wrap a post (e.g., { type, post, created_at })
   const unwrapPost = useCallback((item: any) => {
     return item?.post || item?.target?.post || item?.target || item;
   }, []);
 
-  const SkeletonList = useCallback(({ count = 8 }: { count?: number }) => (
-    <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-      {SKELETON_8.slice(0, count).map((_, i) => (
-        <View key={i} style={{ height: 100, backgroundColor: theme.surface || '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
-      ))}
-    </View>
-  ), [theme.surface]);
+  const SkeletonList = useCallback(
+    ({ count = 8 }: { count?: number }) => (
+      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+        {SKELETON_8.slice(0, count).map((_, i) => (
+          <View
+            key={i}
+            style={{
+              height: 100,
+              backgroundColor: theme.surface || '#F3F4F6',
+              borderRadius: 12,
+              marginBottom: 12,
+            }}
+          />
+        ))}
+      </View>
+    ),
+    [theme.surface]
+  );
 
   // Only show loading skeleton on initial load when we have no data
   if (loading && !me && !hasLoadedOnce.current) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <Stack.Screen options={{ title: 'Profile' }} />
         <SkeletonList count={8} />
       </SafeAreaView>
@@ -1094,11 +1439,21 @@ export default function ProfileScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <Stack.Screen options={{ title: 'Profile' }} />
         <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
-          <Ionicons name="alert-circle-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
-          <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>{error}</Text>
+          <Ionicons
+            name="alert-circle-outline"
+            size={48}
+            color={theme.mutedText}
+            style={{ marginBottom: 16 }}
+          />
+          <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>
+            {error}
+          </Text>
           <View style={{ height: 16 }} />
           {error.includes('sign in') ? (
             <Button onPress={() => void router.push('/sign-in')}>
@@ -1117,10 +1472,18 @@ export default function ProfileScreen() {
   if (!me) {
     // Show error state instead of blank screen
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <Stack.Screen options={{ title: 'Profile' }} />
         <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
-          <Ionicons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <Ionicons
+            name="person-outline"
+            size={48}
+            color={theme.mutedText}
+            style={{ marginBottom: 16 }}
+          />
           <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>
             Unable to load profile
           </Text>
@@ -1142,7 +1505,7 @@ export default function ProfileScreen() {
           key={`${activeTab}-grid-2cols`}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
@@ -1159,12 +1522,16 @@ export default function ProfileScreen() {
             const isTextOnly = !thumb;
             return (
               <Pressable
-                style={isTextOnly ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }] : styles.gridItem}
+                style={
+                  isTextOnly
+                    ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
+                    : styles.gridItem
+                }
                 onPress={() => {
                   const mapped = (posts || []).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = mapped[index]?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
@@ -1174,11 +1541,24 @@ export default function ProfileScreen() {
                   <>
                     <View style={styles.gridImageContainer}>
                       {isVideo && !item.preview_url ? (
-                        <View style={[styles.gridImage, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                        <View
+                          style={[
+                            styles.gridImage,
+                            {
+                              backgroundColor: '#000',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                            },
+                          ]}
+                        >
                           <Ionicons name="play-circle" size={32} color="#fff" />
                         </View>
                       ) : (
-                        <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                        <Image
+                          source={{ uri: displayThumb }}
+                          style={styles.gridImage}
+                          contentFit="cover"
+                        />
                       )}
                       <View style={styles.gridImageOverlay} />
                     </View>
@@ -1193,13 +1573,20 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name={isVideo ? "play-circle-outline" : "camera-outline"} size={14} color="#fff" />
+                      <Ionicons
+                        name={isVideo ? 'play-circle-outline' : 'camera-outline'}
+                        size={14}
+                        color="#fff"
+                      />
                     </View>
                   </>
                 ) : (
                   <View style={styles.textCardInner}>
                     {author?.username ? (
-                      <Text numberOfLines={1} style={[styles.textCardAuthor, { color: theme.mutedText }]}>
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.textCardAuthor, { color: theme.mutedText }]}
+                      >
                         @{author.username}
                       </Text>
                     ) : null}
@@ -1209,11 +1596,15 @@ export default function ProfileScreen() {
                     <View style={styles.textCardFooter}>
                       <View style={styles.textCardStat}>
                         <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{likes}</Text>
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
+                          {likes}
+                        </Text>
                       </View>
                       <View style={styles.textCardStat}>
                         <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{comments}</Text>
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
+                          {comments}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -1221,7 +1612,9 @@ export default function ProfileScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+          ListFooterComponent={
+            postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
+          }
         />
       ) : activeTab === 'replies' ? (
         <FlatList
@@ -1250,12 +1643,16 @@ export default function ProfileScreen() {
             const isTextOnly = !thumb;
             return (
               <Pressable
-                style={isTextOnly ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }] : styles.gridItem}
+                style={
+                  isTextOnly
+                    ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
+                    : styles.gridItem
+                }
                 onPress={() => {
                   const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = unwrapPost(replies[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
@@ -1265,11 +1662,24 @@ export default function ProfileScreen() {
                   <>
                     <View style={styles.gridImageContainer}>
                       {isVideo && !postItem?.preview_url ? (
-                        <View style={[styles.gridImage, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                        <View
+                          style={[
+                            styles.gridImage,
+                            {
+                              backgroundColor: '#000',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                            },
+                          ]}
+                        >
                           <Ionicons name="play-circle" size={32} color="#fff" />
                         </View>
                       ) : (
-                        <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                        <Image
+                          source={{ uri: displayThumb }}
+                          style={styles.gridImage}
+                          contentFit="cover"
+                        />
                       )}
                       <View style={styles.gridImageOverlay} />
                     </View>
@@ -1284,13 +1694,20 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name={isVideo ? "play-circle-outline" : "camera-outline"} size={14} color="#fff" />
+                      <Ionicons
+                        name={isVideo ? 'play-circle-outline' : 'camera-outline'}
+                        size={14}
+                        color="#fff"
+                      />
                     </View>
                   </>
                 ) : (
                   <View style={styles.textCardInner}>
                     {author?.username ? (
-                      <Text numberOfLines={1} style={[styles.textCardAuthor, { color: theme.mutedText }]}>
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.textCardAuthor, { color: theme.mutedText }]}
+                      >
                         @{author.username}
                       </Text>
                     ) : null}
@@ -1300,11 +1717,15 @@ export default function ProfileScreen() {
                     <View style={styles.textCardFooter}>
                       <View style={styles.textCardStat}>
                         <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{likes}</Text>
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
+                          {likes}
+                        </Text>
                       </View>
                       <View style={styles.textCardStat}>
                         <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{comments}</Text>
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
+                          {comments}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -1312,7 +1733,9 @@ export default function ProfileScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+          ListFooterComponent={
+            repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
+          }
         />
       ) : (
         <FlatList
@@ -1341,12 +1764,16 @@ export default function ProfileScreen() {
             const isTextOnly = !thumb;
             return (
               <Pressable
-                style={isTextOnly ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }] : styles.gridItem}
+                style={
+                  isTextOnly
+                    ? [styles.gridItem, styles.gridItemTextCard, { backgroundColor: theme.card }]
+                    : styles.gridItem
+                }
                 onPress={() => {
                   const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = unwrapPost(upvotes[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
@@ -1356,11 +1783,24 @@ export default function ProfileScreen() {
                   <>
                     <View style={styles.gridImageContainer}>
                       {isVideo && !postItem?.preview_url ? (
-                        <View style={[styles.gridImage, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
+                        <View
+                          style={[
+                            styles.gridImage,
+                            {
+                              backgroundColor: '#000',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                            },
+                          ]}
+                        >
                           <Ionicons name="play-circle" size={32} color="#fff" />
                         </View>
                       ) : (
-                        <Image source={{ uri: displayThumb }} style={styles.gridImage} contentFit="cover" />
+                        <Image
+                          source={{ uri: displayThumb }}
+                          style={styles.gridImage}
+                          contentFit="cover"
+                        />
                       )}
                       <View style={styles.gridImageOverlay} />
                     </View>
@@ -1375,13 +1815,20 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                     <View style={styles.gridIconBadge}>
-                      <Ionicons name={isVideo ? "play-circle-outline" : "camera-outline"} size={14} color="#fff" />
+                      <Ionicons
+                        name={isVideo ? 'play-circle-outline' : 'camera-outline'}
+                        size={14}
+                        color="#fff"
+                      />
                     </View>
                   </>
                 ) : (
                   <View style={styles.textCardInner}>
                     {author?.username ? (
-                      <Text numberOfLines={1} style={[styles.textCardAuthor, { color: theme.mutedText }]}>
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.textCardAuthor, { color: theme.mutedText }]}
+                      >
                         @{author.username}
                       </Text>
                     ) : null}
@@ -1391,11 +1838,15 @@ export default function ProfileScreen() {
                     <View style={styles.textCardFooter}>
                       <View style={styles.textCardStat}>
                         <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{likes}</Text>
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
+                          {likes}
+                        </Text>
                       </View>
                       <View style={styles.textCardStat}>
                         <Ionicons name="chatbubble-ellipses" size={13} color={theme.mutedText} />
-                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>{comments}</Text>
+                        <Text style={[styles.textCardStatText, { color: theme.mutedText }]}>
+                          {comments}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -1403,7 +1854,9 @@ export default function ProfileScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+          ListFooterComponent={
+            upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
+          }
         />
       )}
 
@@ -1416,19 +1869,35 @@ export default function ProfileScreen() {
         onRequestClose={() => setAvatarViewerVisible(false)}
       >
         <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }}
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.95)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
           onPress={() => setAvatarViewerVisible(false)}
         >
           {me?.avatar_url && (
             <Image
               source={{ uri: String(me.avatar_url) }}
-              style={{ width: SCREEN_WIDTH - 32, height: SCREEN_WIDTH - 32, borderRadius: (SCREEN_WIDTH - 32) / 2 }}
+              style={{
+                width: SCREEN_WIDTH - 32,
+                height: SCREEN_WIDTH - 32,
+                borderRadius: (SCREEN_WIDTH - 32) / 2,
+              }}
               contentFit="cover"
             />
           )}
           <Pressable
             onPress={() => setAvatarViewerVisible(false)}
-            style={{ position: 'absolute', top: insets.top + 12, right: 16, padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 }}
+            style={{
+              position: 'absolute',
+              top: insets.top + 12,
+              right: 16,
+              padding: 8,
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              borderRadius: 20,
+            }}
           >
             <Ionicons name="close" size={24} color="white" />
           </Pressable>
@@ -1441,7 +1910,13 @@ export default function ProfileScreen() {
           showHeader
           initialPosts={viewerItems}
           startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Your posts' : activeTab === 'replies' ? 'Your replies' : 'Your upvotes'}
+          title={
+            activeTab === 'posts'
+              ? 'Your posts'
+              : activeTab === 'replies'
+                ? 'Your replies'
+                : 'Your upvotes'
+          }
         />
       </Modal>
     </SafeAreaView>
@@ -1449,12 +1924,12 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1
+  container: {
+    flex: 1,
   },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center' },
-  
+
   // Header Styles - Exact Match to Reference
   headerContainer: {
     position: 'relative',
@@ -1487,12 +1962,13 @@ const styles = StyleSheet.create({
   },
   headerFollowButton: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 18,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
@@ -1500,7 +1976,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   headerFollowButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   controlButton: {
@@ -1772,10 +2248,10 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     lineHeight: 20,
   },
-  badgesRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 4,
     flexWrap: 'wrap',
   },
@@ -1802,7 +2278,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
-  
+
   // Athletic Stats Card
   statsCard: {
     flexDirection: 'row',
@@ -1829,16 +2305,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
     marginHorizontal: 16,
   },
-  
+
   // Legacy styles kept for existing components
   statValue: { fontSize: 20, fontWeight: '800', color: Colors.light.text },
   name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: Colors.light.text },
   bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
-  editProfileButton: { 
+  editProfileButton: {
     flex: 1,
     height: 44,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   masonryContainer: {
     flexDirection: 'row',
@@ -1856,11 +2332,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 2
+    elevation: 2,
   },
-  tabsContainer: { 
-    flexDirection: 'row', 
-    borderBottomWidth: 1, 
+  tabsContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
     backgroundColor: 'transparent',
     marginTop: 0,
     marginBottom: 0,
@@ -1871,7 +2347,13 @@ const styles = StyleSheet.create({
   activeTab: { borderBottomWidth: 2, borderBottomColor: Colors.light.text },
   tabText: { color: Colors.light.mutedText, fontWeight: '600', fontSize: 15 },
   activeTabText: { color: Colors.light.text },
-  filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 12, backgroundColor: 'transparent' },
+  filtersBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    gap: 12,
+    backgroundColor: 'transparent',
+  },
   segmentedRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
   segmentActive: {},
@@ -1884,11 +2366,11 @@ const styles = StyleSheet.create({
   sortTextActive: { color: 'white' },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
   emptyTitle: { fontSize: 20, fontWeight: '800', color: 'transparent' }, // Will be overridden with theme.text
-  emptySubtitle: { 
+  emptySubtitle: {
     color: 'transparent', // Will be overridden with better contrast color
-    textAlign: 'center', 
-    marginBottom: 20, 
-    fontSize: 15, 
+    textAlign: 'center',
+    marginBottom: 20,
+    fontSize: 15,
     lineHeight: 22,
     fontWeight: '500', // Slightly bolder for better readability
   },
@@ -1918,12 +2400,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginBottom: 12, // Vertical spacing between rows
   },
-  gridItem: { 
-    flex: 1, 
-    aspectRatio: 1, 
+  gridItem: {
+    flex: 1,
+    aspectRatio: 1,
     margin: 0,
     borderRadius: 14, // Rounded corners like event page
-    overflow: 'hidden', 
+    overflow: 'hidden',
     backgroundColor: '#F3F4F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1941,7 +2423,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.05)',
   },
-  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
+  gridImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    position: 'relative',
+  },
   textPostOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -1951,46 +2438,46 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 8,
   },
-  gridTextOnly: { 
-    textAlign: 'center', 
-    color: '#ffffff', 
-    fontWeight: '700', 
-    fontSize: 12, 
+  gridTextOnly: {
+    textAlign: 'center',
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 12,
     lineHeight: 16,
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    textShadowRadius: 2,
   },
-  gridIconBadge: { 
-    position: 'absolute', 
-    bottom: 8, 
-    right: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    width: 28, 
-    height: 28, 
-    alignItems: 'center', 
+  gridIconBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 2
+    shadowRadius: 2,
   },
-  gridCounts: { 
-    position: 'absolute', 
-    left: 8, 
-    bottom: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  gridCounts: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 2
+    shadowRadius: 2,
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
@@ -2031,7 +2518,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  
+
   // Organizations Section
   organizationsSection: {
     marginHorizontal: 16,

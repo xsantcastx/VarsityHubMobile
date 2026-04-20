@@ -1,6 +1,6 @@
 /**
  * Banner Spec Upload Component
- * 
+ *
  * Handles banner/logo upload for advertisements with preview and fit options
  * Supports fill transformation with pan/zoom
  */
@@ -17,15 +17,15 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Linking,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 type BannerFitMode = 'fill' | 'stretch';
@@ -65,6 +65,10 @@ export function BannerUpload({
 
   const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
   const getFitValue = (mode: BannerFitMode): BannerFitValue => mode;
+  const extensionForMime = (mime: string) => {
+    if (mime === 'image/png') return 'png';
+    return 'jpg';
+  };
 
   const handlePickImage = async () => {
     setUploading(true);
@@ -104,7 +108,9 @@ export function BannerUpload({
         // Detect if original is PNG to preserve transparency
         const originalName = (asset.fileName || asset.uri || '').toLowerCase();
         const isPng = originalName.endsWith('.png');
-        const saveFormat = isPng ? ImageManipulator.SaveFormat.PNG : ImageManipulator.SaveFormat.JPEG;
+        const saveFormat = isPng
+          ? ImageManipulator.SaveFormat.PNG
+          : ImageManipulator.SaveFormat.JPEG;
 
         // v1.0.2: force iCloud download if ph:// URI before any manipulation
         const materializedUri = await materializeICloudAssetIfNeeded(asset.uri);
@@ -119,7 +125,11 @@ export function BannerUpload({
           );
           processedUri = manipulated.uri;
         } catch (error: any) {
-          if (__DEV__) console.warn('[BannerUpload] Image manipulation failed, using original:', error?.message || error);
+          if (__DEV__)
+            console.warn(
+              '[BannerUpload] Image manipulation failed, using original:',
+              error?.message || error
+            );
           // Continue with original URI if manipulation fails
         }
 
@@ -146,10 +156,12 @@ export function BannerUpload({
         setScale(1);
         setPosition({ x: 50, y: 50 });
 
-        const ext = isPng ? 'png' : 'jpg';
-        const rawName = asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}.${ext}`;
-        const fileName = rawName.includes('.') ? rawName : `${rawName}.${ext}`;
         const mimeType = isPng ? 'image/png' : 'image/jpeg';
+        const ext = extensionForMime(mimeType);
+        const rawBaseName = (asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}`)
+          .replace(/\.[^.]+$/, '')
+          .replace(/[^\w.-]+/g, '_');
+        const fileName = `${rawBaseName}.${ext}`;
         const uploadSource =
           Platform.OS === 'web'
             ? { uri: processedUri, mimeType }
@@ -228,7 +240,6 @@ export function BannerUpload({
     return Math.sqrt(dx * dx + dy * dy);
   };
 
-
   return (
     <View style={styles.container}>
       {/* Upload/Preview Area */}
@@ -242,7 +253,7 @@ export function BannerUpload({
             borderColor: Colors[colorScheme].border,
           },
         ]}
-        onLayout={(e) => {
+        onLayout={e => {
           const { width, height } = e.nativeEvent.layout;
           containerSize.current = { width, height };
         }}
@@ -268,10 +279,7 @@ export function BannerUpload({
             {showHint && (
               <Animated.View
                 pointerEvents="none"
-                style={[
-                  styles.hintPill,
-                  { opacity: hintOpacity },
-                ]}
+                style={[styles.hintPill, { opacity: hintOpacity }]}
               >
                 <MaterialIcons name="aspect-ratio" size={16} color={theme.text} />
                 <Text style={[styles.hintText, { color: theme.text }]}>Pinch to crop</Text>
@@ -283,7 +291,7 @@ export function BannerUpload({
                 style={StyleSheet.absoluteFill}
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
-                onResponderGrant={(e) => {
+                onResponderGrant={e => {
                   onScrollLock?.(true);
                   panStart.current = { ...position };
                   initialScale.current = scale;
@@ -297,7 +305,7 @@ export function BannerUpload({
                     (panStart.current as any)._startY = touches[0].locationY;
                   }
                 }}
-                onResponderMove={(e) => {
+                onResponderMove={e => {
                   const touches = Array.from(e.nativeEvent.touches);
                   const { width, height } = containerSize.current;
 
@@ -354,11 +362,7 @@ export function BannerUpload({
           </>
         ) : (
           <Pressable style={styles.uploadPrompt} onPress={handlePickImage}>
-            <MaterialIcons
-              name="cloud-upload"
-              size={48}
-              color={Colors[colorScheme].mutedText}
-            />
+            <MaterialIcons name="cloud-upload" size={48} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.uploadText, { color: Colors[colorScheme].text }]}>
               Tap to upload banner
             </Text>
@@ -377,10 +381,7 @@ export function BannerUpload({
       {/* Upload button (alternative to tap-to-upload) */}
       {!value && (
         <Pressable
-          style={[
-            styles.uploadButton,
-            { backgroundColor: Colors[colorScheme].tint },
-          ]}
+          style={[styles.uploadButton, { backgroundColor: Colors[colorScheme].tint }]}
           onPress={handlePickImage}
         >
           <MaterialIcons name="image" size={20} color="#FFFFFF" />
@@ -399,7 +400,6 @@ export function BannerUpload({
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {

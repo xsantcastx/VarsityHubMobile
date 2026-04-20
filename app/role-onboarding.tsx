@@ -4,7 +4,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, useColorScheme, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useColorScheme,
+  View,
+} from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
@@ -47,27 +58,26 @@ function RoleOnboardingScreenInner() {
     void (async () => {
       try {
         const me: any = await User.me();
-        const userRole = me?.role;
+        const userRole = me?.preferences?.role;
+        const storedPlan = me?.preferences?.plan;
         const subscriptionTier = me?.subscription_tier;
-        
+        const resolvedCoachTier: CoachTier =
+          storedPlan === 'legend' || subscriptionTier === 'pro'
+            ? 'legend'
+            : storedPlan === 'veteran' || subscriptionTier === 'premium'
+              ? 'veteran'
+              : 'rookie';
+
         // Determine account type (fan or coach)
         if (userRole === 'fan') {
           setAccountType('fan');
-          logTelemetry('prefill-fan', { subscriptionTier });
+          logTelemetry('prefill-fan', { storedPlan, subscriptionTier });
         } else if (userRole === 'coach') {
           setAccountType('coach');
-          logTelemetry('prefill-coach', { subscriptionTier });
-          
-          // Determine coach tier based on subscription
-          if (subscriptionTier === 'pro') {
-            setCoachTier('legend');
-          } else if (subscriptionTier === 'premium') {
-            setCoachTier('veteran');
-          } else {
-            setCoachTier('rookie'); // free tier
-          }
+          setCoachTier(resolvedCoachTier);
+          logTelemetry('prefill-coach', { storedPlan, subscriptionTier, resolvedCoachTier });
         }
-        
+
         // Check if zip code is already provided
         const hasZip = me?.zip_code || me?.preferences?.zip_code;
         if (hasZip) {
@@ -75,7 +85,7 @@ function RoleOnboardingScreenInner() {
           setZipCodeProvided(true);
           logTelemetry('prefill-zip', { zip: hasZip });
         }
-        
+
         // If no account type, show selection screen
         if (!userRole) {
           setShowAccountSelection(true);
@@ -99,7 +109,10 @@ function RoleOnboardingScreenInner() {
     }
 
     if (!validateZipCode(zipCode)) {
-      Alert.alert('Invalid ZIP Code', 'Please enter a valid US ZIP code (e.g., 12345 or 12345-6789).');
+      Alert.alert(
+        'Invalid ZIP Code',
+        'Please enter a valid US ZIP code (e.g., 12345 or 12345-6789).'
+      );
       return;
     }
 
@@ -134,9 +147,9 @@ function RoleOnboardingScreenInner() {
       try {
         await User.updatePreferences({
           role: 'fan',
-          subscription_tier: 'free'
+          plan: 'rookie',
         });
-        setOB((prev) => ({ ...prev, role: 'fan' }));
+        setOB(prev => ({ ...prev, role: 'fan' }));
         logTelemetry('fan-save-success');
       } catch (e: any) {
         logTelemetry('fan-save-error', { message: e?.message });
@@ -158,7 +171,7 @@ function RoleOnboardingScreenInner() {
       setShowCoachTierSelection(false);
       // Sync role and plan to onboarding context so main flow has correct state
       const isPaidPlan = tier === 'veteran' || tier === 'legend';
-      setOB((prev) => ({
+      setOB(prev => ({
         ...prev,
         role: 'coach',
         plan: tier,
@@ -172,7 +185,10 @@ function RoleOnboardingScreenInner() {
     } catch (e: any) {
       if (__DEV__) console.error('Failed to set coach tier', e);
       logTelemetry('coach-tier-error', { message: e?.message });
-      Alert.alert('Error', e?.data?.error || e?.message || 'Failed to upgrade to coach. Please try again.');
+      Alert.alert(
+        'Error',
+        e?.data?.error || e?.message || 'Failed to upgrade to coach. Please try again.'
+      );
     } finally {
       setSaving(false);
     }
@@ -323,17 +339,28 @@ function RoleOnboardingScreenInner() {
 
           {/* Fan Account */}
           <Pressable
-            style={[styles.largeAccountCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+            style={[
+              styles.largeAccountCard,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
             onPress={() => handleSelectAccountType('fan')}
             disabled={saving}
           >
             <View style={[styles.largeAccountIcon, { backgroundColor: '#ef444420' }]}>
               <Ionicons name="heart" size={48} color="#ef4444" />
             </View>
-            <Text style={[styles.largeAccountName, { color: Colors[colorScheme].text }]}>Fan Account</Text>
+            <Text style={[styles.largeAccountName, { color: Colors[colorScheme].text }]}>
+              Fan Account
+            </Text>
             <Text style={[styles.largeAccountPrice, { color: '#10b981' }]}>FREE FOREVER</Text>
-            <Text style={[styles.largeAccountDescription, { color: Colors[colorScheme].mutedText }]}>
-              Follow teams, watch highlights, RSVP to games, and stay connected with high school sports
+            <Text
+              style={[styles.largeAccountDescription, { color: Colors[colorScheme].mutedText }]}
+            >
+              Follow teams, watch highlights, RSVP to games, and stay connected with high school
+              sports
             </Text>
             <Text
               style={{
@@ -350,20 +377,27 @@ function RoleOnboardingScreenInner() {
 
           {/* Coach Account */}
           <Pressable
-            style={[styles.largeAccountCard, {
-              backgroundColor: Colors[colorScheme].card, 
-              borderColor: '#3b82f6',
-              borderWidth: 2,
-            }]}
+            style={[
+              styles.largeAccountCard,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: '#3b82f6',
+                borderWidth: 2,
+              },
+            ]}
             onPress={() => handleSelectAccountType('coach')}
             disabled={saving}
           >
             <View style={[styles.largeAccountIcon, { backgroundColor: '#3b82f620' }]}>
               <Ionicons name="clipboard" size={48} color="#3b82f6" />
             </View>
-            <Text style={[styles.largeAccountName, { color: Colors[colorScheme].text }]}>Coach Account</Text>
+            <Text style={[styles.largeAccountName, { color: Colors[colorScheme].text }]}>
+              Coach Account
+            </Text>
             <Text style={[styles.largeAccountPrice, { color: '#3b82f6' }]}>STARTS FREE</Text>
-            <Text style={[styles.largeAccountDescription, { color: Colors[colorScheme].mutedText }]}>
+            <Text
+              style={[styles.largeAccountDescription, { color: Colors[colorScheme].mutedText }]}
+            >
               Manage teams, schedule games, track stats, and build your program
             </Text>
           </Pressable>
@@ -385,11 +419,13 @@ function RoleOnboardingScreenInner() {
         <Stack.Screen options={{ title: 'Choose Your Tier', headerShown: false }} />
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <Pressable onPress={() => {
-              setShowCoachTierSelection(false);
-              setShowAccountSelection(true);
-              setAccountType(null);
-            }}>
+            <Pressable
+              onPress={() => {
+                setShowCoachTierSelection(false);
+                setShowAccountSelection(true);
+                setAccountType(null);
+              }}
+            >
               <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
             <Text style={[styles.title, { color: Colors[colorScheme].text, marginTop: 16 }]}>
@@ -402,7 +438,13 @@ function RoleOnboardingScreenInner() {
 
           {/* Rookie Coach */}
           <Pressable
-            style={[styles.accountTypeCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+            style={[
+              styles.accountTypeCard,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
             onPress={() => handleSelectCoachTier('rookie')}
             disabled={saving}
           >
@@ -410,24 +452,38 @@ function RoleOnboardingScreenInner() {
               <Ionicons name="ribbon" size={32} color="#3b82f6" />
             </View>
             <View style={styles.accountTypeInfo}>
-              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Rookie Coach</Text>
+              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>
+                Rookie Coach
+              </Text>
               <Text style={[styles.accountTypePrice, { color: '#10b981' }]}>
                 {`FREE • ${ROOKIE_TEAM_LIMIT} Teams Max`}
               </Text>
               <View style={{ marginTop: 8 }}>
-                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• Perfect for first-time coaches</Text>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>
+                  • Perfect for first-time coaches
+                </Text>
                 <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>
                   • First {ROOKIE_TEAM_LIMIT} teams free
                 </Text>
-                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• (ex: Men's and Women's Soccer)</Text>
-                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• Create events including games, fundraisers, and watch parties</Text>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>
+                  • (ex: Men's and Women's Soccer)
+                </Text>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>
+                  • Create events including games, fundraisers, and watch parties
+                </Text>
               </View>
             </View>
           </Pressable>
 
           {/* Veteran Coach */}
           <Pressable
-            style={[styles.accountTypeCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+            style={[
+              styles.accountTypeCard,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
             onPress={() => handleSelectCoachTier('veteran')}
             disabled={saving}
           >
@@ -435,11 +491,15 @@ function RoleOnboardingScreenInner() {
               <Ionicons name="trophy" size={32} color="#f59e0b" />
             </View>
             <View style={styles.accountTypeInfo}>
-              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Veteran Coach</Text>
+              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>
+                Veteran Coach
+              </Text>
               <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>
                 {VETERAN_MONTHLY_TEAM_PRICE_LABEL}
               </Text>
-              <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
+              <Text
+                style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}
+              >
                 {`For coaches managing multiple teams. First ${ROOKIE_TEAM_LIMIT} free, then ${VETERAN_MONTHLY_TEAM_PRICE_LABEL}`}
               </Text>
             </View>
@@ -447,11 +507,14 @@ function RoleOnboardingScreenInner() {
 
           {/* Legend Coach */}
           <Pressable
-            style={[styles.accountTypeCard, { 
-              backgroundColor: Colors[colorScheme].card, 
-              borderColor: '#7c3aed',
-              borderWidth: 2,
-            }]}
+            style={[
+              styles.accountTypeCard,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: '#7c3aed',
+                borderWidth: 2,
+              },
+            ]}
             onPress={() => handleSelectCoachTier('legend')}
             disabled={saving}
           >
@@ -462,11 +525,15 @@ function RoleOnboardingScreenInner() {
               <View style={styles.legendBadge}>
                 <Text style={styles.legendBadgeText}>PREMIUM</Text>
               </View>
-              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Legend Coach</Text>
+              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>
+                Legend Coach
+              </Text>
               <Text style={[styles.accountTypePrice, { color: '#7c3aed' }]}>
                 {LEGEND_YEARLY_PRICE_LABEL}
               </Text>
-              <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
+              <Text
+                style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}
+              >
                 Unlimited teams • Unlimited authorized users • Priority support
               </Text>
             </View>
@@ -497,7 +564,7 @@ function RoleOnboardingScreenInner() {
   let actions: OnboardingAction[] = [];
   let welcomeTitle = 'Welcome to VarsityHub! 🎉';
   let welcomeSubtitle = '';
-  
+
   if (accountType === 'fan') {
     actions = fanActions;
     welcomeTitle = 'Welcome, Fan! 🎉';
@@ -523,16 +590,22 @@ function RoleOnboardingScreenInner() {
       <Stack.Screen options={{ title: 'Welcome to Varsity Hub' }} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            {welcomeTitle}
-          </Text>
+          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{welcomeTitle}</Text>
           <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
             {zipCodeProvided ? welcomeSubtitle : 'First, tell us where you are'}
           </Text>
         </View>
 
         {!zipCodeProvided ? (
-          <View style={[styles.zipCodeSection, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          <View
+            style={[
+              styles.zipCodeSection,
+              {
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+          >
             <Text style={[styles.zipCodeLabel, { color: Colors[colorScheme].text }]}>
               Your ZIP Code <Text style={{ color: '#ef4444' }}>*</Text>
             </Text>
@@ -540,11 +613,14 @@ function RoleOnboardingScreenInner() {
               We'll use this to show you local games and ads
             </Text>
             <TextInput
-              style={[styles.zipCodeInput, { 
-                backgroundColor: Colors[colorScheme].background, 
-                borderColor: Colors[colorScheme].border,
-                color: Colors[colorScheme].text 
-              }]}
+              style={[
+                styles.zipCodeInput,
+                {
+                  backgroundColor: Colors[colorScheme].background,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
               value={zipCode}
               onChangeText={setZipCode}
               placeholder="12345"
@@ -553,12 +629,22 @@ function RoleOnboardingScreenInner() {
               maxLength={10}
               autoFocus
             />
-            <ZipCodeMapPreview zipCode={zipCode} title="Your Area" subtitle="We'll show you local games and ads near ZIP {zip}" showCircle={false} />
+            <ZipCodeMapPreview
+              zipCode={zipCode}
+              title="Your Area"
+              subtitle="We'll show you local games and ads near ZIP {zip}"
+              showCircle={false}
+            />
             <Pressable
-              style={[styles.saveZipButton, {
-                backgroundColor: zipCode.trim() ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                opacity: saving ? 0.6 : 1,
-              }]}
+              style={[
+                styles.saveZipButton,
+                {
+                  backgroundColor: zipCode.trim()
+                    ? Colors[colorScheme].tint
+                    : Colors[colorScheme].border,
+                  opacity: saving ? 0.6 : 1,
+                },
+              ]}
               onPress={handleSaveZipCode}
               disabled={saving || !zipCode.trim()}
             >
@@ -578,10 +664,7 @@ function RoleOnboardingScreenInner() {
               {actions.map((action, index) => (
                 <Pressable
                   key={index}
-                  style={({ pressed }) => [
-                    styles.actionCard,
-                    { opacity: pressed ? 0.8 : 1 },
-                  ]}
+                  style={({ pressed }) => [styles.actionCard, { opacity: pressed ? 0.8 : 1 }]}
                   onPress={() => void router.push(action.route as any)}
                 >
                   <LinearGradient
@@ -623,7 +706,7 @@ function RoleOnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
   },
   scrollContent: {
@@ -634,13 +717,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     alignItems: 'center',
   },
-  title: { 
-    fontSize: 28, 
-    fontWeight: '800', 
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
     marginBottom: 8,
     textAlign: 'center',
   },
-  subtitle: { 
+  subtitle: {
     fontSize: 16,
     textAlign: 'center',
   },
