@@ -295,6 +295,30 @@ describe('API Event Endpoints', () => {
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeLessThanOrEqual(10);
     });
+
+    it('does not expose creator object on the public event list payload', async () => {
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await prisma.event.create({
+        data: {
+          title: `Public Event List Contract ${Date.now()}`,
+          date: futureDate,
+          location: 'Test Stadium',
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: coachUserId,
+          creator_role: 'coach',
+        },
+      });
+
+      const response = await request(app)
+        .get('/events')
+        .expect(200);
+
+      const created = response.body.find((item: any) => item.creator_id === coachUserId);
+      expect(created).toBeTruthy();
+      expect(created).not.toHaveProperty('creator');
+    });
   });
 
   // ── Org-admin fallback + broader-cancel-semantics regression tests.

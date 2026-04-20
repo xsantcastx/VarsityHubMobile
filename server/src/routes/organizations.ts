@@ -159,6 +159,7 @@ organizationsRouter.get('/', asyncHandler(async (req, res) => {
         id: true,
         name: true,
         description: true,
+        admin_approved: true,
         sport: true,
         created_at: true,
         _count: {

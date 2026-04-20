@@ -251,7 +251,7 @@ eventsRouter.get('/', asyncHandler(async (req, res) => {
     }
 
     res.json(
-      events.map(event => serializeEvent(event, { includeGame: true, includeCreator: true }))
+      events.map(event => serializeEvent(event, { includeGame: true }))
     );
   } catch (err) {
     console.error('[events] GET / error:', err);
