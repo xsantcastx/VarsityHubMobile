@@ -32,6 +32,14 @@ const ALLOWED_PREFIXES = [
   '/auth/refresh',
   '/auth/logout',
   '/auth/sign-out',
+  // Email verification MUST stay reachable regardless of consent state.
+  // Without this, a minor who provided DOB at registration (so consent
+  // flipped to pending) gets a JWT but is firewall-blocked from
+  // /auth/verify/confirm — they can never verify their email and are
+  // permanently locked out of onboarding. The verify endpoints already
+  // require auth + rate-limit + check email_verified independently, so
+  // allowlisting adds no new attack surface.
+  '/auth/verify',
   '/me/consent/resend',
   '/consent',
   '/health',
