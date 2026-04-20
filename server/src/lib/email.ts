@@ -162,11 +162,12 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'ORG_APPROVED',
   'ORG_DENIED',
   'ADMIN_ACTION_CONFIRMATION',
-  'PARENTAL_CONSENT_REQUEST',
 ];
 
-// All templates are now mandatory — no recommended list
-const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [];
+// Non-launch-blocking templates still warn when missing, but do not prevent
+// the server from booting. Parental consent is operationally important, but a
+// missing SendGrid template ID should not take down the whole API.
+const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = ['PARENTAL_CONSENT_REQUEST'];
 
 export function isSendGridConfigured(): boolean {
   return Boolean(SENDGRID_API_KEY);
