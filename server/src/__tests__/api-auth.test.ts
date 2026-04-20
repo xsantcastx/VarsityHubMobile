@@ -236,7 +236,9 @@ describe('API Authentication Endpoints', () => {
 
       expect(response.body).toHaveProperty('id');
       expect(response.body.email).toBe(TEST_EMAIL);
+      expect(response.body.role).toBe('fan');
       expect(response.body.preferences).toBeDefined();
+      expect(response.body.preferences.role).toBe('fan');
     });
   });
 

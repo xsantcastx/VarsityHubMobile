@@ -1588,6 +1588,8 @@ authRouter.get(
     const prefs = mergePreferences(userPrefs, defaults);
     const has_password = !!(user as any).password_hash;
     const safe = sanitizeUser(user);
+    const normalizedRole =
+      is_admin ? 'admin' : typeof prefs.role === 'string' ? String(prefs.role) : null;
     const payload = {
       ...safe,
       _count: {
@@ -1595,7 +1597,7 @@ authRouter.get(
         posts: activePostCount,
       },
       has_password,
-      ...(is_admin ? { role: 'admin' } : {}),
+      role: normalizedRole,
       preferences: prefs,
       is_admin,
     };
