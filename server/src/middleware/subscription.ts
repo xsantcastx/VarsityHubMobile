@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 
@@ -20,6 +21,7 @@ const synonyms: Record<string,string> = {
 export type CanonicalTier = typeof canonicalOrder[number];
 export type OnboardingTier = typeof onboardingOrder[number];
 export type AnyTier = CanonicalTier | OnboardingTier;
+type DbClient = Prisma.TransactionClient | typeof prisma;
 
 function isAnyTier(value: any): value is AnyTier {
   return canonicalOrder.includes(value) || onboardingOrder.includes(value);
@@ -40,8 +42,8 @@ function tierGte(a: AnyTier, b: AnyTier): boolean {
 }
 
 // Fetch plan from preferences (rookie/veteran/legend) falling back to subscription_tier column
-export async function getUserPlan(userId: string): Promise<AnyTier> {
-  const user = await prisma.user.findUnique({
+export async function getUserPlan(userId: string, db: DbClient = prisma): Promise<AnyTier> {
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { subscription_tier: true, subscription_status: true, preferences: true, paid_by_owner: true },
   });
@@ -50,7 +52,7 @@ export async function getUserPlan(userId: string): Promise<AnyTier> {
 
   // Coaches covered by league owner: look up the owner's plan instead
   if (user.paid_by_owner) {
-    return getLeagueOwnerPlan(userId);
+    return getLeagueOwnerPlan(userId, db);
   }
 
   // Rule A: If payment_pending is true, the coach selected a paid plan but hasn't
@@ -77,9 +79,9 @@ export async function getUserPlan(userId: string): Promise<AnyTier> {
 }
 
 // For coaches with paid_by_owner, resolve the league owner's plan
-async function getLeagueOwnerPlan(coachId: string): Promise<AnyTier> {
+async function getLeagueOwnerPlan(coachId: string, db: DbClient): Promise<AnyTier> {
   // Find the coach's active org membership → org → league owner
-  const membership = await prisma.organizationMembership.findFirst({
+  const membership = await db.organizationMembership.findFirst({
     where: { user_id: coachId, status: 'active' },
     select: {
       organization: {
@@ -94,7 +96,7 @@ async function getLeagueOwnerPlan(coachId: string): Promise<AnyTier> {
   if (!ownerId) return 'free'; // no league owner found
 
   // Get the owner's plan (non-recursive — owners are never paid_by_owner)
-  const owner = await prisma.user.findUnique({
+  const owner = await db.user.findUnique({
     where: { id: ownerId },
     select: { subscription_tier: true, preferences: true },
   });

@@ -97,7 +97,7 @@ export async function getTeamEntitlementState(db: DbClient, teamId: string): Pro
 
   const [ownerPlansEntries, ownershipRows] = await Promise.all([
     Promise.all(ownerIds.map(async (ownerId) => {
-      const currentPlan = resolvePlan(await getUserPlan(ownerId));
+      const currentPlan = resolvePlan(await getUserPlan(ownerId, db));
       return [ownerId, currentPlan] as const;
     })),
     db.teamMembership.findMany({
