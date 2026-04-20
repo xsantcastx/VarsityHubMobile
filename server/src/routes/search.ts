@@ -32,6 +32,18 @@ searchRouter.get(
     if (!q || q.length < 1) {
       return res.json({ users: [], teams: [], organizations: [] });
     }
+    // Cap query length to bound the cost of `contains` scans across users,
+    // teams, and organizations. A 10k-char q would force three full-table
+    // ILIKE walks per request. 200 chars is well above any legitimate
+    // username/team/org name length and matches the longest indexed name
+    // columns in schema.prisma. Reject rather than truncate so the client
+    // doesn't silently get partial-prefix results.
+    if (q.length > 200) {
+      return res.status(400).json({
+        error: 'QUERY_TOO_LONG',
+        message: 'Search query must be 200 characters or fewer.',
+      });
+    }
 
     // v1.0.2 pass 8: exclude users that the requester has blocked OR who have blocked the requester.
     // Without this, blocked users could discover each other via exact-username search and infer the block.
