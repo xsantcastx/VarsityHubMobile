@@ -13,6 +13,7 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
 import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
+import { serializeTeam } from '../lib/serializeTeam.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { isOrganizationApproved } from '../lib/approvalService.js';
 import {
@@ -70,7 +71,7 @@ teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedR
     ],
     take: 100,
     include: {
-      _count: { select: { memberships: true } },
+      _count: { select: { memberships: true, followers: true } },
       memberships: {
         where: { user_id: userId, status: 'active' },
         select: { role: true }
@@ -90,28 +91,23 @@ teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedR
   const manageableTeamIds = new Set(
     entitlements.filter((entitlement) => !entitlement.teamLocked).map((entitlement) => entitlement.teamId)
   );
-  
-  const list = rows
-    .filter((team) => manageableTeamIds.has(team.id))
-    .map((t) => ({
-    id: t.id,
-    name: t.name,
-    description: t.description,
-    status: t.status,
-    sport: (t as any).sport,
-    season: (t as any).season,
-    members: (t as any)._count.memberships,
-    logo_url: (t as any).logo_url || null,
-    avatar_url: (t as any).avatar_url || null,
-    my_role: (t as any).memberships?.[0]?.role || null,
-    organization: (t as any).organization ? {
-      id: (t as any).organization.id,
-      name: (t as any).organization.name,
-      description: (t as any).organization.description,
-      sport: (t as any).organization.sport
-    } : null
-  }));
-  
+  const visibleRows = rows.filter((team) => manageableTeamIds.has(team.id));
+  const followedTeamRows = await prisma.teamFollow.findMany({
+    where: { user_id: userId, team_id: { in: visibleRows.map((team) => team.id) } },
+    select: { team_id: true },
+  });
+  const followedTeamIds = new Set(followedTeamRows.map((row) => row.team_id));
+
+  const list = visibleRows.map((team) =>
+    serializeTeam(team, {
+      includeCounts: true,
+      includeOrganization: true,
+      includeViewerState: true,
+      viewerRole: team.memberships?.[0]?.role ?? null,
+      isFollowing: followedTeamIds.has(team.id),
+    })
+  );
+
   return res.json(list);
   } catch (err) {
     console.error('[teams] managed error:', err);
@@ -222,28 +218,47 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
     where,
     orderBy: { created_at: 'desc' },
     take,
-    include: { _count: { select: { memberships: true } } },
+    include: {
+      _count: { select: { memberships: true, followers: true } },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          sport: true,
+        },
+      },
+    },
   });
-  
-  const list = rows.map((t) => ({ 
-    id: t.id, 
-    name: t.name, 
-    description: t.description, 
-    status: t.status, 
-    members: (t as any)._count.memberships, 
-    is_private: (t as any).is_private ?? false,
-    logo_url: (t as any).logo_url || null, 
-    avatar_url: (t as any).avatar_url || null,
-    city: (t as any).city || null,
-    state: (t as any).state || null,
-    league: (t as any).league || null,
-    sport: (t as any).sport || null,
-    // Venue information for home games
-    venue_address: (t as any).venue_address || null,
-    venue_lat: (t as any).venue_lat || null,
-    venue_lng: (t as any).venue_lng || null,
-    venue_place_id: (t as any).venue_place_id || null,
-  }));
+  const teamIds = rows.map((team) => team.id);
+  const [viewerMemberships, followedTeamRows] = await Promise.all([
+    currentUserId
+      ? prisma.teamMembership.findMany({
+          where: { user_id: currentUserId, status: 'active', team_id: { in: teamIds } },
+          select: { team_id: true, role: true },
+        })
+      : Promise.resolve([]),
+    currentUserId
+      ? prisma.teamFollow.findMany({
+          where: { user_id: currentUserId, team_id: { in: teamIds } },
+          select: { team_id: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const viewerRoleByTeamId = new Map(
+    viewerMemberships.map((membership) => [membership.team_id, membership.role])
+  );
+  const followedTeamIds = new Set(followedTeamRows.map((row) => row.team_id));
+
+  const list = rows.map((team) =>
+    serializeTeam(team, {
+      includeCounts: true,
+      includeOrganization: true,
+      includeViewerState: true,
+      viewerRole: viewerRoleByTeamId.get(team.id) ?? null,
+      isFollowing: currentUserId ? followedTeamIds.has(team.id) : null,
+    })
+  );
   return res.json(list);
   } catch (err) {
     console.error('[teams] list error:', err);
@@ -350,8 +365,9 @@ teamsRouter.get('/:id', asyncHandler(async (req, res) => {
     if (hidden) return res.status(404).json({ error: 'Not found' });
   }
 
+  let membership: { role: string } | null = null;
   if (currentUserId) {
-    const [membership, orgMembership] = await Promise.all([
+    const [resolvedMembership, orgMembership] = await Promise.all([
       prisma.teamMembership.findFirst({
         where: { team_id: id, user_id: currentUserId, status: 'active' },
         select: { role: true },
@@ -368,6 +384,7 @@ teamsRouter.get('/:id', asyncHandler(async (req, res) => {
           })
         : Promise.resolve(null),
     ]);
+    membership = resolvedMembership;
 
     const hasPrivilegedAccess = !!isAdmin || !!orgMembership || isManagementRole(membership?.role);
     if (hasPrivilegedAccess) {
@@ -378,33 +395,19 @@ teamsRouter.get('/:id', asyncHandler(async (req, res) => {
     }
   }
 
-  return res.json({
-      id: t.id,
-      name: t.name,
-      description: t.description,
-      status: t.status,
-      is_private: (t as any).is_private ?? false,
-      sport: t.sport,
-    season_start: t.season_start,
-    season_end: t.season_end,
-    organization_id: t.organization_id,
-    organization: t.organization
-      ? {
-          id: t.organization.id,
-          name: t.organization.name,
-          description: t.organization.description,
-          sport: t.organization.sport,
-        }
-      : null,
-    members: (t as any)._count.memberships,
-    followers_count: (t as any)._count.followers ?? 0,
-    is_following: currentUserId
-      ? !!(await prisma.teamFollow.findFirst({ where: { user_id: currentUserId, team_id: id } }))
-      : null,
-    logo_url: (t as any).logo_url || null,
-    avatar_url: (t as any).avatar_url || null,
-    created_at: t.created_at,
-  });
+  const isFollowing = currentUserId
+    ? !!(await prisma.teamFollow.findFirst({ where: { user_id: currentUserId, team_id: id } }))
+    : null;
+
+  return res.json(
+    serializeTeam(t, {
+      includeCounts: true,
+      includeOrganization: true,
+      includeViewerState: true,
+      isFollowing,
+      viewerRole: membership?.role ?? null,
+    })
+  );
   } catch (err) {
     console.error('[teams] get-by-id error:', err);
     return res.status(500).json({ error: 'Internal server error' });

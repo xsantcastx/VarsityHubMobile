@@ -378,6 +378,138 @@ describe('API Team Endpoints', () => {
 
       expect(Array.isArray(response.body)).toBe(true);
     });
+
+    it('returns the canonical managed team contract', async () => {
+      const team = await prisma.team.create({
+        data: {
+          name: `Managed Contract Team ${Date.now()}`,
+          description: 'Managed team contract fixture',
+          organization_id: testOrgId,
+          sport: 'Basketball',
+          city: 'Atlanta',
+          state: 'GA',
+          league: 'Peach League',
+          venue_address: '123 Arena Way',
+          venue_lat: 33.749,
+          venue_lng: -84.388,
+          venue_place_id: 'managed-place-id',
+        },
+      });
+      await prisma.teamMembership.create({
+        data: { team_id: team.id, user_id: coachUserId, role: 'owner', status: 'active' },
+      });
+
+      const response = await request(app)
+        .get(`/teams/managed?q=${encodeURIComponent('Managed Contract Team')}`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      const row = response.body.find((entry: any) => entry.id === team.id);
+      expect(row).toBeTruthy();
+      expect(row.organization_id).toBe(testOrgId);
+      expect(row.organization?.id).toBe(testOrgId);
+      expect(row.city).toBe('Atlanta');
+      expect(row.state).toBe('GA');
+      expect(row.league).toBe('Peach League');
+      expect(row.venue_address).toBe('123 Arena Way');
+      expect(row.created_at).toBeTruthy();
+      expect(row.members).toBeGreaterThanOrEqual(1);
+      expect(row.my_role).toBe('owner');
+      expect(row.viewer_role).toBe('owner');
+    });
+  });
+
+  describe('GET /teams contracts', () => {
+    it('returns the canonical team list contract', async () => {
+      const team = await prisma.team.create({
+        data: {
+          name: `List Contract Team ${Date.now()}`,
+          description: 'List contract fixture',
+          organization_id: testOrgId,
+          sport: 'Soccer',
+          city: 'Austin',
+          state: 'TX',
+          league: 'Lone Star',
+          venue_address: '500 Match Rd',
+          venue_lat: 30.2672,
+          venue_lng: -97.7431,
+          venue_place_id: 'list-place-id',
+          is_private: false,
+        },
+      });
+      await prisma.teamMembership.create({
+        data: { team_id: team.id, user_id: coachUserId, role: 'owner', status: 'active' },
+      });
+
+      const response = await request(app)
+        .get(`/teams?q=${encodeURIComponent('List Contract Team')}`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      const row = response.body.find((entry: any) => entry.id === team.id);
+      expect(row).toBeTruthy();
+      expect(row.organization_id).toBe(testOrgId);
+      expect(row.organization?.id).toBe(testOrgId);
+      expect(row.sport).toBe('Soccer');
+      expect(row.city).toBe('Austin');
+      expect(row.state).toBe('TX');
+      expect(row.league).toBe('Lone Star');
+      expect(row.venue_place_id).toBe('list-place-id');
+      expect(row.members).toBeGreaterThanOrEqual(1);
+      expect(row.followers_count).toBe(0);
+      expect(row.viewer_role).toBe('owner');
+      expect(row.my_role).toBe('owner');
+      expect(row.created_at).toBeTruthy();
+    });
+
+    it('returns the canonical team detail contract', async () => {
+      const team = await prisma.team.create({
+        data: {
+          name: `Detail Contract Team ${Date.now()}`,
+          description: 'Detail contract fixture',
+          organization_id: testOrgId,
+          sport: 'Baseball',
+          season_start: new Date('2026-02-01T00:00:00.000Z'),
+          season_end: new Date('2026-05-31T00:00:00.000Z'),
+          city: 'Nashville',
+          state: 'TN',
+          league: 'Music City',
+          venue_address: '1 Stadium Dr',
+          venue_lat: 36.1627,
+          venue_lng: -86.7816,
+          venue_place_id: 'detail-place-id',
+        },
+      });
+      await prisma.teamMembership.create({
+        data: { team_id: team.id, user_id: coachUserId, role: 'owner', status: 'active' },
+      });
+      await prisma.teamFollow.create({
+        data: { team_id: team.id, user_id: fanUserId },
+      });
+
+      const response = await request(app)
+        .get(`/teams/${team.id}`)
+        .set('Authorization', `Bearer ${fanToken}`)
+        .expect(200);
+
+      expect(response.body.id).toBe(team.id);
+      expect(response.body.organization_id).toBe(testOrgId);
+      expect(response.body.organization?.id).toBe(testOrgId);
+      expect(response.body.sport).toBe('Baseball');
+      expect(response.body.city).toBe('Nashville');
+      expect(response.body.state).toBe('TN');
+      expect(response.body.league).toBe('Music City');
+      expect(response.body.venue_address).toBe('1 Stadium Dr');
+      expect(response.body.venue_place_id).toBe('detail-place-id');
+      expect(response.body.followers_count).toBe(1);
+      expect(response.body.members).toBeGreaterThanOrEqual(1);
+      expect(response.body.viewer_role).toBeNull();
+      expect(response.body.my_role).toBeNull();
+      expect(response.body.is_following).toBe(true);
+      expect(response.body.created_at).toBeTruthy();
+      expect(response.body.season_start).toBe('2026-02-01T00:00:00.000Z');
+      expect(response.body.season_end).toBe('2026-05-31T00:00:00.000Z');
+    });
   });
 
   describe('Team privacy', () => {
