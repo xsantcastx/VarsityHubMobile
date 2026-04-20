@@ -24,7 +24,7 @@
       }
     },
     "ios": {
-      "buildNumber": "49",
+      "buildNumber": "50",
       "supportsTablet": true,
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
@@ -54,6 +54,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": true,
+      "versionCode": 2,
       "package": "com.varsityhub.varsityhub",
       "permissions": [
         "android.permission.CAMERA",
