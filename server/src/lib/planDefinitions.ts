@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { getAllPlanDefinitions } from './planLimits.js';
 
 type PlanId = 'rookie' | 'veteran' | 'legend';
 
@@ -12,13 +10,9 @@ type RawPlanDefinition = {
 };
 
 type RawPlanDefinitions = Record<PlanId, RawPlanDefinition>;
-
-const currentDir = dirname(fileURLToPath(import.meta.url));
-const planDefinitionsPath = resolve(currentDir, '../../../shared/plan-definitions.json');
-
-const planDefinitions = JSON.parse(
-  readFileSync(planDefinitionsPath, 'utf8')
-) as RawPlanDefinitions;
+// Reuse the hardened loader from planLimits.ts so Docker/local/dev/build all
+// resolve the shared JSON from the same source of truth.
+const planDefinitions = getAllPlanDefinitions() as RawPlanDefinitions;
 
 function dollarsToCents(value: string) {
   const normalized = String(value || '').replace(/[^0-9.]/g, '');
