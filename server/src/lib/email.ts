@@ -4,6 +4,49 @@ import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
 import * as Sentry from '@sentry/node';
 import escapeHtml from 'escape-html';
+import { prisma } from './prisma.js';
+import { isMinor } from './userAge.js';
+
+/**
+ * Resolve the EMAIL_AUDIT `audit_privacy` metadata for a recipient email.
+ *
+ * Returns `{ audit_privacy: 'minor' }` when we can positively confirm the
+ * recipient is a minor (13-17) based on a stored DOB. Returns `undefined` in
+ * every other case — adult user, unregistered email, missing DOB, or DB
+ * lookup failure.
+ *
+ * Design note: this departs from `isMinor`'s fail-closed semantics. For
+ * authorization we want unknown-age users treated as minors (conservative).
+ * For logging, fail-closed would over-redact the bulk of adult users whose
+ * DOB lookup ever hiccups, which cripples ops. So we redact ONLY on positive
+ * minor confirmation. High-risk flows where the recipient is guaranteed a
+ * minor (e.g. parental consent) hard-code the flag instead of calling this.
+ */
+/** @internal exported only for unit testing */
+export async function resolveMinorAuditMetadata(
+  email: string | undefined | null
+): Promise<Record<string, string> | undefined> {
+  if (!email) return undefined;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: { equals: email, mode: 'insensitive' } } as any,
+      select: { date_of_birth: true, preferences: true } as any,
+    });
+    if (!user) return undefined;
+    const u = user as any;
+    if (!u.date_of_birth) return undefined;
+    const minor = isMinor({
+      date_of_birth: u.date_of_birth,
+      preferences: u.preferences,
+    });
+    return minor ? { audit_privacy: 'minor' } : undefined;
+  } catch {
+    // Fail-open for logs: a DB blip should not block the email send. The
+    // resulting log line will show the unredacted address, which is not ideal
+    // but no worse than pre-redaction behavior.
+    return undefined;
+  }
+}
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 
@@ -381,7 +424,8 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
       view_event_url: params.eventLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
       manage_event_url: params.manageLink || `${APP_BASE_URL}/events`,
     },
-    `Event approved email sent to ${params.to}`
+    `Event approved email sent to ${params.to}`,
+    { metadata: await resolveMinorAuditMetadata(params.to) }
   );
 }
 
@@ -413,7 +457,8 @@ export async function sendEventCanceledEmail(params: {
       event_location: params.eventLocation || '',
       view_event_url: `${APP_BASE_URL}/event/${params.eventId || ''}`,
     },
-    `Event cancelled email sent to ${params.to}`
+    `Event cancelled email sent to ${params.to}`,
+    { metadata: await resolveMinorAuditMetadata(params.to) }
   );
 }
 
@@ -437,7 +482,8 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
       contact_support_url: params.supportLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
       organization_name: params.organizationName || 'VarsityHub',
     },
-    `Event denied email sent to ${params.to}`
+    `Event denied email sent to ${params.to}`,
+    { metadata: await resolveMinorAuditMetadata(params.to) }
   );
 }
 
@@ -494,7 +540,10 @@ export async function sendParentalConsentRequestEmail(params: {
       deny_url: denyUrl,
       expires_in_days: params.expiresInDays ?? 14,
     },
-    `Parental consent request sent to ${params.to}`
+    `Parental consent request sent to ${params.to}`,
+    {
+      metadata: { audit_privacy: 'minor' },
+    }
   );
 }
 
@@ -525,7 +574,8 @@ export async function sendVerificationEmail(
       display_name: displayName,
       expires_in: '30 minutes',
     },
-    `Verification email sent to ${email}`
+    `Verification email sent to ${email}`,
+    { metadata: await resolveMinorAuditMetadata(email) }
   );
 }
 
@@ -555,7 +605,8 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
       reset_url: resetUrl,
       action_url: resetUrl,
     },
-    `Password reset email sent to ${email}`
+    `Password reset email sent to ${email}`,
+    { metadata: await resolveMinorAuditMetadata(email) }
   );
 }
 
@@ -602,7 +653,8 @@ export async function sendTeamInviteEmail(params: {
       team_logo_url: params.teamLogoUrl || '',
       primary_color: params.primaryColor || '#2563EB',
     },
-    `Team invite sent to ${params.to} for ${params.teamName}`
+    `Team invite sent to ${params.to} for ${params.teamName}`,
+    { metadata: await resolveMinorAuditMetadata(params.to) }
   );
 }
 
@@ -614,7 +666,10 @@ async function sendTemplateEmail(
   to: string,
   subject: string,
   templateData: Record<string, any>,
-  logMessage: string
+  logMessage: string,
+  options?: {
+    metadata?: Record<string, string>;
+  }
 ): Promise<boolean> {
   if (!templateId) {
     // v1.0.2 audit fix: missing template IDs in production cause approval emails to silently drop.
@@ -654,6 +709,7 @@ async function sendTemplateEmail(
       templateId,
       templateData,
       replyTo,
+      metadata: options?.metadata,
     });
 
     if (result.success) {

@@ -1937,6 +1937,17 @@ authRouter.patch(
     // SECURITY: Strip any protected keys the client tries to sneak in
     const incoming = stripProtectedKeys(parsed.data as any) as any;
 
+    // Server-side normalize: when a client writes `coach_agreement_accepted_at`
+    // (the accept action), stamp the CURRENT required version alongside it so
+    // the client never has to know the version number. Without this, bumping
+    // REQUIRED_COACH_AGREEMENT_VERSION env var would put coaches in a re-accept
+    // loop because the client patch only writes the timestamp.
+    if (incoming.coach_agreement_accepted_at !== undefined) {
+      incoming.coach_agreement_version = Number(
+        process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
+      );
+    }
+
     // COPPA: Reject if DOB indicates under 13 - do not store
     if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
       return res.status(403).json({

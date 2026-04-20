@@ -50,6 +50,19 @@ export interface MediaJob {
   options?: Record<string, any>;
 }
 
+/**
+ * GDPR / right-to-access data export build job. The worker reads the
+ * `export_id` + `user_id`, calls the domain builder, uploads the ZIP to
+ * object storage, and updates the DataExport row. Retries are disabled
+ * at the BullMQ level — a failed build gets a single chance and is
+ * surfaced to the user via `status='failed'` + `error_category`. Users
+ * retry by issuing a new POST /me/data-export request.
+ */
+export interface DataExportJob {
+  exportId: string;
+  userId: string;
+}
+
 // Queue configuration
 const QUEUE_CONFIG = {
   defaultJobOptions: {
@@ -79,6 +92,7 @@ let emailQueue: Queue<EmailJob> | null = null;
 let analyticsQueue: Queue<AnalyticsJob> | null = null;
 let mediaQueue: Queue<MediaJob> | null = null;
 let schedulerQueue: Queue | null = null;
+let dataExportQueue: Queue<DataExportJob> | null = null;
 
 /**
  * Initialize Redis connection
@@ -167,6 +181,17 @@ export async function initializeQueues(): Promise<boolean> {
       connection,
     });
 
+    dataExportQueue = new Queue<DataExportJob>('data-export', {
+      connection,
+      defaultJobOptions: {
+        ...QUEUE_CONFIG.defaultJobOptions,
+        // Export builds are idempotent-on-new-request but expensive; a
+        // single chance + surfaced status='failed' is preferable to
+        // silent retries that could reupload large archives.
+        attempts: 1,
+      },
+    });
+
     queuesInitialized = true;
     console.log('[Jobs] All queues initialized');
     return true;
@@ -251,6 +276,66 @@ export async function queueAnalytics(job: AnalyticsJob): Promise<string | null> 
 }
 
 /**
+ * Test-only override for `queueDataExport`. When set, `queueDataExport`
+ * short-circuits to this function instead of touching Redis/BullMQ.
+ * Mirrors the `__setObjectStorageAdapterForTests` pattern so the
+ * HTTP endpoint test suite can run without a real queue backend.
+ */
+let queueDataExportOverride:
+  | ((job: DataExportJob) => Promise<string | null>)
+  | null = null;
+
+/**
+ * Test-only: install or clear the `queueDataExport` override. Returns the
+ * previous override so tests can restore it in afterAll. Pass `null` to
+ * restore real behavior.
+ */
+export function __setQueueDataExportForTests(
+  fn: ((job: DataExportJob) => Promise<string | null>) | null
+): ((job: DataExportJob) => Promise<string | null>) | null {
+  const prev = queueDataExportOverride;
+  queueDataExportOverride = fn;
+  return prev;
+}
+
+/**
+ * Enqueue a data-export build. No fallback path: if Redis isn't configured
+ * we return null and the HTTP handler surfaces 503 — GDPR data exports
+ * deserve real async infrastructure, not in-request builds that time out
+ * under load.
+ *
+ * Both the "queue unavailable" and "queue add threw" branches route to
+ * Sentry so an outage produces a real ops alert instead of quietly
+ * degrading into user-facing 503s.
+ */
+export async function queueDataExport(job: DataExportJob): Promise<string | null> {
+  if (queueDataExportOverride) return queueDataExportOverride(job);
+  if (!queuesInitialized) await initializeQueues();
+  if (!dataExportQueue) {
+    console.error('[Jobs] Data-export queue not available — Redis not configured');
+    const { captureException } = await import('../lib/sentry.js');
+    captureException(new Error('Data-export queue unavailable (Redis not configured)'), {
+      extra: { context: 'queue_data_export_unavailable', exportId: job.exportId },
+    });
+    return null;
+  }
+  try {
+    const added = await dataExportQueue.add('build', job);
+    return added.id || null;
+  } catch (err) {
+    // BullMQ add() can throw on Redis network loss, OOM, or malformed
+    // connection state. Surface as a real error rather than letting the
+    // HTTP handler stamp status='failed' silently.
+    console.error('[Jobs] Data-export queue.add failed:', (err as any)?.message || err);
+    const { captureException } = await import('../lib/sentry.js');
+    captureException(err instanceof Error ? err : new Error(String(err)), {
+      extra: { context: 'queue_data_export_add_failed', exportId: job.exportId },
+    });
+    return null;
+  }
+}
+
+/**
  * Add a media processing job to the queue
  */
 export async function queueMediaJob(job: MediaJob): Promise<string | null> {
@@ -329,5 +414,5 @@ export async function shutdownQueues(): Promise<void> {
 }
 
 export {
-    analyticsQueue, emailQueue, mediaQueue, notificationQueue, schedulerQueue
+    analyticsQueue, dataExportQueue, emailQueue, mediaQueue, notificationQueue, schedulerQueue
 };

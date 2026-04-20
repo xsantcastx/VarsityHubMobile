@@ -4,6 +4,14 @@ import { runStripeSubscriptionReconciliation } from '../lib/billingLifecycle.js'
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../jobs/queues.js';
 import { captureException } from '../lib/sentry.js';
+import {
+  hardDeleteAnonymizedUsers,
+  ANONYMIZED_USER_RETENTION_DAYS_DEFAULT,
+} from '../lib/accountDeletion.js';
+import {
+  getObjectStorageAdapter,
+  ObjectStorageNotConfiguredError,
+} from '../lib/objectStorage.js';
 
 /**
  * Overnight monitoring task
@@ -454,4 +462,185 @@ export function startParentalConsentExpiry() {
     }
   });
   debugLog('✅ Parental consent expiry started (runs daily at 4:30 AM)');
+}
+
+/**
+ * Anonymized-user hard-delete purge — runs daily at 4:45 AM.
+ *
+ * Self-serve account deletion anonymizes PII immediately and stamps
+ * `deleted_at` + `deletion_anonymized = true`. This cron finalizes the
+ * erasure by hard-deleting rows older than the retention window (default
+ * 30 days). The delay preserves referential integrity during any brief
+ * dispute-reversal window and aligns with our privacy-policy disclosure.
+ *
+ * Selector is strict and fail-closed: only rows with both
+ * `deletion_anonymized = true` AND `deleted_at < cutoff` are eligible.
+ * Rows missing the anonymized flag are NEVER purged even if `deleted_at`
+ * is ancient — anonymization is the operator-verified proof that PII was
+ * actually stripped.
+ *
+ * Override the window via `ANONYMIZED_USER_RETENTION_DAYS` env var.
+ *
+ * Per-row failures (e.g. Prisma `Restrict` FK preventing purge of an admin
+ * who actioned parental consent) are skipped with a count-only warn log;
+ * user IDs are intentionally NOT logged to avoid keeping identifiers for
+ * accounts that just completed right-to-be-forgotten.
+ */
+export function startAnonymizedUserPurge() {
+  cron.schedule('45 4 * * *', async () => {
+    debugLog('[anonymized-purge] Starting hard-delete sweep for anonymized users...');
+    try {
+      const retentionDays =
+        Number(process.env.ANONYMIZED_USER_RETENTION_DAYS) ||
+        ANONYMIZED_USER_RETENTION_DAYS_DEFAULT;
+      const result = await hardDeleteAnonymizedUsers({ retentionDays });
+      if (result.scanned > 0) {
+        console.log(
+          `[anonymized-purge] Done ✅ purged=${result.purged} skipped=${result.skipped} scanned=${result.scanned} retentionDays=${retentionDays}`
+        );
+      } else {
+        console.log('[anonymized-purge] Nothing to do ✅');
+      }
+      // Surface skipped rows as a Sentry warning so we notice if the admin
+      // accountability FK is producing a growing backlog of un-purgeable
+      // accounts. Small counts are normal; a persistent nonzero run-over-run
+      // signals a class of account we can't finalize.
+      if (result.skipped > 0) {
+        captureException(
+          new Error(
+            `anonymized-purge skipped ${result.skipped} of ${result.scanned} users (likely FK restrict)`
+          ),
+          {
+            extra: {
+              context: 'anonymized_user_purge_skipped',
+              purged: result.purged,
+              skipped: result.skipped,
+              scanned: result.scanned,
+              retentionDays,
+            },
+          }
+        );
+      }
+    } catch (error) {
+      console.error('[anonymized-purge] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'anonymized_user_purge_cron' },
+      });
+    }
+  });
+  debugLog('✅ Anonymized user purge started (runs daily at 4:45 AM)');
+}
+
+/**
+ * Run one pass of the data-export cleanup sweep. Exposed so tests can pin
+ * the behavior (especially the stuck-build reaper) without faking the
+ * node-cron scheduler.
+ *
+ * Two sweeps per call:
+ *
+ *   1. Expire ready archives past their TTL. Deletes the underlying
+ *      object from storage and flips status='ready' → 'expired', clears
+ *      storage_key + size_bytes. Row is kept as a metadata-only audit
+ *      record (user can see "export X expired on date Y").
+ *
+ *   2. Reap stuck builds. A row still in 'building' two hours after
+ *      started_at is effectively dead (worker crashed mid-build, process
+ *      killed before status could flip to 'failed'). Mark as failed with
+ *      error_category='stuck_build_reaped' so users can request a new one.
+ *
+ * Both sweeps are bounded — this is defensive cleanup, not bulk batch.
+ */
+export async function runDataExportCleanupSweep(): Promise<{
+  expiredCleaned: number;
+  stuckReaped: number;
+  storageDeleteFailed: number;
+}> {
+  const p = prisma as any;
+  const now = new Date();
+  const storage = getObjectStorageAdapter();
+
+  // ── Sweep 1: expire ready archives ────────────────────────────────
+  const expired = await p.dataExport.findMany({
+    where: {
+      status: 'ready',
+      expires_at: { not: null, lt: now },
+    },
+    select: { id: true, storage_key: true },
+    take: 500,
+    orderBy: { expires_at: 'asc' },
+  });
+
+  let expiredCleaned = 0;
+  let storageDeleteFailed = 0;
+  for (const row of expired) {
+    if (row.storage_key) {
+      try {
+        if (storage.isConfigured()) {
+          await storage.deleteObject(row.storage_key);
+        }
+      } catch (err) {
+        // Keep going — we still flip status to 'expired' so the row
+        // doesn't get reprocessed every run. Orphan object is a sunk
+        // cost; operator can sweep externally.
+        if (!(err instanceof ObjectStorageNotConfiguredError)) {
+          storageDeleteFailed += 1;
+          captureException(
+            err instanceof Error ? err : new Error(String(err)),
+            {
+              extra: {
+                context: 'data_export_cleanup_storage_delete_failed',
+              },
+            }
+          );
+        }
+      }
+    }
+    await p.dataExport.update({
+      where: { id: row.id },
+      data: { status: 'expired', storage_key: null, size_bytes: null },
+    });
+    expiredCleaned += 1;
+  }
+
+  // ── Sweep 2: reap stuck builds ────────────────────────────────────
+  const stuckCutoff = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+  const stuckReaped = await p.dataExport.updateMany({
+    where: {
+      status: 'building',
+      started_at: { not: null, lt: stuckCutoff },
+    },
+    data: { status: 'failed', error_category: 'stuck_build_reaped' },
+  });
+
+  return {
+    expiredCleaned,
+    stuckReaped: stuckReaped.count,
+    storageDeleteFailed,
+  };
+}
+
+/**
+ * Data export cleanup — runs daily at 5:00 AM. Thin scheduler wrapper around
+ * runDataExportCleanupSweep() so the sweep logic stays unit-testable.
+ */
+export function startDataExportCleanup() {
+  cron.schedule('0 5 * * *', async () => {
+    debugLog('[data-export-cleanup] Starting cleanup sweep...');
+    try {
+      const result = await runDataExportCleanupSweep();
+      if (result.expiredCleaned > 0 || result.stuckReaped > 0 || result.storageDeleteFailed > 0) {
+        console.log(
+          `[data-export-cleanup] Done ✅ expired=${result.expiredCleaned} stuck_reaped=${result.stuckReaped} storage_delete_failed=${result.storageDeleteFailed}`
+        );
+      } else {
+        console.log('[data-export-cleanup] Nothing to do ✅');
+      }
+    } catch (error) {
+      console.error('[data-export-cleanup] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'data_export_cleanup_cron' },
+      });
+    }
+  });
+  debugLog('✅ Data export cleanup started (runs daily at 5:00 AM)');
 }

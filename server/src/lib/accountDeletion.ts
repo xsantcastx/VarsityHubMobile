@@ -3,6 +3,92 @@ import { invalidateMeCacheForUser } from './userCache.js';
 import { cleanupStripeBillingForDeletedUser } from './billingLifecycle.js';
 import { captureException } from './sentry.js';
 
+/**
+ * Default retention for anonymized accounts before hard-delete. The soft-delete
+ * / anonymize pass runs at self-serve time; the nightly cron picks up rows
+ * whose `deleted_at` is older than this window. 30 days gives us a
+ * dispute-reversal buffer and matches our privacy-policy disclosure.
+ */
+export const ANONYMIZED_USER_RETENTION_DAYS_DEFAULT = 30;
+
+/**
+ * Per-run cap. Keeps a single cron invocation from blocking the DB for an
+ * unbounded time on first rollout when there might be a large backlog. The
+ * next run picks up whatever didn't fit.
+ */
+const HARD_DELETE_PURGE_MAX_PER_RUN = 100;
+
+/**
+ * Hard-delete users whose account has been soft-deleted + anonymized for
+ * longer than the retention window. Selector is strict and fail-closed:
+ *
+ *   deletion_anonymized = true
+ *   AND deleted_at IS NOT NULL
+ *   AND deleted_at < (now - retentionDays)
+ *
+ * Soft-deleted rows with `deletion_anonymized = false` are NEVER purged —
+ * anonymization is the operator-verified proof that PII has been stripped.
+ *
+ * Per-row failures (e.g. the Prisma `Restrict` onDelete on
+ * `ConsentAuditLog.actor_admin` preventing purge of an admin who ever
+ * actioned parental consent) are caught, counted as `skipped`, and logged
+ * at warn level without surfacing the user row's ID to stdout — we log
+ * counts only so Railway doesn't accumulate identifiers for accounts that
+ * just finished a right-to-be-forgotten request.
+ *
+ * Returns raw counts only. Callers (the cron) decide on Sentry alerts.
+ */
+export async function hardDeleteAnonymizedUsers(options?: {
+  retentionDays?: number;
+  maxPerRun?: number;
+}): Promise<{ purged: number; skipped: number; scanned: number }> {
+  const retentionDays = Math.max(
+    1,
+    options?.retentionDays ?? ANONYMIZED_USER_RETENTION_DAYS_DEFAULT
+  );
+  const maxPerRun = Math.max(
+    1,
+    options?.maxPerRun ?? HARD_DELETE_PURGE_MAX_PER_RUN
+  );
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      deletion_anonymized: true,
+      deleted_at: { not: null, lt: cutoff },
+    } as any,
+    select: { id: true },
+    take: maxPerRun,
+    orderBy: { deleted_at: 'asc' }, // oldest first — longest waiting
+  });
+
+  if (candidates.length === 0) {
+    return { purged: 0, skipped: 0, scanned: 0 };
+  }
+
+  let purged = 0;
+  let skipped = 0;
+
+  for (const { id } of candidates) {
+    try {
+      await prisma.user.delete({ where: { id } });
+      purged += 1;
+    } catch (err) {
+      // Most common cause: `Restrict` FK on ConsentAuditLog.actor_admin
+      // preventing purge of an admin who ever actioned a parental consent.
+      // That's correct accountability — skip without failing the whole run.
+      skipped += 1;
+      // Intentionally do NOT log the user ID. Counts only.
+      console.warn(
+        '[anonymized-purge] Skipped hard-delete due to FK or runtime error (id suppressed):',
+        (err as any)?.code || (err as any)?.message || 'unknown'
+      );
+    }
+  }
+
+  return { purged, skipped, scanned: candidates.length };
+}
+
 function buildDeletedEmail(userId: string): string {
   return `deleted+${userId}@deleted.varsityhub.invalid`;
 }

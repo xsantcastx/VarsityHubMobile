@@ -88,6 +88,7 @@ export class EmailService {
     const isProduction = process.env.NODE_ENV === 'production';
     const overrideRecipient = process.env.EMAIL_OVERRIDE_TO; // e.g. emancero@varsityhub.app
     const originalRecipient = this.extractRecipient(options.to);
+    const auditPrivacy = options.metadata?.audit_privacy;
 
     if (!isProduction && overrideRecipient) {
       // Redirect all emails to the override address in staging/test
@@ -98,8 +99,11 @@ export class EmailService {
     console.log(JSON.stringify({
       _tag: 'EMAIL_AUDIT',
       timestamp: new Date().toISOString(),
-      originalRecipient,
-      actualRecipient: !isProduction && overrideRecipient ? overrideRecipient : originalRecipient,
+      originalRecipient: this.redactAuditRecipient(originalRecipient, auditPrivacy),
+      actualRecipient: this.redactAuditRecipient(
+        !isProduction && overrideRecipient ? overrideRecipient : originalRecipient,
+        auditPrivacy
+      ),
       subject: options.subject,
       redirected: !isProduction && !!overrideRecipient,
       environment: process.env.NODE_ENV || 'development',
@@ -128,7 +132,10 @@ export class EmailService {
           correlationId,
           `Sending email (attempt ${attempt}/${maxAttempts})`,
           {
-            to: this.extractRecipient(options.to),
+            to: this.redactAuditRecipient(
+              this.extractRecipient(options.to),
+              auditPrivacy
+            ),
             subject: options.subject,
             isTemplate,
             attempt,
@@ -280,6 +287,17 @@ export class EmailService {
     }
 
     return recipient.email;
+  }
+
+  private redactAuditRecipient(
+    recipient: string | string[],
+    auditPrivacy?: string
+  ): string | string[] {
+    if (auditPrivacy !== 'minor') return recipient;
+    if (Array.isArray(recipient)) {
+      return recipient.map(() => '[redacted-minor-email]');
+    }
+    return '[redacted-minor-email]';
   }
 
   /**

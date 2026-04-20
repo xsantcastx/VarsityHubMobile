@@ -38,7 +38,10 @@ adminReportsRouter.get('/', requireAdmin as any, asyncHandler(async (req: Authed
   
   const status = String(req.query.status || 'all').trim();
   const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '100')), 500));
-  const offset = parseInt(String(req.query.offset || '0'));
+  // Cap offset so an admin passing ?offset=999999999 doesn't force Postgres to
+  // skip hundreds of millions of rows. 10k matches a reasonable upper bound on
+  // pagination depth (100 pages × 100/page); paginate by date filters beyond that.
+  const offset = Math.max(0, Math.min(parseInt(String(req.query.offset || '0')) || 0, 10000));
   
   const where = status !== 'all' ? { status } : {};
   

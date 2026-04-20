@@ -8,6 +8,8 @@ import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import {
   startAdGoLiveCheck,
+  startAnonymizedUserPurge,
+  startDataExportCleanup,
   startMessageCleanup,
   startNotificationCleanup,
   startOvernightMonitoring,
@@ -16,6 +18,8 @@ import {
   startRefreshTokenCleanup,
   startStripeSubscriptionReconciliation,
 } from './cron/overnightTasks.js';
+import { startEmailWorker } from './workers/emailWorker.js';
+import { startDataExportWorker } from './workers/dataExportWorker.js';
 import { debugLog } from './lib/debugLog.js';
 import { SERVER_LEGEND_PRICE_LABEL, SERVER_ROOKIE_TEAM_LIMIT } from './lib/planDefinitions.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
@@ -33,6 +37,7 @@ import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter, handleAdSubmitForApproval } from './routes/ads.js';
 import { authRouter } from './routes/auth.js';
 import { consentRouter, handleConsentResend } from './routes/consent.js';
+import { dataExportRouter } from './routes/dataExport.js';
 import { eventsRouter } from './routes/events.js';
 import { followsRouter } from './routes/follows.js';
 import { gamesRouter } from './routes/games.js';
@@ -284,6 +289,10 @@ function mountApiRoutes(parent: any) {
   // authenticated minor's own resend endpoint at /me/consent/resend.
   parent.use('/consent', consentRouter);
   parent.post('/me/consent/resend', noStore, ...handleConsentResend);
+  // GDPR / right-to-access self-serve data export. Mounted without a path
+  // prefix because the endpoints themselves namespace under /data-export
+  // and /data-exports to live alongside /me/consent/* and other /me routes.
+  parent.use(noStore, dataExportRouter);
   parent.use('/games', gamesRouter);
   parent.use('/posts', postsRouter);
   parent.use('/notifications', noStore, notificationsRouter);
@@ -404,8 +413,16 @@ if (!isTest) {
   startNotificationCleanup();
   startStripeSubscriptionReconciliation();
   startParentalConsentExpiry();
+  startAnonymizedUserPurge();
+  startDataExportCleanup();
+  void startEmailWorker();
+  // Start the BullMQ worker that processes data-export build jobs. Must be
+  // explicitly invoked here — export-only (like startEmailWorker) would
+  // leave the queue with nothing listening and jobs would accumulate
+  // indefinitely. Fires and forgets; worker errors surface via Sentry.
+  void startDataExportWorker();
   debugLog(
-    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup, refresh token cleanup, notification cleanup, subscription reconciliation)'
+    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup, refresh token cleanup, notification cleanup, subscription reconciliation, parental consent expiry, anonymized user purge, data export cleanup, data export worker)'
   );
 }
 

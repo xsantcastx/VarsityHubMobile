@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as Sentry from '@sentry/node';
 import { z } from 'zod';
 import { validateContent } from '../lib/contentFilter.js';
 import { notifyNewMessage } from '../lib/notifications.js';
@@ -339,7 +340,15 @@ messagesRouter.post(
           convId!
         );
       } catch (e) {
+        // Notification failure must not block the message itself, but it
+        // also can't be invisible — without Sentry capture, an outage of
+        // the in-app notification table or push service would silently
+        // swallow user-visible reachability for hours.
         console.error('Failed to send message notification:', e);
+        Sentry.captureException(e instanceof Error ? e : new Error(String(e)), {
+          tags: { context: 'message_notification' },
+          extra: { message_id: created.id, recipient_id: toId, sender_id: meId },
+        });
       }
     }
 

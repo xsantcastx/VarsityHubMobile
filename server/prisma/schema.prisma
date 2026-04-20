@@ -250,6 +250,8 @@ model User {
   parentalConsentAuditsAsSubject ParentalConsentAudit[] @relation("consent_audit_user")
   parentalConsentAuditsAsActor   ParentalConsentAudit[] @relation("consent_audit_actor")
 
+  dataExports                    DataExport[]
+
   @@index([subscription_status])
   @@index([banned])
   @@index([email_verified])
@@ -258,6 +260,42 @@ model User {
   @@index([display_name])
   @@index([deleted_at])
   @@index([parental_consent_status])
+}
+
+// GDPR / right-to-access self-serve data export.
+//
+// Users request an export via POST /me/data-export, a worker builds a ZIP of
+// their owned/authored data into S3-compatible storage, and the user
+// downloads via a short-lived signed URL. Archives expire after
+// DATA_EXPORT_RETENTION_DAYS (default 7) — the cleanup cron then deletes
+// the object and flips `status` to `expired`, keeping the row as a
+// metadata-only audit record.
+//
+// Status flow:
+//   pending  → building → ready → expired
+//                       → failed
+model DataExport {
+  id                  String    @id @default(cuid())
+  user_id             String
+  status              String    // pending | building | ready | expired | failed
+  requested_at        DateTime  @default(now())
+  started_at          DateTime?
+  completed_at        DateTime?
+  expires_at          DateTime?
+  // Storage backend key/path (e.g. S3 object key). Null before build and
+  // after expiry cleanup. Never contains PII.
+  storage_key         String?
+  size_bytes          Int?
+  // Coarse error category only — no raw stack or message. Keeps the row
+  // safe to log/surface to admins.
+  error_category      String?
+  download_count      Int       @default(0)
+  last_downloaded_at  DateTime?
+
+  user                User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, requested_at])
+  @@index([status, requested_at])
 }
 
 // Parental consent admin-override audit trail. Append-only: every admin
