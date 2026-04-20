@@ -70,7 +70,10 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     parental_consent_status: 'not_required' | 'pending' | 'approved' | 'denied';
   } | null;
   const uAny = u as any;
-  const prefs = (u?.preferences ?? null) as Record<string, unknown> | null;
+  // `let` (not const) because the fan-onboarding healer at line ~110 may
+  // reassign this to the freshly-healed preferences snapshot. Railway's
+  // tsc caught this in 1.0.1 build; keep as `let` going forward.
+  let prefs = (u?.preferences ?? null) as Record<string, unknown> | null;
 
   // God-admins bypass all onboarding/approval checks
   if (isEmailAdmin(u?.email)) {
