@@ -4,6 +4,8 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { searchLimiter } from '../middleware/rateLimiters.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { getExcludedPrivateAuthorIds, getExcludedPrivateTeamIds } from '../lib/privacyUtils.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 export const searchRouter = Router();
 
@@ -50,12 +52,35 @@ searchRouter.get(
       blockedIds = Array.from(ids);
     }
 
+    // Privacy: exclude private profiles the viewer doesn't already follow.
+    // Returns [] when there are no private users or when the viewer follows
+    // every private user that matched.
+    const privateExcludeIds = await getExcludedPrivateAuthorIds(currentUserId);
+    const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+    const privateTeamExcludeIds = isAdmin ? [] : await getExcludedPrivateTeamIds(currentUserId);
+
+    // COPPA: hide 13–17 minors from public search. Adults (DOB >= 18 years
+    // ago) and users with unknown DOB pass through, matching the existing
+    // `isMinor` fail-open behavior. The 18-year cutoff is computed in JS so
+    // Prisma can compare against the indexed `date_of_birth` column directly.
+    const eighteenYearsAgo = new Date();
+    eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
+
+    const userExcludeIds = Array.from(new Set([...blockedIds, ...privateExcludeIds]))
+      .filter(id => id !== currentUserId);
+
     const [users, teams, organizations] = await Promise.all([
       prisma.user.findMany({
         where: {
           AND: [
             { banned: false },
-            ...(blockedIds.length > 0 ? [{ id: { notIn: blockedIds } }] : []),
+            ...(userExcludeIds.length > 0 ? [{ id: { notIn: userExcludeIds } }] : []),
+            {
+              OR: [
+                { date_of_birth: null },
+                { date_of_birth: { lte: eighteenYearsAgo } },
+              ],
+            } as any,
             {
               OR: [
                 { username: { contains: q, mode: 'insensitive' } },
@@ -75,6 +100,12 @@ searchRouter.get(
       }),
       prisma.team.findMany({
         where: {
+          status: 'active',
+          // Hide teams whose org is unapproved or archived — same boundary
+          // as the org filter below so a team can't be discovered through a
+          // back door when its org isn't yet reviewed.
+          organization: { admin_approved: true, status: 'active' },
+          ...(privateTeamExcludeIds.length > 0 ? { id: { notIn: privateTeamExcludeIds } } : {}),
           OR: [
             { name: { contains: q, mode: 'insensitive' } },
             { city: { contains: q, mode: 'insensitive' } },
@@ -89,6 +120,10 @@ searchRouter.get(
       }),
       prisma.organization.findMany({
         where: {
+          // Public search is for admin-approved, active orgs only. Pending
+          // and rejected orgs stay invisible until a super-admin reviews.
+          admin_approved: true,
+          status: 'active',
           OR: [
             { name: { contains: q, mode: 'insensitive' } },
             { description: { contains: q, mode: 'insensitive' } },
@@ -198,6 +233,7 @@ searchRouter.get(
       sport: (t as any).sport ?? null,
       members: (t as any)._count?.memberships ?? 0,
       is_following: teamFollowSet.has(t.id),
+      is_private: (t as any).is_private ?? false,
     }));
 
     const organizationsPayload = organizations.map(o => ({

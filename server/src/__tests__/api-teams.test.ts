@@ -379,4 +379,206 @@ describe('API Team Endpoints', () => {
       expect(Array.isArray(response.body)).toBe(true);
     });
   });
+
+  describe('Team privacy', () => {
+    it('hides private teams from public list and detail while allowing followers and org admins', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const privateOwner = await prisma.user.create({
+        data: {
+          email: `test-private-owner-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Private Team Owner',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      const team = await prisma.team.create({
+        data: {
+          name: `Private Team ${Date.now()}`,
+          description: 'Hidden from strangers',
+          organization_id: testOrgId,
+          status: 'active',
+          is_private: true,
+        },
+      });
+      await prisma.teamMembership.create({
+        data: {
+          team_id: team.id,
+          user_id: privateOwner.id,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+
+      const publicList = await request(app).get('/teams').expect(200);
+      expect(publicList.body.some((entry: any) => entry.id === team.id)).toBe(false);
+
+      await request(app).get(`/teams/${team.id}`).expect(404);
+
+      await prisma.teamFollow.create({
+        data: { user_id: fanUserId, team_id: team.id },
+      });
+
+      const followerList = await request(app)
+        .get('/teams')
+        .set('Authorization', `Bearer ${fanToken}`)
+        .expect(200);
+      expect(followerList.body.some((entry: any) => entry.id === team.id)).toBe(true);
+
+      const followerDetail = await request(app)
+        .get(`/teams/${team.id}`)
+        .set('Authorization', `Bearer ${fanToken}`)
+        .expect(200);
+      expect(followerDetail.body.id).toBe(team.id);
+      expect(followerDetail.body.is_private).toBe(true);
+
+      const orgAdminDetail = await request(app)
+        .get(`/teams/${team.id}`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+      expect(orgAdminDetail.body.id).toBe(team.id);
+      expect(orgAdminDetail.body.is_private).toBe(true);
+
+      await prisma.teamFollow.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: privateOwner.id } }).catch(() => {});
+    });
+  });
+
+  // ── Org-admin fallback regression tests (boundary closed in the canManageTeam
+  // extraction pass). Proves that a league owner/manager with no direct team
+  // membership can still archive teams and transfer ownership inside their
+  // own league. Same shape as the team-chat regression test at
+  // api-group-chats.test.ts:213.
+  describe('Org-admin fallback — team lifecycle', () => {
+    it('allows an org owner to archive a team inside their league without team membership', async () => {
+      // Fresh team inside the already-provisioned org, owned by a different
+      // user so the coach we're testing isn't also a team member.
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const separateOwner = await prisma.user.create({
+        data: {
+          email: `test-team-owner-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Team-Only Owner',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      const team = await prisma.team.create({
+        data: {
+          name: `Org-admin-delete-${Date.now()}`,
+          sport: 'soccer',
+          organization_id: testOrgId,
+          status: 'active',
+        },
+      });
+      await prisma.teamMembership.create({
+        data: { team_id: team.id, user_id: separateOwner.id, role: 'owner', status: 'active' },
+      });
+
+      // coachToken user is the org OWNER (seeded in beforeAll) but NOT a team
+      // member of this team. Before the fix they got 403; now 200.
+      const res = await request(app)
+        .delete(`/teams/${team.id}`)
+        .set('Authorization', `Bearer ${coachToken}`);
+
+      expect(res.status).toBe(200);
+
+      const archived = await prisma.team.findUnique({ where: { id: team.id } });
+      expect(archived?.status).not.toBe('active');
+
+      // Cleanup
+      await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: separateOwner.id } }).catch(() => {});
+    });
+
+    it('allows an org owner to transfer ownership of a team inside their league', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const [currentOwner, newOwner] = await Promise.all([
+        prisma.user.create({
+          data: {
+            email: `test-current-owner-${Date.now()}@example.com`,
+            password_hash: passwordHash,
+            display_name: 'Current Owner',
+            email_verified: true,
+            approval_status: 'APPROVED',
+            preferences: {
+              role: 'coach',
+              plan: 'rookie',
+              onboarding_completed: true,
+              coach_agreement_accepted_at: new Date().toISOString(),
+            },
+          },
+        }),
+        prisma.user.create({
+          data: {
+            email: `test-new-owner-${Date.now() + 1}@example.com`,
+            password_hash: passwordHash,
+            display_name: 'New Owner',
+            email_verified: true,
+            approval_status: 'APPROVED',
+            preferences: {
+              role: 'coach',
+              plan: 'rookie',
+              onboarding_completed: true,
+              coach_agreement_accepted_at: new Date().toISOString(),
+            },
+          },
+        }),
+      ]);
+
+      const team = await prisma.team.create({
+        data: {
+          name: `Org-admin-transfer-${Date.now()}`,
+          sport: 'soccer',
+          organization_id: testOrgId,
+          status: 'active',
+        },
+      });
+      await prisma.teamMembership.createMany({
+        data: [
+          { team_id: team.id, user_id: currentOwner.id, role: 'owner', status: 'active' },
+          { team_id: team.id, user_id: newOwner.id, role: 'coach', status: 'active' },
+        ],
+      });
+
+      // coachToken user is the org OWNER but NOT a team member. Before the
+      // fix, only the direct team owner could transfer; now the league admin
+      // can too.
+      const res = await request(app)
+        .post(`/teams/${team.id}/transfer-ownership`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .send({ new_owner_id: newOwner.id });
+
+      expect(res.status).toBe(200);
+
+      const newOwnerMembership = await prisma.teamMembership.findUnique({
+        where: { team_id_user_id: { team_id: team.id, user_id: newOwner.id } },
+      });
+      expect(newOwnerMembership?.role).toBe('owner');
+
+      // Cleanup
+      await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      await prisma.user
+        .deleteMany({ where: { id: { in: [currentOwner.id, newOwner.id] } } })
+        .catch(() => {});
+    });
+  });
 });

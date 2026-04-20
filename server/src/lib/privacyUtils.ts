@@ -53,6 +53,62 @@ export async function getExcludedPrivateAuthorIds(viewerId: string | null): Prom
 }
 
 /**
+ * Returns IDs of private teams whose profile/listing should be hidden from the
+ * viewer. Team members, team followers, and org admins are allowed through.
+ */
+export async function getExcludedPrivateTeamIds(viewerId: string | null): Promise<string[]> {
+  const privateTeams = await prisma.team.findMany({
+    where: { is_private: true, status: 'active' },
+    select: { id: true, organization_id: true },
+    take: 50000,
+  });
+
+  if (privateTeams.length === 0) return [];
+  const privateTeamIds = privateTeams.map(team => team.id);
+
+  if (!viewerId) return privateTeamIds;
+
+  const organizationIds = [...new Set(privateTeams.map(team => team.organization_id).filter(Boolean))];
+  const [follows, memberships, orgMemberships] = await Promise.all([
+    prisma.teamFollow.findMany({
+      where: { user_id: viewerId, team_id: { in: privateTeamIds } },
+      select: { team_id: true },
+      take: Math.min(privateTeamIds.length, 50000),
+    }),
+    prisma.teamMembership.findMany({
+      where: { user_id: viewerId, team_id: { in: privateTeamIds }, status: 'active' },
+      select: { team_id: true },
+      take: Math.min(privateTeamIds.length, 50000),
+    }),
+    organizationIds.length > 0
+      ? prisma.organizationMembership.findMany({
+          where: {
+            user_id: viewerId,
+            organization_id: { in: organizationIds },
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+          },
+          select: { organization_id: true },
+          take: Math.min(organizationIds.length, 50000),
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const allowedTeamIds = new Set<string>([
+    ...follows.map(row => row.team_id),
+    ...memberships.map(row => row.team_id),
+  ]);
+  const allowedOrgIds = new Set(orgMemberships.map(row => row.organization_id));
+  for (const team of privateTeams) {
+    if (allowedOrgIds.has(team.organization_id)) {
+      allowedTeamIds.add(team.id);
+    }
+  }
+
+  return privateTeamIds.filter(teamId => !allowedTeamIds.has(teamId));
+}
+
+/**
  * Check if a single user's private profile is hidden from the viewer.
  */
 /**
@@ -106,4 +162,40 @@ export async function isAuthorHiddenFromViewer(authorId: string, viewerId: strin
   });
 
   return !rel;
+}
+
+/**
+ * Check if a single team's private profile is hidden from the viewer.
+ * Team members, followers, and org admins can still see it.
+ */
+export async function isTeamHiddenFromViewer(teamId: string, viewerId: string | null): Promise<boolean> {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { is_private: true, status: true, organization_id: true },
+  });
+  if (!team || team.status !== 'active') return true;
+  if (!team.is_private) return false;
+  if (!viewerId) return true;
+
+  const [follow, membership, orgMembership] = await Promise.all([
+    prisma.teamFollow.findFirst({
+      where: { user_id: viewerId, team_id: teamId },
+      select: { team_id: true },
+    }),
+    prisma.teamMembership.findFirst({
+      where: { user_id: viewerId, team_id: teamId, status: 'active' },
+      select: { team_id: true },
+    }),
+    prisma.organizationMembership.findFirst({
+      where: {
+        user_id: viewerId,
+        organization_id: team.organization_id,
+        role: { in: ['owner', 'manager'] },
+        status: 'active',
+      },
+      select: { organization_id: true },
+    }),
+  ]);
+
+  return !follow && !membership && !orgMembership;
 }

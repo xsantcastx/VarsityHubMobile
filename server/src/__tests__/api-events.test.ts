@@ -296,4 +296,171 @@ describe('API Event Endpoints', () => {
       expect(response.body.length).toBeLessThanOrEqual(10);
     });
   });
+
+  // ── Org-admin fallback + broader-cancel-semantics regression tests.
+  //
+  // Closes the third original boundary bug: /events/:id/cancel used to require
+  // role='owner' on the team AND had no org-admin fallback. Now uses
+  // canManageAnyTeam() which accepts owner/manager/coach/assistant_coach plus
+  // org-admin fallback. These tests pin the broader semantics so a future
+  // tightening can't silently regress them.
+  describe('Event cancel — boundary regression', () => {
+    const futureDate = () => {
+      const d = new Date();
+      d.setDate(d.getDate() + 14);
+      return d;
+    };
+
+    it('allows an org owner to cancel an event linked to a team in their league without direct team membership', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      // Event creator is a separate team coach; the org-owner user we test
+      // with (coachToken) has NO team membership on this team. The
+      // pre-existing test setup does give coachToken a team owner membership
+      // on `testTeamId` (line 73-80), so we build a NEW team without touching
+      // that membership.
+      const orgOnlyAdmin = coachToken; // coachUserId is already org OWNER of testOrgId
+
+      const separateTeam = await prisma.team.create({
+        data: {
+          name: `Cancel-test-team-${Date.now()}`,
+          organization_id: testOrgId,
+        },
+      });
+      const separateCreator = await prisma.user.create({
+        data: {
+          email: `test-event-creator-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Event Creator',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+      await prisma.teamMembership.create({
+        data: {
+          team_id: separateTeam.id,
+          user_id: separateCreator.id,
+          role: 'coach',
+          status: 'active',
+        },
+      });
+
+      const event = await prisma.event.create({
+        data: {
+          title: 'Org-admin cancel target',
+          date: futureDate(),
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: separateCreator.id,
+          team_id: separateTeam.id,
+        } as any,
+      });
+
+      const res = await request(app)
+        .patch(`/events/${event.id}/cancel`)
+        .set('Authorization', `Bearer ${orgOnlyAdmin}`)
+        .send({});
+
+      expect(res.status).toBe(200);
+      const refreshed = await prisma.event.findUnique({ where: { id: event.id } });
+      expect(refreshed?.status).toBe('cancelled');
+
+      // Cleanup
+      await prisma.event.deleteMany({ where: { id: event.id } }).catch(() => {});
+      await prisma.teamMembership.deleteMany({ where: { team_id: separateTeam.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: separateTeam.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: separateCreator.id } }).catch(() => {});
+    });
+
+    it('allows a team coach (not just owner) to cancel an event they did not create', async () => {
+      // The pre-fix behavior rejected anyone whose team membership role was
+      // not 'owner'. This test proves a coach on the same team can cancel.
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const coachMember = await prisma.user.create({
+        data: {
+          email: `test-cancel-coach-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Team Coach Member',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+      await prisma.teamMembership.create({
+        data: {
+          team_id: testTeamId,
+          user_id: coachMember.id,
+          role: 'coach',
+          status: 'active',
+        },
+      });
+      const coachMemberToken = signJwt({ id: coachMember.id });
+
+      // Event created by a THIRD party (not the coach we're testing). The
+      // event is on testTeamId, so the coach has staff membership but isn't
+      // the creator.
+      const anotherCreator = await prisma.user.create({
+        data: {
+          email: `test-cancel-creator-${Date.now() + 1}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Another Creator',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+      await prisma.teamMembership.create({
+        data: {
+          team_id: testTeamId,
+          user_id: anotherCreator.id,
+          role: 'assistant_coach',
+          status: 'active',
+        },
+      });
+
+      const event = await prisma.event.create({
+        data: {
+          title: 'Coach cancel target',
+          date: futureDate(),
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: anotherCreator.id,
+          team_id: testTeamId,
+        } as any,
+      });
+
+      const res = await request(app)
+        .patch(`/events/${event.id}/cancel`)
+        .set('Authorization', `Bearer ${coachMemberToken}`)
+        .send({});
+
+      expect(res.status).toBe(200);
+      const refreshed = await prisma.event.findUnique({ where: { id: event.id } });
+      expect(refreshed?.status).toBe('cancelled');
+
+      // Cleanup
+      await prisma.event.deleteMany({ where: { id: event.id } }).catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({ where: { user_id: { in: [coachMember.id, anotherCreator.id] } } })
+        .catch(() => {});
+      await prisma.user
+        .deleteMany({ where: { id: { in: [coachMember.id, anotherCreator.id] } } })
+        .catch(() => {});
+    });
+  });
 });

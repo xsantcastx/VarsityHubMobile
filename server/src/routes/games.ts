@@ -1431,7 +1431,15 @@ gamesRouter.patch(
 
       const game = await prisma.game.findUnique({
         where: { id },
-        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+        select: {
+          id: true,
+          created_by_id: true,
+          home_team_id: true,
+          away_team_id: true,
+          date: true,
+          home_score: true,
+          away_score: true,
+        },
       });
 
       if (!game) return res.status(404).json({ error: 'Game not found' });
@@ -1450,6 +1458,28 @@ gamesRouter.patch(
         return res
           .status(403)
           .json({ error: 'Only coaches or team owners can update game results' });
+      }
+
+      // Score edit window: once a game has been scored (either score set) and
+      // more than 48 hours have passed since the game date, normal users lose
+      // edit access. This is the data-integrity baseline — a league can't
+      // re-litigate results weeks later. Platform admins retain override so
+      // legitimate correction requests still have an escape hatch.
+      const SCORE_EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
+      const gameWasScored =
+        game.home_score !== null || game.away_score !== null;
+      const windowClosesAt = game.date
+        ? new Date(game.date.getTime() + SCORE_EDIT_WINDOW_MS)
+        : null;
+      const windowExpired =
+        windowClosesAt !== null && Date.now() > windowClosesAt.getTime();
+      if (gameWasScored && windowExpired && !isAdmin) {
+        return res.status(403).json({
+          error: 'SCORE_EDIT_WINDOW_CLOSED',
+          message:
+            'Scores can only be edited for 48 hours after the game. Contact support if you need a correction.',
+          window_closed_at: windowClosesAt?.toISOString(),
+        });
       }
 
       const data: Record<string, any> = {};

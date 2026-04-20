@@ -95,21 +95,48 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, requireVerified as
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     const { chatId } = req.params;
+    const meId = req.user.id;
 
     // Verify user is a member of this chat
     const membership = await prisma.groupChatMember.findFirst({
       where: {
         chat_id: chatId,
-        user_id: req.user.id,
+        user_id: meId,
       },
+      select: { joined_at: true },
     });
 
     if (!membership) {
       return res.status(403).json({ error: 'Not a member of this chat' });
     }
 
+    // Block-list: filter out messages from users the requester has blocked or
+    // who have blocked the requester. Blocking otherwise only prevented DMs —
+    // in group chats, blocked users were still fully visible to each other.
+    // Bounded to 10k matching the search.ts cap.
+    const blocks = await prisma.blockedUser.findMany({
+      where: { OR: [{ blocker_id: meId }, { blocked_id: meId }] },
+      select: { blocker_id: true, blocked_id: true },
+      take: 10000,
+    });
+    const blockedUserIds = new Set<string>();
+    for (const b of blocks) {
+      if (b.blocker_id !== meId) blockedUserIds.add(b.blocker_id);
+      if (b.blocked_id !== meId) blockedUserIds.add(b.blocked_id);
+    }
+
     const messages = await prisma.groupChatMessage.findMany({
-      where: { chat_id: chatId },
+      where: {
+        chat_id: chatId,
+        // Pre-join history filter: members added partway through a chat now
+        // see only messages from their join time forward. Previously new
+        // members got full history, including conversations that happened
+        // before they were added.
+        created_at: { gte: membership.joined_at },
+        ...(blockedUserIds.size > 0
+          ? { sender_id: { notIn: Array.from(blockedUserIds) } }
+          : {}),
+      },
       include: {
         sender: {
           select: {
@@ -298,8 +325,84 @@ groupChatsRouter.post('/', requireAuth as any, requireVerified as any, asyncHand
   }
 }));
 
-// v1.0.2 pass 8: leave a group chat (any member) or remove another member (creator only).
-// Previously there was no exit mechanism — members were trapped in chats forever.
+// Add a member to a team-scoped group chat. Requires team staff role on the
+// chat's team (owner/manager/coach/assistant_coach) OR org admin (owner/manager)
+// of the team's organization. The new member must be on the team's roster.
+// Self-add is not permitted — joining is initiated by team management.
+groupChatsRouter.post(
+  '/:chatId/members',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const chatId = String(req.params.chatId);
+      const parsed = z.object({ user_id: z.string().min(1) }).safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'user_id is required' });
+      }
+      const targetUserId = parsed.data.user_id;
+
+      const chat = await prisma.groupChat.findUnique({
+        where: { id: chatId },
+        select: { id: true, team_id: true, created_by: true },
+      });
+      if (!chat) return res.status(404).json({ error: 'Group chat not found' });
+      if (!chat.team_id) {
+        return res.status(400).json({
+          error: 'NOT_TEAM_CHAT',
+          message: 'Direct chat membership cannot be modified.',
+        });
+      }
+
+      // Permission: team staff OR org admin OR original creator.
+      const canManage = await canManageTeamScoped(req.user.id, chat.team_id);
+      const isCreator = chat.created_by === req.user.id;
+      if (!canManage && !isCreator) {
+        return res.status(403).json({
+          error: 'PERMISSION_DENIED',
+          message: 'Only team staff or org admins can add members to this chat.',
+        });
+      }
+
+      // Target must be on the team's active roster.
+      const onTeam = await prisma.teamMembership.findFirst({
+        where: { team_id: chat.team_id, user_id: targetUserId, status: 'active' },
+        select: { id: true },
+      });
+      if (!onTeam) {
+        return res.status(400).json({
+          error: 'NOT_ON_TEAM',
+          message: 'User is not on this team\'s roster.',
+        });
+      }
+
+      // Idempotent — if already a member, return ok rather than P2002.
+      const existing = await prisma.groupChatMember.findFirst({
+        where: { chat_id: chatId, user_id: targetUserId },
+        select: { id: true },
+      });
+      if (existing) {
+        return res.json({ ok: true, already_member: true, user_id: targetUserId });
+      }
+
+      await prisma.groupChatMember.create({
+        data: { chat_id: chatId, user_id: targetUserId },
+      });
+      return res.status(201).json({ ok: true, user_id: targetUserId });
+    } catch (error: any) {
+      console.error('[group-chats] POST /:chatId/members error:', error?.message);
+      return res.status(500).json({ error: 'Failed to add member to group chat' });
+    }
+  })
+);
+
+// v1.0.2 pass 8: leave a group chat (any member) or remove another member.
+// Originally creator-only for removals — extended in the org-admin pass to
+// allow team staff and org admins to manage roster, mirroring the same
+// boundary used for team membership and chat creation. Closes the
+// orphan-creator failure mode where a deleted creator left the chat
+// permanently locked.
 groupChatsRouter.delete(
   '/:chatId/members/:userId',
   requireAuth as any,
@@ -315,17 +418,25 @@ groupChatsRouter.delete(
         where: { id: chatId },
         select: {
           id: true,
+          team_id: true,
           created_by: true,
           members: { where: { user_id: meId }, select: { user_id: true } },
         },
       });
       if (!chat) return res.status(404).json({ error: 'Group chat not found' });
 
-      // Self-leave is always allowed; removing another requires being the creator
+      // Self-leave is always allowed. Removing another requires creator role,
+      // team staff role on the chat's team, or org admin of the team's org.
       const isSelfLeave = targetUserId === meId;
       const isCreator = chat.created_by === meId;
-      if (!isSelfLeave && !isCreator) {
-        return res.status(403).json({ error: 'Only the chat creator can remove other members.' });
+      let canManageChat = isCreator;
+      if (!canManageChat && chat.team_id) {
+        canManageChat = await canManageTeamScoped(meId, chat.team_id);
+      }
+      if (!isSelfLeave && !canManageChat) {
+        return res.status(403).json({
+          error: 'Only the chat creator, team staff, or an org admin can remove other members.',
+        });
       }
 
       // Verify the target is actually a member

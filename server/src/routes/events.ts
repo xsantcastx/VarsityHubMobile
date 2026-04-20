@@ -23,7 +23,7 @@ import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
@@ -509,7 +509,11 @@ eventsRouter.post(
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id);
 
-    // Get event with date, capacity, title, location for RSVP and confirmation email
+    // Get event with date, capacity, title, location for RSVP and confirmation email.
+    // Also pulls the team / game / creator linkage so we can enforce an
+    // affiliation check — previously any authenticated user could RSVP to any
+    // event (private team practices included), leading to fake attendance
+    // counts and notification spam.
     const event = await prisma.event.findUnique({
       where: { id },
       select: {
@@ -519,6 +523,9 @@ eventsRouter.post(
         capacity: true,
         max_attendees: true,
         date: true,
+        team_id: true,
+        creator_id: true,
+        game: { select: { id: true, home_team_id: true, away_team_id: true } },
       },
     });
     if (!event) return res.status(404).json({ error: 'Not found' });
@@ -531,6 +538,47 @@ eventsRouter.post(
         error: 'Event has passed',
         message: 'You cannot RSVP to events that have already occurred.',
       });
+    }
+
+    // RSVP affiliation gate: if the event is linked to any team (directly via
+    // event.team_id or indirectly via event.game.home_team_id/away_team_id),
+    // the requester must have some relationship to at least one of those teams
+    // — member, follower, org admin — OR be the event creator, OR be a global
+    // admin. Events with no team linkage are treated as public (anyone can
+    // RSVP). The creator always passes regardless of current team membership,
+    // since they built the event.
+    const linkedTeamIds = [
+      event.team_id ?? null,
+      event.game?.home_team_id ?? null,
+      event.game?.away_team_id ?? null,
+    ].filter((tid): tid is string => Boolean(tid));
+
+    if (linkedTeamIds.length > 0 && event.creator_id !== req.user.id) {
+      const [teamMembership, teamFollow, orgAdminCheck, isAdminUser] =
+        await Promise.all([
+          prisma.teamMembership.findFirst({
+            where: {
+              team_id: { in: linkedTeamIds },
+              user_id: req.user.id,
+              status: 'active',
+            },
+            select: { id: true },
+          }),
+          prisma.teamFollow.findFirst({
+            where: { team_id: { in: linkedTeamIds }, user_id: req.user.id },
+            select: { team_id: true },
+          }),
+          canManageAnyTeam(req.user.id, linkedTeamIds),
+          getIsAdmin(req as any),
+        ]);
+
+      if (!teamMembership && !teamFollow && !orgAdminCheck && !isAdminUser) {
+        return res.status(403).json({
+          error: 'EVENT_AFFILIATION_REQUIRED',
+          message:
+            'You must be a member or follower of this team to RSVP to this event.',
+        });
+      }
     }
 
     const parsed = rsvpSchema.safeParse(req.body || {});
@@ -1246,29 +1294,28 @@ eventsRouter.patch(
         return res.status(400).json({ error: 'Event already cancelled' });
       }
 
-      // Permission: creator OR team owner (of game's home/away team)
+      // Permission: creator OR any team staff (including org admin fallback)
+      // for any team linked to this event. Previously this check accepted only
+      // role='owner' and skipped the org-admin fallback — league owners
+      // couldn't cancel events in their own league, and team coaches couldn't
+      // cancel events they scheduled. `canManageAnyTeam` consolidates the
+      // same rule used by team update / game approval / chat creation.
       const isCreator = event.creator_id === userId;
-      let isTeamOwner = false;
-      if (event.game?.home_team_id || event.game?.away_team_id) {
-        const teamIds = [event.game.home_team_id, event.game.away_team_id].filter(
-          Boolean
-        ) as string[];
-        const ownership = await prisma.teamMembership.findFirst({
-          where: {
-            team_id: { in: teamIds },
-            user_id: userId,
-            role: 'owner',
-            status: 'active',
-          },
-        });
-        isTeamOwner = !!ownership;
-      }
+      const linkedTeamIds: Array<string | null | undefined> = [
+        event.game?.home_team_id ?? null,
+        event.game?.away_team_id ?? null,
+        (event as any).team_id ?? null,
+      ];
+      const canManageLinkedTeam = linkedTeamIds.some(Boolean)
+        ? await canManageAnyTeam(userId, linkedTeamIds)
+        : false;
 
       const isAdmin = await getIsAdmin(req as any);
-      if (!isCreator && !isTeamOwner && !isAdmin) {
+      if (!isCreator && !canManageLinkedTeam && !isAdmin) {
         return res.status(403).json({
           error: 'Permission denied',
-          message: 'Only the event creator or team owner can cancel this event.',
+          message:
+            'Only the event creator, team staff, or a league admin can cancel this event.',
         });
       }
 

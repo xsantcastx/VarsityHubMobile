@@ -23,6 +23,10 @@ import {
   TEAM_AUTHORIZED_ROLES,
 } from '../lib/teamEntitlements.js';
 import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import {
+  getExcludedPrivateTeamIds,
+  isTeamHiddenFromViewer,
+} from '../lib/privacyUtils.js';
 
 import { registerIdValidation } from '../middleware/validateParams.js';
 
@@ -175,6 +179,12 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
   }
   
   let where: any = all ? {} : { status: 'active' };
+  const currentUserId = (req as AuthedRequest).user?.id ?? null;
+  const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+  const privateTeamExcludeIds = !all && !isAdmin ? await getExcludedPrivateTeamIds(currentUserId) : [];
+  if (privateTeamExcludeIds.length > 0) {
+    where.id = { notIn: privateTeamExcludeIds };
+  }
   
   // Directory search: search across name, city, league, sport
   if (directory && q) {
@@ -221,6 +231,7 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
     description: t.description, 
     status: t.status, 
     members: (t as any)._count.memberships, 
+    is_private: (t as any).is_private ?? false,
     logo_url: (t as any).logo_url || null, 
     avatar_url: (t as any).avatar_url || null,
     city: (t as any).city || null,
@@ -333,14 +344,18 @@ teamsRouter.get('/:id', asyncHandler(async (req, res) => {
     },
   });
   if (!t) return res.status(404).json({ error: 'Not found' });
+  const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+  if (!isAdmin) {
+    const hidden = await isTeamHiddenFromViewer(id, currentUserId);
+    if (hidden) return res.status(404).json({ error: 'Not found' });
+  }
 
   if (currentUserId) {
-    const [membership, isAdmin, orgMembership] = await Promise.all([
+    const [membership, orgMembership] = await Promise.all([
       prisma.teamMembership.findFirst({
         where: { team_id: id, user_id: currentUserId, status: 'active' },
         select: { role: true },
       }),
-      getIsAdmin(req as any),
       t.organization_id
         ? prisma.organizationMembership.findFirst({
             where: {
@@ -364,11 +379,12 @@ teamsRouter.get('/:id', asyncHandler(async (req, res) => {
   }
 
   return res.json({
-    id: t.id,
-    name: t.name,
-    description: t.description,
-    status: t.status,
-    sport: t.sport,
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      status: t.status,
+      is_private: (t as any).is_private ?? false,
+      sport: t.sport,
     season_start: t.season_start,
     season_end: t.season_end,
     organization_id: t.organization_id,
@@ -400,7 +416,10 @@ teamsRouter.get('/:id', asyncHandler(async (req, res) => {
 teamsRouter.get('/:id/members', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   const id = String(req.params.id);
-  const team = await prisma.team.findUnique({ where: { id }, select: { id: true, organization_id: true } });
+  const team = await prisma.team.findUnique({
+    where: { id },
+    select: { id: true, organization_id: true, is_private: true },
+  });
   if (!team) return res.status(404).json({ error: 'Team not found' });
 
   const isAdmin = await getIsAdmin(req as any);
@@ -712,6 +731,7 @@ const updateSchema = z.object({
   venue_lat: z.number().optional(),
   venue_lng: z.number().optional(),
   venue_address: z.string().optional(),
+  is_private: z.boolean().optional(),
 });
 teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   debugLog('[Teams PUT] Received update request:', JSON.stringify(req.body));
@@ -813,6 +833,7 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   if (parsed.data.venue_lat !== undefined) updateData.venue_lat = parsed.data.venue_lat;
   if (parsed.data.venue_lng !== undefined) updateData.venue_lng = parsed.data.venue_lng;
   if (parsed.data.venue_address !== undefined) updateData.venue_address = parsed.data.venue_address;
+  if (parsed.data.is_private !== undefined) updateData.is_private = parsed.data.is_private;
   
   debugLog('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
   
@@ -838,6 +859,7 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
       name: updatedTeam.name,
       description: updatedTeam.description,
       sport: updatedTeam.sport,
+      is_private: (updatedTeam as any).is_private ?? false,
       season_start: updatedTeam.season_start,
       season_end: updatedTeam.season_end,
       organization_id: updatedTeam.organization_id,
@@ -863,19 +885,23 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
 // Delete team (auth required). Only owners/admins can delete.
 teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
-  
+
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  // Check if user is owner or admin
-  const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
-  });
+
+  // Team staff OR org admin can archive. Using the shared helper keeps this
+  // route's boundary consistent with team update, event approval, and the
+  // rest of the team-scoped endpoints — previously this check was inline and
+  // missed the org-admin fallback, blocking league owners from archiving
+  // teams inside their own league.
   const isAdmin = await getIsAdmin(req as any);
-  if (!isAdmin && (!membership || membership.role !== 'owner')) {
-    return res.status(403).json({ error: 'Only team owners can delete teams' });
+  const canManage = await canManageTeamScoped(req.user.id, teamId);
+  if (!isAdmin && !canManage) {
+    return res.status(403).json({
+      error: 'Only team staff or league admins can delete teams',
+    });
   }
   if (team.status !== 'active') {
     return res.json({ ok: true, archived: true, already_archived: true });
@@ -1795,12 +1821,28 @@ teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireOnboarded
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
   const { new_owner_id } = parsed.data;
 
-  // Verify current user is the owner
+  // Transfer-ownership is deliberately MORE restrictive than canManageTeam.
+  // Team staff like coach / assistant_coach shouldn't be able to hand off
+  // ownership, but the current owner and the parent league's owner/manager
+  // can. Two-layer check: direct team owner OR org admin of the team's org.
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { organization_id: true },
+  });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+
   const currentMembership = await prisma.teamMembership.findUnique({
     where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
   });
-  if (!currentMembership || currentMembership.role !== 'owner') {
-    return res.status(403).json({ error: 'Only the team owner can transfer ownership' });
+  const isDirectOwner = currentMembership?.role === 'owner';
+  const { isOrgAdmin } = await import('../lib/teamAuthorization.js');
+  const isLeagueAdmin = team.organization_id
+    ? await isOrgAdmin(req.user.id, team.organization_id)
+    : false;
+  if (!isDirectOwner && !isLeagueAdmin) {
+    return res.status(403).json({
+      error: 'Only the team owner or a league admin can transfer ownership',
+    });
   }
 
   // Verify new owner is a member of the team
@@ -1811,10 +1853,18 @@ teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireOnboarded
     return res.status(400).json({ error: 'New owner must be an existing team member' });
   }
 
+  const existingOwnerMembership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, role: 'owner', status: 'active' },
+    select: { user_id: true },
+  });
+  if (!existingOwnerMembership) {
+    return res.status(400).json({ error: 'Team does not have an active owner to transfer from' });
+  }
+
   // Transfer: demote current owner to manager, promote new owner
   await prisma.$transaction([
     prisma.teamMembership.update({
-      where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } },
+      where: { team_id_user_id: { team_id: teamId, user_id: existingOwnerMembership.user_id } },
       data: { role: 'manager' }
     }),
     prisma.teamMembership.update({

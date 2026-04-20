@@ -69,8 +69,8 @@ function EditTeamScreen() {
         const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
         setMembers(arr);
         const myMembership = arr.find((m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id);
-        if (!myMembership || !['owner', 'manager', 'coach'].includes(String(myMembership.role || '').toLowerCase())) {
-          Alert.alert('Access Denied', 'You must be a team owner, manager, or coach to edit this team.');
+        if (!myMembership || !['owner', 'manager', 'coach', 'assistant_coach'].includes(String(myMembership.role || '').toLowerCase())) {
+          Alert.alert('Access Denied', 'You must be team staff or an organization admin to edit this team.');
           safeGoBack(router);
           return;
         }

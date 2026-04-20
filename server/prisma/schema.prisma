@@ -850,6 +850,11 @@ model Team {
   season_end               DateTime?
   organization_id          String
   status                   String    @default("active")
+  // When true, the team is hidden from public search and discover. Only team
+  // members, followers, and org admins (owner/manager) can list the roster
+  // or pull the full profile. Set via the team-update endpoint by team staff
+  // or org admins.
+  is_private               Boolean   @default(false)
 
   // Venue information
   venue_place_id   String?   @db.VarChar(255)
@@ -883,6 +888,7 @@ model Team {
   @@index([city, state])
   @@index([sport])
   @@index([organization_id])
+  @@index([is_private])
 }
 
 model Organization {

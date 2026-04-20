@@ -374,7 +374,7 @@ function TeamScreen() {
               const memberUserId = m.user_id || m.user?.id;
               if (memberUserId !== currentUser.id) return false;
               const role = String(m.role || '').toLowerCase();
-              return ['owner', 'coach', 'admin'].includes(role);
+              return ['owner', 'manager', 'coach', 'assistant_coach', 'admin'].includes(role);
             });
             const isOrgOwner = !!(org?.league_owner_id && org.league_owner_id === currentUser.id);
             if (mounted.current) setIsTeamAdmin(!!membership || isOrgOwner);

@@ -1,9 +1,11 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -54,6 +56,17 @@ function CoachAgreementScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.headerRow, { borderBottomColor: C.border }]}>
+        <Pressable
+          onPress={() => safeGoBack(router)}
+          style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={12}
+        >
+          <MaterialIcons name="chevron-left" size={28} color={C.text} />
+        </Pressable>
+      </View>
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={[styles.title, { color: C.text }]}>Coach Agreement</Text>
         <Text style={[styles.subtitle, { color: C.mutedText }]}>
@@ -96,6 +109,14 @@ function CoachAgreementScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  backButton: { padding: 8 },
   scroll: { padding: 20, paddingBottom: 32 },
   title: { fontSize: 26, fontWeight: '800', marginBottom: 8 },
   subtitle: { fontSize: 15, lineHeight: 22, marginBottom: 20 },

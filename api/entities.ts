@@ -829,6 +829,8 @@ export const Advertisement = {
     httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, { dates }),
   review: (adId: string, action: 'approve' | 'reject', note?: string) =>
     httpPost(`/ads/${encodeURIComponent(adId)}/review`, { action, note }),
+  report: (adId: string, reason: string, details?: string) =>
+    httpPost('/reports', { target_type: 'ad', target_id: adId, reason, details }),
 };
 
 export const Search = {

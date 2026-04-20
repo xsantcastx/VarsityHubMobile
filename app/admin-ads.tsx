@@ -198,6 +198,31 @@ function AdminAdsScreen() {
     }
   };
 
+  const getModerationColors = (status?: string | null) => {
+    switch (status) {
+      case 'clean':
+        return { bg: '#DCFCE7', border: '#22C55E', text: '#166534', label: 'Banner clean' };
+      case 'flagged':
+        return { bg: '#FEE2E2', border: '#DC2626', text: '#991B1B', label: 'Banner flagged' };
+      case 'error':
+        return { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E', label: 'Moderation failed' };
+      default:
+        return null;
+    }
+  };
+
+  const summarizeModerationLabels = (labels: any) => {
+    if (!Array.isArray(labels) || labels.length === 0) return null;
+    return labels
+      .slice(0, 2)
+      .map((label: any) => {
+        const name = String(label?.name || 'Unknown');
+        const confidence = typeof label?.confidence === 'number' ? Math.round(label.confidence) : null;
+        return confidence ? `${name} ${confidence}%` : name;
+      })
+      .join(' • ');
+  };
+
   const renderItem = ({ item }: { item: any }) => {
     const isSelected = selectedAds.has(String(item.id));
     
@@ -271,7 +296,32 @@ function AdminAdsScreen() {
                   <Text style={[styles.badgeSmallText, { color: theme.text }]}>{String(item.payment_status).toUpperCase()}</Text>
                 </View>
               )}
+              {getModerationColors(item.banner_moderation_status) && (
+                <View
+                  style={[
+                    styles.badgeSmall,
+                    {
+                      backgroundColor: getModerationColors(item.banner_moderation_status)?.bg,
+                      borderColor: getModerationColors(item.banner_moderation_status)?.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.badgeSmallText,
+                      { color: getModerationColors(item.banner_moderation_status)?.text },
+                    ]}
+                  >
+                    {getModerationColors(item.banner_moderation_status)?.label}
+                  </Text>
+                </View>
+              )}
             </View>
+            {item.banner_moderation_status === 'flagged' && summarizeModerationLabels(item.banner_moderation_labels) ? (
+              <Text style={[styles.meta, { color: '#B91C1C', marginTop: 6 }]}>
+                {summarizeModerationLabels(item.banner_moderation_labels)}
+              </Text>
+            ) : null}
           </View>
         </View>
         
@@ -498,6 +548,41 @@ function AdminAdsScreen() {
               <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 4 }}>{detailAd?.business_name || 'Untitled'}</Text>
               <Text style={{ fontSize: 14, color: theme.mutedText, marginBottom: 12 }}>Status: {String(detailAd?.status || 'draft').toUpperCase()} · Payment: {String(detailAd?.payment_status || 'unpaid').toUpperCase()}</Text>
               {detailAd?.description ? <Text style={{ fontSize: 15, color: theme.text, marginBottom: 12, lineHeight: 22 }}>{detailAd.description}</Text> : null}
+              {getModerationColors(detailAd?.banner_moderation_status) ? (
+                <View
+                  style={{
+                    backgroundColor: getModerationColors(detailAd?.banner_moderation_status)?.bg,
+                    borderColor: getModerationColors(detailAd?.banner_moderation_status)?.border,
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    padding: 12,
+                    marginBottom: 16,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: getModerationColors(detailAd?.banner_moderation_status)?.text,
+                      fontWeight: '800',
+                      marginBottom: 4,
+                    }}
+                  >
+                    {getModerationColors(detailAd?.banner_moderation_status)?.label}
+                  </Text>
+                  {detailAd?.banner_moderation_score ? (
+                    <Text style={{ color: theme.text, marginBottom: 4 }}>
+                      Highest confidence: {Math.round(detailAd.banner_moderation_score)}%
+                    </Text>
+                  ) : null}
+                  {summarizeModerationLabels(detailAd?.banner_moderation_labels) ? (
+                    <Text style={{ color: theme.text, marginBottom: detailAd?.banner_moderation_error ? 4 : 0 }}>
+                      {summarizeModerationLabels(detailAd?.banner_moderation_labels)}
+                    </Text>
+                  ) : null}
+                  {detailAd?.banner_moderation_error ? (
+                    <Text style={{ color: theme.text }}>{detailAd.banner_moderation_error}</Text>
+                  ) : null}
+                </View>
+              ) : null}
               <View style={{ gap: 6, marginBottom: 16 }}>
                 <Text style={{ fontSize: 14, color: theme.mutedText }}>Contact: {detailAd?.contact_name} · {detailAd?.contact_email}</Text>
                 <Text style={{ fontSize: 14, color: theme.mutedText }}>Target Zip: {detailAd?.target_zip_code || 'N/A'}</Text>

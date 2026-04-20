@@ -62,12 +62,68 @@ export async function notifyMentions(params: {
     blockedIds.add(b.blocker_id === actorId ? b.blocked_id : b.blocker_id);
   }
 
-  const recipients = filteredRecipients.filter((u) => {
+  let recipients = filteredRecipients.filter((u) => {
     if (blockedIds.has(u.id)) return false;
     const prefs = u.preferences as any;
     if (prefs?.notifications?.mentions === false) return false;
     return true;
   });
+
+  // Post-visibility gate: a mentioned user who can't actually see the post
+  // shouldn't be notified about it. If the post belongs to a private team,
+  // restrict recipients to users with a real relationship to that team
+  // (member, follower, or org admin of the team's org). Public teams /
+  // team-less posts skip this check — anyone can see the post, so the
+  // notification is fine.
+  //
+  // Perf: fetch post + team in a single query via relation include. Saves a
+  // round-trip on every mention-bearing post/comment.
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: {
+      team_id: true,
+      team: { select: { is_private: true, organization_id: true } as any },
+    } as any,
+  });
+  const postAny = post as any;
+  if (postAny?.team_id && recipients.length > 0) {
+    const teamId = postAny.team_id as string;
+    const teamAny = postAny.team;
+    if (teamAny?.is_private) {
+      const recipientIds = recipients.map((u) => u.id);
+      const [teamMembers, teamFollowers, orgAdmins] = await Promise.all([
+        prisma.teamMembership.findMany({
+          where: {
+            team_id: teamId,
+            user_id: { in: recipientIds },
+            status: 'active',
+          },
+          select: { user_id: true },
+        }),
+        prisma.teamFollow.findMany({
+          where: { team_id: teamId, user_id: { in: recipientIds } },
+          select: { user_id: true },
+        }),
+        teamAny.organization_id
+          ? prisma.organizationMembership.findMany({
+              where: {
+                organization_id: teamAny.organization_id,
+                user_id: { in: recipientIds },
+                role: { in: ['owner', 'manager'] },
+                status: 'active',
+              },
+              select: { user_id: true },
+            })
+          : Promise.resolve([] as Array<{ user_id: string }>),
+      ]);
+      const visibleUserIds = new Set<string>([
+        ...teamMembers.map((m) => m.user_id),
+        ...teamFollowers.map((f) => f.user_id),
+        ...orgAdmins.map((a) => a.user_id),
+      ]);
+      recipients = recipients.filter((u) => visibleUserIds.has(u.id));
+    }
+  }
 
   const recipientIds = recipients.map((u) => u.id);
   if (recipientIds.length === 0) return;

@@ -108,12 +108,32 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   // v1.0.2: Approved coaches must accept the coach agreement before accessing coach tools.
   // Previously this was UI-only — any API client could bypass by calling coach endpoints directly.
+  //
+  // v1.0.3: Agreement versioning. When the agreement text changes, bump
+  // `REQUIRED_COACH_AGREEMENT_VERSION` in this file (or via env var) and
+  // existing coaches will be forced to re-accept. The version stored in
+  // `preferences.coach_agreement_version` is compared against the required
+  // constant. Legacy users with only `accepted_at` (no version field) are
+  // treated as having accepted version 1 — bump to 2+ to force re-accept.
   if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
+    const REQUIRED_COACH_AGREEMENT_VERSION = Number(
+      process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
+    );
     const acceptedAt = prefs?.coach_agreement_accepted_at;
+    const acceptedVersion = Number(prefs?.coach_agreement_version ?? 1);
     if (!acceptedAt) {
       return res.status(403).json({
         error: 'You must accept the coach agreement before accessing coach tools.',
         code: 'COACH_AGREEMENT_REQUIRED',
+      });
+    }
+    if (acceptedVersion < REQUIRED_COACH_AGREEMENT_VERSION) {
+      return res.status(403).json({
+        error:
+          'The coach agreement has been updated. Please review and accept the latest version.',
+        code: 'COACH_AGREEMENT_OUTDATED',
+        current_version: acceptedVersion,
+        required_version: REQUIRED_COACH_AGREEMENT_VERSION,
       });
     }
   }

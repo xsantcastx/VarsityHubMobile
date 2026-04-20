@@ -318,6 +318,35 @@ export default function FeedScreen() {
     }
   }, []);
 
+  const submitAdReport = useCallback(async (adId: string, reason: string) => {
+    try {
+      await Advertisement.report(adId, reason);
+      Alert.alert('Report Sent', 'Thanks. Our team will review this ad.');
+    } catch (err: any) {
+      if (err?.status === 409) {
+        Alert.alert('Already Reported', 'You already reported this ad recently.');
+        return;
+      }
+      if (err?.status === 401) {
+        Alert.alert('Sign In Required', 'You need to be signed in to report an ad.');
+        return;
+      }
+      Alert.alert('Unable to Report', err?.message || 'Please try again later.');
+    }
+  }, []);
+
+  const showAdReportOptions = useCallback((ad: any) => {
+    Alert.alert(
+      'Report Ad',
+      `Report "${ad?.business_name || 'this ad'}" for:`,
+      [
+        { text: 'Spam', onPress: () => void submitAdReport(String(ad.id), 'spam') },
+        { text: 'False Info', onPress: () => void submitAdReport(String(ad.id), 'false_information') },
+        { text: 'Other', onPress: () => void submitAdReport(String(ad.id), 'other') },
+      ]
+    );
+  }, [submitAdReport]);
+
   const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     // Performance: skip silent reloads if data is fresh (< 30s old)
     if (silent && Date.now() - lastLoadTimestampRef.current < LOAD_COOLDOWN_MS) return;
@@ -1315,11 +1344,41 @@ export default function FeedScreen() {
                 },
               ]}
             >
-              <Text
-                style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
-              >
-                SPONSORED
-              </Text>
+              <View style={styles.sponsoredHeader}>
+                <Text
+                  style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}
+                >
+                  SPONSORED
+                </Text>
+                {!!adData?.id && (
+                  <Pressable
+                    style={[
+                      styles.adReportButton,
+                      {
+                        borderColor: Colors[colorScheme].border,
+                        backgroundColor: Colors[colorScheme].background,
+                      },
+                    ]}
+                    onPress={() => showAdReportOptions(adData)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Report sponsored ad"
+                  >
+                    <Ionicons
+                      name="flag-outline"
+                      size={14}
+                      color={Colors[colorScheme].mutedText}
+                    />
+                    <Text
+                      style={[
+                        styles.adReportButtonText,
+                        { color: Colors[colorScheme].mutedText },
+                      ]}
+                    >
+                      Report
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
               {adData.banner_url ? (
                 <BannerAd
                   bannerUrl={adData.banner_url}
@@ -2282,6 +2341,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
+  sponsoredHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 12,
+  },
   sponsoredLabel: {
     fontSize: 10,
     fontWeight: '700',
@@ -2290,6 +2355,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
+  },
+  adReportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  adReportButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   adPlaceholder: {
     width: '100%',

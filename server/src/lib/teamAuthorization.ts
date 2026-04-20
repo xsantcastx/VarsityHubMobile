@@ -103,6 +103,50 @@ export async function canApproveTeamGame(userId: string | null | undefined, team
 }
 
 /**
+ * Can `userId` see a private team's roster + full profile?
+ *
+ * Public teams (`is_private = false`) are always viewable. For private teams,
+ * the viewer must be one of:
+ *   - active team member (any role)
+ *   - team follower
+ *   - org owner/manager (via canManageTeam fallback)
+ *   - platform admin (callers should check separately and short-circuit)
+ *
+ * Returns false for unauthenticated viewers attempting to access a private
+ * team, and false for any user not on the access list above.
+ */
+export async function canViewTeam(userId: string | null | undefined, teamId: string): Promise<boolean> {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { is_private: true, organization_id: true } as any,
+  });
+  if (!team) return false;
+  if (!(team as any).is_private) return true;
+  if (!userId) return false;
+
+  const [teamMembership, teamFollow] = await Promise.all([
+    prisma.teamMembership.findFirst({
+      where: { team_id: teamId, user_id: userId, status: 'active' },
+      select: { id: true },
+    }),
+    prisma.teamFollow.findFirst({
+      where: { team_id: teamId, user_id: userId },
+      select: { team_id: true },
+    }),
+  ]);
+  if (teamMembership || teamFollow) return true;
+
+  // Org-admin fallback — same boundary as canManageTeam
+  return isOrgAdmin(userId, (team as any).organization_id);
+}
+
+/**
+ * For batch list/search filtering use `getExcludedPrivateTeamIds(viewerId)`
+ * from `lib/privacyUtils.js` instead — it returns the IDs to put in a
+ * `notIn` clause and uses a 60s cache for fanout-friendly cost.
+ */
+
+/**
  * Convenience: check whether `userId` is admin (owner or manager) in ANY of
  * the supplied org IDs. Used by game-approval to check across home/away orgs.
  */

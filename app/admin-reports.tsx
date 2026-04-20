@@ -37,6 +37,28 @@ interface AbuseReport {
   };
 }
 
+function parseReportTarget(subject: string): { targetType: string | null; targetId: string | null } {
+  const match = String(subject || '').match(/\[([a-z_]+):([^\]]+)\]/i);
+  return {
+    targetType: match?.[1] || null,
+    targetId: match?.[2] || null,
+  };
+}
+
+function getReportPreview(report: AbuseReport): string {
+  try {
+    const parsed = JSON.parse(report.message || '{}');
+    if (parsed?.details) return String(parsed.details);
+    if (parsed?.context?.business_name) {
+      return `Business: ${parsed.context.business_name}`;
+    }
+    if (parsed?.reason) return String(parsed.reason).replace(/_/g, ' ');
+  } catch {
+    // fall back to raw message
+  }
+  return report.message;
+}
+
 interface ReportStats {
   pending: number;
   reviewed: number;
@@ -120,6 +142,17 @@ function AdminReportsScreen() {
     }
   };
 
+  const takeDownAd = async (report: AbuseReport) => {
+    try {
+      const { httpPost } = await import('@/api/http');
+      await httpPost(`/admin/reports/${report.id}/take-down-ad`, {});
+      await loadReports(true);
+      Alert.alert('Success', 'The ad was taken down and the advertiser was notified.');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to take down ad');
+    }
+  };
+
   const bulkUpdateStatus = async (status: string) => {
     if (selectedReports.size === 0) {
       Alert.alert('No Reports Selected', 'Please select at least one report');
@@ -196,6 +229,9 @@ function AdminReportsScreen() {
 
   const ReportCard = ({ report }: { report: AbuseReport }) => {
     const isSelected = selectedReports.has(report.id);
+    const { targetType } = parseReportTarget(report.subject);
+    const preview = getReportPreview(report);
+    const isAdReport = targetType === 'ad';
     
     return (
       <Pressable 
@@ -235,7 +271,7 @@ function AdminReportsScreen() {
           style={[styles.reportMessage, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}
           numberOfLines={3}
         >
-          {report.message}
+          {preview}
         </Text>
 
         <View style={styles.reportFooter}>
@@ -243,6 +279,23 @@ function AdminReportsScreen() {
             {new Date(report.created_at).toLocaleDateString()} {new Date(report.created_at).toLocaleTimeString()}
           </Text>
           <View style={styles.reportActions}>
+            {isAdReport && report.status !== 'resolved' && report.status !== 'dismissed' && (
+              <Pressable
+                style={[styles.actionBtn, { backgroundColor: '#DC2626' + '20' }]}
+                onPress={() => {
+                  Alert.alert(
+                    'Take Down Ad',
+                    'Remove this ad from feed and notify the advertiser?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Take Down', style: 'destructive', onPress: () => void takeDownAd(report) },
+                    ]
+                  );
+                }}
+              >
+                <Text style={[styles.actionBtnText, { color: '#DC2626' }]}>Take Down Ad</Text>
+              </Pressable>
+            )}
             <Pressable 
               style={[styles.actionBtn, { backgroundColor: '#10B981' + '20' }]}
               onPress={() => updateReportStatus(report.id, 'resolved')}
