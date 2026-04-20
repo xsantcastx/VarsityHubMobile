@@ -134,6 +134,8 @@ const sendSchema = z.object({
   conversation_id: z.string().min(1).optional(),
   recipient_id: z.string().min(1).optional(),
   recipient_email: z.string().email().optional(),
+  // Legacy alias kept for older clients/tests that still post `to`.
+  to: z.string().min(1).optional(),
 });
 
 messagesRouter.post(
@@ -146,9 +148,9 @@ messagesRouter.post(
     const parsed = sendSchema.safeParse(req.body);
     if (!parsed.success)
       return sendError(res, 400, 'Invalid payload', { details: { issues: parsed.error.issues } });
-    const { content, conversation_id, recipient_id, recipient_email } = parsed.data;
+    const { content, conversation_id, recipient_id, recipient_email, to } = parsed.data;
 
-    if (!conversation_id && !recipient_id && !recipient_email) {
+    if (!conversation_id && !recipient_id && !recipient_email && !to) {
       return sendError(res, 400, 'Provide conversation_id or recipient_id/email');
     }
 
@@ -159,9 +161,15 @@ messagesRouter.post(
 
     const meId = req.user.id;
     let toId = recipient_id;
+    let toEmail = recipient_email;
 
-    if (!toId && recipient_email) {
-      const u = await prisma.user.findUnique({ where: { email: recipient_email } });
+    if (!toId && !toEmail && to) {
+      if (to.includes('@')) toEmail = to;
+      else toId = to;
+    }
+
+    if (!toId && toEmail) {
+      const u = await prisma.user.findUnique({ where: { email: toEmail } });
       if (!u) return sendError(res, 404, 'Recipient not found');
       toId = u.id;
     }

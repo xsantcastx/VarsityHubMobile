@@ -3,7 +3,22 @@ import { Image } from 'expo-image';
 import { useIsFocused } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  type AppStateStatus,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
@@ -13,7 +28,13 @@ import { checkDMRestriction } from '@/utils/dmRestrictions';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { safeGoBack } from '@/utils/navigation';
 
-type MiniUser = { id: string; email?: string; username?: string; display_name?: string; avatar_url?: string };
+type MiniUser = {
+  id: string;
+  email?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+};
 type Msg = {
   id: string | number;
   conversation_id?: string | null;
@@ -26,7 +47,11 @@ type Msg = {
 };
 
 function MessageThreadScreen() {
-  const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
+  const {
+    conversation_id,
+    with: withParam,
+    prefill,
+  } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
   const router = useRouter();
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
@@ -38,7 +63,10 @@ function MessageThreadScreen() {
   const [text, setText] = useState(prefill || '');
   const flatRef = useRef<FlatList<Msg>>(null);
   const [safetyOpen, setSafetyOpen] = useState(false);
-  const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({
+    show: false,
+    message: '',
+  });
   const [prefillApplied, setPrefillApplied] = useState(false);
   const [sending, setSending] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
@@ -57,7 +85,8 @@ function MessageThreadScreen() {
       const user = await User.me();
       setMe(user);
       let list: Msg[] = [];
-      if (conversation_id) list = await MessageApi.threadByConversation(String(conversation_id), 100);
+      if (conversation_id)
+        list = await MessageApi.threadByConversation(String(conversation_id), 100);
       else if (withParam) list = await MessageApi.threadWith(String(withParam), 100);
       // Show oldest first in chat view
       list = Array.isArray(list) ? list.slice().reverse() : [];
@@ -74,10 +103,12 @@ function MessageThreadScreen() {
     }
   }, [conversation_id, withParam]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
+    const subscription = AppState.addEventListener('change', nextState => {
       setAppState(nextState);
     });
     return () => subscription.remove();
@@ -91,7 +122,8 @@ function MessageThreadScreen() {
         else if (withParam) await MessageApi.markReadWith(String(withParam));
       } catch (error: any) {
         if (__DEV__) {
-          if (__DEV__) console.warn('[MessageThread] Failed to mark as read:', error?.message || error);
+          if (__DEV__)
+            console.warn('[MessageThread] Failed to mark as read:', error?.message || error);
         }
         // Non-critical - continue without marking read
       }
@@ -115,7 +147,8 @@ function MessageThreadScreen() {
       if (!mounted) return;
       try {
         let list: Msg[] = [];
-        if (conversation_id) list = await MessageApi.threadByConversation(String(conversation_id), 100);
+        if (conversation_id)
+          list = await MessageApi.threadByConversation(String(conversation_id), 100);
         else if (withParam) list = await MessageApi.threadWith(String(withParam), 100);
         list = Array.isArray(list) ? list.slice().reverse() : [];
         if (mounted) {
@@ -138,7 +171,9 @@ function MessageThreadScreen() {
     if (flatRef.current && msgs.length > 0) {
       scrollTimer = setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     }
-    return () => { if (scrollTimer) clearTimeout(scrollTimer); };
+    return () => {
+      if (scrollTimer) clearTimeout(scrollTimer);
+    };
   }, [msgs.length]);
 
   // Scroll list to bottom immediately when keyboard appears so there's no gap
@@ -167,7 +202,10 @@ function MessageThreadScreen() {
     if (me && otherParticipant) {
       const restriction = checkDMRestriction(me, otherParticipant);
       if (!restriction.allowed && restriction.showWarning) {
-        setRestrictionModal({ show: true, message: restriction.warningMessage || 'Cannot send message' });
+        setRestrictionModal({
+          show: true,
+          message: restriction.warningMessage || 'Cannot send message',
+        });
         setSending(false);
         return;
       }
@@ -183,7 +221,7 @@ function MessageThreadScreen() {
       recipient: otherParticipant || null,
       created_at: new Date().toISOString(),
     };
-    setMsgs((arr) => arr.concat(optimisticMsg));
+    setMsgs(arr => arr.concat(optimisticMsg));
 
     try {
       // Determine recipient. If `with` was an email, send by email; if it was an id, send by id.
@@ -193,7 +231,8 @@ function MessageThreadScreen() {
         // Try to infer the other participant id from loaded messages
         const otherId = (() => {
           if (!me) return null;
-          const sample = msgs.find(m => m.sender_id || m.recipient_id || m.sender || m.recipient) || null;
+          const sample =
+            msgs.find(m => m.sender_id || m.recipient_id || m.sender || m.recipient) || null;
           if (!sample) return null;
           const sId = sample.sender_id || sample.sender?.id;
           const rId = sample.recipient_id || sample.recipient?.id;
@@ -204,16 +243,17 @@ function MessageThreadScreen() {
         if (otherId) payload.recipient_id = otherId;
       } else if (withParam) {
         const w = String(withParam);
-        if (w.includes('@')) payload.recipient_email = w; else payload.recipient_id = w;
+        if (w.includes('@')) payload.recipient_email = w;
+        else payload.recipient_id = w;
       }
 
       const created = await MessageApi.send(payload);
       // Replace optimistic message with real one; clear input only on success
-      setMsgs((arr) => arr.filter((m) => m.id !== optimisticMsg.id).concat(created));
+      setMsgs(arr => arr.filter(m => m.id !== optimisticMsg.id).concat(created));
       setText('');
     } catch {
       // Remove optimistic message on failure; preserve text so user can retry
-      setMsgs((arr) => arr.filter((m) => m.id !== optimisticMsg.id));
+      setMsgs(arr => arr.filter(m => m.id !== optimisticMsg.id));
       Alert.alert('Send Failed', 'Your message could not be sent. Please try again.');
     } finally {
       setSending(false);
@@ -250,12 +290,13 @@ function MessageThreadScreen() {
   }, [otherParticipant, withParam]);
 
   const renderItem = ({ item, index }: { item: Msg; index: number }) => {
-    const mine = me?.id && (String(item.sender_id || item.sender?.id || '') === String(me.id));
+    const mine = me?.id && String(item.sender_id || item.sender?.id || '') === String(me.id);
     const sender = mine ? me : otherParticipant;
 
     // Check if we should show avatar (show for first message in a sequence from same sender)
     const prevMsg = index > 0 ? msgs[index - 1] : null;
-    const prevMine = prevMsg && me?.id && (String(prevMsg.sender_id || prevMsg.sender?.id || '') === String(me.id));
+    const prevMine =
+      prevMsg && me?.id && String(prevMsg.sender_id || prevMsg.sender?.id || '') === String(me.id);
     const showAvatar = !mine && (prevMine === true || !prevMsg);
 
     return (
@@ -266,7 +307,12 @@ function MessageThreadScreen() {
               sender?.avatar_url ? (
                 <Image source={{ uri: sender.avatar_url }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    { backgroundColor: Colors[colorScheme].border },
+                  ]}
+                >
                   <MaterialIcons name="person" size={16} color={Colors[colorScheme].mutedText} />
                 </View>
               )
@@ -275,17 +321,23 @@ function MessageThreadScreen() {
             )}
           </View>
         )}
-        <View style={[
-          styles.bubble,
-          mine ? styles.bubbleMine : [styles.bubbleTheirs, {
-            backgroundColor: Colors[colorScheme].card,
-            borderColor: Colors[colorScheme].border,
-          }]
-        ]}>
-          <Text style={[
-            styles.bubbleText,
-            { color: mine ? '#FFFFFF' : Colors[colorScheme].text }
-          ]}>{item.content || ''}</Text>
+        <View
+          style={[
+            styles.bubble,
+            mine
+              ? styles.bubbleMine
+              : [
+                  styles.bubbleTheirs,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ],
+          ]}
+        >
+          <Text style={[styles.bubbleText, { color: mine ? '#FFFFFF' : Colors[colorScheme].text }]}>
+            {item.content || ''}
+          </Text>
         </View>
         {mine && <View style={styles.avatarSpacer} />}
       </View>
@@ -294,226 +346,331 @@ function MessageThreadScreen() {
 
   return (
     <SwipeBackContainer>
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors[colorScheme].background }} edges={['bottom']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
-        <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-          <Stack.Screen
-            options={{
-              headerShown: false,
-            }}
-          />
-
-        {/* Custom WhatsApp-style header with safe area */}
-        <View style={[styles.customHeader, {
-          paddingTop: insets.top + 8,
-          backgroundColor: Colors[colorScheme].card,
-          borderBottomColor: Colors[colorScheme].border,
-        }]}>
-          <Pressable onPress={() => safeGoBack(router)} style={styles.backButton}>
-            <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
-          </Pressable>
-
-          <Pressable
-            style={styles.headerProfile}
-            onPress={() => { if (otherParticipant?.id) { void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
-              }
-            }}
-          >
-            {otherParticipant?.avatar_url ? (
-              <Image source={{ uri: otherParticipant.avatar_url }} style={styles.headerAvatar} />
-            ) : (
-              <View style={[styles.headerAvatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
-                <MaterialIcons name="person" size={20} color={Colors[colorScheme].mutedText} />
-              </View>
-            )}
-            <View style={styles.headerInfo}>
-              <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>{title}</Text>
-              <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>Tap to view profile</Text>
-            </View>
-          </Pressable>
-
-          <Pressable onPress={() => setSafetyOpen(true)} style={styles.menuButton}>
-            <MaterialIcons name="more-vert" size={22} color={Colors[colorScheme].text} />
-          </Pressable>
-        </View>
-
-        {/* Chat content */}
-        <View style={styles.chatContent}>
-          {loading && (
-            <View style={styles.center}><ActivityIndicator /></View>
-          )}
-          {error && !loading && (
-            <View style={styles.emptyState}>
-              <MaterialIcons name={error.includes('no longer') ? 'chat-bubble-outline' : 'error-outline'} size={48} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>{error}</Text>
-              <Pressable onPress={() => safeGoBack(router)} style={{ marginTop: 16, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: Colors[colorScheme].surface, borderRadius: 10 }}>
-                <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Go Back</Text>
-              </Pressable>
-            </View>
-          )}
-          {!loading && !error && msgs.length === 0 && (
-            <View style={styles.emptyState}>
-              <MaterialIcons name="chat-bubble-outline" size={48} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>Start the conversation</Text>
-              <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>Send a message below to get started</Text>
-            </View>
-          )}
-          {!loading && msgs.length > 0 && (
-            <FlatList
-              ref={flatRef}
-              data={msgs}
-              keyExtractor={(m) => String(m.id)}
-              renderItem={renderItem}
-              contentContainerStyle={styles.messagesList}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: Colors[colorScheme].background }}
+        edges={['bottom']}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}
+        >
+          <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+            <Stack.Screen
+              options={{
+                headerShown: false,
+              }}
             />
-          )}
-        </View>
 
-        {/* Composer */}
-        <View style={[styles.composer, {
-          backgroundColor: Colors[colorScheme].card,
-          borderTopColor: Colors[colorScheme].border,
-        }]}>
-          <TextInput
-            style={[styles.input, {
-              backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#F3F4F6',
-              color: Colors[colorScheme].text,
-            }]}
-            placeholder="Message"
-            placeholderTextColor={Colors[colorScheme].mutedText}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={1000}
-          />
-          <Pressable
-            onPress={send}
-            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
-            disabled={!text.trim() || sending}
-          >
-            <MaterialIcons name="send" size={18} color="white" />
-          </Pressable>
-        </View>
+            {/* Custom WhatsApp-style header with safe area */}
+            <View
+              style={[
+                styles.customHeader,
+                {
+                  paddingTop: insets.top + 8,
+                  backgroundColor: Colors[colorScheme].card,
+                  borderBottomColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <Pressable onPress={() => safeGoBack(router)} style={styles.backButton}>
+                <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
+              </Pressable>
 
-        {/* Safety menu modal */}
-        <Modal visible={safetyOpen} transparent animationType="fade" onRequestClose={() => setSafetyOpen(false)}>
-          <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
-            <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
-              <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety & Settings</Text>
               <Pressable
-                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
-                onPress={() => { setSafetyOpen(false);
-                  if (otherParticipant?.id) { void router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'User')}`);
-                  } else {
-                    router.push('/report-abuse');
+                style={styles.headerProfile}
+                onPress={() => {
+                  if (otherParticipant?.id) {
+                    void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
                   }
                 }}
               >
-                <MaterialIcons name="flag" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report user</Text>
+                {otherParticipant?.avatar_url ? (
+                  <Image
+                    source={{ uri: otherParticipant.avatar_url }}
+                    style={styles.headerAvatar}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.headerAvatarPlaceholder,
+                      { backgroundColor: Colors[colorScheme].border },
+                    ]}
+                  >
+                    <MaterialIcons name="person" size={20} color={Colors[colorScheme].mutedText} />
+                  </View>
+                )}
+                <View style={styles.headerInfo}>
+                  <Text
+                    style={[styles.headerTitle, { color: Colors[colorScheme].text }]}
+                    numberOfLines={1}
+                  >
+                    {title}
+                  </Text>
+                  <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                    Tap to view profile
+                  </Text>
+                </View>
               </Pressable>
-              <Pressable
-                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
-                onPress={async () => {
-                  setSafetyOpen(false);
-                  if (!otherParticipant?.id) return;
 
-                  Alert.alert(
-                    'Block User',
-                    `Are you sure you want to block ${otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Block',
-                        style: 'destructive',
-                        onPress: async () => {
-                          try {
-                            // Call block API
-                            await User.block(otherParticipant.id);
-                            Alert.alert('User Blocked', 'This user can no longer send you messages.');
-                            safeGoBack(router);
-                          } catch (error: any) {
-                            Alert.alert('Error', error.message || 'Failed to block user');
-                          }
-                        },
-                      },
-                    ]
-                  );
-                }}
+              <Pressable onPress={() => setSafetyOpen(true)} style={styles.menuButton}>
+                <MaterialIcons name="more-vert" size={22} color={Colors[colorScheme].text} />
+              </Pressable>
+            </View>
+
+            {/* Chat content */}
+            <View style={styles.chatContent}>
+              {loading && (
+                <View style={styles.center}>
+                  <ActivityIndicator />
+                </View>
+              )}
+              {error && !loading && (
+                <View style={styles.emptyState}>
+                  <MaterialIcons
+                    name={error.includes('no longer') ? 'chat-bubble-outline' : 'error-outline'}
+                    size={48}
+                    color={Colors[colorScheme].mutedText}
+                  />
+                  <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+                    {error}
+                  </Text>
+                  <Pressable
+                    onPress={() => safeGoBack(router)}
+                    style={{
+                      marginTop: 16,
+                      paddingVertical: 12,
+                      paddingHorizontal: 24,
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderRadius: 10,
+                    }}
+                  >
+                    <Text
+                      style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}
+                    >
+                      Go Back
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+              {!loading && !error && msgs.length === 0 && (
+                <View style={styles.emptyState}>
+                  <MaterialIcons
+                    name="chat-bubble-outline"
+                    size={48}
+                    color={Colors[colorScheme].mutedText}
+                  />
+                  <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+                    Start the conversation
+                  </Text>
+                  <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+                    Send a message below to get started
+                  </Text>
+                </View>
+              )}
+              {!loading && msgs.length > 0 && (
+                <FlatList
+                  ref={flatRef}
+                  data={msgs}
+                  keyExtractor={m => String(m.id)}
+                  renderItem={renderItem}
+                  contentContainerStyle={styles.messagesList}
+                />
+              )}
+            </View>
+
+            {/* Composer */}
+            <View
+              style={[
+                styles.composer,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderTopColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor:
+                      colorScheme === 'dark' ? Colors[colorScheme].surface : '#F3F4F6',
+                    color: Colors[colorScheme].text,
+                  },
+                ]}
+                placeholder="Message"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={text}
+                onChangeText={setText}
+                multiline
+                maxLength={1000}
+              />
+              <Pressable
+                onPress={send}
+                style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnDisabled]}
+                disabled={!text.trim() || sending}
               >
-                <MaterialIcons name="person-remove" size={20} color="#EF4444" />
-                <Text style={[styles.sheetText, { color: '#EF4444' }]}>Block user</Text>
+                <MaterialIcons name="send" size={18} color="white" />
               </Pressable>
-              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); void router.push('/dm-restrictions'); }}>
-                <MaterialIcons name="tune" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Message restrictions</Text>
+            </View>
+
+            {/* Safety menu modal */}
+            <Modal
+              visible={safetyOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setSafetyOpen(false)}
+            >
+              <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
+                <Pressable
+                  style={[styles.sheet, { backgroundColor: Colors[colorScheme].card }]}
+                  onPress={() => {}}
+                >
+                  <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>
+                    Safety & Settings
+                  </Text>
+                  <Pressable
+                    style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => {
+                      setSafetyOpen(false);
+                      if (otherParticipant?.id) {
+                        void router.push(
+                          `/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'User')}`
+                        );
+                      } else {
+                        router.push('/report-abuse');
+                      }
+                    }}
+                  >
+                    <MaterialIcons name="flag" size={20} color={Colors[colorScheme].text} />
+                    <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                      Report user
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={async () => {
+                      setSafetyOpen(false);
+                      if (!otherParticipant?.id) return;
+
+                      Alert.alert(
+                        'Block User',
+                        `Are you sure you want to block ${otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Block',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                // Call block API
+                                await User.block(otherParticipant.id);
+                                Alert.alert(
+                                  'User Blocked',
+                                  'This user can no longer send you messages.'
+                                );
+                                safeGoBack(router);
+                              } catch (error: any) {
+                                Alert.alert('Error', error.message || 'Failed to block user');
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <MaterialIcons name="person-remove" size={20} color="#EF4444" />
+                    <Text style={[styles.sheetText, { color: '#EF4444' }]}>Block user</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => {
+                      setSafetyOpen(false);
+                      void router.push('/dm-restrictions');
+                    }}
+                  >
+                    <MaterialIcons name="tune" size={20} color={Colors[colorScheme].text} />
+                    <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                      Message restrictions
+                    </Text>
+                  </Pressable>
+                </Pressable>
               </Pressable>
-            </Pressable>
-          </Pressable>
-        </Modal>
+            </Modal>
 
-        {/* DM Restriction Warning Modal */}
-        <Modal
-          visible={restrictionModal.show}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setRestrictionModal({ show: false, message: '' })}
-        >
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setRestrictionModal({ show: false, message: '' })}
-          >
-            <Pressable style={[styles.modalContent, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
-              <View style={styles.modalHeader}>
-                <MaterialIcons name="verified-user" size={48} color="#DC2626" />
-                <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
-                  Safe Zone Policy
-                </Text>
-              </View>
-
-              <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
-                {restrictionModal.message}
-              </Text>
-
+            {/* DM Restriction Warning Modal */}
+            <Modal
+              visible={restrictionModal.show}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setRestrictionModal({ show: false, message: '' })}
+            >
               <Pressable
-                style={[styles.modalButton, { backgroundColor: Colors[colorScheme].tint }]}
+                style={styles.modalBackdrop}
                 onPress={() => setRestrictionModal({ show: false, message: '' })}
               >
-                <Text style={styles.modalButtonText}>I Understand</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.modalLinkButton}
-                onPress={() => {
-                  setRestrictionModal({ show: false, message: '' });
-                  router.push('/core-values');
-                }}
-              >
-                <Text style={[styles.modalLinkText, { color: Colors[colorScheme].tint }]}>
-                  Learn More About Our Safety Policy
-                </Text>
-              </Pressable>
-
-              {me?.role === 'coach' && !me?.is_verified && (
                 <Pressable
-                  style={[styles.modalVerifyButton, { borderColor: Colors[colorScheme].tint }]}
-                  onPress={() => {
-                    setRestrictionModal({ show: false, message: '' });
-                    router.push('/help');
-                  }}
+                  style={[styles.modalContent, { backgroundColor: Colors[colorScheme].card }]}
+                  onPress={() => {}}
                 >
-                  <MaterialIcons name="verified-user" size={20} color={Colors[colorScheme].tint} />
-                  <Text style={[styles.modalVerifyText, { color: Colors[colorScheme].tint }]}>
-                    Request Coach Verification
+                  <View style={styles.modalHeader}>
+                    <MaterialIcons name="verified-user" size={48} color="#DC2626" />
+                    <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+                      Safe Zone Policy
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
+                    {restrictionModal.message}
                   </Text>
+
+                  <Pressable
+                    style={[styles.modalButton, { backgroundColor: Colors[colorScheme].tint }]}
+                    onPress={() => setRestrictionModal({ show: false, message: '' })}
+                  >
+                    <Text style={styles.modalButtonText}>I Understand</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.modalLinkButton}
+                    onPress={() => {
+                      setRestrictionModal({ show: false, message: '' });
+                      router.push('/core-values');
+                    }}
+                  >
+                    <Text style={[styles.modalLinkText, { color: Colors[colorScheme].tint }]}>
+                      Learn More About Our Safety Policy
+                    </Text>
+                  </Pressable>
+
+                  {me?.preferences?.role === 'coach' &&
+                    (me as any)?.approval_status !== 'APPROVED' && (
+                      <Pressable
+                        style={[
+                          styles.modalVerifyButton,
+                          { borderColor: Colors[colorScheme].tint },
+                        ]}
+                        onPress={() => {
+                          setRestrictionModal({ show: false, message: '' });
+                          router.push('/help');
+                        }}
+                      >
+                        <MaterialIcons
+                          name="verified-user"
+                          size={20}
+                          color={Colors[colorScheme].tint}
+                        />
+                        <Text style={[styles.modalVerifyText, { color: Colors[colorScheme].tint }]}>
+                          Request Coach Verification
+                        </Text>
+                      </Pressable>
+                    )}
                 </Pressable>
-              )}
-            </Pressable>
-          </Pressable>
-        </Modal>
-      </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+              </Pressable>
+            </Modal>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </SwipeBackContainer>
   );
 }
