@@ -140,7 +140,12 @@ void (async () => {
   }
 })();
 
-// Create an Ad — requires Veteran/Legend plan or admin
+// Create an Ad — any authenticated, verified, onboarded user. Rate-limited
+// to prevent draft spam. No plan gate: any onboarded user (fan or coach)
+// can create and submit an ad; booking dates still requires successful
+// checkout (enforced in the reservation/payment path). If product later
+// decides ads are paid-tier-only, add an explicit plan middleware here
+// and audit the UX surface in the client.
 adsRouter.post(
   '/',
   requireAuth as any,
