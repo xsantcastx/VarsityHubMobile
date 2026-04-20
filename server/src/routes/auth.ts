@@ -2684,8 +2684,24 @@ function sanitizeUser(u: any) {
   if (normalizedDob) {
     normalizedPreferences.dob = normalizedDob;
   }
+  const aliasKeys = [
+    'zip_code',
+    'location',
+    'affiliation',
+    'header_image_url',
+    'header_image_focus_y',
+    'theme_color',
+    'sports_interests',
+    'primary_sport',
+  ] as const;
+  const topLevelAliases = Object.fromEntries(
+    aliasKeys
+      .filter(key => rest[key] === undefined && normalizedPreferences[key] !== undefined)
+      .map(key => [key, normalizedPreferences[key]])
+  );
   return {
     ...rest,
+    ...topLevelAliases,
     preferences: normalizedPreferences,
     dob: normalizedDob,
     date_of_birth: normalizedDob,

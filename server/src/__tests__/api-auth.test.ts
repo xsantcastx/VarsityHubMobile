@@ -229,6 +229,19 @@ describe('API Authentication Endpoints', () => {
     });
 
     it('should return current user with valid token', async () => {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          preferences: {
+            role: 'fan',
+            zip_code: '10001',
+            location: 'New York, NY',
+            header_image_url: 'https://cdn.varsityhub.test/profile-header.jpg',
+            sports_interests: ['Basketball'],
+          },
+        },
+      });
+
       const response = await request(app)
         .get('/auth/me')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -239,6 +252,12 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.role).toBe('fan');
       expect(response.body.preferences).toBeDefined();
       expect(response.body.preferences.role).toBe('fan');
+      expect(response.body.zip_code).toBe('10001');
+      expect(response.body.location).toBe('New York, NY');
+      expect(response.body.header_image_url).toBe(
+        'https://cdn.varsityhub.test/profile-header.jpg'
+      );
+      expect(response.body.sports_interests).toEqual(['Basketball']);
     });
   });
 
