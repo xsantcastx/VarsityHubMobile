@@ -42,6 +42,7 @@ describe('API Team Endpoints', () => {
           role: 'coach',
           plan: 'rookie',
           onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
         },
       },
     });
@@ -53,6 +54,7 @@ describe('API Team Endpoints', () => {
       data: {
         name: `Test League ${Date.now()}`,
         org_type: 'club',
+        admin_approved: true,
         updated_at: new Date(),
       },
     });

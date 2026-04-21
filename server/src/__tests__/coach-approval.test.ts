@@ -55,7 +55,12 @@ describe('Coach Approval Workflow', () => {
         password_hash: approvedHash,
         display_name: 'Approved Coach',
         email_verified: true,
-        preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
         approval_status: 'APPROVED',
       },
     });
@@ -70,7 +75,12 @@ describe('Coach Approval Workflow', () => {
         password_hash: ownerHash,
         display_name: 'League Owner',
         email_verified: true,
-        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+        preferences: {
+          role: 'coach',
+          plan: 'veteran',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
         approval_status: 'APPROVED',
       },
     });
@@ -166,9 +176,9 @@ describe('Coach Approval Workflow', () => {
         .set('Authorization', `Bearer ${approvedCoachToken}`)
         .send({ name: 'Allowed Team', organization_id: approvedOrg!.id });
       expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty('id');
-      if (res.body?.id) {
-        await prisma.team.delete({ where: { id: res.body.id } }).catch(() => {});
+      expect(res.body).toHaveProperty('team.id');
+      if (res.body?.team?.id) {
+        await prisma.team.delete({ where: { id: res.body.team.id } }).catch(() => {});
       }
     });
   });
@@ -179,6 +189,17 @@ describe('Coach Approval Workflow', () => {
         where: { league_owner_id: approvedCoachId },
       });
       expect(approvedOrg).toBeTruthy();
+
+      await prisma.user.update({
+        where: { id: approvedCoachId },
+        data: {
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+          },
+        },
+      });
 
       const res = await request(app)
         .post('/teams/create')
@@ -214,10 +235,10 @@ describe('Coach Approval Workflow', () => {
         .send({ name: 'Agreement Accepted Team', organization_id: approvedOrg!.id });
 
       expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty('id');
+      expect(res.body).toHaveProperty('team.id');
 
-      if (res.body?.id) {
-        await prisma.team.delete({ where: { id: res.body.id } }).catch(() => {});
+      if (res.body?.team?.id) {
+        await prisma.team.delete({ where: { id: res.body.team.id } }).catch(() => {});
       }
     });
   });
@@ -231,7 +252,12 @@ describe('Coach Approval Workflow', () => {
           password_hash: creatorHash,
           display_name: 'Org Creator',
           email_verified: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
           approval_status: 'APPROVED',
         },
       });
@@ -244,6 +270,7 @@ describe('Coach Approval Workflow', () => {
           name: `Simple Create League ${ts}`,
           sport: 'basketball',
           org_type: 'club',
+          supporting_document_url: 'https://example.com/supporting-document.pdf',
         });
 
       expect(res.status).toBe(201);
@@ -271,7 +298,12 @@ describe('Coach Approval Workflow', () => {
           password_hash: creatorHash,
           display_name: 'Onboarding Creator',
           email_verified: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
           approval_status: 'APPROVED',
         },
       });
@@ -284,6 +316,7 @@ describe('Coach Approval Workflow', () => {
           name: `Onboarding Create League ${ts}`,
           sport: 'basketball',
           org_type: 'club',
+          supporting_document_url: 'https://example.com/supporting-document.pdf',
         });
 
       expect(res.status).toBe(201);

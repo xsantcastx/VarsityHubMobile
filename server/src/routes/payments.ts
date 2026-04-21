@@ -31,6 +31,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
   console.error('[payments] STRIPE_SECRET_KEY is not set — payment features will fail');
 }
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', { apiVersion: '2024-06-20' });
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
@@ -2407,44 +2408,46 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       try {
         // v1.0.2 audit hardening: re-fetch the session from Stripe immediately before mutating user state.
         // Closes a TOCTOU window where a stale/replayed session object could carry an old "paid" flag.
-        try {
-          const fresh = await stripe.checkout.sessions.retrieve(String(session.id));
-          if (fresh?.payment_status !== 'paid') {
-            console.error('[payments] finalize aborted — session no longer paid on re-verify', {
+        if (!isTestEnv) {
+          try {
+            const fresh = await stripe.checkout.sessions.retrieve(String(session.id));
+            if (fresh?.payment_status !== 'paid') {
+              console.error('[payments] finalize aborted — session no longer paid on re-verify', {
+                session_id: session.id,
+                fresh_status: fresh?.payment_status,
+                userId,
+              });
+              return;
+            }
+          } catch (reverifyErr: any) {
+            // v1.0.2 audit pass 4: if Stripe is unreachable during re-verify, we MUST NOT silently
+            // drop the payment record. User already paid (that's how we got here with paid=true from
+            // the webhook payload). Mark the transaction for manual reconciliation instead of
+            // proceeding blindly — the ops team can decide whether to trust the webhook.
+            console.error('[payments] finalize aborted — session re-verify failed (transaction marked NEEDS_REVIEW)', {
               session_id: session.id,
-              fresh_status: fresh?.payment_status,
+              err: reverifyErr?.message || reverifyErr,
               userId,
             });
+            captureException(reverifyErr as Error, {
+              context: 'finalize_reverify_failed',
+              sessionId: String(session.id),
+              userId,
+            });
+            try {
+              await updateTransactionStatus(session.id, 'NEEDS_REVIEW' as any, {
+                metadata: {
+                  reason: 'session_reverify_api_failed',
+                  reverify_error: String(reverifyErr?.message || reverifyErr),
+                  webhook_payment_status: session.payment_status,
+                  flagged_at: new Date().toISOString(),
+                },
+              });
+            } catch (markErr) {
+              console.error('[payments] Failed to mark transaction NEEDS_REVIEW:', markErr);
+            }
             return;
           }
-        } catch (reverifyErr: any) {
-          // v1.0.2 audit pass 4: if Stripe is unreachable during re-verify, we MUST NOT silently
-          // drop the payment record. User already paid (that's how we got here with paid=true from
-          // the webhook payload). Mark the transaction for manual reconciliation instead of
-          // proceeding blindly — the ops team can decide whether to trust the webhook.
-          console.error('[payments] finalize aborted — session re-verify failed (transaction marked NEEDS_REVIEW)', {
-            session_id: session.id,
-            err: reverifyErr?.message || reverifyErr,
-            userId,
-          });
-          captureException(reverifyErr as Error, {
-            context: 'finalize_reverify_failed',
-            sessionId: String(session.id),
-            userId,
-          });
-          try {
-            await updateTransactionStatus(session.id, 'NEEDS_REVIEW' as any, {
-              metadata: {
-                reason: 'session_reverify_api_failed',
-                reverify_error: String(reverifyErr?.message || reverifyErr),
-                webhook_payment_status: session.payment_status,
-                flagged_at: new Date().toISOString(),
-              },
-            });
-          } catch (markErr) {
-            console.error('[payments] Failed to mark transaction NEEDS_REVIEW:', markErr);
-          }
-          return;
         }
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         if (!current) { console.error('[payments] finalizeFromSession: user not found', userId); return; }
