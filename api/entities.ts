@@ -172,8 +172,12 @@ export const User = {
   // Legacy alias kept for backward compatibility. New flow is async and
   // returns a DataExport row rather than a direct JSON download.
   exportMyData: () => httpPost('/me/data-export', {}),
-  upgradeToCoach: (plan: 'rookie' | 'veteran' | 'legend') =>
-    httpPost('/auth/upgrade-to-coach', { plan }),
+  upgradeToCoach: async (plan: 'rookie' | 'veteran' | 'legend') => {
+    invalidateMeCache();
+    const response = await httpPost('/auth/upgrade-to-coach', { plan });
+    invalidateMeCache();
+    return response;
+  },
   // v1.0.2: rejected coaches can re-apply after 48hr cooldown
   reapplyCoach: () => httpPost('/auth/coach/reapply', {}),
   // v1.0.2: escape paywall loop by downgrading to free rookie plan

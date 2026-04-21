@@ -919,6 +919,49 @@ export default function ProfileScreen() {
 
         {/* Settings Button & Follow Button - Top Right Corner */}
         <View style={[styles.headerControls, { top: 12 }]}>
+          {viewingUserId && viewingUserId !== currentUserId ? (
+            <View style={styles.headerActionRow}>
+              <Pressable
+                testID="profile-message-button"
+                style={[
+                  styles.headerActionButton,
+                  styles.headerActionButtonGhost,
+                ]}
+                onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
+                accessibilityRole="button"
+                accessibilityLabel="Send message"
+              >
+                <Ionicons name="chatbubble-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.headerActionButtonText}>Message</Text>
+              </Pressable>
+              <Pressable
+                testID="profile-follow-button"
+                style={[
+                  styles.headerActionButton,
+                  isFollowing ? styles.headerActionButtonActive : styles.headerActionButtonGhost,
+                  followLoading && { opacity: 0.5 },
+                ]}
+                onPress={handleFollowToggle}
+                disabled={followLoading}
+                accessibilityRole="button"
+                accessibilityLabel={isFollowing ? 'Unfollow' : 'Follow'}
+              >
+                {isFollowing ? (
+                  <>
+                    <Ionicons name="checkmark-circle" size={16} color="#FFB800" />
+                    <Text style={[styles.headerActionButtonText, { color: '#FFB800' }]}>
+                      Following
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
+                    <Text style={styles.headerActionButtonText}>Follow</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          ) : null}
           {/* Block & Report menu for other users */}
           {viewingUserId && viewingUserId !== currentUserId ? (
             <Pressable
@@ -1020,7 +1063,7 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
 
-          {/* Edit (self) or Message + Follow (others) — one compact row */}
+          {/* Edit button for own profile */}
           <View
             style={{
               flex: 1,
@@ -1028,8 +1071,6 @@ export default function ProfileScreen() {
               justifyContent: 'flex-end',
               paddingRight: 12,
               paddingBottom: 8,
-              flexDirection: 'row',
-              gap: 8,
             }}
           >
             {(!viewingUserId || viewingUserId === currentUserId) && (
@@ -1047,52 +1088,6 @@ export default function ProfileScreen() {
                   Edit profile
                 </Text>
               </Pressable>
-            )}
-            {viewingUserId && viewingUserId !== currentUserId && (
-              <>
-                <Pressable
-                  testID="profile-message-button"
-                  style={[
-                    styles.headerFollowButton,
-                    { borderColor: '#FFFFFF', borderWidth: 1.5, backgroundColor: 'transparent' },
-                  ]}
-                  onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Send message"
-                >
-                  <Ionicons name="chatbubble-outline" size={15} color="#FFFFFF" />
-                  <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>Message</Text>
-                </Pressable>
-                <Pressable
-                  testID="profile-follow-button"
-                  style={[
-                    styles.headerFollowButton,
-                    isFollowing
-                      ? { backgroundColor: 'transparent', borderColor: '#FFB800', borderWidth: 1.5 }
-                      : {
-                          backgroundColor: 'transparent',
-                          borderColor: '#FFFFFF',
-                          borderWidth: 1.5,
-                        },
-                    followLoading && { opacity: 0.5 },
-                  ]}
-                  onPress={handleFollowToggle}
-                  disabled={followLoading}
-                  accessibilityRole="button"
-                  accessibilityLabel={isFollowing ? 'Unfollow' : 'Follow'}
-                >
-                  {isFollowing ? (
-                    <Ionicons name="checkmark-circle" size={18} color="#FFB800" />
-                  ) : (
-                    <>
-                      <Ionicons name="person-add-outline" size={15} color="#FFFFFF" />
-                      <Text style={[styles.headerFollowButtonText, { color: '#FFFFFF' }]}>
-                        Follow
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
-              </>
             )}
           </View>
         </View>
@@ -1960,23 +1955,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  headerFollowButton: {
+  headerActionRow: {
     flexDirection: 'row',
-    minHeight: 32,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionButton: {
+    flexDirection: 'row',
+    minHeight: 36,
+    minWidth: 96,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 2,
   },
-  headerFollowButtonText: {
-    fontSize: 11,
+  headerActionButtonGhost: {
+    borderColor: '#FFFFFF',
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+  },
+  headerActionButtonActive: {
+    borderColor: '#FFB800',
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+  },
+  headerActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '600',
   },
   controlButton: {

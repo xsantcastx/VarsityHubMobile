@@ -199,6 +199,7 @@ export default function SettingsScreen() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(true);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [upgradingToCoach, setUpgradingToCoach] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Clear all debounce timers on unmount to prevent memory leaks
@@ -790,9 +791,9 @@ export default function SettingsScreen() {
                       {
                         text: 'Continue',
                         onPress: async () => {
-                          const routeCoachOnboarding = async () => {
+                          const routeCoachOnboarding = async (freshUser?: any) => {
                             try {
-                              const fresh = (await User.me().catch(() => null)) as any;
+                              const fresh = freshUser ?? ((await User.refresh().catch(() => null)) as any);
                               const prefs = fresh?.preferences || {};
                               const hasUsername = !!(
                                 fresh?.username && String(fresh.username).trim()
@@ -801,6 +802,21 @@ export default function SettingsScreen() {
                               const zip = prefs.zip_code || prefs.zip || fresh?.zip_code;
                               const hasDob = !!dob && String(dob).trim().length > 0;
                               const hasZip = !!zip && String(zip).trim().length > 0;
+                              const hasCompletedBasicStep = hasUsername && hasDob && hasZip;
+                              if (setOB) {
+                                setOB(prev => ({
+                                  ...prev,
+                                  role: 'coach',
+                                  plan: (prefs.plan as any) || 'rookie',
+                                  username: fresh?.username ?? prev?.username,
+                                  dob: (dob as string | undefined) ?? prev?.dob,
+                                  zip: (zip as string | undefined) ?? prev?.zip,
+                                  zip_code: (zip as string | undefined) ?? prev?.zip_code ?? null,
+                                  step_2_visited: hasCompletedBasicStep,
+                                  step_3_visited: false,
+                                }));
+                              }
+                              setPlan((prefs.plan as string | null) ?? 'rookie');
                               if (hasUsername && hasDob && hasZip) {
                                 router.push('/onboarding/step-3-league');
                               } else {
@@ -811,30 +827,26 @@ export default function SettingsScreen() {
                             }
                           };
                           try {
+                            setUpgradingToCoach(true);
                             await User.upgradeToCoach('rookie');
+                            const fresh = (await User.refresh().catch(() => null)) as any;
                             setRole('coach');
-                            if (setOB) {
-                              setOB(prev => ({
-                                ...prev,
-                                role: 'coach',
-                                plan: 'rookie',
-                                step_2_visited: false,
-                                step_3_visited: false,
-                                step_4_visited: false,
-                              }));
-                            }
+                            setPlan('rookie');
                             await markOnboardingIncompleteLocally();
                             await checkAuth().catch(() => {});
-                            await routeCoachOnboarding();
+                            await routeCoachOnboarding(fresh);
                           } catch (e: any) {
                             const msg = e?.data?.error || e?.message || '';
                             if (msg.toLowerCase().includes('already a coach')) {
                               setRole('coach');
+                              setPlan('rookie');
                               await checkAuth().catch(() => {});
                               await routeCoachOnboarding();
                               return;
                             }
                             Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');
+                          } finally {
+                            setUpgradingToCoach(false);
                           }
                         },
                       },
@@ -842,6 +854,13 @@ export default function SettingsScreen() {
                   );
                 }}
               />
+            )}
+            {upgradingToCoach && (
+              <View style={[styles.rowBetween, { opacity: 0.75 }]}>
+                <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                  Upgrading your account...
+                </Text>
+              </View>
             )}
           </SectionCard>
 

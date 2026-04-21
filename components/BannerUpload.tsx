@@ -70,6 +70,15 @@ export function BannerUpload({
     return 'jpg';
   };
 
+  const toReadableError = (error: unknown): string => {
+    const message = String((error as any)?.message || '').trim();
+    if (!message) return 'Unknown error';
+    if (/upload failed|network error|timed out|unauthorized/i.test(message)) {
+      return message;
+    }
+    return message.length > 140 ? `${message.slice(0, 137)}...` : message;
+  };
+
   const handlePickImage = async () => {
     setUploading(true);
     try {
@@ -105,9 +114,14 @@ export function BannerUpload({
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
 
+        const assetMimeType =
+          typeof asset.mimeType === 'string' && asset.mimeType.startsWith('image/')
+            ? asset.mimeType
+            : null;
+
         // Detect if original is PNG to preserve transparency
         const originalName = (asset.fileName || asset.uri || '').toLowerCase();
-        const isPng = originalName.endsWith('.png');
+        const isPng = assetMimeType === 'image/png' || originalName.endsWith('.png');
         const saveFormat = isPng
           ? ImageManipulator.SaveFormat.PNG
           : ImageManipulator.SaveFormat.JPEG;
@@ -134,11 +148,14 @@ export function BannerUpload({
         }
 
         // Validate image size (max 10MB)
-        let fileSize: number | undefined;
+        let fileSize: number | undefined =
+          typeof (asset as any).fileSize === 'number' ? (asset as any).fileSize : undefined;
         try {
-          const response = await fetch(processedUri);
-          const blob = await response.blob();
-          fileSize = blob.size;
+          if (!fileSize) {
+            const response = await fetch(processedUri);
+            const blob = await response.blob();
+            fileSize = blob.size;
+          }
         } catch {
           // Continue upload without size validation
         }
@@ -156,7 +173,7 @@ export function BannerUpload({
         setScale(1);
         setPosition({ x: 50, y: 50 });
 
-        const mimeType = isPng ? 'image/png' : 'image/jpeg';
+        const mimeType = isPng ? 'image/png' : assetMimeType || 'image/jpeg';
         const ext = extensionForMime(mimeType);
         const rawBaseName = (asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}`)
           .replace(/\.[^.]+$/, '')
@@ -167,7 +184,12 @@ export function BannerUpload({
             ? { uri: processedUri, mimeType }
             : await ensureUploadableUri(processedUri, mimeType);
 
-        const uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
+        let uploaded;
+        try {
+          uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
+        } catch (uploadError: any) {
+          throw new Error(`Upload failed: ${toReadableError(uploadError)}`);
+        }
         const uploadedUrl = uploaded?.url || uploaded?.signed_url || uploaded?.path;
         if (!uploadedUrl) {
           throw new Error('Upload succeeded but no URL was returned.');
@@ -180,9 +202,14 @@ export function BannerUpload({
       if (isICloudError(error)) {
         Alert.alert(ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE);
       } else {
+        const detail = toReadableError(error);
         Alert.alert(
-          'Image Error',
-          'Something went wrong loading this image. Please try a different photo or take a new one.'
+          detail.toLowerCase().startsWith('upload failed')
+            ? 'Upload Failed'
+            : 'Image Error',
+          detail.toLowerCase().startsWith('upload failed')
+            ? `We couldn't upload this banner. ${detail.replace(/^upload failed:\s*/i, '')}`
+            : `Something went wrong loading this image. ${detail}`
         );
       }
     } finally {
