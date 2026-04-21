@@ -77,7 +77,7 @@ graph LR
 | **Postgres** | `DATABASE_URL` | Yes — server refuses to start | Everything | None — app is unusable |
 | **Redis** | `REDIS_URL` | No — degrades | Data export worker silently no-ops; email/push/analytics queues fall back to immediate in-request processing; rate limiters fall back to in-memory | Export queue → 503 on POST. Email falls back to synchronous `EmailService.send`. Rate limits become per-process instead of cluster-wide |
 | **Stripe** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Webhook secret optional but strongly advised | Veteran/Legend checkout, subscription webhook processing | `requireOnboarded.ts:196-213` keeps paid-tier coaches out of coach tools (`PAYMENT_REQUIRED`). Existing subscriptions keep working if webhooks miss (nightly `runStripeSubscriptionReconciliation` cron catches drift) |
-| **Apple IAP** | `APPLE_IAP_SHARED_SECRET`, `APPLE_IAP_ISSUER_ID`, etc. | Optional at boot (warn only) | iOS paid-tier purchase verification | Grace-period lazy-downgrade in `requireOnboarded.ts:141-192` catches expiry if the S2S EXPIRED notification is lost |
+| **Apple IAP** | `APPLE_IAP_SHARED_SECRET`, `APPLE_IAP_ISSUER_ID`, etc. | Optional in production | Modern signed-JWS verification remains available in prod; legacy receipt verification is dev-only | Production rejects legacy receipts before the shared-secret check in `payments.ts:3029-3034`. Modern signed-JWS verification uses Apple public keys, while `requireOnboarded.ts:141-192` still lazy-downgrades expired paid access if S2S expiry signals are missed |
 | **SendGrid** | `SENDGRID_API_KEY`, per-flow `SENDGRID_*_TEMPLATE_ID` | No — required templates now `REQUIRED` but missing only errors at send time (not boot, after the 1.0.1 fix) | Verification email, password reset, team invites, ad approvals, parental consent | `EmailService.send` logs error + Sentry; user retries manually. Missing template returns `false` — caller sees no-email |
 | **Cloudinary** | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | No | Avatar / team logo / banner / story / ad banner upload | Upload endpoint returns 500. Existing media URLs continue to serve (CDN is Cloudinary-hosted regardless) |
 | **Rekognition** | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | No | Ad banner auto-moderation (the NSFW/violence check) | Falls back to admin manual review. Override-on-approve pattern in `/ads/:id/approve` preserves admin authority |
@@ -225,7 +225,7 @@ run degraded. Matches the release smoke-test pre-flight checklist.
 - `GOOGLE_MAPS_API_KEY` — location features degrade to zip-only
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — OAuth path disabled
 - `EXPO_ACCESS_TOKEN` — push disabled, in-app notifications still work
-- `APPLE_IAP_SHARED_SECRET` + IAP env — iOS paid tier verification disabled
+- `APPLE_IAP_SHARED_SECRET` and related IAP env — production modern JWS verification still works; legacy receipt testing path is what degrades
 
 **Optional with safe defaults:**
 
