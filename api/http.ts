@@ -9,6 +9,14 @@ type RefreshOutcome =
   | { accessToken: string; reason: 'success' }
   | { accessToken: null; reason: 'missing' | 'auth' | 'network' | 'unknown'; error?: unknown };
 
+// Default timeouts (ms) — kept at the module top so the values are reviewed
+// together rather than spread across six call sites. GET gets longer
+// because it can legitimately block on slow feeds; mutations get shorter
+// so a stuck server fails fast and the caller can show a retry button.
+const DEFAULT_GET_TIMEOUT_MS = 30_000;
+const DEFAULT_MUTATION_TIMEOUT_MS = 15_000;
+const LONG_POST_TIMEOUT_MS = 180_000; // 3 minutes — heavy uploads / report generation
+
 let tokenCache: string | null = null;
 export function setAuthToken(token: string | null) {
   tokenCache = token || null;
@@ -28,9 +36,100 @@ let refreshPromise: Promise<RefreshOutcome> | null = null;
 let refreshCacheTimer: ReturnType<typeof setTimeout> | null = null;
 const REFRESH_CACHE_TTL_MS = 5_000;
 
+/**
+ * Coalesce concurrent refresh attempts behind a single promise and keep
+ * the resolved outcome cached for REFRESH_CACHE_TTL_MS so late-arriving
+ * 401s reuse the fresh token instead of triggering a second refresh
+ * with a now-rotated (invalid) refresh token.
+ *
+ * Takes the refresh implementation as a parameter so this helper stays
+ * free of a static dependency on api/auth — the 401 handler still lazy-
+ * imports auth to keep the circular dependency broken.
+ */
+async function attemptTokenRefreshWithCache(
+  refresh: () => Promise<RefreshOutcome>
+): Promise<RefreshOutcome> {
+  if (!refreshPromise) {
+    refreshPromise = refresh().finally(() => {
+      if (refreshCacheTimer) clearTimeout(refreshCacheTimer);
+      refreshCacheTimer = setTimeout(() => {
+        refreshPromise = null;
+        refreshCacheTimer = null;
+      }, REFRESH_CACHE_TTL_MS);
+    });
+  }
+  return (await refreshPromise) as RefreshOutcome;
+}
+
 // GET request deduplication: coalesce concurrent identical GET requests into a single network call.
 // Prevents duplicate fetches when multiple components mount simultaneously.
 const inflightGets = new Map<string, Promise<any>>();
+
+/**
+ * Spot Railway's Correlation Key marker (27 uppercase alphanumeric
+ * chars, optionally prefixed with "Correlation Key:") in a response
+ * body. Railway's infra error pages always include one, so this is a
+ * strong signal the response came from Railway's edge and not the app.
+ */
+function hasRailwayCorrelationKey(body: unknown): boolean {
+  if (typeof body !== 'string') return false;
+  return (
+    /Correlation Key:?\s*[A-Z0-9]{27}/i.test(body) ||
+    /[A-Z0-9]{27}/.test(body)
+  );
+}
+
+/**
+ * Classify an HTTP 502 response as Railway's infrastructure error page
+ * (as opposed to an application-level 502). Used on the fetch-response
+ * path: if true, the thrown error is marked `isRailwayErrorPage` so the
+ * catch block knows to surface a user-friendly "temporarily unavailable"
+ * message instead of parsing the HTML body as JSON.
+ *
+ * A 502 is considered Railway-infra when the content-type is HTML, or
+ * the body contains any of the well-known marker strings, or a
+ * correlation key is present. Non-502 responses are never classified as
+ * infra errors here.
+ */
+function isRailwayInfrastructureError(
+  status: number,
+  contentType: string,
+  body: unknown
+): boolean {
+  if (status !== 502) return false;
+  if (contentType.includes('text/html')) return true;
+  if (typeof body !== 'string') return false;
+  return (
+    body.includes('Bad Gateway') ||
+    body.includes('502') ||
+    body.includes('Correlation Key') ||
+    hasRailwayCorrelationKey(body)
+  );
+}
+
+/**
+ * If an identical GET (same path + auth token) is already in flight,
+ * return its pending promise so callers share the response. Otherwise
+ * run `exec()`, cache the promise under `dedupeKey` until it settles,
+ * and return it.
+ *
+ * The dedup key includes the auth token so two different users don't
+ * accidentally share a response. Anonymous callers collapse onto a
+ * single "anon" slot, which is intentional — the response is not
+ * user-specific in that case.
+ */
+function executeOrReuseInflightGet(
+  path: string,
+  token: string | null,
+  exec: () => Promise<any>
+): Promise<any> {
+  const dedupeKey = `${path}::${token || 'anon'}`;
+  const existing = inflightGets.get(dedupeKey);
+  if (existing) return existing;
+  const promise = exec().finally(() => inflightGets.delete(dedupeKey));
+  inflightGets.set(dedupeKey, promise);
+  return promise;
+}
 
 export function getApiBaseUrl(): string {
   // Support environment-based configuration for testing/staging/preview builds
@@ -62,7 +161,7 @@ function getBaseUrl(): string {
 async function request(
   path: string,
   options: RequestInit = {},
-  timeoutMs: number = 30000,
+  timeoutMs: number = DEFAULT_GET_TIMEOUT_MS,
   retries: number = 1,
   behavior: HttpBehaviorOptions = {}
 ): Promise<any> {
@@ -124,22 +223,7 @@ async function request(
     }
 
     if (!res.ok) {
-      // Detect Bad Gateway HTML responses (Railway error pages with Correlation Key)
-      // Railway correlation keys are 27 uppercase alphanumeric characters
-      // Pattern: "Correlation Key: [27 alphanumeric chars]" (case-insensitive, flexible whitespace)
-      const hasCorrelationKey =
-        typeof data === 'string' &&
-        (/Correlation Key:?\s*[A-Z0-9]{27}/i.test(data) || /[A-Z0-9]{27}/.test(data)); // Also match standalone 27-char keys
-      const isRailwayErrorPage =
-        res.status === 502 &&
-        (ct.includes('text/html') ||
-          (typeof data === 'string' &&
-            (data.includes('Bad Gateway') ||
-              data.includes('502') ||
-              data.includes('Correlation Key') ||
-              hasCorrelationKey ||
-              /[A-Z0-9]{27}/.test(data)))); // Match any 27-char alphanumeric (likely correlation key)
-
+      const isRailwayErrorPage = isRailwayInfrastructureError(res.status, ct, data);
       const isHtmlError = ct.includes('text/html') && typeof data === 'string';
       const msg = ct.includes('application/json')
         ? data && (data.error || data.message)
@@ -164,22 +248,7 @@ async function request(
         // Lazy-import to avoid circular dependency (auth.ts imports from http.ts)
         const { auth } = await import('./auth');
 
-        // Coalesce concurrent refresh attempts behind a single promise.
-        // The result is cached for REFRESH_CACHE_TTL_MS so late-arriving 401s
-        // reuse the fresh token instead of attempting a second refresh with a
-        // now-rotated (invalid) token.
-        if (!refreshPromise) {
-          refreshPromise = auth.refreshToken().finally(() => {
-            // Keep the resolved promise around for a few seconds so late 401s
-            // reuse the result. Clear it after the TTL.
-            if (refreshCacheTimer) clearTimeout(refreshCacheTimer);
-            refreshCacheTimer = setTimeout(() => {
-              refreshPromise = null;
-              refreshCacheTimer = null;
-            }, REFRESH_CACHE_TTL_MS);
-          });
-        }
-        const refreshResult = (await refreshPromise) as RefreshOutcome;
+        const refreshResult = await attemptTokenRefreshWithCache(() => auth.refreshToken());
         const newToken = refreshResult?.accessToken ?? null;
 
         if (newToken) {
@@ -305,11 +374,11 @@ async function request(
     // Railway infrastructure errors show HTML error pages with Correlation Keys
     // Since ALL our API calls go to Railway, ANY 502 error is a Railway infrastructure issue
     if (error.status === 502 || error.isRailwayErrorPage) {
-      // Improved Railway error detection - check for correlation key pattern (27 uppercase alphanumeric)
-      // More flexible pattern matching to catch all Railway error formats
-      const hasCorrelationKey =
-        typeof error.data === 'string' &&
-        (/Correlation Key:?\s*[A-Z0-9]{27}/i.test(error.data) || /[A-Z0-9]{27}/.test(error.data)); // Match standalone 27-char keys
+      // Use the shared correlation-key check so we classify consistently with
+      // the response-handler path. NOTE: this catch-block treats any 502 (or a
+      // previously-flagged Railway page) as infra — it's more permissive than
+      // the strict classifier above, by design.
+      const hasCorrelationKey = hasRailwayCorrelationKey(error.data);
 
       // ALL 502 errors from our Railway backend should be treated as infrastructure errors
       // This ensures maximum retries and proper handling
@@ -491,19 +560,13 @@ export function httpGet(
   const retries =
     typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
 
-  // Deduplicate concurrent identical GET requests (same path, same auth token)
-  const dedupeKey = `${path}::${getAuthToken() || 'anon'}`;
-  const existing = inflightGets.get(dedupeKey);
-  if (existing) return existing;
-
-  const promise = request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries, behavior)
-    .finally(() => inflightGets.delete(dedupeKey));
-  inflightGets.set(dedupeKey, promise);
-  return promise;
+  return executeOrReuseInflightGet(path, getAuthToken(), () =>
+    request(path, { ...options, method: 'GET' }, timeoutMs || DEFAULT_GET_TIMEOUT_MS, retries, behavior)
+  );
 }
 // Default POST should never retry automatically (prevents duplicate mutations).
 export function httpPost(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 0, behavior);
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, DEFAULT_MUTATION_TIMEOUT_MS, 0, behavior);
 }
 // POST with explicit timeout/retry controls for endpoint-specific tuning.
 export function httpPostWithOptions(
@@ -523,18 +586,18 @@ export function httpPostWithOptions(
 }
 // Long-timeout POST for heavy endpoints, still no automatic retries for safety.
 export function httpPostLongTimeout(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 180000, 0, behavior); // 3 minute timeout
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, LONG_POST_TIMEOUT_MS, 0, behavior);
 }
 // PUT/PATCH/DELETE should NOT retry - they are state-changing operations
 // Retrying could cause duplicate updates or delete operations on already-deleted resources
 export function httpPut(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, 15000, 0, behavior);
+  return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, DEFAULT_MUTATION_TIMEOUT_MS, 0, behavior);
 }
 export function httpPatch(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }, 15000, 0, behavior);
+  return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }, DEFAULT_MUTATION_TIMEOUT_MS, 0, behavior);
 }
 export function httpDelete(path: string, body?: any, behavior?: HttpBehaviorOptions) {
   const payload = typeof body === 'undefined' ? undefined : JSON.stringify(body);
   const options: RequestInit = payload ? { method: 'DELETE', body: payload } : { method: 'DELETE' };
-  return request(path, options, 15000, 0, behavior);
+  return request(path, options, DEFAULT_MUTATION_TIMEOUT_MS, 0, behavior);
 }
