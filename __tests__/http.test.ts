@@ -1,0 +1,273 @@
+/**
+ * api/http.ts — transport-layer contract tests.
+ *
+ * Pins six behaviors that every screen depends on:
+ *   - 401 triggers one refresh, then retries once
+ *   - concurrent 401s share the same refresh promise (no double-refresh race)
+ *   - in-flight GETs dedupe by URL+token
+ *   - Railway HTML 502 classifies as infra error, not a parsed JSON app error
+ *   - refresh failure with reason 'auth' or 'missing' clears session and throws SESSION_EXPIRED
+ *   - timeout abort classifies as 408 with the canonical timeout message
+ *
+ * These are behavior pins. If a future refactor changes how the transport
+ * layer handles any of them, the relevant case here fails. This file does
+ * NOT specify new behavior — it only locks in what the code currently does
+ * so the refactor can proceed safely.
+ */
+
+import { describe, expect, it, beforeEach, jest } from '@jest/globals';
+
+type FetchFn = (input: any, init?: any) => Promise<any>;
+type FetchMockFn = ReturnType<typeof jest.fn<FetchFn>>;
+
+jest.mock('@/utils/sentry', () => ({
+  captureBreadcrumb: jest.fn(),
+  captureException: jest.fn(),
+}));
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: { expoConfig: { extra: {} } },
+  expoConfig: { extra: {} },
+}));
+
+// We mock the lazy-imported auth module. http.ts does
+// `const { auth } = await import('./auth')` inside its 401 branch, which
+// resolves (via the `@/` alias) to the same module we mock here.
+const mockRefreshToken = jest.fn<(...args: any[]) => any>();
+const mockClearTokensOnly = jest.fn<(...args: any[]) => any>();
+
+jest.mock('@/api/auth', () => ({
+  auth: {
+    refreshToken: (...args: any[]) => mockRefreshToken(...args),
+    clearTokensOnly: (...args: any[]) => mockClearTokensOnly(...args),
+  },
+}));
+
+// Silence __DEV__-gated logging.
+(global as any).__DEV__ = false;
+
+// Minimal fetch Response shape used across tests.
+type FakeResponse = {
+  ok: boolean;
+  status: number;
+  headers: { get: (k: string) => string | null };
+  text: () => Promise<string>;
+};
+
+function mkJsonResponse(status: number, body: any): FakeResponse {
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get: (k: string) => (k.toLowerCase() === 'content-type' ? 'application/json' : null),
+    },
+    text: async () => text,
+  };
+}
+
+function mkHtmlResponse(status: number, body: string): FakeResponse {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: {
+      get: (k: string) => (k.toLowerCase() === 'content-type' ? 'text/html; charset=utf-8' : null),
+    },
+    text: async () => body,
+  };
+}
+
+/**
+ * Each test loads a fresh copy of api/http so the module-level state
+ * (refreshPromise, inflightGets, tokenCache) does not leak across tests.
+ * Mock resets happen in beforeEach — freshHttp deliberately does not reset
+ * them so the test body can configure refresh/clearTokens before loading.
+ */
+function freshHttp(fetchImpl: FetchMockFn) {
+  jest.resetModules();
+  (global as any).fetch = fetchImpl;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  return require('@/api/http') as typeof import('@/api/http');
+}
+
+beforeEach(() => {
+  jest.resetModules();
+  mockRefreshToken.mockReset();
+  mockClearTokensOnly.mockReset();
+  mockClearTokensOnly.mockResolvedValue(undefined as any);
+});
+
+describe('api/http — auth refresh', () => {
+  it('one 401 triggers one refresh attempt, then retries the request once', async () => {
+    // First call: 401. After refresh, second call: 200.
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>()
+      .mockResolvedValueOnce(mkJsonResponse(401, { error: 'expired' }))
+      .mockResolvedValueOnce(mkJsonResponse(200, { hello: 'world' }));
+
+    mockRefreshToken.mockResolvedValue({ accessToken: 'new-token', reason: 'success' } as any);
+
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('stale-token');
+
+    // Use retries=0 so the request function doesn't go into the 502/network
+    // retry loop — we're isolating the 401 path.
+    const result = await http.httpGet('/me', {}, undefined, 0);
+
+    expect(result).toEqual({ hello: 'world' });
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // The retry must carry the refreshed token.
+    const retryCall = fetchMock.mock.calls[1] as any[];
+    const retryHeaders = (retryCall[1] as RequestInit).headers as Record<string, string>;
+    expect(retryHeaders.Authorization).toBe('Bearer new-token');
+  });
+
+  it('concurrent 401s share the same refresh promise (no double-refresh race)', async () => {
+    // Two parallel GETs both hit 401, then both retry with the refreshed token.
+    // refresh should be invoked exactly once.
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockImplementation(async (url: string, init: any) => {
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      if (auth === 'Bearer stale-token') return mkJsonResponse(401, { error: 'expired' });
+      if (auth === 'Bearer new-token') {
+        if (url.endsWith('/a')) return mkJsonResponse(200, { path: 'a' });
+        if (url.endsWith('/b')) return mkJsonResponse(200, { path: 'b' });
+      }
+      return mkJsonResponse(500, { error: 'unexpected' });
+    });
+
+    // Resolve the refresh after a microtask to give both requests a chance
+    // to reach the refresh-promise check before it resolves.
+    mockRefreshToken.mockImplementation(
+      () =>
+        new Promise(res => {
+          setImmediate(() => res({ accessToken: 'new-token', reason: 'success' }));
+        })
+    );
+
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('stale-token');
+
+    const [a, b] = await Promise.all([
+      http.httpGet('/a', {}, undefined, 0),
+      http.httpGet('/b', {}, undefined, 0),
+    ]);
+
+    expect(a).toEqual({ path: 'a' });
+    expect(b).toEqual({ path: 'b' });
+
+    // Both requests must have coalesced onto a single refresh attempt.
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    // Four total fetches: 2 original 401s + 2 retries with new token.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('refresh failure with reason "auth" clears session and throws SESSION_EXPIRED', async () => {
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockResolvedValue(mkJsonResponse(401, { error: 'expired' }));
+    mockRefreshToken.mockResolvedValue({ accessToken: null, reason: 'auth' } as any);
+
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('stale-token');
+
+    await expect(http.httpGet('/me', {}, undefined, 0)).rejects.toMatchObject({
+      status: 401,
+      data: { code: 'SESSION_EXPIRED' },
+    });
+
+    expect(mockClearTokensOnly).toHaveBeenCalledTimes(1);
+  });
+
+  it('refresh failure with reason "missing" also clears session cleanly', async () => {
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockResolvedValue(mkJsonResponse(401, { error: 'expired' }));
+    mockRefreshToken.mockResolvedValue({ accessToken: null, reason: 'missing' } as any);
+
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('stale-token');
+
+    await expect(http.httpGet('/me', {}, undefined, 0)).rejects.toMatchObject({
+      status: 401,
+      data: { code: 'SESSION_EXPIRED' },
+    });
+
+    expect(mockClearTokensOnly).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('api/http — GET dedup', () => {
+  it('in-flight GETs for the same path + token coalesce into one network call', async () => {
+    // A single slow response — both concurrent GETs must share it.
+    let resolve: (v: any) => void;
+    const pending = new Promise<any>(r => {
+      resolve = r;
+    });
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockImplementation(() => pending);
+
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('tok');
+
+    const p1 = http.httpGet('/feed');
+    const p2 = http.httpGet('/feed');
+
+    // Fire both, then resolve the underlying fetch.
+    resolve!(mkJsonResponse(200, { items: [1, 2, 3] }));
+    const [a, b] = await Promise.all([p1, p2]);
+
+    expect(a).toEqual({ items: [1, 2, 3] });
+    expect(b).toEqual({ items: [1, 2, 3] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('api/http — Railway 502 classification', () => {
+  it('HTML 502 with Correlation Key surfaces as infra error, not a parsed JSON app error', async () => {
+    const railwayHtml = `
+      <!DOCTYPE html>
+      <html><body>
+        <h1>Application failed to respond</h1>
+        <p>Correlation Key: ABCDEFGHIJKLMNOPQRSTUVWXY27</p>
+      </body></html>
+    `.trim();
+
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockResolvedValue(mkHtmlResponse(502, railwayHtml));
+
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('tok');
+
+    // retries=0 — we're pinning the terminal-error shape, not the retry loop.
+    await expect(http.httpGet('/feed', {}, undefined, 0)).rejects.toMatchObject({
+      status: 502,
+      isRailwayErrorPage: true,
+    });
+
+    // And the error message must be the user-facing Railway infra string,
+    // not an attempt to read `.error` or `.message` off a parsed JSON body.
+    try {
+      await http.httpGet('/feed', {}, undefined, 0);
+    } catch (e: any) {
+      expect(e.message).toMatch(/temporarily unavailable/i);
+      // Raw HTML body is preserved on err.data — NOT a JSON object with
+      // keys like { error, message } that the caller might try to read.
+      expect(typeof e.data === 'string').toBe(true);
+      expect(e.data).toContain('Correlation Key');
+    }
+  });
+});
+
+describe('api/http — timeout', () => {
+  it('AbortError is classified as 408 with the canonical timeout message', async () => {
+    // fetch throws an AbortError — simulates the controller.abort() path.
+    const abortErr: any = new Error('The user aborted a request.');
+    abortErr.name = 'AbortError';
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockRejectedValue(abortErr);
+
+    const http = freshHttp(fetchMock);
+    http.setAuthToken('tok');
+
+    // retries=0 so we go through the terminal throw, not the retry branch.
+    await expect(http.httpGet('/slow', {}, 100, 0)).rejects.toMatchObject({
+      status: 408,
+      message: 'Request timeout - server did not respond',
+    });
+  });
+});
