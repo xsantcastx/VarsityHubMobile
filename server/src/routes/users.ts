@@ -1260,6 +1260,8 @@ usersRouter.post('/:id/block', requireAuth as any, asyncHandler(async (req: Auth
       },
     });
 
+    await invalidateFollowCaches(blocker_id, blocked_id);
+
     return res.status(201).json({ success: true });
   } catch (error: any) {
     // Handle duplicate blocking

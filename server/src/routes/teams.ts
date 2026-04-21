@@ -29,6 +29,7 @@ import {
   isTeamHiddenFromViewer,
 } from '../lib/privacyUtils.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { sendError } from '../lib/http/sendError.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
@@ -1707,7 +1708,7 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(a
       return true;
     }, { isolationLevel: 'Serializable' });
 
-    if (!accepted) return res.status(409).json({ error: 'Invite already processed' });
+    if (!accepted) return sendError(res, 409, 'Invite already processed');
   } catch (error: any) {
     if (error?.message === 'TEAM_PLAN_LOCKED') {
       const entitlement = await getTeamEntitlementState(prisma, invite.team_id);
@@ -1790,7 +1791,7 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, asyncHandler(
     where: { id: invite.id, status: 'pending' },
     data: { status: 'declined' },
   });
-  if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
+  if (declined.count === 0) return sendError(res, 409, 'Invite already processed');
 
   // Notify team coaches/owners that the invite was declined
   try {

@@ -13,7 +13,7 @@ describe('team invite race guards', () => {
   it('accept route only transitions pending invites and returns 409 when already processed', () => {
     expect(teamsSrc).toMatch(/teamsRouter\.post\('\/invites\/:inviteId\/accept'[\s\S]*?teamInvite\.updateMany\(\{/);
     expect(teamsSrc).toMatch(/where:\s*\{\s*id:\s*invite\.id,\s*status:\s*'pending'\s*\}/);
-    expect(teamsSrc).toMatch(/return res\.status\(409\)\.json\(\{ error: 'Invite already processed' \}\)/);
+    expect(teamsSrc).toMatch(/return sendError\(res,\s*409,\s*'Invite already processed'\)/);
   });
 
   it('decline route also uses a pending-only updateMany guard', () => {

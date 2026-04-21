@@ -16,6 +16,7 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import { sendError } from '../lib/http/sendError.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -1798,7 +1799,7 @@ gamesRouter.put(
         });
       });
       if (!updatedGame) {
-        return res.status(409).json({ error: 'Game approval status changed before this action completed' });
+        return sendError(res, 409, 'Game approval status changed before this action completed');
       }
       await invalidateGamesListCache();
 
