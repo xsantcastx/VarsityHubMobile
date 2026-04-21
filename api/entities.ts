@@ -1,5 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
+import { validateTeam, validateTeamArray } from './schemas/team';
 import {
   httpDelete,
   httpGet,
@@ -592,22 +593,27 @@ export const Organization = {
 };
 
 export const Team = {
-  list: (q?: string, mine?: boolean, options?: { directory?: boolean; limit?: number }) => {
+  list: (
+    q?: string,
+    mine?: boolean,
+    options?: { directory?: boolean; limit?: number }
+  ): Promise<any> => {
     const params: string[] = [];
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     if (mine) params.push('mine=1');
     if (options?.directory) params.push('directory=1');
     if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
     const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/teams' + qs);
+    return httpGet('/teams' + qs).then((data) => validateTeamArray('teams.list', data));
   },
-  managed: (q?: string) => {
+  managed: (q?: string): Promise<any> => {
     const params: string[] = [];
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/teams/managed' + qs);
+    return httpGet('/teams/managed' + qs).then((data) => validateTeamArray('teams.managed', data));
   },
-  get: (id: string) => httpGet('/teams/' + encodeURIComponent(id)),
+  get: (id: string): Promise<any> =>
+    httpGet('/teams/' + encodeURIComponent(id)).then((data) => validateTeam('teams.get', data)),
   follow: (id: string) => httpPost(`/teams/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/teams/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/teams/${encodeURIComponent(id)}/members`),

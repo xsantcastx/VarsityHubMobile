@@ -116,7 +116,17 @@ export function captureException(error: Error | unknown, context?: Record<string
   if (__DEV__) console.error('[sentry] Capturing exception:', error);
   Sentry.withScope(scope => {
     if (context) {
-      scope.setContext('custom', context);
+      const { tags, ...rest } = context;
+      if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
+        Object.entries(tags).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            scope.setTag(key, String(value));
+          }
+        });
+      }
+      if (Object.keys(rest).length > 0) {
+        scope.setContext('custom', rest);
+      }
     }
     scope.setTag('platform', Platform.OS);
     Sentry.captureException(error);
