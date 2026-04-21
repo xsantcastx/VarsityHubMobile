@@ -197,6 +197,14 @@ module.exports = ({ config }) => {
       ],
       'react-native-iap',
     ],
+    // Expo Router typed routes are required in this app.
+    // Route safety should fail in two layers:
+    // 1. TypeScript via generated Expo Router route types
+    // 2. Jest via __tests__/route-registry.test.ts for static callsite coverage
+    //
+    // Keep app.config.js as the source of truth for router experiments.
+    // app.json may mirror these values, but new routing config should be added here
+    // unless the project is intentionally migrated away from dynamic Expo config.
     experiments: {
       typedRoutes: true,
     },

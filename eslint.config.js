@@ -4,9 +4,9 @@ const reactHooks = require('eslint-plugin-react-hooks');
 const reactNative = require('eslint-plugin-react-native');
 const tsParser = require('@typescript-eslint/parser');
 const tsPlugin = require('@typescript-eslint/eslint-plugin');
+const importPlugin = require('eslint-plugin-import');
 
 module.exports = [
-  // Ignore non-RN folders to keep lint signal focused
   {
     ignores: [
       'dist/*',
@@ -18,12 +18,17 @@ module.exports = [
       'ios/**',
     ],
   },
-  // RN rules for RN source folders (excluding test files)
   {
     files: [
       'app/**/*.{js,jsx,ts,tsx}',
       'components/**/*.{js,jsx,ts,tsx}',
       'hooks/**/*.{js,jsx,ts,tsx}',
+      'context/**/*.{js,jsx,ts,tsx}',
+      'api/**/*.{js,jsx,ts,tsx}',
+      'utils/**/*.{js,jsx,ts,tsx}',
+      'constants/**/*.{js,jsx,ts,tsx}',
+      'lib/**/*.{js,jsx,ts,tsx}',
+      'shared/**/*.{js,jsx,ts,tsx}',
     ],
     ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
     languageOptions: {
@@ -39,22 +44,38 @@ module.exports = [
       'react-native': reactNative,
       'react-hooks': reactHooks,
       '@typescript-eslint': tsPlugin,
+      import: importPlugin,
     },
     rules: {
       'react-native/no-raw-text': ['error', { skip: ['ThemedText'] }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      // Use TS version instead of base ESLint rule
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
-      // Intentional fire-and-forget patterns (haptics, analytics) - warn not error
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/await-thenable': 'warn',
-      // Allow console.warn and console.error for debugging
+      'consistent-return': 'warn',
+      'import/no-cycle': ['warn', { ignoreExternal: true }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@/features/*/*',
+                '@/features/*/*/*',
+                '@/features/*/*/*/*',
+              ],
+              message:
+                'Import from a feature public barrel only (for example "@/features/team"), not another feature’s internals.',
+            },
+          ],
+        },
+      ],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
@@ -71,6 +92,7 @@ module.exports = [
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
+      import: importPlugin,
     },
     rules: {
       'no-unused-vars': 'off',
@@ -81,10 +103,11 @@ module.exports = [
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/await-thenable': 'warn',
+      'consistent-return': 'warn',
+      'import/no-cycle': ['warn', { ignoreExternal: true }],
       'no-console': ['warn', { allow: ['log', 'warn', 'error'] }],
     },
   },
-  // Test files are ignored from linting to avoid parser issues
   {
     ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
   },
