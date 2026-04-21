@@ -5,7 +5,6 @@ import sgMail from '@sendgrid/mail';
 import * as Sentry from '@sentry/node';
 import escapeHtml from 'escape-html';
 import { prisma } from './prisma.js';
-import { isMinor } from './userAge.js';
 
 /**
  * Resolve the EMAIL_AUDIT `audit_privacy` metadata for a recipient email.
@@ -35,6 +34,7 @@ export async function resolveMinorAuditMetadata(
     if (!user) return undefined;
     const u = user as any;
     if (!u.date_of_birth) return undefined;
+    const { isMinor } = await import('./userAge.js');
     const minor = isMinor({
       date_of_birth: u.date_of_birth,
       preferences: u.preferences,

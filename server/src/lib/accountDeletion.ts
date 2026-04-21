@@ -1,7 +1,15 @@
 import { prisma } from './prisma.js';
 import { invalidateMeCacheForUser } from './userCache.js';
-import { cleanupStripeBillingForDeletedUser } from './billingLifecycle.js';
 import { captureException } from './sentry.js';
+
+async function cleanupStripeBillingForDeletedUserLazy(params: {
+  userId: string;
+  stripeCustomerId?: string | null;
+  subscriptionId?: string | null;
+}) {
+  const { cleanupStripeBillingForDeletedUser } = await import('./billingLifecycle.js');
+  return cleanupStripeBillingForDeletedUser(params);
+}
 
 /**
  * Default retention for anonymized accounts before hard-delete. The soft-delete
@@ -179,7 +187,7 @@ export async function softDeleteUserAccount(userId: string): Promise<{
   // subscriptions that end up orphaned here (DB shows deleted, Stripe still
   // shows active → cron cancels + tombstones).
   try {
-    await cleanupStripeBillingForDeletedUser({
+    await cleanupStripeBillingForDeletedUserLazy({
       userId,
       stripeCustomerId: existing.stripe_customer_id,
       subscriptionId: storedSubscriptionId,

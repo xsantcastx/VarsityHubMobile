@@ -12,10 +12,10 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
-import { app } from '../testApp.js';
 
 let prisma: any;
 let signJwt: any;
+let app: import('express').Express;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -28,6 +28,7 @@ describe('Coach Agreement Versioning', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
+    ({ app } = await import('../authTestApp.js'));
 
     const hash = await bcrypt.hash(PASSWORD, 10);
     const coach = await prisma.user.create({

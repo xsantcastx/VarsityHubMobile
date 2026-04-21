@@ -1,9 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import './load-env.js';
-import { debugLog } from './debugLog.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
 
 const withTestPoolLimits = (rawUrl: string): string => {
   try {

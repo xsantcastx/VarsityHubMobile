@@ -2,10 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '../lib/email.js';
 import { validateContent } from '../lib/contentFilter.js';
-import { sendPushNotification } from '../lib/notifications.js';
+import { sendPushNotification } from '../lib/pushNotifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -28,7 +27,6 @@ import {
   getExcludedPrivateTeamIds,
   isTeamHiddenFromViewer,
 } from '../lib/privacyUtils.js';
-
 import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const teamsRouter = Router();

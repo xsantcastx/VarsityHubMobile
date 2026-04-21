@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
-import { app } from '../testApp.js';
 
 let prisma: any;
 let signJwt: any;
+let app: import('express').Express;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -25,6 +25,7 @@ describe('Ad Approval Security', () => {
   let limiterAdminToken = '';
 
   beforeAll(async () => {
+    ({ app } = await import('../adApprovalTestApp.js'));
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
 

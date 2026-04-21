@@ -1,7 +1,12 @@
 import * as Sentry from '@sentry/node';
 import crypto from 'node:crypto';
 import type { Express } from 'express';
-import { debugLog } from './debugLog.js';
+
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
 
 /**
  * Initialize Sentry error tracking

@@ -33,7 +33,7 @@ export async function startNotificationWorker(): Promise<Worker<NotificationJob>
       maxRetriesPerRequest: null,
     });
 
-    const { sendPushNotification } = await import('../../lib/notifications.js');
+    const { sendPushNotification } = await import('../../lib/pushNotifications.js');
 
     worker = new Worker<NotificationJob>(
       'notifications',

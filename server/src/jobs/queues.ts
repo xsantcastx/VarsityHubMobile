@@ -217,7 +217,7 @@ export async function queueNotification(job: NotificationJob): Promise<string | 
   // Fallback: process immediately
   console.log('[Jobs] Fallback: Processing notification immediately');
   try {
-    const { sendPushNotification } = await import('../lib/notifications.js');
+    const { sendPushNotification } = await import('../lib/pushNotifications.js');
     await sendPushNotification(job.userId, job.title, job.body, job.data);
     return 'immediate';
   } catch (error) {

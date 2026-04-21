@@ -34,9 +34,7 @@ import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
-import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
-import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
 import {
   evaluateDobUpdate,
   formatDobYmd,
@@ -47,6 +45,21 @@ import {
 } from '../lib/userAge.js';
 
 export const authRouter = Router();
+
+async function invalidateMeCacheForUser(userId: string | null | undefined): Promise<void> {
+  const { invalidateMeCacheForUser } = await import('../lib/userCache.js');
+  await invalidateMeCacheForUser(userId);
+}
+
+async function assertCanSelfDeleteUser(userId: string): Promise<void> {
+  const { assertCanSelfDeleteUser } = await import('../lib/accountDeletion.js');
+  await assertCanSelfDeleteUser(userId);
+}
+
+async function softDeleteUserAccount(userId: string) {
+  const { softDeleteUserAccount } = await import('../lib/accountDeletion.js');
+  return softDeleteUserAccount(userId);
+}
 
 // Rate limit thresholds (unchanged)
 const MAX_AUTH_ATTEMPTS = 5;
@@ -1214,7 +1227,7 @@ authRouter.post(
       }
     } catch (e) {
       console.error('[email] Password reset email failed:', e);
-      req.log?.warn?.({ err: e }, 'Password reset email failed');
+      (req as any).log?.warn?.({ err: e }, 'Password reset email failed');
     }
 
     if (shouldExposeDevCodes) payload.dev_reset_code = code;
@@ -2619,7 +2632,7 @@ authRouter.post(
       }
     } catch (e) {
       console.error('[verify-code] [verify/request] sendVerificationEmail threw:', e);
-      req.log?.warn?.({ err: e }, 'Email send failed');
+      (req as any).log?.warn?.({ err: e }, 'Email send failed');
     }
     const payload: any = { ok: true };
     if (shouldExposeDevCodes) payload.dev_verification_code = code;

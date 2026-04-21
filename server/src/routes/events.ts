@@ -27,50 +27,54 @@ import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/t
 
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
+const shouldRunStartupBackfills =
+  process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
 
 // One-time startup backfill: geocode events/games that have a location string but no lat/lng.
 // Fire-and-forget — safe to run repeatedly (skips rows already populated).
-void (async () => {
-  try {
-    const missing = await prisma.event.findMany({
-      where: { location: { not: null }, latitude: null },
-      select: { id: true, location: true },
-      take: 1000,
-    });
-    if (missing.length === 0) return;
-    console.log(`[events] backfill: geocoding ${missing.length} events without coordinates`);
-    let success = 0;
-    let failed = 0;
-    for (const ev of missing) {
-      try {
-        const coords = await geocodeLocation(ev.location!);
-        if (coords) {
-          await prisma.event.update({
-            where: { id: ev.id },
-            data: { latitude: coords.latitude, longitude: coords.longitude },
-          });
-          success++;
-        } else {
+if (shouldRunStartupBackfills) {
+  void (async () => {
+    try {
+      const missing = await prisma.event.findMany({
+        where: { location: { not: null }, latitude: null },
+        select: { id: true, location: true },
+        take: 1000,
+      });
+      if (missing.length === 0) return;
+      console.log(`[events] backfill: geocoding ${missing.length} events without coordinates`);
+      let success = 0;
+      let failed = 0;
+      for (const ev of missing) {
+        try {
+          const coords = await geocodeLocation(ev.location!);
+          if (coords) {
+            await prisma.event.update({
+              where: { id: ev.id },
+              data: { latitude: coords.latitude, longitude: coords.longitude },
+            });
+            success++;
+          } else {
+            failed++;
+            console.warn(
+              `[events] backfill: geocode returned null for event ${ev.id} location="${ev.location}"`
+            );
+          }
+        } catch (err: any) {
           failed++;
-          console.warn(
-            `[events] backfill: geocode returned null for event ${ev.id} location="${ev.location}"`
+          console.error(
+            `[events] backfill: failed event ${ev.id} location="${ev.location}":`,
+            err?.message || err
           );
         }
-      } catch (err: any) {
-        failed++;
-        console.error(
-          `[events] backfill: failed event ${ev.id} location="${ev.location}":`,
-          err?.message || err
-        );
       }
+      console.log(
+        `[events] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`
+      );
+    } catch (err) {
+      console.warn('[events] backfill failed:', err);
     }
-    console.log(
-      `[events] backfill: done — ${success} geocoded, ${failed} failed out of ${missing.length}`
-    );
-  } catch (err) {
-    console.warn('[events] backfill failed:', err);
-  }
-})();
+  })();
+}
 
 // Check if a user holds a coaching/management role on any team (DB truth, not preferences)
 async function isTeamCoach(userId: string): Promise<boolean> {

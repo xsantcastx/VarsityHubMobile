@@ -21,7 +21,7 @@ import {
   sendEventDeniedEmail,
   sendAdminActionConfirmationEmail,
 } from './email.js';
-import { sendPushNotification } from './notifications.js';
+import { sendPushNotification } from './pushNotifications.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from './userCache.js';
 
 // ────────────────────────────────────────────────────────────────────────────

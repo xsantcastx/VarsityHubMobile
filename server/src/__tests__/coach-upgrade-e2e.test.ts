@@ -27,7 +27,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 
 let prisma: any;
-let request: typeof import('supertest').default;
+let request: any;
 let app: import('express').Express;
 let signJwt: any;
 
@@ -53,7 +53,7 @@ describeDb('POST /auth/upgrade-to-coach — fan → coach state transition', () 
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
     request = (await import('supertest')).default;
-    ({ app } = await import('../testApp.js'));
+    ({ app } = await import('../authTestApp.js'));
 
     const hash = await bcrypt.hash(PASSWORD, 10);
     const fan = await prisma.user.create({

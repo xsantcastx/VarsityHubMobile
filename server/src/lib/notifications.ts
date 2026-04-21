@@ -20,107 +20,15 @@ export {
  * 5. 1 hour before RSVP'd game
  */
 
-import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+import { Expo } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 import { captureException, captureMessage } from './sentry.js';
 import { updateUserAndInvalidate } from './userCache.js';
+import { sendPushNotification } from './pushNotifications.js';
 
 const expo = new Expo();
-
-/**
- * Send a push notification to a user
- */
-export async function sendPushNotification(
-  userId: string,
-  title: string,
-  body: string,
-  data?: Record<string, any>
-): Promise<string[]> {
-  try {
-    // Get user's push token
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        preferences: true,
-      },
-    });
-
-    if (!user) {
-      debugLog(`User ${userId} not found`);
-      return [];
-    }
-
-    // Check if notifications are enabled
-    const prefs = user.preferences as any;
-    if (prefs && prefs.notifications_enabled === false) {
-      debugLog(`Notifications disabled for user ${userId}`);
-      return [];
-    }
-
-    // Get push token from preferences
-    const pushToken = prefs?.push_token as string;
-
-    if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
-      debugLog(`Invalid or missing push token for user ${userId}`);
-      return [];
-    }
-
-    // Create message
-    const message: ExpoPushMessage = {
-      to: pushToken,
-      sound: 'default',
-      title,
-      body,
-      data: data || {},
-    };
-
-    // Send notification
-    const chunks = expo.chunkPushNotifications([message]);
-    const tickets: any[] = [];
-
-    for (const chunk of chunks) {
-      try {
-        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-        tickets.push(...ticketChunk);
-      } catch (error) {
-        console.error('Error sending push notification chunk:', error);
-      }
-    }
-
-    debugLog(`Sent notification to user ${userId}: ${title}`);
-
-    // v1.0.2 audit fix: clear stale push_token at send time, not just via cron.
-    // Previously verifyPushReceipts (cron) was the only path that cleared invalid tokens,
-    // meaning a stale token would fail every notification until the cron ran.
-    const errorTickets = tickets.filter(
-      (t: any) => t?.status === 'error' && t?.details?.error === 'DeviceNotRegistered'
-    );
-    if (errorTickets.length > 0) {
-      try {
-        const currentPrefs = (user.preferences as any) || {};
-        if (currentPrefs.push_token === pushToken) {
-          await updateUserAndInvalidate(prisma, {
-            where: { id: userId },
-            data: { preferences: { ...currentPrefs, push_token: null } },
-          });
-          debugLog(`Cleared stale push_token for user ${userId} (DeviceNotRegistered)`);
-        }
-      } catch (clearErr) {
-        console.warn('[notifications] Failed to clear stale push_token:', clearErr);
-      }
-    }
-
-    // Return successful ticket IDs for receipt tracking
-    const successTicketIds = tickets
-      .filter((t: any) => t.status === 'ok' && t.id)
-      .map((t: any) => t.id);
-    return successTicketIds;
-  } catch (error) {
-    console.error(`Failed to send notification to user ${userId}:`, error);
-    return [];
-  }
-}
+export { sendPushNotification };
 
 /**
  * Notify when user receives a new direct message

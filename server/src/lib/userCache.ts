@@ -1,11 +1,15 @@
-import { cacheDel } from './cache.js';
 import type { PrismaClient } from '@prisma/client';
+
+async function cacheDelLazy(key: string): Promise<void> {
+  const { cacheDel } = await import('./cache.js');
+  await cacheDel(key);
+}
 
 export async function invalidateMeCacheForUser(
   userId: string | null | undefined,
 ): Promise<void> {
   if (!userId) return;
-  await cacheDel(`me:${userId}`);
+  await cacheDelLazy(`me:${userId}`);
 }
 
 export async function invalidateMeCacheForUsers(

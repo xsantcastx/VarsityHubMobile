@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 import expressPkg, { Router, type Response } from 'express';
+import { createRequire } from 'node:module';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
 import { AdStatus, Prisma } from '@prisma/client';
 import { debugLog as baseDebugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
@@ -31,13 +32,18 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 
+const require = createRequire(import.meta.url);
+const StripeCtor = require('stripe') as typeof import('stripe').default;
+
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
   throw new Error('FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.');
 }
 if (!process.env.STRIPE_SECRET_KEY) {
   console.error('[payments] STRIPE_SECRET_KEY is not set — payment features will fail');
 }
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', { apiVersion: '2024-06-20' });
+const stripe = new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', {
+  apiVersion: '2024-06-20',
+});
 const MAX_AD_SLOTS = 2;
 const webhookEventLocks = new Map<string, Promise<any>>();
 

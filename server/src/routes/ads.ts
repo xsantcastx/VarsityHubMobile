@@ -8,7 +8,6 @@ import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { debugLog } from '../lib/debugLog.js';
 import {
   adCreationLimiter,
   adModerationLimiter,
@@ -16,7 +15,7 @@ import {
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
-import { sendPushNotification } from '../lib/notifications.js';
+import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
   clearBannerModerationFields,
   moderateAndStoreAdBanner,
@@ -29,6 +28,12 @@ import { validateContent } from '../lib/contentFilter.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
 
 const adCreateSchema = z.object({
   contact_name: z.string().min(1).max(200),
@@ -100,45 +105,49 @@ async function getZipCoordinatesWithFallback(
 
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
+const shouldRunStartupBackfills =
+  process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
 
 // One-time backfill: populate target_lat/target_lng for existing ads that predate the column.
 // Runs once at startup, fire-and-forget — safe to repeat (skips ads already populated).
-void (async () => {
-  try {
-    const unresolved = await prisma.ad.findMany({
-      where: { target_zip_code: { not: null }, target_lat: null },
-      select: { id: true, target_zip_code: true },
-      take: 500,
-    });
-    if (unresolved.length === 0) return;
-    console.log(`[ads] backfill: resolving coords for ${unresolved.length} ads`);
-    // Deduplicate by zip code — fetch coords once per unique zip, then batch update
-    const uniqueZips = [...new Set(unresolved.map(a => a.target_zip_code!))];
-    const coordsByZip = new Map<string, { lat: number; lon: number }>();
-    for (const zip of uniqueZips) {
-      const coords = await getZipCoordinatesWithFallback(zip);
-      if (coords) coordsByZip.set(zip, coords);
+if (shouldRunStartupBackfills) {
+  void (async () => {
+    try {
+      const unresolved = await prisma.ad.findMany({
+        where: { target_zip_code: { not: null }, target_lat: null },
+        select: { id: true, target_zip_code: true },
+        take: 500,
+      });
+      if (unresolved.length === 0) return;
+      console.log(`[ads] backfill: resolving coords for ${unresolved.length} ads`);
+      // Deduplicate by zip code — fetch coords once per unique zip, then batch update
+      const uniqueZips = [...new Set(unresolved.map(a => a.target_zip_code!))];
+      const coordsByZip = new Map<string, { lat: number; lon: number }>();
+      for (const zip of uniqueZips) {
+        const coords = await getZipCoordinatesWithFallback(zip);
+        if (coords) coordsByZip.set(zip, coords);
+      }
+      // Group ads by zip and batch-update in chunks of 100
+      const BATCH = 100;
+      const updates = unresolved.filter(a => coordsByZip.has(a.target_zip_code!));
+      for (let i = 0; i < updates.length; i += BATCH) {
+        const chunk = updates.slice(i, i + BATCH);
+        await prisma.$transaction(
+          chunk.map(ad => {
+            const c = coordsByZip.get(ad.target_zip_code!)!;
+            return prisma.ad.update({
+              where: { id: ad.id },
+              data: { target_lat: c.lat, target_lng: c.lon },
+            });
+          })
+        );
+      }
+      console.log('[ads] backfill: done');
+    } catch (err) {
+      console.warn('[ads] backfill failed (non-fatal):', (err as any)?.message || err);
     }
-    // Group ads by zip and batch-update in chunks of 100
-    const BATCH = 100;
-    const updates = unresolved.filter(a => coordsByZip.has(a.target_zip_code!));
-    for (let i = 0; i < updates.length; i += BATCH) {
-      const chunk = updates.slice(i, i + BATCH);
-      await prisma.$transaction(
-        chunk.map(ad => {
-          const c = coordsByZip.get(ad.target_zip_code!)!;
-          return prisma.ad.update({
-            where: { id: ad.id },
-            data: { target_lat: c.lat, target_lng: c.lon },
-          });
-        })
-      );
-    }
-    console.log('[ads] backfill: done');
-  } catch (err) {
-    console.warn('[ads] backfill failed (non-fatal):', (err as any)?.message || err);
-  }
-})();
+  })();
+}
 
 // Create an Ad — any authenticated, verified, onboarded user. Rate-limited
 // to prevent draft spam. No plan gate: any onboarded user (fan or coach)

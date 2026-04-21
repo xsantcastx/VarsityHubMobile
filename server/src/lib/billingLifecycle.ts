@@ -1,12 +1,16 @@
-import Stripe from 'stripe';
+import { createRequire } from 'node:module';
+import type Stripe from 'stripe';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 import { captureException } from './sentry.js';
 import { invalidateMeCacheForUsers } from './userCache.js';
 
+const require = createRequire(import.meta.url);
+const StripeCtor = require('stripe') as typeof import('stripe').default;
+
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
 const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' })
+  ? new StripeCtor(stripeSecretKey, { apiVersion: '2024-06-20' })
   : null;
 
 const RECONCILE_LIMIT_DEFAULT = 500;
