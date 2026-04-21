@@ -1,5 +1,12 @@
 # VarsityHub — Agent Usage Guide
 
+## Codex Context Model
+
+- In Codex, spawned agents start isolated unless the caller explicitly forks context or includes the needed background in the task prompt.
+- `AGENTS.md` is instruction input for the session, not a Claude-style lazy-loaded memory system. Do not assume nested `CLAUDE.md`-style composition by directory.
+- If a subagent needs prior audit state, scope boundaries, or decisions already made in the main thread, pass that context directly instead of assuming inheritance.
+- Put repo-wide workflow rules here. Put task-specific role instructions in the spawned agent prompt.
+
 ## Available Agent Types
 
 ### Explore
