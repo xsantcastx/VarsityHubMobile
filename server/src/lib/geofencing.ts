@@ -2,8 +2,10 @@
  * Geofencing utilities for location-based event posting
  * 
  * BUSINESS RULES:
- * - Story Posts: 24-hour window (12h before to 12h after game), within 1km of venue
- * - Regular Posts: 4-day window (2 days before to 1 day after game), within 3km of venue
+ * - Story Posts: game-day window, within 1km of venue
+ * - Regular Posts: open 2 days before event start, stay live through the event,
+ *   then remain open until +48h only for users who already posted to that same
+ *   event while it was live, within 3km of venue
  * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
  * 
  * This maintains authenticity and prevents users from different states from trolling games.
@@ -13,6 +15,9 @@ import { prisma } from './prisma.js';
 
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
+const REGULAR_POST_OPEN_BEFORE_MS = 2 * 24 * 60 * 60 * 1000;
+const REGULAR_POST_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+const REGULAR_POST_GRACE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 export type PostingPermissionErrorCode =
   | 'EVENT_NOT_FOUND'
@@ -27,6 +32,8 @@ export type PostingPermissionResult = {
   reason?: string;
   distance?: number;
 };
+
+export type PostPostingWindowState = 'before_open' | 'live' | 'grace' | 'closed';
 
 const formatWindowDateTime = (date: Date) =>
   date.toLocaleString('en-US', {
@@ -102,22 +109,38 @@ export function isStoryPostingWindowOpen(eventDate: Date): boolean {
 
 /**
  * Check if posting window is open for regular posts
- * Posts: opens 2 days before event, closes at end of event day (midnight UTC day after event,
- * plus 8h buffer for US timezones so Pacific-time users can post until their local midnight).
+ * Posts: opens 2 days before event start. After the live window, posting remains open until
+ * +48h only for users who already posted to that event while it was live.
  */
 export function isPostPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
-  const eventTime = new Date(eventDate);
-  const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days before
-  // End: midnight UTC the day after event day + 8h buffer for US westernmost timezone (UTC-8)
-  const endOfEventDay = new Date(Date.UTC(
-    eventTime.getUTCFullYear(),
-    eventTime.getUTCMonth(),
-    eventTime.getUTCDate() + 1,
-  ));
-  const windowEnd = new Date(endOfEventDay.getTime() + 8 * 60 * 60 * 1000);
+  const state = getPostPostingWindowState(eventDate, now);
+  return state !== 'before_open' && state !== 'closed';
+}
 
-  return now >= windowStart && now <= windowEnd;
+export function getPostPostingWindowBounds(eventDate: Date) {
+  const eventTime = new Date(eventDate);
+  const windowStart = new Date(eventTime.getTime() - REGULAR_POST_OPEN_BEFORE_MS);
+  const liveCutoff = new Date(eventTime.getTime() + REGULAR_POST_LIVE_WINDOW_MS);
+  const windowEnd = new Date(eventTime.getTime() + REGULAR_POST_GRACE_WINDOW_MS);
+
+  return {
+    eventTime,
+    windowStart,
+    liveCutoff,
+    windowEnd,
+  };
+}
+
+export function getPostPostingWindowState(
+  eventDate: Date,
+  now: Date = new Date()
+): PostPostingWindowState {
+  const { windowStart, liveCutoff, windowEnd } = getPostPostingWindowBounds(eventDate);
+  if (now < windowStart) return 'before_open';
+  if (now <= liveCutoff) return 'live';
+  if (now <= windowEnd) return 'grace';
+  return 'closed';
 }
 
 /**
@@ -261,7 +284,8 @@ export async function verifyStoryPostingPermission(
 
 /**
  * Verify user can post to an event based on location and time
- * Posts: 4-day window (2 days before to 1 day after game), 3km radius
+ * Posts: open 2 days before event start, stay open through the live window, then allow
+ * a +48h grace period only for users who already posted to that event while it was live.
  * @returns { allowed: boolean; reason?: string; distance?: number }
  */
 export async function verifyEventPostingPermission(
@@ -288,21 +312,40 @@ export async function verifyEventPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Check if posting window is open (2 days before to end of event day)
-  if (!isPostPostingWindowOpen(event.date)) {
-    const eventTime = new Date(event.date);
-    const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000);
-    const endOfEventDay = new Date(Date.UTC(
-      eventTime.getUTCFullYear(),
-      eventTime.getUTCMonth(),
-      eventTime.getUTCDate() + 1,
-    ));
-    const windowEnd = new Date(endOfEventDay.getTime() + 8 * 60 * 60 * 1000);
+  const { windowStart, liveCutoff, windowEnd } = getPostPostingWindowBounds(event.date);
+  const postingWindowState = getPostPostingWindowState(event.date);
+
+  if (postingWindowState === 'before_open' || postingWindowState === 'closed') {
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
       reason: `Posting opens ${formatWindowDateTime(windowStart)} and closes ${formatWindowDateTime(windowEnd)}.`,
     };
+  }
+
+  if (postingWindowState === 'grace') {
+    const priorLivePost = event.game_id
+      ? await prisma.post.findFirst({
+          where: {
+            author_id: userId,
+            game_id: event.game_id,
+            deleted_at: null,
+            created_at: {
+              gte: new Date(event.date),
+              lte: liveCutoff,
+            },
+          },
+          select: { id: true },
+        })
+      : null;
+
+    if (!priorLivePost) {
+      return {
+        allowed: false,
+        code: 'POSTING_WINDOW_CLOSED',
+        reason: `Post-event uploads stay open until ${formatWindowDateTime(windowEnd)}, but only if you already posted to this event while it was live.`,
+      };
+    }
   }
 
   // Resolve venue coordinates: event first, then fall back to game

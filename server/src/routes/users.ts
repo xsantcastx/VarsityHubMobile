@@ -11,7 +11,7 @@ import { followLimiter, mentionsSearchLimiter, userLookupLimiter, usernameAvaila
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { updateUserAndInvalidate } from '../lib/userCache.js';
+import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
 
 export const usersRouter = Router();
 registerIdValidation(usersRouter);
@@ -21,6 +21,10 @@ const publicUserSelect = {
   display_name: true,
   avatar_url: true,
 };
+
+async function invalidateFollowCaches(...userIds: Array<string | null | undefined>) {
+  await Promise.all(userIds.map((userId) => invalidateMeCacheForUser(userId)));
+}
 
 // List users (admin only)
 usersRouter.get('/', requireAdmin as any, asyncHandler(async (req, res) => {
@@ -762,6 +766,7 @@ usersRouter.post('/:id/follow', requireAuth as any, followLimiter as any, asyncH
     await prisma.follows.create({
       data: { follower_id, following_id, status: followStatus },
     });
+    await invalidateFollowCaches(follower_id, following_id);
 
     // Create notification
     try {
@@ -826,6 +831,7 @@ usersRouter.delete('/:id/follow', requireAuth as any, asyncHandler(async (req: A
     await prisma.follows.deleteMany({
       where: { follower_id, following_id },
     });
+    await invalidateFollowCaches(follower_id, following_id);
     res.status(200).json({ success: true, is_following_author: false });
   } catch (error) {
     console.error('Unfollow error:', error);
@@ -849,6 +855,7 @@ usersRouter.post('/:id/accept-follow', requireAuth as any, asyncHandler(async (r
       where: { follower_id_following_id: { follower_id: followerId, following_id: currentUserId } },
       data: { status: 'accepted' },
     });
+    await invalidateFollowCaches(followerId, currentUserId);
 
     // Notify the follower that their request was accepted
     try {
@@ -870,7 +877,7 @@ usersRouter.post('/:id/accept-follow', requireAuth as any, asyncHandler(async (r
         'Follow Request Accepted',
         `${currentUser?.display_name || 'Someone'} accepted your follow request`,
         { type: 'new_follower', screen: 'user-profile', user_id: currentUserId }
-      ).catch(() => {});
+      ).catch((err) => console.warn('Failed to send follow accept push:', err));
     } catch (e) {
       console.error('Failed to send follow accept notification:', e);
     }
@@ -891,6 +898,9 @@ usersRouter.post('/:id/reject-follow', requireAuth as any, asyncHandler(async (r
     const deleted = await prisma.follows.deleteMany({
       where: { follower_id: followerId, following_id: currentUserId, status: 'pending' },
     });
+    if (deleted.count > 0) {
+      await invalidateFollowCaches(followerId, currentUserId);
+    }
 
     // Notify the requester that their follow request was declined
     if (deleted.count > 0) {
@@ -1198,6 +1208,7 @@ usersRouter.post('/:id/block', requireAuth as any, asyncHandler(async (req: Auth
         ],
       },
     });
+    await invalidateFollowCaches(blocker_id, blocked_id);
 
     return res.status(201).json({ success: true });
   } catch (error: any) {

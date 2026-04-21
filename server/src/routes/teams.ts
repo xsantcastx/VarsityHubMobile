@@ -15,16 +15,76 @@ import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { isOrganizationApproved } from '../lib/approvalService.js';
+import { withDistributedLock } from '../lib/distributedLock.js';
 
 import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
+const teamGroupChatLocks = new Map<string, Promise<any>>();
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
   }
 };
+
+async function ensureTeamGroupChatMembership(teamId: string, userId: string) {
+  return withDistributedLock(
+    {
+      namespace: 'team-group-chat',
+      key: teamId,
+      localLocks: teamGroupChatLocks,
+      ttlMs: 5_000,
+      acquireTimeoutMs: 5_000,
+    },
+    async () => {
+      let groupChat = await prisma.groupChat.findFirst({
+        where: { team_id: teamId },
+        orderBy: { created_at: 'asc' },
+      });
+
+      if (!groupChat) {
+        const team = await prisma.team.findUnique({ where: { id: teamId } });
+        const allMembers = await prisma.teamMembership.findMany({
+          where: {
+            team_id: teamId,
+            status: 'active',
+          },
+          select: { user_id: true },
+        });
+
+        groupChat = await prisma.groupChat.create({
+          data: {
+            name: `${team?.name || 'Team'} Chat`,
+            team_id: teamId,
+            created_by: userId,
+            members: {
+              create: allMembers.map((member) => ({ user_id: member.user_id })),
+            },
+          },
+        });
+      } else {
+        const existingMember = await prisma.groupChatMember.findFirst({
+          where: {
+            chat_id: groupChat.id,
+            user_id: userId,
+          },
+        });
+
+        if (!existingMember) {
+          await prisma.groupChatMember.create({
+            data: {
+              chat_id: groupChat.id,
+              user_id: userId,
+            },
+          });
+        }
+      }
+
+      return groupChat;
+    }
+  );
+}
 
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
@@ -1542,72 +1602,33 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(a
   if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
-  const existingMembership = await prisma.teamMembership.findUnique({
-    where: {
-      team_id_user_id: {
-        team_id: invite.team_id,
-        user_id: user.id,
-      } as any,
-    },
-  });
-  const roleToApply = existingMembership?.role || invite.role;
-  await prisma.$transaction([
-    prisma.teamMembership.upsert({
+  const accepted = await prisma.$transaction(async (tx) => {
+    const existingMembership = await tx.teamMembership.findUnique({
+      where: {
+        team_id_user_id: {
+          team_id: invite.team_id,
+          user_id: user.id,
+        } as any,
+      },
+    });
+    const roleToApply = existingMembership?.role || invite.role;
+    const transition = await tx.teamInvite.updateMany({
+      where: { id: invite.id, status: 'pending' },
+      data: { status: 'accepted' },
+    });
+    if (transition.count === 0) return false;
+
+    await tx.teamMembership.upsert({
       where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
       update: { role: roleToApply, status: 'active' },
       create: { team_id: invite.team_id, user_id: user.id, role: roleToApply, status: 'active' },
-    }),
-    prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
-  ]);
-
-  // Check if team group chat exists, if not create it
-  try {
-    let groupChat = await prisma.groupChat.findFirst({
-      where: { team_id: invite.team_id },
     });
+    return true;
+  });
+  if (!accepted) return res.status(409).json({ error: 'Invite already processed' });
 
-    if (!groupChat) {
-      // Get team info
-      const team = await prisma.team.findUnique({ where: { id: invite.team_id } });
-      
-      // Get all active team members
-      const allMembers = await prisma.teamMembership.findMany({
-        where: { 
-          team_id: invite.team_id,
-          status: 'active'
-        },
-        select: { user_id: true },
-      });
-
-      // Create group chat with all members
-      groupChat = await prisma.groupChat.create({
-        data: {
-          name: `${team?.name || 'Team'} Chat`,
-          team_id: invite.team_id,
-          created_by: req.user.id,
-          members: {
-            create: allMembers.map(m => ({ user_id: m.user_id })),
-          },
-        },
-      });
-    } else {
-      // Add user to existing group chat if not already a member
-      const existingMember = await prisma.groupChatMember.findFirst({
-        where: {
-          chat_id: groupChat.id,
-          user_id: user.id,
-        },
-      });
-
-      if (!existingMember) {
-        await prisma.groupChatMember.create({
-          data: {
-            chat_id: groupChat.id,
-            user_id: user.id,
-          },
-        });
-      }
-    }
+  try {
+    await ensureTeamGroupChatMembership(invite.team_id, user.id);
   } catch (error) {
     console.error('Error managing group chat:', error);
     // Don't fail the invite acceptance if group chat creation fails
@@ -1668,7 +1689,11 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, asyncHandler(
   if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
-  await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
+  const declined = await prisma.teamInvite.updateMany({
+    where: { id: invite.id, status: 'pending' },
+    data: { status: 'declined' },
+  });
+  if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
 
   // Notify team coaches/owners that the invite was declined
   try {

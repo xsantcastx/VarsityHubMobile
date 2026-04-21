@@ -3,17 +3,30 @@ import express from 'express';
 import request from 'supertest';
 
 const mockCacheDelPattern = jest.fn(async () => undefined);
+const mockCacheGet = jest.fn(async () => null);
+const mockCacheSet = jest.fn(async () => undefined);
 const mockGameFindMany = jest.fn(async () => []);
 const mockGameCreate = jest.fn();
 const mockGameFindUnique = jest.fn();
-const mockGameUpdate = jest.fn();
+const mockGameUpdateMany = jest.fn(async () => ({ count: 1 }));
 const mockEventCreate = jest.fn();
 const mockEventUpdateMany = jest.fn(async () => ({ count: 1 }));
 const mockUserFindUnique = jest.fn();
+const mockTransaction = jest.fn(async (callback: any) =>
+  callback({
+    game: {
+      updateMany: mockGameUpdateMany,
+      findUnique: mockGameFindUnique,
+    },
+    event: {
+      updateMany: mockEventUpdateMany,
+    },
+  })
+);
 
 jest.unstable_mockModule('../lib/cache.js', () => ({
-  cacheGet: jest.fn(async () => null),
-  cacheSet: jest.fn(async () => undefined),
+  cacheGet: mockCacheGet,
+  cacheSet: mockCacheSet,
   cacheDel: jest.fn(async () => undefined),
   cacheDelPattern: mockCacheDelPattern,
 }));
@@ -24,7 +37,7 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
       findMany: mockGameFindMany,
       create: mockGameCreate,
       findUnique: mockGameFindUnique,
-      update: mockGameUpdate,
+      updateMany: mockGameUpdateMany,
       count: jest.fn(async () => 0),
       delete: jest.fn(),
     },
@@ -50,6 +63,7 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
       findUnique: jest.fn(async () => null),
       delete: jest.fn(),
     },
+    $transaction: mockTransaction,
   },
 }));
 
@@ -111,12 +125,15 @@ app.use('/games', gamesRouter);
 describe('games list cache invalidation', () => {
   beforeEach(() => {
     mockCacheDelPattern.mockClear();
+    mockCacheGet.mockClear();
+    mockCacheSet.mockClear();
     mockGameCreate.mockReset();
     mockGameFindUnique.mockReset();
-    mockGameUpdate.mockReset();
+    mockGameUpdateMany.mockClear();
     mockEventCreate.mockReset();
     mockEventUpdateMany.mockClear();
     mockUserFindUnique.mockReset();
+    mockTransaction.mockClear();
     mockUserFindUnique.mockResolvedValue({ email: 'admin@example.com' });
   });
 
@@ -155,9 +172,6 @@ describe('games list cache invalidation', () => {
       home_team_id: null,
       away_team_id: null,
       approval_status: 'pending',
-    });
-    mockGameUpdate.mockResolvedValue({
-      id: VALID_GAME_ID,
       created_by_id: 'admin-1',
       title: 'Cache Games Test Approve',
     });
@@ -168,5 +182,31 @@ describe('games list cache invalidation', () => {
     expect(response.status).toBe(200);
 
     expect(mockCacheDelPattern).toHaveBeenCalledWith('games:*');
+  });
+
+  it('does not read or write the shared cache for non-approved game queries', async () => {
+    mockGameFindMany.mockResolvedValue([
+      {
+        id: VALID_GAME_ID,
+        title: 'Pending Game',
+        approval_status: 'pending',
+        created_at: new Date(),
+        date: new Date(),
+        location: 'Hidden Arena',
+        latitude: 40.7,
+        longitude: -74.0,
+        banner_url: null,
+        cover_image_url: null,
+        appearance: null,
+        events: [],
+        _count: { events: 0 },
+      },
+    ]);
+
+    const response = await request(app).get('/games?show_pending=true').expect(200);
+
+    expect(response.body.games).toHaveLength(1);
+    expect(mockCacheGet).not.toHaveBeenCalled();
+    expect(mockCacheSet).not.toHaveBeenCalled();
   });
 });

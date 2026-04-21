@@ -208,11 +208,6 @@ async function canViewGameRecord(
 
 gamesRouter.get('/', asyncHandler(async (req, res) => {
   try {
-    // Cache-aside for games list (TTL 120s) — key includes query params
-    const gameCacheKey = `games:${req.url}`;
-    const cachedGames = await cacheGet(gameCacheKey);
-    if (cachedGames) return res.json(cachedGames);
-
     const sort = String(req.query.sort || '').trim();
     const orderBy =
       sort === '-date'
@@ -240,6 +235,13 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
       typeof approvalStatus === 'string' ? approvalStatus.trim().toLowerCase() : '';
     const wantsNonApproved =
       showPending || (normalizedApprovalStatus !== '' && normalizedApprovalStatus !== 'approved');
+    const shouldUseGamesCache = !wantsNonApproved;
+    const gameCacheKey = `games:${req.url}`;
+
+    if (shouldUseGamesCache) {
+      const cachedGames = await cacheGet(gameCacheKey);
+      if (cachedGames) return res.json(cachedGames);
+    }
 
     let canViewNonApproved = false;
     if (wantsNonApproved) {
@@ -452,7 +454,9 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
 
     const lastId = payload.length > 0 ? payload[payload.length - 1].id : null;
     const gamesResponse = { games: payload, nextCursor: hasMore ? lastId : null };
-    void cacheSet(gameCacheKey, gamesResponse, 120); // 120s TTL
+    if (shouldUseGamesCache) {
+      void cacheSet(gameCacheKey, gamesResponse, 120); // 120s TTL
+    }
     res.json(gamesResponse);
   } catch (err) {
     console.error('[games] GET / error:', err);
@@ -1450,6 +1454,7 @@ gamesRouter.patch(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const actingUserId = req.user.id;
 
       const id = String(req.params.id);
       const schema = z.object({
@@ -1761,6 +1766,7 @@ gamesRouter.put(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const actingUserId = req.user.id;
 
       const id = String(req.params.id);
       const schema = z.object({
@@ -1800,23 +1806,37 @@ gamesRouter.put(
         return res.status(403).json({ error: 'Only coaches and admins can approve events' });
       }
 
-      const updatedGame = await (prisma.game.update as any)({
-        where: { id },
-        data: {
-          approval_status: parsed.data.approval_status,
-          approved_by_id: parsed.data.approval_status === 'approved' ? req.user.id : null,
-          approved_at: parsed.data.approval_status === 'approved' ? new Date() : null,
-        },
-      });
+      const approvalAppliedAt = parsed.data.approval_status === 'approved' ? new Date() : null;
+      const guard = await prisma.$transaction(async (tx) => {
+        const transition = await (tx.game.updateMany as any)({
+          where: { id, approval_status: 'pending' },
+          data: {
+            approval_status: parsed.data.approval_status,
+            approved_by_id: parsed.data.approval_status === 'approved' ? actingUserId : null,
+            approved_at: approvalAppliedAt,
+          },
+        });
+        if (transition.count === 0) return null;
 
-      // Sync linked events to match the game's approval status
-      await prisma.event.updateMany({
-        where: { game_id: id },
-        data: {
-          approval_status: parsed.data.approval_status,
-          ...(parsed.data.approval_status === 'approved' ? { approved_at: new Date() } : {}),
-        },
+        await tx.event.updateMany({
+          where: { game_id: id },
+          data: {
+            approval_status: parsed.data.approval_status,
+            ...(parsed.data.approval_status === 'approved'
+              ? { approved_at: approvalAppliedAt }
+              : { approved_at: null }),
+          },
+        });
+
+        return (tx.game.findUnique as any)({
+          where: { id },
+        });
       });
+      if (!guard) {
+        return res.status(409).json({ error: 'Game approval status changed before this action completed' });
+      }
+      const updatedGame = guard;
+
       await invalidateGamesListCache();
 
       // Notify the game creator of the approval/rejection decision
