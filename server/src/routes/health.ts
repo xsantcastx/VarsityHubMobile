@@ -5,6 +5,7 @@ import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import { prisma } from '../lib/prisma.js';
+import { getObjectStorageAdapter } from '../lib/objectStorage.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
@@ -48,6 +49,17 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
     redisConnected = false;
   }
 
+  // Data export storage adapter (R2 / S3-compatible). Surfaces whether the
+  // four required env vars are present so ops can verify before smoke-testing
+  // the GDPR export flow. Matches the `isConfigured()` contract on the adapter.
+  const dataExportStorageReady = (() => {
+    try {
+      return getObjectStorageAdapter().isConfigured();
+    } catch {
+      return false;
+    }
+  })();
+
   const integrations = {
     database: await prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     jwt: !!process.env.JWT_SECRET,
@@ -60,10 +72,11 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
     appleIAP: !!process.env.APPLE_IAP_SHARED_SECRET,
     sentry: !!process.env.SENTRY_DSN,
     redis: redisConnected,
+    dataExportStorage: dataExportStorageReady,
   };
 
   const allConfigured = Object.entries(integrations)
-    .filter(([key]) => !['twilio', 'sentry', 'redis'].includes(key)) // Optional services
+    .filter(([key]) => !['twilio', 'sentry', 'redis', 'dataExportStorage'].includes(key)) // Optional services
     .every(([, value]) => value);
 
   const stripePublishableKey =
@@ -92,6 +105,9 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
       ...(!integrations.appleIAP ? ['Apple IAP shared secret missing - receipt validation disabled'] : []),
       ...(!integrations.sentry ? ['Sentry not configured - error tracking disabled'] : []),
       ...(!integrations.redis ? ['Redis not configured - background jobs will use fallback mode'] : []),
+      ...(!integrations.dataExportStorage
+        ? ['Data export storage not configured - POST /me/data-export will return 503 (set DATA_EXPORT_S3_BUCKET, DATA_EXPORT_S3_REGION, DATA_EXPORT_S3_ACCESS_KEY_ID, DATA_EXPORT_S3_SECRET_ACCESS_KEY)']
+        : []),
     ],
     metadata: {
       missingEmailTemplates,
