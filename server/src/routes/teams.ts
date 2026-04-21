@@ -18,6 +18,7 @@ import { isOrganizationApproved } from '../lib/approvalService.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
 
 import { registerIdValidation } from '../middleware/validateParams.js';
+import { sendError } from '../lib/http/sendError.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
@@ -1625,7 +1626,7 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(a
     });
     return true;
   });
-  if (!accepted) return res.status(409).json({ error: 'Invite already processed' });
+  if (!accepted) return sendError(res, 409, 'Invite already processed');
 
   try {
     await ensureTeamGroupChatMembership(invite.team_id, user.id);
@@ -1693,7 +1694,7 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, asyncHandler(
     where: { id: invite.id, status: 'pending' },
     data: { status: 'declined' },
   });
-  if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
+  if (declined.count === 0) return sendError(res, 409, 'Invite already processed');
 
   // Notify team coaches/owners that the invite was declined
   try {

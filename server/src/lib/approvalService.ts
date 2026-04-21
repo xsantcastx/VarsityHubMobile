@@ -587,8 +587,8 @@ export async function rejectAd(
     return { error: 'Ad approval status changed before rejection could be applied', status: 409 };
   }
 
-  // v1.0.2 pass 8: if ad was already paid before admin rejection, refund the user.
-  // Previously the ad was reset to draft + unpaid but the money stayed with VarsityHub.
+  // Refund only after the pending row has been claimed, so concurrent
+  // moderator actions cannot issue a refund for an ad that another admin approved.
   let refundResult: { ok: boolean; amount?: number; refund_id?: string; error?: string } | null = null;
   if (ad.payment_status === 'paid' && ad.user_id) {
     addBreadcrumb('Ad rejection refund attempt started', 'approval.ad', 'info', {
@@ -597,46 +597,62 @@ export async function rejectAd(
       user_id: ad.user_id,
     });
     try {
-      // Find the matching transaction log entry to get the payment intent
       const tx = await prisma.transactionLog.findFirst({
-        where: { user_id: ad.user_id, order_id: adId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' },
+        where: {
+          user_id: ad.user_id,
+          order_id: adId,
+          transaction_type: 'AD_PURCHASE',
+          status: 'COMPLETED',
+        },
         orderBy: { created_at: 'desc' },
       });
       if (tx?.stripe_payment_intent_id) {
         const Stripe = (await import('stripe')).default;
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' as any });
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+          apiVersion: '2024-06-20' as any,
+        });
         const refund = await stripe.refunds.create({
           payment_intent: tx.stripe_payment_intent_id,
           reason: 'requested_by_customer',
           metadata: { reason: 'admin_rejected_ad', ad_id: adId, admin_id: adminId || 'unknown' },
         });
-        refundResult = { ok: true, amount: refund.amount ?? tx.total_cents ?? undefined, refund_id: refund.id };
+        refundResult = {
+          ok: true,
+          amount: refund.amount ?? tx.total_cents ?? undefined,
+          refund_id: refund.id,
+        };
         addBreadcrumb('Ad rejection refund succeeded', 'approval.ad', 'info', {
           action: 'reject',
           ad_id: adId,
           refund_id: refund.id,
         });
-        // Update transaction log with refund info
-        await prisma.transactionLog.update({
-          where: { id: tx.id },
-          data: {
-            status: 'REFUNDED' as any,
-            metadata: {
-              ...(tx.metadata as any || {}),
-              refund_reason: 'admin_rejected_ad',
-              stripe_refund_id: refund.id,
-              refunded_amount_cents: refund.amount ?? tx.total_cents,
-              refunded_at: new Date().toISOString(),
+        await prisma.transactionLog
+          .update({
+            where: { id: tx.id },
+            data: {
+              status: 'REFUNDED' as any,
+              metadata: {
+                ...((tx.metadata as any) || {}),
+                refund_reason: 'admin_rejected_ad',
+                stripe_refund_id: refund.id,
+                refunded_amount_cents: refund.amount ?? tx.total_cents,
+                refunded_at: new Date().toISOString(),
+              },
             },
-          },
-        }).catch((e: any) => console.error('[approvalService] failed to update tx log on ad reject refund:', e));
+          })
+          .catch((e: any) =>
+            console.error('[approvalService] failed to update tx log on ad reject refund:', e)
+          );
       } else {
         refundResult = { ok: false, error: 'no_payment_intent_found' };
         addBreadcrumb('Ad rejection refund missing payment intent', 'approval.ad', 'warning', {
           action: 'reject',
           ad_id: adId,
         });
-        console.error('[approvalService] CRITICAL: ad rejected after payment but no payment_intent found to refund', { adId, userId: ad.user_id });
+        console.error(
+          '[approvalService] CRITICAL: ad rejected after payment but no payment_intent found to refund',
+          { adId, userId: ad.user_id }
+        );
       }
     } catch (refundErr: any) {
       refundResult = { ok: false, error: refundErr?.message || 'refund_api_failed' };
@@ -645,7 +661,10 @@ export async function rejectAd(
         ad_id: adId,
         error: refundErr?.message || 'refund_api_failed',
       });
-      console.error('[approvalService] CRITICAL: ad reject refund FAILED — manual intervention needed', { adId, error: refundErr?.message });
+      console.error('[approvalService] CRITICAL: ad reject refund FAILED — manual intervention needed', {
+        adId,
+        error: refundErr?.message,
+      });
     }
   }
 

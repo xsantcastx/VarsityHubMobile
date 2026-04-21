@@ -72,6 +72,10 @@ jest.unstable_mockModule('../middleware/requireAuth.js', () => ({
   requireAuth: (_req: any, _res: any, next: any) => next(),
 }));
 
+jest.unstable_mockModule('../middleware/requireVerified.js', () => ({
+  requireVerified: (_req: any, _res: any, next: any) => next(),
+}));
+
 jest.unstable_mockModule('../middleware/requireAdmin.js', () => ({
   requireAdmin: (_req: any, _res: any, next: any) => next(),
 }));
