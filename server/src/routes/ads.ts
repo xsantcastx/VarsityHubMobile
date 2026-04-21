@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { addBreadcrumb } from '../lib/sentry.js';
+import { getDatesPastBookingHorizon } from '../utils/bookingHorizon.js';
 
 const adCreateSchema = z.object({
   contact_name: z.string().min(1).max(200),
@@ -253,9 +254,7 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
 
     // Enforce booking horizon — dates must be within 56 days from today
     const MAX_BOOKING_HORIZON_DAYS = 56;
-    const horizonCutoff = new Date();
-    horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
-    const pastHorizon = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+    const pastHorizon = getDatesPastBookingHorizon(isoDates, new Date(), MAX_BOOKING_HORIZON_DAYS);
     if (pastHorizon.length > 0) {
       return res.status(400).json({
         error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`,

@@ -1199,10 +1199,11 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
         organization_id: joinRequest.organization_id, 
         user_id: req.user!.id 
       } as any 
-    }
+    },
+    select: { role: true, status: true },
   });
   
-  if (!membership || !isOrganizationAdmin(membership.role)) {
+  if (!membership || membership.status !== 'active' || !isOrganizationAdmin(membership.role)) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   
@@ -1342,10 +1343,11 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, r
         organization_id: joinRequest.organization_id, 
         user_id: req.user!.id 
       } as any 
-    }
+    },
+    select: { role: true, status: true },
   });
   
-  if (!membership || !isOrganizationAdmin(membership.role)) {
+  if (!membership || membership.status !== 'active' || !isOrganizationAdmin(membership.role)) {
     return res.status(403).json({ error: 'Insufficient permissions' });
   }
   
@@ -1410,7 +1412,7 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireV
 
     // Verify requester is current owner
     const currentOwnership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: orgId, user_id: req.user.id, role: 'owner' },
+      where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
     });
     if (!currentOwnership) {
       return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
@@ -1423,7 +1425,7 @@ organizationsRouter.post('/:id/transfer-ownership', requireAuth as any, requireV
 
     // Verify new owner is a member of the organization
     const newOwnerMembership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: orgId, user_id: new_owner_id },
+      where: { organization_id: orgId, user_id: new_owner_id, status: 'active' },
     });
     if (!newOwnerMembership) {
       return res.status(400).json({ error: 'New owner must be a member of the organization' });

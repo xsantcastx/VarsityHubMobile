@@ -677,8 +677,8 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   // Check if user is team owner/manager/coach, org owner, or platform admin
-  const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+  const membership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, user_id: req.user.id, status: 'active' }
   });
   const isAdmin = await getIsAdmin(req as any);
   const isTeamStaff = membership && ['owner', 'manager', 'coach'].includes(membership.role);
@@ -822,8 +822,8 @@ teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, asyn
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   // Check if user is owner or admin
-  const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+  const membership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, user_id: req.user.id, status: 'active' }
   });
   const isAdmin = await getIsAdmin(req as any);
   if (!isAdmin && (!membership || membership.role !== 'owner')) {
@@ -1727,16 +1727,16 @@ teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireVerified 
   const { new_owner_id } = parsed.data;
 
   // Verify current user is the owner
-  const currentMembership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+  const currentMembership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, user_id: req.user.id, status: 'active' }
   });
   if (!currentMembership || currentMembership.role !== 'owner') {
     return res.status(403).json({ error: 'Only the team owner can transfer ownership' });
   }
 
   // Verify new owner is a member of the team
-  const newOwnerMembership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: new_owner_id } }
+  const newOwnerMembership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, user_id: new_owner_id, status: 'active' }
   });
   if (!newOwnerMembership) {
     return res.status(400).json({ error: 'New owner must be an existing team member' });
