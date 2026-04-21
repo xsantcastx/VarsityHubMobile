@@ -165,6 +165,21 @@
     "typescript": "~5.9.2"
   },
   "private": true,
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "enabled": true,
+        "exclude": [
+          "react-native-iap",
+          "lottie-ios"
+        ],
+        "listUnknownPackages": false
+      },
+      "appConfigFieldsNotSyncedCheck": {
+        "enabled": false
+      }
+    }
+  },
   "prisma": {
     "schema": "server/prisma/schema.prisma"
   },
