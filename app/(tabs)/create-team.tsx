@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
+import { captureBreadcrumb } from '@/utils/sentry';
 import { useVHubIAP } from '@/hooks/useIAP';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -362,9 +363,20 @@ function CreateTeamScreen() {
                 text: 'Upgrade & Continue',
                 onPress: async () => {
                   try {
+                    captureBreadcrumb('Team creation triggered plan upgrade', 'payments.subscription', {
+                      entry: 'create_team',
+                      current_plan: userPlan,
+                      next_team_count: newTeamCount,
+                      platform: Platform.OS,
+                    });
                     // Use Apple IAP / Google Play on mobile (required by App Store guidelines)
                     if (Platform.OS === 'ios' || Platform.OS === 'android') {
                       const success = await iapPurchase('veteran');
+                      captureBreadcrumb('Native plan upgrade returned during team creation', 'payments.subscription', {
+                        entry: 'create_team',
+                        success,
+                        next_team_count: newTeamCount,
+                      });
                       if (success) {
                         const me: any = await User.me();
                         await proceedWithTeamCreation(me);
@@ -375,8 +387,16 @@ function CreateTeamScreen() {
                       }
                     }
                     // Fallback: Stripe PaymentSheet for web/other platforms
+                    captureBreadcrumb('Plan upgrade payment sheet request started during team creation', 'payments.subscription', {
+                      entry: 'create_team',
+                      next_team_count: newTeamCount,
+                    });
                     const res: any = await httpPost('/payments/create-payment-sheet', { plan: 'veteran', team_count: newTeamCount });
                     if (res?.paymentIntent) {
+                      captureBreadcrumb('Plan upgrade payment sheet init started during team creation', 'payments.subscription', {
+                        entry: 'create_team',
+                        next_team_count: newTeamCount,
+                      });
                       const { error: initError } = await initPaymentSheet({
                         paymentIntentClientSecret: res.paymentIntent,
                         customerEphemeralKeySecret: res.ephemeralKey,
@@ -386,24 +406,45 @@ function CreateTeamScreen() {
                         paymentMethodOrder: ['google_pay', 'card'],
                       });
                       if (initError) {
+                        captureBreadcrumb('Plan upgrade payment sheet init failed during team creation', 'payments.subscription', {
+                          entry: 'create_team',
+                          error: initError.message,
+                        }, 'error');
                         Alert.alert('Error', initError.message);
                         setSubmitting(false);
                         return;
                       }
+                      captureBreadcrumb('Plan upgrade payment sheet presented during team creation', 'payments.subscription', {
+                        entry: 'create_team',
+                      });
                       const { error } = await presentPaymentSheet();
                       if (error) {
+                        captureBreadcrumb('Plan upgrade payment sheet failed during team creation', 'payments.subscription', {
+                          entry: 'create_team',
+                          code: error.code,
+                          error: error.message || 'unknown_error',
+                        }, error.code === 'Canceled' ? 'info' : 'error');
                         if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
                         setSubmitting(false);
                         return;
                       }
+                      captureBreadcrumb('Plan upgrade payment sheet completed during team creation', 'payments.subscription', {
+                        entry: 'create_team',
+                      });
                       try {
                         const me: any = await User.me();
                         const updatedPlan = me?.preferences?.plan ?? 'rookie';
                         if (updatedPlan === 'veteran') {
+                          captureBreadcrumb('Plan upgrade confirmed before team creation', 'payments.subscription', {
+                            entry: 'create_team',
+                          });
                           await proceedWithTeamCreation(me);
                           return;
                         }
                       } catch { /* ignore */ }
+                      captureBreadcrumb('Plan upgrade pending before team creation retry', 'payments.subscription', {
+                        entry: 'create_team',
+                      }, 'warning');
                       Alert.alert('Payment Processing', 'Your payment was submitted. Please try creating your team again in a moment.');
                       setSubmitting(false);
                     } else {
@@ -412,6 +453,11 @@ function CreateTeamScreen() {
                     }
                   } catch (err: any) {
                     if (__DEV__) console.error('Upgrade to Veteran failed:', err);
+                    captureBreadcrumb('Plan upgrade failed during team creation', 'payments.subscription', {
+                      entry: 'create_team',
+                      error: err?.data?.error || err?.message || 'unknown_error',
+                      status: err?.status,
+                    }, 'error');
                     const status = err?.status;
                     const raw = (err?.data?.error || err?.message || '') as string;
                     let title = 'Error';

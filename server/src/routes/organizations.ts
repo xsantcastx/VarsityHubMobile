@@ -27,6 +27,7 @@ import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { serializeOrganization } from '../lib/serializeOrganization.js';
+import { addBreadcrumb } from '../lib/sentry.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -1975,6 +1976,12 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
   try {
     const orgId = req.params.id;
     const token = req.query.token as string | undefined;
+    addBreadcrumb('League approval endpoint hit', 'approval.organization_route', 'info', {
+      action: 'approve',
+      organization_id: orgId,
+      method: req.method,
+      auth_mode: token ? 'token' : 'admin',
+    });
 
     // Validate org exists early (before auth) to avoid Prisma errors on invalid UUIDs
     const orgExists = await prisma.organization
@@ -1988,10 +1995,19 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     if (token) {
       const payload = verifyJwt<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'approve_league') {
+        addBreadcrumb('League approval token validation failed', 'approval.organization_route', 'warning', {
+          action: 'approve',
+          organization_id: orgId,
+          method: req.method,
+        });
         return res.status(401).json({ error: 'Invalid or expired approval token' });
       }
       // GET: show confirmation form — don't perform write on GET (email scanner safe)
       if (req.method === 'GET') {
+        addBreadcrumb('League approval confirmation page rendered', 'approval.organization_route', 'info', {
+          action: 'approve',
+          organization_id: orgId,
+        });
         const orgInfo = await prisma.organization.findUnique({
           where: { id: orgId },
           select: { name: true, admin_approved: true },
@@ -2024,6 +2040,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     if (result.error)
       return res.status((result as any).status || 500).json({ error: result.error });
     if ((result as any).already) return res.json({ message: 'Already approved' });
+    addBreadcrumb('League approval endpoint completed', 'approval.organization_route', 'info', {
+      action: 'approve',
+      organization_id: orgId,
+      auth_mode: token ? 'token' : 'admin',
+    });
 
     const org = (result as any).org;
 
@@ -2051,6 +2072,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     return res.json({ message: 'League approved', organization_id: orgId });
   } catch (err) {
     console.error('[organizations] POST /:id/approve error:', err);
+    addBreadcrumb('League approval endpoint crashed', 'approval.organization_route', 'error', {
+      action: 'approve',
+      organization_id: req.params.id,
+      error: (err as Error)?.message || 'unknown_error',
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -2068,6 +2094,13 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     const orgId = req.params.id;
     const token = req.query.token as string | undefined;
     const reason = req.body?.reason as string | undefined;
+    addBreadcrumb('League rejection endpoint hit', 'approval.organization_route', 'info', {
+      action: 'reject',
+      organization_id: orgId,
+      method: req.method,
+      auth_mode: token ? 'token' : 'admin',
+      has_reason: !!reason,
+    });
 
     // Validate org exists early (before auth) to avoid Prisma errors on invalid UUIDs
     const orgExists = await prisma.organization
@@ -2079,10 +2112,19 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     if (token) {
       const payload = verifyJwt<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'reject_league') {
+        addBreadcrumb('League rejection token validation failed', 'approval.organization_route', 'warning', {
+          action: 'reject',
+          organization_id: orgId,
+          method: req.method,
+        });
         return res.status(401).json({ error: 'Invalid or expired rejection token' });
       }
       // GET: show confirmation form — don't perform write on GET
       if (req.method === 'GET') {
+        addBreadcrumb('League rejection confirmation page rendered', 'approval.organization_route', 'info', {
+          action: 'reject',
+          organization_id: orgId,
+        });
         const orgInfo = await prisma.organization.findUnique({
           where: { id: orgId },
           select: { name: true },
@@ -2107,6 +2149,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
     if (result.error)
       return res.status((result as any).status || 500).json({ error: result.error });
+    addBreadcrumb('League rejection endpoint completed', 'approval.organization_route', 'info', {
+      action: 'reject',
+      organization_id: orgId,
+      auth_mode: token ? 'token' : 'admin',
+    });
 
     const org = (result as any).org;
 
@@ -2133,6 +2180,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     return res.json({ message: 'League rejected', organization_id: orgId });
   } catch (err) {
     console.error('[organizations] POST /:id/reject error:', err);
+    addBreadcrumb('League rejection endpoint crashed', 'approval.organization_route', 'error', {
+      action: 'reject',
+      organization_id: req.params.id,
+      error: (err as Error)?.message || 'unknown_error',
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

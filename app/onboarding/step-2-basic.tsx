@@ -22,6 +22,7 @@ import { uploadFile } from '@/api/upload';
 import { getConfig } from '@/config/env';
 import Notifications from '@/utils/notifications';
 import { BIO_MAX_LENGTH } from '@/utils/formUtils';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation

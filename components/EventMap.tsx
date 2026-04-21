@@ -7,6 +7,7 @@
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { captureBreadcrumb } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
@@ -18,7 +19,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import MapView, { Callout, Marker, Region } from 'react-native-maps';
+import MapView, { Marker, Region } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
 
 import { EventMapProps } from './EventMap.types';
@@ -52,9 +53,15 @@ export default function EventMap({
     void (async () => {
       try {
         if (showUserLocation) {
+          captureBreadcrumb('Map requested user location', 'map.location', {
+            screen: 'EventMap',
+          });
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
             if (__DEV__) console.warn('Location permission not granted');
+            captureBreadcrumb('Map location permission denied', 'map.location', {
+              screen: 'EventMap',
+            }, 'warning');
             setLoading(false);
             return;
           }
@@ -76,6 +83,9 @@ export default function EventMap({
         }
       } catch (error) {
         if (__DEV__) console.error('Error getting location:', error);
+        captureBreadcrumb('Map location lookup failed', 'map.location', {
+          screen: 'EventMap',
+        }, 'warning');
       } finally {
         setLoading(false);
       }
@@ -90,6 +100,9 @@ export default function EventMap({
   // Center map on all events
   const fitToEvents = () => {
     if (eventsWithCoordinates.length === 0) return;
+    captureBreadcrumb('Map fit to events', 'map.navigation', {
+      event_count: eventsWithCoordinates.length,
+    });
 
     const coordinates = eventsWithCoordinates.map((event) => ({
       latitude: event.latitude!,
@@ -118,6 +131,9 @@ export default function EventMap({
       return;
     }
 
+    captureBreadcrumb('Map centered on user', 'map.navigation', {
+      has_user_location: true,
+    });
     isUserInteractionRef.current = true;
     mapRef.current?.animateToRegion({
       latitude: userLocation.coords.latitude,
@@ -186,24 +202,23 @@ export default function EventMap({
               longitude: event.longitude!,
             }}
             pinColor={getMarkerColor(event.type)}
-            // v1.0.2 fix: first tap shows the callout preview (default Marker behavior).
-            // Navigation happens only on second tap (onCalloutPress below).
-            // Previously onPress fired navigation immediately, skipping the preview.
-            onCalloutPress={() => onEventPress?.(event.id, event.type)}
-          >
-            <Callout onPress={() => onEventPress?.(event.id, event.type)}>
-              <View style={styles.callout}>
-                <Text style={styles.calloutTitle}>{event.title}</Text>
-                {event.location && (
-                  <Text style={styles.calloutLocation}>{event.location}</Text>
-                )}
-                <Text style={styles.calloutDate}>
-                  {new Date(event.date).toLocaleDateString()}
-                </Text>
-                <Text style={styles.calloutHint}>Tap for details</Text>
-              </View>
-            </Callout>
-          </Marker>
+            // v1.0.3: single-tap takes the user straight to the detail. The previous
+            // two-tap flow (callout preview → details) was rejected as "two pages."
+            // Keep onCalloutPress as a belt-and-braces fallback in case the native
+            // callout still surfaces on some platforms.
+            onPress={() => {
+              captureBreadcrumb('Map marker pressed', 'map.navigation', {
+                event_type: event.type || 'unknown',
+              });
+              onEventPress?.(event.id, event.type);
+            }}
+            onCalloutPress={() => {
+              captureBreadcrumb('Map marker callout pressed', 'map.navigation', {
+                event_type: event.type || 'unknown',
+              });
+              onEventPress?.(event.id, event.type);
+            }}
+          />
         ))}
       </MapView>
 

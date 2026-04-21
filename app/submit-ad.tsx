@@ -206,7 +206,7 @@ function SubmitAdScreen() {
   const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
       <Stack.Screen 
         options={{ 
           title: 'Submit Ad', 

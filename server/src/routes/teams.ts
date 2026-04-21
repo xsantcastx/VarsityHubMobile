@@ -1813,7 +1813,9 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, asyncHandler(
 }));
 
 // Transfer team ownership
-teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
+// NOTE: requireVerified was missing here while every other team mutation route enforces it,
+// which meant unverified emails could transfer ownership. Matches the org transfer chain now.
+teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireVerified as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const teamId = String(req.params.id);

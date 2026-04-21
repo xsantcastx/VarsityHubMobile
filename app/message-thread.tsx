@@ -26,6 +26,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
 import { getCoachAccessState } from '@/utils/roleChecks';
+import { formatUserLabel } from '@/utils/userDisplay';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { safeGoBack } from '@/utils/navigation';
 

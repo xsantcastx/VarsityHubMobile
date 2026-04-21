@@ -1,7 +1,8 @@
 #!/bin/sh
 
-set -e
+set -eu
 
 echo "Running staged-file guardrails..."
 npx lint-staged
+bash scripts/verify-guardrails.sh
 echo "Staged-file guardrails passed"

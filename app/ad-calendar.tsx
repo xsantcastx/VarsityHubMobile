@@ -18,6 +18,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { Advertisement, Payments } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { calculateSalesTax, getTaxInfo } from '@/shared/salesTaxEstimate';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 const weekdayRate = 4.99;   // Per week (Mon-Thu slot)
 const weekendRate = 7.99;   // Per week (Fri-Sun slot)

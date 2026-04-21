@@ -11,7 +11,7 @@ import { sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
-import { captureException } from '../lib/sentry.js';
+import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import {

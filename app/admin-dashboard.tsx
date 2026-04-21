@@ -10,6 +10,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { getApiBaseUrl } from '../api/http';
 // @ts-ignore
 import { Organization } from '@/api/entities';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 interface PendingLeague {
   id: string;
@@ -91,12 +92,29 @@ function AdminDashboardScreen() {
     const { coach, action } = coachModal;
     setCoachModal(null);
     setCoachActionId(coach.id);
+    captureBreadcrumb('Admin coach approval action started', 'admin.approval', {
+      action,
+      actor: 'admin_dashboard',
+      coach_id: coach.id,
+      has_note: coachNote.trim().length > 0,
+    });
     try {
       const { httpPost } = await import('@/api/http');
       await httpPost(`/admin/coaches/${coach.id}/${action}`, { note: coachNote.trim() || undefined });
+      captureBreadcrumb('Admin coach approval action succeeded', 'admin.approval', {
+        action,
+        actor: 'admin_dashboard',
+        coach_id: coach.id,
+      });
       Alert.alert('Success', `Coach "${coach.display_name || coach.username || coach.email}" has been ${action === 'approve' ? 'approved' : 'rejected'}.`);
       void loadStats(true);
     } catch (e: any) {
+      captureBreadcrumb('Admin coach approval action failed', 'admin.approval', {
+        action,
+        actor: 'admin_dashboard',
+        coach_id: coach.id,
+        error: e?.message || 'unknown_error',
+      }, 'error');
       Alert.alert('Error', e?.message || `Failed to ${action} coach`);
     } finally {
       setCoachActionId(null);
@@ -118,6 +136,12 @@ function AdminDashboardScreen() {
     const { league, action } = leagueModal;
     setLeagueModal(null);
     setLeagueActionId(league.id);
+    captureBreadcrumb('Admin league approval action started', 'admin.approval', {
+      action,
+      actor: 'admin_dashboard',
+      league_id: league.id,
+      has_note: leagueNote.trim().length > 0,
+    });
     try {
       if (action === 'approve') {
         await Organization.approveLeague(league.id, leagueNote.trim() || undefined);
@@ -126,8 +150,19 @@ function AdminDashboardScreen() {
         await Organization.rejectLeague(league.id, leagueNote.trim() || undefined);
         Alert.alert('Success', `"${league.name}" has been rejected.`);
       }
+      captureBreadcrumb('Admin league approval action succeeded', 'admin.approval', {
+        action,
+        actor: 'admin_dashboard',
+        league_id: league.id,
+      });
       void loadStats(true);
     } catch (e: any) {
+      captureBreadcrumb('Admin league approval action failed', 'admin.approval', {
+        action,
+        actor: 'admin_dashboard',
+        league_id: league.id,
+        error: e?.message || 'unknown_error',
+      }, 'error');
       Alert.alert('Error', e?.message || `Failed to ${action} league`);
     } finally {
       setLeagueActionId(null);

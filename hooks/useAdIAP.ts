@@ -8,6 +8,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let useRNIAP: any = () => ({});
@@ -134,6 +135,10 @@ export function useAdIAP() {
       if (!pending || !isIOS) return;
       const pid = purchase?.productId;
       if (pid !== AD_IAP_PRODUCT_IDS.weekday && pid !== AD_IAP_PRODUCT_IDS.weekend) return;
+      captureBreadcrumb('Ad store purchase received', 'payments.ad', {
+        product_id: pid,
+        ad_id: pending.adId,
+      });
 
       try {
         let receipt: string | undefined;
@@ -141,8 +146,16 @@ export function useAdIAP() {
         if (!jws) {
           try {
             receipt = await getReceiptIOS();
+            captureBreadcrumb('Ad receipt fetched', 'payments.ad', {
+              product_id: pid,
+              source: 'getReceiptIOS',
+            });
           } catch {
             receipt = (purchase as any).transactionReceipt;
+            captureBreadcrumb('Ad receipt fallback used', 'payments.ad', {
+              product_id: pid,
+              source: 'transactionReceipt',
+            }, 'warning');
           }
         }
         if (jws || receipt) {
@@ -153,9 +166,22 @@ export function useAdIAP() {
             quantity: (purchase as any).quantity ?? 1,
           });
         }
+        captureBreadcrumb('Ad store transaction finish started', 'payments.ad', {
+          product_id: pid,
+          ad_id: pending.adId,
+        });
         await rnFinishTransaction({ purchase, isConsumable: true });
+        captureBreadcrumb('Ad store transaction finished', 'payments.ad', {
+          product_id: pid,
+          ad_id: pending.adId,
+        });
       } catch (err) {
         if (__DEV__) console.warn('[useAdIAP] Receipt/finish failed:', (err as Error)?.message);
+        captureBreadcrumb('Ad purchase processing failed', 'payments.ad', {
+          product_id: pid,
+          ad_id: pending.adId,
+          error: (err as Error)?.message || 'unknown_error',
+        }, 'warning');
       }
 
       const { weekdayBlocks, weekendBlocks } = pending;
@@ -181,6 +207,12 @@ export function useAdIAP() {
         // Persist the verification work before resolving so a slow connection or
         // app background does not drop the activation request after finishTransaction.
         pending.resolve({ ok: true });
+        captureBreadcrumb('Ad receipt verification queued', 'payments.ad', {
+          ad_id: pending.adId,
+          receipts_count: pending.receipts.length,
+          weekday_blocks: weekdayBlocks,
+          weekend_blocks: weekendBlocks,
+        });
 
         void flushPendingAdVerifications((message) => {
           setError(message);
@@ -206,6 +238,9 @@ export function useAdIAP() {
     onPurchaseError: (err: any) => {
       const msg = err?.message || '';
       if (msg.toLowerCase().includes('cancel') || err?.code === 'E_USER_CANCELLED') {
+        captureBreadcrumb('Ad purchase cancelled', 'payments.ad', {
+          code: err?.code,
+        }, 'info');
         const p = pendingAdRef.current;
         if (p) {
           pendingAdRef.current = null;
@@ -216,6 +251,10 @@ export function useAdIAP() {
         return;
       }
       if (__DEV__) console.warn('[useAdIAP] purchase error:', err);
+      captureBreadcrumb('Ad purchase failed', 'payments.ad', {
+        code: err?.code,
+        error: msg || 'unknown_error',
+      }, 'error');
       const errMsg = msg || 'Purchase failed';
       const p = pendingAdRef.current;
       if (p) {
@@ -232,6 +271,9 @@ export function useAdIAP() {
     if (!connected) return;
     fetchProducts({ skus: AD_SKUS, type: 'in-app' }).catch((err: unknown) => {
       if (__DEV__) console.warn('[useAdIAP] fetchProducts failed:', err);
+      captureBreadcrumb('Ad products load failed', 'payments.ad', {
+        error: err instanceof Error ? err.message : 'unknown_error',
+      }, 'warning');
       setError(err instanceof Error ? err.message : 'Failed to load ad products');
     });
   }, [connected, fetchProducts]);

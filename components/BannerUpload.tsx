@@ -6,11 +6,12 @@
  */
 
 import { uploadFile } from '@/api/upload';
-import { isICloudError, ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE } from '@/utils/isICloudError';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { captureBreadcrumb } from '@/utils/sentry';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -138,25 +139,34 @@ export function BannerUpload({
             { compress: isPng ? 1 : 0.8, format: saveFormat }
           );
           processedUri = manipulated.uri;
+          captureBreadcrumb('ImageManipulator.manipulateAsync:ok', 'BannerUpload');
         } catch (error: any) {
           if (__DEV__)
             console.warn(
               '[BannerUpload] Image manipulation failed, using original:',
               error?.message || error
             );
+          captureBreadcrumb('ImageManipulator.manipulateAsync:fallback', 'BannerUpload', {
+            reason: String(error?.message || error),
+          });
           // Continue with original URI if manipulation fails
         }
 
         // Validate image size (max 10MB)
         let fileSize: number | undefined =
           typeof (asset as any).fileSize === 'number' ? (asset as any).fileSize : undefined;
+        captureBreadcrumb('blobSize:start', 'BannerUpload');
         try {
           if (!fileSize) {
             const response = await fetch(processedUri);
             const blob = await response.blob();
             fileSize = blob.size;
+            captureBreadcrumb('blobSize:ok', 'BannerUpload', { fileSize });
           }
-        } catch {
+        } catch (e: any) {
+          captureBreadcrumb('blobSize:fallback', 'BannerUpload', {
+            reason: String(e?.message || e),
+          });
           // Continue upload without size validation
         }
 
@@ -179,12 +189,21 @@ export function BannerUpload({
           .replace(/\.[^.]+$/, '')
           .replace(/[^\w.-]+/g, '_');
         const fileName = `${rawBaseName}.${ext}`;
+        captureBreadcrumb('ensureUploadableUri:start', 'BannerUpload', {
+          mimeType,
+          platform: Platform.OS,
+        });
         const uploadSource =
           Platform.OS === 'web'
             ? { uri: processedUri, mimeType }
             : await ensureUploadableUri(processedUri, mimeType);
+        captureBreadcrumb('ensureUploadableUri:ok', 'BannerUpload');
 
         let uploaded;
+        captureBreadcrumb('uploadFile:start', 'BannerUpload', {
+          mimeType: uploadSource.mimeType,
+          filename: fileName,
+        });
         try {
           uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
         } catch (uploadError: any) {
@@ -194,24 +213,17 @@ export function BannerUpload({
         if (!uploadedUrl) {
           throw new Error('Upload succeeded but no URL was returned.');
         }
+        captureBreadcrumb('uploadFile:ok', 'BannerUpload');
 
         onChange(String(uploadedUrl), getFitValue(fitMode), { x: 50, y: 50 });
       }
     } catch (error: any) {
-      // v1.0.2 audit fix: use shared iCloud detection utility
-      if (isICloudError(error)) {
-        Alert.alert(ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE);
-      } else {
-        const detail = toReadableError(error);
-        Alert.alert(
-          detail.toLowerCase().startsWith('upload failed')
-            ? 'Upload Failed'
-            : 'Image Error',
-          detail.toLowerCase().startsWith('upload failed')
-            ? `We couldn't upload this banner. ${detail.replace(/^upload failed:\s*/i, '')}`
-            : `Something went wrong loading this image. ${detail}`
-        );
-      }
+      showUploadErrorAlert(error, {
+        fallbackTitle: 'Image Error',
+        fallbackMessage:
+          'Something went wrong loading this image. Please try a different photo or take a new one.',
+        logTag: 'BannerUpload',
+      });
     } finally {
       setUploading(false);
     }

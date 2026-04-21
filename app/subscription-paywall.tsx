@@ -22,6 +22,7 @@ import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { useEffect, useState } from 'react';
+import { captureBreadcrumb } from '@/utils/sentry';
 import {
     ActivityIndicator,
     Alert,
@@ -84,6 +85,11 @@ function SubscriptionPaywallScreen() {
   };
 
   const handleSubscribe = async () => {
+    captureBreadcrumb('Subscription checkout initiated from paywall', 'payments.subscription', {
+      tier: selectedTier,
+      platform: Platform.OS,
+      has_promo_code: promoCode.trim().length > 0,
+    });
     if (selectedTier === 'rookie') {
       Alert.alert(
         'Free Plan',
@@ -111,6 +117,11 @@ function SubscriptionPaywallScreen() {
       setLoading(true);
       try {
         const success = await iapPurchase(selectedTier as 'veteran' | 'legend');
+        captureBreadcrumb('Native subscription purchase returned', 'payments.subscription', {
+          tier: selectedTier,
+          success,
+          entry: 'subscription_paywall',
+        });
         if (success) {
           // Poll for plan activation before showing success (webhook may lag IAP confirmation)
           let planActivated = false;
@@ -126,16 +137,29 @@ function SubscriptionPaywallScreen() {
           }
           checkAuth().catch(() => {});
           if (planActivated) {
+            captureBreadcrumb('Subscription activation confirmed after native purchase', 'payments.subscription', {
+              tier: selectedTier,
+              entry: 'subscription_paywall',
+            });
             Alert.alert('Success', 'Your subscription is now active!', [
               { text: 'OK', onPress: () => { safeGoBack(router); } },
             ]);
           } else {
+            captureBreadcrumb('Subscription activation still pending after native purchase', 'payments.subscription', {
+              tier: selectedTier,
+              entry: 'subscription_paywall',
+            }, 'warning');
             Alert.alert('Payment Received', 'Your subscription is being processed. You\'ll receive a confirmation email shortly.', [
               { text: 'OK', onPress: () => { safeGoBack(router); } },
             ]);
           }
         }
       } catch (err: any) {
+        captureBreadcrumb('Native subscription purchase failed from paywall', 'payments.subscription', {
+          tier: selectedTier,
+          entry: 'subscription_paywall',
+          error: err?.message || 'unknown_error',
+        }, 'error');
         setModal({
           visible: true,
           title: 'Purchase Failed',
@@ -161,12 +185,21 @@ function SubscriptionPaywallScreen() {
     // Non-mobile fallback: Use Stripe PaymentSheet
     setLoading(true);
     try {
+      captureBreadcrumb('Subscription payment sheet request started', 'payments.subscription', {
+        tier: selectedTier,
+        entry: 'subscription_paywall',
+        has_promo_code: promoCode.trim().length > 0,
+      });
       const data: any = await httpPost('/payments/create-payment-sheet', {
         plan: selectedTier,
         promo_code: promoCode.trim() || undefined
       });
 
       if (data?.paymentIntent && typeof data.paymentIntent === 'string') {
+        captureBreadcrumb('Subscription payment sheet init started', 'payments.subscription', {
+          tier: selectedTier,
+          entry: 'subscription_paywall',
+        });
         // Stripe fallback (non-mobile only) — no Apple Pay needed since iOS uses IAP
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
@@ -177,11 +210,26 @@ function SubscriptionPaywallScreen() {
           paymentMethodOrder: ['google_pay', 'card'],
         });
         if (initError) {
+          captureBreadcrumb('Subscription payment sheet init failed', 'payments.subscription', {
+            tier: selectedTier,
+            entry: 'subscription_paywall',
+            error: initError.message,
+          }, 'error');
           Alert.alert('Error', initError.message);
           return;
         }
+        captureBreadcrumb('Subscription payment sheet presented', 'payments.subscription', {
+          tier: selectedTier,
+          entry: 'subscription_paywall',
+        });
         const { error } = await presentPaymentSheet();
         if (error) {
+          captureBreadcrumb('Subscription payment sheet failed', 'payments.subscription', {
+            tier: selectedTier,
+            entry: 'subscription_paywall',
+            code: error.code,
+            error: error.message || 'unknown_error',
+          }, error.code === 'Canceled' ? 'info' : 'error');
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           // Clean up: cancel the incomplete PaymentIntent so the subscription doesn't linger
           if (data.payment_intent_id) {
@@ -189,6 +237,10 @@ function SubscriptionPaywallScreen() {
           }
           return;
         }
+        captureBreadcrumb('Subscription payment sheet completed', 'payments.subscription', {
+          tier: selectedTier,
+          entry: 'subscription_paywall',
+        });
         // Poll for plan activation (webhook may take a moment) — 15 attempts × 2s = 30s max
         let planActivated = false;
         for (let i = 0; i < 15; i++) {
@@ -202,6 +254,10 @@ function SubscriptionPaywallScreen() {
           } catch { /* ignore */ }
         }
         if (!planActivated) {
+          captureBreadcrumb('Subscription activation pending after payment sheet', 'payments.subscription', {
+            tier: selectedTier,
+            entry: 'subscription_paywall',
+          }, 'warning');
           Alert.alert('Payment Received', 'Your subscription is being processed. It may take a moment to activate.');
         }
         safeGoBack(router);
@@ -210,6 +266,12 @@ function SubscriptionPaywallScreen() {
       }
     } catch (error: any) {
       if (__DEV__) console.error('Subscription error:', error);
+      captureBreadcrumb('Subscription checkout failed from paywall', 'payments.subscription', {
+        tier: selectedTier,
+        entry: 'subscription_paywall',
+        error: error?.data?.error || error?.message || 'unknown_error',
+        status: error?.status,
+      }, 'error');
       const status = error?.status;
       const raw = error?.data?.error || error?.message || '';
       let title = 'Error';

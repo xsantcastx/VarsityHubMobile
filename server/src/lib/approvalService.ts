@@ -23,6 +23,7 @@ import {
 } from './email.js';
 import { sendPushNotification } from './pushNotifications.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from './userCache.js';
+import { addBreadcrumb } from './sentry.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -399,6 +400,11 @@ export async function approveCoach(
 
   await prisma.$transaction(txOps);
   await invalidateMeCacheForUser(userId);
+  addBreadcrumb('Coach approval committed', 'approval.coach', 'info', {
+    action: 'approve',
+    user_id: userId,
+    organization_id: orgId || null,
+  });
 
   const note = opts?.note;
 

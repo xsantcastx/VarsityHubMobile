@@ -8,6 +8,9 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
+const SENSITIVE_BREADCRUMB_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
+const MAX_BREADCRUMB_VALUE_LENGTH = 160;
+
 /**
  * Initialize Sentry error tracking
  */
@@ -97,6 +100,42 @@ export function clearUserContext() {
   Sentry.setUser(null);
 }
 
+function normalizeBreadcrumbValue(value: unknown): string {
+  if (value == null) return 'null';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'non-finite';
+  if (typeof value === 'string') {
+    return value.length > MAX_BREADCRUMB_VALUE_LENGTH
+      ? `${value.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
+      : value;
+  }
+  if (Array.isArray(value)) {
+    return `[${value.slice(0, 5).map((item) => normalizeBreadcrumbValue(item)).join(', ')}${value.length > 5 ? ', ...' : ''}]`;
+  }
+  try {
+    const serialized = JSON.stringify(value);
+    if (!serialized) return 'empty-object';
+    return serialized.length > MAX_BREADCRUMB_VALUE_LENGTH
+      ? `${serialized.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
+      : serialized;
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function normalizeBreadcrumbData(data?: Record<string, any>) {
+  if (!data) return undefined;
+
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value === 'undefined') continue;
+    normalized[key] = SENSITIVE_BREADCRUMB_KEY_RE.test(key)
+      ? '[redacted]'
+      : normalizeBreadcrumbValue(value);
+  }
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
 /**
  * Add breadcrumb for debugging
  */
@@ -105,6 +144,6 @@ export function addBreadcrumb(message: string, category: string = 'custom', leve
     message,
     category,
     level,
-    data,
+    data: normalizeBreadcrumbData(data),
   });
 }

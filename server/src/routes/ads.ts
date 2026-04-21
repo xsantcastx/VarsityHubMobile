@@ -28,6 +28,7 @@ import { validateContent } from '../lib/contentFilter.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { addBreadcrumb } from '../lib/sentry.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -1305,6 +1306,10 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       if (req.method === 'GET') {
         const summary = await loadAdModerationSummary(id);
         if (!summary) return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
+        addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
+          action: 'approve',
+          ad_id: id,
+        });
         return res.send(
           confirmationForm(
             'approve',

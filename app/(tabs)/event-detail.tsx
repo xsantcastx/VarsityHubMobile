@@ -272,25 +272,29 @@ export default function EventDetailScreen() {
             </Pressable>
           </View>
         )}
-        {event && !loading && !error && eventHasPassed && (
-          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 16, paddingHorizontal: 8 }}>
-            <MaterialIcons name="event-busy" size={48} color={theme.mutedText} />
-            <Text style={[styles.title, { color: theme.text, textAlign: 'center' }]}>This event has ended</Text>
-            <Text style={{ color: theme.mutedText, textAlign: 'center', fontSize: 15, lineHeight: 22 }}>
-              You can no longer RSVP or change attendance for this event.
-            </Text>
+        {event && !loading && eventHasPassed && (
+          <View
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              alignItems: 'center',
+              backgroundColor: theme.surface,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: theme.border,
+              marginBottom: 8,
+              flexDirection: 'row',
+              gap: 8,
+              justifyContent: 'center',
+            }}
+          >
+            <MaterialIcons name="event-busy" size={18} color={theme.mutedText} />
             <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>
-              {event.date ? new Date(event.date).toLocaleString() : ''}
+              Event ended • RSVP closed
             </Text>
-            {event.title ? (
-              <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>{event.title}</Text>
-            ) : null}
-            <Pressable style={styles.primaryBtn} onPress={() => safeGoBack(router)}>
-              <Text style={styles.primaryBtnText}>Go back</Text>
-            </Pressable>
           </View>
         )}
-        {event && !loading && !eventHasPassed && (
+        {event && !loading && (
           <View style={{ gap: 8 }}>
             {/* Match banner with persistent RSVP badge */}
             <MatchBanner

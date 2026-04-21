@@ -109,9 +109,13 @@ const serializePost = (post: any) => ({
   created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
   media_type: detectMediaType(post.media_url),
   preview_url: getVideoPreviewUrl(post.media_url),
+  // username MUST be included so the vertical feed can tap through to @username
+  // profile and caption overlays can render "@username" correctly. Omitting it
+  // here meant GameVerticalFeedScreen's avatar/caption taps silently no-op'd.
   author: post.author
     ? {
         id: post.author.id,
+        username: post.author.username,
         display_name: post.author.display_name,
         avatar_url: post.author.avatar_url,
       }
@@ -1346,7 +1350,7 @@ gamesRouter.get('/:id/posts', authMiddleware as any, asyncHandler(async (req: Au
       orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
       take: limit,
       include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } },
+        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
         _count: { select: { comments: true } },
       },
     });

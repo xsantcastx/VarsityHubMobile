@@ -664,6 +664,7 @@ function GameVerticalFeedScreen({
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
   const [commentTarget, setCommentTarget] = useState<FeedPost | null>(null);
+  const [isMuted] = useState(false); // videos play with audio by default per product direction
   const [meInfo, setMeInfo] = useState<{
     id?: string;
     display_name?: string | null;
