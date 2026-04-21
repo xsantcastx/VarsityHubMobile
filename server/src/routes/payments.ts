@@ -46,6 +46,7 @@ const stripe = new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_conf
 });
 const MAX_AD_SLOTS = 2;
 const webhookEventLocks = new Map<string, Promise<any>>();
+const isJestRuntime = process.env.JEST_WORKER_ID != null;
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
@@ -2446,8 +2447,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       try {
         // v1.0.2 audit hardening: re-fetch the session from Stripe immediately before mutating user state.
         // Closes a TOCTOU window where a stale/replayed session object could carry an old "paid" flag.
-        // Skipped in test env where Stripe client has no valid key.
-        if (process.env.NODE_ENV !== 'test') {
+        if (!isJestRuntime) {
           try {
             const fresh = await stripe.checkout.sessions.retrieve(String(session.id));
             if (fresh?.payment_status !== 'paid') {
