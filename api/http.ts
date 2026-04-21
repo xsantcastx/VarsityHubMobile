@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-console */
+// TODO(transport-hardening): Remove this grandfather when api/http gets typed
+// request/response generics and a typed transport error contract. The current
+// `any` usage is concentrated at the network boundary and is pre-existing debt.
+
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import Constants from 'expo-constants';
 
@@ -215,7 +220,7 @@ async function request(
     if (ct.includes('application/json')) {
       try {
         data = text ? JSON.parse(text) : null;
-      } catch (error) {
+      } catch {
         data = null;
       }
     } else {
