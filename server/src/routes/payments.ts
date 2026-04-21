@@ -28,6 +28,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
+import { getDatesPastBookingHorizon } from '../utils/bookingHorizon.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -423,9 +424,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
 
   // Enforce booking horizon — no dates beyond 56 days from today
   const MAX_BOOKING_HORIZON_DAYS = 56;
-  const horizonCutoff = new Date();
-  horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
-  const pastHorizon = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+  const pastHorizon = getDatesPastBookingHorizon(isoDates, new Date(), MAX_BOOKING_HORIZON_DAYS);
   if (pastHorizon.length > 0) {
     return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
   }
@@ -899,9 +898,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
   // Enforce booking horizon — no dates beyond 56 days from today
   const MAX_BOOKING_HORIZON_DAYS = 56;
-  const horizonCutoff = new Date();
-  horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
-  const pastHorizon = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+  const pastHorizon = getDatesPastBookingHorizon(isoDates, new Date(), MAX_BOOKING_HORIZON_DAYS);
   if (pastHorizon.length > 0) {
     return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
   }
@@ -3243,9 +3240,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
     const isoDateStrings: string[] = dates.map((d: any) => String(d));
     // Enforce booking horizon — no dates beyond 56 days from today
     const MAX_BOOKING_HORIZON_DAYS = 56;
-    const horizonCutoff = new Date();
-    horizonCutoff.setDate(horizonCutoff.getDate() + MAX_BOOKING_HORIZON_DAYS);
-    const pastHorizon = isoDateStrings.filter(d => new Date(d + 'T00:00:00.000Z') > horizonCutoff);
+    const pastHorizon = getDatesPastBookingHorizon(isoDateStrings, new Date(), MAX_BOOKING_HORIZON_DAYS);
     if (pastHorizon.length > 0) {
       return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
     }

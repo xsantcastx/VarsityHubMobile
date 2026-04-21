@@ -891,7 +891,6 @@ teamsRouter.delete('/:id', requireVerified as any, requireOnboarded as any, asyn
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-
   // Team staff OR org admin can archive. Using the shared helper keeps this
   // route's boundary consistent with team update, event approval, and the
   // rest of the team-scoped endpoints — previously this check was inline and
@@ -1834,8 +1833,8 @@ teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireVerified 
   });
   if (!team) return res.status(404).json({ error: 'Team not found' });
 
-  const currentMembership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+  const currentMembership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, user_id: req.user.id, status: 'active' }
   });
   const isDirectOwner = currentMembership?.role === 'owner';
   const { isOrgAdmin } = await import('../lib/teamAuthorization.js');
@@ -1849,8 +1848,8 @@ teamsRouter.post('/:id/transfer-ownership', requireAuth as any, requireVerified 
   }
 
   // Verify new owner is a member of the team
-  const newOwnerMembership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: teamId, user_id: new_owner_id } }
+  const newOwnerMembership = await prisma.teamMembership.findFirst({
+    where: { team_id: teamId, user_id: new_owner_id, status: 'active' }
   });
   if (!newOwnerMembership) {
     return res.status(400).json({ error: 'New owner must be an existing team member' });

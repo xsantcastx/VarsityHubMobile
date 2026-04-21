@@ -1616,9 +1616,10 @@ organizationsRouter.post(
             user_id: req.user!.id,
           } as any,
         },
+        select: { role: true, status: true },
       });
 
-      if (!membership || !isOrganizationAdmin(membership.role)) {
+      if (!membership || membership.status !== 'active' || !isOrganizationAdmin(membership.role)) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
@@ -1792,9 +1793,10 @@ organizationsRouter.post(
             user_id: req.user!.id,
           } as any,
         },
+        select: { role: true, status: true },
       });
 
-      if (!membership || !isOrganizationAdmin(membership.role)) {
+      if (!membership || membership.status !== 'active' || !isOrganizationAdmin(membership.role)) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
@@ -1915,7 +1917,7 @@ organizationsRouter.post(
 
       // Verify requester is current owner
       const currentOwnership = await prisma.organizationMembership.findFirst({
-        where: { organization_id: orgId, user_id: req.user.id, role: 'owner' },
+        where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
       });
       if (!currentOwnership) {
         return res.status(403).json({ error: 'Only the current owner can transfer ownership' });
@@ -1928,7 +1930,7 @@ organizationsRouter.post(
 
       // Verify new owner is a member of the organization
       const newOwnerMembership = await prisma.organizationMembership.findFirst({
-        where: { organization_id: orgId, user_id: new_owner_id },
+        where: { organization_id: orgId, user_id: new_owner_id, status: 'active' },
       });
       if (!newOwnerMembership) {
         return res.status(400).json({ error: 'New owner must be a member of the organization' });

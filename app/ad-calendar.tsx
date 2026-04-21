@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 // @ts-ignore
 import { httpPost } from '@/api/http';
-import { addDays, format, startOfToday } from 'date-fns';
+import { format } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -23,9 +23,16 @@ import { captureBreadcrumb } from '@/utils/sentry';
 const weekdayRate = 4.99;   // Per week (Mon-Thu slot)
 const weekendRate = 7.99;   // Per week (Fri-Sun slot)
 
-const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
-// Use addDays(56) to match server's 56-day horizon exactly (avoids local time vs UTC mismatch)
-const maxDateISO = (): string => format(addDays(startOfToday(), 56), 'yyyy-MM-dd');
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function utcTodayDate(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+const todayISO = (): string => utcTodayDate().toISOString().slice(0, 10);
+// Use UTC date boundaries to match the server's booking horizon logic exactly.
+const maxDateISO = (): string => new Date(utcTodayDate().getTime() + 56 * DAY_MS).toISOString().slice(0, 10);
 
 function _toggleSet(set: Set<string>, value: string): Set<string> {
   const next = new Set(set);
