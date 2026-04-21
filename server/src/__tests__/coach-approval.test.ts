@@ -188,6 +188,17 @@ describe('Coach Approval Workflow', () => {
       });
       expect(approvedOrg).toBeTruthy();
 
+      await prisma.user.update({
+        where: { id: approvedCoachId },
+        data: {
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+          },
+        },
+      });
+
       const res = await request(app)
         .post('/teams/create')
         .set('Authorization', `Bearer ${approvedCoachToken}`)
