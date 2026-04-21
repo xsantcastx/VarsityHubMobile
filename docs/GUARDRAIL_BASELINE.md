@@ -32,6 +32,13 @@ VarsityHub uses a layered guardrail baseline for routing, linting, and type safe
 - JS-to-TS conversion is a refactor boundary:
   - first commit is rename plus types only
   - behavior changes belong in a separate commit
+- When touching Jest ESM or resolver behavior, check for `.ts`/`.js` shadow files in source trees:
+
+```bash
+find server/src -name '*.ts' -exec bash -c 'test -f "${1%.ts}.js" && printf "%s\n" "${1%.ts}.js"' _ {} \;
+```
+
+- Shadow siblings can make Jest's ESM loader link the same module twice under different resolved paths.
 
 ## Verification
 

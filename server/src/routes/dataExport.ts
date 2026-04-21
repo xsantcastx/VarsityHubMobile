@@ -28,7 +28,6 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { queueDataExport } from '../jobs/queues.js';
 import {
   getObjectStorageAdapter,
   ObjectStorageNotConfiguredError,
@@ -44,6 +43,11 @@ const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 1 successful export per 24h
 // access goes through this aliased any-client, matching the pattern used
 // for parental consent fields in requireOnboarded.ts.
 const p = prisma as any;
+
+async function queueDataExportJob(args: { exportId: string; userId: string }) {
+  const { queueDataExport } = await import('../jobs/queues.js');
+  return queueDataExport(args);
+}
 
 /** Shape returned to clients. Never includes storage_key (internal). */
 function serializeExport(row: any) {
@@ -133,7 +137,7 @@ dataExportRouter.post(
       },
     });
 
-    const jobId = await queueDataExport({ exportId: row.id, userId });
+    const jobId = await queueDataExportJob({ exportId: row.id, userId });
     if (!jobId) {
       await p.dataExport.update({
         where: { id: row.id },
