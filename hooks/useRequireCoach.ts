@@ -25,11 +25,18 @@ export function useRequireCoach() {
     return (user as any)?.approval_status === 'APPROVED';
   }, [isCoach, user]);
 
-  const canAccessCoachTools = useMemo(() => {
+  const hasCurrentAgreement = useMemo(() => {
     if (!isApprovedCoach) return false;
     const prefs = (user as any)?.preferences || {};
-    return !!prefs?.coach_agreement_accepted_at;
+    const acceptedAt = prefs?.coach_agreement_accepted_at;
+    const acceptedVersion = Number(prefs?.coach_agreement_version ?? 1);
+    const requiredVersion = Number((user as any)?.required_coach_agreement_version ?? 1);
+    return !!acceptedAt && acceptedVersion >= requiredVersion;
   }, [isApprovedCoach, user]);
+
+  const canAccessCoachTools = useMemo(() => {
+    return isApprovedCoach && hasCurrentAgreement;
+  }, [hasCurrentAgreement, isApprovedCoach]);
 
   useEffect(() => {
     if (loading) return;
@@ -40,7 +47,11 @@ export function useRequireCoach() {
 
     const prefs = (user as any)?.preferences || {};
     const approvalStatus = (user as any)?.approval_status;
-    const needsAgreement = approvalStatus === 'APPROVED' && !prefs?.coach_agreement_accepted_at;
+    const acceptedVersion = Number(prefs?.coach_agreement_version ?? 1);
+    const requiredVersion = Number((user as any)?.required_coach_agreement_version ?? 1);
+    const agreementOutdated =
+      !!prefs?.coach_agreement_accepted_at && acceptedVersion < requiredVersion;
+    const needsAgreement = approvalStatus === 'APPROVED' && !hasCurrentAgreement;
     const pendingRoute =
       prefs?.join_request_pending === true
         ? '/onboarding/pending-approval'
@@ -54,9 +65,12 @@ export function useRequireCoach() {
     }
 
     if (needsAgreement) {
-      router.replace('/onboarding/coach-agreement' as any);
+      router.replace({
+        pathname: '/onboarding/coach-agreement',
+        params: agreementOutdated ? { reason: 'outdated' } : undefined,
+      } as any);
     }
-  }, [user, loading, isCoach, router]);
+  }, [user, loading, isCoach, router, hasCurrentAgreement]);
 
   return { isCoach, isApprovedCoach, canAccessCoachTools, loading };
 }

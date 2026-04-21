@@ -39,6 +39,7 @@ interface AuthUser {
   is_admin?: boolean;
   approval_status?: string;
   paid_by_owner?: boolean;
+  required_coach_agreement_version?: number;
   preferences?: {
     onboarding_completed?: boolean;
     role?: string;
@@ -49,6 +50,7 @@ interface AuthUser {
     join_request_pending?: boolean;
     proceeding_as_fan?: boolean;
     coach_agreement_accepted_at?: string;
+    coach_agreement_version?: number;
     organization_id?: string;
   };
 }
@@ -231,6 +233,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const paywallPushTsRef = React.useRef<number>(0);
   const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscriptionFetchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hasCurrentCoachAgreement = useCallback((authUser: AuthUser | null | undefined) => {
+    if (!authUser) return false;
+    const acceptedAt = authUser.preferences?.coach_agreement_accepted_at;
+    const acceptedVersion = Number(authUser.preferences?.coach_agreement_version ?? 1);
+    const requiredVersion = Number(authUser.required_coach_agreement_version ?? 1);
+    return !!acceptedAt && acceptedVersion >= requiredVersion;
+  }, []);
 
   // Check authentication
   const checkAuth = useCallback(
@@ -728,7 +738,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         const onAgreement =
           Array.isArray(segmentsRef.current) &&
           segmentsRef.current.join('/').includes('coach-agreement');
-        if (!user.preferences?.coach_agreement_accepted_at && !onAgreement) {
+        if (!hasCurrentCoachAgreement(user) && !onAgreement) {
           if (__DEV__)
             console.log(
               '[AuthProvider] Approved fan→coach transition — routing to coach agreement'
@@ -830,7 +840,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         !needsOnboarding &&
         user.preferences?.role === 'coach' &&
         user.approval_status === 'APPROVED' &&
-        !user.preferences?.coach_agreement_accepted_at &&
+        !hasCurrentCoachAgreement(user) &&
         !coachNeedsCheckout;
       const isOnAgreementScreen = currentPath.includes('coach-agreement');
       if (isCoachWithoutAgreement && !isOnAgreementScreen) {

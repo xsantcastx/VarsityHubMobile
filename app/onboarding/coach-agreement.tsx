@@ -22,8 +22,9 @@ function CoachAgreementScreen() {
   const isDark = colorScheme === 'dark';
   const router = useRouter();
   const { checkAuth } = useAuth();
-  const params = useLocalSearchParams<{ redirect?: string }>();
+  const params = useLocalSearchParams<{ redirect?: string; reason?: string }>();
   const [accepting, setAccepting] = useState(false);
+  const isOutdatedAgreement = params.reason === 'outdated';
 
   const handleAccept = async () => {
     setAccepting(true);
@@ -70,7 +71,9 @@ function CoachAgreementScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={[styles.title, { color: C.text }]}>Coach Agreement</Text>
         <Text style={[styles.subtitle, { color: C.mutedText }]}>
-          Before accessing your coach tools, please review and accept the following terms.
+          {isOutdatedAgreement
+            ? 'The coach agreement has been updated. Review and accept the latest version to keep using coach tools.'
+            : 'Before accessing your coach tools, please review and accept the following terms.'}
         </Text>
 
         <View style={[styles.card, { backgroundColor: C.card, borderColor: C.border }]}>
