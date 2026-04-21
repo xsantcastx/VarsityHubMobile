@@ -7,52 +7,22 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/api/*": [
-        "api/*"
-      ],
-      "@/components/*": [
-        "components/*"
-      ],
-      "@/constants/*": [
-        "constants/*"
-      ],
-      "@/hooks/*": [
-        "hooks/*"
-      ],
-      "@/context/*": [
-        "context/*"
-      ],
-      "@/utils/*": [
-        "utils/*"
-      ],
-      "@/config/*": [
-        "config/*"
-      ],
-      "@/data/*": [
-        "data/*"
-      ],
-      "@/ui/*": [
-        "components/ui/*"
-      ],
-      "@/features/*": [
-        "app/features/*"
-      ],
-      "@/shared/*": [
-        "shared/*"
-      ],
-      "@/lib/*": [
-        "lib/*"
-      ],
-      "react-native-calendars": [
-        "types/react-native-calendars.d.ts"
-      ]
+      "@/api/*": ["api/*"],
+      "@/components/*": ["components/*"],
+      "@/constants/*": ["constants/*"],
+      "@/hooks/*": ["hooks/*"],
+      "@/context/*": ["context/*"],
+      "@/utils/*": ["utils/*"],
+      "@/config/*": ["config/*"],
+      "@/data/*": ["data/*"],
+      "@/ui/*": ["components/ui/*"],
+      "@/features/*": ["app/features/*"],
+      "@/shared/*": ["shared/*"],
+      "@/lib/*": ["lib/*"],
+      "react-native-calendars": ["types/react-native-calendars.d.ts"]
     },
     "resolveJsonModule": true,
-    "types": [
-      "react",
-      "react-native",
-      "jest"
-    ]
+    "types": ["node", "react", "react-native", "jest"]
   },
   "include": [
     "shared/**/*.ts",
