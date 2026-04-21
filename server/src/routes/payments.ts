@@ -31,7 +31,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
   console.error('[payments] STRIPE_SECRET_KEY is not set — payment features will fail');
 }
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_not_configured', { apiVersion: '2024-06-20' });
-const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
+const isJestRuntime = process.env.JEST_WORKER_ID != null;
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
@@ -2408,7 +2408,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       try {
         // v1.0.2 audit hardening: re-fetch the session from Stripe immediately before mutating user state.
         // Closes a TOCTOU window where a stale/replayed session object could carry an old "paid" flag.
-        if (!isTestEnv) {
+        if (!isJestRuntime) {
           try {
             const fresh = await stripe.checkout.sessions.retrieve(String(session.id));
             if (fresh?.payment_status !== 'paid') {
