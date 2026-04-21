@@ -1,5 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
+import { validateEvent, validateEventArray, validateEventRsvpArray } from './schemas/event';
 import { validateOrganization, validateOrganizationArray } from './schemas/organization';
 import { validateTeam, validateTeamArray } from './schemas/team';
 import {
@@ -473,16 +474,19 @@ export const Event = {
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (typeof limit === 'number') q.push('limit=' + String(limit));
-    return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
+    return httpGet('/events' + (q.length ? '?' + q.join('&') : '')).then(data =>
+      validateEventArray('events.filter', data)
+    );
   },
-  get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
+  get: (id: string) =>
+    httpGet('/events/' + encodeURIComponent(id)).then(data => validateEvent('events.get', data)),
   update: (id: string, data: UpdateEventPayload) =>
     httpPatch('/events/' + encodeURIComponent(id), data),
   cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) =>
     httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
-  myRsvps: () => httpGet('/events/my-rsvps'),
+  myRsvps: () => httpGet('/events/my-rsvps').then(data => validateEventRsvpArray('events.myRsvps', data)),
 };
 
 export const Message = {
