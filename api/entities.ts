@@ -1,5 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
+import { validateOrganization, validateOrganizationArray } from './schemas/organization';
 import { validateTeam, validateTeamArray } from './schemas/team';
 import {
   httpDelete,
@@ -33,9 +34,18 @@ export const User = {
   loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
   loginViaApple: (identityToken: string) => auth.loginWithApple(identityToken),
   logout: () => auth.logout(),
-  updateMe: (data: UpdateMePayload) => { invalidateMeCache(); return httpPut('/auth/me', data); },
-  patchMe: (data: UpdateMePayload) => { invalidateMeCache(); return httpPatch('/me', data); },
-  updatePreferences: (patch: UpdatePreferencesPayload) => { invalidateMeCache(); return httpPatch('/me/preferences', patch); },
+  updateMe: (data: UpdateMePayload) => {
+    invalidateMeCache();
+    return httpPut('/auth/me', data);
+  },
+  patchMe: (data: UpdateMePayload) => {
+    invalidateMeCache();
+    return httpPatch('/me', data);
+  },
+  updatePreferences: (patch: UpdatePreferencesPayload) => {
+    invalidateMeCache();
+    return httpPatch('/me/preferences', patch);
+  },
   completeOnboarding: (data: CompleteOnboardingPayload) => {
     invalidateMeCache();
     return httpPost('/me/complete-onboarding', data);
@@ -524,15 +534,23 @@ export const Message = {
 
 // Stubs for future entities
 export const Organization = {
-  list: (q?: string, limit: number = 50) => {
+  list: (q?: string, limit: number = 50): Promise<any> => {
     const params: string[] = [];
     if (q) params.push('q=' + encodeURIComponent(q));
     if (typeof limit === 'number') params.push('limit=' + encodeURIComponent(String(limit)));
     const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/organizations' + qs);
+    return httpGet('/organizations' + qs).then(data =>
+      validateOrganizationArray('organizations.list', data)
+    );
   },
-  mine: () => httpGet('/organizations/mine'),
-  get: (id: string) => httpGet('/organizations/' + encodeURIComponent(id)),
+  mine: (): Promise<any> =>
+    httpGet('/organizations/mine').then(data =>
+      validateOrganizationArray('organizations.mine', data)
+    ),
+  get: (id: string): Promise<any> =>
+    httpGet('/organizations/' + encodeURIComponent(id)).then(data =>
+      validateOrganization('organizations.get', data)
+    ),
   follow: (id: string) => httpPost(`/organizations/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/organizations/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/members`),
@@ -604,16 +622,16 @@ export const Team = {
     if (options?.directory) params.push('directory=1');
     if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
     const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/teams' + qs).then((data) => validateTeamArray('teams.list', data));
+    return httpGet('/teams' + qs).then(data => validateTeamArray('teams.list', data));
   },
   managed: (q?: string): Promise<any> => {
     const params: string[] = [];
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/teams/managed' + qs).then((data) => validateTeamArray('teams.managed', data));
+    return httpGet('/teams/managed' + qs).then(data => validateTeamArray('teams.managed', data));
   },
   get: (id: string): Promise<any> =>
-    httpGet('/teams/' + encodeURIComponent(id)).then((data) => validateTeam('teams.get', data)),
+    httpGet('/teams/' + encodeURIComponent(id)).then(data => validateTeam('teams.get', data)),
   follow: (id: string) => httpPost(`/teams/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/teams/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/teams/${encodeURIComponent(id)}/members`),
@@ -752,9 +770,15 @@ export const Subscriptions = {
   createCheckout: (plan: string, teamCount?: number) =>
     httpPost('/payments/checkout', { plan, team_count: teamCount }),
   finalizeSession: finalizePaymentSession,
-  cancel: () => { invalidateMeCache(); return httpPost('/payments/subscription/cancel', {}); },
+  cancel: () => {
+    invalidateMeCache();
+    return httpPost('/payments/subscription/cancel', {});
+  },
   // v1.0.2: undo a cancel-at-period-end before the period actually ends
-  resume: () => { invalidateMeCache(); return httpPost('/payments/subscription/resume', {}); },
+  resume: () => {
+    invalidateMeCache();
+    return httpPost('/payments/subscription/resume', {});
+  },
   updateQuantity: (teamCount: number) => {
     invalidateMeCache();
     return httpPost('/payments/update-subscription-quantity', { team_count: teamCount });
