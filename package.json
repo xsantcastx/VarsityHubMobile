@@ -160,20 +160,6 @@
     "tsc-files": "^1.1.4",
     "typescript": "~5.9.2"
   },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --cache --fix --max-warnings=0 --no-warn-ignored"
-    ],
-    "{app,components,hooks,utils,api,context,constants,lib,shared}/**/*.{ts,tsx}": [
-      "tsc-files --noEmit -p tsconfig.json"
-    ],
-    "server/src/**/*.{ts,tsx}": [
-      "tsc-files --noEmit -p server/tsconfig.json"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
-  },
   "private": true,
   "prisma": {
     "schema": "server/prisma/schema.prisma"
