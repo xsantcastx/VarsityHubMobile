@@ -29,6 +29,7 @@ import { captureBreadcrumb, captureException } from '@/utils/sentry';
 const usernameRe = /^[a-z0-9_.]+$/;
 
 const SPORT_BALLS = ['⚽', '🎾', '🏈', '🏀'];
+const DEFAULT_HEADER_IMAGE_FOCUS_Y = 0;
 
 function SportBallRow() {
   const [active, setActive] = useState(0);
@@ -100,6 +101,7 @@ export default function Step2Basic() {
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [headerImageUri, setHeaderImageUri] = useState<string | null>(null);
   const [bio, setBio] = useState('');
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
@@ -213,13 +215,105 @@ export default function Step2Basic() {
       });
       if (!result.canceled && result.assets[0]) {
         setAvatarUri(result.assets[0].uri);
+        captureBreadcrumb('Onboarding avatar selected', 'onboarding.step2', {
+          role: ob.role || 'unknown',
+        });
       }
     } catch (err) {
       if (__DEV__) console.warn('[step-2] Avatar pick failed:', err);
+      captureBreadcrumb(
+        'Onboarding avatar selection failed',
+        'onboarding.step2',
+        { role: ob.role || 'unknown' },
+        'warning'
+      );
     }
   };
 
+  const pickHeaderImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [3, 2],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setHeaderImageUri(result.assets[0].uri);
+        captureBreadcrumb('Onboarding cover image selected', 'onboarding.step2', {
+          role: ob.role || 'unknown',
+        });
+      }
+    } catch (err) {
+      if (__DEV__) console.warn('[step-2] Cover image pick failed:', err);
+      captureBreadcrumb(
+        'Onboarding cover image selection failed',
+        'onboarding.step2',
+        { role: ob.role || 'unknown' },
+        'warning'
+      );
+    }
+  };
+
+  const persistOptionalProfileMedia = useCallback(
+    async (roleLabel: string) => {
+      if (!avatarUri && !headerImageUri && !bio.trim()) return;
+
+      try {
+        let avatarUrl: string | undefined;
+        let headerImageUrl: string | undefined;
+
+        if (avatarUri) {
+          captureBreadcrumb('Onboarding background avatar upload started', 'onboarding.step2', {
+            role: roleLabel,
+          });
+          const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg');
+          avatarUrl = uploaded?.url || uploaded?.secure_url;
+        }
+
+        if (headerImageUri) {
+          captureBreadcrumb('Onboarding background cover upload started', 'onboarding.step2', {
+            role: roleLabel,
+          });
+          const uploaded = await uploadFile(
+            getConfig().apiUrl,
+            headerImageUri,
+            'profile-cover.jpg',
+            'image/jpeg'
+          );
+          headerImageUrl = uploaded?.url || uploaded?.secure_url;
+        }
+
+        if (bio.trim() || avatarUrl) {
+          await User.patchMe({
+            ...(bio.trim() ? { bio: bio.trim() } : {}),
+            ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+          });
+        }
+
+        if (headerImageUrl) {
+          await User.updatePreferences({
+            header_image_url: headerImageUrl,
+            header_image_focus_y: DEFAULT_HEADER_IMAGE_FOCUS_Y,
+          });
+        }
+      } catch (err) {
+        if (__DEV__) console.warn('[step-2] Background profile media save failed:', err);
+        captureBreadcrumb(
+          'Onboarding background profile media save failed',
+          'onboarding.step2',
+          { role: roleLabel },
+          'warning'
+        );
+      }
+    },
+    [avatarUri, bio, headerImageUri]
+  );
+
   const requestPermissions = async () => {
+    captureBreadcrumb('Onboarding permission request started', 'onboarding.step2', {
+      role: ob.role || 'unknown',
+    });
     // Push notifications — ask with explanation
     try {
       const { status: pushStatus } = await Notifications.getPermissionsAsync();
@@ -228,6 +322,7 @@ export default function Step2Basic() {
       }
     } catch (err) {
       if (__DEV__) console.warn('[step-2] Push permission request failed:', err);
+      captureBreadcrumb('Push permission request failed', 'onboarding.step2', {}, 'warning');
     }
     // Location — ask with explanation
     try {
@@ -237,6 +332,7 @@ export default function Step2Basic() {
       }
     } catch (err) {
       if (__DEV__) console.warn('[step-2] Location permission request failed:', err);
+      captureBreadcrumb('Location permission request failed', 'onboarding.step2', {}, 'warning');
     }
   };
 
@@ -311,6 +407,13 @@ export default function Step2Basic() {
     const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);
     dispatch({ type: 'SAVE_START' });
+    captureBreadcrumb('Onboarding step 2 submit started', 'onboarding.step2', {
+      role: ob.role || 'unknown',
+      affiliation,
+      has_avatar: !!avatarUri,
+      has_cover: !!headerImageUri,
+      has_bio: !!bio.trim(),
+    });
     
     try {
       const updatedData = {
@@ -355,11 +458,16 @@ export default function Step2Basic() {
 
       if (currentRole === 'coach') {
         // Coaches go to step 3 (league)
+        captureBreadcrumb('Onboarding step 2 completed', 'onboarding.step2', {
+          role: 'coach',
+          next: 'step-3-league',
+        });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         setProgress(2);
         router.replace('/onboarding/step-3-league' as any);
+        void persistOptionalProfileMedia('coach');
       } else {
-        // Fans are DONE — complete onboarding first (fast), then upload avatar in background
+        // Fans are DONE — complete onboarding first (fast), then upload profile media in background
         await User.completeOnboarding({
           role: 'fan',
           username: finalUsername,
@@ -369,35 +477,29 @@ export default function Step2Basic() {
         });
 
         // Navigate immediately — don't block on non-critical tasks
+        captureBreadcrumb('Onboarding step 2 completed', 'onboarding.step2', {
+          role: 'fan',
+          next: 'tabs',
+        });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         router.replace('/(tabs)' as any);
 
-        // Fire-and-forget: avatar upload, bio save, local storage, permissions, push token
-        if (avatarUri || bio.trim()) {
-          (async () => {
-            try {
-              let avatarUrl: string | undefined;
-              if (avatarUri) {
-                const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg');
-                avatarUrl = uploaded?.url || uploaded?.secure_url;
-              }
-              if (bio.trim() || avatarUrl) {
-                await User.patchMe({
-                  ...(bio.trim() ? { bio: bio.trim() } : {}),
-                  ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
-                });
-              }
-            } catch (err) {
-              if (__DEV__) console.warn('[step-2] Background avatar/bio save failed:', err);
-            }
-          })();
-        }
+        void persistOptionalProfileMedia('fan');
         markOnboardingCompleteLocally().catch(() => {});
         requestPermissions().catch(() => {});
         registerPushToken().catch(() => {});
       }
     } catch (e: any) {
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e, 'data:', e?.data);
+      captureBreadcrumb(
+        'Onboarding step 2 submit failed',
+        'onboarding.step2',
+        { role: ob.role || 'unknown' },
+        'warning'
+      );
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'onboarding-step-2' },
+      });
       dispatch({ type: 'SAVE_FAIL', error: e });
       // Surface the actual server error: check e.data (our http client), e.response?.data (axios-style)
       const serverData = e?.data || e?.response?.data;
@@ -444,6 +546,37 @@ export default function Step2Basic() {
           )}
         </View>
         <Text style={[styles.muted, { textAlign: 'center', marginTop: 4 }]}>Add photo</Text>
+      </Pressable>
+
+      <Pressable
+        testID="onboarding-step2-header-picker"
+        onPress={pickHeaderImage}
+        style={{ marginBottom: 18 }}
+        accessibilityLabel="Choose cover photo"
+        accessibilityRole="button"
+      >
+        <View
+          style={{
+            height: 112,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: Colors[colorScheme].border,
+            backgroundColor: Colors[colorScheme].surface,
+            overflow: 'hidden',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {headerImageUri ? (
+            <Image source={{ uri: headerImageUri }} style={{ width: '100%', height: '100%' }} />
+          ) : (
+            <View style={{ alignItems: 'center', gap: 6 }}>
+              <Ionicons name="image-outline" size={28} color={Colors[colorScheme].mutedText} />
+              <Text style={styles.muted}>Add cover photo</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.muted, { marginTop: 6 }]}>Optional profile header image</Text>
       </Pressable>
 
       <Text style={styles.label}>Username</Text>

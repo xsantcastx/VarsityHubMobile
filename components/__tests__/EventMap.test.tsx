@@ -1,7 +1,9 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { cleanup, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 import EventMap from '../EventMap';
 import type { EventMapProps } from '../EventMap.types';
+
+const flushPromises = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 // Mock react-native-maps. The MapView mock forwards the ref and exposes no-op
 // implementations of the imperative methods EventMap calls (fitToCoordinates,
@@ -44,6 +46,10 @@ jest.mock('@/hooks/useColorScheme', () => ({
   useColorScheme: () => 'light',
 }));
 
+jest.mock('@/utils/sentry', () => ({
+  captureBreadcrumb: jest.fn(),
+}));
+
 const mockEvents = [
   {
     id: '1',
@@ -73,6 +79,12 @@ const baseProps = (overrides: Partial<EventMapProps> = {}): EventMapProps => ({
 });
 
 describe('EventMap', () => {
+  afterEach(async () => {
+    cleanup();
+    jest.clearAllTimers();
+    await flushPromises();
+  });
+
   it('renders a Marker for each event with coordinates', async () => {
     const { findAllByTestId } = render(<EventMap {...baseProps()} />);
     const markers = await findAllByTestId('Marker');

@@ -32,7 +32,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
       ip: req.ip,
       path: req.path,
       method: req.method,
-      tokenPrefix: token.substring(0, 8) + '...',
+      tokenLength: token.length,
     });
     clearUserContext();
     return next();

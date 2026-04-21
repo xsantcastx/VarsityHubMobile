@@ -582,7 +582,7 @@ function CreatePostScreen() {
     }
     if (now > liveCutoff) {
       const closeDate = new Date(windowEnd);
-      return `Post-event uploads stay open until ${closeDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${closeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, but only for people who already posted from this event while it was live.`;
+      return `Post-event uploads stay open until ${closeDate.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${closeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}, but only if you already posted to this event while it was live.`;
     }
 
     // Check distance (3km = ~1.86 miles) if both user and venue coords are available

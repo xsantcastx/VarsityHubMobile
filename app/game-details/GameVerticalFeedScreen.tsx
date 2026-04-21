@@ -80,7 +80,52 @@ type CommentItem = {
   optimistic?: boolean;
 };
 
+type FeedRailNavButtonsProps = {
+  show: boolean;
+  canPrev: boolean;
+  canNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+};
+
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+
+export function FeedRailNavButtons({
+  show,
+  canPrev,
+  canNext,
+  onPrev,
+  onNext,
+}: FeedRailNavButtonsProps) {
+  if (!show) return null;
+
+  return (
+    <View style={styles.railNavWrap}>
+      <Pressable
+        testID="highlights-nav-up"
+        onPress={canPrev ? onPrev : undefined}
+        disabled={!canPrev}
+        accessibilityRole="button"
+        accessibilityLabel="Previous highlight"
+        accessibilityState={{ disabled: !canPrev }}
+        style={[styles.railNavBtn, !canPrev ? styles.railNavBtnDisabled : null]}
+      >
+        <Ionicons name="chevron-up" size={16} color="#fff" />
+      </Pressable>
+      <Pressable
+        testID="highlights-nav-down"
+        onPress={canNext ? onNext : undefined}
+        disabled={!canNext}
+        accessibilityRole="button"
+        accessibilityLabel="Next highlight"
+        accessibilityState={{ disabled: !canNext }}
+        style={[styles.railNavBtn, !canNext ? styles.railNavBtnDisabled : null]}
+      >
+        <Ionicons name="chevron-down" size={16} color="#fff" />
+      </Pressable>
+    </View>
+  );
+}
 
 export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
   const idValue = item?.id ?? item?.post_id ?? item?.highlight_id;
@@ -162,6 +207,11 @@ const FeedCard = memo(
     insets,
     colorScheme,
     meInfo,
+    showNavButtons,
+    canPrev,
+    canNext,
+    onPrev,
+    onNext,
   }: {
     post: FeedPost;
     isActive: boolean;
@@ -178,6 +228,11 @@ const FeedCard = memo(
     insets: { top: number; bottom: number };
     colorScheme: 'light' | 'dark';
     meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
+    showNavButtons: boolean;
+    canPrev: boolean;
+    canNext: boolean;
+    onPrev: () => void;
+    onNext: () => void;
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
@@ -434,7 +489,15 @@ const FeedCard = memo(
         </View>
 
         <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
-          {/* Only show follow button if it's not the user's own post */}
+          <FeedRailNavButtons
+            show={showNavButtons}
+            canPrev={canPrev}
+            canNext={canNext}
+            onPrev={onPrev}
+            onNext={onNext}
+          />
+
+          {/* Avatar tap opens the poster profile; follow action stays separate. */}
           {post.author?.id !== meInfo?.id ? (
             <Pressable onPress={onToggleFollow} style={styles.railAvatarBtn}>
               {post.author?.avatar_url ? (
@@ -446,11 +509,6 @@ const FeedCard = memo(
                   </Text>
                 </View>
               )}
-              {!post.is_following_author ? (
-                <View style={styles.railFollowPlus}>
-                  <Ionicons name="add" size={16} color={Colors[colorScheme].text} />
-                </View>
-              ) : null}
             </Pressable>
           ) : null}
 
@@ -1225,6 +1283,16 @@ function GameVerticalFeedScreen({
     [handleToggleUpvote]
   );
 
+  const scrollToPostIndex = useCallback(
+    (index: number) => {
+      const clampedIndex = Math.max(0, Math.min(posts.length - 1, index));
+      if (posts.length === 0 || clampedIndex === activeIndex) return;
+      flatListRef.current?.scrollToIndex({ index: clampedIndex, animated: true });
+      setActiveIndex(clampedIndex);
+    },
+    [activeIndex, posts.length]
+  );
+
   const renderItem = useCallback(
     ({ item, index }: { item: FeedPost; index: number }) => (
       <FeedCard
@@ -1244,6 +1312,11 @@ function GameVerticalFeedScreen({
         insets={{ top: insets.top, bottom: insets.bottom }}
         colorScheme={colorScheme}
         meInfo={meInfo}
+        showNavButtons={posts.length > 1}
+        canPrev={index > 0}
+        canNext={index < posts.length - 1}
+        onPrev={() => scrollToPostIndex(index - 1)}
+        onNext={() => scrollToPostIndex(index + 1)}
       />
     ),
     [
@@ -1262,6 +1335,8 @@ function GameVerticalFeedScreen({
       registerVideo,
       colorScheme,
       meInfo,
+      posts.length,
+      scrollToPostIndex,
     ]
   );
 
@@ -1640,6 +1715,24 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 24,
     alignItems: 'center',
+  },
+  railNavWrap: {
+    marginBottom: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  railNavBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.48)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  railNavBtnDisabled: {
+    opacity: 0.35,
   },
   railAvatarBtn: {
     marginBottom: 28,

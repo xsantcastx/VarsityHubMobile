@@ -28,6 +28,7 @@ import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { serializeOrganization } from '../lib/serializeOrganization.js';
 import { addBreadcrumb } from '../lib/sentry.js';
+import { redactEmail } from '../lib/logRedaction.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -923,12 +924,19 @@ organizationsRouter.post(
               })
                 .then(sent => {
                   if (!sent) {
-                    console.warn('[organizations] Invite email reported unsent for', inv.email);
+              console.warn(
+                '[organizations] Invite email reported unsent for',
+                redactEmail(inv.email)
+              );
                   }
                   return sent;
                 })
                 .catch(err => {
-                  console.warn('[organizations] Failed sending invite email to', inv.email, err);
+            console.warn(
+              '[organizations] Failed sending invite email to',
+              redactEmail(inv.email),
+              err
+            );
                   return false;
                 })
             )
@@ -1058,12 +1066,19 @@ organizationsRouter.post(
         })
           .then(sent => {
             if (!sent) {
-              console.warn('[organizations] Direct invite email reported unsent for', email);
+              console.warn(
+                '[organizations] Direct invite email reported unsent for',
+                redactEmail(email)
+              );
             }
             return sent;
           })
           .catch(err => {
-            console.warn('[organizations] Failed sending direct invite email to', email, err);
+            console.warn(
+              '[organizations] Failed sending direct invite email to',
+              redactEmail(email),
+              err
+            );
             return false;
           });
       }
@@ -1461,7 +1476,7 @@ organizationsRouter.post(
             'New coach request',
             `${joinRequest.user.display_name || 'A coach'} wants to join ${organization.name}`,
             { type: 'coach_request', screen: 'approvals', organization_id: organization.id }
-          ).catch(() => {});
+        ).catch((err) => console.warn('[orgs] Failed to send join request push:', (err as any)?.message || err));
 
           // In-app notification record for league owner
           await prisma.notification
@@ -2513,7 +2528,7 @@ organizationsRouter.post(
           coachName: coach.display_name || 'Coach',
           leagueName: org?.name || 'the league',
           reason,
-        }).catch(() => {});
+      }).catch((err) => console.error('[organizations] coach rejection email failed:', (err as any)?.message || err));
       }
 
       // Push notification to rejected coach (non-blocking)

@@ -32,6 +32,8 @@ import { getDatesPastBookingHorizon } from '../utils/bookingHorizon.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { recordAppleNotificationReceipt } from '../lib/appleNotificationDedup.js';
+import { redactIdentifier } from '../lib/logRedaction.js';
 
 const require = createRequire(import.meta.url);
 const StripeCtor = require('stripe') as typeof import('stripe').default;
@@ -3455,6 +3457,7 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     const data = payload.data || {};
     const notificationType: string = payload.notificationType || '';
     const subtype: string = payload.subtype || '';
+    const notificationUUID: string = payload.notificationUUID || '';
 
     // Verify bundleId matches our app (prevents cross-app replay)
     if (data.bundleId && data.bundleId !== EXPECTED_BUNDLE_ID) {
@@ -3499,29 +3502,38 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     const expiresDate: number = transactionInfo.expiresDate || 0; // ms timestamp
 
     console.log('[apple-s2s] Notification received:', {
+      notificationUUID: redactIdentifier(notificationUUID),
       notificationType,
       subtype,
-      originalTransactionId,
+      originalTransactionId: redactIdentifier(originalTransactionId),
       productId,
       environment,
     });
 
-    // Audit log — always log the notification regardless of whether we find a user
-    await prisma.transactionLog.create({
-      data: {
-        transaction_type: 'APPLE_S2S_NOTIFICATION',
-        status: 'RECEIVED',
-        order_id: originalTransactionId || `s2s_${Date.now()}`,
-        metadata: {
-          notificationType,
-          subtype,
-          originalTransactionId,
-          productId,
-          environment,
-          expiresDate: expiresDate ? new Date(expiresDate).toISOString() : null,
-        },
-      },
-    }).catch(err => console.error('[apple-s2s] Failed to log notification:', err));
+    const receiptState = await recordAppleNotificationReceipt(prisma, {
+      notificationUUID,
+      originalTransactionId,
+      productId,
+      environment,
+      expiresDate,
+      notificationType,
+      subtype,
+    }).catch((err) => {
+      console.error('[apple-s2s] Failed to record notification receipt:', err);
+      return null;
+    });
+
+    if (receiptState === 'duplicate') {
+      addBreadcrumb('Apple server notification duplicate skipped', 'payments.apple_s2s', 'info', {
+        notification_type: notificationType,
+        notification_uuid: redactIdentifier(notificationUUID),
+      });
+      return res.sendStatus(200);
+    }
+
+    if (receiptState === 'missing_uuid') {
+      console.warn('[apple-s2s] Missing notificationUUID; continuing without dedup');
+    }
 
     if (!originalTransactionId) {
       console.warn('[apple-s2s] No originalTransactionId — cannot match user');
@@ -3541,7 +3553,10 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     });
 
     if (!matchedUser) {
-      console.warn('[apple-s2s] No user found for originalTransactionId:', originalTransactionId);
+      console.warn(
+        '[apple-s2s] No user found for originalTransactionId:',
+        redactIdentifier(originalTransactionId)
+      );
       return res.sendStatus(200);
     }
 

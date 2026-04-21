@@ -281,7 +281,7 @@ export async function rejectOrganization(
       'League Not Approved',
       `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
       { type: 'org_rejected', organization_id: orgId },
-    ).catch(() => {});
+    ).catch((err) => console.warn('[approvalService] org rejected push failed:', (err as any)?.message || err));
 
     prisma.notification.create({
       data: {
@@ -289,7 +289,7 @@ export async function rejectOrganization(
         type: 'ORG_REJECTED',
         meta: { organization_id: orgId, organization_name: org.name, reason: reason || undefined },
       },
-    }).catch(() => {});
+    }).catch((err) => console.error('[approvalService] org rejected in-app notification failed:', (err as any)?.message || err));
   }
 
   if (org.leagueOwner?.email) {
@@ -298,7 +298,7 @@ export async function rejectOrganization(
       ownerName: org.leagueOwner.display_name || 'League Owner',
       leagueName: org.name,
       reason: reason || undefined,
-    }).catch(() => {});
+    }).catch((err) => console.error('[approvalService] league rejected email failed:', (err as any)?.message || err));
   }
 
   await notifyAllAdminsOfLeagueAction({
@@ -425,14 +425,14 @@ export async function approveCoach(
       type: 'JOIN_REQUEST_APPROVED',
       meta: { approved_by: 'admin', note: note || undefined },
     },
-  }).catch(() => {});
+  }).catch((err) => console.error('[approvalService] coach approved in-app notification failed:', (err as any)?.message || err));
 
   sendPushNotification(
     userId,
     'Congratulations!',
     `Congratulations on being accepted as a coach! Tap to complete your setup.${note ? ` Note: ${note}` : ''}`,
     { type: 'coach_approved', screen: 'onboarding' },
-  ).catch(() => {});
+  ).catch((err) => console.warn('[approvalService] coach approved push failed:', (err as any)?.message || err));
 
   return { ok: true, user };
 }
@@ -486,14 +486,14 @@ export async function rejectCoach(
       type: 'COACH_REJECTED',
       meta: { rejected_by: 'admin', reason: reason || null },
     },
-  }).catch(() => {});
+  }).catch((err) => console.error('[approvalService] coach rejected in-app notification failed:', (err as any)?.message || err));
 
   sendPushNotification(
     userId,
     'Application Update',
     `Your coach application was not approved.${reason ? ` Reason: ${reason}` : ''}`,
     { type: 'coach_rejected', screen: 'onboarding' },
-  ).catch(() => {});
+  ).catch((err) => console.warn('[approvalService] coach rejected push failed:', (err as any)?.message || err));
 
   return { ok: true, user };
 }
@@ -568,14 +568,22 @@ export async function approveAd(
     );
   }
 
-  const updated = await prisma.ad.update({
-    where: { id: adId },
+  const guard = await prisma.ad.updateMany({
+    where: { id: adId, status: 'pending' },
     data: {
       status: 'approved',
       payment_status: ad.payment_status === 'paid' ? 'paid' : 'pending_approval',
       ...(derivedAdminNote ? { admin_note: derivedAdminNote } : {}),
     },
   });
+  if (guard.count === 0) {
+    addBreadcrumb('Ad approval lost race', 'approval.ad', 'warning', {
+      action: 'approve',
+      ad_id: adId,
+    });
+    return { error: 'Ad approval status changed before approval could be applied', status: 409 };
+  }
+  const updated = await prisma.ad.findUnique({ where: { id: adId } });
 
   // ── Fire-and-forget notifications ──
   if (ad.contact_email) {
@@ -651,18 +659,33 @@ export async function rejectAd(
     }
   }
 
-  await prisma.$transaction([
-    prisma.adReservation.deleteMany({ where: { ad_id: adId } }),
-    prisma.ad.update({
-      where: { id: adId },
+  const guard = await prisma.$transaction(async (tx) => {
+    const transition = await tx.ad.updateMany({
+      where: { id: adId, status: 'pending' },
       data: {
         status: 'draft',
-        // v1.0.2 pass 8: payment_status reflects refund outcome (not just blanket "unpaid")
-        payment_status: refundResult?.ok ? 'refunded' : ad.payment_status === 'paid' ? 'refund_pending' : 'unpaid',
+        payment_status: ad.payment_status === 'paid' ? 'refund_pending' : 'unpaid',
         ...(opts?.reason ? { admin_note: opts.reason } : {}),
       },
-    }),
-  ]);
+    });
+    if (transition.count === 0) return { count: 0 };
+    await tx.adReservation.deleteMany({ where: { ad_id: adId } });
+    return { count: transition.count };
+  });
+  if (guard.count === 0) {
+    addBreadcrumb('Ad rejection lost race', 'approval.ad', 'warning', {
+      action: 'reject',
+      ad_id: adId,
+    });
+    return { error: 'Ad approval status changed before rejection could be applied', status: 409 };
+  }
+
+  if (refundResult?.ok) {
+    await prisma.ad.update({
+      where: { id: adId },
+      data: { payment_status: 'refunded' },
+    });
+  }
 
   // ── Fire-and-forget notifications ──
   const reason = opts?.reason;
@@ -702,14 +725,32 @@ export async function approveEvent(
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
 
-  const updated = await prisma.event.update({
-    where: { id: eventId },
+  const guard = await prisma.event.updateMany({
+    where: { id: eventId, approval_status: 'pending' },
     data: {
       approval_status: 'approved',
       status: 'approved',
       approved_by: adminId,
       approved_at: new Date(),
     },
+  });
+  if (guard.count === 0) {
+    addBreadcrumb('Event approval lost race', 'approval.event', 'warning', {
+      action: 'approve',
+      event_id: eventId,
+    });
+    const current = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { approval_status: true },
+    });
+    return {
+      error: `Event state changed during review (now ${current?.approval_status ?? 'unknown'}). Refresh and try again.`,
+      status: 409,
+    };
+  }
+
+  const updated = await prisma.event.findUniqueOrThrow({
+    where: { id: eventId },
     include: {
       creator: { select: { id: true, display_name: true, email: true } },
     },
@@ -761,8 +802,8 @@ export async function rejectEvent(
 
   const reason = opts?.reason;
 
-  const updated = await prisma.event.update({
-    where: { id: eventId },
+  const guard = await prisma.event.updateMany({
+    where: { id: eventId, approval_status: 'pending' },
     data: {
       approval_status: 'rejected',
       status: 'rejected',
@@ -770,6 +811,24 @@ export async function rejectEvent(
       approved_by: null,
       approved_at: null,
     },
+  });
+  if (guard.count === 0) {
+    addBreadcrumb('Event rejection lost race', 'approval.event', 'warning', {
+      action: 'reject',
+      event_id: eventId,
+    });
+    const current = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { approval_status: true },
+    });
+    return {
+      error: `Event state changed during review (now ${current?.approval_status ?? 'unknown'}). Refresh and try again.`,
+      status: 409,
+    };
+  }
+
+  const updated = await prisma.event.findUniqueOrThrow({
+    where: { id: eventId },
     include: {
       creator: { select: { id: true, display_name: true, email: true } },
     },

@@ -1,0 +1,120 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+
+const mockEventFindUnique = jest.fn();
+const mockGameFindUnique = jest.fn();
+const mockPostFindFirst = jest.fn();
+
+jest.unstable_mockModule('../lib/prisma.js', () => ({
+  prisma: {
+    event: {
+      findUnique: mockEventFindUnique,
+    },
+    game: {
+      findUnique: mockGameFindUnique,
+    },
+    post: {
+      findFirst: mockPostFindFirst,
+    },
+  },
+}));
+
+const { isStoryPostingWindowOpen, verifyEventPostingPermission } = await import('../lib/geofencing.js');
+
+const EVENT_DATE = new Date('2026-05-10T18:00:00.000Z');
+const BASE_EVENT = {
+  id: 'event-1',
+  title: 'Championship',
+  date: EVENT_DATE,
+  latitude: 40.7128,
+  longitude: -74.006,
+  location: 'Stadium',
+  game_id: 'game-1',
+};
+
+describe('regular post grace window', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockEventFindUnique.mockReset();
+    mockGameFindUnique.mockReset();
+    mockPostFindFirst.mockReset();
+    mockEventFindUnique.mockResolvedValue(BASE_EVENT);
+    mockGameFindUnique.mockResolvedValue(null);
+    mockPostFindFirst.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('denies posting before the window opens', async () => {
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() - 2 * 24 * 60 * 60 * 1000 - 1));
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 40.7128, -74.006);
+
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+    expect(mockPostFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('allows posting during the live window', async () => {
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 30 * 60 * 1000));
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 40.7128, -74.006);
+
+    expect(result.allowed).toBe(true);
+    expect(mockPostFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('allows posting at +24h when the same user already posted while live', async () => {
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 24 * 60 * 60 * 1000));
+    mockPostFindFirst.mockResolvedValue({ id: 'post-1' });
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 40.7128, -74.006);
+
+    expect(result.allowed).toBe(true);
+    expect(mockPostFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          author_id: 'user-1',
+          game_id: 'game-1',
+          deleted_at: null,
+          created_at: {
+            gte: EVENT_DATE,
+            lte: new Date(EVENT_DATE.getTime() + 2 * 60 * 60 * 1000),
+          },
+        }),
+      })
+    );
+  });
+
+  it('denies posting at +24h without a prior live post', async () => {
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 24 * 60 * 60 * 1000));
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 40.7128, -74.006);
+
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+    expect(result.reason).toContain('only if you already posted to this event while it was live');
+  });
+
+  it('denies posting after the +48h grace window closes', async () => {
+    jest.setSystemTime(new Date(EVENT_DATE.getTime() + 49 * 60 * 60 * 1000));
+
+    const result = await verifyEventPostingPermission('event-1', 'user-1', 40.7128, -74.006);
+
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe('POSTING_WINDOW_CLOSED');
+    expect(mockPostFindFirst).not.toHaveBeenCalled();
+  });
+
+  it('keeps story posting window behavior unchanged', () => {
+    jest.setSystemTime(new Date('2026-05-10T23:00:00.000Z'));
+    expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
+
+    jest.setSystemTime(new Date('2026-05-11T12:00:00.000Z'));
+    expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
+
+    jest.setSystemTime(new Date('2026-05-12T00:00:00.000Z'));
+    expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(false);
+  });
+});
