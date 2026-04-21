@@ -1590,6 +1590,9 @@ authRouter.get(
     const safe = sanitizeUser(user);
     const normalizedRole =
       is_admin ? 'admin' : typeof prefs.role === 'string' ? String(prefs.role) : null;
+    const requiredCoachAgreementVersion = Number(
+      process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
+    );
     const payload = {
       ...safe,
       _count: {
@@ -1599,6 +1602,7 @@ authRouter.get(
       has_password,
       role: normalizedRole,
       preferences: prefs,
+      required_coach_agreement_version: requiredCoachAgreementVersion,
       is_admin,
     };
     void cacheSet(cacheKey, payload, 60); // 60s TTL

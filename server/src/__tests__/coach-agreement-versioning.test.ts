@@ -103,4 +103,15 @@ describe('Coach Agreement Versioning', () => {
     const prefs = (after?.preferences as any) || {};
     expect(prefs.coach_agreement_version).toBe(3);
   });
+
+  it('GET /auth/me exposes the current required coach agreement version', async () => {
+    process.env.REQUIRED_COACH_AGREEMENT_VERSION = '4';
+
+    const res = await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${coachToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.required_coach_agreement_version).toBe(4);
+  });
 });
