@@ -10,6 +10,7 @@ import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, Style
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'paused';
 
@@ -67,11 +68,22 @@ function AdminAdsScreen() {
     const pendingIds = Array.from(selectedAds).filter((id) => items.find((a) => String(a.id) === id)?.status === 'pending');
     if (pendingIds.length === 0) return;
     setUpdating(true);
+    captureBreadcrumb('Admin ad bulk approval started', 'admin.approval', {
+      action: 'approve',
+      actor: 'admin_ads',
+      ad_count: pendingIds.length,
+    });
     try {
       const results = await Promise.allSettled(
         pendingIds.map((adId) => AdsApi.review(adId, 'approve'))
       );
       const failed = results.filter((r) => r.status === 'rejected').length;
+      captureBreadcrumb('Admin ad bulk approval completed', 'admin.approval', {
+        action: 'approve',
+        actor: 'admin_ads',
+        ad_count: pendingIds.length,
+        failed_count: failed,
+      }, failed > 0 ? 'warning' : 'info');
       if (failed > 0) {
         Alert.alert('Partial Success', `Approved ${pendingIds.length - failed} ad(s), ${failed} failed`);
       } else {
@@ -81,6 +93,12 @@ function AdminAdsScreen() {
       setBulkMode(false);
       await load();
     } catch (e: any) {
+      captureBreadcrumb('Admin ad bulk approval failed', 'admin.approval', {
+        action: 'approve',
+        actor: 'admin_ads',
+        ad_count: pendingIds.length,
+        error: e?.message || 'unknown_error',
+      }, 'error');
       Alert.alert('Error', e?.message || 'Failed to approve ads');
     } finally {
       setUpdating(false);
@@ -101,11 +119,22 @@ function AdminAdsScreen() {
           style: 'destructive',
           onPress: async () => {
             setUpdating(true);
+            captureBreadcrumb('Admin ad bulk rejection started', 'admin.approval', {
+              action: 'reject',
+              actor: 'admin_ads',
+              ad_count: pendingIds.length,
+            });
             try {
               const results = await Promise.allSettled(
                 pendingIds.map((adId) => AdsApi.review(adId, 'reject'))
               );
               const failed = results.filter((r) => r.status === 'rejected').length;
+              captureBreadcrumb('Admin ad bulk rejection completed', 'admin.approval', {
+                action: 'reject',
+                actor: 'admin_ads',
+                ad_count: pendingIds.length,
+                failed_count: failed,
+              }, failed > 0 ? 'warning' : 'info');
               if (failed > 0) {
                 Alert.alert('Partial Success', `Rejected ${pendingIds.length - failed} ad(s), ${failed} failed`);
               } else {
@@ -115,6 +144,12 @@ function AdminAdsScreen() {
               setBulkMode(false);
               await load();
             } catch (e: any) {
+              captureBreadcrumb('Admin ad bulk rejection failed', 'admin.approval', {
+                action: 'reject',
+                actor: 'admin_ads',
+                ad_count: pendingIds.length,
+                error: e?.message || 'unknown_error',
+              }, 'error');
               Alert.alert('Error', e?.message || 'Failed to reject ads');
             } finally {
               setUpdating(false);
@@ -453,11 +488,28 @@ function AdminAdsScreen() {
                   const { adId, action } = reviewModal;
                   setReviewModal(null);
                   setReviewingAdId(adId);
+                  captureBreadcrumb('Admin ad review started', 'admin.approval', {
+                    action,
+                    actor: 'admin_ads',
+                    ad_id: adId,
+                    has_note: reviewNote.trim().length > 0,
+                  });
                   try {
                     await AdsApi.review(adId, action, reviewNote.trim() || undefined);
+                    captureBreadcrumb('Admin ad review succeeded', 'admin.approval', {
+                      action,
+                      actor: 'admin_ads',
+                      ad_id: adId,
+                    });
                     Alert.alert('Success', `Ad ${action === 'approve' ? 'approved' : 'rejected'}`);
                     await load();
                   } catch (e: any) {
+                    captureBreadcrumb('Admin ad review failed', 'admin.approval', {
+                      action,
+                      actor: 'admin_ads',
+                      ad_id: adId,
+                      error: e?.message || 'unknown_error',
+                    }, 'error');
                     Alert.alert('Error', e?.message || `Failed to ${action}`);
                   } finally {
                     setReviewingAdId(null);

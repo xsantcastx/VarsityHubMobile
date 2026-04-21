@@ -351,8 +351,8 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                 expandStyle={styles.captionOverlayToggle}
               />
               <View style={styles.mediaStatsRow}>
-                <StatPill icon="arrow-up" value={upvotesCount} />
-                <StatPill icon="chatbubble-ellipses" value={post.comments_count || 0} />
+                <StatPill icon="arrow-upward" value={upvotesCount} />
+                <StatPill icon="chat-bubble-outline" value={post.comments_count || 0} />
               </View>
               {isVideo ? (
                 <View style={styles.playOverlay}>
@@ -390,8 +390,8 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                 expandStyle={styles.textTileCaptionToggle}
               />
               <View style={styles.mediaStatsRow}>
-                <StatPill icon="arrow-up" value={upvotesCount} />
-                <StatPill icon="chatbubble-ellipses" value={post.comments_count || 0} />
+                <StatPill icon="arrow-upward" value={upvotesCount} />
+                <StatPill icon="chat-bubble-outline" value={post.comments_count || 0} />
               </View>
             </View>
           )}

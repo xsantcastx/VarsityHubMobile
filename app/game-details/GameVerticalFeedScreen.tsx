@@ -183,6 +183,7 @@ const FeedCard = memo(
     isMuted: boolean;
     onToggleMute: () => void;
   }) => {
+    const router = useRouter();
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -435,7 +436,18 @@ const FeedCard = memo(
         </Pressable>
 
         <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}>
-          <Text style={styles.authorNameBottom}>{authorLabel}</Text>
+          <Pressable
+            onPress={() => {
+              if (post.author?.id) {
+                router.push(`/user-profile?id=${encodeURIComponent(post.author.id)}` as any);
+              }
+            }}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${authorLabel} profile`}
+            hitSlop={8}
+          >
+            <Text style={styles.authorNameBottom}>{authorLabel}</Text>
+          </Pressable>
           <ExpandableText
             text={post.caption}
             maxLines={3}
@@ -445,9 +457,18 @@ const FeedCard = memo(
         </View>
 
         <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
-          {/* Only show follow button if it's not the user's own post */}
+          {/* Avatar taps the poster's profile (no longer a follow toggle with a red "+" overlay) */}
           {post.author?.id !== meInfo?.id ? (
-            <Pressable onPress={onToggleFollow} style={styles.railAvatarBtn}>
+            <Pressable
+              onPress={() => {
+                if (post.author?.id) {
+                  router.push(`/user-profile?id=${encodeURIComponent(post.author.id)}` as any);
+                }
+              }}
+              style={styles.railAvatarBtn}
+              accessibilityRole="link"
+              accessibilityLabel={`Open ${authorLabel} profile`}
+            >
               {post.author?.avatar_url ? (
                 <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
               ) : (
@@ -457,11 +478,6 @@ const FeedCard = memo(
                   </Text>
                 </View>
               )}
-              {!post.is_following_author ? (
-                <View style={styles.railFollowPlus}>
-                  <Ionicons name="add" size={16} color={Colors[colorScheme].text} />
-                </View>
-              ) : null}
             </Pressable>
           ) : null}
 
@@ -680,7 +696,7 @@ function GameVerticalFeedScreen({
     display_name?: string | null;
     username?: string | null;
   } | null>(null);
-  const [isMuted] = useState(true); // videos always muted v1.0.2
+  const [isMuted] = useState(false); // v1.0.3: videos play with audio by default per product direction
   const headerTitle = title || game?.title || 'Game';
 
   // Store VideoPlayer instances by post id

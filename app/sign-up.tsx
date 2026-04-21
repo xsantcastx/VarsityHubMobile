@@ -15,7 +15,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { useAuth } from '@/context/AuthProvider';
-import { captureException } from '@/utils/sentry';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -53,6 +53,10 @@ export default function SignUpScreen() {
 
   const attemptRegistration = async (attempt: number = 1): Promise<any> => {
     setRetryCount(attempt > 1 ? attempt : 0);
+    captureBreadcrumb('Registration attempt started', 'auth.sign_up', {
+      method: 'email',
+      attempt,
+    });
     
     try {
       const sanitizedEmail = sanitizeEmail(email);
@@ -85,6 +89,10 @@ export default function SignUpScreen() {
                               e?.message?.includes('fetch');
       
       if (isRetryableError && attempt < 3) {
+        captureBreadcrumb('Registration retry scheduled', 'auth.sign_up', {
+          method: 'email',
+          next_attempt: attempt + 1,
+        }, 'warning');
         setRetryCount(attempt);
         // Wait a bit before retry (exponential backoff)
         await new Promise(resolve => setTimeout(resolve, attempt * 2000));
@@ -116,6 +124,9 @@ export default function SignUpScreen() {
 
     try {
       const res: any = await attemptRegistration();
+      captureBreadcrumb('Registration succeeded', 'auth.sign_up', {
+        method: 'email',
+      });
       // Registration response already saved tokens — AuthProvider will pick them up.
       // Don't call checkAuth() here to avoid a navigation race with router.replace below.
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'email', role: 'fan' });
@@ -128,6 +139,9 @@ export default function SignUpScreen() {
       }
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Registration failed after all attempts:', e);
+      captureBreadcrumb('Registration failed', 'auth.sign_up', {
+        method: 'email',
+      }, 'warning');
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-final' },
       });
@@ -169,15 +183,27 @@ export default function SignUpScreen() {
     setError(null);
     try {
       trackTap('auth_google_tap', { screen: 'sign_up' });
+      captureBreadcrumb('Registration started', 'auth.sign_up', {
+        method: 'google',
+      });
       await signInWithGoogle();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'google' });
       // Let AuthProvider handle routing (onboarding vs tabs)
       await checkAuth();
+      captureBreadcrumb('Registration succeeded', 'auth.sign_up', {
+        method: 'google',
+      });
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        captureBreadcrumb('Registration cancelled', 'auth.sign_up', {
+          method: 'google',
+        });
         return;
       }
+      captureBreadcrumb('Registration failed', 'auth.sign_up', {
+        method: 'google',
+      }, 'warning');
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'google-signup' } });
       setError(message);
     }
@@ -198,17 +224,29 @@ export default function SignUpScreen() {
     setError(null);
     try {
       trackTap('auth_apple_tap', { screen: 'sign_up' });
+      captureBreadcrumb('Registration started', 'auth.sign_up', {
+        method: 'apple',
+      });
       await signInWithApple();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'apple' });
       // Let AuthProvider handle routing (onboarding vs tabs)
       await checkAuth();
+      captureBreadcrumb('Registration succeeded', 'auth.sign_up', {
+        method: 'apple',
+      });
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
       const message = e?.message || 'Apple sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        captureBreadcrumb('Registration cancelled', 'auth.sign_up', {
+          method: 'apple',
+        });
         return;
       }
+      captureBreadcrumb('Registration failed', 'auth.sign_up', {
+        method: 'apple',
+      }, 'warning');
       setError(message);
     }
   };

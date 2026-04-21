@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthProvider';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let Notifications: any = null;
@@ -35,11 +36,18 @@ export function NotificationTapHandler() {
       const str = (v: unknown): string | null => (v != null && typeof v === 'string' ? v : null);
 
       devLog('[Notifications] User tapped notification:', data.type);
+      captureBreadcrumb('Push notification tapped', 'notifications.tap', {
+        type: data.type,
+      });
 
       // Guard: protected routes require auth
       const isProtected = !['coach_approved', 'coach_rejected'].includes(data.type);
       if (isProtected && !user) {
         devLog('[Notifications] User not authenticated, redirecting to sign-in');
+        captureBreadcrumb('Push notification redirected to sign-in', 'notifications.tap', {
+          type: data.type,
+          reason: 'auth-required',
+        }, 'warning');
         router.replace('/sign-in' as any);
         return;
       }
@@ -200,9 +208,16 @@ export function NotificationTapHandler() {
 
           default:
             devLog('[Notifications] Unknown notification type:', data.type);
+            captureBreadcrumb('Unknown push notification type', 'notifications.tap', {
+              type: data.type,
+            }, 'warning');
         }
       } catch (error) {
         if (__DEV__) console.error('[Notifications] Navigation error:', error);
+        captureException(error, {
+          tags: { context: 'notification-tap-navigation' },
+          extra: { type: data?.type },
+        });
       }
     });
 

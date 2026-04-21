@@ -19,6 +19,7 @@ import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import OnboardingLayout from './components/OnboardingLayout';
 
 function Step3League() {
@@ -301,6 +302,9 @@ function Step3League() {
 
   // Request to join an organization
   const requestToJoin = async (org: any) => {
+    captureBreadcrumb('Join organization modal opened', 'onboarding.step3', {
+      org_type: org?.org_type || orgType || 'unknown',
+    });
     setSelectedOrg(org);
     setRequestingJoin(true);
   };
@@ -309,6 +313,10 @@ function Step3League() {
     if (!selectedOrg) return;
     
     setSaving(true);
+    captureBreadcrumb('Join organization request started', 'onboarding.step3', {
+      org_type: selectedOrg.org_type || orgType || 'unknown',
+      has_message: !!joinMessage.trim(),
+    });
     try {
       await httpPost('/organizations/join-requests', {
         organization_id: selectedOrg.id,
@@ -334,7 +342,16 @@ function Step3League() {
         `Your request to join "${selectedOrg.name}" has been sent. You'll see a waiting screen while the league admin reviews your request, then you'll be walked through the coach agreement and setup.`,
         [{ text: 'Continue' }]
       );
+      captureBreadcrumb('Join organization request succeeded', 'onboarding.step3', {
+        org_type: selectedOrg.org_type || orgType || 'unknown',
+      });
     } catch (error: any) {
+      captureBreadcrumb('Join organization request failed', 'onboarding.step3', {
+        org_type: selectedOrg.org_type || orgType || 'unknown',
+      }, 'warning');
+      captureException(typeof error === 'string' ? new Error(error) : error, {
+        tags: { context: 'onboarding-step-3-join-request' },
+      });
       Alert.alert('Request Failed', error?.data?.error || error?.message || 'Failed to send join request');
     } finally {
       setSaving(false);
@@ -348,6 +365,11 @@ function Step3League() {
     if (!canContinue || saving) return;
 
     setSaving(true);
+    captureBreadcrumb('Onboarding step 3 submit started', 'onboarding.step3', {
+      mode: alreadyExists || ob.join_request_pending ? 'existing-or-pending' : (showSearch ? 'search' : 'create'),
+      org_type: orgType || existingOrg?.org_type || existingTeam?.organization?.org_type || 'unknown',
+      has_supporting_doc: !!supportingDocumentUrl || !!supportingDocumentUri,
+    });
     try {
       // If team/org already exists or join request pending, complete onboarding
       if (alreadyExists || ob.join_request_pending) {
@@ -383,6 +405,10 @@ function Step3League() {
         }
         checkAuth().catch(() => {});
         if (isPendingJoin) {
+          captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
+            mode: 'pending-join',
+            next: 'pending-approval',
+          });
           // v1.0.2 pass 5 fix: coach with pending join request goes to pending-approval screen
           // (was incorrectly routing to /(tabs), which skipped the waiting UI entirely and left the
           // user confused about what state they were in). pending-approval polls for approval and
@@ -396,6 +422,10 @@ function Step3League() {
           } as any);
         } else {
           // Existing org/team — go to coach agreement
+          captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
+            mode: 'existing-org',
+            next: 'coach-agreement',
+          });
           router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
         }
         return;
@@ -405,6 +435,9 @@ function Step3League() {
       let docUrl = supportingDocumentUrl;
       if (!docUrl && supportingDocumentUri) {
         setUploadingDocument(true);
+        captureBreadcrumb('Supporting document upload started', 'onboarding.step3', {
+          file_type: supportingDocumentName?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image',
+        });
         try {
           const isPdf = supportingDocumentName?.toLowerCase().endsWith('.pdf');
           const fileName = supportingDocumentName || 'supporting-doc.jpg';
@@ -412,7 +445,16 @@ function Step3League() {
           const result = await uploadFile(getApiBaseUrl(), supportingDocumentUri, fileName, mimeType);
           docUrl = result?.url || result?.secure_url || result?.path || (typeof result === 'string' ? result : null);
           if (docUrl) setSupportingDocumentUrl(docUrl);
+          captureBreadcrumb('Supporting document upload succeeded', 'onboarding.step3', {
+            file_type: supportingDocumentName?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image',
+          });
         } catch (uploadErr: any) {
+          captureBreadcrumb('Supporting document upload failed', 'onboarding.step3', {
+            file_type: supportingDocumentName?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image',
+          }, 'warning');
+          captureException(typeof uploadErr === 'string' ? new Error(uploadErr) : uploadErr, {
+            tags: { context: 'onboarding-step-3-supporting-document-upload' },
+          });
           Alert.alert('Upload Failed', String(uploadErr?.message || uploadErr || 'Could not upload supporting document. Please try again.'));
           setSaving(false);
           setUploadingDocument(false);
@@ -477,11 +519,22 @@ function Step3League() {
 
       // Navigate to league-pending-approval — coach waits for org + coach approval
       checkAuth().catch(() => {});
+      captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
+        mode: 'create-org',
+        next: 'league-pending-approval',
+      });
       router.replace({
         pathname: '/onboarding/league-pending-approval',
         params: { leagueName: orgName.trim(), orgId: orgId },
       } as any);
     } catch (e: any) { 
+      captureBreadcrumb('Onboarding step 3 submit failed', 'onboarding.step3', {
+        mode: showSearch ? 'search' : 'create',
+        org_type: orgType || 'unknown',
+      }, 'warning');
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'onboarding-step-3' },
+      });
       // Check if duplicate organization error
       if (e?.message?.includes('DUPLICATE_ORGANIZATION') || e?.message?.toLowerCase().includes('duplicate')) {
         Alert.alert(
@@ -591,7 +644,19 @@ function Step3League() {
               <View style={styles.modeToggleBracket}>
                 <Pressable
                   style={[styles.modeToggleOption, showSearch && styles.modeToggleOptionActive]}
-                  onPress={() => setShowSearch(true)}
+                  onPress={() => {
+                    setShowSearch(true);
+                    // Symmetric reset: switching BACK to Search should also clear any
+                    // stale pending flag so the user is searching fresh. Without this,
+                    // rehydrated state from a prior session routed to pending-approval
+                    // without a new request being submitted.
+                    setOB((prev) => ({
+                      ...prev,
+                      join_request_pending: false,
+                      organization_id: undefined,
+                      organization_name: undefined,
+                    }));
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel="Search for existing organization"
                 >
@@ -600,7 +665,19 @@ function Step3League() {
                 </Pressable>
                 <Pressable
                   style={[styles.modeToggleOption, !showSearch && styles.modeToggleOptionActive]}
-                  onPress={() => { setShowSearch(false); clearOrganizations(); }}
+                  onPress={() => {
+                    setShowSearch(false);
+                    clearOrganizations();
+                    // Reset stale join-request state from a prior session/attempt so
+                    // Continue proceeds to org creation instead of routing to the
+                    // pending-approval screen based on an orphaned pending flag.
+                    setOB((prev) => ({
+                      ...prev,
+                      join_request_pending: false,
+                      organization_id: undefined,
+                      organization_name: undefined,
+                    }));
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel="Create a new organization"
                 >

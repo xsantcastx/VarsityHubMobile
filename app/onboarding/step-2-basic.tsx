@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { uploadFile } from '@/api/upload';
 import { getConfig } from '@/config/env';
 import Notifications from '@/utils/notifications';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation
@@ -208,13 +209,22 @@ export default function Step2Basic() {
       });
       if (!result.canceled && result.assets[0]) {
         setAvatarUri(result.assets[0].uri);
+        captureBreadcrumb('Onboarding avatar selected', 'onboarding.step2', {
+          role: ob.role || 'unknown',
+        });
       }
     } catch (err) {
       if (__DEV__) console.warn('[step-2] Avatar pick failed:', err);
+      captureBreadcrumb('Onboarding avatar selection failed', 'onboarding.step2', {
+        role: ob.role || 'unknown',
+      }, 'warning');
     }
   };
 
   const requestPermissions = async () => {
+    captureBreadcrumb('Onboarding permission request started', 'onboarding.step2', {
+      role: ob.role || 'unknown',
+    });
     // Push notifications — ask with explanation
     try {
       const { status: pushStatus } = await Notifications.getPermissionsAsync();
@@ -223,6 +233,7 @@ export default function Step2Basic() {
       }
     } catch (err) {
       if (__DEV__) console.warn('[step-2] Push permission request failed:', err);
+      captureBreadcrumb('Push permission request failed', 'onboarding.step2', {}, 'warning');
     }
     // Location — ask with explanation
     try {
@@ -232,6 +243,7 @@ export default function Step2Basic() {
       }
     } catch (err) {
       if (__DEV__) console.warn('[step-2] Location permission request failed:', err);
+      captureBreadcrumb('Location permission request failed', 'onboarding.step2', {}, 'warning');
     }
   };
 
@@ -306,6 +318,12 @@ export default function Step2Basic() {
     const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);
     dispatch({ type: 'SAVE_START' });
+    captureBreadcrumb('Onboarding step 2 submit started', 'onboarding.step2', {
+      role: ob.role || 'unknown',
+      affiliation,
+      has_avatar: !!avatarUri,
+      has_bio: !!bio.trim(),
+    });
     
     try {
       const updatedData = {
@@ -350,6 +368,10 @@ export default function Step2Basic() {
 
       if (currentRole === 'coach') {
         // Coaches go to step 3 (league)
+        captureBreadcrumb('Onboarding step 2 completed', 'onboarding.step2', {
+          role: 'coach',
+          next: 'step-3-league',
+        });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         setProgress(2);
         router.replace('/onboarding/step-3-league' as any);
@@ -364,6 +386,10 @@ export default function Step2Basic() {
         });
 
         // Navigate immediately — don't block on non-critical tasks
+        captureBreadcrumb('Onboarding step 2 completed', 'onboarding.step2', {
+          role: 'fan',
+          next: 'tabs',
+        });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         router.replace('/(tabs)' as any);
 
@@ -373,6 +399,9 @@ export default function Step2Basic() {
             try {
               let avatarUrl: string | undefined;
               if (avatarUri) {
+                captureBreadcrumb('Onboarding background avatar upload started', 'onboarding.step2', {
+                  role: 'fan',
+                });
                 const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg');
                 avatarUrl = uploaded?.url || uploaded?.secure_url;
               }
@@ -384,6 +413,9 @@ export default function Step2Basic() {
               }
             } catch (err) {
               if (__DEV__) console.warn('[step-2] Background avatar/bio save failed:', err);
+              captureBreadcrumb('Onboarding background avatar upload failed', 'onboarding.step2', {
+                role: 'fan',
+              }, 'warning');
             }
           })();
         }
@@ -393,6 +425,12 @@ export default function Step2Basic() {
       }
     } catch (e: any) {
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e, 'data:', e?.data);
+      captureBreadcrumb('Onboarding step 2 submit failed', 'onboarding.step2', {
+        role: ob.role || 'unknown',
+      }, 'warning');
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'onboarding-step-2' },
+      });
       dispatch({ type: 'SAVE_FAIL', error: e });
       // Surface the actual server error: check e.data (our http client), e.response?.data (axios-style)
       const serverData = e?.data || e?.response?.data;

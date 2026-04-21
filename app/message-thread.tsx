@@ -10,6 +10,7 @@ import { Message as MessageApi, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
+import { formatUserLabel } from '@/utils/userDisplay';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -240,7 +241,7 @@ function MessageThreadScreen() {
 
   const title = useMemo(() => {
     if (otherParticipant) {
-      return otherParticipant.display_name || otherParticipant.email || 'User';
+      return formatUserLabel(otherParticipant, 'User');
     }
     if (withParam) {
       const w = String(withParam);

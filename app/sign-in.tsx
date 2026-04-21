@@ -21,7 +21,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
-import { captureException } from '@/utils/sentry';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { validateEmail } from '@/utils/formUtils';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import auth from '@/api/auth';
@@ -62,6 +62,10 @@ export default function SignInScreen() {
     }
     setLoading(true);
     setError(null);
+    captureBreadcrumb('Sign-in started', 'auth.sign_in', {
+      method: 'email',
+      has_email: !!email.trim(),
+    });
     try {
       const res: any = await User.loginViaEmailPassword(email, password);
 
@@ -75,6 +79,9 @@ export default function SignInScreen() {
 
       // If email verification is needed, call checkAuth with pendingVerification flag
       if (res?.needs_verification) {
+        captureBreadcrumb('Sign-in requires verification', 'auth.sign_in', {
+          method: 'email',
+        });
         try {
           await checkAuth({ email, pendingVerification: true });
         } catch (authError) {
@@ -89,6 +96,9 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
         await checkAuth();
+        captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
+          method: 'email',
+        });
         analytics.track(ANALYTICS_EVENTS.USER_SIGNED_IN, { method: 'email' });
         // Register push token after successful login (non-blocking)
         registerPushToken().catch((err: any) => {
@@ -103,6 +113,10 @@ export default function SignInScreen() {
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
       const status = e?.status || e?.response?.status;
+      captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
+        method: 'email',
+        status: status ?? 'unknown',
+      }, 'warning');
       
       // Show user-friendly error messages
       if (status === 401) {
@@ -145,6 +159,9 @@ export default function SignInScreen() {
       return;
     }
     setError(null);
+    captureBreadcrumb('Sign-in started', 'auth.sign_in', {
+      method: 'google',
+    });
     // Clear any existing session so the new token is the only one in use (prevents wrong-account after Apple/Google)
     await auth.clearTokensOnly();
     try {
@@ -160,6 +177,9 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
+          method: 'google',
+        });
         analytics.track(ANALYTICS_EVENTS.USER_SIGNED_IN, { method: 'google' });
         // Register push token after successful login (non-blocking)
         registerPushToken().catch((err: any) => {
@@ -172,13 +192,22 @@ export default function SignInScreen() {
     } catch (e: any) {
       // Silently ignore user cancellation
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
+        captureBreadcrumb('Sign-in cancelled', 'auth.sign_in', {
+          method: 'google',
+        });
         return;
       }
 
       const message = e?.message || 'Google sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        captureBreadcrumb('Sign-in cancelled', 'auth.sign_in', {
+          method: 'google',
+        });
         return;
       }
+      captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
+        method: 'google',
+      }, 'warning');
       
       // Show user-friendly error
       if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
@@ -203,6 +232,9 @@ export default function SignInScreen() {
       return;
     }
     setError(null);
+    captureBreadcrumb('Sign-in started', 'auth.sign_in', {
+      method: 'apple',
+    });
     // Clear any existing session so the new token is the only one in use (prevents wrong-account after Google/Apple)
     await auth.clearTokensOnly();
     try {
@@ -218,6 +250,9 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
+          method: 'apple',
+        });
         analytics.track(ANALYTICS_EVENTS.USER_SIGNED_IN, { method: 'apple' });
         // Register push token after successful login (non-blocking)
         registerPushToken().catch((err: any) => {
@@ -238,8 +273,15 @@ export default function SignInScreen() {
         code.includes('cancelled') ||
         code === 'err_request_canceled'
       ) {
+        captureBreadcrumb('Sign-in cancelled', 'auth.sign_in', {
+          method: 'apple',
+        });
         return;
       }
+      captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
+        method: 'apple',
+        status: e?.status ?? 'unknown',
+      }, 'warning');
       
       // Show user-friendly error
       if (message.includes('not available in the simulator') || message.includes('simulator')) {

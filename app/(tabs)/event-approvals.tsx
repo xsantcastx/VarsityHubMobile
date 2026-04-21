@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { httpGet, httpPost, httpPut } from '@/api/http';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -200,16 +201,35 @@ export default function EventApprovalsScreen() {
 
   const handleApproveEvent = async (eventId: string) => {
     setProcessingEventId(eventId);
+    const evt = events.find(e => e.id === eventId) as any;
+    captureBreadcrumb('Event approval started', 'admin.approval', {
+      action: 'approve',
+      actor: 'coach_tools',
+      event_id: eventId,
+      is_game: !!evt?._isGame,
+    });
     try {
-      const evt = events.find(e => e.id === eventId) as any;
       if (evt?._isGame) {
         await httpPut(`/games/${eventId}/approve`, { approval_status: 'approved' });
       } else {
         await httpPut(`/events/${eventId}/approve`, {});
       }
+      captureBreadcrumb('Event approval succeeded', 'admin.approval', {
+        action: 'approve',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+      });
       Alert.alert('Approved', 'The event has been published.');
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
+      captureBreadcrumb('Event approval failed', 'admin.approval', {
+        action: 'approve',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+        error: e?.message || 'unknown_error',
+      }, 'error');
       Alert.alert('Error', e?.message || 'Failed to approve event.');
     } finally {
       setProcessingEventId(null);
@@ -229,17 +249,37 @@ export default function EventApprovalsScreen() {
     const { eventId } = rejectModal;
     setRejectModal(null);
     setProcessingEventId(eventId);
+    const evt = events.find(e => e.id === eventId) as any;
+    captureBreadcrumb('Event rejection started', 'admin.approval', {
+      action: 'reject',
+      actor: 'coach_tools',
+      event_id: eventId,
+      is_game: !!evt?._isGame,
+      has_reason: rejectReason.trim().length > 0,
+    });
     try {
-      const evt = events.find(e => e.id === eventId) as any;
       if (evt?._isGame) {
         // Games use the same approve endpoint with approval_status: 'rejected'
         await httpPut(`/games/${eventId}/approve`, { approval_status: 'rejected', reason: rejectReason.trim() || undefined });
       } else {
         await httpPut(`/events/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
       }
+      captureBreadcrumb('Event rejection succeeded', 'admin.approval', {
+        action: 'reject',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+      });
       Alert.alert('Rejected', 'The event has been rejected.');
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
+      captureBreadcrumb('Event rejection failed', 'admin.approval', {
+        action: 'reject',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+        error: e?.message || 'unknown_error',
+      }, 'error');
       Alert.alert('Error', e?.message || 'Failed to reject event.');
     } finally {
       setProcessingEventId(null);

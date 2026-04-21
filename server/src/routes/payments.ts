@@ -10,7 +10,7 @@ import { sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
-import { captureException } from '../lib/sentry.js';
+import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -716,6 +716,14 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const parsed = paymentSheetSchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
   const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
+  addBreadcrumb('Payment sheet request received', 'payments.sheet', 'info', {
+    user_id: userId,
+    flow: typeof plan === 'string' && plan.trim() ? 'subscription' : 'ad',
+    plan: plan || null,
+    ad_id: ad_id || null,
+    dates_count: Array.isArray(dates) ? dates.length : 0,
+    has_promo_code: !!promo_code,
+  });
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, stripe_customer_id: true, preferences: true } });
 
   // ── SUBSCRIPTION FLOW ──
@@ -806,6 +814,12 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         }];
 
     try {
+      addBreadcrumb('Subscription payment sheet creation started', 'payments.sheet', 'info', {
+        user_id: userId,
+        plan: chosen,
+        team_count: effectiveTeamCount,
+        organization_id: orgIdBody || null,
+      });
       const subscription = await stripe.subscriptions.create({
         customer: customerId,
         items: items as any,
@@ -847,6 +861,12 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
       });
+      addBreadcrumb('Subscription payment sheet creation succeeded', 'payments.sheet', 'info', {
+        user_id: userId,
+        plan: chosen,
+        subscription_id: subscription.id,
+        payment_intent_id: paymentIntent.id,
+      });
 
       return res.json({
         paymentIntent: paymentIntent.client_secret,
@@ -857,6 +877,11 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         subscriptionId: subscription.id,
       });
     } catch (err: any) {
+      addBreadcrumb('Subscription payment sheet creation failed', 'payments.sheet', 'error', {
+        user_id: userId,
+        plan: chosen,
+        error: err?.message || 'unknown_error',
+      });
       captureException(err, { context: 'create_payment_sheet_subscription', plan: chosen });
       const raw = err?.message || '';
       const safeMsg = /prod_|price_/i.test(raw) ? 'Unable to start subscription. Please try again or contact support.' : (raw || 'Unable to start subscription');
@@ -974,6 +999,13 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   }
 
   try {
+    addBreadcrumb('Ad payment sheet creation started', 'payments.sheet', 'info', {
+      user_id: userId,
+      ad_id: String(ad_id),
+      dates_count: isoDates.length,
+      has_promo_code: !!appliedCode,
+      total_cents: total,
+    });
     const paymentIntent = await stripe.paymentIntents.create({
       amount: total,
       currency: 'usd',
@@ -1054,6 +1086,12 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
     });
+    addBreadcrumb('Ad payment sheet creation succeeded', 'payments.sheet', 'info', {
+      user_id: userId,
+      ad_id: String(ad_id),
+      payment_intent_id: paymentIntent.id,
+      total_cents: total,
+    });
 
     return res.json({
       paymentIntent: paymentIntent.client_secret,
@@ -1064,6 +1102,11 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       amount_cents: total,
     });
   } catch (err: any) {
+    addBreadcrumb('Ad payment sheet creation failed', 'payments.sheet', 'error', {
+      user_id: userId,
+      ad_id: String(ad_id),
+      error: err?.message || 'unknown_error',
+    });
     captureException(err, { context: 'create_payment_sheet_ad', ad_id });
     return res.status(500).json({ error: err?.message || 'Unable to create payment' });
   }
@@ -1089,11 +1132,22 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   try {
     // req.body must be the raw Buffer provided by express.raw at app level
     event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
+    addBreadcrumb('Stripe webhook signature verified', 'payments.webhook', 'info', {
+      event_type: event.type,
+      event_id: event.id,
+    });
   } catch (err: any) {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
+    addBreadcrumb('Stripe webhook signature verification failed', 'payments.webhook', 'error', {
+      error: err?.message || 'unknown_error',
+    });
     captureException(err, { context: 'stripe_webhook_verification_failed' });
     return res.status(400).send('Webhook Error: Invalid signature');
   }
+  addBreadcrumb('Stripe webhook received', 'payments.webhook', 'info', {
+    event_type: event.type,
+    event_id: event.id,
+  });
 
   let dedupRecorded = false;
   const releaseWebhookDedup = async () => {
@@ -1115,6 +1169,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   } catch (dedupErr: any) {
     if (dedupErr instanceof Prisma.PrismaClientKnownRequestError && dedupErr.code === 'P2002') {
       debugLog('[webhook] Duplicate event skipped', { event_id: event.id, event_type: event.type });
+      addBreadcrumb('Stripe webhook duplicate skipped', 'payments.webhook', 'info', {
+        event_type: event.type,
+        event_id: event.id,
+      });
       return res.json({ received: true, deduplicated: true });
     }
     // Non-unique error — return 500 so Stripe retries later when DB is healthy.
@@ -1126,6 +1184,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   try {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
+    addBreadcrumb('Stripe webhook handling checkout.session.completed', 'payments.webhook', 'info', {
+      event_id: event.id,
+      session_id: session?.id || null,
+    });
     if (!session?.id) {
       console.error('[webhook] Malformed checkout.session.completed — missing session.id', { eventId: event.id });
       await releaseWebhookDedup();
@@ -1133,6 +1195,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     }
     try {
       await finalizeFromSession(session);
+      addBreadcrumb('Stripe checkout session finalized from webhook', 'payments.webhook', 'info', {
+        event_id: event.id,
+        session_id: session.id,
+      });
     } catch (e) {
       await releaseWebhookDedup();
       console.error('[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:', (e as any)?.message || e);
@@ -1144,6 +1210,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   // Send billing notification emails for subscription events
   if (event.type === 'invoice.payment_succeeded') {
     const invoice = event.data.object as Stripe.Invoice;
+    addBreadcrumb('Stripe webhook handling invoice.payment_succeeded', 'payments.webhook', 'info', {
+      event_id: event.id,
+      invoice_id: invoice.id,
+    });
     if (invoice.customer_email && invoice.subscription) {
       await sendBillingNoticeEmail({
         to: invoice.customer_email,
@@ -1176,6 +1246,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   
   if (event.type === 'invoice.payment_failed') {
     const invoice = event.data.object as Stripe.Invoice;
+    addBreadcrumb('Stripe webhook handling invoice.payment_failed', 'payments.webhook', 'warning', {
+      event_id: event.id,
+      invoice_id: invoice.id,
+    });
     // Mark user's subscription as past_due so the app can prompt for payment update
     if (invoice.customer && invoice.subscription) {
       const failedUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) } });
@@ -1199,6 +1273,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object as Stripe.Subscription;
+    addBreadcrumb('Stripe webhook handling customer.subscription.deleted', 'payments.webhook', 'warning', {
+      event_id: event.id,
+      subscription_id: subscription.id,
+    });
     const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
     if (!customerId) {
       console.error('[webhook] customer.subscription.deleted: subscription.customer is null');
@@ -1252,6 +1330,11 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   
   if (event.type === 'customer.subscription.updated') {
     const subscription = event.data.object as Stripe.Subscription;
+    addBreadcrumb('Stripe webhook handling customer.subscription.updated', 'payments.webhook', 'info', {
+      event_id: event.id,
+      subscription_id: subscription.id,
+      status: subscription.status,
+    });
     const subCustomerId = typeof subscription.customer === 'string' ? subscription.customer : null;
     if (!subCustomerId) {
       console.error('[webhook] customer.subscription.updated: subscription.customer is null');
@@ -1313,6 +1396,11 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   // affect the user's plan or ad — they kept access without paying.
   if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
     const charge = event.data.object as Stripe.Charge;
+    addBreadcrumb('Stripe webhook handling refund/dispute', 'payments.webhook', 'warning', {
+      event_id: event.id,
+      event_type: event.type,
+      charge_id: charge.id,
+    });
     const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
     const refundAmount = charge.amount_refunded || charge.amount;
     try {
@@ -1375,6 +1463,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
 
   if (event.type === 'checkout.session.expired') {
     const session = event.data.object as Stripe.Checkout.Session;
+    addBreadcrumb('Stripe webhook handling checkout.session.expired', 'payments.webhook', 'warning', {
+      event_id: event.id,
+      session_id: session.id,
+    });
     await updateTransactionStatus(session.id, 'FAILED', {
       metadata: { reason: 'checkout_expired' },
     }).catch(err => { console.error('[transaction-log] expired session update failed:', err); captureException(err as Error, { context: 'transaction_log_expired_session' }); });
@@ -1401,6 +1493,11 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   // Handle failed payment intents
   if (event.type === 'payment_intent.payment_failed') {
     const pi = event.data.object as Stripe.PaymentIntent;
+    addBreadcrumb('Stripe webhook handling payment_intent.payment_failed', 'payments.webhook', 'warning', {
+      event_id: event.id,
+      payment_intent_id: pi.id,
+      has_ad: !!pi.metadata?.ad_id,
+    });
     const meta = pi.metadata || {};
     await logTransaction({
       transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
@@ -1446,6 +1543,11 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   if (event.type === 'payment_intent.succeeded') {
     const pi = event.data.object as Stripe.PaymentIntent;
     const meta = pi.metadata || {};
+    addBreadcrumb('Stripe webhook handling payment_intent.succeeded', 'payments.webhook', 'info', {
+      event_id: event.id,
+      payment_intent_id: pi.id,
+      has_ad: !!meta.ad_id,
+    });
     if (meta.ad_id) {
       const adId = meta.ad_id;
       let piDates: string[] = [];
@@ -1493,6 +1595,11 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
 
           // Update transaction (ad payment confirmation email removed — non-mandatory)
           await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+          addBreadcrumb('Ad payment intent finalized from webhook', 'payments.webhook', 'info', {
+            event_id: event.id,
+            payment_intent_id: pi.id,
+            ad_id: adId,
+          });
           // Ad was already approved before payment — no admin review needed
 
           // Redeem promo code if one was used — retry up to 3 times to prevent reuse
@@ -1531,6 +1638,11 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
             // Auto-refund: charge the user's card back immediately
             try {
               const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
+              addBreadcrumb('Ad payment intent auto-refunded after slot conflict', 'payments.webhook', 'warning', {
+                event_id: event.id,
+                payment_intent_id: pi.id,
+                ad_id: adId,
+              });
               await updateTransactionStatus(pi.id, 'REFUNDED', {
                 metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
               });
@@ -1551,6 +1663,12 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
               }
             } catch (refundErr: any) {
               // Refund failed — this is critical, requires manual intervention
+              addBreadcrumb('Ad payment intent auto-refund failed after slot conflict', 'payments.webhook', 'error', {
+                event_id: event.id,
+                payment_intent_id: pi.id,
+                ad_id: adId,
+                error: refundErr?.message || 'unknown_error',
+              });
               console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { ad_id: adId, pi_id: pi.id, error: refundErr?.message });
               captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed', adId, piId: pi.id, amount: pi.amount });
               await updateTransactionStatus(pi.id, 'FAILED', {
@@ -2680,15 +2798,27 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     const parsed = appleReceiptSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { receipt, productId } = parsed.data;
+    addBreadcrumb('Apple subscription receipt verification requested', 'payments.apple', 'info', {
+      user_id: userId,
+      product_id: productId,
+    });
 
     const plan = APPLE_PRODUCT_TO_PLAN[productId];
     if (!plan) {
+      addBreadcrumb('Apple subscription receipt verification rejected unknown product', 'payments.apple', 'warning', {
+        user_id: userId,
+        product_id: productId,
+      });
       return res.status(400).json({ error: `Unknown product: ${productId}` });
     }
 
     // Verify with Apple — production only. Sandbox receipts rejected in production.
     let result = await verifyAppleReceipt(receipt, false);
     if (result.status === 21007) {
+      addBreadcrumb('Apple subscription receipt requested sandbox fallback', 'payments.apple', 'info', {
+        user_id: userId,
+        product_id: productId,
+      });
       if (process.env.NODE_ENV === 'production') {
         return res.status(400).json({ error: 'Sandbox receipts are not accepted in production' });
       }
@@ -2698,6 +2828,11 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
 
     if (result.status !== 0) {
       console.error('[apple-iap] Verification failed, status:', result.status);
+      addBreadcrumb('Apple subscription receipt verification failed', 'payments.apple', 'warning', {
+        user_id: userId,
+        product_id: productId,
+        apple_status: result.status,
+      });
       return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
     }
 
@@ -2728,9 +2863,18 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
       select: { user_id: true },
     });
     if (existingApplePurchase?.user_id && existingApplePurchase.user_id !== userId) {
+      addBreadcrumb('Apple subscription receipt already claimed by another account', 'payments.apple', 'warning', {
+        user_id: userId,
+        product_id: productId,
+      });
       return res.status(409).json({ error: 'Receipt already used by another account' });
     }
     if (existingApplePurchase?.user_id === userId) {
+      addBreadcrumb('Apple subscription receipt verification returned idempotent success', 'payments.apple', 'info', {
+        user_id: userId,
+        product_id: productId,
+        plan,
+      });
       return res.json({
         ok: true,
         plan,
@@ -2774,6 +2918,11 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
       }),
     ]);
     await invalidateMeCacheForUser(userId);
+    addBreadcrumb('Apple subscription receipt verification succeeded', 'payments.apple', 'info', {
+      user_id: userId,
+      product_id: productId,
+      plan,
+    });
 
     // Send confirmation email
     if (user?.email) {
@@ -2795,6 +2944,9 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     });
   } catch (err: any) {
     console.error('[apple-iap] verify-receipt error:', err);
+    addBreadcrumb('Apple subscription receipt verification crashed', 'payments.apple', 'error', {
+      error: err?.message || 'unknown_error',
+    });
     captureException(err, { tags: { context: 'apple-iap-verify' } });
     return res.status(500).json({ error: 'Receipt verification failed' });
   }
@@ -2821,6 +2973,12 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
     const parsed = appleAdReceiptSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { ad_id, dates, receipts } = parsed.data;
+    addBreadcrumb('Apple ad receipt verification requested', 'payments.apple', 'info', {
+      user_id: userId,
+      ad_id,
+      dates_count: dates.length,
+      receipts_count: receipts.length,
+    });
     if (!(await enforceAdPlan(req, res))) return;
 
     const isoDateStrings: string[] = dates.map((d: any) => String(d));
@@ -2881,6 +3039,10 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
       where: { order_id: orderId, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' } as any,
     });
     if (existing) {
+      addBreadcrumb('Apple ad receipt verification returned idempotent success', 'payments.apple', 'info', {
+        user_id: userId,
+        ad_id,
+      });
       return res.json({ ok: true, idempotent: true });
     }
 
@@ -2933,6 +3095,12 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
         } as any,
       }),
     ]);
+    addBreadcrumb('Apple ad receipt verification succeeded', 'payments.apple', 'info', {
+      user_id: userId,
+      ad_id,
+      order_id: orderId,
+      verified_cents: verifiedCents,
+    });
 
     // Ad payment confirmation email removed — non-mandatory
 
@@ -2940,6 +3108,9 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerifi
     return res.json({ ok: true });
   } catch (err: any) {
     console.error('[apple-iap] verify-ad-receipt error:', err);
+    addBreadcrumb('Apple ad receipt verification crashed', 'payments.apple', 'error', {
+      error: err?.message || 'unknown_error',
+    });
     captureException(err, { tags: { context: 'apple-iap-verify-ad' } });
     return res.status(500).json({ error: 'Receipt verification failed' });
   }
@@ -2953,8 +3124,10 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     const { signedPayload } = req.body || {};
     if (!signedPayload) {
       console.warn('[apple-s2s] Missing signedPayload');
+      addBreadcrumb('Apple server notification missing signed payload', 'payments.apple_s2s', 'warning');
       return res.sendStatus(200); // Always 200 to Apple
     }
+    addBreadcrumb('Apple server notification received', 'payments.apple_s2s', 'info');
 
     // Verify JWS signature using the x5c certificate chain from the header.
     // The leaf cert signs the payload; we verify the chain against Apple's root CA.
@@ -2965,12 +3138,16 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       const header = decoded?.header as any;
       if (!header?.x5c?.length) {
         console.error('[apple-s2s] No x5c certificate chain in JWS header — rejecting unverified payload');
+        addBreadcrumb('Apple server notification missing certificate chain', 'payments.apple_s2s', 'error');
         return res.status(400).json({ error: 'Missing certificate chain' });
       }
 
       // Step 2: Enforce ES256 algorithm — reject anything else
       if (header.alg !== 'ES256') {
         console.error('[apple-s2s] Unexpected algorithm:', header.alg, '— only ES256 is accepted');
+        addBreadcrumb('Apple server notification rejected invalid algorithm', 'payments.apple_s2s', 'error', {
+          algorithm: header.alg,
+        });
         return res.status(403).json({ error: 'Invalid algorithm' });
       }
 
@@ -2987,11 +3164,13 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       // Check CN and O fields for Apple Root CA identity
       if (!rootX509.subject.includes('Apple Root CA') || !rootX509.issuer.includes('Apple Root CA')) {
         console.error('[apple-s2s] Root cert is NOT Apple Root CA — rejecting. Subject:', rootX509.subject, 'Issuer:', rootX509.issuer);
+        addBreadcrumb('Apple server notification rejected invalid root certificate', 'payments.apple_s2s', 'error');
         return res.status(403).json({ error: 'Invalid certificate chain' });
       }
       // Verify root is self-signed
       if (!rootX509.checkIssued(rootX509)) {
         console.error('[apple-s2s] Root cert is not self-signed — rejecting');
+        addBreadcrumb('Apple server notification rejected non-self-signed root', 'payments.apple_s2s', 'error');
         return res.status(403).json({ error: 'Invalid root certificate' });
       }
 
@@ -3001,6 +3180,9 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
         const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
         if (!cert.checkIssued(issuerCert)) {
           console.error(`[apple-s2s] Certificate chain broken at index ${i} — rejecting`);
+          addBreadcrumb('Apple server notification rejected broken certificate chain', 'payments.apple_s2s', 'error', {
+            chain_index: i,
+          });
           return res.status(403).json({ error: 'Broken certificate chain' });
         }
       }
@@ -3010,11 +3192,15 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
     } catch (decodeErr) {
       console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
+      addBreadcrumb('Apple server notification verification failed', 'payments.apple_s2s', 'error', {
+        error: (decodeErr as Error)?.message || 'unknown_error',
+      });
       return res.sendStatus(200);
     }
 
     if (!payload) {
       console.error('[apple-s2s] Decoded payload is null');
+      addBreadcrumb('Apple server notification decoded payload missing', 'payments.apple_s2s', 'error');
       return res.sendStatus(200);
     }
 
@@ -3027,6 +3213,9 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     // Verify bundleId matches our app (prevents cross-app replay)
     if (data.bundleId && data.bundleId !== EXPECTED_BUNDLE_ID) {
       console.error('[apple-s2s] bundleId mismatch:', data.bundleId, 'expected:', EXPECTED_BUNDLE_ID);
+      addBreadcrumb('Apple server notification rejected bundle mismatch', 'payments.apple_s2s', 'error', {
+        notification_type: notificationType,
+      });
       return res.status(403).json({ error: 'Bundle ID mismatch' });
     }
 
@@ -3034,6 +3223,9 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
     const environment: string = data.environment || payload.environment || 'Production';
     if (process.env.NODE_ENV === 'production' && environment === 'Sandbox') {
       console.warn('[apple-s2s] Rejecting sandbox notification in production');
+      addBreadcrumb('Apple server notification ignored sandbox payload in production', 'payments.apple_s2s', 'warning', {
+        notification_type: notificationType,
+      });
       return res.sendStatus(200);
     }
 
@@ -3072,6 +3264,12 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       productId,
       environment,
     });
+    addBreadcrumb('Apple server notification decoded', 'payments.apple_s2s', 'info', {
+      notification_type: notificationType,
+      subtype,
+      product_id: productId || null,
+      environment,
+    });
 
     // Audit log — always log the notification regardless of whether we find a user
     await prisma.transactionLog.create({
@@ -3092,6 +3290,9 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
 
     if (!originalTransactionId) {
       console.warn('[apple-s2s] No originalTransactionId — cannot match user');
+      addBreadcrumb('Apple server notification missing original transaction id', 'payments.apple_s2s', 'warning', {
+        notification_type: notificationType,
+      });
       return res.sendStatus(200);
     }
 
@@ -3109,6 +3310,10 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
 
     if (!matchedUser) {
       console.warn('[apple-s2s] No user found for originalTransactionId:', originalTransactionId);
+      addBreadcrumb('Apple server notification user match missing', 'payments.apple_s2s', 'warning', {
+        notification_type: notificationType,
+        product_id: productId || null,
+      });
       return res.sendStatus(200);
     }
 
@@ -3124,6 +3329,11 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       notificationType === 'DID_RENEW' ||
       notificationType === 'SUBSCRIBED'
     ) {
+      addBreadcrumb('Apple server notification applying active subscription state', 'payments.apple_s2s', 'info', {
+        user_id: userId,
+        notification_type: notificationType,
+        subtype,
+      });
       // Renewal or new subscription — activate and extend expiry
       const plan = APPLE_PRODUCT_TO_PLAN[productId] || prefs.plan || 'veteran';
       const newExpiry = expiresDate ? new Date(expiresDate).toISOString() : prefs.apple_expires_date;
@@ -3153,12 +3363,21 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
         }),
       ]);
       await invalidateMeCacheForUser(userId);
+      addBreadcrumb('Apple server notification applied active subscription state', 'payments.apple_s2s', 'info', {
+        user_id: userId,
+        notification_type: notificationType,
+      });
       debugLog('apple-s2s', `User ${userId} renewed/subscribed — plan: ${plan}`);
 
     } else if (
       notificationType === 'DID_FAIL_TO_RENEW' ||
       (notificationType === 'GRACE_PERIOD' || subtype === 'GRACE_PERIOD')
     ) {
+      addBreadcrumb('Apple server notification applying grace/past-due state', 'payments.apple_s2s', 'warning', {
+        user_id: userId,
+        notification_type: notificationType,
+        subtype,
+      });
       // v1.0.2 pass 8: previously we marked past_due but never recorded WHEN the grace period
       // expires. If Apple's EXPIRED notification was lost (network failure, missed delivery),
       // the user kept Premium access indefinitely. Now we record an explicit cutoff so a
@@ -3186,6 +3405,10 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
         }),
       ]);
       await invalidateMeCacheForUser(userId);
+      addBreadcrumb('Apple server notification applied grace/past-due state', 'payments.apple_s2s', 'warning', {
+        user_id: userId,
+        notification_type: notificationType,
+      });
       console.warn('[apple-s2s] Marked user as past_due with grace period expiry:', { userId, graceExpiresAt });
 
     } else if (
@@ -3193,6 +3416,11 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
       notificationType === 'REVOKE' ||
       notificationType === 'REFUND'
     ) {
+      addBreadcrumb('Apple server notification applying downgrade state', 'payments.apple_s2s', 'warning', {
+        user_id: userId,
+        notification_type: notificationType,
+        subtype,
+      });
       // Expired, revoked, or refunded — downgrade to rookie
       const previousPlan = prefs.plan || 'rookie';
       const downgradedPrefs = { ...prefs };
@@ -3227,6 +3455,10 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
         }),
       ]);
       await invalidateMeCacheForUser(userId);
+      addBreadcrumb('Apple server notification applied downgrade state', 'payments.apple_s2s', 'warning', {
+        user_id: userId,
+        notification_type: notificationType,
+      });
       debugLog('apple-s2s', `User ${userId} downgraded to rookie — reason: ${notificationType}`);
 
       // Send billing notice for cancellation/refund
@@ -3239,12 +3471,20 @@ paymentsRouter.post('/apple/notifications', expressPkg.json(), asyncHandler(asyn
         }).catch(err => captureException(err as Error, { context: 'apple_s2s_cancel_email' }));
       }
     } else {
+      addBreadcrumb('Apple server notification ignored unsupported type', 'payments.apple_s2s', 'info', {
+        user_id: userId,
+        notification_type: notificationType,
+        subtype,
+      });
       debugLog('apple-s2s', `Unhandled notification type: ${notificationType}/${subtype} for user ${userId}`);
     }
 
     return res.sendStatus(200);
   } catch (err: any) {
     console.error('[apple-s2s] Error processing notification:', err);
+    addBreadcrumb('Apple server notification processing crashed', 'payments.apple_s2s', 'error', {
+      error: err?.message || 'unknown_error',
+    });
     captureException(err, { tags: { context: 'apple-s2s-notification' } });
     // Always return 200 so Apple doesn't retry indefinitely
     return res.sendStatus(200);

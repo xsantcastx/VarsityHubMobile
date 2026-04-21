@@ -7,6 +7,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 let useRNIAP: any = () => ({});
@@ -57,13 +58,25 @@ export function useAdIAP() {
       if (!pending || !isIOS) return;
       const pid = purchase?.productId;
       if (pid !== AD_IAP_PRODUCT_IDS.weekday && pid !== AD_IAP_PRODUCT_IDS.weekend) return;
+      captureBreadcrumb('Ad store purchase received', 'payments.ad', {
+        product_id: pid,
+        ad_id: pending.adId,
+      });
 
       try {
         let receipt: string | undefined;
         try {
           receipt = await getReceiptIOS();
+          captureBreadcrumb('Ad receipt fetched', 'payments.ad', {
+            product_id: pid,
+            source: 'getReceiptIOS',
+          });
         } catch {
           receipt = (purchase as any).transactionReceipt;
+          captureBreadcrumb('Ad receipt fallback used', 'payments.ad', {
+            product_id: pid,
+            source: 'transactionReceipt',
+          }, 'warning');
         }
         if (receipt) {
           pending.receipts.push({
@@ -72,9 +85,22 @@ export function useAdIAP() {
             quantity: (purchase as any).quantity ?? 1,
           });
         }
+        captureBreadcrumb('Ad store transaction finish started', 'payments.ad', {
+          product_id: pid,
+          ad_id: pending.adId,
+        });
         await rnFinishTransaction({ purchase, isConsumable: true });
+        captureBreadcrumb('Ad store transaction finished', 'payments.ad', {
+          product_id: pid,
+          ad_id: pending.adId,
+        });
       } catch (err) {
         if (__DEV__) console.warn('[useAdIAP] Receipt/finish failed:', (err as Error)?.message);
+        captureBreadcrumb('Ad purchase processing failed', 'payments.ad', {
+          product_id: pid,
+          ad_id: pending.adId,
+          error: (err as Error)?.message || 'unknown_error',
+        }, 'warning');
       }
 
       const { weekdayBlocks, weekendBlocks } = pending;
@@ -88,20 +114,39 @@ export function useAdIAP() {
         pendingAdRef.current = null;
         setPurchasing(false);
         try {
+          captureBreadcrumb('Ad receipt verification started', 'payments.ad', {
+            ad_id: pending.adId,
+            receipts_count: pending.receipts.length,
+            weekday_blocks: weekdayBlocks,
+            weekend_blocks: weekendBlocks,
+          });
           const res = await httpPost('/payments/apple/verify-ad-receipt', {
             ad_id: pending.adId,
             dates: pending.dates,
             receipts: pending.receipts,
           });
+          captureBreadcrumb('Ad receipt verification completed', 'payments.ad', {
+            ad_id: pending.adId,
+            ok: !!res?.ok,
+          });
           pending.resolve({ ok: !!res?.ok });
         } catch (err: any) {
           if (__DEV__) console.error('[useAdIAP] verify-ad-receipt error:', err);
           const msg = err?.message || 'Verification failed';
+          captureBreadcrumb('Ad receipt verification failed', 'payments.ad', {
+            ad_id: pending.adId,
+            error: msg,
+          }, 'error');
           setError(msg);
           pending.resolve({ ok: false, error: msg });
         }
       } else if (needWeekend && !hasWeekend) {
         // Set a 2-minute timeout to prevent UI getting stuck if Apple IAP stalls
+        captureBreadcrumb('Ad purchase requesting weekend follow-up transaction', 'payments.ad', {
+          ad_id: pending.adId,
+          weekday_blocks: weekdayBlocks,
+          weekend_blocks: weekendBlocks,
+        });
         const iapTimeout = setTimeout(() => {
           const p = pendingAdRef.current;
           if (p) {
@@ -109,12 +154,18 @@ export function useAdIAP() {
             p.resolve({ ok: false, error: 'Purchase timed out. Please try again.' });
           }
           setPurchasing(false);
+          captureBreadcrumb('Ad purchase timed out waiting for second transaction', 'payments.ad', {
+            ad_id: pending.adId,
+          }, 'warning');
         }, 120000);
         rnRequestPurchase({
           type: 'in-app',
           request: { apple: { sku: AD_IAP_PRODUCT_IDS.weekend, quantity: weekendBlocks } },
         }).catch(() => {
           clearTimeout(iapTimeout);
+          captureBreadcrumb('Ad weekend follow-up purchase request failed to start', 'payments.ad', {
+            ad_id: pending.adId,
+          }, 'warning');
         });
       }
     },
@@ -128,10 +179,17 @@ export function useAdIAP() {
         }
         setPurchasing(false);
         setError(null);
+        captureBreadcrumb('Ad purchase cancelled', 'payments.ad', {
+          code: err?.code,
+        });
         return;
       }
       if (__DEV__) console.warn('[useAdIAP] purchase error:', err);
       const errMsg = msg || 'Purchase failed';
+      captureBreadcrumb('Ad purchase failed', 'payments.ad', {
+        code: err?.code,
+        error: errMsg,
+      }, 'error');
       const p = pendingAdRef.current;
       if (p) {
         pendingAdRef.current = null;
@@ -147,6 +205,9 @@ export function useAdIAP() {
     if (!connected) return;
     fetchProducts({ skus: AD_SKUS, type: 'in-app' }).catch((err: unknown) => {
       if (__DEV__) console.warn('[useAdIAP] fetchProducts failed:', err);
+      captureBreadcrumb('Ad products load failed', 'payments.ad', {
+        error: err instanceof Error ? err.message : 'unknown_error',
+      }, 'warning');
       setError(err instanceof Error ? err.message : 'Failed to load ad products');
     });
   }, [connected, fetchProducts]);
@@ -163,6 +224,12 @@ export function useAdIAP() {
 
       setPurchasing(true);
       setError(null);
+      captureBreadcrumb('Ad purchase requested', 'payments.ad', {
+        ad_id: adId,
+        dates_count: dates.length,
+        weekday_blocks: weekdayBlocks,
+        weekend_blocks: weekendBlocks,
+      });
 
       return new Promise<{ ok: boolean; error?: string }>((resolve) => {
         pendingAdRef.current = {
@@ -193,6 +260,10 @@ export function useAdIAP() {
           } catch (err: any) {
             if (__DEV__) console.error('[useAdIAP] requestPurchase error:', err);
             const errMsg = err?.message || 'Purchase failed';
+            captureBreadcrumb('Ad purchase request failed', 'payments.ad', {
+              ad_id: adId,
+              error: errMsg,
+            }, 'error');
             const p = pendingAdRef.current;
             if (p) {
               pendingAdRef.current = null;

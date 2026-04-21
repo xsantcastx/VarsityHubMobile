@@ -11,6 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Notification, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import {
+  getNotificationHref,
+  getNotificationTitle,
+  isSystemNotification,
+} from '@/utils/notificationPresentation';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 
 type Notif = {
@@ -107,90 +112,11 @@ function NotificationsScreen() {
 
   const renderItem = ({ item }: { item: Notif }) => {
     const actorName = item.actor?.username ? `@${item.actor.username}` : (item.actor?.display_name || 'Someone');
-    const title = item.type === 'FOLLOW' && item.meta?.follow_rejected
-      ? `${actorName} declined your follow request`
-      : item.type === 'FOLLOW'
-      ? `${actorName} followed you`
-      : item.type === 'FOLLOW_REQUEST'
-      ? `${actorName} requested to follow you`
-      : item.type === 'UPVOTE'
-      ? `${actorName} upvoted your post`
-      : item.type === 'COMMENT'
-      ? `${actorName} commented on your post`
-      : item.type === 'MESSAGE'
-      ? `${actorName} sent you a message`
-      : item.type === 'TEAM_INVITE' && item.meta?.coach_approved
-      ? `${item.meta?.organization_name || 'A league'} approved your coach application`
-      : item.type === 'TEAM_INVITE' && item.meta?.coach_request
-      ? `${item.meta?.coach_name || actorName} wants to join ${item.meta?.organization_name || 'your league'}`
-      : item.type === 'TEAM_INVITE'
-      ? `${actorName} invited you to a team`
-      : item.type === 'MENTION'
-      ? `${actorName} mentioned you`
-      : item.type === 'COMMENT_REPLY'
-      ? `${actorName} replied to your comment`
-      : item.type === 'SHARE'
-      ? `${actorName} shared your post`
-      : item.type === 'GAME_REMINDER'
-      ? `Game reminder: ${(item.event?.title || item.meta?.event_title) || 'Your game'}`
-      : item.type === 'AD_APPROVED'
-      ? `Your ad${item.meta?.business_name ? ` for "${item.meta.business_name}"` : ''} has been approved! Tap to complete payment.`
-      : item.type === 'AD_REJECTED'
-      ? `Your ad${item.meta?.business_name ? ` for "${item.meta.business_name}"` : ''} needs changes.${item.meta?.reason ? ` ${item.meta.reason}` : ' Please review and resubmit.'}`
-      : item.type === 'ORG_APPROVED'
-      ? `Your organization${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} has been approved!`
-      : item.type === 'JOIN_REQUEST_APPROVED'
-      ? (item.meta?.denied
-        ? `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
-        : `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was approved!`)
-      : item.type === 'JOIN_REQUEST_DENIED'
-      ? `Your request to join${item.meta?.organization_name ? ` "${item.meta.organization_name}"` : ''} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
-      : item.type === 'EVENT_APPROVED'
-      ? `Your event${item.meta?.event_title ? ` "${item.meta.event_title}"` : ''} has been approved!`
-      : item.type === 'EVENT_REJECTED'
-      ? `Your event${item.meta?.event_title ? ` "${item.meta.event_title}"` : ''} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
-      : item.type === 'COACH_REJECTED'
-      ? `Your application to join ${item.meta?.organization_name || 'the league'} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`
-      : 'Notification';
+    const title = getNotificationTitle(item);
     const onPress = () => {
-      if ((item.type === 'FOLLOW' || item.type === 'FOLLOW_REQUEST') && item.actor?.id) {
-        router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}` as any);
-      } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT' || item.type === 'MENTION' || item.type === 'COMMENT_REPLY' || item.type === 'SHARE') && item.post?.id) {
-        const q = (item.type === 'MENTION' || item.type === 'COMMENT_REPLY') && item.comment?.id
-          ? `?id=${encodeURIComponent(item.post.id)}&commentId=${encodeURIComponent(item.comment.id)}`
-          : `?id=${encodeURIComponent(item.post.id)}`;
-        router.push(`/post-detail${q}` as any);
-      } else if (item.type === 'MESSAGE' && item.message?.conversation_id) {
-        router.push(`/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}` as any);
-      } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_request) {
-        router.push('/approvals' as any);
-      } else if (item.type === 'TEAM_INVITE' && item.meta?.coach_approved) {
-        router.push('/(tabs)/create-team' as any);
-      } else if (item.type === 'TEAM_INVITE') {
-        router.push('/team-invites');
-      } else if (item.type === 'GAME_REMINDER' && (item.event?.id || item.meta?.event_id)) {
-        router.push(`/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}` as any);
-      } else if (item.type === 'AD_APPROVED' && item.meta?.ad_id) {
-        router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
-      } else if (item.type === 'AD_REJECTED' && item.meta?.ad_id) {
-        router.push(`/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}` as any);
-      } else if (item.type === 'ORG_APPROVED') {
-        // Org approved — take coach to role onboarding to complete setup
-        router.push('/role-onboarding' as any);
-      } else if (item.type === 'JOIN_REQUEST_APPROVED') {
-        if (item.meta?.denied) {
-          // Legacy denial stored as JOIN_REQUEST_APPROVED with denied:true
-          router.push('/(tabs)' as any);
-        } else {
-          const oid = item.meta?.organization_id;
-          router.push(oid ? { pathname: '/(tabs)/organization', params: { id: oid } } as any : '/(tabs)' as any);
-        }
-      } else if (item.type === 'JOIN_REQUEST_DENIED') {
-        router.push('/(tabs)' as any);
-      } else if ((item.type === 'EVENT_APPROVED' || item.type === 'EVENT_REJECTED') && item.meta?.event_id) {
-        router.push(`/event-detail?id=${encodeURIComponent(item.meta.event_id)}` as any);
-      } else if (item.type === 'COACH_REJECTED') {
-        router.push('/(tabs)' as any);
+      const href = getNotificationHref(item);
+      if (href) {
+        router.push(href as any);
       }
       // Mark read optimistically
       if (!item.read_at) {
@@ -213,7 +139,7 @@ function NotificationsScreen() {
             <MaterialIcons name="person" size={20} color={theme.mutedText} />
           </View>
           {/* System notifications (no sender) show VarsityHub logo */}
-          {(!item.actor || ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED', 'JOIN_REQUEST_DENIED'].includes(item.type)) && ['GAME_REMINDER', 'ORG_APPROVED', 'AD_APPROVED', 'AD_REJECTED', 'EVENT_APPROVED', 'EVENT_REJECTED', 'COACH_REJECTED', 'JOIN_REQUEST_APPROVED', 'JOIN_REQUEST_DENIED'].includes(item.type) ? (
+          {(!item.actor || isSystemNotification(item)) && isSystemNotification(item) ? (
             <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png' }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel="VarsityHub" />
           ) : item.actor?.avatar_url ? (
             <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel={`${actorName} avatar`} />

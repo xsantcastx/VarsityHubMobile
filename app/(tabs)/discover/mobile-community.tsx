@@ -1298,11 +1298,13 @@ function CommunityDiscoverScreen() {
 
           {/* Full Map View */}
           {(() => {
-            // Filter to upcoming games with coordinates only
+            // Filter to upcoming games with coordinates only.
+            // Strict: require a valid future date — undated games shouldn't show on a
+            // nearby-games map (TBD games have no location meaning yet).
             const now = new Date();
             const allGamesWithCoords = games.filter(g => {
               if (typeof g.latitude !== 'number' || typeof g.longitude !== 'number') return false;
-              if (!g.date) return true; // keep undated games
+              if (!g.date) return false;
               const d = new Date(g.date);
               return !isNaN(d.getTime()) && d >= now;
             });

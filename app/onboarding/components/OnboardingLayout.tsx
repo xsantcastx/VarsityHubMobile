@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ReactNode, useEffect, useState } from 'react';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { safeGoBack } from '@/utils/navigation';
@@ -44,6 +44,22 @@ export default function OnboardingLayout({
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
   const { state: ob } = useOnboarding();
+
+  // Track keyboard so the footer's home-indicator padding collapses when the
+  // keyboard is open. Without this, the ~34px bottom safe-area inset showed as
+  // a visible white strip between the Continue button and the keyboard top
+  // (the "white tab above the keyboard" complaint).
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Fans have 2 steps (role + basic info), coaches have 3 (+ league)
   const isFan = ob.role !== 'coach';
@@ -150,7 +166,19 @@ export default function OnboardingLayout({
           {children}
 
           {onContinue && (
-            <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+            <View
+              style={[
+                styles.footer,
+                {
+                  borderTopColor: colors.border,
+                  backgroundColor: colors.background,
+                  // Collapse the home-indicator safe-area padding while the keyboard
+                  // is open — KeyboardAvoidingView already pushes the footer up to
+                  // meet the keyboard, so the extra 34px would show as a white strip.
+                  paddingBottom: keyboardOpen ? 12 : (insets.bottom > 0 ? insets.bottom : 16),
+                },
+              ]}
+            >
               <Pressable
                 onPress={onContinue}
                 disabled={continueDisabled || loading}

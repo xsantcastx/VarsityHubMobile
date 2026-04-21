@@ -14,7 +14,7 @@ import {
 } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
-import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
+import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
@@ -194,6 +194,27 @@ app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
 });
 
 app.use(authMiddleware);
+
+const shouldCaptureRequestBreadcrumb = (req: Request) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return true;
+  return (
+    req.path.startsWith('/auth') ||
+    req.path.startsWith('/uploads') ||
+    req.path.startsWith('/payments')
+  );
+};
+
+app.use((req, _res, next) => {
+  if (!isTest && shouldCaptureRequestBreadcrumb(req)) {
+    addBreadcrumb('HTTP request received', 'http.request', 'info', {
+      method: req.method,
+      path: req.path,
+      authed: Boolean((req as any).user?.id),
+      has_body: Boolean(req.body && Object.keys(req.body).length > 0),
+    });
+  }
+  next();
+});
 
 // ID param validation is applied per-router (params not available at app level)
 // Serve uploaded files

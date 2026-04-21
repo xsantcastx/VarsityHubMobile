@@ -12,11 +12,13 @@ import { Message, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
+import { formatUserLabel } from '@/utils/userDisplay';
 
 type MiniUser = {
   id: string;
   email?: string;
   display_name?: string;
+  username?: string;
   avatar_url?: string;
 };
 
@@ -85,6 +87,7 @@ function MessagesScreen() {
           .map((u: any) => ({
             id: u.id,
             display_name: u.display_name || u.username || 'User',
+            username: u.username,
             avatar_url: u.avatar_url ?? undefined,
             email: u.email,
           }));
@@ -311,7 +314,7 @@ function MessagesScreen() {
   };
 
   const renderConversation = ({ item }: { item: Conversation }) => {
-    const name = item.other.display_name || item.other.email || 'Unknown User';
+    const name = formatUserLabel(item.other, 'Unknown User');
     const avatar = item.other.avatar_url;
     const hasUnread = item.unreadCount > 0;
 
@@ -376,7 +379,7 @@ function MessagesScreen() {
   };
 
   const renderUserSearchItem = ({ item }: { item: MiniUser }) => {
-    const name = item.display_name || item.email || 'Unknown User';
+    const name = formatUserLabel(item, 'Unknown User');
     const avatar = item.avatar_url;
 
     return (

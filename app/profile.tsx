@@ -9,6 +9,7 @@ import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -308,8 +309,11 @@ export default function ProfileScreen() {
 
   } catch (error) {
     console.error('[profile] Avatar upload failed:', error);
-    // Avatar upload failed - error handled via Alert below
-    Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
+    showUploadErrorAlert(error, {
+      fallbackTitle: 'Upload failed',
+      fallbackMessage: 'Could not upload your new profile picture. Please try again.',
+      logTag: 'profile.avatar',
+    });
   } finally {
       setIsUploadingAvatar(false);
     }
@@ -350,7 +354,11 @@ export default function ProfileScreen() {
 
   } catch (error) {
     console.error('[profile] Background image upload failed:', error);
-    Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
+    showUploadErrorAlert(error, {
+      fallbackTitle: 'Upload failed',
+      fallbackMessage: 'Could not upload your background image. Please try again.',
+      logTag: 'profile.header',
+    });
   } finally {
       setIsUploadingAvatar(false);
     }

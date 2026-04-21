@@ -136,6 +136,19 @@ async function uploadDirectToCloudinary(
 // -----------------------------------------------
 // Main upload function — tries direct Cloudinary, falls back to server proxy
 // -----------------------------------------------
+//
+// Routing rules:
+//   image/*, video/*  →  direct-to-Cloudinary (fast CDN path), then fall back to
+//                        POST /uploads which is also image/video-only on the server.
+//   everything else   →  POST /uploads/files (general multer endpoint that accepts
+//                        PDFs and other document types). The Cloudinary signature
+//                        endpoint is not configured for resource_type=raw, and the
+//                        POST /uploads endpoint validates magic bytes against image
+//                        or video MIME types — sending a PDF there was the root cause
+//                        of the silent supporting-document upload failure during
+//                        coach onboarding. Route PDFs (and any non-media) to
+//                        /uploads/files so multer stores them without media-only
+//                        validation.
 export async function uploadFile(
   baseUrl: string | null | undefined,
   uri: string,
@@ -147,6 +160,16 @@ export async function uploadFile(
   let finalMimeType = detectMime(mimeType, filename, uri);
   const finalFilename = filename || 'upload';
   let finalUri = uri;
+
+  const isMedia =
+    finalMimeType.startsWith('image/') || finalMimeType.startsWith('video/');
+
+  // Non-media files (PDFs, docs) go straight to the general-file server endpoint.
+  // Don't try Cloudinary direct — the signature flow assumes resource_type=image|video.
+  if (!isMedia) {
+    if (__DEV__) console.log('[upload] Non-media upload via /uploads/files:', finalMimeType);
+    return uploadRawViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
+  }
 
   // Compress images before upload (max 1920px, 80% quality). Videos pass through unchanged.
   if (finalMimeType.startsWith('image/')) {
@@ -177,6 +200,81 @@ export async function uploadFile(
   // Fallback: proxy through server (works when Cloudinary signature endpoint unavailable)
   if (__DEV__) console.log('[upload] Using server-proxy upload');
   return uploadViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
+}
+
+// -----------------------------------------------
+// Raw/document upload — POST /uploads/files (not /uploads).
+// The /uploads endpoint is image/video only and magic-byte-validates against those;
+// /uploads/files accepts general files including PDFs.
+// -----------------------------------------------
+async function uploadRawViaServer(
+  base: string,
+  uri: string,
+  filename: string,
+  mimeType: string,
+  options?: UploadOptions,
+): Promise<any> {
+  const target = `${base}/uploads/files`;
+  const token = await resolveUploadToken();
+  if (!token) {
+    const err: any = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
+  }
+
+  const form = new FormData();
+  form.append('file', { uri, name: filename, type: mimeType } as any);
+
+  const timeoutMs = options?.timeoutMs ?? 180000;
+  const retries = Math.max(0, options?.retries ?? 2);
+  const backoffMs = Math.max(50, options?.backoffMs ?? 500);
+
+  let attempt = 0;
+  let lastErr: any = null;
+
+  while (attempt <= retries) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(target, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form as any,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const text = await res.text();
+      if (!text) throw new Error(`Empty response (HTTP ${res.status})`);
+      let data: any;
+      try { data = JSON.parse(text); } catch {
+        throw new Error(`Non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}`);
+      }
+      if (!res.ok) {
+        const err: any = new Error((data?.error || data?.message) || `HTTP ${res.status}`);
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
+      return data;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastErr = err;
+      const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
+      const isTimeout = err?.name === 'AbortError' || /timeout|timed out/i.test(String(err?.message || ''));
+      if (attempt < retries && (isNetwork || isTimeout)) {
+        await new Promise(r => setTimeout(r, backoffMs * Math.pow(2, attempt)));
+        attempt++;
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (lastErr?.name === 'AbortError') throw new Error('Upload timed out. Please check your connection and try again.');
+  if (lastErr instanceof TypeError && lastErr.message === 'Network request failed') {
+    throw new Error('Network error: unable to reach upload endpoint.');
+  }
+  throw lastErr;
 }
 
 // -----------------------------------------------

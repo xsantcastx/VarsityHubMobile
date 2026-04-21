@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
-import { captureException } from '../lib/sentry.js';
+import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
@@ -167,6 +167,11 @@ uploadsRouter.use((req, res, next) => {
     headers: req.headers,
     contentType: req.headers['content-type'],
   });
+  addBreadcrumb('Upload route hit', 'uploads.request', 'info', {
+    method: req.method,
+    path: req.path,
+    content_type: req.headers['content-type'],
+  });
   next();
 });
 
@@ -178,6 +183,9 @@ uploadsRouter.use((req, res, next) => {
 uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!useCloudinary) {
+    addBreadcrumb('Cloudinary signature unavailable', 'uploads.signature', 'warning', {
+      configured: false,
+    });
     return res.status(503).json({ error: 'Direct upload not available — Cloudinary not configured' });
   }
 
@@ -204,6 +212,10 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
       .join('&');
     const signature = crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
 
+    addBreadcrumb('Cloudinary signature issued', 'uploads.signature', 'info', {
+      configured: true,
+      folder,
+    });
     return res.json({
       cloudName,
       apiKey,  // Public identifier (not a secret) — required by Cloudinary signed upload SDK
@@ -215,6 +227,7 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as 
     });
   } catch (error: any) {
     console.error('[uploads] Failed to generate Cloudinary signature:', error);
+    addBreadcrumb('Cloudinary signature generation failed', 'uploads.signature', 'error');
     return res.status(500).json({ error: 'Failed to generate upload signature' });
   }
 }));
@@ -236,9 +249,15 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
     const signed = signMediaPath(rawPath);
     const base = `${req.protocol}://${req.get('host')}`;
     const signedUrl = `${base}${signed.path}?token=${signed.token}&exp=${signed.exp}`;
+    addBreadcrumb('Media URL signed', 'uploads.sign', 'info', {
+      path: rawPath,
+    });
     return res.json({ ...signed, signed_url: signedUrl });
   } catch (error: any) {
     console.error('[uploads] Failed to sign media path:', error);
+    addBreadcrumb('Media URL signing failed', 'uploads.sign', 'error', {
+      path: rawPath,
+    });
     return res.status(500).json({ error: 'Failed to sign media URL' });
   }
 }));
@@ -246,6 +265,10 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
 // Original media upload endpoint (images/videos only)
 uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  addBreadcrumb('Media upload started', 'uploads.media', 'info', {
+    mime: req.file.mimetype,
+    size_bytes: req.file.size,
+  });
 
   // Validate file size for media uploads
   const sizeError = validateFileSizeByType(req.file);
@@ -261,6 +284,9 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
     const magicValid = isHeic ? isHeicBuffer(fileBuffer) : validateMagicBytes(fileBuffer, mime);
     if (!magicValid) {
       console.warn(`[uploads] Magic byte mismatch: claimed ${mime}, file rejected`);
+      addBreadcrumb('Media upload rejected for magic-byte mismatch', 'uploads.media', 'warning', {
+        mime,
+      });
       return res.status(400).json({ error: 'File content does not match declared type. Upload rejected.' });
     }
   }
@@ -315,6 +341,11 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
       }
     }
     
+    addBreadcrumb('Media upload succeeded', 'uploads.media', 'info', {
+      storage: useCloudinary ? 'cloudinary' : 'local',
+      type,
+      mime: req.file.mimetype,
+    });
     res.status(201).json({ 
       url, 
       signed_url: signedUrl || undefined,
@@ -324,6 +355,9 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    addBreadcrumb('Media upload failed', 'uploads.media', 'error', {
+      mime: req.file.mimetype,
+    });
     captureException(error as Error, { context: 'media_upload_error', path: req.path });
     next(error);
   }
@@ -332,6 +366,10 @@ uploadsRouter.post('/', requireAuth as any, uploadLimiter as any, upload.single(
 // General file upload endpoint (all file types)
 uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUpload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  addBreadcrumb('File upload started', 'uploads.file', 'info', {
+    mime: req.file.mimetype,
+    size_bytes: req.file.size,
+  });
 
   // Validate file size for general uploads
   const sizeError = validateFileSizeByType(req.file);
@@ -347,6 +385,9 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
     const magicValid = isHeic ? isHeicBuffer(fileBuf) : validateMagicBytes(fileBuf, mime);
     if (!magicValid) {
       console.warn(`[uploads] Magic byte mismatch on /files: claimed ${mime}, file rejected`);
+      addBreadcrumb('File upload rejected for magic-byte mismatch', 'uploads.file', 'warning', {
+        mime,
+      });
       return res.status(400).json({ error: 'File content does not match declared type. Upload rejected.' });
     }
   }
@@ -389,6 +430,11 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
       else type = 'document';
     }
     
+    addBreadcrumb('File upload succeeded', 'uploads.file', 'info', {
+      storage: useCloudinary ? 'cloudinary' : 'local',
+      type,
+      mime: req.file.mimetype,
+    });
     res.status(201).json({ 
       url, 
       signed_url: signedUrl || undefined,
@@ -399,6 +445,9 @@ uploadsRouter.post('/files', requireAuth as any, uploadLimiter as any, fileUploa
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    addBreadcrumb('File upload failed', 'uploads.file', 'error', {
+      mime: req.file.mimetype,
+    });
     captureException(error as Error, { context: 'file_upload_error', path: req.path });
     next(error);
   }
@@ -414,6 +463,10 @@ if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
 uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMemory.single('file'), asyncHandler(async (req: MulterRequest, res) => {
   if (!(req as any).user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
+  addBreadcrumb('Avatar upload started', 'uploads.avatar', 'info', {
+    mime: req.file.mimetype,
+    size_bytes: req.file.size,
+  });
 
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
   if (!allowedMimes.includes(req.file.mimetype)) {
@@ -425,6 +478,9 @@ uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMe
       const cloudResult = await uploadBufferToCloudinary(req.file, { resourceType: 'image' });
       const url = cloudResult.secure_url || cloudResult.url || '';
       res.set('Cache-Control', 'no-store, private');
+      addBreadcrumb('Avatar upload succeeded', 'uploads.avatar', 'info', {
+        storage: 'cloudinary',
+      });
       return res.json({ url });
     }
     // Local disk fallback
@@ -435,9 +491,13 @@ uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter as any, avatarMe
     const base = `${req.protocol}://${req.get('host')}`;
     const url = `${base}/uploads/avatars/${name}`;
     res.set('Cache-Control', 'no-store, private');
+    addBreadcrumb('Avatar upload succeeded', 'uploads.avatar', 'info', {
+      storage: 'local',
+    });
     return res.json({ url });
   } catch (e: any) {
     console.error('[uploads] POST /avatar error:', e);
+    addBreadcrumb('Avatar upload failed', 'uploads.avatar', 'error');
     return res.status(500).json({ error: 'Internal server error' });
   }
 }));

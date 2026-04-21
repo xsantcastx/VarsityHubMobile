@@ -23,6 +23,7 @@ import { validateContent } from '../lib/contentFilter.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { addBreadcrumb } from '../lib/sentry.js';
 
 const adCreateSchema = z.object({
   contact_name: z.string().min(1).max(200),
@@ -1065,9 +1066,20 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
+    addBreadcrumb('Ad approval endpoint hit', 'approval.ad_route', 'info', {
+      action: 'approve',
+      ad_id: id,
+      method: req.method,
+      auth_mode: token ? 'token' : 'admin',
+    });
 
     if (token) {
       if (!verifyModerationToken(token, id, 'approve_ad')) {
+        addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
+          action: 'approve',
+          ad_id: id,
+          method: req.method,
+        });
         return req.method === 'GET'
           ? res
               .status(401)
@@ -1082,6 +1094,10 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       }
       // GET: show confirmation form, don't perform the action
       if (req.method === 'GET') {
+        addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
+          action: 'approve',
+          ad_id: id,
+        });
         const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
         return res.send(
           confirmationForm('approve', id, token, escapeHtml(ad?.business_name || 'Unknown'))
@@ -1103,6 +1119,11 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
             .send(confirmationPage('Error', escapeHtml(result.error), false))
         : res.status(result.status!).json({ error: result.error });
     }
+    addBreadcrumb('Ad approval endpoint completed', 'approval.ad_route', 'info', {
+      action: 'approve',
+      ad_id: id,
+      auth_mode: token ? 'token' : 'admin',
+    });
 
     return req.method === 'POST' && token
       ? res.send(
@@ -1115,6 +1136,11 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       : res.json(result.ad);
   } catch (err) {
     console.error('[ads] approve error:', err);
+    addBreadcrumb('Ad approval endpoint crashed', 'approval.ad_route', 'error', {
+      action: 'approve',
+      ad_id: String(req.params.id),
+      error: (err as Error)?.message || 'unknown_error',
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -1131,9 +1157,21 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
+    addBreadcrumb('Ad rejection endpoint hit', 'approval.ad_route', 'info', {
+      action: 'reject',
+      ad_id: id,
+      method: req.method,
+      auth_mode: token ? 'token' : 'admin',
+      has_reason: !!(req.body?.reason || req.query?.reason),
+    });
 
     if (token) {
       if (!verifyModerationToken(token, id, 'reject_ad')) {
+        addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
+          action: 'reject',
+          ad_id: id,
+          method: req.method,
+        });
         return req.method === 'GET'
           ? res
               .status(401)
@@ -1147,6 +1185,10 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           : res.status(401).json({ error: 'Invalid or expired rejection token' });
       }
       if (req.method === 'GET') {
+        addBreadcrumb('Ad rejection confirmation page rendered', 'approval.ad_route', 'info', {
+          action: 'reject',
+          ad_id: id,
+        });
         const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
         return res.send(
           confirmationForm('reject', id, token, escapeHtml(ad?.business_name || 'Unknown'))
@@ -1165,6 +1207,11 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
             .send(confirmationPage('Error', escapeHtml(result.error), false))
         : res.status(result.status!).json({ error: result.error });
     }
+    addBreadcrumb('Ad rejection endpoint completed', 'approval.ad_route', 'info', {
+      action: 'reject',
+      ad_id: id,
+      auth_mode: token ? 'token' : 'admin',
+    });
 
     return req.method === 'POST' && token
       ? res.send(
@@ -1177,6 +1224,11 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
       : res.json(result.ad);
   } catch (err) {
     console.error('[ads] reject error:', err);
+    addBreadcrumb('Ad rejection endpoint crashed', 'approval.ad_route', 'error', {
+      action: 'reject',
+      ad_id: String(req.params.id),
+      error: (err as Error)?.message || 'unknown_error',
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

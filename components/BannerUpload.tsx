@@ -6,11 +6,12 @@
  */
 
 import { uploadFile } from '@/api/upload';
-import { isICloudError, ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE } from '@/utils/isICloudError';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { captureBreadcrumb } from '@/utils/sentry';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -106,10 +107,29 @@ export function BannerUpload({
         const isPng = originalName.endsWith('.png');
         const saveFormat = isPng ? ImageManipulator.SaveFormat.PNG : ImageManipulator.SaveFormat.JPEG;
 
+        // Breadcrumb trail — when "Image Error" / upload-failed hits on-device, Sentry
+        // captures exactly which step threw. Without these, the catch below would be
+        // our only signal and we could not distinguish iCloud materialization failures
+        // from ImageManipulator failures from blob validation failures from upload
+        // failures — all rendered the same generic alert before uploadErrorAlert landed.
+        captureBreadcrumb('picked asset', 'BannerUpload', {
+          uriScheme: asset.uri?.split(':')[0] ?? 'unknown',
+          hasFileName: !!asset.fileName,
+          isPng,
+        });
+
         // v1.0.2: force iCloud download if ph:// URI before any manipulation
+        captureBreadcrumb('materializeICloudAssetIfNeeded:start', 'BannerUpload');
         const materializedUri = await materializeICloudAssetIfNeeded(asset.uri);
+        captureBreadcrumb('materializeICloudAssetIfNeeded:ok', 'BannerUpload', {
+          uriScheme: materializedUri?.split(':')[0] ?? 'unknown',
+        });
 
         // Resize/compress image before size validation
+        captureBreadcrumb('ImageManipulator.manipulateAsync:start', 'BannerUpload', {
+          targetWidth: 1920,
+          saveFormat: isPng ? 'PNG' : 'JPEG',
+        });
         let processedUri = materializedUri;
         try {
           const manipulated = await ImageManipulator.manipulateAsync(
@@ -118,18 +138,27 @@ export function BannerUpload({
             { compress: isPng ? 1 : 0.8, format: saveFormat }
           );
           processedUri = manipulated.uri;
+          captureBreadcrumb('ImageManipulator.manipulateAsync:ok', 'BannerUpload');
         } catch (error: any) {
           if (__DEV__) console.warn('[BannerUpload] Image manipulation failed, using original:', error?.message || error);
+          captureBreadcrumb('ImageManipulator.manipulateAsync:fallback', 'BannerUpload', {
+            reason: String(error?.message || error),
+          });
           // Continue with original URI if manipulation fails
         }
 
         // Validate image size (max 10MB)
+        captureBreadcrumb('blobSize:start', 'BannerUpload');
         let fileSize: number | undefined;
         try {
           const response = await fetch(processedUri);
           const blob = await response.blob();
           fileSize = blob.size;
-        } catch {
+          captureBreadcrumb('blobSize:ok', 'BannerUpload', { fileSize });
+        } catch (e: any) {
+          captureBreadcrumb('blobSize:fallback', 'BannerUpload', {
+            reason: String(e?.message || e),
+          });
           // Continue upload without size validation
         }
 
@@ -150,29 +179,34 @@ export function BannerUpload({
         const rawName = asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}.${ext}`;
         const fileName = rawName.includes('.') ? rawName : `${rawName}.${ext}`;
         const mimeType = isPng ? 'image/png' : 'image/jpeg';
+
+        captureBreadcrumb('ensureUploadableUri:start', 'BannerUpload', { mimeType, platform: Platform.OS });
         const uploadSource =
           Platform.OS === 'web'
             ? { uri: processedUri, mimeType }
             : await ensureUploadableUri(processedUri, mimeType);
+        captureBreadcrumb('ensureUploadableUri:ok', 'BannerUpload');
 
+        captureBreadcrumb('uploadFile:start', 'BannerUpload', {
+          mimeType: uploadSource.mimeType,
+          filename: fileName,
+        });
         const uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
         const uploadedUrl = uploaded?.url || uploaded?.signed_url || uploaded?.path;
         if (!uploadedUrl) {
           throw new Error('Upload succeeded but no URL was returned.');
         }
+        captureBreadcrumb('uploadFile:ok', 'BannerUpload');
 
         onChange(String(uploadedUrl), getFitValue(fitMode), { x: 50, y: 50 });
       }
     } catch (error: any) {
-      // v1.0.2 audit fix: use shared iCloud detection utility
-      if (isICloudError(error)) {
-        Alert.alert(ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE);
-      } else {
-        Alert.alert(
-          'Image Error',
-          'Something went wrong loading this image. Please try a different photo or take a new one.'
-        );
-      }
+      showUploadErrorAlert(error, {
+        fallbackTitle: 'Image Error',
+        fallbackMessage:
+          'Something went wrong loading this image. Please try a different photo or take a new one.',
+        logTag: 'BannerUpload',
+      });
     } finally {
       setUploading(false);
     }

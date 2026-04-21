@@ -23,6 +23,7 @@ import {
 } from './email.js';
 import { sendPushNotification } from './notifications.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from './userCache.js';
+import { addBreadcrumb } from './sentry.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -53,12 +54,30 @@ export async function approveOrganization(
   prisma: PrismaClient,
   opts?: { note?: string },
 ) {
+  addBreadcrumb('Organization approval started', 'approval.organization', 'info', {
+    action: 'approve',
+    organization_id: orgId,
+    actor: adminId || 'token',
+    has_note: !!opts?.note,
+  });
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
     include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
   });
-  if (!org) return { error: 'Organization not found', status: 404 };
-  if (org.admin_approved) return { already: true };
+  if (!org) {
+    addBreadcrumb('Organization approval target missing', 'approval.organization', 'warning', {
+      action: 'approve',
+      organization_id: orgId,
+    });
+    return { error: 'Organization not found', status: 404 };
+  }
+  if (org.admin_approved) {
+    addBreadcrumb('Organization already approved', 'approval.organization', 'info', {
+      action: 'approve',
+      organization_id: orgId,
+    });
+    return { already: true };
+  }
 
   // Atomic approval: org + owner approval_status
   const txOps: any[] = [
@@ -95,7 +114,18 @@ export async function approveOrganization(
   }
 
   // Race-condition guard: another admin already approved
-  if (updated.count === 0) return { already: true };
+  if (updated.count === 0) {
+    addBreadcrumb('Organization approval became idempotent after transaction', 'approval.organization', 'info', {
+      action: 'approve',
+      organization_id: orgId,
+    });
+    return { already: true };
+  }
+  addBreadcrumb('Organization approval committed', 'approval.organization', 'info', {
+    action: 'approve',
+    organization_id: orgId,
+    owner_id: ownerId || null,
+  });
 
   // ── Fire-and-forget notifications ──
   if (org.leagueOwner?.email) {
@@ -145,11 +175,23 @@ export async function rejectOrganization(
   prisma: PrismaClient,
   opts?: { reason?: string },
 ) {
+  addBreadcrumb('Organization rejection started', 'approval.organization', 'info', {
+    action: 'reject',
+    organization_id: orgId,
+    actor: adminId || 'token',
+    has_reason: !!opts?.reason,
+  });
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
     include: { leagueOwner: { select: { id: true, display_name: true, email: true } } },
   });
-  if (!org) return { error: 'Organization not found', status: 404 };
+  if (!org) {
+    addBreadcrumb('Organization rejection target missing', 'approval.organization', 'warning', {
+      action: 'reject',
+      organization_id: orgId,
+    });
+    return { error: 'Organization not found', status: 404 };
+  }
 
   const reason = opts?.reason || null;
 
@@ -188,6 +230,11 @@ export async function rejectOrganization(
   if (org.leagueOwner?.id) {
     await invalidateMeCacheForUser(org.leagueOwner.id);
   }
+  addBreadcrumb('Organization rejection committed', 'approval.organization', 'info', {
+    action: 'reject',
+    organization_id: orgId,
+    owner_id: org.leagueOwner?.id || null,
+  });
 
   // ── Fire-and-forget notifications ──
   // v1.0.2: `reason` is declared above (line 146) as `string | null`. Use || undefined
@@ -249,12 +296,31 @@ export async function approveCoach(
   prisma: PrismaClient,
   opts?: { note?: string },
 ) {
+  addBreadcrumb('Coach approval started', 'approval.coach', 'info', {
+    action: 'approve',
+    user_id: userId,
+    actor: adminId || 'unknown',
+    has_note: !!opts?.note,
+  });
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true },
   });
-  if (!user) return { error: 'User not found', status: 404 };
-  if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  if (!user) {
+    addBreadcrumb('Coach approval target missing', 'approval.coach', 'warning', {
+      action: 'approve',
+      user_id: userId,
+    });
+    return { error: 'User not found', status: 404 };
+  }
+  if (user.approval_status !== 'PENDING') {
+    addBreadcrumb('Coach approval blocked by status', 'approval.coach', 'warning', {
+      action: 'approve',
+      user_id: userId,
+      status: user.approval_status,
+    });
+    return { error: 'User is not pending approval', status: 400 };
+  }
 
   // Check org prerequisite: if coach has an org, it must be admin_approved
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
@@ -262,6 +328,11 @@ export async function approveCoach(
   if (orgId) {
     const orgApproved = await isOrganizationApproved(orgId, prisma);
     if (!orgApproved) {
+      addBreadcrumb('Coach approval blocked by organization approval prerequisite', 'approval.coach', 'warning', {
+        action: 'approve',
+        user_id: userId,
+        organization_id: orgId,
+      });
       return { error: 'Organization must be approved by VarsityHub before approving coaches.', status: 403 };
     }
   }
@@ -270,6 +341,11 @@ export async function approveCoach(
   await updateUserAndInvalidate(prisma, {
     where: { id: userId },
     data: { approval_status: 'APPROVED', paid_by_owner: true },
+  });
+  addBreadcrumb('Coach approval committed', 'approval.coach', 'info', {
+    action: 'approve',
+    user_id: userId,
+    organization_id: orgId || null,
   });
 
   const note = opts?.note;
@@ -312,12 +388,31 @@ export async function rejectCoach(
   prisma: PrismaClient,
   opts?: { reason?: string },
 ) {
+  addBreadcrumb('Coach rejection started', 'approval.coach', 'info', {
+    action: 'reject',
+    user_id: userId,
+    actor: adminId || 'unknown',
+    has_reason: !!opts?.reason,
+  });
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, display_name: true, username: true, approval_status: true, preferences: true },
   });
-  if (!user) return { error: 'User not found', status: 404 };
-  if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
+  if (!user) {
+    addBreadcrumb('Coach rejection target missing', 'approval.coach', 'warning', {
+      action: 'reject',
+      user_id: userId,
+    });
+    return { error: 'User not found', status: 404 };
+  }
+  if (user.approval_status !== 'PENDING') {
+    addBreadcrumb('Coach rejection blocked by status', 'approval.coach', 'warning', {
+      action: 'reject',
+      user_id: userId,
+      status: user.approval_status,
+    });
+    return { error: 'User is not pending approval', status: 400 };
+  }
 
   const reason = opts?.reason;
 
@@ -330,6 +425,10 @@ export async function rejectCoach(
       rejected_at: new Date(),
       rejection_reason: reason || null,
     },
+  });
+  addBreadcrumb('Coach rejection committed', 'approval.coach', 'info', {
+    action: 'reject',
+    user_id: userId,
   });
 
   // ── Fire-and-forget notifications ──
@@ -372,9 +471,28 @@ export async function approveAd(
   prisma: PrismaClient,
   opts?: { note?: string },
 ) {
+  addBreadcrumb('Ad approval started', 'approval.ad', 'info', {
+    action: 'approve',
+    ad_id: adId,
+    actor: adminId || 'token',
+    has_note: !!opts?.note,
+  });
   const ad = await prisma.ad.findUnique({ where: { id: adId } });
-  if (!ad) return { error: 'Ad not found', status: 404 };
-  if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  if (!ad) {
+    addBreadcrumb('Ad approval target missing', 'approval.ad', 'warning', {
+      action: 'approve',
+      ad_id: adId,
+    });
+    return { error: 'Ad not found', status: 404 };
+  }
+  if (ad.status !== 'pending') {
+    addBreadcrumb('Ad approval blocked by status', 'approval.ad', 'warning', {
+      action: 'approve',
+      ad_id: adId,
+      status: ad.status,
+    });
+    return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  }
 
   const updated = await prisma.ad.update({
     where: { id: adId },
@@ -383,6 +501,11 @@ export async function approveAd(
       payment_status: ad.payment_status === 'paid' ? 'paid' : 'pending_approval',
       ...(opts?.note ? { admin_note: opts.note } : {}),
     },
+  });
+  addBreadcrumb('Ad approval committed', 'approval.ad', 'info', {
+    action: 'approve',
+    ad_id: adId,
+    payment_status: updated.payment_status,
   });
 
   // ── Fire-and-forget notifications ──
@@ -412,14 +535,38 @@ export async function rejectAd(
   prisma: PrismaClient,
   opts?: { reason?: string },
 ) {
+  addBreadcrumb('Ad rejection started', 'approval.ad', 'info', {
+    action: 'reject',
+    ad_id: adId,
+    actor: adminId || 'token',
+    has_reason: !!opts?.reason,
+  });
   const ad = await prisma.ad.findUnique({ where: { id: adId } });
-  if (!ad) return { error: 'Ad not found', status: 404 };
-  if (ad.status !== 'pending') return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  if (!ad) {
+    addBreadcrumb('Ad rejection target missing', 'approval.ad', 'warning', {
+      action: 'reject',
+      ad_id: adId,
+    });
+    return { error: 'Ad not found', status: 404 };
+  }
+  if (ad.status !== 'pending') {
+    addBreadcrumb('Ad rejection blocked by status', 'approval.ad', 'warning', {
+      action: 'reject',
+      ad_id: adId,
+      status: ad.status,
+    });
+    return { error: `Ad status is '${ad.status}', not 'pending'`, status: 400 };
+  }
 
   // v1.0.2 pass 8: if ad was already paid before admin rejection, refund the user.
   // Previously the ad was reset to draft + unpaid but the money stayed with VarsityHub.
   let refundResult: { ok: boolean; amount?: number; refund_id?: string; error?: string } | null = null;
   if (ad.payment_status === 'paid' && ad.user_id) {
+    addBreadcrumb('Ad rejection refund attempt started', 'approval.ad', 'info', {
+      action: 'reject',
+      ad_id: adId,
+      user_id: ad.user_id,
+    });
     try {
       // Find the matching transaction log entry to get the payment intent
       const tx = await prisma.transactionLog.findFirst({
@@ -435,6 +582,11 @@ export async function rejectAd(
           metadata: { reason: 'admin_rejected_ad', ad_id: adId, admin_id: adminId || 'unknown' },
         });
         refundResult = { ok: true, amount: refund.amount ?? tx.total_cents ?? undefined, refund_id: refund.id };
+        addBreadcrumb('Ad rejection refund succeeded', 'approval.ad', 'info', {
+          action: 'reject',
+          ad_id: adId,
+          refund_id: refund.id,
+        });
         // Update transaction log with refund info
         await prisma.transactionLog.update({
           where: { id: tx.id },
@@ -451,10 +603,19 @@ export async function rejectAd(
         }).catch((e: any) => console.error('[approvalService] failed to update tx log on ad reject refund:', e));
       } else {
         refundResult = { ok: false, error: 'no_payment_intent_found' };
+        addBreadcrumb('Ad rejection refund missing payment intent', 'approval.ad', 'warning', {
+          action: 'reject',
+          ad_id: adId,
+        });
         console.error('[approvalService] CRITICAL: ad rejected after payment but no payment_intent found to refund', { adId, userId: ad.user_id });
       }
     } catch (refundErr: any) {
       refundResult = { ok: false, error: refundErr?.message || 'refund_api_failed' };
+      addBreadcrumb('Ad rejection refund failed', 'approval.ad', 'error', {
+        action: 'reject',
+        ad_id: adId,
+        error: refundErr?.message || 'refund_api_failed',
+      });
       console.error('[approvalService] CRITICAL: ad reject refund FAILED — manual intervention needed', { adId, error: refundErr?.message });
     }
   }
@@ -492,6 +653,11 @@ export async function rejectAd(
   }
 
   const updated = await prisma.ad.findUnique({ where: { id: adId } });
+  addBreadcrumb('Ad rejection committed', 'approval.ad', 'info', {
+    action: 'reject',
+    ad_id: adId,
+    refund_ok: refundResult?.ok ?? null,
+  });
   return { ad: updated };
 }
 
@@ -504,8 +670,19 @@ export async function approveEvent(
   adminId: string,
   prisma: PrismaClient,
 ) {
+  addBreadcrumb('Event approval started', 'approval.event', 'info', {
+    action: 'approve',
+    event_id: eventId,
+    actor: adminId || 'unknown',
+  });
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return { error: 'Event not found', status: 404 };
+  if (!event) {
+    addBreadcrumb('Event approval target missing', 'approval.event', 'warning', {
+      action: 'approve',
+      event_id: eventId,
+    });
+    return { error: 'Event not found', status: 404 };
+  }
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
@@ -521,6 +698,11 @@ export async function approveEvent(
     include: {
       creator: { select: { id: true, display_name: true, email: true } },
     },
+  });
+  addBreadcrumb('Event approval committed', 'approval.event', 'info', {
+    action: 'approve',
+    event_id: eventId,
+    creator_id: updated.creator_id || null,
   });
 
   // ── Fire-and-forget notifications ──
@@ -561,8 +743,20 @@ export async function rejectEvent(
   prisma: PrismaClient,
   opts?: { reason?: string },
 ) {
+  addBreadcrumb('Event rejection started', 'approval.event', 'info', {
+    action: 'reject',
+    event_id: eventId,
+    actor: adminId || 'unknown',
+    has_reason: !!opts?.reason,
+  });
   const event = await prisma.event.findUnique({ where: { id: eventId } });
-  if (!event) return { error: 'Event not found', status: 404 };
+  if (!event) {
+    addBreadcrumb('Event rejection target missing', 'approval.event', 'warning', {
+      action: 'reject',
+      event_id: eventId,
+    });
+    return { error: 'Event not found', status: 404 };
+  }
   if (event.approval_status === 'approved') return { error: 'Event already approved', status: 400 };
   if (event.approval_status === 'rejected') return { error: 'Event already rejected', status: 400 };
   if (event.approval_status !== 'pending') return { error: 'Invalid state', status: 400 };
@@ -581,6 +775,11 @@ export async function rejectEvent(
     include: {
       creator: { select: { id: true, display_name: true, email: true } },
     },
+  });
+  addBreadcrumb('Event rejection committed', 'approval.event', 'info', {
+    action: 'reject',
+    event_id: eventId,
+    creator_id: updated.creator_id || null,
   });
 
   // ── Fire-and-forget notifications ──

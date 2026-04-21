@@ -23,6 +23,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,9 +139,22 @@ export default function ApprovalsScreen() {
     if (!approveTarget) return;
     setApproving(true);
     setActionLoading(approveTarget.user.id);
+    captureBreadcrumb('League owner coach approval started', 'admin.approval', {
+      action: 'approve',
+      actor: 'league_owner',
+      coach_id: approveTarget.user.id,
+      organization_id: approveTarget.organization_id,
+      has_note: approveNote.trim().length > 0,
+    });
     try {
       await Organization.approveCoach(approveTarget.organization_id, approveTarget.user.id, approveNote.trim() || undefined);
       const userId = approveTarget.user.id;
+      captureBreadcrumb('League owner coach approval succeeded', 'admin.approval', {
+        action: 'approve',
+        actor: 'league_owner',
+        coach_id: userId,
+        organization_id: approveTarget.organization_id,
+      });
       setApproveTarget(null);
       setApproveNote('');
       // Show green checkmark briefly
@@ -156,6 +170,13 @@ export default function ApprovalsScreen() {
         }
       }, 1200);
     } catch (err: any) {
+      captureBreadcrumb('League owner coach approval failed', 'admin.approval', {
+        action: 'approve',
+        actor: 'league_owner',
+        coach_id: approveTarget.user.id,
+        organization_id: approveTarget.organization_id,
+        error: err?.data?.error || err?.message || 'unknown_error',
+      }, 'error');
       const msg = err?.data?.error || err?.message || 'Failed to approve coach';
       Alert.alert('Error', msg);
     } finally {
@@ -169,16 +190,36 @@ export default function ApprovalsScreen() {
   const handleDeclineConfirm = async () => {
     if (!declineTarget) return;
     setDeclining(true);
+    captureBreadcrumb('League owner coach rejection started', 'admin.approval', {
+      action: 'reject',
+      actor: 'league_owner',
+      coach_id: declineTarget.user.id,
+      organization_id: declineTarget.organization_id,
+      has_reason: declineReason.trim().length > 0,
+    });
     try {
       await Organization.rejectCoach(
         declineTarget.organization_id,
         declineTarget.user.id,
         declineReason.trim() || undefined,
       );
+      captureBreadcrumb('League owner coach rejection succeeded', 'admin.approval', {
+        action: 'reject',
+        actor: 'league_owner',
+        coach_id: declineTarget.user.id,
+        organization_id: declineTarget.organization_id,
+      });
       setCoaches((prev) => prev.filter((c) => c.user.id !== declineTarget.user.id));
       setDeclineTarget(null);
       setDeclineReason('');
     } catch (err: any) {
+      captureBreadcrumb('League owner coach rejection failed', 'admin.approval', {
+        action: 'reject',
+        actor: 'league_owner',
+        coach_id: declineTarget.user.id,
+        organization_id: declineTarget.organization_id,
+        error: err?.data?.error || err?.message || 'unknown_error',
+      }, 'error');
       const msg = err?.data?.error || err?.message || 'Failed to decline coach';
       Alert.alert('Error', msg);
     } finally {

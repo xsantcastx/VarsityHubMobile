@@ -17,6 +17,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
 import { getConfig } from '@/config/env';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 const weekdayRate = 4.99;   // Per week (Mon-Thu slot)
 const weekendRate = 7.99;   // Per week (Fri-Sun slot)
@@ -522,6 +523,12 @@ function AdCalendarScreen() {
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
+      captureBreadcrumb('Ad checkout initiated', 'payments.ad', {
+        ad_id: String(adId),
+        dates_count: dates.length,
+        has_promo_code: promo.trim().length > 0,
+        platform: Platform.OS,
+      });
       // Calculate exact hours remaining for receipt
       const lastEnd = new Date(dates[dates.length - 1] + 'T23:59:59');
       const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
@@ -534,6 +541,11 @@ function AdCalendarScreen() {
         }
         const result = await purchaseAd({ adId: String(adId), dates, weekdayBlocks, weekendBlocks });
         setSubmitting(false);
+        captureBreadcrumb('Native ad purchase returned', 'payments.ad', {
+          ad_id: String(adId),
+          ok: result.ok,
+          has_error: !!result.error,
+        }, result.ok ? 'info' : 'warning');
         if (!result.ok) {
           if (result.error) Alert.alert('Payment Error', result.error);
           return;
@@ -544,9 +556,18 @@ function AdCalendarScreen() {
       }
 
       // Android / non-iOS: use Stripe PaymentSheet
+      captureBreadcrumb('Ad payment sheet request started', 'payments.ad', {
+        ad_id: String(adId),
+        dates_count: dates.length,
+        has_promo_code: promo.trim().length > 0,
+      });
       const data: any = await httpPost('/payments/create-payment-sheet', { ad_id: String(adId), dates, promo_code: promo || undefined });
 
       if (data?.free) {
+        captureBreadcrumb('Ad free promo checkout completed', 'payments.ad', {
+          ad_id: String(adId),
+          dates_count: dates.length,
+        });
         setSubmitting(false);
         setShowFreeSuccess(true);
         freeSuccessOpacity.setValue(0);
@@ -560,6 +581,9 @@ function AdCalendarScreen() {
 
       if (data?.paymentIntent) {
         // Android: Stripe PaymentSheet with Google Pay
+        captureBreadcrumb('Ad payment sheet init started', 'payments.ad', {
+          ad_id: String(adId),
+        });
         let initError: any = null;
         const { error: err1 } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
@@ -586,18 +610,34 @@ function AdCalendarScreen() {
 
         if (initError) {
           if (__DEV__) console.error('[AdCalendar] PaymentSheet init failed:', initError);
+          captureBreadcrumb('Ad payment sheet init failed', 'payments.ad', {
+            ad_id: String(adId),
+            error: initError.message || 'unknown_error',
+          }, 'error');
           Alert.alert('Payment Error', initError.message || 'Unable to initialize payment. Please try again.');
           setSubmitting(false);
           return;
         }
+        captureBreadcrumb('Ad payment sheet presented', 'payments.ad', {
+          ad_id: String(adId),
+        });
         const { error } = await presentPaymentSheet();
         if (error) {
+          captureBreadcrumb('Ad payment sheet failed', 'payments.ad', {
+            ad_id: String(adId),
+            code: error.code,
+            error: error.message || 'unknown_error',
+          }, error.code === 'Canceled' ? 'info' : 'error');
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           if (data.payment_intent_id) {
             httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
           }
           return;
         }
+        captureBreadcrumb('Ad payment sheet completed', 'payments.ad', {
+          ad_id: String(adId),
+          amount_cents: data.amount_cents,
+        });
         const paidAmount = data.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : undefined;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });
         return;
@@ -605,6 +645,11 @@ function AdCalendarScreen() {
       throw new Error('Unexpected checkout response');
     } catch (err: any) {
       if (__DEV__) console.error('Failed to start checkout:', err);
+      captureBreadcrumb('Ad checkout failed', 'payments.ad', {
+        ad_id: String(adId),
+        error: err?.data?.error || err?.message || 'unknown_error',
+        status: err?.status,
+      }, 'error');
       const status = err?.status;
       const raw = err?.data?.error || err?.message || '';
       let title = 'Error';

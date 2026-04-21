@@ -270,18 +270,31 @@ export default function EventDetailScreen() {
           </View>
         )}
         {event && !loading && eventHasPassed && (
-          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 16 }}>
-            <MaterialIcons name="event-busy" size={48} color={theme.mutedText} />
-            <Text style={[styles.title, { color: theme.text, textAlign: 'center' }]}>This event has ended</Text>
+          // Past events: show a small banner at top rather than blocking the whole page.
+          // Stories, posts, and detail content below stay visible. RSVP is already
+          // disabled via eventHasPassed in the detail view below.
+          <View
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              alignItems: 'center',
+              backgroundColor: theme.surface,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: theme.border,
+              marginBottom: 8,
+              flexDirection: 'row',
+              gap: 8,
+              justifyContent: 'center',
+            }}
+          >
+            <MaterialIcons name="event-busy" size={18} color={theme.mutedText} />
             <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>
-              {event.date ? new Date(event.date).toLocaleString() : ''}
+              Event ended • RSVP closed
             </Text>
-            {event.title && (
-              <Text style={[styles.meta, { color: theme.mutedText, textAlign: 'center' }]}>{event.title}</Text>
-            )}
           </View>
         )}
-        {event && !loading && !eventHasPassed && (
+        {event && !loading && (
           <View style={{ gap: 8 }}>
             {/* Match banner with persistent RSVP badge */}
             <MatchBanner

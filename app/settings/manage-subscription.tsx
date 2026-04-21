@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
+import { captureBreadcrumb } from '@/utils/sentry';
 
 interface PaymentSheetResponse {
   paymentIntent?: string;
@@ -97,6 +98,11 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const { connected: iapConnected, purchase: iapPurchase, restore: _iapRestore, purchasing: _iapPurchasing } = useVHubIAP();
 
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
+    captureBreadcrumb('Subscription checkout initiated from manage subscription', 'payments.subscription', {
+      tier: targetPlan,
+      platform: Platform.OS,
+      entry: 'manage_subscription',
+    });
     // iOS and Android: Use native IAP (Apple IAP / Google Play Billing)
     if (isIOS || Platform.OS === 'android') {
       if (!iapConnected) {
@@ -111,11 +117,21 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       setLoading(true);
       try {
         const success = await iapPurchase(targetPlan);
+        captureBreadcrumb('Native subscription purchase returned', 'payments.subscription', {
+          tier: targetPlan,
+          success,
+          entry: 'manage_subscription',
+        });
         if (success) {
           Alert.alert('Success', 'Your subscription is now active!');
           await refreshPlan();
         }
       } catch (err: any) {
+        captureBreadcrumb('Native subscription purchase failed', 'payments.subscription', {
+          tier: targetPlan,
+          entry: 'manage_subscription',
+          error: err?.message || 'unknown_error',
+        }, 'error');
         Alert.alert('Purchase Failed', err?.message || 'Unable to complete purchase.');
       } finally {
         setLoading(false);
@@ -134,8 +150,16 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     // Non-mobile fallback: Use Stripe PaymentSheet
     setLoading(true);
     try {
+      captureBreadcrumb('Subscription payment sheet request started', 'payments.subscription', {
+        tier: targetPlan,
+        entry: 'manage_subscription',
+      });
       const res = await httpPost('/payments/create-payment-sheet', { plan: targetPlan }) as PaymentSheetResponse;
       if (res?.paymentIntent && typeof res.paymentIntent === 'string') {
+        captureBreadcrumb('Subscription payment sheet init started', 'payments.subscription', {
+          tier: targetPlan,
+          entry: 'manage_subscription',
+        });
         // Stripe fallback (non-mobile only) — no Apple Pay since iOS uses IAP
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: res.paymentIntent,
@@ -146,34 +170,76 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           paymentMethodOrder: ['google_pay', 'card'],
         });
         if (initError) {
+          captureBreadcrumb('Subscription payment sheet init failed', 'payments.subscription', {
+            tier: targetPlan,
+            entry: 'manage_subscription',
+            error: initError.message,
+          }, 'error');
           Alert.alert('Error', initError.message);
           return;
         }
+        captureBreadcrumb('Subscription payment sheet presented', 'payments.subscription', {
+          tier: targetPlan,
+          entry: 'manage_subscription',
+        });
         const { error } = await presentPaymentSheet();
         if (error) {
+          captureBreadcrumb('Subscription payment sheet failed', 'payments.subscription', {
+            tier: targetPlan,
+            entry: 'manage_subscription',
+            code: error.code,
+            error: error.message || 'unknown_error',
+          }, error.code === 'Canceled' ? 'info' : 'error');
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           return;
         }
         // Payment succeeded — try to finalize
         if (res.subscriptionId) {
+          captureBreadcrumb('Subscription finalize retry started', 'payments.subscription', {
+            tier: targetPlan,
+            entry: 'manage_subscription',
+            has_subscription_id: true,
+          });
           const finalized = await finalizeWithRetry(res.subscriptionId);
           if (!finalized) {
+            captureBreadcrumb('Subscription finalize still pending', 'payments.subscription', {
+              tier: targetPlan,
+              entry: 'manage_subscription',
+            }, 'warning');
             if (__DEV__) console.warn('Subscription finalize pending after retries', { subscriptionId: res.subscriptionId });
             Alert.alert('Payment Received', 'Your payment went through. Your plan may take a moment to activate — pull down to refresh.');
           } else {
+            captureBreadcrumb('Subscription finalize succeeded', 'payments.subscription', {
+              tier: targetPlan,
+              entry: 'manage_subscription',
+            });
             Alert.alert('Success', 'Your subscription is now active!');
           }
         } else {
+          captureBreadcrumb('Subscription payment completed without finalize step', 'payments.subscription', {
+            tier: targetPlan,
+            entry: 'manage_subscription',
+          });
           Alert.alert('Success', 'Your subscription is now active!');
         }
         await refreshPlan();
       } else if (res?.free) {
+        captureBreadcrumb('Subscription free activation completed', 'payments.subscription', {
+          tier: targetPlan,
+          entry: 'manage_subscription',
+        });
         Alert.alert('Subscribed', 'Your plan is now active.');
         await refreshPlan();
       } else {
         Alert.alert('Error', 'Unable to start checkout.');
       }
     } catch (e: any) {
+      captureBreadcrumb('Subscription checkout failed from manage subscription', 'payments.subscription', {
+        tier: targetPlan,
+        entry: 'manage_subscription',
+        error: e?.data?.error || e?.message || 'unknown_error',
+        status: e?.status,
+      }, 'error');
       // If email is unverified the server will return 403 — surface a helpful action
       if (e && e.status === 403) {
         Alert.alert(

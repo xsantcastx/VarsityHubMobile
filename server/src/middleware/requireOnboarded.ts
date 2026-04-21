@@ -24,12 +24,22 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     return next();
   }
 
-  // Allow team creation during onboarding (coach creates team in step 3 before onboarding completes)
+  // Allow team/org creation during onboarding (coach creates org+team in step 3 before onboarding completes).
+  // Mirror the bypass already in requireVerified.ts — these two middlewares must stay in lockstep.
   const isTeamsCreateRoute =
     req.baseUrl === '/teams' &&
     req.method === 'POST' &&
     (req.path === '/' || req.path === '/create');
-  if (req.body?.onboarding === true && isTeamsCreateRoute && prefs?.onboarding_completed !== true && prefs?.role === 'coach') {
+  const isOrgCreateRoute =
+    req.baseUrl === '/organizations' &&
+    req.method === 'POST' &&
+    (req.path === '/' || req.path === '/create');
+  if (
+    req.body?.onboarding === true &&
+    (isTeamsCreateRoute || isOrgCreateRoute) &&
+    prefs?.onboarding_completed !== true &&
+    prefs?.role === 'coach'
+  ) {
     return next();
   }
 
