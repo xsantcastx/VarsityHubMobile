@@ -25,6 +25,7 @@ import { Message as MessageApi, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
+import { getCoachAccessState } from '@/utils/roleChecks';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -70,6 +71,10 @@ function MessageThreadScreen() {
   const [prefillApplied, setPrefillApplied] = useState(false);
   const [sending, setSending] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  // Coach-access state for the "Request Coach Verification" button in the
+  // restriction modal. Using the shared helper keeps us consistent with
+  // every other coach gate in the app.
+  const coachAccess = useMemo(() => getCoachAccessState(me), [me]);
 
   // Clear the prefill param once we've used it
   useEffect(() => {
@@ -643,8 +648,7 @@ function MessageThreadScreen() {
                     </Text>
                   </Pressable>
 
-                  {me?.preferences?.role === 'coach' &&
-                    (me as any)?.approval_status !== 'APPROVED' && (
+                  {coachAccess.isCoach && !coachAccess.isApprovedCoach && (
                       <Pressable
                         style={[
                           styles.modalVerifyButton,

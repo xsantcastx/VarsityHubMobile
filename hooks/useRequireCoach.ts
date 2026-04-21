@@ -9,34 +9,17 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
+import { getCoachAccessState, getPendingCoachRoute } from '@/utils/roleChecks';
 
 export function useRequireCoach() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const isCoach = useMemo(() => {
-    if (!user) return false;
-    const prefs = (user as any)?.preferences;
-    return prefs?.role === 'coach';
-  }, [user]);
-
-  const isApprovedCoach = useMemo(() => {
-    if (!isCoach) return false;
-    return (user as any)?.approval_status === 'APPROVED';
-  }, [isCoach, user]);
-
-  const hasCurrentAgreement = useMemo(() => {
-    if (!isApprovedCoach) return false;
-    const prefs = (user as any)?.preferences || {};
-    const acceptedAt = prefs?.coach_agreement_accepted_at;
-    const acceptedVersion = Number(prefs?.coach_agreement_version ?? 1);
-    const requiredVersion = Number((user as any)?.required_coach_agreement_version ?? 1);
-    return !!acceptedAt && acceptedVersion >= requiredVersion;
-  }, [isApprovedCoach, user]);
-
-  const canAccessCoachTools = useMemo(() => {
-    return isApprovedCoach && hasCurrentAgreement;
-  }, [hasCurrentAgreement, isApprovedCoach]);
+  const coachAccess = useMemo(() => getCoachAccessState(user as any), [user]);
+  const isCoach = coachAccess.isCoach;
+  const isApprovedCoach = coachAccess.isApprovedCoach;
+  const hasCurrentAgreement = coachAccess.hasCurrentCoachAgreement;
+  const canAccessCoachTools = coachAccess.canAccessCoachTools;
 
   useEffect(() => {
     if (loading) return;
@@ -45,21 +28,13 @@ export function useRequireCoach() {
       return;
     }
 
-    const prefs = (user as any)?.preferences || {};
-    const approvalStatus = (user as any)?.approval_status;
-    const acceptedVersion = Number(prefs?.coach_agreement_version ?? 1);
-    const requiredVersion = Number((user as any)?.required_coach_agreement_version ?? 1);
     const agreementOutdated =
-      !!prefs?.coach_agreement_accepted_at && acceptedVersion < requiredVersion;
-    const needsAgreement = approvalStatus === 'APPROVED' && !hasCurrentAgreement;
-    const pendingRoute =
-      prefs?.join_request_pending === true
-        ? '/onboarding/pending-approval'
-        : prefs?.organization_id
-          ? '/onboarding/league-pending-approval'
-          : '/onboarding/pending-approval';
+      coachAccess.hasAcceptedCoachAgreement &&
+      coachAccess.acceptedCoachAgreementVersion < coachAccess.requiredCoachAgreementVersion;
+    const needsAgreement = coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement;
+    const pendingRoute = getPendingCoachRoute(user as any);
 
-    if (approvalStatus === 'PENDING' || approvalStatus === 'REJECTED') {
+    if (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) {
       router.replace(pendingRoute as any);
       return;
     }
@@ -70,7 +45,7 @@ export function useRequireCoach() {
         params: agreementOutdated ? { reason: 'outdated' } : undefined,
       } as any);
     }
-  }, [user, loading, isCoach, router, hasCurrentAgreement]);
+  }, [coachAccess, hasCurrentAgreement, isCoach, loading, router, user]);
 
   return { isCoach, isApprovedCoach, canAccessCoachTools, loading };
 }

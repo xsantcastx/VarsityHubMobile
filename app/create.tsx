@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 // @ts-ignore
 import { User } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
+import { getCoachAccessState } from '@/utils/roleChecks';
 
 function CreateScreen() {
   const router = useRouter();
@@ -15,8 +16,9 @@ function CreateScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const verified = !!me?.email_verified;
+  const coachAccess = getCoachAccessState(me);
   // Coach-only options: only show when approved (backend requireOnboarded enforces this; UI should match)
-  const isApprovedCoach = me?.preferences?.role === 'coach' && (me as any)?.approval_status === 'APPROVED';
+  const isApprovedCoach = coachAccess.isApprovedCoach;
   const isAdmin = !!(me as any)?.is_admin;
   useEffect(() => {
     let mounted = true;

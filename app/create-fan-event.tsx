@@ -26,6 +26,7 @@ import { Game, Team as TeamAPI, User } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { httpGet } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
+import { getCoachAccessState } from '@/utils/roleChecks';
 
 const EVENT_TYPES = [
   { value: 'game', label: 'Game/Match', emoji: '🏈' },
@@ -51,12 +52,11 @@ function CreateFanEventScreen() {
   useEffect(() => {
     User.me()
       .then((u: any) => {
-        const role = u?.preferences?.role || 'fan';
-        // Only grant coach UI if fully approved and onboarded
-        const isApprovedCoach = role === 'coach' && u?.approval_status === 'APPROVED' && u?.preferences?.onboarding_completed === true;
-        setUserRole(isApprovedCoach ? 'coach' : 'fan');
+        const coachAccess = getCoachAccessState(u);
+        const canCreateCoachEvents = coachAccess.isApprovedCoach && coachAccess.onboardingCompleted;
+        setUserRole(canCreateCoachEvents ? 'coach' : 'fan');
         // Fans can't create game events — default to watch_party
-        if (!isApprovedCoach) {
+        if (!canCreateCoachEvents) {
           setEventType('watch_party');
         }
       })

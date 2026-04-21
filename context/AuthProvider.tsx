@@ -26,6 +26,10 @@ import { captureException, setUserContext as setSentryUser } from '@/utils/sentr
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
 import Notifications from '@/utils/notifications';
+import {
+  getCoachAccessState,
+  getPendingCoachRoute as resolvePendingCoachRoute,
+} from '@/utils/roleChecks';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -234,13 +238,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscriptionFetchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const hasCurrentCoachAgreement = useCallback((authUser: AuthUser | null | undefined) => {
-    if (!authUser) return false;
-    const acceptedAt = authUser.preferences?.coach_agreement_accepted_at;
-    const acceptedVersion = Number(authUser.preferences?.coach_agreement_version ?? 1);
-    const requiredVersion = Number(authUser.required_coach_agreement_version ?? 1);
-    return !!acceptedAt && acceptedVersion >= requiredVersion;
-  }, []);
+  const hasCurrentCoachAgreement = useCallback(
+    (authUser: AuthUser | null | undefined) => getCoachAccessState(authUser).hasCurrentCoachAgreement,
+    []
+  );
 
   // Check authentication
   const checkAuth = useCallback(
@@ -416,17 +417,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const getPendingCoachRoute = useCallback(
     (userSnapshot?: AuthUser | null) => {
       const effectiveUser = userSnapshot ?? user;
-      const prefs = effectiveUser?.preferences;
-
-      // Coach join requests and org approval waits have different status screens.
-      // Choose the screen from server-backed state so relaunches land consistently.
-      if (prefs?.join_request_pending === true) {
-        return '/onboarding/pending-approval';
-      }
-      if (prefs?.organization_id) {
-        return '/onboarding/league-pending-approval';
-      }
-      return '/onboarding/pending-approval';
+      return resolvePendingCoachRoute(effectiveUser);
     },
     [user]
   );
@@ -703,10 +694,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
+      const coachAccess = getCoachAccessState(user);
+
       // Approved coach who was browsing as fan — restore coach role and route to coach onboarding.
       // When a coach taps "Continue as Fan", role is saved as 'fan' with proceeding_as_fan=true.
       // Once the org is approved, we must flip them back to coach and send them through agreement.
-      if (user.approval_status === 'APPROVED' && user.preferences?.proceeding_as_fan === true) {
+      if (coachAccess.isApprovedCoach && user.preferences?.proceeding_as_fan === true) {
         // Fire-and-forget restore (the effect callback is sync, so we can't await).
         // The ref prevents the redirect loop: once the restore is in-flight, we
         // stop kicking off duplicates; the finally block clears the ref and the
@@ -752,14 +745,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // Block unapproved coaches (pending/rejected) on coach path.
       // Unless they chose "Continue as Fan" to use the app while waiting.
-      const isUnapprovedCoach =
-        (user.approval_status === 'PENDING' || user.approval_status === 'REJECTED') &&
-        user.preferences?.role === 'coach';
-      const proceedingAsFan =
-        user.preferences?.proceeding_as_fan === true && user.approval_status !== 'APPROVED';
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       // isPendingCoach is derived from user state, not route string — avoids fragile path matching
-      const isPendingCoach = isUnapprovedCoach && !proceedingAsFan;
+      const isPendingCoach =
+        (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) &&
+        !coachAccess.isProceedingAsFan;
       // Don't yank pending coaches off onboarding routes (e.g. step-3 during upgrade flow)
       const pendingCoachRoute = getPendingCoachRoute(user);
       if (
@@ -781,17 +771,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Treat undefined/null as incomplete (prevents bypass when flag is missing)
       const serverSaysIncomplete = user.preferences?.onboarding_completed !== true;
       const needsOnboarding = serverSaysIncomplete;
-      const pendingPlan = String(
-        user.preferences?.pending_plan || user.preferences?.plan || ''
-      ).toLowerCase();
-      const coachNeedsCheckout =
-        user.preferences?.role === 'coach' &&
-        user.approval_status === 'APPROVED' &&
-        user.paid_by_owner !== true &&
-        user.preferences?.payment_pending === true &&
-        (pendingPlan === 'veteran' || pendingPlan === 'legend') &&
-        (user.preferences?.payment_approved === true ||
-          user.preferences?.join_request_pending !== true);
+      const coachNeedsCheckout = coachAccess.needsPaidPlanCheckout;
       const isOnPaymentPath =
         currentPath.includes('settings/manage-subscription') ||
         currentPath.includes('subscription-paywall') ||
@@ -820,8 +800,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Send to the correct onboarding step — NOT back to pending-approval (causes loop)
       if (
         needsOnboarding &&
-        user.approval_status === 'APPROVED' &&
-        user.preferences?.role === 'coach' &&
+        coachAccess.isApprovedCoach &&
         firstSegment !== 'onboarding'
       ) {
         if (__DEV__)
@@ -838,9 +817,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Approved coaches must accept the Coach Agreement before accessing tools
       const isCoachWithoutAgreement =
         !needsOnboarding &&
-        user.preferences?.role === 'coach' &&
-        user.approval_status === 'APPROVED' &&
-        !hasCurrentCoachAgreement(user) &&
+        coachAccess.isApprovedCoach &&
+        !coachAccess.hasCurrentCoachAgreement &&
         !coachNeedsCheckout;
       const isOnAgreementScreen = currentPath.includes('coach-agreement');
       if (isCoachWithoutAgreement && !isOnAgreementScreen) {

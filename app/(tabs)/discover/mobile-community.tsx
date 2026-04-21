@@ -32,6 +32,7 @@ import SwipeBackContainer from '@/components/SwipeBackContainer';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { getCoachAccessState } from '@/utils/roleChecks';
 
 // Guard against internal IDs (cuid / UUID) being leaked as display text
 const isInternalId = (s: string) =>
@@ -193,6 +194,7 @@ function CommunityDiscoverScreen() {
   const [viewerPosts, setViewerPosts] = useState<FeedPost[]>([]);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [personalizationNotice, setPersonalizationNotice] = useState<string | null>(null);
+  const coachAccess = useMemo(() => getCoachAccessState(me as any), [me]);
   const showPrecisionBanner =
     Platform.OS === 'android' &&
     permissionGranted &&
@@ -1525,7 +1527,7 @@ function CommunityDiscoverScreen() {
         <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           {/* Role-based actions */}
-          {me?.preferences?.role === 'coach' && (me as any)?.approval_status === 'APPROVED' ? (
+          {coachAccess.isApprovedCoach ? (
             <>
               <Pressable
                 style={[
@@ -2254,12 +2256,7 @@ function CommunityDiscoverScreen() {
           onSave={handleQuickGameSave}
           currentTeamName={me?.team?.name}
           currentTeamId={me?.team?.id}
-          userRole={
-            (me?.preferences?.role === 'coach' && (me as any)?.approval_status === 'APPROVED') ||
-            me?.role === 'admin'
-              ? 'coach'
-              : 'fan'
-          }
+          userRole={coachAccess.isApprovedCoach || me?.role === 'admin' ? 'coach' : 'fan'}
         />
       </View>
     </SwipeBackContainer>
