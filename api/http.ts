@@ -5,9 +5,11 @@
 
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import Constants from 'expo-constants';
+import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
 
 export type HttpBehaviorOptions = {
   skipAuthRetry?: boolean;
+  skipVerificationGate?: boolean;
 };
 
 type RefreshOutcome =
@@ -246,6 +248,19 @@ async function request(
       err.status = res.status;
       err.data = data;
       err.isRailwayErrorPage = isRailwayErrorPage; // Flag for retry logic
+
+      if (
+        isEmailVerificationRequiredError(err.status, data) &&
+        !behavior.skipVerificationGate
+      ) {
+        const verified = await openVerificationGate();
+        if (verified) {
+          return request(path, options, timeoutMs, retries, {
+            ...behavior,
+            skipVerificationGate: true,
+          });
+        }
+      }
 
       // On 401, attempt a token refresh before giving up.
       // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.

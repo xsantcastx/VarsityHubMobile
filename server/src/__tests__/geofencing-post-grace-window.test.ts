@@ -107,14 +107,17 @@ describe('regular post grace window', () => {
     expect(mockPostFindFirst).not.toHaveBeenCalled();
   });
 
-  it('keeps story posting window behavior unchanged', () => {
+  it('keeps story uploads open through +48h after the event', () => {
     jest.setSystemTime(new Date('2026-05-10T23:00:00.000Z'));
     expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
 
     jest.setSystemTime(new Date('2026-05-11T12:00:00.000Z'));
     expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
 
-    jest.setSystemTime(new Date('2026-05-12T00:00:00.000Z'));
+    jest.setSystemTime(new Date('2026-05-12T17:59:59.000Z'));
+    expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(true);
+
+    jest.setSystemTime(new Date('2026-05-12T18:00:01.000Z'));
     expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(false);
   });
 });

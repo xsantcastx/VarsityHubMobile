@@ -2,7 +2,7 @@
  * Geofencing utilities for location-based event posting
  * 
  * BUSINESS RULES:
- * - Story Posts: game-day window, within 1km of venue
+ * - Story Posts: open on game day and stay open until +48h, within 1km of venue
  * - Regular Posts: open 2 days before event start, stay live through the event,
  *   then remain open until +48h only for users who already posted to that same
  *   event while it was live, within 3km of venue
@@ -92,19 +92,15 @@ export function isWithinGeofence(
 }
 
 /**
- * Check if posting window is open for stories
- * Stories: open from midnight UTC on event day until end of the following UTC day.
- * The extra UTC day covers US timezones (UTC-5 to UTC-8) where a game in the evening
- * extends past UTC midnight, so "end of day" locally is already the next UTC day.
+ * Check if posting window is open for stories.
+ * Stories open on the UTC day of the event and stay open for 48 hours after
+ * the event start so recaps and late uploads remain possible after the game.
  */
 export function isStoryPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
-  const eventDay = eventDate.toISOString().slice(0, 10);
-  const todayDay = now.toISOString().slice(0, 10);
-  if (eventDay === todayDay) return true;
-  // Also allow posting on the UTC day immediately after game day (covers US evening games)
-  const dayAfterEvent = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  return dayAfterEvent === todayDay;
+  const eventStartDayUtc = new Date(`${eventDate.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const windowEnd = new Date(eventDate.getTime() + 48 * 60 * 60 * 1000);
+  return now >= eventStartDayUtc && now <= windowEnd;
 }
 
 /**
@@ -156,7 +152,7 @@ export function isPostingWindowOpen(eventDate: Date): boolean {
 
 /**
  * Verify user can post a story to an event based on location and time
- * Stories: 24-hour window (12h before to 12h after game), 1km radius
+ * Stories: event day through +48h, 1km radius
  * @returns { allowed: boolean; reason?: string; distance?: number }
  */
 // v1.0.2 pass 9: server-side anti-spoof for client-supplied geofence coords. We can't fully
@@ -216,13 +212,14 @@ export async function verifyStoryPostingPermission(
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
-  // Check if story posting window is open (game-day only)
+  // Check if story posting window is open (event day through +48h)
   if (!isStoryPostingWindowOpen(event.date)) {
     const gameDay = new Date(event.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    const windowEnd = new Date(event.date.getTime() + 48 * 60 * 60 * 1000);
     return {
       allowed: false,
       code: 'POSTING_WINDOW_CLOSED',
-      reason: `Stories can only be posted on game day (${gameDay}).`,
+      reason: `Stories can be posted from game day (${gameDay}) until ${formatWindowDateTime(windowEnd)}.`,
     };
   }
 

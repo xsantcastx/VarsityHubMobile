@@ -19,11 +19,18 @@ interface LocationPickerProps {
     placeId?: string;
     latitude?: number;
     longitude?: number;
+    postalCode?: string;
   }) => void;
   placeholder?: string;
   error?: string;
   /** When set (e.g. user zip from onboarding), biases Google Places autocomplete toward that area */
   zipBias?: string;
+}
+
+function extractPostalCode(address?: string): string | undefined {
+  if (!address) return undefined;
+  const zipMatch = address.match(/\b\d{5}(?:-\d{4})?\b/);
+  return zipMatch?.[0]?.slice(0, 5);
 }
 
 export default function LocationPicker({
@@ -111,10 +118,11 @@ export default function LocationPicker({
           const geo = await geocodeLocation(suggestion.description);
           if (mountedRef.current && geo?.latitude != null && geo?.longitude != null) {
             onLocationSelect({
-              address: suggestion.description,
+              address: geo.formatted_address || suggestion.description,
               placeId: suggestion.place_id,
               latitude: geo.latitude,
               longitude: geo.longitude,
+              postalCode: extractPostalCode(geo.formatted_address || suggestion.description),
             });
           }
         } catch {

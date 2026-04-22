@@ -19,6 +19,7 @@ import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -69,6 +70,8 @@ function Step3League() {
   const [supportingDocumentUri, setSupportingDocumentUri] = useState<string | null>(null);
   const [supportingDocumentUrl, setSupportingDocumentUrl] = useState<string | null>(null);
   const [supportingDocumentName, setSupportingDocumentName] = useState<string | null>(null);
+  const [backgroundImageUri, setBackgroundImageUri] = useState<string | null>(null);
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null);
   const [_uploadingDocument, setUploadingDocument] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
@@ -236,19 +239,18 @@ function Step3League() {
     }
   }, [initialZip, executeNearbySearch]);
 
-  const handleLocationSelect = useCallback(({ address, placeId }: { address: string; placeId?: string; latitude?: number; longitude?: number }) => {
+  const handleLocationSelect = useCallback(({ address, placeId, postalCode }: { address: string; placeId?: string; latitude?: number; longitude?: number; postalCode?: string }) => {
     setLocation(address);
     if (placeId) {
       setSelectedPlace({ description: address, place_id: placeId });
-      const zipMatch = address.match(/\b\d{5}(?:-\d{4})?\b/);
-      if (zipMatch?.[0]) {
-        const normalizedZip = zipMatch[0].slice(0, 5);
+      const normalizedZip = postalCode?.slice(0, 5) || address.match(/\b\d{5}(?:-\d{4})?\b/)?.[0]?.slice(0, 5);
+      if (normalizedZip) {
         setSelectedPlaceZip(normalizedZip);
         setSearchZip(normalizedZip);
       }
       void (async () => {
         try {
-          const zip = zipMatch?.[0]?.slice(0, 5) || undefined;
+          const zip = normalizedZip || undefined;
           const res = await httpPost('/organizations/check-duplicate', {
             name: orgName.trim(),
             zip_code: zip,
@@ -444,6 +446,44 @@ function Step3League() {
       
       // Upload supporting document if we have a local file
       let docUrl = supportingDocumentUrl;
+      let nextBackgroundUrl = backgroundImageUrl;
+
+      if (!nextBackgroundUrl && backgroundImageUri) {
+        captureBreadcrumb('Organization background upload started', 'onboarding.step3', {
+          file_type: 'image',
+        });
+        try {
+          const result = await uploadFile(
+            getApiBaseUrl(),
+            backgroundImageUri,
+            'organization-background.jpg',
+            'image/jpeg'
+          );
+          nextBackgroundUrl =
+            result?.url ||
+            result?.secure_url ||
+            result?.path ||
+            (typeof result === 'string' ? result : null);
+          if (nextBackgroundUrl) setBackgroundImageUrl(nextBackgroundUrl);
+          captureBreadcrumb('Organization background upload succeeded', 'onboarding.step3', {
+            file_type: 'image',
+          });
+        } catch (uploadErr: any) {
+          captureBreadcrumb('Organization background upload failed', 'onboarding.step3', {
+            file_type: 'image',
+          }, 'warning');
+          captureException(typeof uploadErr === 'string' ? new Error(uploadErr) : uploadErr, {
+            tags: { context: 'onboarding-step-3-background-upload' },
+          });
+          Alert.alert(
+            'Upload Failed',
+            String(uploadErr?.message || uploadErr || 'Could not upload the background image. Please try again.')
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
       if (!docUrl && supportingDocumentUri) {
         setUploadingDocument(true);
         captureBreadcrumb('Supporting document upload started', 'onboarding.step3', {
@@ -493,6 +533,7 @@ function Step3League() {
         org_type: orgType,
         location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
+        background_url: nextBackgroundUrl || undefined,
         supporting_document_url: docUrl,
         onboarding: true,
       };
@@ -733,6 +774,68 @@ function Step3League() {
               <MaterialIcons name="expand-more" size={18} color={isDark ? '#CBD5E1' : '#475569'} />
             </Pressable>
 
+            <Text style={[styles.label, { marginTop: 16 }]}>Background Image (Optional)</Text>
+            <Text style={[Type.caption, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 8 }]}>
+              Add a banner image so your organization page looks complete as soon as it is approved.
+            </Text>
+            <Pressable
+              style={[
+                styles.selectField,
+                {
+                  borderColor: isDark ? '#374151' : '#E2E8F0',
+                  backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
+                  minHeight: 96,
+                  paddingVertical: 12,
+                }
+              ]}
+              onPress={async () => {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permission Needed', 'Please allow access to your photos to upload a background image.');
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [3, 2],
+                  quality: 0.9,
+                });
+                if (!result.canceled && result.assets?.[0]?.uri) {
+                  const materialized = await materializeICloudAssetIfNeeded(result.assets[0].uri);
+                  setBackgroundImageUri(materialized);
+                  setBackgroundImageUrl(null);
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Upload organization background image"
+            >
+              {backgroundImageUri ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Image source={{ uri: backgroundImageUri }} style={{ width: 88, height: 56, borderRadius: 10 }} />
+                  <Text style={[styles.selectFieldText, { flex: 1 }]}>Background image selected</Text>
+                  <Pressable
+                    onPress={() => {
+                      setBackgroundImageUri(null);
+                      setBackgroundImageUrl(null);
+                    }}
+                    hitSlop={8}
+                  >
+                    <MaterialIcons name="close" size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <MaterialIcons name="image" size={24} color={isDark ? '#60A5FA' : '#2563EB'} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectFieldText}>Tap to add a background image</Text>
+                    <Text style={[Type.caption, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 2 }]}>
+                      Recommended: wide banner image
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Pressable>
+
             <Text style={[styles.label, { marginTop: 16 }]}>Supporting Documents (Required)</Text>
             <Text style={[Type.caption, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 8 }]}>
               Upload a file or image to verify your organization (e.g., school letterhead, registration document)
@@ -758,7 +861,8 @@ function Step3League() {
                         quality: 0.9,
                       });
                       if (!result.canceled && result.assets?.[0]?.uri) {
-                        setSupportingDocumentUri(result.assets[0].uri);
+                        const materialized = await materializeICloudAssetIfNeeded(result.assets[0].uri);
+                        setSupportingDocumentUri(materialized);
                         setSupportingDocumentUrl(null);
                         setSupportingDocumentName(null);
                       }
@@ -920,11 +1024,23 @@ function Step3League() {
             <Input
               value={searchZip}
               onChangeText={(text: string) => setSearchZip(text.replace(/\D/g, '').slice(0, 5))}
-              placeholder="Enter zip code (e.g., 06902)"
+              placeholder={selectedPlace ? 'ZIP auto-filled from selected address' : 'Enter zip code (e.g., 06902)'}
               keyboardType="numeric"
               maxLength={5}
-              style={{ minHeight: 56, paddingVertical: 16, fontSize: 16, marginBottom: 16 }}
+              editable={!selectedPlace}
+              style={{
+                minHeight: 56,
+                paddingVertical: 16,
+                fontSize: 16,
+                marginBottom: 8,
+                opacity: selectedPlace ? 0.7 : 1,
+              }}
             />
+            <Text style={[Type.caption, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 16 }]}>
+              {selectedPlace
+                ? 'ZIP is linked to the selected address. Clear or change the address to edit ZIP manually.'
+                : 'Add an address below to auto-fill ZIP and improve nearby organization search results.'}
+            </Text>
 
             <Text style={styles.label}>Location</Text>
             <View style={{ zIndex: 10, overflow: 'visible' }}>

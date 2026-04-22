@@ -573,6 +573,8 @@ export const Organization = {
     formatted_address?: string;
     place_id?: string;
     zip_code?: string;
+    background_url?: string;
+    supporting_document_url?: string;
     latitude?: number;
     longitude?: number;
     onboarding?: boolean;
