@@ -63,27 +63,27 @@ describe('requireVerified ↔ requireOnboarded bypass parity', () => {
     expect(/path\s*===\s*['"]\/['"]/.test(onboardedSrc)).toBe(true);
   });
 
-  it('gates the onboarded bypass on role: coach + onboarding_completed !== true', () => {
-    // Defense-in-depth: even if bypass triggers, it must require the user to
-    // be a coach who has not yet completed onboarding. If someone removes
-    // either guard, generic users could bypass the gate.
-    expect(/role\s*===\s*['"]coach['"]/.test(onboardedSrc)).toBe(true);
+  it('gates the onboarded bypass on incomplete onboarding', () => {
+    // The upload carve-out now exists to keep onboarding media/doc uploads
+    // working even if role persistence lags behind the UI state. The hard
+    // guard is that onboarding must still be incomplete.
     expect(/onboarding_completed\s*!==\s*true/.test(onboardedSrc)).toBe(true);
   });
 
-  it('bypasses uploads only for onboarding supporting-document uploads', () => {
-    // The upload route stays protected except for the narrow onboarding
-    // document case. This guards the exact client/server contract that broke
-    // PDF uploads during coach onboarding.
+  it('bypasses uploads only for specific onboarding upload contexts', () => {
+    // The upload route stays protected except for narrow onboarding upload
+    // contexts needed before onboarding is completed.
     expect(hasBypass(onboardedSrc, '/uploads')).toBe(true);
     expect(/upload_context/.test(onboardedSrc)).toBe(true);
     expect(/organization_supporting_document/.test(onboardedSrc)).toBe(true);
+    expect(/onboarding_avatar/.test(onboardedSrc)).toBe(true);
+    expect(/onboarding_header_image/.test(onboardedSrc)).toBe(true);
   });
 
   it('requires the onboarding flag for the upload bypass', () => {
     // The upload carve-out must remain tied to onboarding=true so a regular
-    // coach upload cannot slip through by only setting the upload context.
+    // upload cannot slip through by only setting the upload context.
     expect(/onboardingFlag/.test(onboardedSrc)).toBe(true);
-    expect(/isOnboardingSupportDocUpload/.test(onboardedSrc)).toBe(true);
+    expect(/isOnboardingUpload/.test(onboardedSrc)).toBe(true);
   });
 });

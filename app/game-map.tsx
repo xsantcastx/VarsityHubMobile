@@ -5,6 +5,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Location from 'expo-location';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { shouldShowEventOnMap } from '@/utils/mapEventFilters';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 // SafeAreaView removed — native header handles safe area
@@ -100,6 +101,9 @@ function GameMapScreen() {
       // Transform events to EventMapData format (never show cancelled events on map)
       const eventMarkers: EventMapData[] = eventsList
         .filter((e: any) => e.status !== 'cancelled')
+        // Feed/list views intentionally keep recent past events visible for recap.
+        // The map should not: past events should drop off immediately.
+        .filter((e: any) => shouldShowEventOnMap(e.date))
         .filter(hasValidCoords)
         .map((event: any) => {
           const coords = resolveCoords(event)!;
