@@ -12,6 +12,8 @@ describe('requireOnboarded onboarding upload bypass', () => {
     expect(/baseUrl\s*===\s*['"]\/uploads['"]/.test(requireOnboardedSrc)).toBe(true);
     expect(/path\s*===\s*['"]\/files['"]/.test(requireOnboardedSrc)).toBe(true);
     expect(/path\s*===\s*['"]\/['"]/.test(requireOnboardedSrc)).toBe(true);
+    expect(/req\.query\?\.onboarding/.test(requireOnboardedSrc)).toBe(true);
+    expect(/req\.query\?\.upload_context/.test(requireOnboardedSrc)).toBe(true);
     expect(/upload_context/.test(requireOnboardedSrc)).toBe(true);
     expect(/organization_supporting_document/.test(requireOnboardedSrc)).toBe(true);
   });

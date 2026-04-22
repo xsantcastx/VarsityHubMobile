@@ -73,6 +73,26 @@ describe('uploadFile routing', () => {
     expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
   });
 
+  it('mirrors onboarding upload context into the query string for server uploads', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+    });
+
+    const { uploadFile } = await import('../upload');
+    await uploadFile('https://api.test', 'file:///tmp/doc.pdf', 'doc.pdf', 'application/pdf', {
+      formFields: {
+        onboarding: true,
+        upload_context: 'organization_supporting_document',
+      },
+    });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://api.test/uploads/files?onboarding=true&upload_context=organization_supporting_document'
+    );
+  });
+
   it('routes images through the Cloudinary signature flow before upload', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

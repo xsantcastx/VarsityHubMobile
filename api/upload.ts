@@ -7,6 +7,20 @@ function computeBase(provided?: string | null) {
   return getApiBaseUrl();
 }
 
+function buildUploadUrl(
+  target: string,
+  formFields?: Record<string, string | number | boolean | null | undefined>,
+) {
+  if (!formFields) return target;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(formFields)) {
+    if (value == null) continue;
+    params.set(key, String(value));
+  }
+  const query = params.toString();
+  return query ? `${target}?${query}` : target;
+}
+
 export interface UploadProgressCallback {
   (progress: number, loaded: number, total: number): void;
 }
@@ -231,7 +245,7 @@ async function uploadRawViaServer(
   mimeType: string,
   options?: UploadOptions,
 ): Promise<any> {
-  const target = `${base}/uploads/files`;
+  const target = buildUploadUrl(`${base}/uploads/files`, options?.formFields);
   const token = await resolveUploadToken();
   if (!token) {
     const err: any = new Error('Unauthorized');
@@ -339,7 +353,7 @@ export async function uploadFileWithProgress(
   }
 
   // Fallback: XHR to server
-  const target = `${finalBase}/uploads`;
+  const target = buildUploadUrl(`${finalBase}/uploads`, options?.formFields);
   const token = await resolveUploadToken();
   if (!token) {
     const err: any = new Error('Unauthorized');
@@ -394,7 +408,7 @@ async function uploadViaServer(
   mimeType: string,
   options?: UploadOptions,
 ): Promise<any> {
-  const target = `${base}/uploads`;
+  const target = buildUploadUrl(`${base}/uploads`, options?.formFields);
 
   const form = new FormData();
   form.append('file', { uri, name: filename, type: mimeType } as any);
