@@ -2,6 +2,7 @@ import { uploadFile } from '@/api/upload';
 import { ReachMapPreview } from '@/components/ReachMapPreview';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -111,7 +112,8 @@ function EditAdScreen() {
     const a = (r as any).assets[0];
     try {
       setUploading(true);
-      const manipulated = await ImageManipulator.manipulateAsync(a.uri, [{ resize: { width: 1200 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
+      const localUri = await materializeICloudAssetIfNeeded(a.uri);
+      const manipulated = await ImageManipulator.manipulateAsync(localUri, [{ resize: { width: 1200 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const up = await uploadFile(getApiBaseUrl(), manipulated.uri, a.fileName || 'banner.jpg', 'image/jpeg');
       setBannerUrl(up?.url || up?.path || null);
     } catch (e: any) {
