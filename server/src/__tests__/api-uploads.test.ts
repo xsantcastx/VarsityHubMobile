@@ -17,6 +17,8 @@ const describeDb = shouldSkipDbTests ? describe.skip : describe;
 describeDb('Uploads API Endpoints', () => {
   let testUser: any;
   let testUserToken: string;
+  let unverifiedUser: any;
+  let unverifiedUserToken: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -31,10 +33,21 @@ describeDb('Uploads API Endpoints', () => {
       },
     });
     testUserToken = signJwt({ id: testUser.id });
+    unverifiedUser = await prisma.user.create({
+      data: {
+        email: `test-unverified-uploads-${Date.now()}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Unverified Upload Tester',
+        email_verified: false,
+        preferences: { role: 'fan', onboarding_completed: false },
+      },
+    });
+    unverifiedUserToken = signJwt({ id: unverifiedUser.id });
   });
 
   afterAll(async () => {
     await prisma.user.deleteMany({ where: { id: testUser.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: unverifiedUser.id } }).catch(() => {});
   });
 
   describe('POST /uploads', () => {
@@ -42,12 +55,43 @@ describeDb('Uploads API Endpoints', () => {
       const res = await request(app).post('/uploads');
       expect(res.statusCode).toEqual(401);
     });
+
+    it('should require verified email', async () => {
+      const res = await request(app)
+        .post('/uploads')
+        .set('Authorization', `Bearer ${unverifiedUserToken}`);
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toEqual('Email verification required');
+    });
   });
 
   describe('POST /uploads/files', () => {
     it('should require authentication', async () => {
       const res = await request(app).post('/uploads/files');
       expect(res.statusCode).toEqual(401);
+    });
+
+    it('should require verified email', async () => {
+      const res = await request(app)
+        .post('/uploads/files')
+        .set('Authorization', `Bearer ${unverifiedUserToken}`);
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toEqual('Email verification required');
+    });
+  });
+
+  describe('GET /uploads/cloudinary-signature', () => {
+    it('should require authentication', async () => {
+      const res = await request(app).get('/uploads/cloudinary-signature');
+      expect(res.statusCode).toEqual(401);
+    });
+
+    it('should require verified email', async () => {
+      const res = await request(app)
+        .get('/uploads/cloudinary-signature')
+        .set('Authorization', `Bearer ${unverifiedUserToken}`);
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toEqual('Email verification required');
     });
   });
 

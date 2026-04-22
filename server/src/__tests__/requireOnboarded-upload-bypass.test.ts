@@ -7,21 +7,28 @@ const requireOnboardedSrc = readFileSync(
   'utf8'
 );
 
-describe('requireOnboarded onboarding upload bypass', () => {
-  it('only bypasses upload gating for specific onboarding upload contexts', () => {
-    expect(/baseUrl\s*===\s*['"]\/uploads['"]/.test(requireOnboardedSrc)).toBe(true);
-    expect(/path\s*===\s*['"]\/files['"]/.test(requireOnboardedSrc)).toBe(true);
-    expect(/path\s*===\s*['"]\/['"]/.test(requireOnboardedSrc)).toBe(true);
-    expect(/path\s*===\s*['"]\/avatar['"]/.test(requireOnboardedSrc)).toBe(true);
-    expect(/req\.query\?\.onboarding/.test(requireOnboardedSrc)).toBe(true);
-    expect(/req\.query\?\.upload_context/.test(requireOnboardedSrc)).toBe(true);
-    expect(/organization_supporting_document/.test(requireOnboardedSrc)).toBe(true);
-    expect(/onboarding_avatar/.test(requireOnboardedSrc)).toBe(true);
-    expect(/onboarding_header_image/.test(requireOnboardedSrc)).toBe(true);
+const uploadsRouteSrc = readFileSync(
+  join(process.cwd(), 'src', 'routes', 'uploads.ts'),
+  'utf8'
+);
+
+describe('uploads architecture — requireOnboarded is not an upload gate', () => {
+  it('does not apply requireOnboarded to any upload route', () => {
+    // Uploads are a verified utility (requireAuth + requireVerified), not onboarded content.
+    // If this fails, someone re-introduced requireOnboarded on uploads — which dead-ends
+    // mid-onboarding users on the supporting-document/avatar/header flows.
+    expect(uploadsRouteSrc).not.toMatch(/requireOnboarded/);
   });
 
-  it('keeps the upload bypass scoped to incomplete onboarding', () => {
-    expect(/onboarding_completed\s*!==\s*true/.test(requireOnboardedSrc)).toBe(true);
-    expect(/onboardingUploadContexts\.has\(uploadContext\)/.test(requireOnboardedSrc)).toBe(true);
+  it('does not ship an upload-specific bypass block in requireOnboarded', () => {
+    // The historical bypass (organization_supporting_document / onboarding_avatar /
+    // onboarding_header_image) only existed because requireOnboarded used to sit on
+    // upload routes. Now that it doesn't, the bypass would be dead code — and a
+    // signal of architectural drift if it reappears.
+    expect(requireOnboardedSrc).not.toMatch(/isOnboardingSupportDocUpload/);
+    expect(requireOnboardedSrc).not.toMatch(/onboardingUploadContexts/);
+    expect(requireOnboardedSrc).not.toMatch(/organization_supporting_document/);
+    expect(requireOnboardedSrc).not.toMatch(/onboarding_avatar/);
+    expect(requireOnboardedSrc).not.toMatch(/onboarding_header_image/);
   });
 });
