@@ -6,8 +6,8 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { checkPlanAtLeast, getUserPlan } from '../middleware/subscription.js';
 import {
   adCreationLimiter,
   adModerationLimiter,
@@ -103,6 +103,31 @@ async function getZipCoordinatesWithFallback(
 
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
+
+async function enforceAdPlan(req: AuthedRequest, res: Response) {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'AUTH_REQUIRED', message: 'Authentication required.' });
+    return false;
+  }
+
+  if (await getIsAdmin(req)) {
+    return true;
+  }
+
+  const currentPlan = await getUserPlan(req.user.id);
+  const gate = checkPlanAtLeast(currentPlan, 'veteran');
+  if (!gate) {
+    return true;
+  }
+
+  res.status(403).json({
+    ...gate,
+    message: 'Local ads require a Veteran or Legend plan.',
+    upgrade_url: '/settings/manage-subscription',
+  });
+  return false;
+}
+
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
 
@@ -151,19 +176,15 @@ if (shouldRunStartupBackfills) {
   })();
 }
 
-// Create an Ad — any authenticated, verified, onboarded user. Rate-limited
-// to prevent draft spam. No plan gate: any onboarded user (fan or coach)
-// can create and submit an ad; booking dates still requires successful
-// checkout (enforced in the reservation/payment path). If product later
-// decides ads are paid-tier-only, add an explicit plan middleware here
-// and audit the UX surface in the client.
+// Create an ad draft — gated by verified email + plan, not onboarding.
 adsRouter.post(
   '/',
   requireAuth as any,
   requireVerified as any,
-  requireOnboarded as any,
   adCreationLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
+    if (!(await enforceAdPlan(req, res))) return;
+
     const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
     const parsed = adCreateSchema.safeParse(safeBody);
     if (!parsed.success) {
@@ -210,9 +231,11 @@ adsRouter.post(
   })
 );
 
-// Submit ad for approval — handler exported for app-level registration (guarantees route is hit)
-export async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
+// Submit ad draft for admin review — verified email + plan, not onboarding.
+async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
   try {
+    if (!(await enforceAdPlan(req, res))) return;
+
     const id = String(req.params.id).trim();
     if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
       return res.status(400).json({ error: 'Invalid ad ID' });
@@ -366,7 +389,6 @@ adsRouter.post(
   '/:id/submit-for-approval',
   requireAuth as any,
   requireVerified as any,
-  requireOnboarded as any,
   handleAdSubmitForApproval
 );
 
@@ -696,12 +718,11 @@ adsRouter.put(
   })
 );
 
-// Delete an Ad (owner-only if authenticated)
+// Delete an ad (owner-only if authenticated). Owners should not be trapped by onboarding state.
 adsRouter.delete(
   '/:id([a-z0-9]{15,50})',
   requireAuth as any,
   requireVerified as any,
-  requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const id = String(req.params.id);
     debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });
@@ -1249,8 +1270,9 @@ async function submitModeration(event) {
 
 // Admin: Approve a pending ad
 // GET with token → shows confirmation form (safe from email scanners)
-// POST with token → performs the approval
-// POST with admin auth → performs the approval (admin dashboard)
+// POST (admin auth required) → performs the approval.
+//   - Token, when present, is validated as a binding (ad_id + action) so a
+//     forwarded/leaked email link still can't be replayed by a non-admin.
 /** Fetch the moderation fields needed to render the confirmation form when the
  *  banner has been flagged or could not be scanned. Returns null when the ad
  *  does not exist (caller should 404). */
@@ -1285,47 +1307,61 @@ async function loadAdModerationSummary(id: string) {
     },
   };
 }
-
 async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
 
-    if (token) {
-      if (!verifyModerationToken(token, id, 'approve_ad')) {
-        return req.method === 'GET'
-          ? res
-              .status(401)
-              .send(
-                confirmationPage(
-                  'Invalid Link',
-                  'This approval link is invalid or has expired.',
-                  false
-                )
-              )
-          : res.status(401).json({ error: 'Invalid or expired approval token' });
-      }
-      // GET: show confirmation form, don't perform the action
-      if (req.method === 'GET') {
-        const summary = await loadAdModerationSummary(id);
-        if (!summary) return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
-        addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
+    // GET path = confirmation form served from email link. Token-only, read-only.
+    if (req.method === 'GET') {
+      if (!token || !verifyModerationToken(token, id, 'approve_ad')) {
+        addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
           action: 'approve',
           ad_id: id,
+          method: req.method,
         });
-        return res.send(
-          confirmationForm(
-            'approve',
-            id,
-            token,
-            escapeHtml(summary.businessName),
-            summary.moderation
-          )
-        );
+        return res
+          .status(401)
+          .send(
+            confirmationPage(
+              'Invalid Link',
+              'This approval link is invalid or has expired.',
+              false
+            )
+          );
       }
-    } else {
-      const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+      addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
+        action: 'approve',
+        ad_id: id,
+      });
+      const summary = await loadAdModerationSummary(id);
+      if (!summary) {
+        return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
+      }
+      return res.send(
+        confirmationForm(
+          'approve',
+          id,
+          token,
+          escapeHtml(summary.businessName),
+          summary.moderation
+        )
+      );
+    }
+
+    // POST path = the actual write. Always require admin auth.
+    const isAdmin = await getIsAdmin(req);
+    if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+
+    // If a token was supplied (from the email form), validate the binding so a
+    // mismatched or tampered link can't approve a different ad.
+    if (token && !verifyModerationToken(token, id, 'approve_ad')) {
+      addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
+        action: 'approve',
+        ad_id: id,
+        method: req.method,
+      });
+      return res.status(401).json({ error: 'Invalid or expired approval token' });
     }
 
     const body = req.body || {};
@@ -1401,35 +1437,53 @@ adsRouter.post(
   handleAdApprove as any
 );
 
-// Admin: Reject a pending ad (same confirmation-form pattern as approve)
+// Admin: Reject a pending ad (same confirmation-form pattern as approve).
+// See handleAdApprove for the full security rationale — POST always requires
+// admin auth; token (when present) binds the action to the specific ad_id.
 async function handleAdReject(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
 
-    if (token) {
-      if (!verifyModerationToken(token, id, 'reject_ad')) {
-        return req.method === 'GET'
-          ? res
-              .status(401)
-              .send(
-                confirmationPage(
-                  'Invalid Link',
-                  'This rejection link is invalid or has expired.',
-                  false
-                )
-              )
-          : res.status(401).json({ error: 'Invalid or expired rejection token' });
+    // GET path = confirmation form served from email link. Token-only, read-only.
+    if (req.method === 'GET') {
+      if (!token || !verifyModerationToken(token, id, 'reject_ad')) {
+        addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
+          action: 'reject',
+          ad_id: id,
+          method: req.method,
+        });
+        return res
+          .status(401)
+          .send(
+            confirmationPage(
+              'Invalid Link',
+              'This rejection link is invalid or has expired.',
+              false
+            )
+          );
       }
-      if (req.method === 'GET') {
-        const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
-        return res.send(
-          confirmationForm('reject', id, token, escapeHtml(ad?.business_name || 'Unknown'))
-        );
-      }
-    } else {
-      const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+      addBreadcrumb('Ad rejection confirmation page rendered', 'approval.ad_route', 'info', {
+        action: 'reject',
+        ad_id: id,
+      });
+      const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
+      return res.send(
+        confirmationForm('reject', id, token, escapeHtml(ad?.business_name || 'Unknown'))
+      );
+    }
+
+    // POST path = the actual write. Always require admin auth.
+    const isAdmin = await getIsAdmin(req);
+    if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+
+    if (token && !verifyModerationToken(token, id, 'reject_ad')) {
+      addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
+        action: 'reject',
+        ad_id: id,
+        method: req.method,
+      });
+      return res.status(401).json({ error: 'Invalid or expired rejection token' });
     }
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);

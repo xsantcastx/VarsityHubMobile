@@ -100,7 +100,8 @@ describe('EventMap', () => {
   });
 
   it('dedupes marker press + callout press so one tap cannot open two pages', async () => {
-    jest.spyOn(Date, 'now')
+    const nowSpy = jest
+      .spyOn(Date, 'now')
       .mockReturnValueOnce(1000)
       .mockReturnValueOnce(1100);
     const onEventPress = jest.fn();
@@ -111,7 +112,7 @@ describe('EventMap', () => {
     fireEvent(marker, 'onCalloutPress');
 
     expect(onEventPress).toHaveBeenCalledTimes(1);
-    (Date.now as jest.Mock).mockRestore();
+    nowSpy.mockRestore();
   });
 
   it('renders empty state when no events', async () => {

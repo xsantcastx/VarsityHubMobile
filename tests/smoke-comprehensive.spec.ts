@@ -11,9 +11,9 @@ const APP_URL = process.env.APP_URL || 'http://localhost:8081';
 const API_URL = process.env.API_URL || 'http://localhost:4000';
 const HEALTH_CHECK_SECRET = process.env.HEALTH_CHECK_SECRET;
 
-async function waitForAppShell(page: any) {
+async function waitForAppShell(page: import('@playwright/test').Page) {
   await page.locator('body').waitFor({ state: 'visible', timeout: 30000 });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1000);
 }
 
 test.describe('Comprehensive Smoke Tests', () => {
@@ -56,26 +56,39 @@ test.describe('Comprehensive Smoke Tests', () => {
 
     const body = await response.json();
     expect(body.status).toBe('ok');
+    // Timestamp is emitted unconditionally by the server — no HEALTH_CHECK_SECRET required.
     expect(body.timestamp).toBeDefined();
   });
 
   test('Backend API has database connection', async ({ request }) => {
+    test.skip(!HEALTH_CHECK_SECRET, 'Detailed integration status requires HEALTH_CHECK_SECRET');
+
     const response = await request.get(`${API_URL}/health`, {
-      headers: HEALTH_CHECK_SECRET ? { 'x-health-check-secret': HEALTH_CHECK_SECRET } : undefined,
+      headers: {
+        'x-health-check-secret': HEALTH_CHECK_SECRET!,
+      },
     });
     const body = await response.json();
 
-    test.skip(!body.integrations, 'Detailed health integrations require matching HEALTH_CHECK_SECRET on client and server.');
+    // Defend against local env mismatch where the client has HEALTH_CHECK_SECRET
+    // but the server doesn't (or has a different value) — in that case the
+    // server returns the plain shape and `integrations` is absent. Skip rather
+    // than produce a misleading failure that looks like a contract drift.
+    test.skip(!body.integrations, 'Server did not honor HEALTH_CHECK_SECRET (env mismatch)');
     expect(body.integrations.database).toBe(true);
   });
 
   test('Backend API has JWT configured', async ({ request }) => {
+    test.skip(!HEALTH_CHECK_SECRET, 'Detailed integration status requires HEALTH_CHECK_SECRET');
+
     const response = await request.get(`${API_URL}/health`, {
-      headers: HEALTH_CHECK_SECRET ? { 'x-health-check-secret': HEALTH_CHECK_SECRET } : undefined,
+      headers: {
+        'x-health-check-secret': HEALTH_CHECK_SECRET!,
+      },
     });
     const body = await response.json();
 
-    test.skip(!body.integrations, 'Detailed health integrations require matching HEALTH_CHECK_SECRET on client and server.');
+    test.skip(!body.integrations, 'Server did not honor HEALTH_CHECK_SECRET (env mismatch)');
     expect(body.integrations.jwt).toBe(true);
   });
 
@@ -117,7 +130,7 @@ test.describe('Comprehensive Smoke Tests', () => {
   });
 
   test('App responds to user interactions', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
     await waitForAppShell(page);
 
     // Try clicking on any visible button/link
@@ -182,9 +195,11 @@ test.describe('Comprehensive Smoke Tests', () => {
   });
 
   test('App loads main content areas', async ({ page }) => {
-    await page.goto(APP_URL);
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' });
     await waitForAppShell(page);
 
+    // Check for a visible app shell. Some routes render a structural shell
+    // without text nodes, so textContent length alone is too brittle.
     const hasContent = await Promise.all([
       page.locator('body').isVisible(),
       page.locator('main, [role="main"], #root, #app').first().isVisible().catch(() => false),

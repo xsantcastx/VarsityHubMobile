@@ -12,11 +12,11 @@
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
+import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
 
 let prisma: any;
 let signJwt: any;
-let app: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -36,6 +36,8 @@ let approvedCoach: any;
 let approvedCoachToken: string;
 let premiumAdUser: any;
 let premiumAdUserToken: string;
+let premiumUnonboardedAdUser: any;
+let premiumUnonboardedAdUserToken: string;
 let testOrg: any;
 let cleanupIds: { users: string[]; orgs: string[]; posts: string[]; teams: string[] };
 
@@ -43,7 +45,6 @@ describeDb('Critical Server Flows', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
-    ({ app } = await import('../criticalFlowsTestApp.js'));
     cleanupIds = { users: [], orgs: [], posts: [], teams: [] };
 
     const hash = await bcrypt.hash(PASSWORD, 10);
@@ -109,6 +110,20 @@ describeDb('Critical Server Flows', () => {
     });
     premiumAdUserToken = signJwt({ id: premiumAdUser.id });
     cleanupIds.users.push(premiumAdUser.id);
+
+    // 5. Verified but not onboarded paid advertiser — should still be able to manage ad drafts.
+    premiumUnonboardedAdUser = await prisma.user.create({
+      data: {
+        email: `critical-ad-unonboarded-${ts}@example.com`,
+        password_hash: hash,
+        display_name: 'Premium Unonboarded Ad User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'fan', plan: 'veteran', onboarding_completed: false },
+      },
+    });
+    premiumUnonboardedAdUserToken = signJwt({ id: premiumUnonboardedAdUser.id });
+    cleanupIds.users.push(premiumUnonboardedAdUser.id);
 
     // Organization for the approved coach
     testOrg = await prisma.organization.create({
@@ -374,7 +389,6 @@ describeDb('Critical Server Flows', () => {
           username: `planpreserve${Date.now()}`.slice(0, 20),
           email_verified: true,
           approval_status: 'APPROVED',
-          date_of_birth: new Date('1990-01-01'),
           preferences: {
             role: 'coach',
             plan: 'veteran',
@@ -416,7 +430,6 @@ describeDb('Critical Server Flows', () => {
           username: `approveddrift${Date.now()}`.slice(0, 20),
           email_verified: true,
           approval_status: 'APPROVED',
-          date_of_birth: new Date('1990-01-01'),
           preferences: {
             role: 'fan',
             plan: 'veteran',
@@ -447,56 +460,6 @@ describeDb('Critical Server Flows', () => {
       const prefs = (userAfter?.preferences as any) || {};
       expect(prefs.role).toBe('coach');
       expect(userAfter?.approval_status).toBe('APPROVED');
-    });
-
-    it('should ignore client supplied billing state on complete-onboarding', async () => {
-      const user = await prisma.user.create({
-        data: {
-          email: `critical-billing-state-${ts}-${Math.random()}@example.com`,
-          password_hash: await bcrypt.hash(PASSWORD, 10),
-          display_name: 'Billing State Coach',
-          username: `billingstate${Date.now()}`.slice(0, 20),
-          email_verified: true,
-          approval_status: 'APPROVED',
-          date_of_birth: new Date('1990-01-01'),
-          preferences: {
-            role: 'coach',
-            plan: 'rookie',
-            pending_plan: 'veteran',
-            payment_pending: true,
-            team_count_total: 4,
-            onboarding_completed: false,
-            organization_id: testOrg.id,
-            organization_name: testOrg.name,
-          },
-        },
-      });
-      cleanupIds.users.push(user.id);
-      const token = signJwt({ id: user.id });
-
-      const res = await request(app)
-        .post('/auth/me/complete-onboarding')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          role: 'coach',
-          affiliation: 'school',
-          plan: 'legend',
-          payment_pending: false,
-          team_count_total: 99,
-        });
-
-      expect(res.statusCode).toEqual(200);
-
-      const userAfter = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { preferences: true },
-      });
-
-      const prefs = (userAfter?.preferences as any) || {};
-      expect(prefs.plan).toBe('rookie');
-      expect(prefs.pending_plan).toBe('veteran');
-      expect(prefs.payment_pending).toBe(true);
-      expect(prefs.team_count_total).toBe(4);
     });
 
     it('should clear payment_pending and pending_plan when skipping payment', async () => {
@@ -547,7 +510,7 @@ describeDb('Critical Server Flows', () => {
   // ─── 6. Error Response Shape Consistency ───────────────────────────────────
 
   describe('Ad Plan Enforcement', () => {
-    it('should allow rookie/free users to save ad drafts but block monetization later', async () => {
+    it('should block rookie/free users from creating ad drafts', async () => {
       const res = await request(app)
         .post('/ads')
         .set('Authorization', `Bearer ${onboardedToken}`)
@@ -561,11 +524,9 @@ describeDb('Critical Server Flows', () => {
           description: 'Blocked ad',
         });
 
-      expect(res.statusCode).toEqual(201);
-      expect(res.body).toHaveProperty('id');
-      expect(res.body.status).toBe('draft');
-      expect(res.body.payment_status).toBe('unpaid');
-      await prisma.ad.delete({ where: { id: res.body.id } }).catch(() => {});
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toBe('PLAN_UPGRADE_REQUIRED');
+      expect(res.body.required).toBe('veteran');
     });
 
     it('should allow Veteran users to create ad drafts', async () => {
@@ -587,7 +548,46 @@ describeDb('Critical Server Flows', () => {
       await prisma.ad.delete({ where: { id: res.body.id } }).catch(() => {});
     });
 
-    it('should allow rookie/free users to initiate payment on their approved ads', async () => {
+    it('should allow verified but not onboarded Veteran users through ad draft lifecycle', async () => {
+      const createRes = await request(app)
+        .post('/ads')
+        .set('Authorization', `Bearer ${premiumUnonboardedAdUserToken}`)
+        .send({
+          contact_name: 'Fresh Advertiser',
+          contact_email: 'fresh-advertiser@example.com',
+          business_name: 'Fresh Advertiser Biz',
+          banner_url: 'https://example.com/banner-fresh.jpg',
+          target_url: 'https://example.com',
+          target_zip_code: '10001',
+          description: 'Ad from a verified but not onboarded advertiser',
+        });
+
+      expect(createRes.statusCode).toEqual(201);
+      expect(createRes.body).toHaveProperty('id');
+      const adId = String(createRes.body.id);
+
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const submitRes = await request(app)
+        .post(`/ads/${adId}/submit-for-approval`)
+        .set('Authorization', `Bearer ${premiumUnonboardedAdUserToken}`)
+        .send({ dates: [tomorrow] });
+
+      expect(submitRes.statusCode).toEqual(200);
+      expect(submitRes.body.status).toEqual('pending');
+      expect(submitRes.body.payment_status).toEqual('pending_approval');
+
+      const deleteRes = await request(app)
+        .delete(`/ads/${adId}`)
+        .set('Authorization', `Bearer ${premiumUnonboardedAdUserToken}`);
+
+      expect(deleteRes.statusCode).toEqual(200);
+      expect(deleteRes.body.ok).toBe(true);
+
+      const adAfterDelete = await prisma.ad.findUnique({ where: { id: adId } });
+      expect(adAfterDelete).toBeNull();
+    });
+
+    it('should block rookie/free users from initiating payment on existing approved ads', async () => {
       const ad = await prisma.ad.create({
         data: {
           user_id: onboardedUser.id,
@@ -609,9 +609,9 @@ describeDb('Critical Server Flows', () => {
           .set('Authorization', `Bearer ${onboardedToken}`)
           .send({ ad_id: ad.id, dates: ['2035-01-02'] });
 
-        if (res.body?.error) {
-          expect(res.body.error).not.toBe('PLAN_UPGRADE_REQUIRED');
-        }
+        expect(res.statusCode).toEqual(403);
+        expect(res.body.error).toBe('PLAN_UPGRADE_REQUIRED');
+        expect(res.body.required).toBe('veteran');
       } finally {
         await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
       }

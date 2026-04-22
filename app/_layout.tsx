@@ -1,6 +1,7 @@
 // Must be the very first import so Reactotron patches globals before anything else
 if (__DEV__ && process.env.EXPO_OS !== 'web') { require('../ReactotronConfig'); }
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
+import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,20 +14,31 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { VerificationRequiredModal } from '@/components/VerificationRequiredModal';
 import { Colors } from '@/constants/Colors';
 import { MAX_CONTENT_WIDTH } from '@/constants/layout';
-import { AuthProvider } from '@/context/AuthProvider';
+import { AuthProvider, useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryProvider } from '@/context/NavigationHistoryContext';
 import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
+import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
 import { initAnalytics } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
-import Notifications from '@/utils/notifications';
 import { StripeProvider } from '@/utils/stripe';
+// @ts-ignore
+import { User } from '@/api/entities';
+
+
+// Conditionally import notifications only if not in Expo Go
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+let Notifications: any = null;
+if (!isExpoGo) {
+  Notifications = require('expo-notifications');
+}
 
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
@@ -47,6 +59,32 @@ if (Platform.OS === 'web' && __DEV__) {
       devLog('Web Testing Monitor Active - Tracking all errors');
     })
     .catch(error => devLog('Testing monitor failed to start', error));
+}
+
+function VerificationGateHost() {
+  const { user, pendingVerificationEmail, checkAuth } = useAuth();
+  const gate = useVerificationGate({
+    getDefaultEmail: () => pendingVerificationEmail || user?.email || null,
+    requestCode: () => User.requestVerification(),
+    confirmCode: (code: string) => User.verifyEmail(code),
+    onVerified: () => checkAuth(),
+  });
+
+  return (
+    <VerificationRequiredModal
+      visible={gate.visible}
+      email={gate.email}
+      code={gate.code}
+      loading={gate.loading}
+      error={gate.error}
+      info={gate.info}
+      resendCooldown={gate.resendCooldown}
+      onChangeCode={gate.setCode}
+      onVerify={gate.verify}
+      onResend={gate.resend}
+      onCancel={gate.cancel}
+    />
+  );
 }
 
 function RootLayout() {
@@ -85,7 +123,7 @@ function RootLayout() {
   }, []);
 
   React.useEffect(() => {
-    if (Platform.OS !== 'android' || !Notifications?.setNotificationChannelAsync) return;
+    if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
     Notifications.setNotificationChannelAsync('default', {
       name: 'General',
       importance: Notifications.AndroidImportance.MAX,
@@ -132,6 +170,7 @@ function RootLayout() {
               <NavigationHistoryProvider>
               <AuthProvider navReady={!!navState?.key}>
                 <NotificationTapHandler />
+                <VerificationGateHost />
                 <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                   <OfflineBanner />
                   <ErrorToastContainer />

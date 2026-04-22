@@ -397,16 +397,15 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: {
-        created_by: {
-          select: {
-            id: true,
-            display_name: true,
-            username: true,
-            avatar_url: true,
-          },
-        },
         events: { orderBy: { date: 'asc' }, take: 1 },
         _count: { select: { events: true } },
+        // Load the creator so Event Approvals can show a "submitted by" label
+        // on pending game cards. Without this, the client-side filter at
+        // event-approvals.tsx `g.created_by ? {...} : undefined` always hits
+        // the `undefined` branch and the submitter name is dropped.
+        created_by: {
+          select: { id: true, display_name: true, username: true, avatar_url: true },
+        },
       },
     });
 
@@ -429,7 +428,7 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
 
     const payload = results.map((game: any) => {
       const event = game.events[0] ?? null;
-      const { events, _count, ...rest } = game as any;
+      const { events, _count, created_by: createdByUser, ...rest } = game as any;
       let distance: number | null = null;
       if (hasCoords && typeof rest.latitude === 'number' && typeof rest.longitude === 'number') {
         const dLat = ((rest.latitude - lat) * Math.PI) / 180;
@@ -446,7 +445,6 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
       return {
         ...rest,
         appearance: rest.appearance ?? null,
-        created_by_name: game.created_by?.display_name || game.created_by?.username || null,
         event_id: event?.id ?? null,
         // Fixed: Prioritize game.banner_url over other sources
         banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
@@ -455,6 +453,11 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
         latitude: rest.latitude,
         longitude: rest.longitude,
         distance,
+        // Creator info for Event Approvals "submitted by" label. `created_by`
+        // is the full object (truthy when a creator is present); the flat
+        // created_by_name alias matches the client shape in event-approvals.tsx.
+        created_by: createdByUser ?? null,
+        created_by_name: createdByUser?.display_name ?? createdByUser?.username ?? null,
       };
     });
 

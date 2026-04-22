@@ -54,7 +54,6 @@ function NotificationsScreen() {
       );
       setItems((prev) => (append ? [...prev, ...page.items] : page.items));
       setNextCursor(page.nextCursor);
-      void syncNotificationBadge();
     } catch (err: any) {
       setError(err?.message || 'Failed to load notifications');
       if (__DEV__) console.error('Notifications load failed:', err);
@@ -66,11 +65,11 @@ function NotificationsScreen() {
 
   useEffect(() => {
     void load(null, false).catch(() => {});
-  }, [load]);
-
-  useEffect(() => {
+    // Sync the app icon badge with server state on screen mount so the
+    // count reflects reality when the user opens this tab. Best-effort;
+    // failures are swallowed inside the helper.
     void syncNotificationBadge();
-  }, []);
+  }, [load]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -92,7 +91,10 @@ function NotificationsScreen() {
     setItems(updatedItems);
     try {
       await Notification.markAllRead();
-      await clearNotificationBadge();
+      // Clear the badge immediately — the server side is now at zero unread,
+      // but /notifications/unread-count may take a moment to propagate via
+      // cache, so zero-on-click gives the correct UX without round-tripping.
+      void clearNotificationBadge();
     } catch (err) {
       if (__DEV__) console.error('Failed to mark all notifications as read', err);
       setItems(previousItems);
@@ -131,14 +133,10 @@ function NotificationsScreen() {
         const now = new Date().toISOString();
         const updated = items.map((n) => (n.id === item.id ? { ...n, read_at: now } : n));
         setItems(updated);
-        Notification.markRead(item.id)
-          .then(() => {
-            void syncNotificationBadge();
-          })
-          .catch((err) => {
-            if (__DEV__) console.error('Failed to mark notification as read', err);
-            setItems(previousItems);
-          });
+        Notification.markRead(item.id).catch((err) => {
+          if (__DEV__) console.error('Failed to mark notification as read', err);
+          setItems(previousItems);
+        });
       }
     };
     const theme = Colors[colorScheme];

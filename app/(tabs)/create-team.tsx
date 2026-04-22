@@ -6,7 +6,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { usePaymentSheet } from '@/utils/stripe';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { useVHubIAP } from '@/hooks/useIAP';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -20,6 +19,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { httpPost } from '@/api/http';
 import { getApiBaseUrl } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
+import { usePaymentSheet } from '@/utils/stripe';
 
 type TeamLimitSummary = {
   owned_teams: number;
@@ -352,11 +352,11 @@ function CreateTeamScreen() {
           return;
         }
 
-        if (userPlan === 'rookie' && teamCount >= 3) {
+        if (userPlan === 'rookie' && teamCount >= 2) {
           const newTeamCount = teamCount + 1;
           Alert.alert(
             'Upgrade Required',
-            `First three teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${((newTeamCount - 3) * 0.99).toFixed(2)}/month (${newTeamCount - 3} billable team${newTeamCount - 3 === 1 ? '' : 's'} × $0.99).`,
+            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${(newTeamCount * 0.99).toFixed(2)}/month (${newTeamCount} teams × $0.99).`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               {

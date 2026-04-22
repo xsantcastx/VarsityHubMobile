@@ -1,19 +1,14 @@
 /**
- * Regression test: requireOnboarded / requireVerified bypass lockstep
+ * Regression test: requireOnboarded / requireVerified onboarding-create parity
  *
  * Why this exists:
- *   Coach onboarding was broken for weeks because `requireVerified.ts` had a
- *   bypass for both /teams and /organizations create routes during onboarding,
- *   but its sibling `requireOnboarded.ts` only had the /teams bypass — the
- *   /organizations bypass was never added. Coaches could sail past email
- *   verification but then 403'd on `Please complete onboarding before
- *   creating content` when trying to submit their org application.
+ *   Coach onboarding was broken because `requireVerified.ts` had a bypass for
+ *   both /teams and /organizations create routes during onboarding, but
+ *   `requireOnboarded.ts` did not stay in sync. Upload routes are no longer
+ *   part of this contract; uploads are gated independently via auth +
+ *   verification.
  *
- * This test is a static/structural check: it reads both middleware source
- * files and asserts their route-bypass lists are in lockstep. If someone
- * adds a new bypass route to one middleware and forgets the other, this
- * test fails at CI time instead of two weeks later in a user report.
- *
+ * This test is a static/structural check over the team/org onboarding bypass.
  * No DB required, runs in ms.
  */
 
@@ -63,27 +58,16 @@ describe('requireVerified ↔ requireOnboarded bypass parity', () => {
     expect(/path\s*===\s*['"]\/['"]/.test(onboardedSrc)).toBe(true);
   });
 
-  it('gates the onboarded bypass on incomplete onboarding', () => {
-    // The upload carve-out now exists to keep onboarding media/doc uploads
-    // working even if role persistence lags behind the UI state. The hard
-    // guard is that onboarding must still be incomplete.
+  it('gates the onboarded bypass on role: coach + onboarding_completed !== true', () => {
+    // Defense-in-depth: even if bypass triggers, it must require the user to
+    // be a coach who has not yet completed onboarding. If someone removes
+    // either guard, generic users could bypass the gate.
+    expect(/role\s*===\s*['"]coach['"]/.test(onboardedSrc)).toBe(true);
     expect(/onboarding_completed\s*!==\s*true/.test(onboardedSrc)).toBe(true);
   });
 
-  it('bypasses uploads only for specific onboarding upload contexts', () => {
-    // The upload route stays protected except for narrow onboarding upload
-    // contexts needed before onboarding is completed.
-    expect(hasBypass(onboardedSrc, '/uploads')).toBe(true);
-    expect(/upload_context/.test(onboardedSrc)).toBe(true);
-    expect(/organization_supporting_document/.test(onboardedSrc)).toBe(true);
-    expect(/onboarding_avatar/.test(onboardedSrc)).toBe(true);
-    expect(/onboarding_header_image/.test(onboardedSrc)).toBe(true);
-  });
-
-  it('requires the onboarding flag for the upload bypass', () => {
-    // The upload carve-out must remain tied to onboarding=true so a regular
-    // upload cannot slip through by only setting the upload context.
-    expect(/onboardingFlag/.test(onboardedSrc)).toBe(true);
-    expect(/isOnboardingUpload/.test(onboardedSrc)).toBe(true);
+  it('does not embed upload-route bypass rules anymore', () => {
+    expect(/baseUrl\s*===\s*['"]\/uploads['"]/.test(onboardedSrc)).toBe(false);
+    expect(/upload_context/.test(onboardedSrc)).toBe(false);
   });
 });

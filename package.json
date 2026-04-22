@@ -1,9 +1,8 @@
 {
   "name": "varsityhubmobile",
   "main": "expo-router/entry",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "scripts": {
-    "prepare": "husky",
     "start": "expo start",
     "dev": "concurrently -n app,server -c green,cyan \"npm run dev:expo\" \"npm run server:dev\"",
     "dev:expo": "expo start --dev-client --scheme varsityhubmobile --host localhost --port 8081 --clear",
@@ -17,7 +16,7 @@
     "web": "expo start --web",
     "diagnose:metro": "bash scripts/diagnose-metro.sh",
     "diagnose:env": "node scripts/check-env-alignment.js",
-    "web:playwright": "cross-env CI=1 NODE_OPTIONS=--max-old-space-size=8192 EXPO_PUBLIC_API_URL=http://localhost:4000 EXPO_PUBLIC_FORCE_REMOTE_API=0 EXPO_PUBLIC_NODE_ENV=development RCT_METRO_PORT=8081 expo start --web --non-interactive",
+    "web:playwright": "cross-env CI=1 NODE_OPTIONS=--max-old-space-size=8192 RCT_METRO_PORT=8081 EXPO_PUBLIC_API_URL=http://localhost:4000 EXPO_PUBLIC_FORCE_REMOTE_API=0 EXPO_PUBLIC_NODE_ENV=development expo start --web --non-interactive",
     "start:ci": "cross-env CI=1 expo start --port 19001",
     "web:ci": "cross-env CI=1 expo start --web --port 9500",
     "android:ci": "cross-env CI=1 expo start --android --port 19002",
@@ -40,6 +39,7 @@
     "verify:guardrails": "bash scripts/verify-guardrails.sh",
     "test:build": "bash scripts/test-build-config.sh",
     "audit:app": "bash scripts/comprehensive-app-audit.sh",
+    "audit:pre-release": "bash scripts/pre-release-audit.sh",
     "dev:rebuild": "bash scripts/ensure-latest-dev-client.sh",
     "verify:version": "bash scripts/verify-latest-version.sh",
     "submit:ios": "eas submit --platform ios --profile production",
@@ -136,8 +136,7 @@
     "react-native-view-shot": "4.0.3",
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
-    "react-native-worklets": "0.5.1",
-    "zod": "^3.25.76"
+    "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.1",
@@ -151,17 +150,13 @@
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "eslint": "^8.57.0",
-    "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-native": "^4.0.0",
-    "husky": "^9.1.7",
     "jest-expo": "~54.0.16",
-    "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
     "react-test-renderer": "19.1.0",
     "reactotron-react-native": "^5.1.18",
     "ts-jest": "^29.4.6",
-    "tsc-files": "^1.1.4",
     "typescript": "~5.9.2"
   },
   "private": true,
@@ -184,21 +179,21 @@
     "schema": "server/prisma/schema.prisma"
   },
   "overrides": {
-    "@xmldom/xmldom": "^0.9.10",
     "react-native-safe-area-context": "5.6.2",
-    "axios": "^1.15.1",
     "undici": "^6.24.0",
     "fast-xml-parser": "5.5.7",
-    "follow-redirects": "^1.16.0",
     "@tootallnate/once": "3.0.1",
     "node-forge": "^1.4.0",
     "brace-expansion": "^2.0.0",
-    "lodash": "^4.18.1",
     "picomatch": "^4.0.4",
     "@humanwhocodes/config-array": {
       "brace-expansion": "^2.0.0"
     },
     "handlebars": "4.7.9",
-    "yaml": "^2.8.3"
+    "yaml": "^2.8.3",
+    "@xmldom/xmldom": ">=0.8.12",
+    "lodash": ">=4.18.0",
+    "axios": ">=1.15.0",
+    "follow-redirects": ">=1.15.12"
   }
 }

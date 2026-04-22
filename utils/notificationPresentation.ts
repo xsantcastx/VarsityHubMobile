@@ -129,6 +129,11 @@ export function getNotificationHref(item: NotificationItem): any | null {
     return `/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}`;
   }
   if (type === 'ORG_APPROVED') {
+    // Route through coach-agreement — AuthProvider forwards if already
+    // accepted. `/role-onboarding` (the previous target) is the role/tier
+    // selection flow for new users, not the continuation path for an
+    // approved coach. See components/NotificationTapHandler.tsx for the
+    // push-tap side that this now matches.
     return '/onboarding/coach-agreement';
   }
   if (type === 'ORG_REJECTED') {

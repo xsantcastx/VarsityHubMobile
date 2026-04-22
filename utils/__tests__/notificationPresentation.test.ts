@@ -148,7 +148,11 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/ad-calendar?adId=ad-1');
   });
 
-  it('ORG_APPROVED → coach agreement', () => {
+  it('ORG_APPROVED → coach-agreement (AuthProvider forwards if already accepted)', () => {
+    // Regression lock: this previously pointed at /role-onboarding, which is
+    // the role/tier *selection* flow for new users — wrong destination for an
+    // already-approved coach. Push-tap handler routes to coach-agreement and
+    // this must match. See utils/notificationPresentation.ts.
     const href = getNotificationHref({ type: 'ORG_APPROVED' });
     expect(href).toBe('/onboarding/coach-agreement');
   });

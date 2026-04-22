@@ -166,9 +166,7 @@ export default function EventMap({
   const openEventFromMarker = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
     const now = Date.now();
     const last = lastNavigationRef.current;
-    if (last && last.id === eventId && now - last.ts < 1000) {
-      return;
-    }
+    if (last && last.id === eventId && now - last.ts < 1000) return;
     lastNavigationRef.current = { id: eventId, ts: now };
     onEventPress?.(eventId, eventType);
   };

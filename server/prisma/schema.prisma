@@ -282,7 +282,6 @@ model User {
   @@index([banned])
   @@index([email_verified])
   @@index([approval_status])
-  @@index([username])
   @@index([display_name])
   @@index([deleted_at])
   @@index([parental_consent_status])
@@ -575,6 +574,11 @@ model Message {
   @@index([recipient_id, created_at])
   @@index([recipient_id, read])
   @@index([conversation_id])
+  // Speeds up the conversation-pair lookup in messages.ts:114-119 which filters
+  // `(sender_id = me AND recipient_id = other) OR (sender_id = other AND recipient_id = me)`.
+  // A B-tree on (sender_id, recipient_id) handles both directions because both
+  // clauses are equality predicates over the same two columns.
+  @@index([sender_id, recipient_id])
 }
 
 model BlockedUser {
@@ -833,6 +837,10 @@ model Story {
 
   @@index([game_id, created_at])
   @@index([expires_at])
+  // Speeds up the per-game lazy-expiry sweep in gameStories.ts (`deleteMany WHERE
+  // game_id = X AND expires_at < now()`) — existing (game_id, created_at) and
+  // (expires_at) alone force a scan through every story for the game.
+  @@index([game_id, expires_at])
   @@index([lat, lng])
 }
 
@@ -1205,11 +1213,14 @@ enum TransactionType {
 enum TransactionStatus {
   PENDING
   COMPLETED
-  NEEDS_REVIEW
   FAILED
   RECEIVED
   REFUNDED
   CANCELLED
+  // Payment ingested but a downstream side effect (session re-verify,
+  // promo redemption, etc.) failed. Surfaced on the admin dashboard for
+  // manual reconciliation instead of being dropped or mis-labeled FAILED.
+  NEEDS_REVIEW
 }
 
 model TransactionLog {

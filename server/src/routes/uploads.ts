@@ -6,7 +6,7 @@ import path from 'node:path';
 import { getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -181,7 +181,7 @@ uploadsRouter.use((req, res, next) => {
 // Returns a signed payload for direct client-to-Cloudinary upload.
 // The file never touches this server — goes straight from phone to CDN.
 // -----------------------------------------------
-uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
+uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerified as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!useCloudinary) {
     addBreadcrumb('Cloudinary signature unavailable', 'uploads.signature', 'warning', {
@@ -263,8 +263,8 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
   }
 }));
 
-// Original media upload endpoint (images/videos only)
-uploadsRouter.post('/', requireAuth as any, requireOnboarded as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
+// Original media upload endpoint (images/videos only).
+uploadsRouter.post('/', requireAuth as any, requireVerified as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   addBreadcrumb('Media upload started', 'uploads.media', 'info', {
     mime: req.file.mimetype,
@@ -364,8 +364,8 @@ uploadsRouter.post('/', requireAuth as any, requireOnboarded as any, uploadLimit
   }
 }));
 
-// General file upload endpoint (all file types)
-uploadsRouter.post('/files', requireAuth as any, requireOnboarded as any, uploadLimiter as any, fileUpload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
+// General file upload endpoint (all file types).
+uploadsRouter.post('/files', requireAuth as any, requireVerified as any, uploadLimiter as any, fileUpload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   addBreadcrumb('File upload started', 'uploads.file', 'info', {
     mime: req.file.mimetype,
@@ -460,8 +460,8 @@ const avatarMemory = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 const AVATAR_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
 if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
 
-// snyk:ignore - endpoint is protected by requireAuth + uploadLimiter rate-limiting middleware
-uploadsRouter.post('/avatar', requireAuth as any, requireOnboarded as any, uploadLimiter as any, avatarMemory.single('file'), asyncHandler(async (req: MulterRequest, res) => {
+// snyk:ignore - endpoint is protected by requireAuth + requireVerified + uploadLimiter middleware
+uploadsRouter.post('/avatar', requireAuth as any, requireVerified as any, uploadLimiter as any, avatarMemory.single('file'), asyncHandler(async (req: MulterRequest, res) => {
   if (!(req as any).user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
   addBreadcrumb('Avatar upload started', 'uploads.avatar', 'info', {
@@ -472,25 +472,6 @@ uploadsRouter.post('/avatar', requireAuth as any, requireOnboarded as any, uploa
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
   if (!allowedMimes.includes(req.file.mimetype)) {
     return res.status(400).json({ error: 'Invalid file type. Only images are allowed.' });
-  }
-
-  // Magic-byte validation to catch MIME spoofing (client-claimed type vs actual
-  // bytes). Parity with POST / and POST /files. Avatar uses memoryStorage so
-  // the buffer is always populated.
-  const avatarBuf = req.file.buffer;
-  if (!avatarBuf || avatarBuf.length < 12) {
-    return res.status(400).json({ error: 'Empty or truncated avatar upload.' });
-  }
-  const avatarMime = req.file.mimetype;
-  const avatarIsHeic = avatarMime === 'image/heic' || avatarMime === 'image/heif';
-  const avatarMagicValid = avatarIsHeic
-    ? isHeicBuffer(avatarBuf)
-    : validateMagicBytes(avatarBuf, avatarMime);
-  if (!avatarMagicValid) {
-    console.warn(`[uploads] Magic byte mismatch on /avatar: claimed ${avatarMime}, rejected`);
-    return res
-      .status(400)
-      .json({ error: 'File content does not match declared type. Upload rejected.' });
   }
 
   try {
@@ -550,10 +531,7 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
   
   // Cloudinary errors
   if (err.http_code) {
-    const message = typeof err.message === 'string' && err.message.trim()
-      ? err.message.trim()
-      : 'Upload failed';
-    return res.status(err.http_code).json({ error: message });
+    return res.status(err.http_code).json({ error: 'Upload failed' });
   }
 
   // Generic error

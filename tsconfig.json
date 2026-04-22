@@ -38,6 +38,8 @@
     "hooks/**/*.tsx",
     "lib/**/*.ts",
     "lib/**/*.tsx",
+    "utils/**/*.ts",
+    "utils/**/*.tsx",
     "__tests__/**/*.ts",
     "__tests__/**/*.tsx",
     "jest.setup.ts",

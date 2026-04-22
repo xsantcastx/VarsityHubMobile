@@ -1,4 +1,4 @@
-import { Notification, User } from '@/api/entities';
+import { User } from '@/api/entities';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
@@ -34,6 +34,10 @@ const configureNotificationHandlers = async () => {
       shouldShowList: true,
       shouldShowAlert: true,
       shouldPlaySound: true,
+      // Let iOS auto-increment the app icon badge when a push arrives while
+      // the app isn't in the foreground. Foreground sync goes through
+      // syncNotificationBadge() below so the count stays aligned with the
+      // server's /notifications/unread-count.
       shouldSetBadge: true,
     }),
   });
@@ -53,32 +57,6 @@ const resolveProjectId = () => {
     (Constants as any)?.expoConfig?.extra?.projectId;
   return typeof easProjectId === 'string' && easProjectId.length ? easProjectId : null;
 };
-
-async function setNotificationBadgeCount(count: number) {
-  if (Platform.OS === 'web') return;
-  const notif = await loadNotifications();
-  if (!notif) return;
-  try {
-    await notif.setBadgeCountAsync(Math.max(0, count));
-  } catch {
-    // Best-effort only. Badge sync should never block the app.
-  }
-}
-
-export async function syncNotificationBadge() {
-  if (Platform.OS === 'web') return;
-  try {
-    const response: any = await Notification.unreadCount();
-    const count = typeof response?.count === 'number' ? response.count : 0;
-    await setNotificationBadgeCount(count);
-  } catch {
-    // Best-effort only. Badge drift is preferable to crashing notification flows.
-  }
-}
-
-export async function clearNotificationBadge() {
-  await setNotificationBadgeCount(0);
-}
 
 export async function registerForPushNotifications(existingToken?: string | null) {
   if (Platform.OS === 'web') return null;
@@ -145,4 +123,48 @@ export async function registerForPushNotifications(existingToken?: string | null
   })();
 
   return registrationPromise;
+}
+
+/**
+ * Sync the app icon badge with the server's unread notification count.
+ *
+ * Call on: app foreground, notifications-screen focus, after mark-read actions.
+ * Best-effort and silent — failures don't propagate.
+ *
+ * - Web: no-op (setBadgeCountAsync is not supported in react-native-web).
+ * - Android: setBadgeCountAsync exists but is a no-op unless the launcher
+ *   advertises badge support. Safe to call regardless.
+ * - iOS: updates the app icon badge directly.
+ */
+export async function syncNotificationBadge(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const notif = await loadNotifications();
+    if (!notif?.setBadgeCountAsync) return;
+    // Lazy import to avoid a circular dependency and to keep this helper
+    // opt-in from the callsites that already know the API shape.
+    const { httpGet } = await import('@/api/http');
+    const res: any = await httpGet('/notifications/unread-count').catch(() => null);
+    const raw = res?.count ?? res?.data?.count ?? 0;
+    const count = Math.max(0, Number(raw) || 0);
+    await notif.setBadgeCountAsync(count);
+  } catch (err) {
+    if (__DEV__) console.warn('[push] syncNotificationBadge failed:', err);
+  }
+}
+
+/**
+ * Clear the app icon badge unconditionally. Useful when the user taps into
+ * the notifications tab — the server-side unread count may take a moment to
+ * propagate after mark-read-all, so zero-on-open gives the right UX.
+ */
+export async function clearNotificationBadge(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const notif = await loadNotifications();
+    if (!notif?.setBadgeCountAsync) return;
+    await notif.setBadgeCountAsync(0);
+  } catch {
+    // best-effort
+  }
 }

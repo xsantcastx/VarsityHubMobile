@@ -1,6 +1,6 @@
 {
   "name": "varsityhub-server",
-  "version": "1.0.1",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npx prisma generate && rm -f .tsbuildinfo && tsc -p . && mkdir -p dist/shared && (cp ../shared/plan-definitions.json dist/shared/ 2>/dev/null || cp ./shared/plan-definitions.json dist/shared/ 2>/dev/null || (echo '❌ ERROR: plan-definitions.json not found' && exit 1)) && (cp -r ../docs/well-known ./well-known 2>/dev/null || true) && echo '✅ Build successful'",
+    "build": "npx prisma generate && rm -f .tsbuildinfo && tsc -p . && mkdir -p dist/shared && (cp ../shared/plan-definitions.json dist/shared/ 2>/dev/null || cp ./shared/plan-definitions.json dist/shared/ 2>/dev/null || (echo '\u274c ERROR: plan-definitions.json not found' && exit 1)) && (cp -r ../docs/well-known ./well-known 2>/dev/null || true) && echo '\u2705 Build successful'",
     "start": "node dist/index.js",
     "postinstall": "npx prisma generate",
     "railway:deploy": "npx prisma generate && npm run build",
@@ -26,19 +26,12 @@
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
     "verify:cloudinary": "tsx scripts/verify-cloudinary.ts",
     "verify:coach-approval": "tsx scripts/verify-coach-approval.ts",
-    "verify:auth-state-drift": "tsx scripts/audit-user-auth-state-drift.ts",
-    "verify:billing-state-drift": "tsx scripts/audit-user-billing-state-drift.ts",
-    "reconcile:post-upvotes": "tsx scripts/reconcile-post-upvotes.ts",
     "audit:prod": "npm audit --omit=dev",
     "load:smoke": "tsx scripts/load/p0-load-smoke.ts",
     "load:validate-lock": "tsx scripts/load/validate-distributed-lock.ts",
     "lint": "expo lint"
   },
   "dependencies": {
-    "@aws-sdk/client-rekognition": "^3.1032.0",
-    "@aws-sdk/client-s3": "^3.1032.0",
-    "@aws-sdk/s3-request-presigner": "^3.1032.0",
-    "archiver": "^7.0.1",
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@prisma/client": "^5.22.0",
     "@sendgrid/mail": "^8.1.6",
@@ -71,7 +64,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/archiver": "^6.0.3",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",
     "@types/escape-html": "^1.0.4",
@@ -101,6 +93,6 @@
     "undici": "^6.24.0",
     "axios": "1.15.0",
     "brace-expansion": "^5.0.5",
-    "follow-redirects": "^1.15.12"
+    "follow-redirects": ">=1.15.12"
   }
 }

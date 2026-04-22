@@ -1,7 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { usePaymentSheet } from '@/utils/stripe';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAdIAP } from '@/hooks/useAdIAP';
@@ -17,8 +16,8 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
 import { getConfig } from '@/config/env';
-import { calculateSalesTax, getTaxInfo } from '@/shared/salesTaxEstimate';
 import { captureBreadcrumb } from '@/utils/sentry';
+import { usePaymentSheet } from '@/utils/stripe';
 
 const weekdayRate = 4.99;   // Per week (Mon-Thu slot)
 const weekendRate = 7.99;   // Per week (Fri-Sun slot)
@@ -153,7 +152,6 @@ function AdCalendarScreen() {
   const freeSuccessOpacity = useRef(new Animated.Value(0)).current;
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const { purchaseAd } = useAdIAP();
-
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
@@ -265,26 +263,13 @@ function AdCalendarScreen() {
   };
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
-  const zipDigits = useMemo(() => zipCode.replace(/\D/g, '').slice(0, 5), [zipCode]);
-
   const taxCents = useMemo(() => {
     // Client-side estimate only — server calculates exact amount at checkout
     if (!price || price <= 0) return 0;
-    const subtotalCents = Math.round(price * 100);
-    if (zipDigits.length === 5) {
-      return calculateSalesTax(subtotalCents, zipDigits);
-    }
-    // No target ZIP yet — rough US average for display only (checkout uses ad ZIP)
-    return Math.round(subtotalCents * 0.065);
-  }, [price, zipDigits]);
-
-  const taxPercentLabel = useMemo(() => {
-    if (zipDigits.length === 5) {
-      const { ratePercent } = getTaxInfo(zipDigits);
-      return ratePercent;
-    }
-    return '~6.5%';
-  }, [zipDigits]);
+    // Display "estimated tax" without committing to a specific rate.
+    // Actual tax is calculated server-side based on jurisdiction.
+    return Math.round(price * 100 * 0.07);
+  }, [price]);
   const _priceWithTax = useMemo(() => price + (taxCents / 100), [price, taxCents]);
   const effectiveCents = useMemo(() => {
     const subtotalCents = Math.round(price * 100);
@@ -293,8 +278,7 @@ function AdCalendarScreen() {
     return afterDiscount + taxCents;
   }, [price, taxCents, preview?.valid, preview?.discount_cents]);
   const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
-  const paymentsTemporarilyDisabled =
-    Platform.OS !== 'ios' && paymentsStatus?.stripe_configured === false;
+  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
   const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
   const submitForApprovalDisabled = submitting || selected.size === 0;
@@ -524,12 +508,34 @@ function AdCalendarScreen() {
       return;
     }
 
+    // Stripe must be configured — try build-time config first, then fetch from server
+    let stripeKey = getConfig().stripePublishableKey;
+    if (!stripeKey || !stripeKey.startsWith('pk_')) {
+      try {
+        const serverCfg = await Payments.getConfig();
+        stripeKey = serverCfg?.stripe_publishable_key || '';
+      } catch { /* server config fetch failed — fall through to error */ }
+    }
+    if (!stripeKey || !stripeKey.startsWith('pk_')) {
+      Alert.alert(
+        'Payments Not Ready',
+        'Payment configuration is missing. Please update the app or try again later.'
+      );
+      return;
+    }
+
     // Disable unsaved changes guard during payment flow
     setDirty(false);
 
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
+      captureBreadcrumb('Ad checkout initiated', 'payments.ad', {
+        ad_id: String(adId),
+        dates_count: dates.length,
+        has_promo_code: promo.trim().length > 0,
+        platform: Platform.OS,
+      });
       // Calculate exact hours remaining for receipt
       const lastEnd = new Date(dates[dates.length - 1] + 'T23:59:59');
       const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
@@ -542,6 +548,11 @@ function AdCalendarScreen() {
         }
         const result = await purchaseAd({ adId: String(adId), dates, weekdayBlocks, weekendBlocks });
         setSubmitting(false);
+        captureBreadcrumb('Native ad purchase returned', 'payments.ad', {
+          ad_id: String(adId),
+          ok: result.ok,
+          has_error: !!result.error,
+        }, result.ok ? 'info' : 'warning');
         if (!result.ok) {
           if (result.error) Alert.alert('Payment Error', result.error);
           return;
@@ -551,27 +562,19 @@ function AdCalendarScreen() {
         return;
       }
 
-      // Stripe must be configured for non-iOS flows — try build-time config first,
-      // then fetch from the server before attempting PaymentSheet.
-      let stripeKey = getConfig().stripePublishableKey;
-      if (!stripeKey || !stripeKey.startsWith('pk_')) {
-        try {
-          const serverCfg = await Payments.getConfig();
-          stripeKey = serverCfg?.stripe_publishable_key || '';
-        } catch { /* server config fetch failed — fall through to error */ }
-      }
-      if (!stripeKey || !stripeKey.startsWith('pk_')) {
-        Alert.alert(
-          'Payments Not Ready',
-          'Payment configuration is missing. Please update the app or try again later.'
-        );
-        return;
-      }
-
       // Android / non-iOS: use Stripe PaymentSheet
+      captureBreadcrumb('Ad payment sheet request started', 'payments.ad', {
+        ad_id: String(adId),
+        dates_count: dates.length,
+        has_promo_code: promo.trim().length > 0,
+      });
       const data: any = await httpPost('/payments/create-payment-sheet', { ad_id: String(adId), dates, promo_code: promo || undefined });
 
       if (data?.free) {
+        captureBreadcrumb('Ad free promo checkout completed', 'payments.ad', {
+          ad_id: String(adId),
+          dates_count: dates.length,
+        });
         setSubmitting(false);
         setShowFreeSuccess(true);
         freeSuccessOpacity.setValue(0);
@@ -585,6 +588,9 @@ function AdCalendarScreen() {
 
       if (data?.paymentIntent) {
         // Android: Stripe PaymentSheet with Google Pay
+        captureBreadcrumb('Ad payment sheet init started', 'payments.ad', {
+          ad_id: String(adId),
+        });
         let initError: any = null;
         const { error: err1 } = await initPaymentSheet({
           paymentIntentClientSecret: data.paymentIntent,
@@ -611,18 +617,34 @@ function AdCalendarScreen() {
 
         if (initError) {
           if (__DEV__) console.error('[AdCalendar] PaymentSheet init failed:', initError);
+          captureBreadcrumb('Ad payment sheet init failed', 'payments.ad', {
+            ad_id: String(adId),
+            error: initError.message || 'unknown_error',
+          }, 'error');
           Alert.alert('Payment Error', initError.message || 'Unable to initialize payment. Please try again.');
           setSubmitting(false);
           return;
         }
+        captureBreadcrumb('Ad payment sheet presented', 'payments.ad', {
+          ad_id: String(adId),
+        });
         const { error } = await presentPaymentSheet();
         if (error) {
+          captureBreadcrumb('Ad payment sheet failed', 'payments.ad', {
+            ad_id: String(adId),
+            code: error.code,
+            error: error.message || 'unknown_error',
+          }, error.code === 'Canceled' ? 'info' : 'error');
           if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           if (data.payment_intent_id) {
             httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
           }
           return;
         }
+        captureBreadcrumb('Ad payment sheet completed', 'payments.ad', {
+          ad_id: String(adId),
+          amount_cents: data.amount_cents,
+        });
         const paidAmount = data.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : undefined;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });
         return;
@@ -630,6 +652,11 @@ function AdCalendarScreen() {
       throw new Error('Unexpected checkout response');
     } catch (err: any) {
       if (__DEV__) console.error('Failed to start checkout:', err);
+      captureBreadcrumb('Ad checkout failed', 'payments.ad', {
+        ad_id: String(adId),
+        error: err?.data?.error || err?.message || 'unknown_error',
+        status: err?.status,
+      }, 'error');
       const status = err?.status;
       const raw = err?.data?.error || err?.message || '';
       let title = 'Error';
@@ -1024,7 +1051,7 @@ function AdCalendarScreen() {
                   <View style={styles.fullPriceNotice}>
                     <MaterialIcons name="info-outline" size={16} color="#92400E" />
                     <Text style={styles.fullPriceNoticeText}>
-                      Full day rate applies for any go-live time that day.
+                      Full price is charged regardless of when your ad goes live during a booked day.
                     </Text>
                   </View>
                 )}
@@ -1040,9 +1067,7 @@ function AdCalendarScreen() {
           </View>
           {taxCents > 0 && (
             <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>
-                Est. state tax ({taxPercentLabel})*:
-              </Text>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Est. Tax*:</Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           )}

@@ -375,8 +375,6 @@ authRouter.post(
     if (process.env.NODE_ENV === 'development')
       console.log(`[verify-code] [register] Code generated: ${code} for ${sanitizedEmail}`);
     const exp = new Date(Date.now() + 30 * 60 * 1000);
-    // AUTH-5: Hash verification code before storage (same SHA-256 as refresh tokens)
-    const codeHash = hashRefreshToken(code);
     const userRole = role || 'fan';
 
     // Set admin flag based on ADMIN_EMAILS env var
@@ -392,6 +390,13 @@ authRouter.post(
       // keep working while the codebase migrates to reading the column.
       ...(dob ? { dob } : {}),
     };
+
+    // AUTH-5: Hash verification code before storage (matches /verify/request + /verify/confirm).
+    // Prior to this fix registration stored plaintext while /verify/confirm compared against
+    // sha256(submitted) — which meant the first code emailed after signup could never verify,
+    // forcing every new user to hit "resend" to get a working code. Also closes the storage
+    // leak of a short-lived shared secret at rest.
+    const codeHash = hashRefreshToken(code);
 
     debugLog('[register] Creating user record');
     const user = await prisma.user.create({
@@ -824,11 +829,24 @@ authRouter.post(
 
     let stage = 'verify-token';
     try {
+      // SECURITY: In production we MUST enforce audience — otherwise a token
+      // signed for a different Google OAuth client (e.g. some random third-party
+      // app) would successfully authenticate a user in our app. In dev/test we
+      // accept any audience so local sign-in works without client-id config.
+      if (
+        process.env.NODE_ENV === 'production' &&
+        GOOGLE_ALLOWED_AUDIENCES.length === 0
+      ) {
+        console.error('[auth/google] Rejecting token: GOOGLE_OAUTH_CLIENT_IDS not configured');
+        return res.status(503).json({ error: 'Google Sign-In is not configured' });
+      }
+
       // Stage 1: Verify token with google-auth-library (signature + expiry, cached public keys)
       let payload: any;
       try {
         const ticket = await googleOAuthClient.verifyIdToken({
           idToken: id_token,
+          // Audience enforced in production (guarded above). Dev mode accepts any.
           ...(GOOGLE_ALLOWED_AUDIENCES.length > 0 ? { audience: GOOGLE_ALLOWED_AUDIENCES } : {}),
         });
         payload = ticket.getPayload();
@@ -1271,10 +1289,15 @@ authRouter.post(
     const expires = new Date(Date.now() + 30 * 60 * 1000);
     const codeHash = hashRefreshToken(code);
 
+    // AUTH-5: Hash the reset code at rest (matches email verification code hashing).
+    // Ephemeral 30-min secret, but DB leaks during the TTL window would otherwise
+    // hand attackers a working reset code.
+    const resetCodeHash = hashRefreshToken(code);
+
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        password_reset_code: codeHash,
+        password_reset_code: resetCodeHash,
         password_reset_expires: expires,
       },
     });
@@ -1333,14 +1356,14 @@ authRouter.post(
       await recordResetFailure(sanitizedEmail);
       return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
-    // v1.0.2 audit fix: use timingSafeEqual on the reset code comparison.
-    // Previously `!==` leaked timing info, and only the submitted code was trimmed.
+    // AUTH-5: stored value is now a SHA-256 hash (see /password/forgot), so we hash
+    // the submitted code with the same function and compare hash-to-hash.
     const submittedCodeHash = hashRefreshToken(String(code).trim());
-    const storedCodeHash = String(user.password_reset_code).trim();
+    const storedCode = String(user.password_reset_code).trim();
     const codesMatch = (() => {
-      if (submittedCodeHash.length !== storedCodeHash.length) return false;
+      if (submittedCodeHash.length !== storedCode.length) return false;
       try {
-        return crypto.timingSafeEqual(Buffer.from(submittedCodeHash), Buffer.from(storedCodeHash));
+        return crypto.timingSafeEqual(Buffer.from(submittedCodeHash), Buffer.from(storedCode));
       } catch {
         return false;
       }
@@ -1483,12 +1506,29 @@ authRouter.post(
       }
     }
 
-    // Server-side 18+ age gate — coaches must be adults
-    if (!isVerifiedAdult(user)) {
-      return res.status(403).json({
-        error: 'You must be at least 18 years old to become a coach.',
-        code: 'AGE_REQUIREMENT',
+    // Server-side 18+ age gate — coaches must be adults.
+    // SECURITY: previously `if (dob) { ... }` silently skipped the gate when a
+    // user had no DOB on record, which let clients bypass 18+ by simply never
+    // submitting one. DOB is now required at coach-role transition.
+    const dob = currentPrefs.dob || currentPrefs.date_of_birth;
+    if (!dob) {
+      return res.status(400).json({
+        error: 'Date of birth required to upgrade to a coach account.',
+        code: 'DOB_REQUIRED',
       });
+    }
+    {
+      const birthDate = parseDobLocal(dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+      if (age < 18) {
+        return res.status(403).json({
+          error: 'You must be at least 18 years old to become a coach.',
+          code: 'AGE_REQUIREMENT',
+        });
+      }
     }
 
     const isPaidPlan = plan === 'veteran' || plan === 'legend';
@@ -2201,16 +2241,22 @@ authRouter.patch(
       }
     }
 
-    // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach and /complete-onboarding)
+    // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach and /complete-onboarding).
+    // SECURITY: DOB is required — previously a missing DOB silently bypassed the gate.
     if (incoming.role === 'coach' && currentAuthState.role !== 'coach') {
-      const adultEligible = isVerifiedAdult({
-        date_of_birth: patchDobColumnWrite?.date_of_birth ?? current?.date_of_birth ?? null,
-        preferences: {
-          ...currentPrefs,
-          ...(incoming.dob !== undefined ? { dob: incoming.dob } : {}),
-        },
-      });
-      if (!adultEligible) {
+      const effectiveDob = incoming.dob || currentPrefs.dob || currentPrefs.date_of_birth;
+      if (!effectiveDob) {
+        return res.status(400).json({
+          error: 'Date of birth required to set coach role.',
+          code: 'DOB_REQUIRED',
+        });
+      }
+      const birthDate = parseDobLocal(effectiveDob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+      if (age < 18) {
         return res.status(403).json({
           error: 'You must be at least 18 years old to become a coach.',
           code: 'AGE_REQUIREMENT',
@@ -2513,16 +2559,22 @@ authRouter.post(
     // If role is undefined in payload, use existing role from preferences (set during step-1)
     const finalRole = data.role !== undefined ? data.role : currentAuthState.role || 'fan';
 
-    // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach validation)
+    // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach validation).
+    // SECURITY: DOB is required — previously a missing DOB silently bypassed the gate.
     if (finalRole === 'coach') {
-      const adultEligible = isVerifiedAdult({
-        date_of_birth: onboardingDobColumnWrite?.date_of_birth ?? current?.date_of_birth ?? null,
-        preferences: {
-          ...currentPrefs,
-          ...(data.dob !== undefined ? { dob: data.dob } : {}),
-        },
-      });
-      if (!adultEligible) {
+      const effectiveDob = data.dob || currentPrefs.dob || currentPrefs.date_of_birth;
+      if (!effectiveDob) {
+        return res.status(400).json({
+          error: 'Date of birth required to complete coach onboarding.',
+          code: 'DOB_REQUIRED',
+        });
+      }
+      const birthDate = parseDobLocal(effectiveDob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+      if (age < 18) {
         return res.status(403).json({
           error: 'You must be at least 18 years old to become a coach.',
           code: 'AGE_REQUIREMENT',

@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/button';
 import { useVHubIAP } from '@/hooks/useIAP';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { usePaymentSheet } from '@/utils/stripe';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { captureBreadcrumb } from '@/utils/sentry';
+import { usePaymentSheet } from '@/utils/stripe';
 
 interface PaymentSheetResponse {
   paymentIntent?: string;
@@ -280,7 +280,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const onSkipPayment = async () => {
     Alert.alert(
       'Continue as Rookie?',
-      'You can upgrade to a paid plan anytime from Settings. Your team will be limited to 3 teams and 50 roster spots on the free plan.',
+      'You can upgrade to a paid plan anytime from Settings. Your team will be limited to 2 teams and 50 roster spots on the free plan.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
