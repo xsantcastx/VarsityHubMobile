@@ -17,7 +17,7 @@
     "web": "expo start --web",
     "diagnose:metro": "bash scripts/diagnose-metro.sh",
     "diagnose:env": "node scripts/check-env-alignment.js",
-    "web:playwright": "cross-env CI=1 RCT_METRO_PORT=8081 expo start --web --non-interactive",
+    "web:playwright": "cross-env CI=1 NODE_OPTIONS=--max-old-space-size=8192 EXPO_PUBLIC_API_URL=http://localhost:4000 EXPO_PUBLIC_FORCE_REMOTE_API=0 EXPO_PUBLIC_NODE_ENV=development RCT_METRO_PORT=8081 expo start --web --non-interactive",
     "start:ci": "cross-env CI=1 expo start --port 19001",
     "web:ci": "cross-env CI=1 expo start --web --port 9500",
     "android:ci": "cross-env CI=1 expo start --android --port 19002",

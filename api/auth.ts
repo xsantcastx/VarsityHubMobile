@@ -257,7 +257,11 @@ export const auth = {
     if (_meCacheData && Date.now() - _meCacheTs < ME_CACHE_TTL_MS) {
       return _meCacheData;
     }
-    await loadToken();
+    const token = await loadToken();
+    if (!token) {
+      invalidateMeCache();
+      return null;
+    }
     const requestOptions = {
       headers: {
         'Cache-Control': 'no-store',

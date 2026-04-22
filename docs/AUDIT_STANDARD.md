@@ -31,6 +31,10 @@ Before looking for bugs, describe the system. Every audit begins by producing:
 
 - **Flow diagram.** Client → API → database → async jobs → third parties.
   Every hop. If you can't draw it, you can't audit it.
+- **Production-log sample for the reported failure.** Pull at least one real
+  failing request from production logs before auditing route-level code. If
+  production logs are unavailable, say so explicitly; do not substitute
+  static code reading for runtime evidence.
 - **Source-of-truth table.** For each critical state (auth, plan, approval,
   membership, payment, ownership), name the one layer that owns it. See the
   living table below; update it when it changes.
@@ -53,6 +57,9 @@ apply, say so explicitly. Silence is not an answer.
   verified payment provider event?
 - **Webhook replay** — is the handler idempotent? Signature-verified?
   Deduplicated by provider event id?
+- **Middleware / parser ordering** — does any gate read `req.body` or
+  `req.query` before that data is populated for the route type? JSON routes
+  get app-level parsing; multipart routes often do not until `multer` runs.
 - **Stale cache** — does a mutation invalidate every cache that reads the
   mutated entity?
 - **Deep-link abuse** — can a crafted link put the app in a bad state?
@@ -70,6 +77,9 @@ Compare authoritative layers against each other. Drift is where bugs live.
 - **Sibling middlewares or handlers** that must stay in lockstep (e.g.,
   `requireVerified` and `requireOnboarded`). One updated without the other is
   the bug.
+- **Endpoint-family parity.** If multiple endpoints perform the same
+  conceptual state transition, verify the fix or invariant on every sibling
+  before declaring the issue closed.
 - **Shared utility vs inline duplicates.** Any inline duplicate of a shared
   helper is a drift candidate. Grep for the helper's call sites and confirm
   every caller uses it.
@@ -97,6 +107,9 @@ unrecoverable — conflating them under one severity hides the real risk.
 
 Every finding must carry:
 
+- Branch confirmation for the code being read. Run
+  `git rev-parse --abbrev-ref HEAD` before reporting a finding and confirm it
+  matches the branch production deploys from.
 - File path(s) and line number(s)
 - Reproduction: exact steps or `curl` invocation
 - Expected vs actual behavior
