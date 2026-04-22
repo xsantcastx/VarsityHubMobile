@@ -159,17 +159,21 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     req.body?.onboarding === true ||
     String(req.body?.onboarding ?? req.query?.onboarding ?? '') === 'true';
   const uploadContext = String(req.body?.upload_context ?? req.query?.upload_context ?? '');
-  const isOnboardingSupportDocUpload =
+  const onboardingUploadContexts = new Set([
+    'organization_supporting_document',
+    'onboarding_avatar',
+    'onboarding_header_image',
+  ]);
+  const isOnboardingUpload =
     req.baseUrl === '/uploads' &&
     req.method === 'POST' &&
-    (req.path === '/' || req.path === '/files') &&
+    (req.path === '/' || req.path === '/files' || req.path === '/avatar') &&
     onboardingFlag &&
-    uploadContext === 'organization_supporting_document';
+    onboardingUploadContexts.has(uploadContext);
   if (
     ((onboardingFlag && (isTeamsCreateRoute || isOrgCreateRoute)) ||
-      isOnboardingSupportDocUpload) &&
-    authState.onboarding_completed !== true &&
-    authState.role === 'coach'
+      isOnboardingUpload) &&
+    authState.onboarding_completed !== true
   ) {
     return next();
   }

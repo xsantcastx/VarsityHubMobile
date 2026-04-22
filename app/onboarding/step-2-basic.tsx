@@ -267,7 +267,12 @@ export default function Step2Basic() {
           captureBreadcrumb('Onboarding background avatar upload started', 'onboarding.step2', {
             role: roleLabel,
           });
-          const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg');
+          const uploaded = await uploadFile(getConfig().apiUrl, avatarUri, 'avatar.jpg', 'image/jpeg', {
+            formFields: {
+              onboarding: true,
+              upload_context: 'onboarding_avatar',
+            },
+          });
           avatarUrl = uploaded?.url || uploaded?.secure_url;
         }
 
@@ -279,7 +284,13 @@ export default function Step2Basic() {
             getConfig().apiUrl,
             headerImageUri,
             'profile-cover.jpg',
-            'image/jpeg'
+            'image/jpeg',
+            {
+              formFields: {
+                onboarding: true,
+                upload_context: 'onboarding_header_image',
+              },
+            }
           );
           headerImageUrl = uploaded?.url || uploaded?.secure_url;
         }

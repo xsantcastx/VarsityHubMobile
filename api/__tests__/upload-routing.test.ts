@@ -163,4 +163,43 @@ describe('uploadFile routing', () => {
       storage: 'cloudinary',
     });
   });
+
+  it('carries onboarding upload context into the media fallback query string', async () => {
+    MockXHR.nextStatus = 401;
+    MockXHR.nextResponseText = JSON.stringify({ error: { message: 'Invalid Signature' } });
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          cloudName: 'varsityhub',
+          apiKey: 'key',
+          signature: 'sig',
+          timestamp: 123,
+          folder: 'uploads',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        text: async () => JSON.stringify({
+          url: 'https://api.test/uploads/fallback.jpg',
+          type: 'image',
+          mime: 'image/jpeg',
+          storage: 'cloudinary',
+        }),
+      });
+
+    const { uploadFile } = await import('../upload');
+    await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg', {
+      formFields: {
+        onboarding: true,
+        upload_context: 'onboarding_header_image',
+      },
+    });
+
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+      'https://api.test/uploads?onboarding=true&upload_context=onboarding_header_image'
+    );
+  });
 });
