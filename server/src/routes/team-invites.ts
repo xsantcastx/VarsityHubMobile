@@ -10,6 +10,7 @@ import { inviteLimiter } from '../middleware/rateLimiters.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 
 export const teamInvitesRouter = Router();
 
@@ -54,10 +55,17 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
     select: { user_id: true },
   });
   const ownerId = ownerMembership?.user_id || req.user.id;
-  const owner = await prisma.user.findUnique({ where: { id: ownerId } });
-  const ownerPrefs = (owner?.preferences || {}) as any;
-  // Use confirmed plan only — pending_plan is not yet paid for
-  const plan = ownerPrefs.payment_pending ? 'rookie' : (ownerPrefs.plan || 'rookie');
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerId },
+    select: {
+      preferences: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+    },
+  });
+  const plan = getEffectiveEntitledPlan(owner as any);
   const limit = getAuthorizedUsersPerTeam(plan);
 
   const existingInvite = await prisma.teamInvite.findUnique({

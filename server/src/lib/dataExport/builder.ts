@@ -23,6 +23,7 @@
 import archiver from 'archiver';
 import { prisma } from '../prisma.js';
 import { DATA_EXPORT_DOMAIN_FILENAMES } from './domainNames.js';
+import { getCanonicalBillingState } from '../userBillingState.js';
 
 /**
  * One domain of exported data. Each extractor returns a JSON-serializable
@@ -100,13 +101,16 @@ const DOMAINS: DomainExtractor[] = [
       })) as any;
       if (!u) return null;
       const prefs = (u.preferences ?? {}) as Record<string, unknown>;
+      const billing = getCanonicalBillingState(u);
       return {
         subscription_tier: u.subscription_tier,
         subscription_status: u.subscription_status,
         max_teams: u.max_teams,
         paid_by_owner: u.paid_by_owner ?? false,
-        plan: prefs.plan ?? null,
-        pending_plan: prefs.pending_plan ?? null,
+        plan: billing.plan,
+        pending_plan: billing.pending_plan,
+        payment_pending: billing.payment_pending,
+        payment_approved: billing.payment_approved,
         apple_product_id: prefs.apple_product_id ?? null,
         apple_expires_date: prefs.apple_expires_date ?? null,
         grace_period_expires_at: prefs.grace_period_expires_at ?? null,

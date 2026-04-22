@@ -70,4 +70,20 @@ describe('requireVerified ↔ requireOnboarded bypass parity', () => {
     expect(/role\s*===\s*['"]coach['"]/.test(onboardedSrc)).toBe(true);
     expect(/onboarding_completed\s*!==\s*true/.test(onboardedSrc)).toBe(true);
   });
+
+  it('bypasses uploads only for onboarding supporting-document uploads', () => {
+    // The upload route stays protected except for the narrow onboarding
+    // document case. This guards the exact client/server contract that broke
+    // PDF uploads during coach onboarding.
+    expect(hasBypass(onboardedSrc, '/uploads')).toBe(true);
+    expect(/upload_context/.test(onboardedSrc)).toBe(true);
+    expect(/organization_supporting_document/.test(onboardedSrc)).toBe(true);
+  });
+
+  it('requires the onboarding flag for the upload bypass', () => {
+    // The upload carve-out must remain tied to onboarding=true so a regular
+    // coach upload cannot slip through by only setting the upload context.
+    expect(/onboardingFlag/.test(onboardedSrc)).toBe(true);
+    expect(/isOnboardingSupportDocUpload/.test(onboardedSrc)).toBe(true);
+  });
 });

@@ -115,7 +115,6 @@ export async function uploadBufferToCloudinary(
   const params: Record<string, string> = {
     folder,
     timestamp: String(timestamp),
-    image_metadata: 'false',
     ...(imageFlags ? { flags: imageFlags } : {}),
     ...(moderation ? { moderation } : {}),
     ...(isVideo ? { audio_codec: 'aac', video_codec: 'auto' } : {}),
@@ -133,7 +132,6 @@ export async function uploadBufferToCloudinary(
   form.set('timestamp', String(timestamp));
   form.set('folder', folder);
   form.set('signature', signature);
-  form.set('image_metadata', 'false');
   if (imageFlags) form.set('flags', imageFlags);
   if (moderation) form.set('moderation', moderation);
   if (isVideo) {

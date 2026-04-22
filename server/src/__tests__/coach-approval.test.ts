@@ -325,7 +325,7 @@ describe('Coach Approval Workflow', () => {
   });
 
   describe('League approval sets league owner to APPROVED', () => {
-    it('super admin approval (token) sets league owner to APPROVED', async () => {
+    it('requires an authenticated admin session in addition to the approval token', async () => {
       const ownerHash = await bcrypt.hash(PASSWORD, 10);
       const owner = await prisma.user.create({
         data: {
@@ -350,22 +350,55 @@ describe('Coach Approval Workflow', () => {
         data: { organization_id: org.id, user_id: owner.id, role: 'owner' },
       });
 
-      const token = signJwt({ orgId: org.id, action: 'approve_league' }, '7d');
-      const res = await request(app)
-        .post(`/organizations/${org.id}/approve?token=${token}`)
-        .send();
-
-      expect(res.status).toBe(200);
-
-      const userAfter = await prisma.user.findUnique({
-        where: { id: owner.id },
-        select: { approval_status: true },
+      const adminHash = await bcrypt.hash(PASSWORD, 10);
+      const admin = await prisma.user.create({
+        data: {
+          email: `league-admin-${ts}@example.com`,
+          password_hash: adminHash,
+          display_name: 'League Admin',
+          email_verified: true,
+          preferences: { role: 'fan', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
       });
-      expect(userAfter?.approval_status).toBe('APPROVED');
 
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: org.id } });
-      await prisma.organization.delete({ where: { id: org.id } });
-      await prisma.user.delete({ where: { id: owner.id } });
+      const token = signJwt({ orgId: org.id, action: 'approve_league' }, '48h');
+      const adminToken = signJwt({ id: admin.id });
+      const originalAdminEmails = process.env.ADMIN_EMAILS || '';
+      process.env.ADMIN_EMAILS = [admin.email, originalAdminEmails].filter(Boolean).join(',');
+
+      try {
+        const tokenOnlyRes = await request(app)
+          .post(`/organizations/${org.id}/approve?token=${token}`)
+          .send();
+
+        expect(tokenOnlyRes.status).toBe(401);
+        expect(String(tokenOnlyRes.body?.error || '')).toMatch(/admin session required/i);
+
+        const userStillPending = await prisma.user.findUnique({
+          where: { id: owner.id },
+          select: { approval_status: true },
+        });
+        expect(userStillPending?.approval_status).toBe('PENDING');
+
+        const authedRes = await request(app)
+          .post(`/organizations/${org.id}/approve?token=${token}`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send();
+
+        expect(authedRes.status).toBe(200);
+
+        const userAfter = await prisma.user.findUnique({
+          where: { id: owner.id },
+          select: { approval_status: true },
+        });
+        expect(userAfter?.approval_status).toBe('APPROVED');
+      } finally {
+        process.env.ADMIN_EMAILS = originalAdminEmails;
+        await prisma.organizationMembership.deleteMany({ where: { organization_id: org.id } });
+        await prisma.organization.delete({ where: { id: org.id } });
+        await prisma.user.deleteMany({ where: { id: { in: [owner.id, admin.id] } } });
+      }
     });
   });
 

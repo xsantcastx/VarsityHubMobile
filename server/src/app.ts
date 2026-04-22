@@ -14,6 +14,7 @@ import {
   startNotificationCleanup,
   startOvernightMonitoring,
   startParentalConsentExpiry,
+  startPostUpvoteReconciliation,
   startQueueCleanup,
   startRefreshTokenCleanup,
   startStripeSubscriptionReconciliation,
@@ -166,7 +167,7 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'If-None-Match', 'Cache-Control', 'Pragma'],
   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
@@ -433,6 +434,7 @@ if (!isTest) {
   startRefreshTokenCleanup();
   startNotificationCleanup();
   startStripeSubscriptionReconciliation();
+  startPostUpvoteReconciliation();
   startParentalConsentExpiry();
   startAnonymizedUserPurge();
   startDataExportCleanup();
@@ -443,7 +445,7 @@ if (!isTest) {
   // indefinitely. Fires and forgets; worker errors surface via Sentry.
   void startDataExportWorker();
   debugLog(
-    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup, refresh token cleanup, notification cleanup, subscription reconciliation, parental consent expiry, anonymized user purge, data export cleanup, data export worker)'
+    '[cron] Overnight tasks scheduled (ad go-live, monitoring, queue cleanup, message cleanup, refresh token cleanup, notification cleanup, subscription reconciliation, post upvote reconciliation, parental consent expiry, anonymized user purge, data export cleanup, data export worker)'
   );
 }
 

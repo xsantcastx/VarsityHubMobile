@@ -17,10 +17,6 @@ import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
-  clearBannerModerationFields,
-  moderateAndStoreAdBanner,
-} from '../lib/adImageModeration.js';
-import {
   approveAd as approveAdService,
   rejectAd as rejectAdService,
 } from '../lib/approvalService.js';
@@ -109,6 +105,10 @@ export const adsRouter = Router();
 registerIdValidation(adsRouter);
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
+
+async function loadAdImageModeration() {
+  return import('../lib/adImageModeration.js');
+}
 
 // One-time backfill: populate target_lat/target_lng for existing ads that predate the column.
 // Runs once at startup, fire-and-forget — safe to repeat (skips ads already populated).
@@ -318,13 +318,15 @@ export async function handleAdSubmitForApproval(req: AuthedRequest, res: Respons
 
     let updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     if (updated?.banner_url) {
+      const { moderateAndStoreAdBanner } = await loadAdImageModeration();
       await moderateAndStoreAdBanner(updated.id, updated.banner_url);
       updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     }
 
-    // Generate signed tokens for one-click approve/reject from email (7-day expiry)
-    const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '7d');
-    const rejectToken = signJwt({ adId: id, action: 'reject_ad' }, '7d');
+    // Generate signed tokens for one-click approve/reject from email.
+    // Keep the exposure window aligned with org approval links.
+    const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '48h');
+    const rejectToken = signJwt({ adId: id, action: 'reject_ad' }, '48h');
 
     const { getAllAdminEmails } = await import('../lib/adminEmails.js');
     const adminEmails = getAllAdminEmails();
@@ -643,6 +645,7 @@ adsRouter.put(
     const bannerChanged = 'banner_url' in data && data.banner_url !== ad.banner_url;
     const targetUrlChanged = 'target_url' in data && data.target_url !== ad.target_url;
     if (bannerChanged) {
+      const { clearBannerModerationFields } = await loadAdImageModeration();
       Object.assign(data, clearBannerModerationFields());
     }
     const requiresReapproval =
@@ -660,6 +663,7 @@ adsRouter.put(
     let updated = await prisma.ad.update({ where: { id }, data });
     const shouldModerateBannerNow = bannerChanged && !!updated.banner_url && requiresReapproval;
     if (shouldModerateBannerNow) {
+      const { moderateAndStoreAdBanner } = await loadAdImageModeration();
       const remoderated = await moderateAndStoreAdBanner(updated.id, updated.banner_url);
       if (remoderated) updated = remoderated;
     }

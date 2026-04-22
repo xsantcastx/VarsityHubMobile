@@ -30,6 +30,7 @@ import {
 } from '../lib/privacyUtils.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { sendError } from '../lib/http/sendError.js';
+import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
@@ -179,9 +180,7 @@ teamsRouter.get('/limits', requireAuth as any, asyncHandler(async (req: AuthedRe
     }
   });
   
-  // Get plan from preferences; if payment_pending, treat as rookie until payment completes
-  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const plan = prefs.payment_pending ? 'rookie' : (prefs.plan || user.subscription_tier || 'rookie');
+  const plan = getEffectiveEntitledPlan(user as any);
   
   // Get max teams from plan definitions (source of truth)
   const maxTeamsFromPlan = getMaxTeamsForPlan(plan);
@@ -1090,7 +1089,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
   // Check team limit — for paid_by_owner coaches, use the org owner's plan and org team count
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  let effectivePlan = prefs.plan || 'rookie';
+  let effectivePlan = getEffectiveEntitledPlan(me as any);
   let effectiveSubscriptionId = prefs.subscription_id;
   let teamCountSource: 'user' | 'org' = 'user';
   let orgIdForTeamCount: string | undefined;
@@ -1105,10 +1104,16 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
     if (ownerId) {
       const owner = await prisma.user.findUnique({
         where: { id: ownerId },
-        select: { preferences: true },
+        select: {
+          preferences: true,
+          plan: true,
+          pending_plan: true,
+          payment_pending: true,
+          payment_approved: true,
+        },
       });
       const ownerPrefs = (owner?.preferences && typeof owner.preferences === 'object') ? (owner.preferences as any) : {};
-      effectivePlan = ownerPrefs.plan || 'rookie';
+      effectivePlan = getEffectiveEntitledPlan(owner as any);
       effectiveSubscriptionId = ownerPrefs.subscription_id;
       teamCountSource = 'org';
       orgIdForTeamCount = orgMembership.organization.id;
@@ -1130,7 +1135,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
   // Rookie plan: max 3 teams
   // NOTE: This check is duplicated inside the transaction below for race condition protection
-  if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
+  if (userPlan === 'rookie' || !userPlan) {
     const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
       ? await prisma.team.count({ where: { organization_id: orgIdForTeamCount } })
       : await prisma.teamMembership.count({
@@ -1336,7 +1341,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
         where: { user_id: me.id, role: 'owner', status: 'active' },
       });
 
-      if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
+      if (userPlan === 'rookie' || !userPlan) {
         if (ownedTeamsInTx >= 3) {
           throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 3 teams');
         }

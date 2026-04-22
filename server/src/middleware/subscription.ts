@@ -2,6 +2,9 @@ import type { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
+import {
+  getEffectiveEntitledPlan,
+} from '../lib/userBillingState.js';
 
 // Canonical tiers stored in user.subscription_tier column (legacy): free | premium | pro
 // New onboarding-facing tiers (preferences.plan): rookie | veteran | legend
@@ -45,7 +48,16 @@ function tierGte(a: AnyTier, b: AnyTier): boolean {
 export async function getUserPlan(userId: string, db: DbClient = prisma): Promise<AnyTier> {
   const user = await db.user.findUnique({
     where: { id: userId },
-    select: { subscription_tier: true, subscription_status: true, preferences: true, paid_by_owner: true },
+    select: {
+      subscription_tier: true,
+      subscription_status: true,
+      preferences: true,
+      paid_by_owner: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+    },
   });
   if (!user) return 'free';
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
@@ -55,9 +67,9 @@ export async function getUserPlan(userId: string, db: DbClient = prisma): Promis
     return getLeagueOwnerPlan(userId, db);
   }
 
-  // Rule A: If payment_pending is true, the coach selected a paid plan but hasn't
-  // paid yet (awaiting admin approval or checkout). Treat as free until payment completes.
-  if (prefs.payment_pending === true) return 'free';
+  // Rule A: Pending checkout never unlocks paid entitlements.
+  const effectivePlan = getEffectiveEntitledPlan(user as any);
+  if (effectivePlan === 'rookie') return 'free';
 
   // Rule A2: If subscription is past_due or unpaid, downgrade to free until payment resolves.
   if (user.subscription_status === 'past_due' || user.subscription_status === 'unpaid') return 'free';
@@ -71,9 +83,7 @@ export async function getUserPlan(userId: string, db: DbClient = prisma): Promis
     }
   }
 
-  const prefPlan = prefs.plan as string | undefined; // rookie | veteran | legend
-
-  const plan = prefPlan || user.subscription_tier;
+  const plan = effectivePlan || user.subscription_tier;
 
   return toCanonical(plan);
 }
@@ -98,13 +108,21 @@ async function getLeagueOwnerPlan(coachId: string, db: DbClient): Promise<AnyTie
   // Get the owner's plan (non-recursive — owners are never paid_by_owner)
   const owner = await db.user.findUnique({
     where: { id: ownerId },
-    select: { subscription_tier: true, preferences: true },
+    select: {
+      subscription_tier: true,
+      preferences: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+    },
   });
   if (!owner) return 'free';
 
   const ownerPrefs = (owner.preferences && typeof owner.preferences === 'object') ? (owner.preferences as any) : {};
 
-  if (ownerPrefs.payment_pending === true) return 'free';
+  const effectivePlan = getEffectiveEntitledPlan(owner as any);
+  if (effectivePlan === 'rookie') return 'free';
 
   const expiryRaw = ownerPrefs.subscription_end_date || ownerPrefs.plan_expiry_date;
   if (expiryRaw) {
@@ -112,7 +130,7 @@ async function getLeagueOwnerPlan(coachId: string, db: DbClient): Promise<AnyTie
     if (!isNaN(expiry.getTime()) && expiry < new Date()) return 'free';
   }
 
-  const plan = ownerPrefs.plan || owner.subscription_tier;
+  const plan = effectivePlan || owner.subscription_tier;
   return toCanonical(plan);
 }
 

@@ -19,6 +19,9 @@ async function main() {
     update: {
       display_name: 'Alex Fan',
       email_verified: true,
+      role: 'fan',
+      onboarding_completed: true,
+      plan: 'rookie',
       preferences: { role: 'fan' },
     },
     create: {
@@ -26,6 +29,9 @@ async function main() {
       password_hash,
       display_name: 'Alex Fan',
       email_verified: true,
+      role: 'fan',
+      onboarding_completed: true,
+      plan: 'rookie',
       preferences: { role: 'fan', onboarding_completed: true },
     },
   });
@@ -36,6 +42,9 @@ async function main() {
       display_name: 'Coach Rivera',
       email_verified: true,
       subscription_tier: 'free',
+      role: 'coach',
+      onboarding_completed: true,
+      plan: 'rookie',
       preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
     },
     create: {
@@ -44,6 +53,9 @@ async function main() {
       display_name: 'Coach Rivera',
       email_verified: true,
       subscription_tier: 'free',
+      role: 'coach',
+      onboarding_completed: true,
+      plan: 'rookie',
       preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
     },
   });
@@ -54,6 +66,9 @@ async function main() {
       display_name: 'Coach Williams',
       email_verified: true,
       subscription_tier: 'premium',
+      role: 'coach',
+      onboarding_completed: true,
+      plan: 'veteran',
       preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
     },
     create: {
@@ -62,6 +77,9 @@ async function main() {
       display_name: 'Coach Williams',
       email_verified: true,
       subscription_tier: 'premium',
+      role: 'coach',
+      onboarding_completed: true,
+      plan: 'veteran',
       preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
     },
   });

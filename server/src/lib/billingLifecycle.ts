@@ -4,6 +4,10 @@ import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 import { captureException } from './sentry.js';
 import { invalidateMeCacheForUsers } from './userCache.js';
+import {
+  buildBillingStateColumns,
+  mergeBillingStateIntoPreferences,
+} from './userBillingState.js';
 
 const require = createRequire(import.meta.url);
 const StripeCtor = require('stripe') as typeof import('stripe').default;
@@ -123,11 +127,13 @@ function buildPaidPreferences(
   subscriptionId: string,
   currentPeriodEndIso: string | null
 ): StoredPrefs {
-  const nextPrefs = { ...currentPrefs };
-  nextPrefs.plan = plan;
+  const nextPrefs = mergeBillingStateIntoPreferences(currentPrefs, {
+    plan,
+    pending_plan: null,
+    payment_pending: false,
+    payment_approved: false,
+  });
   nextPrefs.subscription_id = subscriptionId;
-  nextPrefs.pending_plan = null;
-  nextPrefs.payment_pending = false;
   if (currentPeriodEndIso) {
     nextPrefs.subscription_period_end = currentPeriodEndIso;
   } else {
@@ -137,10 +143,12 @@ function buildPaidPreferences(
 }
 
 function buildFreePreferences(currentPrefs: StoredPrefs): StoredPrefs {
-  const nextPrefs = { ...currentPrefs };
-  nextPrefs.plan = 'rookie';
-  nextPrefs.pending_plan = null;
-  nextPrefs.payment_pending = false;
+  const nextPrefs = mergeBillingStateIntoPreferences(currentPrefs, {
+    plan: 'rookie',
+    pending_plan: null,
+    payment_pending: false,
+    payment_approved: false,
+  });
   delete nextPrefs.subscription_id;
   delete nextPrefs.subscription_period_end;
   return nextPrefs;
@@ -306,6 +314,17 @@ async function applyReconciledState(
       subscription_tier: next.subscriptionTier,
       subscription_status: next.subscriptionStatus,
       preferences: next.preferences as any,
+      ...buildBillingStateColumns({
+        plan:
+          next.subscriptionTier === 'pro'
+            ? 'legend'
+            : next.subscriptionTier === 'premium'
+              ? 'veteran'
+              : 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      }),
     },
   });
   return true;

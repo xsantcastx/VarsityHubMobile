@@ -17,6 +17,17 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum UserRole {
+  fan
+  coach
+}
+
+enum MembershipPlan {
+  rookie
+  veteran
+  legend
+}
+
 // ===========================
 // Ad Enums
 // ===========================
@@ -146,6 +157,20 @@ model User {
   banned_until               DateTime?
   preferences                Json      @default("{}")
 
+  // ── Canonical auth / onboarding state (replaces hot-path JSON reads) ──
+  role                         UserRole  @default(fan)
+  onboarding_completed         Boolean   @default(false)
+  organization_id              String?
+  proceeding_as_fan            Boolean   @default(false)
+  coach_agreement_accepted_at  DateTime?
+  coach_agreement_version      Int?
+
+  // ── Canonical billing/onboarding state (replaces payment JSON reads) ──
+  plan              MembershipPlan @default(rookie)
+  pending_plan      MembershipPlan?
+  payment_pending   Boolean        @default(false)
+  payment_approved  Boolean        @default(false)
+
   // ── Canonical date of birth (replaces preferences.dob) ──
   // Stored as DATE, not DATETIME, because the relevant precision is day-level.
   // `dob_set_at` records when the field was first populated so the 24-hour
@@ -195,6 +220,7 @@ model User {
   memberships      TeamMembership[]
   orgMemberships   OrganizationMembership[]
   orgJoinRequests  OrganizationJoinRequest[]
+  organization     Organization?            @relation("user_active_organization", fields: [organization_id], references: [id], onDelete: SetNull)
   rsvps            EventRsvp[]
   createdEvents    Event[]
   stories          Story[]
@@ -260,6 +286,8 @@ model User {
   @@index([display_name])
   @@index([deleted_at])
   @@index([parental_consent_status])
+  @@index([role])
+  @@index([organization_id])
 }
 
 // GDPR / right-to-access self-serve data export.
@@ -957,6 +985,7 @@ model Organization {
   // League owner — the user who owns/pays for this league page
   league_owner_id String?
   leagueOwner     User?   @relation("league_owner", fields: [league_owner_id], references: [id], onDelete: SetNull)
+  activeUsers     User[]  @relation("user_active_organization")
 
   // Contact info (optional)
   contact_info String? @db.VarChar(500)
@@ -1176,6 +1205,7 @@ enum TransactionType {
 enum TransactionStatus {
   PENDING
   COMPLETED
+  NEEDS_REVIEW
   FAILED
   RECEIVED
   REFUNDED

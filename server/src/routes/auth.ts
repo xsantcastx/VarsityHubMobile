@@ -43,6 +43,22 @@ import {
   isVerifiedAdult,
   requiresParentalConsent,
 } from '../lib/userAge.js';
+import {
+  buildAuthStateColumns,
+  getCanonicalAuthState,
+  getCanonicalUserRole,
+  isProceedingAsFan,
+  isUserOnboardingComplete,
+  mergeAuthStateIntoPreferences,
+} from '../lib/userAuthState.js';
+import {
+  buildBillingStateColumns,
+  getCanonicalBillingState,
+  getCanonicalPlan,
+  getSelectedPlan,
+  isPaymentPending,
+  mergeBillingStateIntoPreferences,
+} from '../lib/userBillingState.js';
 
 export const authRouter = Router();
 
@@ -202,7 +218,7 @@ const googleOAuthClient = new OAuth2Client();
 // Enforce Google OAuth audience validation in production
 if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
   console.error(
-    '[auth] FATAL: GOOGLE_OAUTH_CLIENT_IDS is not set — Google sign-in will reject all tokens in production'
+    '[auth] FATAL: GOOGLE_OAUTH_CLIENT_IDS is not set — Google sign-in is disabled in production'
   );
 }
 
@@ -365,9 +381,12 @@ authRouter.post(
 
     // Set admin flag based on ADMIN_EMAILS env var
     const isAdmin = isAdminEmail(sanitizedEmail);
-    const initialPreferences = {
+    const authStatePatch = {
       role: userRole,
       onboarding_completed: false,
+    } as const;
+    const initialPreferences = {
+      ...mergeAuthStateIntoPreferences({}, authStatePatch),
       ...(isAdmin && { is_admin: true }),
       // Dual-write DOB to preferences.dob during transition so legacy readers
       // keep working while the codebase migrates to reading the column.
@@ -384,6 +403,7 @@ authRouter.post(
         email_verification_code: codeHash,
         email_verification_expires: exp,
         preferences: initialPreferences,
+        ...buildAuthStateColumns(authStatePatch),
         ...(dobColumnWrite ? deriveParentalConsentFields(dobColumnWrite.date_of_birth) : {}),
         ...(dobColumnWrite ?? {}),
       },
@@ -513,7 +533,7 @@ authRouter.post(
     });
 
     const sanitized = sanitizeUser(user);
-    const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+    const needsOnboarding = !isUserOnboardingComplete(user as any);
     // Include is_admin flag so AuthProvider knows admin status immediately on login
     const isLoginAdmin = isAdminEmail(user.email);
     const body: any = {
@@ -793,6 +813,13 @@ authRouter.post(
     const parsed = googleAuthSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
+    if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
+      console.error(
+        '[auth/google] rejecting Google sign-in because GOOGLE_OAUTH_CLIENT_IDS is not configured'
+      );
+      return res.status(503).json({ error: 'Google sign-in is temporarily unavailable' });
+    }
+
     const { id_token } = parsed.data;
 
     let stage = 'verify-token';
@@ -802,7 +829,6 @@ authRouter.post(
       try {
         const ticket = await googleOAuthClient.verifyIdToken({
           idToken: id_token,
-          // When audiences are configured, enforce them; otherwise accept any (dev mode)
           ...(GOOGLE_ALLOWED_AUDIENCES.length > 0 ? { audience: GOOGLE_ALLOWED_AUDIENCES } : {}),
         });
         payload = ticket.getPayload();
@@ -899,8 +925,21 @@ authRouter.post(
           if (displayNameSource && !existingByEmail.display_name)
             updates.display_name = displayNameSource;
           if (Object.keys(prefPatch).length) {
-            updates.preferences = mergePreferences(currentPrefs, prefPatch);
+            updates.preferences = mergeAuthStateIntoPreferences(
+              mergePreferences(currentPrefs, prefPatch),
+              {
+                role: getCanonicalUserRole(existingByEmail as any),
+                onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
+              }
+            );
           }
+          Object.assign(
+            updates,
+            buildAuthStateColumns({
+              role: getCanonicalUserRole(existingByEmail as any),
+              onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
+            })
+          );
           user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
           await invalidateMeCacheForUser(user.id);
         } else {
@@ -915,7 +954,12 @@ authRouter.post(
               display_name: displayNameSource,
               avatar_url: avatarUrl,
               email_verified: true,
-              preferences: { role: 'fan', onboarding_completed: false },
+              preferences: mergeAuthStateIntoPreferences({}, {
+                role: 'fan',
+                onboarding_completed: false,
+              }),
+              role: 'fan',
+              onboarding_completed: false,
             },
           });
           created = true;
@@ -937,7 +981,7 @@ authRouter.post(
       stage = 'jwt';
       const sanitized = sanitizeUser(user);
       const access_token = signJwt({ id: sanitized.id });
-      const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+      const needsOnboarding = !isUserOnboardingComplete(user as any);
 
       const rawRefresh = generateRefreshToken();
       const rtHash = hashRefreshToken(rawRefresh);
@@ -1084,8 +1128,21 @@ authRouter.post(
           };
 
           if (Object.keys(prefPatch).length) {
-            updates.preferences = mergePreferences(currentPrefs, prefPatch);
+            updates.preferences = mergeAuthStateIntoPreferences(
+              mergePreferences(currentPrefs, prefPatch),
+              {
+                role: getCanonicalUserRole(existingByEmail as any),
+                onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
+              }
+            );
           }
+          Object.assign(
+            updates,
+            buildAuthStateColumns({
+              role: getCanonicalUserRole(existingByEmail as any),
+              onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
+            })
+          );
 
           user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
           await invalidateMeCacheForUser(user.id);
@@ -1106,7 +1163,12 @@ authRouter.post(
                 apple_id: appleId,
                 display_name: null,
                 email_verified: true,
-                preferences: { role: 'fan', onboarding_completed: false },
+                preferences: mergeAuthStateIntoPreferences({}, {
+                  role: 'fan',
+                  onboarding_completed: false,
+                }),
+                role: 'fan',
+                onboarding_completed: false,
               },
             });
             created = true;
@@ -1143,7 +1205,7 @@ authRouter.post(
 
       const sanitized = sanitizeUser(user);
       const access_token = signJwt({ id: sanitized.id });
-      const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+      const needsOnboarding = !isUserOnboardingComplete(user as any);
 
       // Issue refresh token
       const appleRawRefresh = generateRefreshToken();
@@ -1388,8 +1450,9 @@ authRouter.post(
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const currentPrefs = (user.preferences as any) || {};
+    const currentRole = getCanonicalUserRole(user as any);
     // If already a coach, reject
-    if (currentPrefs.role === 'coach') {
+    if (currentRole === 'coach') {
       return res.status(400).json({ error: 'Account is already a coach account.' });
     }
 
@@ -1443,10 +1506,25 @@ authRouter.post(
       payment_pending: isPaidPlan,
       onboarding_completed: false,
     };
+    const billingPatch = {
+      plan: (isPaidPlan ? 'rookie' : plan) as 'rookie' | 'veteran' | 'legend',
+      pending_plan: (isPaidPlan ? plan : null) as 'veteran' | 'legend' | null,
+      payment_pending: isPaidPlan,
+      payment_approved: false,
+    };
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: {
-        preferences: merged,
+        preferences: mergeBillingStateIntoPreferences(
+          mergeAuthStateIntoPreferences(merged, {
+            role: 'coach',
+            onboarding_completed: false,
+          }),
+          billingPatch
+        ),
+        role: 'coach',
+        onboarding_completed: false,
+        ...buildBillingStateColumns(billingPatch),
         approval_status: 'PENDING',
         // v1.0.2: clear rejection tracking on fresh re-apply.
         rejected_at: null,
@@ -1469,20 +1547,42 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { id: true, preferences: true },
+      select: {
+        id: true,
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
     const prefs = (user.preferences as any) || {};
 
-    if (!prefs.payment_pending) {
+    if (!isPaymentPending(user as any)) {
       return res.json({ ok: true, message: 'No pending payment to skip.' });
     }
 
     const { payment_pending, payment_approved, pending_plan, ...restPrefs } = prefs;
+    const nextPrefs = mergeBillingStateIntoPreferences(restPrefs, {
+      plan: 'rookie',
+      pending_plan: null,
+      payment_pending: false,
+      payment_approved: false,
+    }) as Record<string, any>;
+    delete nextPrefs.pending_plan;
+    delete nextPrefs.payment_pending;
+    delete nextPrefs.payment_approved;
     const updated = await prisma.user.update({
       where: { id: req.user!.id },
       data: {
-        preferences: { ...restPrefs, plan: 'rookie' },
+        preferences: nextPrefs,
+        ...buildBillingStateColumns({
+          plan: 'rookie',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }),
       },
     });
     await invalidateMeCacheForUser(updated.id);
@@ -1511,7 +1611,8 @@ authRouter.post(
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
     const prefs = (user.preferences as any) || {};
-    if (prefs.role !== 'coach') {
+    const currentRole = getCanonicalUserRole(user as any);
+    if (currentRole !== 'coach') {
       return res.status(400).json({
         error: 'Only coach accounts can re-apply. Upgrade to coach first.',
         code: 'NOT_COACH',
@@ -1549,7 +1650,12 @@ authRouter.post(
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: {
-        preferences: merged,
+        preferences: mergeAuthStateIntoPreferences(merged, {
+          role: 'coach',
+          onboarding_completed: false,
+        }),
+        role: 'coach',
+        onboarding_completed: false,
         approval_status: 'PENDING',
         rejected_at: null,
         rejection_reason: null,
@@ -1607,8 +1713,7 @@ authRouter.get(
     const prefs = mergePreferences(userPrefs, defaults);
     const has_password = !!(user as any).password_hash;
     const safe = sanitizeUser(user);
-    const normalizedRole =
-      is_admin ? 'admin' : typeof prefs.role === 'string' ? String(prefs.role) : null;
+    const normalizedRole = is_admin ? 'admin' : getCanonicalUserRole(user as any);
     const requiredCoachAgreementVersion = Number(
       process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
     );
@@ -1882,7 +1987,9 @@ const PROTECTED_PREF_KEYS = new Set([
   'approval_status',
   'is_admin',
   'plan',
+  'pending_plan',
   'paid_by_owner',
+  'payment_pending',
   'payment_approved',
 ]);
 
@@ -2000,9 +2107,16 @@ authRouter.patch(
         approval_status: true,
         date_of_birth: true,
         dob_set_at: true,
+        role: true,
+        onboarding_completed: true,
+        organization_id: true,
+        proceeding_as_fan: true,
+        coach_agreement_accepted_at: true,
+        coach_agreement_version: true,
       },
     });
     const currentPrefs = (current?.preferences as any) || {};
+    const currentAuthState = getCanonicalAuthState(current as any);
 
     // Canonical DOB gate: once the column is set and the 24h grace window has
     // lapsed, DOB is locked to normal users. Admins can still update via admin
@@ -2040,8 +2154,8 @@ authRouter.patch(
     // The only legitimate path to change role post-onboarding is POST /auth/upgrade-to-coach.
     if (
       incoming.role &&
-      currentPrefs.onboarding_completed === true &&
-      incoming.role !== currentPrefs.role
+      currentAuthState.onboarding_completed === true &&
+      incoming.role !== currentAuthState.role
     ) {
       return res.status(403).json({
         error:
@@ -2053,9 +2167,9 @@ authRouter.patch(
     // directly via PATCH. The legitimate path is POST /auth/complete-onboarding which validates
     // required fields. We allow clients to set it to `false` (restart flow) and to re-affirm `true`
     // if the server state already confirms it. Any other attempt is rejected.
-    if (incoming.onboarding_completed === true && currentPrefs.onboarding_completed !== true) {
+    if (incoming.onboarding_completed === true && currentAuthState.onboarding_completed !== true) {
       // Require the same baseline fields /complete-onboarding checks for the user's role.
-      const effectiveRole = incoming.role || currentPrefs.role || 'fan';
+      const effectiveRole = incoming.role || currentAuthState.role || 'fan';
       const currentUserRec = await prisma.user.findUnique({
         where: { id: req.user!.id },
         select: { username: true },
@@ -2063,7 +2177,7 @@ authRouter.patch(
       if (effectiveRole === 'coach') {
         const hasUsername = !!currentUserRec?.username || !!incoming.username;
         const hasOrgOrTeam = !!(
-          currentPrefs.organization_id ||
+          currentAuthState.organization_id ||
           currentPrefs.team_id ||
           incoming.organization_id ||
           incoming.team_id
@@ -2088,7 +2202,7 @@ authRouter.patch(
     }
 
     // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach and /complete-onboarding)
-    if (incoming.role === 'coach' && currentPrefs.role !== 'coach') {
+    if (incoming.role === 'coach' && currentAuthState.role !== 'coach') {
       const adultEligible = isVerifiedAdult({
         date_of_birth: patchDobColumnWrite?.date_of_birth ?? current?.date_of_birth ?? null,
         preferences: {
@@ -2108,7 +2222,7 @@ authRouter.patch(
     // force approval_status to PENDING atomically. This ensures requireOnboarded
     // blocks all coach tools until an admin or org owner explicitly approves.
     // We do this in the same update below to avoid race conditions.
-    const forceApprovalPending = incoming.role === 'coach' && currentPrefs.role !== 'coach';
+    const forceApprovalPending = incoming.role === 'coach' && currentAuthState.role !== 'coach';
 
     // Check if user is admin (same logic as GET /me endpoint)
     const is_admin = isAdminEmail(current?.email);
@@ -2134,11 +2248,28 @@ authRouter.patch(
     const merged = stripProtectedKeys(
       mergePreferences(mergePreferences(defaults, current?.preferences || {}), incoming)
     ) as any;
+    const authStatePatch: Record<string, unknown> = {};
+    if (incoming.role !== undefined) authStatePatch.role = incoming.role;
+    if (incoming.onboarding_completed !== undefined) {
+      authStatePatch.onboarding_completed = incoming.onboarding_completed;
+    }
+    if (incoming.organization_id !== undefined) authStatePatch.organization_id = incoming.organization_id;
+    if (incoming.proceeding_as_fan !== undefined) {
+      authStatePatch.proceeding_as_fan = incoming.proceeding_as_fan;
+    }
+    if (incoming.coach_agreement_accepted_at !== undefined) {
+      authStatePatch.coach_agreement_accepted_at = incoming.coach_agreement_accepted_at || null;
+    }
+    if (incoming.coach_agreement_version !== undefined) {
+      authStatePatch.coach_agreement_version = incoming.coach_agreement_version ?? null;
+    }
+    const dualWrittenPreferences = mergeAuthStateIntoPreferences(merged, authStatePatch);
 
     const updated = await prisma.user.update({
       where: { id: req.user!.id },
       data: {
-        preferences: merged,
+        preferences: dualWrittenPreferences,
+        ...buildAuthStateColumns(authStatePatch),
         ...(forceApprovalPending ? { approval_status: 'PENDING' } : {}),
         ...(patchDobColumnWrite
           ? deriveParentalConsentFields(patchDobColumnWrite.date_of_birth)
@@ -2291,9 +2422,18 @@ authRouter.post(
         approval_status: true,
         date_of_birth: true,
         dob_set_at: true,
+        role: true,
+        onboarding_completed: true,
+        organization_id: true,
+        proceeding_as_fan: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
       },
     });
     const currentPrefs = (current?.preferences as any) || {};
+    const currentAuthState = getCanonicalAuthState(current as any);
 
     // COPPA gate: onboarding cannot complete without a canonical DOB. The
     // helper `isMinor()` fails closed for null DOB, but the real defense is
@@ -2371,7 +2511,7 @@ authRouter.post(
 
     // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
     // If role is undefined in payload, use existing role from preferences (set during step-1)
-    const finalRole = data.role !== undefined ? data.role : currentPrefs.role || 'fan';
+    const finalRole = data.role !== undefined ? data.role : currentAuthState.role || 'fan';
 
     // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach validation)
     if (finalRole === 'coach') {
@@ -2394,11 +2534,11 @@ authRouter.post(
     // Fall back to existing DB values for retry scenarios where payload may be incomplete
     const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
     // Billing-owned state must come from payment/server flows, never this endpoint.
-    const persistedPlan = currentPrefs.plan || 'rookie';
+    const persistedPlan = getCanonicalPlan(current as any);
     if (finalRole === 'coach') {
       const effectiveUsername = data.username || currentUser?.username;
-      const effectivePlan = currentPrefs.pending_plan || currentPrefs.plan || 'rookie';
-      const effectiveOrgId = data.organization_id || currentPrefs.organization_id;
+      const effectivePlan = getSelectedPlan(current as any);
+      const effectiveOrgId = data.organization_id || currentAuthState.organization_id;
       const effectiveTeamId = data.team_id || currentPrefs.team_id;
       if (!effectiveUsername) {
         return res.status(400).json({ error: 'Username required for coach onboarding' });
@@ -2455,7 +2595,7 @@ authRouter.post(
     // CRITICAL: Role must NEVER be undefined - preserve from current preferences if not in payload
     // This ensures OAuth-created users (who start as 'fan') can properly become 'coach' during onboarding
     if (preferencesUpdate.role === undefined) {
-      preferencesUpdate.role = currentPrefs.role || 'fan'; // Use existing role or default to fan
+      preferencesUpdate.role = currentAuthState.role || 'fan'; // Use existing role or default to fan
     }
 
     // Clean up undefined values (but keep role - it's already set above)
@@ -2478,12 +2618,29 @@ authRouter.post(
       mergePreferences(normalizedCurrent || {}, preferencesUpdate)
     ) as any;
     merged.plan = persistedPlan;
-    updateData.preferences = merged;
+    const onboardingAuthPatch = {
+      role: finalRole,
+      onboarding_completed: true,
+      organization_id:
+        data.organization_id !== undefined
+          ? data.organization_id || null
+          : (currentAuthState.organization_id ?? null),
+      proceeding_as_fan:
+        data.proceeding_as_fan !== undefined
+          ? data.proceeding_as_fan
+          : isProceedingAsFan(current as any),
+    };
+    updateData.preferences = mergeAuthStateIntoPreferences(merged, onboardingAuthPatch);
+    Object.assign(updateData, buildAuthStateColumns(onboardingAuthPatch));
 
     // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING
     // This prevents a fan from completing onboarding with role='coach' and retaining APPROVED status
     // v1.0.2: Also guard against overwriting an already-APPROVED status from a stale client call
-    if (finalRole === 'coach' && currentPrefs.role !== 'coach' && current?.approval_status !== 'APPROVED') {
+    if (
+      finalRole === 'coach' &&
+      currentAuthState.role !== 'coach' &&
+      current?.approval_status !== 'APPROVED'
+    ) {
       updateData.approval_status = 'PENDING';
     }
 
@@ -2692,10 +2849,37 @@ function sanitizeUser(u: any) {
     ...rest
   } = u as any;
   const normalizedDob = formatDobYmd(getCanonicalDob(rest));
-  const normalizedPreferences =
-    rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
-      ? { ...(rest.preferences as Record<string, unknown>) }
-      : {};
+    const normalizedPreferences =
+      rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
+        ? { ...(rest.preferences as Record<string, unknown>) }
+        : {};
+  const canonicalAuthState = getCanonicalAuthState(rest);
+  const canonicalBillingState = getCanonicalBillingState(rest);
+  normalizedPreferences.role = canonicalAuthState.role;
+  normalizedPreferences.onboarding_completed = canonicalAuthState.onboarding_completed;
+  if (canonicalAuthState.organization_id) {
+    normalizedPreferences.organization_id = canonicalAuthState.organization_id;
+  } else {
+    delete normalizedPreferences.organization_id;
+  }
+  normalizedPreferences.proceeding_as_fan = canonicalAuthState.proceeding_as_fan;
+  if (canonicalAuthState.coach_agreement_accepted_at) {
+    normalizedPreferences.coach_agreement_accepted_at =
+      canonicalAuthState.coach_agreement_accepted_at instanceof Date
+        ? canonicalAuthState.coach_agreement_accepted_at.toISOString()
+        : canonicalAuthState.coach_agreement_accepted_at;
+  } else {
+    delete normalizedPreferences.coach_agreement_accepted_at;
+  }
+  if (canonicalAuthState.coach_agreement_version !== null) {
+    normalizedPreferences.coach_agreement_version = canonicalAuthState.coach_agreement_version;
+  } else {
+    delete normalizedPreferences.coach_agreement_version;
+  }
+  normalizedPreferences.plan = canonicalBillingState.plan;
+  normalizedPreferences.pending_plan = canonicalBillingState.pending_plan;
+  normalizedPreferences.payment_pending = canonicalBillingState.payment_pending;
+  normalizedPreferences.payment_approved = canonicalBillingState.payment_approved;
   if (normalizedDob) {
     normalizedPreferences.dob = normalizedDob;
   }
@@ -2718,6 +2902,16 @@ function sanitizeUser(u: any) {
     ...rest,
     ...topLevelAliases,
     preferences: normalizedPreferences,
+    role: canonicalAuthState.role,
+    onboarding_completed: canonicalAuthState.onboarding_completed,
+    organization_id: canonicalAuthState.organization_id,
+    proceeding_as_fan: canonicalAuthState.proceeding_as_fan,
+    coach_agreement_accepted_at: canonicalAuthState.coach_agreement_accepted_at,
+    coach_agreement_version: canonicalAuthState.coach_agreement_version,
+    plan: canonicalBillingState.plan,
+    pending_plan: canonicalBillingState.pending_plan,
+    payment_pending: canonicalBillingState.payment_pending,
+    payment_approved: canonicalBillingState.payment_approved,
     dob: normalizedDob,
     date_of_birth: normalizedDob,
   };

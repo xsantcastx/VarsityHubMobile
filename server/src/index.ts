@@ -159,6 +159,9 @@ runStartupChecks().catch(err => {
         username: 'appledemo',
         email_verified: true,
         approval_status: 'APPROVED',
+        role: 'fan',
+        onboarding_completed: true,
+        plan: 'rookie',
         preferences: {
           onboarding_completed: true,
           role: 'fan',
@@ -184,6 +187,9 @@ runStartupChecks().catch(err => {
         subscription_tier: 'free',
         subscription_status: 'active',
         max_teams: 3,
+        role: 'fan',
+        onboarding_completed: true,
+        plan: 'rookie',
         preferences: {
           onboarding_completed: true,
           role: 'fan',

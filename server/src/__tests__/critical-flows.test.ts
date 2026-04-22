@@ -10,21 +10,9 @@
  * 5. RSVP / interaction idempotency — concurrent follows don't create dupes
  */
 
-import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
-
-jest.unstable_mockModule('@aws-sdk/client-rekognition', () => ({
-  RekognitionClient: class {
-    send = jest.fn();
-  },
-  DetectModerationLabelsCommand: class {
-    input: any;
-    constructor(input: any) {
-      this.input = input;
-    }
-  },
-}));
 
 let prisma: any;
 let signJwt: any;
@@ -55,7 +43,7 @@ describeDb('Critical Server Flows', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
-    ({ app } = await import('../testApp.js'));
+    ({ app } = await import('../criticalFlowsTestApp.js'));
     cleanupIds = { users: [], orgs: [], posts: [], teams: [] };
 
     const hash = await bcrypt.hash(PASSWORD, 10);

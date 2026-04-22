@@ -29,6 +29,16 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { serializeOrganization } from '../lib/serializeOrganization.js';
 import { addBreadcrumb } from '../lib/sentry.js';
 import { redactEmail } from '../lib/logRedaction.js';
+import {
+  buildAuthStateColumns,
+  getCanonicalUserRole,
+  getPreferencesObject,
+  mergeAuthStateIntoPreferences,
+} from '../lib/userAuthState.js';
+import {
+  buildBillingStateColumns,
+  getEffectiveEntitledPlan,
+} from '../lib/userBillingState.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -59,24 +69,17 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
   return role === 'owner' || role === 'manager';
 }
 
-function getPreferencesObject(value: unknown): Record<string, any> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return { ...(value as Record<string, any>) };
-  }
-  return {};
-}
-
 function buildPendingCoachPreferences(
   currentPrefs: unknown,
   organization: { id: string; name: string }
 ): Record<string, any> {
-  return {
-    ...getPreferencesObject(currentPrefs),
+  const next = mergeAuthStateIntoPreferences(getPreferencesObject(currentPrefs), {
     role: 'coach',
     organization_id: organization.id,
-    organization_name: organization.name,
-    join_request_pending: true,
-  };
+  });
+  next.organization_name = organization.name;
+  next.join_request_pending = true;
+  return next;
 }
 
 function buildApprovedCoachPreferences(params: {
@@ -85,14 +88,13 @@ function buildApprovedCoachPreferences(params: {
   teamId?: string | null;
   teamName?: string | null;
 }): Record<string, any> {
-  const next = {
-    ...getPreferencesObject(params.currentPrefs),
+  const next = mergeAuthStateIntoPreferences(getPreferencesObject(params.currentPrefs), {
     role: 'coach',
     organization_id: params.organization.id,
-    organization_name: params.organization.name,
-    join_request_pending: false,
     proceeding_as_fan: false,
-  } as Record<string, any>;
+  }) as Record<string, any>;
+  next.organization_name = params.organization.name;
+  next.join_request_pending = false;
 
   if (params.teamId) next.team_id = params.teamId;
   if (params.teamName) next.team_name = params.teamName;
@@ -108,11 +110,10 @@ function buildRejectedCoachPreferences(params: {
   currentPrefs: unknown;
   organization?: { id: string; name: string } | null;
 }): Record<string, any> {
-  const next = {
-    ...getPreferencesObject(params.currentPrefs),
+  const next = mergeAuthStateIntoPreferences(getPreferencesObject(params.currentPrefs), {
     role: 'coach',
-    join_request_pending: false,
-  } as Record<string, any>;
+  }) as Record<string, any>;
+  next.join_request_pending = false;
 
   if (params.organization) {
     next.organization_id = params.organization.id;
@@ -129,9 +130,31 @@ async function isCurrentUserPlatformAdmin(req: AuthedRequest): Promise<boolean> 
   if (!req.user?.id) return false;
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { email: true },
+    select: { email: true, email_verified: true },
   });
-  return isEmailAdmin(user?.email);
+  return !!user?.email_verified && isEmailAdmin(user?.email);
+}
+
+const LEAGUE_APPROVAL_TOKEN_TTL = '48h';
+
+async function getPlatformAdminSession(req: AuthedRequest) {
+  if (!req.user?.id) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, email: true, email_verified: true },
+  });
+  if (!user?.email_verified || !isEmailAdmin(user.email)) return null;
+  return user;
+}
+
+function renderAdminLoginRequiredPage(action: 'approve' | 'reject', organizationName: string) {
+  const verb = action === 'approve' ? 'approve' : 'reject';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Sign-In Required</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:560px;margin:60px auto;padding:20px;text-align:center;">
+<h2>Admin sign-in required</h2>
+<p>You must be signed in as a verified VarsityHub platform admin to ${verb} <strong>${escapeHtml(organizationName || 'this league')}</strong>.</p>
+<p>Open this link from an authenticated admin session, then confirm the action.</p>
+</body></html>`;
 }
 
 // List organizations (public, with optional search)
@@ -568,10 +591,11 @@ organizationsRouter.post(
           rejected_at: true,
           rejection_reason: true,
           preferences: true,
+          role: true,
         },
       });
       const applicantPrefs = getPreferencesObject(applicant?.preferences);
-      if (applicantPrefs.role !== 'coach') {
+      if (getCanonicalUserRole(applicant as any) !== 'coach') {
         return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
       }
       // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
@@ -660,6 +684,10 @@ organizationsRouter.post(
               id: org.id,
               name: org.name,
             }),
+            ...buildAuthStateColumns({
+              role: 'coach',
+              organization_id: org.id,
+            }),
             approval_status: 'PENDING',
             paid_by_owner: false,
             // v1.0.2: clear prior rejection tracking on a fresh application
@@ -676,8 +704,14 @@ organizationsRouter.post(
         where: { id: req.user!.id },
         select: { display_name: true, email: true },
       });
-      const approveToken = signJwt({ orgId: organization.id, action: 'approve_league' }, '7d');
-      const rejectToken = signJwt({ orgId: organization.id, action: 'reject_league' }, '7d');
+      const approveToken = signJwt(
+        { orgId: organization.id, action: 'approve_league' },
+        LEAGUE_APPROVAL_TOKEN_TTL
+      );
+      const rejectToken = signJwt(
+        { orgId: organization.id, action: 'reject_league' },
+        LEAGUE_APPROVAL_TOKEN_TTL
+      );
       sendLeagueApprovalRequestEmail({
         leagueId: organization.id,
         leagueName: organization.name,
@@ -758,10 +792,11 @@ organizationsRouter.post(
           rejected_at: true,
           rejection_reason: true,
           preferences: true,
+          role: true,
         },
       });
       const applicantPrefs = getPreferencesObject(applicant?.preferences);
-      if (applicantPrefs.role !== 'coach') {
+      if (getCanonicalUserRole(applicant as any) !== 'coach') {
         return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
       }
       // v1.0.2 pass 4: backfill rejected_at for legacy REJECTED users so they can't bypass cooldown.
@@ -846,6 +881,10 @@ organizationsRouter.post(
               id: org.id,
               name: org.name,
             }),
+            ...buildAuthStateColumns({
+              role: 'coach',
+              organization_id: org.id,
+            }),
             approval_status: 'PENDING',
             paid_by_owner: false,
             // v1.0.2: clear prior rejection tracking on a fresh application
@@ -862,8 +901,14 @@ organizationsRouter.post(
         where: { id: req.user!.id },
         select: { display_name: true, email: true },
       });
-      const approveToken = signJwt({ orgId: organization.id, action: 'approve_league' }, '7d');
-      const rejectToken = signJwt({ orgId: organization.id, action: 'reject_league' }, '7d');
+      const approveToken = signJwt(
+        { orgId: organization.id, action: 'approve_league' },
+        LEAGUE_APPROVAL_TOKEN_TTL
+      );
+      const rejectToken = signJwt(
+        { orgId: organization.id, action: 'reject_league' },
+        LEAGUE_APPROVAL_TOKEN_TTL
+      );
       sendLeagueApprovalRequestEmail({
         leagueId: organization.id,
         leagueName: organization.name,
@@ -997,15 +1042,23 @@ organizationsRouter.post(
         select: { user_id: true },
       });
       const ownerId = ownerMembership?.user_id || req.user!.id;
-      const owner = await prisma.user.findUnique({ where: { id: ownerId } });
+      const owner = await prisma.user.findUnique({
+        where: { id: ownerId },
+        select: {
+          preferences: true,
+          plan: true,
+          pending_plan: true,
+          payment_pending: true,
+          payment_approved: true,
+        },
+      });
       if (!owner) {
         return res
           .status(404)
           .json({ error: 'Organization owner not found. Please contact support.' });
       }
       const ownerPrefs = (owner.preferences || {}) as any;
-      // Use confirmed plan only — pending_plan is not yet paid for
-      const plan = ownerPrefs.payment_pending ? 'rookie' : ownerPrefs.plan || 'rookie';
+      const plan = getEffectiveEntitledPlan(owner as any);
 
       // Get team count for org-level limit calculation (from org owner's profile)
       const teamCountTotal =
@@ -1400,10 +1453,10 @@ organizationsRouter.post(
       // Check if requester is a coach before the write so we can set PENDING atomically
       const requester = await prisma.user.findUnique({
         where: { id: req.user!.id },
-        select: { preferences: true },
+        select: { preferences: true, role: true },
       });
       const requesterPrefs = getPreferencesObject(requester?.preferences);
-      if (requesterPrefs.role !== 'coach') {
+      if (getCanonicalUserRole(requester as any) !== 'coach') {
         return res
           .status(403)
           .json({ error: 'Upgrade to a coach account before requesting to join a league.' });
@@ -1443,6 +1496,10 @@ organizationsRouter.post(
             preferences: buildPendingCoachPreferences(requesterPrefs, {
               id: organization.id,
               name: organization.name,
+            }),
+            ...buildAuthStateColumns({
+              role: 'coach',
+              organization_id: organization.id,
             }),
             approval_status: 'PENDING',
             paid_by_owner: false,
@@ -1695,6 +1752,16 @@ organizationsRouter.post(
                   name: joinRequest.organization.name,
                 },
               }),
+              ...buildAuthStateColumns({
+                role: 'coach',
+                organization_id: joinRequest.organization_id,
+                proceeding_as_fan: false,
+              }),
+              ...buildBillingStateColumns({
+                pending_plan: null,
+                payment_pending: false,
+                payment_approved: false,
+              }),
             },
           });
         },
@@ -1848,6 +1915,10 @@ organizationsRouter.post(
                   name: joinRequest.organization.name,
                 },
               }),
+              ...buildAuthStateColumns({
+                role: 'coach',
+                organization_id: joinRequest.organization_id,
+              }),
             },
           });
         },
@@ -1977,9 +2048,9 @@ organizationsRouter.post(
 
 /**
  * POST /organizations/:id/approve
- * Approves a league page. Supports two auth methods:
- * 1. Authenticated admin (requireAdmin middleware)
- * 2. Email-based token (JWT in query param, no login required)
+ * Approves a league page.
+ * Token links are confirmation scopes only; state changes still require
+ * an authenticated platform-admin session.
  */
 // GET handler so email links work as simple browser clicks
 organizationsRouter.get('/:id/approve', authMiddleware as any, (req, res, next) => {
@@ -1993,11 +2064,13 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
   try {
     const orgId = req.params.id;
     const token = req.query.token as string | undefined;
+    const adminSession = await getPlatformAdminSession(req);
+    const authMode = token ? (adminSession ? 'token+admin' : 'token') : 'admin';
     addBreadcrumb('League approval endpoint hit', 'approval.organization_route', 'info', {
       action: 'approve',
       organization_id: orgId,
       method: req.method,
-      auth_mode: token ? 'token' : 'admin',
+      auth_mode: authMode,
     });
 
     // Validate org exists early (before auth) to avoid Prisma errors on invalid UUIDs
@@ -2006,8 +2079,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       .catch(() => null);
     if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
 
-    // Auth: either signed token OR authenticated admin
-    let adminUserId: string | null = null;
+    let adminUserId: string | null = adminSession?.id || null;
 
     if (token) {
       const payload = verifyJwt<{ orgId: string; action: string }>(token);
@@ -2029,6 +2101,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
           where: { id: orgId },
           select: { name: true, admin_approved: true },
         });
+        if (!adminSession) {
+          return res
+            .status(401)
+            .send(renderAdminLoginRequiredPage('approve', orgInfo?.name || 'Unknown'));
+        }
         if (orgInfo?.admin_approved)
           return res.send(
             `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`
@@ -2040,15 +2117,14 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 <button type="submit" style="background:#16A34A;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Approve League</button>
 </form></body></html>`);
       }
+      if (!adminSession) {
+        return res.status(401).json({ error: 'Authenticated admin session required' });
+      }
     } else {
-      // Require authenticated admin
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const me = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
-      adminUserId = req.user.id;
+      if (req.method === 'GET') {
+        return res.status(405).json({ error: 'Use POST for admin approvals' });
+      }
+      if (!adminSession) return res.status(403).json({ error: 'Admin only' });
     }
 
     const adminNote: string | undefined = req.body?.note || undefined;
@@ -2060,18 +2136,15 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     addBreadcrumb('League approval endpoint completed', 'approval.organization_route', 'info', {
       action: 'approve',
       organization_id: orgId,
-      auth_mode: token ? 'token' : 'admin',
+      auth_mode: authMode,
     });
 
     const org = (result as any).org;
 
     // ORG-11: Log league approval via centralized logger
-    const approverEmail = adminUserId
-      ? (await prisma.user.findUnique({ where: { id: adminUserId }, select: { email: true } }))
-          ?.email || adminUserId
-      : 'token-auth';
+    const approverEmail = adminSession?.email || adminUserId || 'unknown-admin';
     await logAdminActivity(
-      adminUserId || 'token-auth',
+      adminUserId || 'unknown-admin',
       approverEmail,
       'APPROVE_LEAGUE',
       'organization',
@@ -2098,6 +2171,12 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
   }
 }
 
+/**
+ * POST /organizations/:id/reject
+ * Rejects a league page.
+ * Token links are confirmation scopes only; state changes still require
+ * an authenticated platform-admin session.
+ */
 // GET handler so email reject links work as simple browser clicks
 organizationsRouter.get('/:id/reject', authMiddleware as any, (req, res, next) => {
   (rejectLeagueHandler as any)(req, res).catch(next);
@@ -2111,11 +2190,13 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     const orgId = req.params.id;
     const token = req.query.token as string | undefined;
     const reason = req.body?.reason as string | undefined;
+    const adminSession = await getPlatformAdminSession(req);
+    const authMode = token ? (adminSession ? 'token+admin' : 'token') : 'admin';
     addBreadcrumb('League rejection endpoint hit', 'approval.organization_route', 'info', {
       action: 'reject',
       organization_id: orgId,
       method: req.method,
-      auth_mode: token ? 'token' : 'admin',
+      auth_mode: authMode,
       has_reason: !!reason,
     });
 
@@ -2125,7 +2206,6 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       .catch(() => null);
     if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
 
-    // Auth: either signed token OR authenticated admin
     if (token) {
       const payload = verifyJwt<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'reject_league') {
@@ -2146,6 +2226,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
           where: { id: orgId },
           select: { name: true },
         });
+        if (!adminSession) {
+          return res
+            .status(401)
+            .send(renderAdminLoginRequiredPage('reject', orgInfo?.name || 'Unknown'));
+        }
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reject League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>Reject this league?</h2><p><strong>${escapeHtml(orgInfo?.name || 'Unknown')}</strong></p>
@@ -2153,34 +2238,32 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
 <button type="submit" style="background:#DC2626;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Reject League</button>
 </form></body></html>`);
       }
+      if (!adminSession) {
+        return res.status(401).json({ error: 'Authenticated admin session required' });
+      }
     } else {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-      const me = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { email: true },
-      });
-      if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+      if (req.method === 'GET') {
+        return res.status(405).json({ error: 'Use POST for admin rejections' });
+      }
+      if (!adminSession) return res.status(403).json({ error: 'Admin only' });
     }
 
-    const adminUserId = req.user?.id || null;
+    const adminUserId = adminSession?.id || null;
     const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
     if (result.error)
       return res.status((result as any).status || 500).json({ error: result.error });
     addBreadcrumb('League rejection endpoint completed', 'approval.organization_route', 'info', {
       action: 'reject',
       organization_id: orgId,
-      auth_mode: token ? 'token' : 'admin',
+      auth_mode: authMode,
     });
 
     const org = (result as any).org;
 
     // ORG-11: Log league rejection via centralized logger
-    const rejecterEmail = adminUserId
-      ? (await prisma.user.findUnique({ where: { id: adminUserId }, select: { email: true } }))
-          ?.email || adminUserId
-      : 'token-auth';
+    const rejecterEmail = adminSession?.email || adminUserId || 'unknown-admin';
     await logAdminActivity(
-      adminUserId || 'token-auth',
+      adminUserId || 'unknown-admin',
       rejecterEmail,
       'REJECT_LEAGUE',
       'organization',
@@ -2375,6 +2458,16 @@ organizationsRouter.post(
                 teamId: teamId || null,
                 teamName: approvedTeamName,
               }),
+              ...buildAuthStateColumns({
+                role: 'coach',
+                organization_id: orgId,
+                proceeding_as_fan: false,
+              }),
+              ...buildBillingStateColumns({
+                pending_plan: null,
+                payment_pending: false,
+                payment_approved: false,
+              }),
             },
           });
           await tx.organizationMembership.upsert({
@@ -2514,6 +2607,10 @@ organizationsRouter.post(
               preferences: buildRejectedCoachPreferences({
                 currentPrefs: coach?.preferences,
                 organization: org ? { id: orgId, name: org.name || 'the league' } : null,
+              }),
+              ...buildAuthStateColumns({
+                role: 'coach',
+                organization_id: orgId,
               }),
             },
           });

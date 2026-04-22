@@ -134,7 +134,10 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       prisma.user.findMany({
         where: {
           approval_status: 'PENDING',
-          preferences: { path: ['role'], equals: 'coach' },
+          OR: [
+            { role: 'coach' as any },
+            { preferences: { path: ['role'], equals: 'coach' } },
+          ],
         },
         orderBy: { created_at: 'desc' },
         take: 200,

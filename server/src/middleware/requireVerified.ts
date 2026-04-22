@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
+import { isUserOnboardingComplete } from '../lib/userAuthState.js';
 
 export async function requireVerified(req: AuthedRequest, res: Response, next: NextFunction) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -22,10 +23,9 @@ export async function requireVerified(req: AuthedRequest, res: Response, next: N
     // Only allow bypass if user genuinely hasn't completed onboarding yet
     const onboardingUser = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { preferences: true },
+      select: { preferences: true, onboarding_completed: true },
     });
-    const prefs = (onboardingUser?.preferences as any) || {};
-    if (!prefs.onboarding_completed) {
+    if (!isUserOnboardingComplete(onboardingUser as any)) {
       return next();
     }
   }

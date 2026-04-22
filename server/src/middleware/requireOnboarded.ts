@@ -4,6 +4,19 @@ import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
 import { isMinor } from '../lib/userAge.js';
+import {
+  buildAuthStateColumns,
+  getCanonicalAuthState,
+  getCanonicalOrganizationId,
+  getCanonicalUserRole,
+  isUserOnboardingComplete,
+  mergeAuthStateIntoPreferences,
+} from '../lib/userAuthState.js';
+import {
+  buildBillingStateColumns,
+  getCanonicalBillingState,
+  mergeBillingStateIntoPreferences,
+} from '../lib/userBillingState.js';
 
 /**
  * Fans can get stuck with onboarding_completed=false after OAuth or legacy flows
@@ -12,15 +25,25 @@ import { isMinor } from '../lib/userAge.js';
  */
 async function healFanOnboardingIfEligible(
   userId: string,
-  prefs: Record<string, unknown> | null | undefined
+  userState: {
+    preferences?: Record<string, unknown> | null;
+    onboarding_completed?: boolean | null;
+    role?: string | null;
+  } | null | undefined
 ): Promise<Record<string, unknown> | null> {
-  if (prefs?.onboarding_completed === true) return null;
-  const role = String(prefs?.role || 'fan');
+  if (isUserOnboardingComplete(userState as any)) return null;
+  const role = getCanonicalUserRole(userState as any);
   if (role === 'coach') return null;
 
   const row = await prisma.user.findUnique({
     where: { id: userId },
-    select: { username: true, email_verified: true, preferences: true },
+    select: {
+      username: true,
+      email_verified: true,
+      preferences: true,
+      role: true,
+      onboarding_completed: true,
+    },
   });
   if (!row?.email_verified || !row.username) return null;
   const p = (row.preferences as Record<string, unknown>) || {};
@@ -29,10 +52,13 @@ async function healFanOnboardingIfEligible(
   if (!dob || !String(dob).trim()) return null;
   if (!zip || !String(zip).trim()) return null;
 
-  const merged = { ...p, onboarding_completed: true };
+  const merged = mergeAuthStateIntoPreferences(p, { onboarding_completed: true });
   const updated = await updateUserAndInvalidate(prisma, {
     where: { id: userId },
-    data: { preferences: merged },
+    data: {
+      preferences: merged,
+      ...buildAuthStateColumns({ onboarding_completed: true }),
+    },
   });
   console.warn('[requireOnboarded] Healed stuck onboarding_completed for fan', { userId });
   return (updated.preferences as Record<string, unknown>) || merged;
@@ -60,6 +86,15 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
       email: true,
       date_of_birth: true,
       parental_consent_status: true,
+      role: true,
+      onboarding_completed: true,
+      organization_id: true,
+      coach_agreement_accepted_at: true,
+      coach_agreement_version: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
     } as any,
   })) as {
     preferences: Record<string, unknown> | null;
@@ -68,12 +103,23 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     email: string;
     date_of_birth: Date | null;
     parental_consent_status: 'not_required' | 'pending' | 'approved' | 'denied';
+    role?: 'fan' | 'coach';
+    onboarding_completed?: boolean;
+    organization_id?: string | null;
+    coach_agreement_accepted_at?: Date | null;
+    coach_agreement_version?: number | null;
+    plan?: 'rookie' | 'veteran' | 'legend';
+    pending_plan?: 'rookie' | 'veteran' | 'legend' | null;
+    payment_pending?: boolean;
+    payment_approved?: boolean;
   } | null;
   const uAny = u as any;
   // `let` (not const) because the fan-onboarding healer at line ~110 may
   // reassign this to the freshly-healed preferences snapshot. Railway's
   // tsc caught this in 1.0.1 build; keep as `let` going forward.
   let prefs = (u?.preferences ?? null) as Record<string, unknown> | null;
+  let authState = getCanonicalAuthState(u as any);
+  let billingState = getCanonicalBillingState(u as any);
 
   // God-admins bypass all onboarding/approval checks
   if (isEmailAdmin(u?.email)) {
@@ -122,25 +168,40 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   if (
     ((onboardingFlag && (isTeamsCreateRoute || isOrgCreateRoute)) ||
       isOnboardingSupportDocUpload) &&
-    prefs?.onboarding_completed !== true &&
-    prefs?.role === 'coach'
+    authState.onboarding_completed !== true &&
+    authState.role === 'coach'
   ) {
     return next();
   }
 
-  if (prefs?.onboarding_completed !== true) {
-    const healed = await healFanOnboardingIfEligible(req.user.id, prefs);
+  if (authState.onboarding_completed !== true) {
+    const healed = await healFanOnboardingIfEligible(req.user.id, {
+      preferences: prefs,
+      onboarding_completed: authState.onboarding_completed,
+      role: authState.role,
+    });
     if (healed) prefs = healed;
+    if (healed) {
+      authState = getCanonicalAuthState({
+        ...u,
+        preferences: healed,
+        onboarding_completed: true,
+      } as any);
+      billingState = getCanonicalBillingState({
+        ...u,
+        preferences: healed,
+      } as any);
+    }
   }
 
-  if (prefs?.onboarding_completed !== true) {
+  if (authState.onboarding_completed !== true) {
     return res.status(403).json({ error: 'Please complete onboarding before creating content.' });
   }
 
   // Block coaches whose approval_status is not explicitly APPROVED.
   // The Prisma default is APPROVED (for fans), but coaches must be set to PENDING
   // during onboarding and only transition to APPROVED via god-admin or org-admin action.
-  if (prefs?.role === 'coach' && u?.approval_status !== 'APPROVED') {
+  if (authState.role === 'coach' && u?.approval_status !== 'APPROVED') {
     const isRejected = u?.approval_status === 'REJECTED';
     return res.status(403).json({
       error: isRejected
@@ -151,8 +212,8 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   }
 
   // Extra guard: coaches must belong to an admin-approved org
-  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
-    const orgId = prefs?.organization_id as string | undefined;
+  if (authState.role === 'coach' && u?.approval_status === 'APPROVED') {
+    const orgId = getCanonicalOrganizationId(u as any) || undefined;
     if (orgId) {
       const org = await prisma.organization.findUnique({
         where: { id: orgId },
@@ -176,12 +237,12 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   // `preferences.coach_agreement_version` is compared against the required
   // constant. Legacy users with only `accepted_at` (no version field) are
   // treated as having accepted version 1 — bump to 2+ to force re-accept.
-  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
+  if (authState.role === 'coach' && u?.approval_status === 'APPROVED') {
     const REQUIRED_COACH_AGREEMENT_VERSION = Number(
       process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
     );
-    const acceptedAt = prefs?.coach_agreement_accepted_at;
-    const acceptedVersion = Number(prefs?.coach_agreement_version ?? 1);
+    const acceptedAt = authState.coach_agreement_accepted_at;
+    const acceptedVersion = Number(authState.coach_agreement_version ?? 1);
     if (!acceptedAt) {
       return res.status(403).json({
         error: 'You must accept the coach agreement before accessing coach tools.',
@@ -213,12 +274,33 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
       await updateUserAndInvalidate(prisma, {
         where: { id: req.user.id },
         data: {
-          preferences: downgradedPrefs,
+          preferences: mergeBillingStateIntoPreferences(downgradedPrefs, {
+            plan: 'rookie',
+            pending_plan: null,
+            payment_pending: false,
+            payment_approved: false,
+          }),
+          ...buildBillingStateColumns({
+            plan: 'rookie',
+            pending_plan: null,
+            payment_pending: false,
+            payment_approved: false,
+          }),
           subscription_tier: 'free',
           subscription_status: 'expired',
           max_teams: 3,
         },
       });
+      prefs = downgradedPrefs;
+      billingState = {
+        ...billingState,
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+        selected_plan: 'rookie',
+        effective_plan: 'rookie',
+      };
       console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', { userId: req.user.id });
       // Continue with downgraded state; coach paid-tier check below will catch them if needed.
     }
@@ -227,7 +309,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   // Additional Apple safety net: if the stored App Store expiry is already in the past,
   // downgrade locally even if the S2S EXPIRED notification never arrived.
   const appleExpiresAt = (prefs as any)?.apple_expires_date;
-  const currentPlan = String((prefs?.plan as string | undefined) || '').toLowerCase();
+  const currentPlan = billingState.plan;
   if (
     appleExpiresAt &&
     (currentPlan === 'veteran' || currentPlan === 'legend') &&
@@ -240,12 +322,33 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
       await updateUserAndInvalidate(prisma, {
         where: { id: req.user.id },
         data: {
-          preferences: downgradedPrefs,
+          preferences: mergeBillingStateIntoPreferences(downgradedPrefs, {
+            plan: 'rookie',
+            pending_plan: null,
+            payment_pending: false,
+            payment_approved: false,
+          }),
+          ...buildBillingStateColumns({
+            plan: 'rookie',
+            pending_plan: null,
+            payment_pending: false,
+            payment_approved: false,
+          }),
           subscription_tier: 'free',
           subscription_status: 'expired',
           max_teams: 3,
         },
       });
+      prefs = downgradedPrefs;
+      billingState = {
+        ...billingState,
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+        selected_plan: 'rookie',
+        effective_plan: 'rookie',
+      };
       console.warn('[requireOnboarded] Lazy-downgraded user after Apple expiry passed', {
         userId: req.user.id,
       });
@@ -254,13 +357,11 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   // Approved coach accounts that selected a paid tier must complete checkout
   // before accessing coach tools, unless their league owner covers billing.
-  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
-    const pendingPlan = String((prefs?.pending_plan as string | undefined) || '').toLowerCase();
-    const currentPlan = String((prefs?.plan as string | undefined) || '').toLowerCase();
-    const selectedPlan = pendingPlan || currentPlan;
+  if (authState.role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
+    const selectedPlan = billingState.selected_plan;
     const requiresPayment = selectedPlan === 'veteran' || selectedPlan === 'legend';
-    const paymentPending = prefs?.payment_pending === true;
-    const paymentApproved = prefs?.payment_approved === true;
+    const paymentPending = billingState.payment_pending === true;
+    const paymentApproved = billingState.payment_approved === true;
     const joinRequestPending = prefs?.join_request_pending === true;
     const canCheckoutNow = paymentApproved || !joinRequestPending;
 

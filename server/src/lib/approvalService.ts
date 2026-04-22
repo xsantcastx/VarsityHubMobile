@@ -24,6 +24,13 @@ import {
 import { sendPushNotification } from './pushNotifications.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from './userCache.js';
 import { addBreadcrumb } from './sentry.js';
+import {
+  buildAuthStateColumns,
+  getCanonicalOrganizationId,
+  getPreferencesObject,
+  mergeAuthStateIntoPreferences,
+} from './userAuthState.js';
+import { buildBillingStateColumns } from './userBillingState.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -73,33 +80,27 @@ async function notifyAllAdminsOfLeagueAction(params: {
   );
 }
 
-function getPreferencesObject(value: unknown): Record<string, any> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return { ...(value as Record<string, any>) };
-  }
-  return {};
-}
-
 function buildOrganizationOwnerApprovedPreferences(
   currentPrefs: unknown,
   organization: { id: string; name: string }
 ) {
-  return {
-    ...getPreferencesObject(currentPrefs),
+  const next = mergeAuthStateIntoPreferences(getPreferencesObject(currentPrefs), {
     role: 'coach',
     organization_id: organization.id,
-    organization_name: organization.name,
     proceeding_as_fan: false,
-  };
+  });
+  next.organization_name = organization.name;
+  return next;
 }
 
 function buildCoachApprovedPreferences(currentPrefs: unknown) {
-  const next = {
-    ...getPreferencesObject(currentPrefs),
+  const next = mergeAuthStateIntoPreferences(getPreferencesObject(currentPrefs), {
     role: 'coach',
-    join_request_pending: false,
     proceeding_as_fan: false,
-  } as Record<string, any>;
+  }) as Record<string, any>;
+  Object.assign(next, {
+    join_request_pending: false,
+  });
   delete next.pending_plan;
   delete next.payment_pending;
   delete next.payment_approved;
@@ -107,11 +108,12 @@ function buildCoachApprovedPreferences(currentPrefs: unknown) {
 }
 
 function buildCoachRejectedPreferences(currentPrefs: unknown) {
-  const next = {
-    ...getPreferencesObject(currentPrefs),
+  const next = mergeAuthStateIntoPreferences(getPreferencesObject(currentPrefs), {
     role: 'coach',
+  }) as Record<string, any>;
+  Object.assign(next, {
     join_request_pending: false,
-  } as Record<string, any>;
+  });
   delete next.team_id;
   delete next.team_name;
   return next;
@@ -167,6 +169,11 @@ export async function approveOrganization(
             org.leagueOwner?.preferences,
             { id: orgId, name: org.name }
           ),
+          ...buildAuthStateColumns({
+            role: 'coach',
+            organization_id: orgId,
+            proceeding_as_fan: false,
+          }),
         },
       }),
     );
@@ -336,7 +343,7 @@ export async function approveCoach(
 
   // Check org prerequisite: if coach has an org, it must be admin_approved
   const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-  const orgId = prefs?.organization_id;
+  const orgId = getCanonicalOrganizationId(user as any);
   if (orgId) {
     const orgApproved = await isOrganizationApproved(orgId, prisma);
     if (!orgApproved) {
@@ -359,6 +366,16 @@ export async function approveCoach(
         rejected_at: null,
         rejection_reason: null,
         preferences: buildCoachApprovedPreferences(user.preferences),
+        ...buildAuthStateColumns({
+          role: 'coach',
+          organization_id: orgId ?? null,
+          proceeding_as_fan: false,
+        }),
+        ...buildBillingStateColumns({
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }),
       },
     }),
   ];
@@ -465,6 +482,10 @@ export async function rejectCoach(
       rejected_at: new Date(),
       rejection_reason: reason || null,
       preferences: buildCoachRejectedPreferences(user.preferences),
+      ...buildAuthStateColumns({
+        role: 'coach',
+        organization_id: getCanonicalOrganizationId(user as any),
+      }),
     },
   });
 
@@ -895,7 +916,10 @@ export async function remindPendingCoachApprovals(prisma: PrismaClient): Promise
   const staleCoaches = await prisma.user.findMany({
     where: {
       approval_status: 'PENDING',
-      preferences: { path: ['role'], equals: 'coach' },
+      OR: [
+        { role: 'coach' as any },
+        { preferences: { path: ['role'], equals: 'coach' } },
+      ],
       created_at: { lt: sevenDaysAgo },
     },
     select: { id: true, display_name: true, email: true, created_at: true },
@@ -919,7 +943,10 @@ export async function autoExpirePendingCoaches(prisma: PrismaClient): Promise<nu
   const expiredCoaches = await prisma.user.findMany({
     where: {
       approval_status: 'PENDING',
-      preferences: { path: ['role'], equals: 'coach' },
+      OR: [
+        { role: 'coach' as any },
+        { preferences: { path: ['role'], equals: 'coach' } },
+      ],
       created_at: { lt: thirtyDaysAgo },
     },
     select: { id: true, display_name: true, email: true },

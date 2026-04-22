@@ -34,6 +34,13 @@ import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/user
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { recordAppleNotificationReceipt } from '../lib/appleNotificationDedup.js';
 import { redactIdentifier } from '../lib/logRedaction.js';
+import { getCanonicalUserRole } from '../lib/userAuthState.js';
+import {
+  buildBillingStateColumns,
+  getCanonicalPlan,
+  getSelectedPlan,
+  mergeBillingStateIntoPreferences,
+} from '../lib/userBillingState.js';
 
 const require = createRequire(import.meta.url);
 const StripeCtor = require('stripe') as typeof import('stripe').default;
@@ -217,14 +224,26 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
   // Check if user already has this exact paid plan (allow upgrades from rookie)
   const userId = req.user!.id;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, approval_status: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      preferences: true,
+      approval_status: true,
+      role: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+    },
+  });
   const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const userRole = getCanonicalUserRole(user as any);
 
   // Block checkout if coach hasn't been approved yet
-  if (prefs.role === 'coach' && user?.approval_status !== 'APPROVED') {
+  if (userRole === 'coach' && user?.approval_status !== 'APPROVED') {
     throw membershipError(403, 'Your league must be approved before you can subscribe.');
   }
-  const currentPlan = prefs.plan || 'rookie'; // Default to rookie if no plan set
+  const currentPlan = getCanonicalPlan(user as any);
   
   // Only block if user already has the exact same paid plan they're trying to purchase
   // Allow upgrades from rookie to veteran/legend, and between veteran/legend
@@ -750,7 +769,18 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const parsed = paymentSheetSchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
   const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, stripe_customer_id: true, preferences: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      email: true,
+      stripe_customer_id: true,
+      preferences: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+    },
+  });
 
   // ── SUBSCRIPTION FLOW ──
   if (typeof plan === 'string' && plan.trim()) {
@@ -764,7 +794,9 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 
     // Rule A: Fall back to pending_plan if plan param matches it, or use pending_plan directly
     const raw = plan.trim().toLowerCase();
-    const resolvedPlan = (raw === 'veteran' || raw === 'legend') ? raw : (prefs.pending_plan || '').toLowerCase();
+    const selectedPlan = getSelectedPlan(user as any);
+    const resolvedPlan =
+      raw === 'veteran' || raw === 'legend' ? raw : selectedPlan;
     if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
     const chosen = resolvedPlan as MembershipPlan;
     let actualTeamCount = 0;
@@ -781,8 +813,11 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     }
 
     // Rule A: Block checkout if coach hasn't been approved yet
-    const approvalCheck = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { approval_status: true } });
-    if (prefs.role === 'coach' && approvalCheck?.approval_status !== 'APPROVED') {
+    const approvalCheck = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { approval_status: true, role: true, preferences: true },
+    });
+    if (getCanonicalUserRole(approvalCheck as any) === 'coach' && approvalCheck?.approval_status !== 'APPROVED') {
       return res.status(403).json({
         error: 'APPROVAL_REQUIRED',
         message: 'Your league must be approved before you can subscribe.'
@@ -811,7 +846,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     }
 
     // Check if user already has this plan (check active plan, not pending_plan)
-    const currentPlan = prefs.plan || 'rookie';
+    const currentPlan = getCanonicalPlan(user as any);
     if (currentPlan === chosen) return res.status(400).json({ error: 'You already have this subscription plan' });
 
     // Build price / line items
@@ -1240,15 +1275,30 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: customerId } });
     if (canceledUser) {
       const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
-      const previousPlan = prefs.plan || 'rookie';
+      const previousPlan = getCanonicalPlan(canceledUser as any);
       delete prefs.subscription_id;
       delete prefs.subscription_period_end;
-      prefs.plan = 'rookie';
+      const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      });
       // ATOMIC: downgrade + cancellation log must succeed or fail together
       await prisma.$transaction([
         prisma.user.update({
           where: { id: canceledUser.id },
-          data: { preferences: prefs, subscription_tier: 'free', subscription_status: 'canceled' },
+          data: {
+            preferences: nextPrefs,
+            ...buildBillingStateColumns({
+              plan: 'rookie',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+          },
         }),
         prisma.transactionLog.create({
           data: {
@@ -1303,7 +1353,18 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
       const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
       if (planFromTier && (newStatus === 'active')) {
         const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
-        updateData.preferences = { ...existingPrefs, plan: planFromTier, pending_plan: null, payment_pending: false };
+        updateData.preferences = mergeBillingStateIntoPreferences(existingPrefs, {
+          plan: planFromTier as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        });
+        Object.assign(updateData, buildBillingStateColumns({
+          plan: planFromTier as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }));
       }
 
       await prisma.user.update({
@@ -1383,10 +1444,25 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
           if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
             const u = await db.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
             const prefs = (u?.preferences as any) || {};
+            const nextPrefs = mergeBillingStateIntoPreferences(
+              { ...prefs, subscription_id: null, subscription_period_end: null },
+              {
+                plan: 'rookie',
+                pending_plan: null,
+                payment_pending: false,
+                payment_approved: false,
+              }
+            );
             await db.user.update({
               where: { id: tx.user_id },
               data: {
-                preferences: { ...prefs, plan: 'rookie', subscription_id: null, subscription_period_end: null },
+                preferences: nextPrefs,
+                ...buildBillingStateColumns({
+                  plan: 'rookie',
+                  pending_plan: null,
+                  payment_pending: false,
+                  payment_approved: false,
+                }),
                 subscription_tier: 'free',
                 subscription_status: 'cancelled',
                 max_teams: 3,
@@ -1571,7 +1647,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
                 userId: meta.user_id,
                 level: 'fatal',
               });
-              updateTransactionStatus(pi.id, 'FAILED', {
+              updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
                 metadata: { promo_redemption_failed: true, promo_code: meta.promo_code, needs_review: true },
               }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
             }
@@ -1748,7 +1824,7 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
       status: 'COMPLETED',
       stripeSubscriptionId: subscriptionId,
       userId,
-      metadata: { action: 'cancel_at_period_end', plan: prefs.plan },
+      metadata: { action: 'cancel_at_period_end', plan: getCanonicalPlan(user as any) },
     }).catch(err => { console.error('[transaction-log] cancel request log failed:', err); captureException(err as Error, { context: 'transaction_log_cancel_request' }); });
 
     return res.json({ ok: true });
@@ -1798,7 +1874,7 @@ paymentsRouter.post('/subscription/resume', expressPkg.json(), requireAuth as an
       status: 'COMPLETED',
       stripeSubscriptionId: subscriptionId,
       userId,
-      metadata: { action: 'resume_cancel_at_period_end', plan: prefs.plan },
+      metadata: { action: 'resume_cancel_at_period_end', plan: getCanonicalPlan(user as any) },
     }).catch(err => { console.error('[transaction-log] resume log failed:', err); captureException(err as Error, { context: 'transaction_log_resume' }); });
     return res.json({ ok: true, resumed: true });
   } catch (err) {
@@ -1824,9 +1900,18 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
       return res.status(400).json({ error: 'No billable teams (only 3). Remain on Rookie plan instead.' });
     }
     
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-    const plan = prefs.plan || 'rookie';
+    const plan = getCanonicalPlan(user as any);
     const subscriptionId = prefs.subscription_id;
     
     if (plan !== 'veteran') {
@@ -1904,10 +1989,19 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
 paymentsRouter.get('/debug/subscription-status', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-    
-    const storedPlan = prefs.plan || 'rookie';
+
+    const storedPlan = getCanonicalPlan(user as any);
     const storedSubscriptionId = prefs.subscription_id;
     const storedPeriodEnd = prefs.subscription_period_end;
 
@@ -1989,9 +2083,18 @@ paymentsRouter.get('/history', requireAuth as any, requireVerified as any, async
 paymentsRouter.get('/subscription/summary', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-    const plan = prefs.plan || 'rookie';
+    const plan = getCanonicalPlan(user as any);
     const subscriptionId = prefs.subscription_id || null;
 
     let quantity: number | null = null;
@@ -2046,20 +2149,48 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, asyncHandler
 paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user!.id;
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
     
     // Reset subscription-related preferences
     const nextPrefs: any = { ...prefs };
-    nextPrefs.plan = 'rookie';
     delete nextPrefs.pending_plan;
     delete nextPrefs.subscription_id;
     delete nextPrefs.subscription_period_end;
     delete nextPrefs.stripe_customer_id;
     delete nextPrefs.payment_pending;
     delete nextPrefs.payment_approved;
+    const normalizedPrefs = mergeBillingStateIntoPreferences(nextPrefs, {
+      plan: 'rookie',
+      pending_plan: null,
+      payment_pending: false,
+      payment_approved: false,
+    });
+    delete (normalizedPrefs as any).pending_plan;
+    delete (normalizedPrefs as any).payment_pending;
+    delete (normalizedPrefs as any).payment_approved;
 
-    await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        preferences: normalizedPrefs,
+        ...buildBillingStateColumns({
+          plan: 'rookie',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }),
+      },
+    });
     await invalidateMeCacheForUser(userId);
 
     debugLog(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
@@ -2084,16 +2215,14 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
     // Find users with paid plans — filter subscription_id in JavaScript (JSON null detection is Prisma-version-specific)
     const paidPlanUsers = await prisma.user.findMany({
       where: {
-        OR: [
-          { preferences: { path: ['plan'], equals: 'veteran' } },
-          { preferences: { path: ['plan'], equals: 'legend' } },
-        ],
+        OR: [{ plan: 'veteran' }, { plan: 'legend' }],
       },
       select: {
         id: true,
         email: true,
         display_name: true,
         preferences: true,
+        plan: true,
       },
       take: 5000,
     });
@@ -2122,23 +2251,39 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
     const updateOps = usersToReset.map((user) => {
       const currentPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
       const nextPrefs: any = { ...currentPrefs };
-      nextPrefs.plan = 'rookie';
       delete nextPrefs.pending_plan;
       delete nextPrefs.subscription_id;
       delete nextPrefs.subscription_period_end;
       delete nextPrefs.stripe_customer_id;
       delete nextPrefs.payment_pending;
       delete nextPrefs.payment_approved;
+      const normalizedPrefs = mergeBillingStateIntoPreferences(nextPrefs, {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      });
+      delete (normalizedPrefs as any).pending_plan;
+      delete (normalizedPrefs as any).payment_pending;
+      delete (normalizedPrefs as any).payment_approved;
 
       resetUsers.push({
         email: user.email,
         name: user.display_name,
-        previousPlan: currentPrefs.plan,
+        previousPlan: user.plan,
       });
 
       return prisma.user.update({
         where: { id: user.id },
-        data: { preferences: nextPrefs },
+        data: {
+          preferences: normalizedPrefs,
+          ...buildBillingStateColumns({
+            plan: 'rookie',
+            pending_plan: null,
+            payment_pending: false,
+            payment_approved: false,
+          }),
+        },
       });
     });
 
@@ -2486,7 +2631,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
               userId,
             });
             try {
-              await updateTransactionStatus(session.id, 'NEEDS_REVIEW' as any, {
+              await updateTransactionStatus(session.id, 'NEEDS_REVIEW', {
                 metadata: {
                   reason: 'session_reverify_api_failed',
                   reverify_error: String(reverifyErr?.message || reverifyErr),
@@ -2505,7 +2650,12 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
         // Rule A: Clear pending_plan and payment flags on successful payment
         const { pending_plan: _pp, payment_approved: _pa, join_request_pending: _jrp, ...cleanPrefs } = existingPrefs;
-        const prefs: any = { ...cleanPrefs, plan, pending_plan: null, payment_pending: false };
+        const prefs: any = mergeBillingStateIntoPreferences(cleanPrefs, {
+          plan: plan as 'rookie' | 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        });
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));
@@ -2534,6 +2684,12 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             where: { id: userId },
             data: {
               preferences: prefs,
+              ...buildBillingStateColumns({
+                plan: plan as 'rookie' | 'veteran' | 'legend',
+                pending_plan: null,
+                payment_pending: false,
+                payment_approved: false,
+              }),
               max_teams: maxTeams ?? 999,
               subscription_tier: subscriptionTier,
               subscription_status: 'active'
@@ -2606,7 +2762,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       console.error('[payments] Promo redemption FAILED after 3 attempts — flagging for review', { code, userId, session_id: session.id });
       captureException(new Error('Promo redemption failed after retries (session)'), { context: 'promo_redeem_failed_session', promoCode: code, sessionId: session.id, userId });
       // Mark any associated transaction as needing review
-      updateTransactionStatus(session.id, 'FAILED', {
+      updateTransactionStatus(session.id, 'NEEDS_REVIEW', {
         metadata: { promo_redemption_failed: true, promo_code: code, needs_review: true },
       }).catch((err) => console.warn('[payments] failed to flag session promo failure:', err));
     }
@@ -3146,6 +3302,20 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
 
     // Rule A: Clear pending_plan, payment_pending, payment_approved after successful payment
     const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
+    const nextPrefs = mergeBillingStateIntoPreferences(
+      {
+        ...restPrefs,
+        apple_product_id: productId,
+        apple_original_transaction_id: originalTransactionId,
+        apple_expires_date: new Date(expiresMs).toISOString(),
+      },
+      {
+        plan: plan as 'veteran' | 'legend',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      }
+    );
 
     try {
       await prisma.$transaction([
@@ -3154,15 +3324,13 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
           data: {
             subscription_tier: plan === 'legend' ? 'pro' : 'premium',
             subscription_status: 'active',
-            preferences: {
-              ...restPrefs,
-              plan,
+            preferences: nextPrefs as any,
+            ...buildBillingStateColumns({
+              plan: plan as 'veteran' | 'legend',
               pending_plan: null,
               payment_pending: false,
-              apple_product_id: productId,
-              apple_original_transaction_id: originalTransactionId,
-              apple_expires_date: new Date(expiresMs).toISOString(),
-            } as any,
+              payment_approved: false,
+            }),
           },
         }),
         prisma.transactionLog.create({
@@ -3562,7 +3730,14 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
           equals: originalTransactionId,
         },
       },
-      select: { id: true, preferences: true },
+      select: {
+        id: true,
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
     });
 
     if (!matchedUser) {
@@ -3586,8 +3761,21 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       notificationType === 'SUBSCRIBED'
     ) {
       // Renewal or new subscription — activate and extend expiry
-      const plan = APPLE_PRODUCT_TO_PLAN[productId] || prefs.plan || 'veteran';
+      const plan = APPLE_PRODUCT_TO_PLAN[productId] || getCanonicalPlan(matchedUser as any) || 'veteran';
       const newExpiry = expiresDate ? new Date(expiresDate).toISOString() : prefs.apple_expires_date;
+      const nextPrefs = mergeBillingStateIntoPreferences(
+        {
+          ...prefs,
+          apple_expires_date: newExpiry,
+          apple_original_transaction_id: originalTransactionId,
+        },
+        {
+          plan: plan as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }
+      );
 
       await prisma.$transaction([
         prisma.user.update({
@@ -3595,12 +3783,13 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
           data: {
             subscription_tier: plan === 'legend' ? 'pro' : 'premium',
             subscription_status: 'active',
-            preferences: {
-              ...prefs,
-              plan,
-              apple_expires_date: newExpiry,
-              apple_original_transaction_id: originalTransactionId,
-            } as any,
+            preferences: nextPrefs as any,
+            ...buildBillingStateColumns({
+              plan: plan as 'veteran' | 'legend',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
           },
         }),
         prisma.transactionLog.create({
@@ -3657,12 +3846,17 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       notificationType === 'REFUND'
     ) {
       // Expired, revoked, or refunded — downgrade to rookie
-      const previousPlan = prefs.plan || 'rookie';
+      const previousPlan = getCanonicalPlan(matchedUser as any);
       const downgradedPrefs = { ...prefs };
-      downgradedPrefs.plan = 'rookie';
       delete downgradedPrefs.apple_product_id;
       delete downgradedPrefs.apple_expires_date;
       // Keep apple_original_transaction_id for audit trail
+      const nextPrefs = mergeBillingStateIntoPreferences(downgradedPrefs, {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      });
 
       await prisma.$transaction([
         prisma.user.update({
@@ -3670,7 +3864,13 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
           data: {
             subscription_tier: 'free',
             subscription_status: 'canceled',
-            preferences: downgradedPrefs as any,
+            preferences: nextPrefs as any,
+            ...buildBillingStateColumns({
+              plan: 'rookie',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
           },
         }),
         prisma.transactionLog.create({
@@ -3899,6 +4099,20 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
 
     // Clear pending flags after successful payment (same as Apple flow)
     const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
+    const nextPrefs = mergeBillingStateIntoPreferences(
+      {
+        ...restPrefs,
+        google_purchase_token: purchase_token,
+        google_product_id: product_id,
+        subscription_platform: 'google',
+      },
+      {
+        plan: plan as 'veteran' | 'legend',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      }
+    );
 
     await prisma.$transaction([
       prisma.user.update({
@@ -3906,15 +4120,13 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
         data: {
           subscription_tier: plan === 'legend' ? 'pro' : 'premium',
           subscription_status: 'active',
-          preferences: {
-            ...restPrefs,
-            plan,
+          preferences: nextPrefs as any,
+          ...buildBillingStateColumns({
+            plan: plan as 'veteran' | 'legend',
             pending_plan: null,
             payment_pending: false,
-            google_purchase_token: purchase_token,
-            google_product_id: product_id,
-            subscription_platform: 'google',
-          } as any,
+            payment_approved: false,
+          }),
         },
       }),
       prisma.transactionLog.create({

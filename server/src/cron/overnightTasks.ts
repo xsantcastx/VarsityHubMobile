@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { debugLog } from '../lib/debugLog.js';
 import { runStripeSubscriptionReconciliation } from '../lib/billingLifecycle.js';
+import { runPostUpvoteReconciliation } from '../lib/postUpvoteReconciliation.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../jobs/queues.js';
 import { captureException } from '../lib/sentry.js';
@@ -405,6 +406,29 @@ export function startStripeSubscriptionReconciliation() {
     }
   });
   debugLog('✅ Stripe subscription reconciliation started (runs daily at 4:15 AM)');
+}
+
+/**
+ * Post upvote reconciliation — runs daily at 4:50 AM.
+ * `Post.upvotes_count` is denormalized for feed ranking; this catches drift if
+ * a write path ever misses the counter update.
+ */
+export function startPostUpvoteReconciliation() {
+  cron.schedule('50 4 * * *', async () => {
+    debugLog('[post-upvote-reconcile] Starting nightly post upvote reconciliation...');
+    try {
+      const result = await runPostUpvoteReconciliation();
+      console.log(
+        `[post-upvote-reconcile] Done ✅ scanned=${result.scanned} fixed=${result.fixed} skipped=${result.skipped}`
+      );
+    } catch (error) {
+      console.error('[post-upvote-reconcile] Failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        extra: { context: 'post_upvote_reconciliation_cron' },
+      });
+    }
+  });
+  debugLog('✅ Post upvote reconciliation started (runs daily at 4:50 AM)');
 }
 
 /**

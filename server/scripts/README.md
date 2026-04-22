@@ -45,6 +45,15 @@ node scripts/stripe/create_stripe_prices.js
 - **`verify-production-health.ts`** - validates health endpoint reports production integrations and payment config ready
   - Usage: `BASE_URL=https://api-production-8ac3.up.railway.app npm run verify:production-health`
 
+- **`audit-user-auth-state-drift.ts`** - validates Stream 3 dual-write consistency between canonical `User` auth columns and legacy `preferences` JSON
+  - Usage: `DATABASE_URL=postgresql://test:test@localhost:5432/varsityhub_test npm run verify:auth-state-drift`
+
+- **`audit-user-billing-state-drift.ts`** - validates Stream 5 dual-write consistency between canonical `User` billing columns and legacy `preferences` JSON
+  - Usage: `DATABASE_URL=postgresql://test:test@localhost:5432/varsityhub_test npm run verify:billing-state-drift`
+
+- **`reconcile-post-upvotes.ts`** - recomputes `Post.upvotes_count` from `PostUpvote` rows and repairs drift
+  - Usage: `DATABASE_URL=postgresql://test:test@localhost:5432/varsityhub_test npm run reconcile:post-upvotes`
+
 - **`load/p0-load-smoke.ts`** - runs baseline load smoke checks for auth/feed/upload/messages/payments
   - Usage: `npm run load:smoke`
 
