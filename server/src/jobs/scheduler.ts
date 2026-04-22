@@ -114,14 +114,8 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       console.log(`[Scheduler] Cleaned up ${result.count} old notifications`);
     },
   },
-  {
-    // Stories persist forever — no cleanup needed.
-    // The 24h window only controls when stories can be POSTED, not their lifespan.
-    name: 'cleanup-expired-stories',
-    cron: '0 0 31 2 *', // Disabled — Feb 31 never fires
-    description: '(Disabled) Stories no longer expire',
-    handler: async () => { /* no-op */ },
-  },
+  // Stories persist forever — no cleanup job. BullMQ rejects the "Feb 31" pattern
+  // that used to park this as a disabled stub, so the entry is removed entirely.
   {
     name: 'verify-push-receipts',
     cron: '*/15 * * * *', // Every 15 minutes

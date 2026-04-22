@@ -19,12 +19,14 @@ import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
+import { requireParentalConsent } from './middleware/requireParentalConsent.js';
 import { requireVerified } from './middleware/requireVerified.js';
 import { defaultApiLimiter } from './middleware/rateLimiters.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter } from './routes/ads.js';
 import { authRouter } from './routes/auth.js';
+import { consentRouter } from './routes/consent.js';
 import { eventsRouter } from './routes/events.js';
 import { followsRouter } from './routes/follows.js';
 import { gamesRouter } from './routes/games.js';
@@ -286,7 +288,13 @@ const meProxy = (req: any, res: any, next: any) => {
 
 function mountApiRoutes(parent: any) {
   parent.use(defaultApiLimiter);
+  // Firewall 13–17 minors with pending/denied consent off everything except
+  // the allowlist (/auth/me, /consent, /me/consent/resend, /health, …). The
+  // middleware handles its own bypass for admins and non-minors, so it's safe
+  // to run before every route in this bundle.
+  parent.use(requireParentalConsent as any);
   parent.use('/auth', authLimiter, authRouter);
+  parent.use('/consent', consentRouter);
   parent.use('/me', noStore, meProxy);
   parent.use('/games', gamesRouter);
   parent.use('/posts', postsRouter);

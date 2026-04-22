@@ -5,6 +5,7 @@ import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import * as ImagePicker from 'expo-image-picker';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
@@ -660,7 +661,9 @@ export default function TeamChatScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        await sendImageMessage(result.assets[0]);
+        const asset = result.assets[0];
+        const localUri = await materializeICloudAssetIfNeeded(asset.uri);
+        await sendImageMessage({ ...asset, uri: localUri });
       }
     } catch {
       showModal('Error', 'Failed to pick image');

@@ -3,6 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -123,7 +124,8 @@ export default function EditOrganizationScreen() {
       if (!r.canceled && r.assets?.[0]) {
         setUploading(true);
         try {
-          const res = await uploadFile(getApiBaseUrl(), r.assets[0].uri, fileName, 'image/jpeg');
+          const localUri = await materializeICloudAssetIfNeeded(r.assets[0].uri);
+          const res = await uploadFile(getApiBaseUrl(), localUri, fileName, 'image/jpeg');
           const url = res?.url || res?.path;
           if (url) setUrl(url);
         } catch (e: any) {

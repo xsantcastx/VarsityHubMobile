@@ -7,6 +7,7 @@ import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -614,7 +615,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
-        await uploadCustomBanner(pickerResult.assets[0].uri);
+        const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+        await uploadCustomBanner(localUri);
       }
     } catch {
       Alert.alert('Error', 'Failed to pick image. Please try again.');
@@ -641,7 +643,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
-        await uploadCustomBanner(pickerResult.assets[0].uri);
+        const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+        await uploadCustomBanner(localUri);
       }
     } catch {
       Alert.alert('Error', 'Failed to take photo. Please try again.');

@@ -3,6 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { handleCoachAccessError } from '@/utils/coachAccess';
@@ -153,7 +154,8 @@ function EditTeamScreen() {
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
-      setLogoUri(pickerResult.assets[0].uri);
+      const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+      setLogoUri(localUri);
     }
   };
 
@@ -176,7 +178,8 @@ function EditTeamScreen() {
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
-      setLogoUri(pickerResult.assets[0].uri);
+      const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
+      setLogoUri(localUri);
     }
   };
 

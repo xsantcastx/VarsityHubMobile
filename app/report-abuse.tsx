@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -77,8 +78,9 @@ export default function ReportAbuseScreen() {
 
         for (const asset of result.assets) {
           try {
-            const filename = asset.uri.split('/').pop() || 'evidence.jpg';
-            const response = await uploadFile(null, asset.uri, filename);
+            const localUri = await materializeICloudAssetIfNeeded(asset.uri);
+            const filename = localUri.split('/').pop() || 'evidence.jpg';
+            const response = await uploadFile(null, localUri, filename);
             if (response?.url) {
               newImages.push(response.url);
             } else {

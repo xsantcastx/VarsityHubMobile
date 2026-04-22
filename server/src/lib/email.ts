@@ -528,12 +528,12 @@ export async function sendParentalConsentRequestEmail(params: {
     );
     return false;
   }
-  const approveUrl = `${API_BASE_URL}/auth/parental-consent/${encodeURIComponent(
-    params.consentToken
-  )}?action=approve`;
-  const denyUrl = `${API_BASE_URL}/auth/parental-consent/${encodeURIComponent(
-    params.consentToken
-  )}?action=deny`;
+  // Parent lands on GET /consent/:token which renders an HTML form with both
+  // Approve and Deny buttons. Both URLs point at the same landing page; the
+  // older /auth/parental-consent/:token format is not wired up and would 404.
+  const consentUrl = `${API_BASE_URL}/consent/${encodeURIComponent(params.consentToken)}`;
+  const approveUrl = consentUrl;
+  const denyUrl = consentUrl;
   return sendTemplateEmail(
     templateId,
     params.to,

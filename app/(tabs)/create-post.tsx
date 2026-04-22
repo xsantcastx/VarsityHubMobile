@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 let VideoThumbnails: any = null;
 try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 import { compressVideoSafe } from '@/utils/compressVideo';
@@ -392,7 +393,7 @@ function CreatePostScreen() {
         videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
-        const a = r.assets[0];
+        const a = { ...r.assets[0], uri: await materializeICloudAssetIfNeeded(r.assets[0].uri) };
         
         // Validate file type
         const mimeType = a.mimeType || (media === 'image' ? 'image/jpeg' : 'video/mp4');
@@ -485,7 +486,7 @@ function CreatePostScreen() {
         legacy: false,
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
-        const a = r.assets[0];
+        const a = { ...r.assets[0], uri: await materializeICloudAssetIfNeeded(r.assets[0].uri) };
         
         // Auto-detect media type from asset
         const mimeType = a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg');

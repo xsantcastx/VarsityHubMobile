@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 // @ts-ignore JS exports
 import { Support, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
@@ -57,12 +58,13 @@ export default function FeedbackScreen() {
       if ((result as any).canceled || !(result as any).assets?.[0]) return;
 
       const asset = (result as any).assets[0];
-      setScreenshotUri(asset.uri);
+      const localUri = await materializeICloudAssetIfNeeded(asset.uri);
+      setScreenshotUri(localUri);
 
       // Upload to Cloudinary
       setUploading(true);
       try {
-        const uploaded = await uploadFile(getApiBaseUrl(), asset.uri, asset.fileName || 'screenshot.jpg', 'image/jpeg');
+        const uploaded = await uploadFile(getApiBaseUrl(), localUri, asset.fileName || 'screenshot.jpg', 'image/jpeg');
         setScreenshotUrl(uploaded?.url || uploaded?.path || null);
       } catch (e: any) {
         Alert.alert('Upload Failed', e?.message || 'Could not upload the screenshot. You can still submit feedback without it.');
