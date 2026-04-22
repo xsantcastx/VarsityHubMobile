@@ -129,7 +129,7 @@ export function getNotificationHref(item: NotificationItem): any | null {
     return `/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}`;
   }
   if (type === 'ORG_APPROVED') {
-    return '/role-onboarding';
+    return '/onboarding/coach-agreement';
   }
   if (type === 'ORG_REJECTED') {
     return '/onboarding/league-pending-approval';

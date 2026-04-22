@@ -16,6 +16,7 @@ import {
   getNotificationTitle,
   isSystemNotification,
 } from '@/utils/notificationPresentation';
+import { clearNotificationBadge, syncNotificationBadge } from '@/utils/pushNotifications';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 
 type Notif = {
@@ -53,6 +54,7 @@ function NotificationsScreen() {
       );
       setItems((prev) => (append ? [...prev, ...page.items] : page.items));
       setNextCursor(page.nextCursor);
+      void syncNotificationBadge();
     } catch (err: any) {
       setError(err?.message || 'Failed to load notifications');
       if (__DEV__) console.error('Notifications load failed:', err);
@@ -65,6 +67,10 @@ function NotificationsScreen() {
   useEffect(() => {
     void load(null, false).catch(() => {});
   }, [load]);
+
+  useEffect(() => {
+    void syncNotificationBadge();
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -86,6 +92,7 @@ function NotificationsScreen() {
     setItems(updatedItems);
     try {
       await Notification.markAllRead();
+      await clearNotificationBadge();
     } catch (err) {
       if (__DEV__) console.error('Failed to mark all notifications as read', err);
       setItems(previousItems);
@@ -124,10 +131,14 @@ function NotificationsScreen() {
         const now = new Date().toISOString();
         const updated = items.map((n) => (n.id === item.id ? { ...n, read_at: now } : n));
         setItems(updated);
-        Notification.markRead(item.id).catch((err) => {
-          if (__DEV__) console.error('Failed to mark notification as read', err);
-          setItems(previousItems);
-        });
+        Notification.markRead(item.id)
+          .then(() => {
+            void syncNotificationBadge();
+          })
+          .catch((err) => {
+            if (__DEV__) console.error('Failed to mark notification as read', err);
+            setItems(previousItems);
+          });
       }
     };
     const theme = Colors[colorScheme];

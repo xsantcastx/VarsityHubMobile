@@ -148,9 +148,9 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/ad-calendar?adId=ad-1');
   });
 
-  it('ORG_APPROVED → role onboarding', () => {
+  it('ORG_APPROVED → coach agreement', () => {
     const href = getNotificationHref({ type: 'ORG_APPROVED' });
-    expect(href).toBe('/role-onboarding');
+    expect(href).toBe('/onboarding/coach-agreement');
   });
 
   it('JOIN_REQUEST_APPROVED with org id → organization page', () => {

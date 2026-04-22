@@ -397,6 +397,14 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: {
+        created_by: {
+          select: {
+            id: true,
+            display_name: true,
+            username: true,
+            avatar_url: true,
+          },
+        },
         events: { orderBy: { date: 'asc' }, take: 1 },
         _count: { select: { events: true } },
       },
@@ -438,6 +446,7 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
       return {
         ...rest,
         appearance: rest.appearance ?? null,
+        created_by_name: game.created_by?.display_name || game.created_by?.username || null,
         event_id: event?.id ?? null,
         // Fixed: Prioritize game.banner_url over other sources
         banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
