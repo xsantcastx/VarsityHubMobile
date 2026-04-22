@@ -138,6 +138,33 @@ describe('uploadFile routing', () => {
     expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
   });
 
+  it('uses the refresh token when no access token is currently loaded for PDF uploads', async () => {
+    mockAuth.getToken.mockResolvedValue(null as any);
+    mockAuth.refreshToken.mockResolvedValue({
+      accessToken: 'recovered-token',
+      reason: 'success',
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+    });
+
+    const { uploadFile } = await import('../upload');
+    const result = await uploadFile(
+      'https://api.test',
+      'file:///tmp/doc.pdf',
+      'doc.pdf',
+      'application/pdf'
+    );
+
+    expect(mockAuth.refreshToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.headers?.Authorization).toBe('Bearer recovered-token');
+    expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
+  });
+
   it('opens the verification gate and retries PDF uploads after email-verification-required', async () => {
     mockAuth.getToken
       .mockResolvedValueOnce('test-token')

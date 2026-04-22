@@ -38,8 +38,8 @@ async function resolveUploadToken(): Promise<string | null> {
   const fromSession = await auth.getToken();
   if (fromSession) return fromSession;
   try {
-    const refreshed = await auth.getToken();
-    return refreshed || null;
+    const refreshed = await auth.refreshToken();
+    return refreshed?.accessToken ?? null;
   } catch {
     return null;
   }
