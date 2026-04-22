@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { uploadFile } from '@/api/upload';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getConfig } from '@/config/env';
 import Notifications from '@/utils/notifications';
 import { BIO_MAX_LENGTH } from '@/utils/formUtils';
@@ -214,7 +215,8 @@ export default function Step2Basic() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]) {
-        setAvatarUri(result.assets[0].uri);
+        const materialized = await materializeICloudAssetIfNeeded(result.assets[0].uri);
+        setAvatarUri(materialized);
         captureBreadcrumb('Onboarding avatar selected', 'onboarding.step2', {
           role: ob.role || 'unknown',
         });
@@ -239,7 +241,10 @@ export default function Step2Basic() {
         quality: 0.85,
       });
       if (!result.canceled && result.assets[0]) {
-        setHeaderImageUri(result.assets[0].uri);
+        // iOS returns ph:// URIs for iCloud-only photos; force the bytes local
+        // before we hand the URI to the upload pipeline. Matches BannerUpload.tsx:131.
+        const materialized = await materializeICloudAssetIfNeeded(result.assets[0].uri);
+        setHeaderImageUri(materialized);
         captureBreadcrumb('Onboarding cover image selected', 'onboarding.step2', {
           role: ob.role || 'unknown',
         });
