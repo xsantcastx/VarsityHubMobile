@@ -16,6 +16,7 @@ export interface UploadOptions {
   backoffMs?: number;
   timeoutMs?: number;
   onProgress?: UploadProgressCallback;
+  formFields?: Record<string, string | number | boolean | null | undefined>;
 }
 
 async function resolveUploadToken(): Promise<string | null> {
@@ -52,7 +53,13 @@ let _sigCache: { sig: { cloudName: string; apiKey: string; signature: string; ti
 const SIG_CACHE_TTL_MS = 55_000;
 
 async function getCloudinarySignature(baseUrl: string): Promise<{
-  cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string;
+  cloudName: string;
+  apiKey: string;
+  signature: string;
+  timestamp: number;
+  folder: string;
+  allowed_formats?: string;
+  max_bytes?: string;
 } | null> {
   // Return cached signature if still fresh
   if (_sigCache && Date.now() - _sigCache.fetchedAt < SIG_CACHE_TTL_MS) {
@@ -82,7 +89,15 @@ async function uploadDirectToCloudinary(
   uri: string,
   filename: string,
   mimeType: string,
-  sig: { cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string },
+  sig: {
+    cloudName: string;
+    apiKey: string;
+    signature: string;
+    timestamp: number;
+    folder: string;
+    allowed_formats?: string;
+    max_bytes?: string;
+  },
   options?: UploadOptions,
 ): Promise<{ url: string; type: string; mime: string }> {
   const isVideo = mimeType.startsWith('video/');
@@ -95,6 +110,8 @@ async function uploadDirectToCloudinary(
   form.append('timestamp', String(sig.timestamp));
   form.append('folder', sig.folder);
   form.append('signature', sig.signature);
+  if (sig.allowed_formats) form.append('allowed_formats', sig.allowed_formats);
+  if (sig.max_bytes) form.append('max_bytes', sig.max_bytes);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -224,6 +241,10 @@ async function uploadRawViaServer(
 
   const form = new FormData();
   form.append('file', { uri, name: filename, type: mimeType } as any);
+  for (const [key, value] of Object.entries(options?.formFields || {})) {
+    if (value == null) continue;
+    form.append(key, String(value));
+  }
 
   const timeoutMs = options?.timeoutMs ?? 180000;
   const retries = Math.max(0, options?.retries ?? 2);
@@ -331,6 +352,10 @@ export async function uploadFileWithProgress(
 
   const form = new FormData();
   form.append('file', { uri: finalUri, name: finalFilename, type: finalMimeType } as any);
+  for (const [key, value] of Object.entries(options?.formFields || {})) {
+    if (value == null) continue;
+    form.append(key, String(value));
+  }
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -373,6 +398,10 @@ async function uploadViaServer(
 
   const form = new FormData();
   form.append('file', { uri, name: filename, type: mimeType } as any);
+  for (const [key, value] of Object.entries(options?.formFields || {})) {
+    if (value == null) continue;
+    form.append(key, String(value));
+  }
 
   const headers: any = {};
   const token = await resolveUploadToken();

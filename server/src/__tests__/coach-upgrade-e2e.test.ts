@@ -5,7 +5,7 @@
  * verifies every server-side state transition the client relies on:
  *
  *   1. preferences.role flips from 'fan' to 'coach'
- *   2. preferences.plan stamps the selected plan
+   *   2. preferences.plan / pending_plan reflect whether billing is deferred
  *   3. preferences.onboarding_completed resets to false (so coach must
  *      complete coach-specific onboarding steps)
  *   4. approval_status resets to 'PENDING' (coach must be approved
@@ -101,6 +101,49 @@ describeDb('POST /auth/upgrade-to-coach — fan → coach state transition', () 
     // Fresh re-apply clears any prior rejection state
     expect(updated!.rejected_at).toBeNull();
     expect(updated!.rejection_reason).toBeNull();
+  });
+
+  it('stores paid coach upgrades as pending checkout instead of granting the paid tier immediately', async () => {
+    const hash = await bcrypt.hash(PASSWORD, 10);
+    const paidFan = await prisma.user.create({
+      data: {
+        email: `coach-upgrade-paid-${ts}@example.com`,
+        password_hash: hash,
+        display_name: 'Paid Upgrade Candidate',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        date_of_birth: adultDob(),
+        preferences: {
+          role: 'fan',
+          plan: 'rookie',
+          onboarding_completed: true,
+        },
+      },
+    });
+    const paidFanToken = signJwt({ id: paidFan.id });
+
+    try {
+      const res = await request(app)
+        .post('/auth/upgrade-to-coach')
+        .set('Authorization', `Bearer ${paidFanToken}`)
+        .send({ plan: 'veteran' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      const updated = await prisma.user.findUnique({ where: { id: paidFan.id } });
+      expect(updated).not.toBeNull();
+      const prefs = updated!.preferences as any;
+
+      expect(prefs.role).toBe('coach');
+      expect(prefs.plan).toBe('rookie');
+      expect(prefs.pending_plan).toBe('veteran');
+      expect(prefs.payment_pending).toBe(true);
+      expect(prefs.onboarding_completed).toBe(false);
+      expect(updated!.approval_status).toBe('PENDING');
+    } finally {
+      await prisma.user.delete({ where: { id: paidFan.id } }).catch(() => {});
+    }
   });
 
   it('returns the new coach state on /auth/me including required_coach_agreement_version', async () => {

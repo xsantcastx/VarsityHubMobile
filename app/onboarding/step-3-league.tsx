@@ -453,7 +453,12 @@ function Step3League() {
           const isPdf = supportingDocumentName?.toLowerCase().endsWith('.pdf');
           const fileName = supportingDocumentName || 'supporting-doc.jpg';
           const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
-          const result = await uploadFile(getApiBaseUrl(), supportingDocumentUri, fileName, mimeType);
+          const result = await uploadFile(getApiBaseUrl(), supportingDocumentUri, fileName, mimeType, {
+            formFields: {
+              onboarding: true,
+              upload_context: 'organization_supporting_document',
+            },
+          });
           docUrl = result?.url || result?.secure_url || result?.path || (typeof result === 'string' ? result : null);
           if (docUrl) setSupportingDocumentUrl(docUrl);
           captureBreadcrumb('Supporting document upload succeeded', 'onboarding.step3', {

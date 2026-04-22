@@ -109,9 +109,15 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     req.baseUrl === '/organizations' &&
     req.method === 'POST' &&
     (req.path === '/' || req.path === '/create');
+  const isOnboardingSupportDocUpload =
+    req.baseUrl === '/uploads' &&
+    req.method === 'POST' &&
+    (req.path === '/' || req.path === '/files') &&
+    String(req.body?.onboarding) === 'true' &&
+    String(req.body?.upload_context || '') === 'organization_supporting_document';
   if (
-    req.body?.onboarding === true &&
-    (isTeamsCreateRoute || isOrgCreateRoute) &&
+    ((req.body?.onboarding === true && (isTeamsCreateRoute || isOrgCreateRoute)) ||
+      isOnboardingSupportDocUpload) &&
     prefs?.onboarding_completed !== true &&
     prefs?.role === 'coach'
   ) {

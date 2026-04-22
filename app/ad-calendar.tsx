@@ -293,7 +293,8 @@ function AdCalendarScreen() {
     return afterDiscount + taxCents;
   }, [price, taxCents, preview?.valid, preview?.discount_cents]);
   const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
-  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
+  const paymentsTemporarilyDisabled =
+    Platform.OS !== 'ios' && paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
   const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
   const submitForApprovalDisabled = submitting || selected.size === 0;
@@ -523,22 +524,6 @@ function AdCalendarScreen() {
       return;
     }
 
-    // Stripe must be configured — try build-time config first, then fetch from server
-    let stripeKey = getConfig().stripePublishableKey;
-    if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      try {
-        const serverCfg = await Payments.getConfig();
-        stripeKey = serverCfg?.stripe_publishable_key || '';
-      } catch { /* server config fetch failed — fall through to error */ }
-    }
-    if (!stripeKey || !stripeKey.startsWith('pk_')) {
-      Alert.alert(
-        'Payments Not Ready',
-        'Payment configuration is missing. Please update the app or try again later.'
-      );
-      return;
-    }
-
     // Disable unsaved changes guard during payment flow
     setDirty(false);
 
@@ -563,6 +548,23 @@ function AdCalendarScreen() {
         }
         const paidAmount = `$${calculatePrice(selected).toFixed(2)}`;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), totalAmount: paidAmount } });
+        return;
+      }
+
+      // Stripe must be configured for non-iOS flows — try build-time config first,
+      // then fetch from the server before attempting PaymentSheet.
+      let stripeKey = getConfig().stripePublishableKey;
+      if (!stripeKey || !stripeKey.startsWith('pk_')) {
+        try {
+          const serverCfg = await Payments.getConfig();
+          stripeKey = serverCfg?.stripe_publishable_key || '';
+        } catch { /* server config fetch failed — fall through to error */ }
+      }
+      if (!stripeKey || !stripeKey.startsWith('pk_')) {
+        Alert.alert(
+          'Payments Not Ready',
+          'Payment configuration is missing. Please update the app or try again later.'
+        );
         return;
       }
 

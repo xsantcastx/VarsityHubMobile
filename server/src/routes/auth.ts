@@ -1428,13 +1428,19 @@ authRouter.post(
       });
     }
 
-    // Update role to coach and set plan, reset onboarding so they complete coach steps
+    const isPaidPlan = plan === 'veteran' || plan === 'legend';
+
+    // Update role to coach and reset onboarding so they complete coach steps.
+    // Paid plans are deferred until checkout succeeds; store them in pending_plan
+    // so approval + paywall middleware treat the account as unpaid until billing completes.
     // CRITICAL: Set approval_status to PENDING so the coach must go through the
     // approval flow (create/join org → admin approval) before accessing coach tools.
     const merged = {
       ...currentPrefs,
       role: 'coach',
-      plan,
+      plan: isPaidPlan ? 'rookie' : plan,
+      pending_plan: isPaidPlan ? plan : null,
+      payment_pending: isPaidPlan,
       onboarding_completed: false,
     };
     const updated = await prisma.user.update({
