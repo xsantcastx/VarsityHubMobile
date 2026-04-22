@@ -250,6 +250,8 @@ describe('Coach Approval Workflow', () => {
           password_hash: creatorHash,
           display_name: 'Org Creator',
           email_verified: true,
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          role: 'coach',
           preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
           approval_status: 'APPROVED',
         },
@@ -291,6 +293,8 @@ describe('Coach Approval Workflow', () => {
           password_hash: creatorHash,
           display_name: 'Onboarding Creator',
           email_verified: true,
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          role: 'coach',
           preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
           approval_status: 'APPROVED',
         },
@@ -313,9 +317,13 @@ describe('Coach Approval Workflow', () => {
 
       const userAfter = await prisma.user.findUnique({
         where: { id: creator.id },
-        select: { approval_status: true },
+        select: { approval_status: true, preferences: true, organization_id: true },
       });
       expect(userAfter?.approval_status).toBe('PENDING');
+      expect(userAfter?.organization_id).toBe(orgIdFromCreate);
+      expect((userAfter?.preferences as any)?.organization_id).toBe(orgIdFromCreate);
+      expect((userAfter?.preferences as any)?.organization_name).toContain('Onboarding Create League');
+      expect((userAfter?.preferences as any)?.join_request_pending).toBe(false);
 
       await prisma.organizationMembership.deleteMany({ where: { organization_id: orgIdFromCreate } });
       await prisma.organization.delete({ where: { id: orgIdFromCreate } });
@@ -373,7 +381,7 @@ describe('Coach Approval Workflow', () => {
           .send();
 
         expect(tokenOnlyRes.status).toBe(401);
-        expect(String(tokenOnlyRes.body?.error || '')).toMatch(/admin session required/i);
+        expect(String(tokenOnlyRes.body?.error || '')).toMatch(/admin (session|login) required/i);
 
         const userStillPending = await prisma.user.findUnique({
           where: { id: owner.id },
@@ -411,6 +419,8 @@ describe('Coach Approval Workflow', () => {
           password_hash: coachHash,
           display_name: 'Join Request Coach',
           email_verified: true,
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          role: 'coach',
           preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
           approval_status: 'APPROVED',
         },
@@ -453,6 +463,8 @@ describe('Coach Approval Workflow', () => {
           password_hash: fanHash,
           display_name: 'Fan Applicant',
           email_verified: true,
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          role: 'fan',
           preferences: { role: 'fan', onboarding_completed: true },
           approval_status: 'APPROVED',
         },

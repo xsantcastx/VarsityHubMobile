@@ -82,6 +82,19 @@ function buildPendingCoachPreferences(
   return next;
 }
 
+function buildPendingLeagueOwnerPreferences(
+  currentPrefs: unknown,
+  organization: { id: string; name: string }
+): Record<string, any> {
+  const next = mergeAuthStateIntoPreferences(getPreferencesObject(currentPrefs), {
+    role: 'coach',
+    organization_id: organization.id,
+  });
+  next.organization_name = organization.name;
+  next.join_request_pending = false;
+  return next;
+}
+
 function buildApprovedCoachPreferences(params: {
   currentPrefs: unknown;
   organization: { id: string; name: string };
@@ -680,7 +693,7 @@ organizationsRouter.post(
         await tx.user.update({
           where: { id: req.user!.id },
           data: {
-            preferences: buildPendingCoachPreferences(applicantPrefs, {
+            preferences: buildPendingLeagueOwnerPreferences(applicantPrefs, {
               id: org.id,
               name: org.name,
             }),
@@ -877,7 +890,7 @@ organizationsRouter.post(
         await tx.user.update({
           where: { id: req.user!.id },
           data: {
-            preferences: buildPendingCoachPreferences(applicantPrefs, {
+            preferences: buildPendingLeagueOwnerPreferences(applicantPrefs, {
               id: org.id,
               name: org.name,
             }),
