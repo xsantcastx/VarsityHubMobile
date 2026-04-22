@@ -2199,11 +2199,6 @@ const completeOnboardingSchema = z.object({
   zip: z.string().optional(),
   zip_code: z.string().optional(),
 
-  // Plan and subscription
-  plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
-  payment_pending: z.union([z.boolean(), z.string()]).optional(),
-  team_count_total: z.number().int().min(0).optional(),
-
   // Team/Organization
   team_id: z.string().optional(),
   team_name: z.string().optional(),
@@ -2398,11 +2393,11 @@ authRouter.post(
     // CRITICAL: For coaches, validate required steps are completed
     // Fall back to existing DB values for retry scenarios where payload may be incomplete
     const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    let finalPlan = currentPrefs.plan || 'rookie';
+    // Billing-owned state must come from payment/server flows, never this endpoint.
+    const persistedPlan = currentPrefs.plan || 'rookie';
     if (finalRole === 'coach') {
       const effectiveUsername = data.username || currentUser?.username;
-      const effectivePlan = data.plan || currentPrefs.plan || 'rookie';
-      finalPlan = effectivePlan;
+      const effectivePlan = currentPrefs.pending_plan || currentPrefs.plan || 'rookie';
       const effectiveOrgId = data.organization_id || currentPrefs.organization_id;
       const effectiveTeamId = data.team_id || currentPrefs.team_id;
       if (!effectiveUsername) {
@@ -2418,7 +2413,6 @@ authRouter.post(
       }
       // Use DB values as fallback if not in payload
       if (!data.username && effectiveUsername) data.username = effectiveUsername;
-      if (!data.plan && effectivePlan) (data as any).plan = effectivePlan;
       if (!data.organization_id && effectiveOrgId) data.organization_id = effectiveOrgId;
       if (!data.team_id && effectiveTeamId) data.team_id = effectiveTeamId;
     }
@@ -2436,7 +2430,7 @@ authRouter.post(
     const preferencesUpdate: any = {
       onboarding_completed: true,
       role: finalRole, // Always set role explicitly - never leave undefined
-      plan: currentPrefs.plan || 'rookie', // Preserve plan set by payment webhook; default rookie for new users
+      plan: persistedPlan,
       affiliation: data.affiliation,
       dob: data.dob,
       zip_code: data.zip_code || data.zip,
@@ -2455,8 +2449,6 @@ authRouter.post(
       location_enabled: data.location_enabled,
       notifications_enabled: data.notifications_enabled,
       messaging_policy_accepted: data.messaging_policy_accepted,
-      payment_pending: data.payment_pending,
-      team_count_total: data.team_count_total,
       proceeding_as_fan: data.proceeding_as_fan,
     };
 
@@ -2485,7 +2477,7 @@ authRouter.post(
     const merged = stripProtectedKeys(
       mergePreferences(normalizedCurrent || {}, preferencesUpdate)
     ) as any;
-    merged.plan = finalPlan;
+    merged.plan = persistedPlan;
     updateData.preferences = merged;
 
     // SECURITY: If completing onboarding as coach, ensure approval_status is PENDING

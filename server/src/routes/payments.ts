@@ -158,12 +158,30 @@ function membershipError(status: number, message: string) {
   return error;
 }
 
+async function getVeteranBillingSnapshot(
+  userId: string,
+  organizationId?: string | null
+): Promise<{ teamCount: number; billableQuantity: number }> {
+  const teamCount = organizationId
+    ? await prisma.team.count({ where: { organization_id: organizationId } })
+    : await prisma.teamMembership.count({
+        where: { user_id: userId, role: 'owner', status: 'active' },
+      });
+
+  return {
+    teamCount,
+    billableQuantity: Math.max(0, teamCount - SERVER_ROOKIE_TEAM_LIMIT),
+  };
+}
+
 async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown, promoCode?: string, teamCount?: number, organizationId?: string) {
   if (!process.env.STRIPE_SECRET_KEY) throw membershipError(500, 'Stripe not configured');
   if (typeof planValue !== 'string' || !planValue.trim()) throw membershipError(400, 'plan is required');
   const raw = planValue.trim().toLowerCase();
   if (raw !== 'veteran' && raw !== 'legend') throw membershipError(400, 'Invalid plan for subscription');
   const chosen = raw as MembershipPlan;
+  let actualTeamCount = 0;
+  let billableQuantity = 1;
 
   // Verify org ownership if organization_id provided
   if (organizationId) {
@@ -175,22 +193,25 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     }
   }
 
-  // Validate team count for Veteran plan (total teams including the free Rookie allowance)
   if (chosen === 'veteran') {
-    if (typeof teamCount !== 'number' || teamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
+    const snapshot = await getVeteranBillingSnapshot(req.user!.id, organizationId);
+    actualTeamCount = snapshot.teamCount;
+    billableQuantity = snapshot.billableQuantity;
+
+    if (typeof teamCount === 'number' && teamCount !== actualTeamCount) {
+      debugLog(
+        `[payments] Ignoring client team_count=${teamCount}; using actual ${actualTeamCount} for user ${req.user!.id}${organizationId ? ` org ${organizationId}` : ''}`
+      );
+    }
+
+    if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
       throw membershipError(
         400,
         `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`
       );
     }
-    // Verify the claimed team count matches actual count — org teams if org provided, else user-owned
-    const actualTeamCount = organizationId
-      ? await prisma.team.count({ where: { organization_id: organizationId } })
-      : await prisma.teamMembership.count({
-          where: { user_id: req.user!.id, role: 'owner', status: 'active' },
-        });
-    if (teamCount > actualTeamCount) {
-      throw membershipError(400, `Team count mismatch: ${organizationId ? 'organization has' : 'you own'} ${actualTeamCount} teams but requested billing for ${teamCount}`);
+    if (billableQuantity === 0) {
+      throw membershipError(400, 'Select at least one billable team (4 total) to use Veteran plan');
     }
   }
 
@@ -245,13 +266,6 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     console.warn('[payments] Ignoring invalid Stripe price id for plan', chosen, normalizedPriceId);
   }
 
-  // Calculate billable quantity for Veteran plan (only teams beyond the first three are billed)
-  const billableQuantity = chosen === 'veteran' && typeof teamCount === 'number' ? Math.max(0, teamCount - 3) : 1;
-  // If user selected only 3 or fewer teams, they should remain on Rookie (defensive check)
-  if (chosen === 'veteran' && billableQuantity === 0) {
-    throw membershipError(400, 'Select at least one billable team (4 total) to use Veteran plan');
-  }
-
   if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
     throw membershipError(500, `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.`);
   }
@@ -268,7 +282,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
           product_data: {
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
-              ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${teamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+              ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
               : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
           },
         },
@@ -294,7 +308,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       plan: chosen,
       user_id: req.user!.id,
       promo_code: promoCode || '',
-      team_count_total: chosen === 'veteran' && teamCount ? String(teamCount) : '',
+      team_count_total: chosen === 'veteran' && actualTeamCount ? String(actualTeamCount) : '',
       team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
       organization_id: organizationId || '',
     },
@@ -354,7 +368,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     promoCode: promoCode || undefined,
     metadata: {
       plan: chosen,
-      team_count_total: chosen === 'veteran' ? teamCount : undefined,
+      team_count_total: chosen === 'veteran' ? actualTeamCount : undefined,
       team_count_billable: chosen === 'veteran' ? billableQuantity : undefined,
       organization_id: organizationId || undefined,
     },
@@ -753,6 +767,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
     const resolvedPlan = (raw === 'veteran' || raw === 'legend') ? raw : (prefs.pending_plan || '').toLowerCase();
     if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
     const chosen = resolvedPlan as MembershipPlan;
+    let actualTeamCount = 0;
+    let billableQuantity = 1;
 
     // Verify org ownership if organization_id provided
     if (orgIdBody) {
@@ -773,33 +789,30 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
       });
     }
 
-    // Validate team count for Veteran plan (fall back to stored value)
-    const effectiveTeamCount = typeof team_count === 'number' ? team_count : Number(prefs.team_count_total) || 0;
     if (chosen === 'veteran') {
-      if (effectiveTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
+      const snapshot = await getVeteranBillingSnapshot(userId, orgIdBody);
+      actualTeamCount = snapshot.teamCount;
+      billableQuantity = snapshot.billableQuantity;
+
+      if (typeof team_count === 'number' && team_count !== actualTeamCount) {
+        debugLog(
+          `[payments] Ignoring client team_count=${team_count}; using actual ${actualTeamCount} for user ${userId}${orgIdBody ? ` org ${orgIdBody}` : ''}`
+        );
+      }
+
+      if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
         return res.status(400).json({
           error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`,
         });
       }
-      // Verify the claimed team count — org teams if org provided, else user-owned
-      const actualTeamCount = orgIdBody
-        ? await prisma.team.count({ where: { organization_id: orgIdBody } })
-        : await prisma.teamMembership.count({
-            where: { user_id: userId, role: 'owner', status: 'active' },
-          });
-      if (effectiveTeamCount > actualTeamCount) {
-        return res.status(400).json({ error: `Team count mismatch: ${orgIdBody ? 'organization has' : 'you own'} ${actualTeamCount} teams but requested billing for ${effectiveTeamCount}` });
+      if (billableQuantity === 0) {
+        return res.status(400).json({ error: 'Select at least one billable team (4 total) to use Veteran plan' });
       }
     }
 
     // Check if user already has this plan (check active plan, not pending_plan)
     const currentPlan = prefs.plan || 'rookie';
     if (currentPlan === chosen) return res.status(400).json({ error: 'You already have this subscription plan' });
-
-    const billableQuantity = chosen === 'veteran' ? Math.max(0, effectiveTeamCount - 3) : 1;
-    if (chosen === 'veteran' && billableQuantity === 0) {
-      return res.status(400).json({ error: 'Select at least one billable team (4 total) to use Veteran plan' });
-    }
 
     // Build price / line items
     const priceIdRaw = membershipPriceIds[chosen];
@@ -822,7 +835,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
             product_data: {
               name: 'Membership - ' + chosen,
               description: chosen === 'veteran'
-                ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${effectiveTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+                ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
                 : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
             },
           },
@@ -840,7 +853,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
           plan: chosen,
           user_id: userId,
           promo_code: promo_code || '',
-          team_count_total: chosen === 'veteran' && effectiveTeamCount ? String(effectiveTeamCount) : '',
+          team_count_total: chosen === 'veteran' && actualTeamCount ? String(actualTeamCount) : '',
           team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
           organization_id: orgIdBody || '',
         },
@@ -867,7 +880,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
         discountCents: 0,
         totalCents: amount,
         promoCode: promo_code || undefined,
-        metadata: { plan: chosen, team_count_total: chosen === 'veteran' ? team_count : undefined, team_count_billable: chosen === 'veteran' ? billableQuantity : undefined },
+        metadata: { plan: chosen, team_count_total: chosen === 'veteran' ? actualTeamCount : undefined, team_count_billable: chosen === 'veteran' ? billableQuantity : undefined },
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
       });
@@ -3976,4 +3989,5 @@ export const __paymentsInternal = {
   finalizeFromSession,
   runFinalizeFromSession,
   finalizeAppleAdPurchase,
+  getVeteranBillingSnapshot,
 };

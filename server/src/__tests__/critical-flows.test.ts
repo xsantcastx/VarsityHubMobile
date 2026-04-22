@@ -10,13 +10,25 @@
  * 5. RSVP / interaction idempotency — concurrent follows don't create dupes
  */
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
+
+jest.unstable_mockModule('@aws-sdk/client-rekognition', () => ({
+  RekognitionClient: class {
+    send = jest.fn();
+  },
+  DetectModerationLabelsCommand: class {
+    input: any;
+    constructor(input: any) {
+      this.input = input;
+    }
+  },
+}));
 
 let prisma: any;
 let signJwt: any;
+let app: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -43,6 +55,7 @@ describeDb('Critical Server Flows', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
+    ({ app } = await import('../testApp.js'));
     cleanupIds = { users: [], orgs: [], posts: [], teams: [] };
 
     const hash = await bcrypt.hash(PASSWORD, 10);
@@ -446,6 +459,56 @@ describeDb('Critical Server Flows', () => {
       const prefs = (userAfter?.preferences as any) || {};
       expect(prefs.role).toBe('coach');
       expect(userAfter?.approval_status).toBe('APPROVED');
+    });
+
+    it('should ignore client supplied billing state on complete-onboarding', async () => {
+      const user = await prisma.user.create({
+        data: {
+          email: `critical-billing-state-${ts}-${Math.random()}@example.com`,
+          password_hash: await bcrypt.hash(PASSWORD, 10),
+          display_name: 'Billing State Coach',
+          username: `billingstate${Date.now()}`.slice(0, 20),
+          email_verified: true,
+          approval_status: 'APPROVED',
+          date_of_birth: new Date('1990-01-01'),
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            pending_plan: 'veteran',
+            payment_pending: true,
+            team_count_total: 4,
+            onboarding_completed: false,
+            organization_id: testOrg.id,
+            organization_name: testOrg.name,
+          },
+        },
+      });
+      cleanupIds.users.push(user.id);
+      const token = signJwt({ id: user.id });
+
+      const res = await request(app)
+        .post('/auth/me/complete-onboarding')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          role: 'coach',
+          affiliation: 'school',
+          plan: 'legend',
+          payment_pending: false,
+          team_count_total: 99,
+        });
+
+      expect(res.statusCode).toEqual(200);
+
+      const userAfter = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { preferences: true },
+      });
+
+      const prefs = (userAfter?.preferences as any) || {};
+      expect(prefs.plan).toBe('rookie');
+      expect(prefs.pending_plan).toBe('veteran');
+      expect(prefs.payment_pending).toBe(true);
+      expect(prefs.team_count_total).toBe(4);
     });
 
     it('should clear payment_pending and pending_plan when skipping payment', async () => {
