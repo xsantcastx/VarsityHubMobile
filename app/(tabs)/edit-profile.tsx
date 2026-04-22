@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getApiBaseUrl } from '@/api/http';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import {
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
@@ -279,9 +280,11 @@ export default function EditProfileScreen() {
   const uploadAvatar = async (uri: string) => {
     setUploadingAvatar(true);
     try {
+      const localUri = await materializeICloudAssetIfNeeded(uri);
+
       // Compress and resize the image
       const manipulatedImage = await ImageManipulator.manipulateAsync(
-        uri,
+        localUri,
         [{ resize: { width: 400, height: 400 } }],
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
@@ -342,8 +345,10 @@ export default function EditProfileScreen() {
   const uploadHeaderImage = async (uri: string) => {
     setUploadingHeaderImage(true);
     try {
+      const localUri = await materializeICloudAssetIfNeeded(uri);
+
       const manipulatedImage = await ImageManipulator.manipulateAsync(
-        uri,
+        localUri,
         [{ resize: { width: 1600 } }],
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
