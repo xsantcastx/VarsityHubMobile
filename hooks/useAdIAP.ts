@@ -11,9 +11,10 @@ import { httpPost } from '@/api/http';
 import { captureBreadcrumb } from '@/utils/sentry';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
+const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
 let useRNIAP: any = () => ({});
 let getReceiptIOS: any = async () => '';
-if (!isExpoGo) {
+if (!isExpoGo && isNativeMobile) {
   try {
     if (Platform.OS !== 'web') {
       const iap = require('react-native-iap');

@@ -13,11 +13,12 @@ import { captureBreadcrumb } from '@/utils/sentry';
 
 // Only import react-native-iap in standalone builds (not Expo Go)
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
+const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
 let useRNIAP: any = () => ({});
 let getReceiptIOS: any = async () => '';
 let getAvailablePurchasesFn: any = async () => [];
 let restorePurchasesFn: any = async () => {};
-if (!isExpoGo) {
+if (!isExpoGo && isNativeMobile) {
   try {
     if (Platform.OS !== 'web') {
       const iap = require('react-native-iap');
