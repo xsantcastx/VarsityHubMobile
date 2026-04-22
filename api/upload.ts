@@ -1,4 +1,5 @@
 import { compressImageForUpload } from '@/utils/ensureUploadableUri';
+import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
 import auth from './auth';
 import { getApiBaseUrl } from './http';
 
@@ -75,22 +76,48 @@ async function getCloudinarySignature(baseUrl: string): Promise<{
     return _sigCache.sig;
   }
 
-  const token = await resolveUploadToken();
+  let token = await resolveUploadToken();
   if (!token) return null;
-  try {
-    const res = await fetch(`${baseUrl}/uploads/cloudinary-signature`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      if (__DEV__) console.warn('[upload] Cloudinary signature failed:', res.status, res.statusText);
+
+  let refreshAttempted = false;
+  let verificationPrompted = false;
+
+  while (token) {
+    try {
+      const res = await fetch(`${baseUrl}/uploads/cloudinary-signature`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        if (res.status === 401 && !refreshAttempted) {
+          refreshAttempted = true;
+          const refreshed = await auth.refreshToken();
+          token = refreshed?.accessToken ?? null;
+          if (token) continue;
+        }
+        if (
+          isEmailVerificationRequiredError(res.status, data) &&
+          !verificationPrompted
+        ) {
+          verificationPrompted = true;
+          const verified = await openVerificationGate();
+          if (verified) {
+            token = await resolveUploadToken();
+            if (token) continue;
+          }
+        }
+        if (__DEV__) console.warn('[upload] Cloudinary signature failed:', res.status, data || res.statusText);
+        return null;
+      }
+      const sig = data as any;
+      _sigCache = { sig, fetchedAt: Date.now() };
+      return sig;
+    } catch {
       return null;
     }
-    const sig = await res.json() as any;
-    _sigCache = { sig, fetchedAt: Date.now() };
-    return sig;
-  } catch {
-    return null;
   }
+
+  return null;
 }
 
 async function uploadDirectToCloudinary(
@@ -247,6 +274,9 @@ async function uploadRawViaServer(
   const timeoutMs = options?.timeoutMs ?? 180000;
   const retries = Math.max(0, options?.retries ?? 2);
   const backoffMs = Math.max(50, options?.backoffMs ?? 500);
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  let refreshAttempted = false;
+  let verificationPrompted = false;
 
   let attempt = 0;
   let lastErr: any = null;
@@ -257,7 +287,7 @@ async function uploadRawViaServer(
     try {
       const res = await fetch(target, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         body: form as any,
         signal: controller.signal,
       });
@@ -278,6 +308,28 @@ async function uploadRawViaServer(
     } catch (err: any) {
       clearTimeout(timeoutId);
       lastErr = err;
+      if (err?.status === 401 && !refreshAttempted) {
+        refreshAttempted = true;
+        const refreshed = await auth.refreshToken();
+        if (refreshed?.accessToken) {
+          headers.Authorization = `Bearer ${refreshed.accessToken}`;
+          continue;
+        }
+      }
+      if (
+        isEmailVerificationRequiredError(err?.status, err?.data) &&
+        !verificationPrompted
+      ) {
+        verificationPrompted = true;
+        const verified = await openVerificationGate();
+        if (verified) {
+          const refreshedToken = await resolveUploadToken();
+          if (refreshedToken) {
+            headers.Authorization = `Bearer ${refreshedToken}`;
+            continue;
+          }
+        }
+      }
       const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
       const isTimeout = err?.name === 'AbortError' || /timeout|timed out/i.test(String(err?.message || ''));
       if (attempt < retries && (isNetwork || isTimeout)) {
@@ -416,6 +468,7 @@ async function uploadViaServer(
   let attempt = 0;
   let lastErr: any = null;
   let refreshAttempted = false;
+  let verificationPrompted = false;
 
   while (attempt <= retries) {
     const controller = new AbortController();
@@ -451,10 +504,24 @@ async function uploadViaServer(
       const isTimeout = isAbort || /timeout|timed out/i.test(String(err?.message || ''));
       if (err?.status === 401 && !refreshAttempted) {
         refreshAttempted = true;
-        const refreshed = await auth.getToken();
-        if (refreshed) {
-          headers.Authorization = `Bearer ${refreshed}`;
+        const refreshed = await auth.refreshToken();
+        if (refreshed?.accessToken) {
+          headers.Authorization = `Bearer ${refreshed.accessToken}`;
           continue;
+        }
+      }
+      if (
+        isEmailVerificationRequiredError(err?.status, err?.data) &&
+        !verificationPrompted
+      ) {
+        verificationPrompted = true;
+        const verified = await openVerificationGate();
+        if (verified) {
+          const refreshedToken = await resolveUploadToken();
+          if (refreshedToken) {
+            headers.Authorization = `Bearer ${refreshedToken}`;
+            continue;
+          }
         }
       }
       if (attempt < retries && (isNetwork || isTimeout)) {

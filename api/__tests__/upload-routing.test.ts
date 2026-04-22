@@ -1,18 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
+const mockAuth = {
+  getToken: jest.fn(async () => 'test-token'),
+  refreshToken: jest.fn(async () => ({ accessToken: 'refreshed-token', reason: 'success' as const })),
+};
+
+const openVerificationGateMock = jest.fn(async () => false);
+
 jest.mock('@/utils/ensureUploadableUri', () => ({
   compressImageForUpload: jest.fn(async (uri: string, mimeType: string) => ({ uri, mimeType })),
 }));
 
 jest.mock('../auth', () => ({
   __esModule: true,
-  default: {
-    getToken: jest.fn(async () => 'test-token'),
-  },
+  default: mockAuth,
 }));
 
 jest.mock('../http', () => ({
   getApiBaseUrl: jest.fn(() => 'https://api.test'),
+}));
+
+jest.mock('@/hooks/useVerificationGate', () => ({
+  openVerificationGate: openVerificationGateMock,
+  isEmailVerificationRequiredError: (status: number, payload: any) =>
+    status === 403 &&
+    String(payload?.error || payload?.message || '').trim().toLowerCase() ===
+      'email verification required',
 }));
 
 class MockXHR {
@@ -50,6 +63,12 @@ describe('uploadFile routing', () => {
   beforeEach(() => {
     jest.resetModules();
     fetchMock.mockReset();
+    mockAuth.getToken.mockReset();
+    mockAuth.refreshToken.mockReset();
+    mockAuth.getToken.mockResolvedValue('test-token');
+    mockAuth.refreshToken.mockResolvedValue({ accessToken: 'refreshed-token', reason: 'success' });
+    openVerificationGateMock.mockReset();
+    openVerificationGateMock.mockResolvedValue(false);
     MockXHR.instances.length = 0;
     MockXHR.nextStatus = 200;
     MockXHR.nextResponseText = JSON.stringify({ secure_url: 'https://cloudinary.test/image.jpg' });
@@ -95,6 +114,54 @@ describe('uploadFile routing', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
       'https://api.test/uploads/files?onboarding=true&upload_context=organization_supporting_document'
     );
+  });
+
+  it('refreshes the session and retries PDF uploads after a 401', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ error: 'Unauthorized' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+      });
+
+    const { uploadFile } = await import('../upload');
+    const result = await uploadFile('https://api.test', 'file:///tmp/doc.pdf', 'doc.pdf', 'application/pdf');
+
+    expect(mockAuth.refreshToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[1]?.headers?.Authorization).toBe('Bearer refreshed-token');
+    expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
+  });
+
+  it('opens the verification gate and retries PDF uploads after email-verification-required', async () => {
+    mockAuth.getToken
+      .mockResolvedValueOnce('test-token')
+      .mockResolvedValueOnce('verified-token');
+    openVerificationGateMock.mockResolvedValue(true);
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () => JSON.stringify({ error: 'Email verification required' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' }),
+      });
+
+    const { uploadFile } = await import('../upload');
+    const result = await uploadFile('https://api.test', 'file:///tmp/doc.pdf', 'doc.pdf', 'application/pdf');
+
+    expect(openVerificationGateMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[1]?.headers?.Authorization).toBe('Bearer verified-token');
+    expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
   });
 
   it('routes images through the Cloudinary signature flow before upload', async () => {
