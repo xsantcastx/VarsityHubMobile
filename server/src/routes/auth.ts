@@ -1749,10 +1749,10 @@ authRouter.get(
     // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
     // This ensures admin accounts always have onboarding_completed=true regardless of DB state
     // Non-admin users' preferences are merged without forcing onboarding_completed
-    const userPrefs = (user as any).preferences || {};
-    const prefs = mergePreferences(userPrefs, defaults);
     const has_password = !!(user as any).password_hash;
     const safe = sanitizeUser(user);
+    const userPrefs = ((safe as any).preferences || {}) as Record<string, unknown>;
+    const prefs = mergePreferences(userPrefs, defaults);
     const normalizedRole = is_admin ? 'admin' : getCanonicalUserRole(user as any);
     const requiredCoachAgreementVersion = Number(
       process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1

@@ -40,10 +40,12 @@ interface AuthUser {
   email_verified?: boolean;
   username?: string;
   role?: string;
+  onboarding_completed?: boolean;
   is_admin?: boolean;
   approval_status?: string;
   paid_by_owner?: boolean;
   required_coach_agreement_version?: number;
+  organization_id?: string | null;
   preferences?: {
     onboarding_completed?: boolean;
     role?: string;
@@ -123,6 +125,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const normalizedRole = String(user?.role || '').toLowerCase();
   const isAdmin =
     normalizedRole === 'admin' || normalizedRole === 'super_admin' || user?.is_admin === true;
+  const isOnboardingComplete = useCallback(
+    (authUser: AuthUser | null | undefined) =>
+      authUser?.onboarding_completed === true ||
+      authUser?.preferences?.onboarding_completed === true,
+    []
+  );
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
@@ -278,7 +286,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           return;
         }
 
-        const serverComplete = me?.preferences?.onboarding_completed === true;
+        const serverComplete = isOnboardingComplete(me);
 
         // Sync local onboarding flag BEFORE setUser to prevent routing race condition.
         // The routing effect fires when `user` changes — if hasCompletedOnboarding is
@@ -328,7 +336,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
 
         // v1.0.2: register push token after successful checkAuth; signOut clears the timeout.
-        if (me.preferences?.onboarding_completed === true) {
+        if (isOnboardingComplete(me)) {
           if (pushTokenTimeoutRef.current) clearTimeout(pushTokenTimeoutRef.current);
           pushTokenTimeoutRef.current = setTimeout(() => {
             pushTokenTimeoutRef.current = null;
@@ -354,7 +362,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return null; // Don't crash the app on transient network/server errors
       }
     },
-    [fetchSubscription]
+    [fetchSubscription, isOnboardingComplete]
   );
 
   const checkAuthRef = React.useRef(checkAuth);
@@ -373,7 +381,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         String(effectiveUser?.preferences?.role || effectiveUser?.role || '').trim() || null;
       const approvalStatus =
         typeof effectiveUser?.approval_status === 'string' ? effectiveUser.approval_status : null;
-      const onboardingCompleted = effectiveUser?.preferences?.onboarding_completed === true;
+      const onboardingCompleted = isOnboardingComplete(effectiveUser);
       const emailVerified = effectiveUser?.email_verified === true;
       const pendingVerification = !!pendingVerificationEmail;
       const paidByOwner = effectiveUser?.paid_by_owner === true;
@@ -411,7 +419,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       lastRedirectRef.current = to;
     },
-    [healthOk, pendingVerificationEmail, router, user]
+    [healthOk, isOnboardingComplete, pendingVerificationEmail, router, user]
   );
 
   const getPendingCoachRoute = useCallback(
@@ -769,7 +777,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // SERVER IS SOURCE OF TRUTH for onboarding completion — never trust AsyncStorage alone
       // Treat undefined/null as incomplete (prevents bypass when flag is missing)
-      const serverSaysIncomplete = user.preferences?.onboarding_completed !== true;
+      const serverSaysIncomplete = !isOnboardingComplete(user);
       const needsOnboarding = serverSaysIncomplete;
       const coachNeedsCheckout = coachAccess.needsPaidPlanCheckout;
       const isOnPaymentPath =
@@ -806,7 +814,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         if (__DEV__)
           console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
         // Check if they have an org yet — if not, send to league step; if yes, send to create-team
-        const hasOrg = !!user.preferences?.organization_id;
+        const hasOrg = !!(user.organization_id || user.preferences?.organization_id);
         const target = hasOrg ? '/(tabs)/create-team' : '/onboarding/step-3-league';
         if (lastRedirectRef.current !== target) {
           redirectWithTelemetry(target, 'approved_coach_post_approval_setup');

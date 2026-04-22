@@ -259,6 +259,30 @@ describe('API Authentication Endpoints', () => {
       );
       expect(response.body.sports_interests).toEqual(['Basketball']);
     });
+
+    it('should return canonical onboarding state in both top-level and preferences payloads', async () => {
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          role: 'coach',
+          onboarding_completed: true,
+          preferences: {
+            role: 'fan',
+            onboarding_completed: false,
+          },
+        },
+      });
+
+      const response = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body.role).toBe('coach');
+      expect(response.body.onboarding_completed).toBe(true);
+      expect(response.body.preferences.role).toBe('coach');
+      expect(response.body.preferences.onboarding_completed).toBe(true);
+    });
   });
 
   describe('PATCH /auth/me/preferences', () => {
