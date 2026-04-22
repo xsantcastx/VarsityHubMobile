@@ -30,11 +30,20 @@ function LeaguePendingApproval() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
   const completionStartedRef = useRef(false);
+  const redirectedRef = useRef(false);
+
+  const redirectToLeagueSetup = useCallback(() => {
+    if (redirectedRef.current) return;
+    redirectedRef.current = true;
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    router.replace('/onboarding/step-3-league');
+  }, [router]);
 
   // Poll organization status every 30 seconds
   const checkApproval = useCallback(async () => {
     if (!orgId) {
-      setCompletionError('Organization setup is incomplete. Go back to league setup and select or create your organization.');
+      redirectToLeagueSetup();
       return;
     }
     try {
@@ -44,6 +53,20 @@ function LeaguePendingApproval() {
         httpGet(`/organizations/${orgId}`),
         User.me().catch(() => null),
       ]);
+      const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
+      const approvalStatus = String(me?.approval_status || '').toUpperCase();
+      const orgState = String(org?.status || '').toLowerCase();
+      const canViewPendingApproval =
+        role === 'coach' &&
+        (approvalStatus === 'PENDING' || approvalStatus === 'APPROVED' || approvalStatus === 'REJECTED') &&
+        Boolean(org?.id) &&
+        (orgState === '' || orgState === 'pending' || orgState === 'approved' || orgState === 'rejected' || org?.admin_approved === true);
+
+      if (!canViewPendingApproval) {
+        redirectToLeagueSetup();
+        return;
+      }
+
       const isRejected = org?.status === 'rejected' || me?.approval_status === 'REJECTED';
       if (isRejected) {
         setRejected(true);
@@ -132,7 +155,7 @@ function LeaguePendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [leagueName, markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, router]);
+  }, [leagueName, markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, redirectToLeagueSetup]);
 
   useEffect(() => {
     if (!orgId) return;

@@ -99,6 +99,21 @@ describe('EventMap', () => {
     expect(onEventPress).toHaveBeenCalledWith('1', undefined);
   });
 
+  it('dedupes marker press + callout press so one tap cannot open two pages', async () => {
+    jest.spyOn(Date, 'now')
+      .mockReturnValueOnce(1000)
+      .mockReturnValueOnce(1100);
+    const onEventPress = jest.fn();
+    const { findByTestId } = render(<EventMap {...baseProps({ onEventPress })} />);
+    const marker = await findByTestId('Marker');
+
+    fireEvent.press(marker);
+    fireEvent(marker, 'onCalloutPress');
+
+    expect(onEventPress).toHaveBeenCalledTimes(1);
+    (Date.now as jest.Mock).mockRestore();
+  });
+
   it('renders empty state when no events', async () => {
     const { findByText } = render(<EventMap {...baseProps({ events: [] })} />);
     const empty = await findByText(/no games with locations yet/i);

@@ -5,8 +5,10 @@ import {
   StyleSheet,
   Text,
   TextStyle,
+  useColorScheme,
   ViewStyle,
 } from 'react-native';
+import { Colors } from '@/constants/Colors';
 
 type Variant = 'default' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg' | 'icon';
@@ -33,7 +35,9 @@ export function Button({
   testID,
   ...accessibilityProps
 }: ButtonProps) {
-  const vs = getVariantStyles(variant);
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const vs = getVariantStyles(variant, theme);
   const ss = getSizeStyles(size);
   const content = React.Children.map(children, child => {
     if (typeof child === 'string' || typeof child === 'number') {
@@ -68,22 +72,25 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.6 },
 });
 
-function getVariantStyles(variant: Variant) {
+function getVariantStyles(
+  variant: Variant,
+  theme: typeof Colors.light
+): { container: ViewStyle; text: TextStyle } {
   switch (variant) {
     case 'outline':
       return {
-        container: { backgroundColor: 'transparent', borderColor: '#D1D5DB' },
-        text: { color: '#111827' },
+        container: { backgroundColor: 'transparent', borderColor: theme.border },
+        text: { color: theme.text },
       };
     case 'ghost':
       return {
         container: { backgroundColor: 'transparent', borderColor: 'transparent' },
-        text: { color: '#111827' },
+        text: { color: theme.text },
       };
     default:
       return {
-        container: { backgroundColor: '#111827', borderColor: '#111827' },
-        text: { color: 'white' },
+        container: { backgroundColor: theme.text, borderColor: theme.text },
+        text: { color: theme.background },
       };
   }
 }

@@ -658,7 +658,7 @@ function HighlightsScreen() {
         ranked={ranked}
         userLocation={userLocation}
         onPress={() => handleHighlightPress(item, index, getFilteredHighlights())}
-        // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
+        onAuthorPress={handleAuthorPress}
         colorScheme={colorScheme}
         onUpvote={handleUpvote}
       />

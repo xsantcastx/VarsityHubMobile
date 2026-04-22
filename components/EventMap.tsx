@@ -35,6 +35,7 @@ export default function EventMap({
 }: EventMapProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const mapRef = useRef<MapView>(null);
+  const lastNavigationRef = useRef<{ id: string; ts: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [showEmptyState, setShowEmptyState] = useState(true);
@@ -162,6 +163,16 @@ export default function EventMap({
     }
   };
 
+  const openEventFromMarker = (eventId: string, eventType?: 'game' | 'event' | 'post') => {
+    const now = Date.now();
+    const last = lastNavigationRef.current;
+    if (last && last.id === eventId && now - last.ts < 1000) {
+      return;
+    }
+    lastNavigationRef.current = { id: eventId, ts: now };
+    onEventPress?.(eventId, eventType);
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -210,13 +221,13 @@ export default function EventMap({
               captureBreadcrumb('Map marker pressed', 'map.navigation', {
                 event_type: event.type || 'unknown',
               });
-              onEventPress?.(event.id, event.type);
+              openEventFromMarker(event.id, event.type);
             }}
             onCalloutPress={() => {
               captureBreadcrumb('Map marker callout pressed', 'map.navigation', {
                 event_type: event.type || 'unknown',
               });
-              onEventPress?.(event.id, event.type);
+              openEventFromMarker(event.id, event.type);
             }}
           />
         ))}

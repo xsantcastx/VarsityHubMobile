@@ -15,9 +15,11 @@ let useRNIAP: any = () => ({});
 let getReceiptIOS: any = async () => '';
 if (!isExpoGo) {
   try {
-    const iap = require('react-native-iap');
-    useRNIAP = iap.useIAP;
-    getReceiptIOS = iap.getReceiptIOS;
+    if (Platform.OS !== 'web') {
+      const iap = require('react-native-iap');
+      useRNIAP = iap.useIAP;
+      getReceiptIOS = iap.getReceiptIOS;
+    }
   } catch (err) {
     if (__DEV__) console.warn('[useAdIAP] react-native-iap not available (e.g. Expo Go):', (err as Error)?.message);
   }

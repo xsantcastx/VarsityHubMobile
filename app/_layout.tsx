@@ -1,7 +1,6 @@
 // Must be the very first import so Reactotron patches globals before anything else
-if (__DEV__) { require('../ReactotronConfig'); }
+if (__DEV__ && process.env.EXPO_OS !== 'web') { require('../ReactotronConfig'); }
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
-import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -26,15 +25,8 @@ import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener }
 import { initSentry } from '@/utils/sentry';
 import { initAnalytics } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
-import { StripeProvider } from '@stripe/stripe-react-native';
-
-
-// Conditionally import notifications only if not in Expo Go
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
-let Notifications: any = null;
-if (!isExpoGo) {
-  Notifications = require('expo-notifications');
-}
+import Notifications from '@/utils/notifications';
+import { StripeProvider } from '@/utils/stripe';
 
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
@@ -93,7 +85,7 @@ function RootLayout() {
   }, []);
 
   React.useEffect(() => {
-    if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
+    if (Platform.OS !== 'android' || !Notifications?.setNotificationChannelAsync) return;
     Notifications.setNotificationChannelAsync('default', {
       name: 'General',
       importance: Notifications.AndroidImportance.MAX,

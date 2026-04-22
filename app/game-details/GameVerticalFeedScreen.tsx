@@ -199,6 +199,7 @@ const FeedCard = memo(
     onOpenComments,
     onSharePost,
     onToggleFollow,
+    onOpenAuthorProfile,
     onDoubleTap,
     onDeletePost,
     onEditPost,
@@ -220,6 +221,7 @@ const FeedCard = memo(
     onOpenComments: () => void;
     onSharePost: () => void;
     onToggleFollow: () => void;
+    onOpenAuthorProfile: () => void;
     onDoubleTap: () => void;
     onDeletePost?: () => void;
     onEditPost?: (caption: string) => void;
@@ -479,7 +481,13 @@ const FeedCard = memo(
         </Pressable>
 
         <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}>
-          <Text style={styles.authorNameBottom}>{authorLabel}</Text>
+          <Pressable
+            onPress={post.author?.id ? onOpenAuthorProfile : undefined}
+            disabled={!post.author?.id}
+            style={styles.authorNameButton}
+          >
+            <Text style={styles.authorNameBottom}>{authorLabel}</Text>
+          </Pressable>
           <ExpandableText
             text={post.caption}
             maxLines={3}
@@ -499,17 +507,34 @@ const FeedCard = memo(
 
           {/* Avatar tap opens the poster profile; follow action stays separate. */}
           {post.author?.id !== meInfo?.id ? (
-            <Pressable onPress={onToggleFollow} style={styles.railAvatarBtn}>
-              {post.author?.avatar_url ? (
-                <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
-              ) : (
-                <View style={[styles.railAvatarImg, styles.avatarFallback]}>
-                  <Text style={styles.avatarFallbackText}>
-                    {authorLabel.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
+            <View style={styles.railAvatarWrap}>
+              <Pressable onPress={onOpenAuthorProfile} style={styles.railAvatarBtn}>
+                {post.author?.avatar_url ? (
+                  <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
+                ) : (
+                  <View style={[styles.railAvatarImg, styles.avatarFallback]}>
+                    <Text style={styles.avatarFallbackText}>
+                      {authorLabel.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={onToggleFollow}
+                style={[
+                  styles.railFollowPlus,
+                  post.is_following_author ? styles.railFollowPlusActive : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={post.is_following_author ? 'Unfollow author' : 'Follow author'}
+              >
+                <Ionicons
+                  name={post.is_following_author ? 'checkmark' : 'add'}
+                  size={12}
+                  color="#fff"
+                />
+              </Pressable>
+            </View>
           ) : null}
 
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
@@ -1127,6 +1152,15 @@ function GameVerticalFeedScreen({
     [optimisticUpdateAllFromAuthor]
   );
 
+  const handleOpenAuthorProfile = useCallback(
+    (post: FeedPost) => {
+      const authorId = post.author?.id;
+      if (!authorId) return;
+      void router.push(`/user-profile?id=${encodeURIComponent(String(authorId))}`);
+    },
+    [router]
+  );
+
   const handleShare = useCallback((post: FeedPost) => {
     const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
     Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
@@ -1304,6 +1338,7 @@ function GameVerticalFeedScreen({
         onOpenComments={() => openComments(item)}
         onSharePost={() => handleShare(item)}
         onToggleFollow={() => handleToggleFollow(item)}
+        onOpenAuthorProfile={() => handleOpenAuthorProfile(item)}
         onDoubleTap={() => handleDoubleTap(item)}
         onDeletePost={() => handleDeletePost(item)}
         onEditPost={(newCaption: string) => handleEditPost(item, newCaption)}
@@ -1325,6 +1360,7 @@ function GameVerticalFeedScreen({
       handleDeletePost,
       handleEditPost,
       handleMoreOptions,
+      handleOpenAuthorProfile,
       handleShare,
       handleToggleBookmark,
       handleToggleFollow,
@@ -1647,17 +1683,6 @@ const styles = StyleSheet.create({
   avatarFallback: { backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' },
   avatarFallbackText: { fontWeight: '700' },
   authorName: { color: '#fff', marginLeft: 8, fontWeight: '700' },
-  followBadge: {
-    marginLeft: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#f87171',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  followBadgeActive: { borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)' },
-  followBadgeText: { color: '#f87171', fontWeight: '700', fontSize: 12 },
-  followBadgeTextActive: { color: '#34d399' },
   captionOverlay: {
     position: 'absolute',
     left: 16,
@@ -1672,6 +1697,9 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  authorNameButton: {
+    alignSelf: 'flex-start',
   },
   captionText: {
     color: '#fff',
@@ -1734,19 +1762,25 @@ const styles = StyleSheet.create({
   railNavBtnDisabled: {
     opacity: 0.35,
   },
-  railAvatarBtn: {
+  railAvatarWrap: {
     marginBottom: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  railAvatarBtn: {},
   railAvatarImg: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1f2937' },
   railFollowPlus: {
     position: 'absolute',
     bottom: -6,
     alignSelf: 'center',
-    backgroundColor: '#ef4444',
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     padding: 4,
     borderWidth: 2,
     borderColor: '#0f172a',
+  },
+  railFollowPlusActive: {
+    backgroundColor: '#10b981',
   },
   railBtn: { alignItems: 'center', marginBottom: 24 },
   railLabel: {

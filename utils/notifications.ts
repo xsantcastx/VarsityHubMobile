@@ -1,3 +1,3 @@
-import * as Notifications from 'expo-notifications';
+import * as NativeNotifications from 'expo-notifications';
 
-export default Notifications;
+export default NativeNotifications as any;

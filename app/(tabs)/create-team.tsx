@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
+import { usePaymentSheet } from '@/utils/stripe';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { useVHubIAP } from '@/hooks/useIAP';
 import { useCallback, useEffect, useRef, useState } from 'react';

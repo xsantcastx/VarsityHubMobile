@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useVHubIAP } from '@/hooks/useIAP';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
+import { usePaymentSheet } from '@/utils/stripe';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

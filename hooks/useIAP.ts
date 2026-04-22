@@ -19,11 +19,13 @@ let getAvailablePurchasesFn: any = async () => [];
 let restorePurchasesFn: any = async () => {};
 if (!isExpoGo) {
   try {
-    const iap = require('react-native-iap');
-    useRNIAP = iap.useIAP;
-    getReceiptIOS = iap.getReceiptIOS;
-    getAvailablePurchasesFn = iap.getAvailablePurchases;
-    restorePurchasesFn = iap.restorePurchases;
+    if (Platform.OS !== 'web') {
+      const iap = require('react-native-iap');
+      useRNIAP = iap.useIAP;
+      getReceiptIOS = iap.getReceiptIOS;
+      getAvailablePurchasesFn = iap.getAvailablePurchases;
+      restorePurchasesFn = iap.restorePurchases;
+    }
   } catch {
     // react-native-iap not available
   }

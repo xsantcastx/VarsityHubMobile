@@ -20,7 +20,7 @@ import { useVHubIAP } from '@/hooks/useIAP';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
+import { usePaymentSheet } from '@/utils/stripe';
 import { useEffect, useState } from 'react';
 import { captureBreadcrumb } from '@/utils/sentry';
 import {

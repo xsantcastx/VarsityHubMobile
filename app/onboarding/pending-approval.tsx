@@ -29,6 +29,15 @@ function PendingApproval() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // v1.0.2 audit fix C-3/H-4: prevent double completeOnboarding if screen re-mounts after approval
   const completionStartedRef = useRef(false);
+  const redirectedRef = useRef(false);
+
+  const redirectToOnboarding = useCallback(() => {
+    if (redirectedRef.current) return;
+    redirectedRef.current = true;
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    router.replace('/onboarding');
+  }, [router]);
 
   // Poll /me every 30 seconds to check approval_status
   const checkApproval = useCallback(async () => {
@@ -36,6 +45,16 @@ function PendingApproval() {
       setChecking(true);
       setCompletionError(null);
       const me: any = await User.me();
+      const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
+      const approvalStatus = String(me?.approval_status || '').toUpperCase();
+      const canViewPendingApproval =
+        role === 'coach' && ['PENDING', 'APPROVED', 'REJECTED'].includes(approvalStatus);
+
+      if (!canViewPendingApproval) {
+        redirectToOnboarding();
+        return;
+      }
+
       if (me?.approval_status === 'REJECTED') {
         setRejected(true);
         if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -136,7 +155,7 @@ function PendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, router]);
+  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, redirectToOnboarding]);
 
   useEffect(() => {
     // Initial check
