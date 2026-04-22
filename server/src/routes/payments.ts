@@ -1638,7 +1638,8 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
             }
             if (!promoRedeemed) {
               // PAY-5: Payment succeeded but promo usage wasn't decremented — promo can be reused.
-              // Mark as NEEDS_REVIEW instead of COMPLETED so admin dashboard surfaces it.
+              // Use NEEDS_REVIEW (not FAILED — the payment completed) so the admin
+              // dashboard surfaces it without misrepresenting the payment outcome.
               console.error('[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable', { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id });
               captureException(new Error('Promo redemption failed after retries — revenue leak risk'), {
                 context: 'promo_redeem_failed',

@@ -23,12 +23,15 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
   const secret = process.env.HEALTH_CHECK_SECRET;
   const provided = req.headers['x-health-check-secret'] as string | undefined;
   if (!secret || !provided || provided !== secret) {
-    // Basic health: verify DB connectivity with a real query
+    // Basic health: verify DB connectivity with a real query. Timestamp is
+    // emitted unconditionally — it's non-sensitive and lets external probes
+    // distinguish a stale cached 200 from a live response without needing
+    // the HEALTH_CHECK_SECRET to do it.
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return res.json({ status: 'ok' });
+      return res.json({ status: 'ok', timestamp: new Date().toISOString() });
     } catch {
-      return res.status(503).json({ status: 'error', message: 'Database unreachable' });
+      return res.status(503).json({ status: 'error', message: 'Database unreachable', timestamp: new Date().toISOString() });
     }
   }
 
