@@ -17,14 +17,16 @@ jest.mock('../http', () => ({
 
 class MockXHR {
   static instances: MockXHR[] = [];
+  static nextStatus = 200;
+  static nextResponseText = JSON.stringify({ secure_url: 'https://cloudinary.test/image.jpg' });
 
   upload = { onprogress: null as ((event: { lengthComputable: boolean; loaded: number; total: number }) => void) | null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   ontimeout: (() => void) | null = null;
   timeout = 0;
-  status = 200;
-  responseText = JSON.stringify({ secure_url: 'https://cloudinary.test/image.jpg' });
+  status = MockXHR.nextStatus;
+  responseText = MockXHR.nextResponseText;
   method = '';
   url = '';
 
@@ -49,6 +51,8 @@ describe('uploadFile routing', () => {
     jest.resetModules();
     fetchMock.mockReset();
     MockXHR.instances.length = 0;
+    MockXHR.nextStatus = 200;
+    MockXHR.nextResponseText = JSON.stringify({ secure_url: 'https://cloudinary.test/image.jpg' });
     (global as any).fetch = fetchMock;
     (global as any).XMLHttpRequest = MockXHR;
   });
@@ -117,6 +121,46 @@ describe('uploadFile routing', () => {
       url: 'https://cloudinary.test/image.jpg',
       type: 'image',
       mime: 'image/jpeg',
+    });
+  });
+
+  it('falls back to the server proxy when Cloudinary rejects the direct upload', async () => {
+    MockXHR.nextStatus = 401;
+    MockXHR.nextResponseText = JSON.stringify({ error: { message: 'Invalid Signature' } });
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          cloudName: 'varsityhub',
+          apiKey: 'key',
+          signature: 'sig',
+          timestamp: 123,
+          folder: 'uploads',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        text: async () => JSON.stringify({
+          url: 'https://api.test/uploads/fallback.jpg',
+          type: 'image',
+          mime: 'image/jpeg',
+          storage: 'cloudinary',
+        }),
+      });
+
+    const { uploadFile } = await import('../upload');
+    const result = await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://api.test/uploads/cloudinary-signature');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('https://api.test/uploads');
+    expect(result).toEqual({
+      url: 'https://api.test/uploads/fallback.jpg',
+      type: 'image',
+      mime: 'image/jpeg',
+      storage: 'cloudinary',
     });
   });
 });

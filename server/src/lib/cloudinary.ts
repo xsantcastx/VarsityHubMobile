@@ -149,7 +149,10 @@ export async function uploadBufferToCloudinary(
   if (!response.ok) {
     const errorPayload = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
     const message = errorPayload?.error?.message || `Cloudinary upload failed (${response.status})`;
-    throw new Error(message);
+    const err: any = new Error(message);
+    err.http_code = response.status;
+    err.cloudinary_message = message;
+    throw err;
   }
 
   const result = (await response.json()) as CloudinaryUploadResult;

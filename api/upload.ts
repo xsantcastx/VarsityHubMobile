@@ -1,4 +1,5 @@
 import { compressImageForUpload } from '@/utils/ensureUploadableUri';
+import { captureBreadcrumb } from '@/utils/sentry';
 import auth from './auth';
 import { getApiBaseUrl } from './http';
 
@@ -57,6 +58,26 @@ function detectMime(mimeType?: string, filename?: string, uri?: string): string 
   return (ext && MIME_MAP[ext]) || 'image/jpeg';
 }
 
+function extractUploadErrorMessage(raw: string | null | undefined): string | null {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as any;
+    if (typeof parsed?.error?.message === 'string' && parsed.error.message.trim()) {
+      return parsed.error.message.trim();
+    }
+    if (typeof parsed?.error === 'string' && parsed.error.trim()) {
+      return parsed.error.trim();
+    }
+    if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+      return parsed.message.trim();
+    }
+  } catch {
+    // Fall through to raw text handling.
+  }
+  return text.length > 200 ? `${text.slice(0, 197)}...` : text;
+}
+
 // -----------------------------------------------
 // Direct-to-Cloudinary upload (skips your server)
 // Phone → Cloudinary CDN. ~2x faster than proxying through Railway.
@@ -88,13 +109,20 @@ async function getCloudinarySignature(baseUrl: string): Promise<{
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
+      captureBreadcrumb('upload.signature:failed', 'upload', {
+        status: res.status,
+      }, 'warning');
       if (__DEV__) console.warn('[upload] Cloudinary signature failed:', res.status, res.statusText);
       return null;
     }
     const sig = await res.json() as any;
+    captureBreadcrumb('upload.signature:ok', 'upload', {
+      folder: sig?.folder,
+    });
     _sigCache = { sig, fetchedAt: Date.now() };
     return sig;
   } catch {
+    captureBreadcrumb('upload.signature:error', 'upload', undefined, 'warning');
     return null;
   }
 }
@@ -152,7 +180,12 @@ async function uploadDirectToCloudinary(
           reject(new Error('Cloudinary returned invalid response'));
         }
       } else {
-        reject(new Error(`Cloudinary upload failed: HTTP ${xhr.status}`));
+        const message =
+          extractUploadErrorMessage(xhr.responseText) || `Cloudinary upload failed: HTTP ${xhr.status}`;
+        const err: any = new Error(message);
+        err.status = xhr.status;
+        err.response = extractUploadErrorMessage(xhr.responseText) || xhr.responseText;
+        reject(err);
       }
     };
 
@@ -217,10 +250,23 @@ export async function uploadFile(
   try {
     const sig = await getCloudinarySignature(finalBase);
     if (sig) {
+      captureBreadcrumb('upload.direct:start', 'upload', {
+        mimeType: finalMimeType,
+        filename: finalFilename,
+      });
       if (__DEV__) console.log('[upload] Using direct Cloudinary upload');
-      return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
+      const uploaded = await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
+      captureBreadcrumb('upload.direct:ok', 'upload', {
+        type: uploaded?.type,
+        mimeType: finalMimeType,
+      });
+      return uploaded;
     }
   } catch (directErr: any) {
+    captureBreadcrumb('upload.direct:fallback', 'upload', {
+      reason: String(directErr?.message || directErr || 'unknown'),
+      status: directErr?.status,
+    }, 'warning');
     if (__DEV__) {
       console.warn('[upload] Direct upload failed, falling back to server proxy:', directErr?.message);
       if (directErr?.status) console.warn('[upload] Error status:', directErr.status);
@@ -229,6 +275,10 @@ export async function uploadFile(
   }
 
   // Fallback: proxy through server (works when Cloudinary signature endpoint unavailable)
+  captureBreadcrumb('upload.proxy:start', 'upload', {
+    mimeType: finalMimeType,
+    filename: finalFilename,
+  });
   if (__DEV__) console.log('[upload] Using server-proxy upload');
   return uploadViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
 }
@@ -290,6 +340,10 @@ async function uploadRawViaServer(
         err.data = data;
         throw err;
       }
+      captureBreadcrumb('upload.proxy:ok', 'upload', {
+        status: res.status,
+        storage: data?.storage,
+      });
       return data;
     } catch (err: any) {
       clearTimeout(timeoutId);
@@ -488,6 +542,10 @@ async function uploadViaServer(
     throw new Error('Network error: unable to reach upload endpoint.');
   }
   if (lastErr?.status === 401) { const err: any = new Error('Unauthorized'); err.status = 401; throw err; }
+  captureBreadcrumb('upload.proxy:failed', 'upload', {
+    reason: String(lastErr?.message || lastErr || 'unknown'),
+    status: lastErr?.status,
+  }, 'error');
   throw lastErr;
 }
 
