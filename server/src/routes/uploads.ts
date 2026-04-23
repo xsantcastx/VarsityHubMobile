@@ -3,7 +3,7 @@ import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
+import { CloudinaryUpstreamError, getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -529,7 +529,42 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
     return res.status(400).json({ error: err.message });
   }
   
-  // Cloudinary errors
+  // v1.0.3: Cloudinary (and any upstream provider) errors are infrastructure
+  // failures, not the caller's auth problem. Translate an upstream 401 to a
+  // 502 so the client never confuses a Cloudinary signature issue with a
+  // session-expired state. Log the specific classification so the
+  // "Invalid Signature" vs. "Unknown API key" distinction survives to Sentry
+  // and the Railway logs.
+  if (err instanceof CloudinaryUpstreamError || err?.isUpstreamFailure === true) {
+    const kind = (err as CloudinaryUpstreamError).kind ?? 'other';
+    console.error(
+      `[uploads] Upstream provider failure (cloudinary/${kind}): http_code=${err.http_code} msg="${err.cloudinary_message || err.message}"`
+    );
+    addBreadcrumb('Upload upstream failure', 'uploads.upstream', 'error', {
+      provider: 'cloudinary',
+      kind,
+      http_code: err.http_code,
+    });
+    const clientMessage =
+      kind === 'invalid_signature' || kind === 'unauthorized'
+        ? 'Upload service is misconfigured. Please try again in a minute or contact support.'
+        : 'Upload service is temporarily unavailable. Please try again.';
+    return res.status(502).json({
+      error: clientMessage,
+      code: `UPSTREAM_${kind.toUpperCase()}`,
+    });
+  }
+
+  // Legacy error shape from older call sites that still use plain http_code.
+  // Treat a 401/403 from an upload path as upstream failure too — the user's
+  // session was already checked by requireAuth before reaching here.
+  if (err.http_code === 401 || err.http_code === 403) {
+    console.error(`[uploads] Legacy upstream auth error: http_code=${err.http_code} msg="${err.message}"`);
+    return res.status(502).json({
+      error: 'Upload service is temporarily unavailable. Please try again.',
+      code: 'UPSTREAM_UNAUTHORIZED',
+    });
+  }
   if (err.http_code) {
     return res.status(err.http_code).json({ error: 'Upload failed' });
   }

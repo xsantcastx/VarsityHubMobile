@@ -1,5 +1,6 @@
 import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
+import { emitSessionExpired } from '@/utils/sessionEvents';
 import auth from './auth';
 import { getApiBaseUrl } from './http';
 
@@ -68,7 +69,17 @@ let _sigCache: { sig: { cloudName: string; apiKey: string; signature: string; ti
 const SIG_CACHE_TTL_MS = 55_000;
 
 async function getCloudinarySignature(baseUrl: string): Promise<{
-  cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string;
+  cloudName: string;
+  apiKey: string;
+  signature: string;
+  timestamp: number;
+  folder: string;
+  // v1.0.3: the server signs these constraints into the signature so the
+  // client can't weaken them. The client MUST send them back unchanged in
+  // the upload form, otherwise Cloudinary computes the signature over a
+  // different param set and rejects with "Invalid Signature".
+  allowed_formats?: string;
+  max_bytes?: string;
 } | null> {
   // Return cached signature if still fresh
   if (_sigCache && Date.now() - _sigCache.fetchedAt < SIG_CACHE_TTL_MS) {
@@ -124,7 +135,15 @@ async function uploadDirectToCloudinary(
   uri: string,
   filename: string,
   mimeType: string,
-  sig: { cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string },
+  sig: {
+    cloudName: string;
+    apiKey: string;
+    signature: string;
+    timestamp: number;
+    folder: string;
+    allowed_formats?: string;
+    max_bytes?: string;
+  },
   options?: UploadOptions,
 ): Promise<{ url: string; type: string; mime: string }> {
   const isVideo = mimeType.startsWith('video/');
@@ -137,6 +156,14 @@ async function uploadDirectToCloudinary(
   form.append('timestamp', String(sig.timestamp));
   form.append('folder', sig.folder);
   form.append('signature', sig.signature);
+  // v1.0.3: mirror every SIGNED param back in the form. The server signed these
+  // constraints into the signature; sending the form without them causes
+  // Cloudinary to compute a different hash and reject with "Invalid Signature"
+  // — the Sentry error that was surfacing to users as "Sign-in Required" in
+  // production. Order doesn't matter for transport; Cloudinary sorts keys
+  // before verifying.
+  if (sig.allowed_formats) form.append('allowed_formats', sig.allowed_formats);
+  if (sig.max_bytes) form.append('max_bytes', sig.max_bytes);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -315,6 +342,15 @@ async function uploadRawViaServer(
           headers.Authorization = `Bearer ${refreshed.accessToken}`;
           continue;
         }
+        // Refresh failed on an upload — session is dead. Clear tokens and
+        // emit so AuthProvider routes to /sign-in. Flag the error so the
+        // caller's upload-error alert suppresses the misleading "please
+        // sign out and sign back in" copy.
+        try { await auth.clearTokensOnly?.(); } catch {}
+        err.isSessionExpired = true;
+        emitSessionExpired(
+          refreshed?.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+        );
       }
       if (
         isEmailVerificationRequiredError(err?.status, err?.data) &&
@@ -509,6 +545,15 @@ async function uploadViaServer(
           headers.Authorization = `Bearer ${refreshed.accessToken}`;
           continue;
         }
+        // Refresh failed on an upload — session is dead. Clear tokens and
+        // emit so AuthProvider routes to /sign-in. Flag the error so the
+        // caller's upload-error alert suppresses the misleading "please
+        // sign out and sign back in" copy.
+        try { await auth.clearTokensOnly?.(); } catch {}
+        err.isSessionExpired = true;
+        emitSessionExpired(
+          refreshed?.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+        );
       }
       if (
         isEmailVerificationRequiredError(err?.status, err?.data) &&

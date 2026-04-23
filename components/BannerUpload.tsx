@@ -71,15 +71,6 @@ export function BannerUpload({
     return 'jpg';
   };
 
-  const toReadableError = (error: unknown): string => {
-    const message = String((error as any)?.message || '').trim();
-    if (!message) return 'Unknown error';
-    if (/upload failed|network error|timed out|unauthorized/i.test(message)) {
-      return message;
-    }
-    return message.length > 140 ? `${message.slice(0, 137)}...` : message;
-  };
-
   const handlePickImage = async () => {
     setUploading(true);
     try {
@@ -207,7 +198,11 @@ export function BannerUpload({
         try {
           uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
         } catch (uploadError: any) {
-          throw new Error(`Upload failed: ${toReadableError(uploadError)}`);
+          // v1.0.3: re-throw the original error (preserves status, isSessionExpired,
+          // etc.) so showUploadErrorAlert can classify it correctly. Previously we
+          // wrapped it in a new Error, which stripped the flags and fell through to
+          // the useless "Image Error — Something went wrong" fallback.
+          throw uploadError;
         }
         const uploadedUrl = uploaded?.url || uploaded?.signed_url || uploaded?.path;
         if (!uploadedUrl) {

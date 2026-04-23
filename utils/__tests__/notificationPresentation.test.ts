@@ -256,9 +256,17 @@ describe('getNotificationTitle — per type', () => {
     expect(title).toBe('Game reminder: Cats vs Dogs');
   });
 
-  it('unknown type → generic "Notification" fallback', () => {
+  it('unknown type with no actor → generic fallback', () => {
     const title = getNotificationTitle({ type: 'DEFINITELY_NOT_A_REAL_TYPE' });
-    expect(title).toBe('Notification');
+    expect(title).toBe('New notification');
+  });
+
+  it('unknown type with an actor → identifies the actor', () => {
+    const title = getNotificationTitle({
+      type: 'DEFINITELY_NOT_A_REAL_TYPE',
+      actor: { username: 'jane' },
+    });
+    expect(title).toBe('@jane sent you a notification');
   });
 });
 

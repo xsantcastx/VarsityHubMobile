@@ -3,6 +3,7 @@ import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
+import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
 
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
@@ -15,9 +16,24 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   const u = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { preferences: true, approval_status: true, paid_by_owner: true, email: true },
+    select: {
+      preferences: true,
+      approval_status: true,
+      paid_by_owner: true,
+      email: true,
+      // v1.0.3: include the top-level `role` + `onboarding_completed` columns so
+      // the canonical helpers can see them. Previously only `preferences` was
+      // selected, which made the onboarding-bypass fail whenever the column and
+      // the JSON had briefly diverged (updatePreferences writes both, but
+      // cache/timing races meant new coaches were blocked at step 3 with
+      // "Please complete onboarding before creating content.").
+      role: true,
+      onboarding_completed: true,
+    },
   });
   const prefs = u?.preferences as Record<string, unknown> | null;
+  const canonicalRole = getCanonicalUserRole(u as any);
+  const onboardingComplete = isUserOnboardingComplete(u as any);
 
   // God-admins bypass all onboarding/approval checks
   if (isEmailAdmin(u?.email)) {
@@ -39,23 +55,26 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     req.body?.onboarding === true ||
     String(req.body?.onboarding ?? '') === 'true';
 
+  // v1.0.3: use canonical role (checks both the `role` column and
+  // `preferences.role`) so a coach whose prefs JSON hasn't been repopulated
+  // after the last write can still submit their org during step 3.
   if (
     onboardingFlag &&
     (isTeamsCreateRoute || isOrgCreateRoute) &&
-    prefs?.onboarding_completed !== true &&
-    prefs?.role === 'coach'
+    !onboardingComplete &&
+    canonicalRole === 'coach'
   ) {
     return next();
   }
 
-  if (prefs?.onboarding_completed !== true) {
+  if (!onboardingComplete) {
     return res.status(403).json({ error: 'Please complete onboarding before creating content.' });
   }
 
   // Block coaches whose approval_status is not explicitly APPROVED.
   // The Prisma default is APPROVED (for fans), but coaches must be set to PENDING
   // during onboarding and only transition to APPROVED via god-admin or org-admin action.
-  if (prefs?.role === 'coach' && u?.approval_status !== 'APPROVED') {
+  if (canonicalRole === 'coach' && u?.approval_status !== 'APPROVED') {
     const isRejected = u?.approval_status === 'REJECTED';
     return res.status(403).json({
       error: isRejected
@@ -66,7 +85,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   }
 
   // Extra guard: coaches must belong to an admin-approved org
-  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
+  if (canonicalRole === 'coach' && u?.approval_status === 'APPROVED') {
     const orgId = prefs?.organization_id as string | undefined;
     if (orgId) {
       const org = await prisma.organization.findUnique({
@@ -84,7 +103,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   // v1.0.2: Approved coaches must accept the coach agreement before accessing coach tools.
   // Previously this was UI-only — any API client could bypass by calling coach endpoints directly.
-  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED') {
+  if (canonicalRole === 'coach' && u?.approval_status === 'APPROVED') {
     const acceptedAt = prefs?.coach_agreement_accepted_at;
     if (!acceptedAt) {
       return res.status(403).json({

@@ -62,8 +62,19 @@ describe('requireVerified ↔ requireOnboarded bypass parity', () => {
     // Defense-in-depth: even if bypass triggers, it must require the user to
     // be a coach who has not yet completed onboarding. If someone removes
     // either guard, generic users could bypass the gate.
+    //
+    // v1.0.3: accept both the old literal form (`prefs?.role === 'coach'`,
+    // `prefs?.onboarding_completed !== true`) and the new canonical-helper
+    // form (`canonicalRole === 'coach'`, `!onboardingComplete` derived from
+    // `isUserOnboardingComplete`). Both forms must still require the same
+    // two semantic guards — we just accept either spelling so a future
+    // canonical-helper refactor doesn't re-break this regression test.
     expect(/role\s*===\s*['"]coach['"]/.test(onboardedSrc)).toBe(true);
-    expect(/onboarding_completed\s*!==\s*true/.test(onboardedSrc)).toBe(true);
+    const hasLiteralOnboardingCheck = /onboarding_completed\s*!==\s*true/.test(onboardedSrc);
+    const hasCanonicalOnboardingCheck =
+      /isUserOnboardingComplete\s*\(/.test(onboardedSrc) &&
+      /!onboardingComplete\b/.test(onboardedSrc);
+    expect(hasLiteralOnboardingCheck || hasCanonicalOnboardingCheck).toBe(true);
   });
 
   it('does not embed upload-route bypass rules anymore', () => {

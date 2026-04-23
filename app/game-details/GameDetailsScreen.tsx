@@ -479,12 +479,15 @@ const canAddStory = (
   const eventDate = new Date(eventIso);
   if (Number.isNaN(eventDate.getTime())) return true;
 
-  // Stories can only be posted on the day of the event (same UTC calendar day).
-  // Must match server-side check in geofencing.ts which uses UTC.
+  // v1.0.3: mirror server's `isStoryPostingWindowOpen` in geofencing.ts —
+  // open from the start of the event's UTC day through +48h after event start.
+  // Previously this client check required the SAME UTC day, which blocked late
+  // uploads that the server would actually accept. User complaint: "users who
+  // are applicable can still upload up to 48 hours later."
   const now = new Date();
-  const eventDayUTC = eventDate.toISOString().slice(0, 10);
-  const todayUTC = now.toISOString().slice(0, 10);
-  return eventDayUTC === todayUTC;
+  const eventStartDayUtc = new Date(`${eventDate.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const windowEnd = new Date(eventDate.getTime() + 48 * 60 * 60 * 1000);
+  return now >= eventStartDayUtc && now <= windowEnd;
 };
 
 const capCount = (count?: number | null, capacity?: number | null) => {

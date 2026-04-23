@@ -19,11 +19,18 @@ export async function requireVerified(req: AuthedRequest, res: Response, next: N
     req.method === 'POST' &&
     (req.path === '/' || req.path === '/create');
 
-  if (req.body?.onboarding === true && (isTeamsCreateRoute || isOrgCreateRoute)) {
-    // Only allow bypass if user genuinely hasn't completed onboarding yet
+  const onboardingFlag =
+    req.body?.onboarding === true ||
+    String(req.body?.onboarding ?? '') === 'true';
+
+  if (onboardingFlag && (isTeamsCreateRoute || isOrgCreateRoute)) {
+    // Only allow bypass if user genuinely hasn't completed onboarding yet.
+    // v1.0.3: select both the `role` and `onboarding_completed` columns so
+    // the canonical helper reads the column-authoritative values (matches
+    // requireOnboarded.ts — the two middlewares must stay in lockstep).
     const onboardingUser = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { preferences: true, onboarding_completed: true },
+      select: { preferences: true, onboarding_completed: true, role: true },
     });
     if (!isUserOnboardingComplete(onboardingUser as any)) {
       return next();

@@ -82,9 +82,13 @@ function GameMapScreen() {
 
       const hasValidCoords = (item: any): boolean => resolveCoords(item) !== null;
 
-      // Transform games to EventMapData format
+      // Transform games to EventMapData format.
+      // v1.0.3: past games must drop off the map immediately, same as events.
+      // Previously only events were date-filtered, so a past game remained as
+      // a tappable pin that routed to the dead-end "This event has ended" page.
       const gameMarkers: EventMapData[] = gamesList
         .filter(hasValidCoords)
+        .filter((g: any) => shouldShowEventOnMap(g.date))
         .map((game: any) => {
           const coords = resolveCoords(game)!;
           return {

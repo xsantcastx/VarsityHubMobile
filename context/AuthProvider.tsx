@@ -25,6 +25,8 @@ import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
+import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
+import { showWarningToast } from '@/components/ErrorToast';
 import Notifications from '@/utils/notifications';
 import {
   getCoachAccessState,
@@ -469,6 +471,67 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     if (!user?.id) return false;
     return setupPushNotifications(user.id);
   }, [setupPushNotifications, user?.id]);
+
+  /**
+   * Handle an unrecoverable session expiry signalled from the HTTP layer.
+   * The tokens have already been cleared by api/http.ts or api/upload.ts,
+   * so this path deliberately skips `auth.logout()` (which would hit the
+   * server with the now-missing refresh token and fail). It just clears
+   * local state and routes to /sign-in — which replaces the old "please
+   * sign out and sign back in" alert that required the user to act.
+   */
+  const handleSessionExpired = useCallback(
+    async (reason: SessionExpiredReason) => {
+      const userBeforeExpiry = user;
+      if (pushTokenTimeoutRef.current) {
+        clearTimeout(pushTokenTimeoutRef.current);
+        pushTokenTimeoutRef.current = null;
+      }
+      if (subscriptionFetchTimeoutRef.current) {
+        clearTimeout(subscriptionFetchTimeoutRef.current);
+        subscriptionFetchTimeoutRef.current = null;
+      }
+      clearPostCacheOnLogout();
+      setUser(null);
+      setSentryUser(null);
+      setPendingVerificationEmail(null);
+      setHasCompletedOnboarding(false);
+      setSubscriptionTier('rookie');
+      setHasActiveSubscription(false);
+      try {
+        await AsyncStorage.multiRemove([
+          ONBOARDING_COMPLETE_KEY,
+          ONBOARDING_COMPLETE_USER_KEY,
+          'onboarding_state',
+          'onboarding_progress',
+          'onboarding_reducer_state',
+        ]);
+      } catch (storageErr) {
+        if (__DEV__)
+          console.warn('[AuthProvider] Failed to clear storage on session expiry:', storageErr);
+      }
+      lastPushRegistrationRef.current = null;
+      // Only surface a message if the user was actually signed in — a
+      // missing refresh token during a background bootstrap doesn't need
+      // a toast ("you were never really signed in").
+      if (userBeforeExpiry) {
+        try {
+          showWarningToast('Your session expired. Please sign in again.');
+        } catch {}
+      }
+      redirectWithTelemetry('/sign-in', `session_expired:${reason}`, userBeforeExpiry);
+    },
+    [redirectWithTelemetry, user]
+  );
+
+  useEffect(() => {
+    const unsubscribe = onSessionExpired(reason => {
+      void handleSessionExpired(reason).catch(err =>
+        captureException(err, { tags: { context: 'session_expired_handler' } })
+      );
+    });
+    return unsubscribe;
+  }, [handleSessionExpired]);
 
   React.useEffect(() => {
     registerPushTokenRef.current = registerPushToken;

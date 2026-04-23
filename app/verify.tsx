@@ -15,16 +15,32 @@ import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ delivery?: string }>();
+  const params = useLocalSearchParams<{ delivery?: string; devCode?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
-  const { pendingVerificationEmail, checkAuth, user, markOnboardingCompleteLocally: _markOnboardingCompleteLocally } = useAuth();
-  const [code, setCode] = useState('');
+  const { pendingVerificationEmail, checkAuth, user, signOut, markOnboardingCompleteLocally: _markOnboardingCompleteLocally } = useAuth();
+  const [code, setCode] = useState(() =>
+    // In dev, prefill the verification code when it's returned from signup so
+    // testers aren't forced to re-type a code that just came back in the API
+    // response. Never used in production builds (__DEV__ is stripped).
+    __DEV__ && typeof params.devCode === 'string' ? String(params.devCode).slice(0, 6) : ''
+  );
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // If a user somehow lands here with email_verified already true (stale
+  // route, manual deep link, backgrounded mid-flow), don't make them stare at
+  // a dead verification screen — get them into the app immediately. The
+  // AuthProvider routing effect will also catch this, but handling it here
+  // eliminates a visible flash on cold-start.
+  useEffect(() => {
+    if (user?.email_verified === true && !isVerified) {
+      void checkAuth();
+    }
+  }, [user?.email_verified, checkAuth, isVerified]);
 
   useEffect(() => {
     return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
@@ -238,13 +254,28 @@ export default function VerifyScreen() {
               {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
             </Text>
           </Pressable>
+          {/* Escape hatch: a user who can't verify (wrong email typed at signup,
+              lost access to inbox, etc.) must have a path back to sign-in.
+              Without this they're stuck — AuthProvider bounces any navigation
+              back to /verify as long as the account exists and is unverified. */}
+          <Pressable
+            onPress={() => { void signOut(); }}
+            disabled={loading}
+            style={{ marginTop: 16 }}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out and use a different account"
+          >
+            <Text style={[styles.linkText, { color: Colors[colorScheme].mutedText, fontSize: 13 }]}>
+              Wrong account? Sign out
+            </Text>
+          </Pressable>
         </View>
       )}
 
 
       {isVerified && (
         <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>
-          Automatically continuing in a few seconds...
+          Continuing to the app…
         </Text>
       )}
     </SafeAreaView>

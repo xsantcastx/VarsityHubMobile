@@ -41,4 +41,13 @@ describe('formatUserLabel', () => {
       email: null,
     }, 'Unknown User')).toBe('Unknown User');
   });
+
+  it('uses an id-based label when display_name, username, and email are empty but id exists', () => {
+    expect(formatUserLabel({
+      id: 'abc-123-def-4567',
+      display_name: null,
+      username: null,
+      email: null,
+    }, 'Unknown User')).toBe('User 4567');
+  });
 });

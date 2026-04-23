@@ -6,6 +6,7 @@
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import Constants from 'expo-constants';
 import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
+import { emitSessionExpired } from '@/utils/sessionEvents';
 
 export type HttpBehaviorOptions = {
   skipAuthRetry?: boolean;
@@ -313,9 +314,14 @@ async function request(
           retryErr.status = retryRes.status;
           retryErr.data = retryData;
           // A 401 after a successful refresh means the session is no longer usable.
-          // Clear persisted auth state, not just the in-memory access token.
+          // Clear persisted auth state and emit a session-expired event so
+          // AuthProvider can route the user to /sign-in. Callers see the
+          // `isSessionExpired` flag and suppress the misleading "please sign
+          // out and sign back in" modal.
           if (retryRes.status === 401) {
             await auth.clearTokensOnly();
+            retryErr.isSessionExpired = true;
+            emitSessionExpired('token_rejected_after_refresh');
           }
           throw retryErr;
         }
@@ -326,6 +332,10 @@ async function request(
           const authErr: any = new Error('Session expired');
           authErr.status = 401;
           authErr.data = { error: 'Session expired', code: 'SESSION_EXPIRED' };
+          authErr.isSessionExpired = true;
+          emitSessionExpired(
+            refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+          );
           throw authErr;
         }
 

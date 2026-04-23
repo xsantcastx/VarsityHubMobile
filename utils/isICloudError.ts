@@ -10,6 +10,8 @@
  * checked for 'public.png'. Now both share the same list.
  */
 export function isICloudError(error: unknown): boolean {
+  // v1.0.3: tagged errors from materializeICloudAsset short-circuit the string check.
+  if ((error as any)?.name === 'ICloudMaterializationError') return true;
   const msg = String((error as any)?.message || '').toLowerCase();
   return (
     msg.includes('icloud') ||
@@ -20,7 +22,8 @@ export function isICloudError(error: unknown): boolean {
     msg.includes('unable to decode') ||
     msg.includes('could not read') ||
     msg.includes('public.png') ||
-    msg.includes('failed to read picked image')
+    msg.includes('failed to read picked image') ||
+    msg.includes('stored in icloud')
   );
 }
 

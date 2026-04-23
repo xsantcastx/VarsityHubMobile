@@ -90,6 +90,26 @@ function getModerationParam(): string | null {
   return allowed.includes(raw) ? raw : null;
 }
 
+/**
+ * Sentinel type: an upstream provider (Cloudinary) rejected the request. This
+ * is an infrastructure failure — not a caller authorization problem. The HTTP
+ * route handler reads `.isUpstreamFailure` to surface a 502/503 to the client
+ * instead of leaking Cloudinary's 401 through as the user's session problem.
+ */
+export class CloudinaryUpstreamError extends Error {
+  readonly isUpstreamFailure = true as const;
+  readonly provider = 'cloudinary' as const;
+  constructor(
+    message: string,
+    public readonly http_code: number,
+    public readonly cloudinary_message: string | undefined,
+    public readonly kind: 'invalid_signature' | 'unauthorized' | 'server_error' | 'other'
+  ) {
+    super(message);
+    this.name = 'CloudinaryUpstreamError';
+  }
+}
+
 export async function uploadBufferToCloudinary(
   file: Express.Multer.File,
   opts?: { resourceType?: CloudinaryResourceType; folder?: string }
@@ -112,14 +132,23 @@ export async function uploadBufferToCloudinary(
   const imageFlags = isImage ? 'exif_autostrip,strip_profile' : undefined;
   const moderation = getModerationParam();
 
-  const params: Record<string, string> = {
+  // v1.0.3: single source of truth for SIGNED params. Any param added here is
+  // AUTOMATICALLY included in both the signature computation and the POST body.
+  // Previously these two collections drifted (signature vs. form.set blocks),
+  // which caused Cloudinary to reject with "Invalid Signature" when a new
+  // param was added to one side but not the other.
+  const signedParams: Record<string, string> = {
     folder,
     timestamp: String(timestamp),
-    ...(imageFlags ? { flags: imageFlags } : {}),
-    ...(moderation ? { moderation } : {}),
-    ...(isVideo ? { audio_codec: 'aac', video_codec: 'auto' } : {}),
   };
-  const signature = createSignature(params, apiSecret);
+  if (imageFlags) signedParams.flags = imageFlags;
+  if (moderation) signedParams.moderation = moderation;
+  if (isVideo) {
+    signedParams.audio_codec = 'aac';
+    signedParams.video_codec = 'auto';
+  }
+
+  const signature = createSignature(signedParams, apiSecret);
 
   const form = new FormData();
   form.set(
@@ -128,16 +157,14 @@ export async function uploadBufferToCloudinary(
       type: file.mimetype || 'application/octet-stream',
     })
   );
-  form.set('api_key', apiKey);
-  form.set('timestamp', String(timestamp));
-  form.set('folder', folder);
-  form.set('signature', signature);
-  if (imageFlags) form.set('flags', imageFlags);
-  if (moderation) form.set('moderation', moderation);
-  if (isVideo) {
-    form.set('audio_codec', 'aac');
-    form.set('video_codec', 'auto');
+  // Body mirrors signedParams 1:1 — never add form fields here without updating
+  // signedParams above (and vice versa). The loop below enforces this.
+  for (const [key, value] of Object.entries(signedParams)) {
+    form.set(key, value);
   }
+  // Cloudinary protocol extras that are NOT part of the signed string.
+  form.set('api_key', apiKey);
+  form.set('signature', signature);
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
     method: 'POST',
@@ -147,10 +174,17 @@ export async function uploadBufferToCloudinary(
   if (!response.ok) {
     const errorPayload = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
     const message = errorPayload?.error?.message || `Cloudinary upload failed (${response.status})`;
-    const err: any = new Error(message);
-    err.http_code = response.status;
-    err.cloudinary_message = message;
-    throw err;
+
+    // v1.0.3: classify the failure so the HTTP route can translate an upstream
+    // 401 ("Invalid Signature" / "Unknown API key") into a 502 for the client
+    // instead of letting it masquerade as the caller's session-expired state.
+    let kind: CloudinaryUpstreamError['kind'] = 'other';
+    if (response.status === 401) {
+      kind = /invalid signature/i.test(message) ? 'invalid_signature' : 'unauthorized';
+    } else if (response.status >= 500) {
+      kind = 'server_error';
+    }
+    throw new CloudinaryUpstreamError(message, response.status, message, kind);
   }
 
   const result = (await response.json()) as CloudinaryUploadResult;

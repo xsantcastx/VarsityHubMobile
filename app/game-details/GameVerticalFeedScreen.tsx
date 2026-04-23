@@ -505,10 +505,22 @@ const FeedCard = memo(
             onNext={onNext}
           />
 
-          {/* Avatar tap opens the poster profile; follow action stays separate. */}
+          {/* Avatar tap opens the poster profile. The previous "+" follow
+              badge overlay (red-on-avatar) was removed in v1.0.3 at user
+              request — it cluttered the viewer and duplicated the follow
+              affordance already on the profile page. Follow from there. */}
           {post.author?.id !== meInfo?.id ? (
             <View style={styles.railAvatarWrap}>
-              <Pressable onPress={onOpenAuthorProfile} style={styles.railAvatarBtn}>
+              <Pressable
+                onPress={onOpenAuthorProfile}
+                style={styles.railAvatarBtn}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  post.author?.username
+                    ? `Open @${post.author.username}'s profile`
+                    : "Open author's profile"
+                }
+              >
                 {post.author?.avatar_url ? (
                   <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
                 ) : (
@@ -518,21 +530,6 @@ const FeedCard = memo(
                     </Text>
                   </View>
                 )}
-              </Pressable>
-              <Pressable
-                onPress={onToggleFollow}
-                style={[
-                  styles.railFollowPlus,
-                  post.is_following_author ? styles.railFollowPlusActive : null,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={post.is_following_author ? 'Unfollow author' : 'Follow author'}
-              >
-                <Ionicons
-                  name={post.is_following_author ? 'checkmark' : 'add'}
-                  size={12}
-                  color="#fff"
-                />
               </Pressable>
             </View>
           ) : null}
@@ -1769,19 +1766,9 @@ const styles = StyleSheet.create({
   },
   railAvatarBtn: {},
   railAvatarImg: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1f2937' },
-  railFollowPlus: {
-    position: 'absolute',
-    bottom: -6,
-    alignSelf: 'center',
-    backgroundColor: '#2563eb',
-    borderRadius: 12,
-    padding: 4,
-    borderWidth: 2,
-    borderColor: '#0f172a',
-  },
-  railFollowPlusActive: {
-    backgroundColor: '#10b981',
-  },
+  // v1.0.3: `railFollowPlus` / `railFollowPlusActive` were removed along with
+  // the overlay badge on the avatar. Kept out of the stylesheet so future
+  // greps don't trip over a dead style.
   railBtn: { alignItems: 'center', marginBottom: 24 },
   railLabel: {
     color: '#fff',

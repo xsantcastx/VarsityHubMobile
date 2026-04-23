@@ -159,8 +159,11 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
   const teamLabels = useMemo(() => deriveTeamLabels(post), [post]);
 
   const StatPill = ({ icon, value }: { icon: any; value: number }) => (
+    // v1.0.3: icon size bumped 12 → 14. MaterialIcons glyphs below 14pt can
+    // fall back to the `?` replacement character on iOS for certain icons
+    // (arrow-upward, chat-bubble-outline). 14 is the minimum reliable size.
     <View style={styles.statPill}>
-      <MaterialIcons name={icon} size={12} color="#fff" />
+      <MaterialIcons name={icon} size={14} color="#fff" />
       <Text style={styles.statPillText}>{value}</Text>
     </View>
   );

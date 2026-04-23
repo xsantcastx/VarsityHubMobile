@@ -88,7 +88,14 @@ export function getNotificationTitle(item: NotificationItem) {
     return `Your application to join ${item.meta?.organization_name || 'the league'} was not approved.${item.meta?.reason ? ` ${item.meta.reason}` : ''}`;
   }
 
-  return 'Notification';
+  // v1.0.3: previously unknown/missing types showed a bare "Notification"
+  // label — useless for the user and indistinguishable from other items.
+  // If we have an actor, at least identify them; otherwise fall through to
+  // a clearer generic string.
+  if (item.actor?.username || item.actor?.display_name) {
+    return `${name} sent you a notification`;
+  }
+  return 'New notification';
 }
 
 export function getNotificationHref(item: NotificationItem): any | null {

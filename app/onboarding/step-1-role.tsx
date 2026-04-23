@@ -239,13 +239,39 @@ export default function Step1Role() {
         setOB((prev) => ({ ...prev, role }));
       }
       
-      // Persist role to server so the schema/preferences reflect the user's selection
-      try {
-        await User.updatePreferences({ role });
-      } catch (error) {
-        if (__DEV__) {
-          if (__DEV__) console.warn('[Onboarding][Step1] failed to persist role to server', error);
+      // Persist role to server so the schema/preferences reflect the user's selection.
+      // v1.0.3: do NOT swallow this error silently. A failed role-persist means
+      // requireOnboarded's coach bypass at step 3 will reject with "Please complete
+      // onboarding before creating content." — the user is then trapped. Retry
+      // once on transient network errors, and surface a visible error otherwise so
+      // the user can retry intentionally instead of ending up in a dead-end at step 3.
+      const persistRole = async (attempt = 1): Promise<void> => {
+        try {
+          await User.updatePreferences({ role });
+        } catch (error: any) {
+          const isTransient =
+            error?.status === 0 ||
+            error?.status === 408 ||
+            error?.status === 502 ||
+            error?.status === 503 ||
+            /network|timeout/i.test(String(error?.message || ''));
+          if (isTransient && attempt < 2) {
+            await new Promise(r => setTimeout(r, 1500));
+            return persistRole(attempt + 1);
+          }
+          throw error;
         }
+      };
+      try {
+        await persistRole();
+      } catch (error: any) {
+        if (__DEV__) console.warn('[Onboarding][Step1] failed to persist role to server', error);
+        Alert.alert(
+          'Could not save your role',
+          'We couldn\'t save your selection. Please check your connection and try again.'
+        );
+        dispatch({ type: 'SAVE_FAIL', error: error as Error });
+        return; // Do NOT navigate to step 2 — continuing would leave server role unset.
       }
       
       // Always go to step 2 (basic info) after role selection — never skip

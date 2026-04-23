@@ -393,8 +393,13 @@ export default function Step2Basic() {
     (ob.role === 'fan' || (affiliation && zip.trim().length >= 5)); // Coaches need affiliation + zip
 
   const onBack = () => {
+    // v1.0.3: step-1-role navigates to step-2 via router.replace(), so history
+    // is empty at step-2 and safeGoBack falls back to the tabs feed — trapping
+    // the user. Use router.replace() back to step-1-role explicitly so the user
+    // can change their role choice (fan ↔ coach) without getting kicked out of
+    // onboarding. Onboarding state is preserved in OnboardingContext.
     setProgress(0);
-    safeGoBack(router);
+    router.replace('/onboarding/step-1-role' as any);
   };
 
   const onContinue = async () => {
