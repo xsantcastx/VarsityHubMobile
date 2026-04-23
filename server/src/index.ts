@@ -60,7 +60,15 @@ await initEmailService();
     'SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID',
     'SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID',
   ];
-  const templateIdPattern = /^d-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // SendGrid accepts both compact (d-{32 hex}) and hyphenated (d-{uuid}) forms.
+  // The compact form is 34 chars total; hyphenated is 38. Earlier versions of
+  // this validator only accepted the hyphenated form, which false-flagged
+  // every correctly-configured env value in Railway.
+  const compactFormat = /^d-[0-9a-f]{32}$/i;
+  const hyphenatedFormat = /^d-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const templateIdPattern = {
+    test: (v: string) => compactFormat.test(v) || hyphenatedFormat.test(v),
+  };
   const invalid: Array<{
     key: string;
     length: number;
@@ -77,10 +85,9 @@ await initEmailService();
     if (templateIdPattern.test(value)) continue;
 
     // Diagnostic fingerprint — safe to log, doesn't expose the full secret.
-    let issue = 'does not match d-{uuid} format';
+    let issue = 'does not match d-{uuid} format (expected d-{32 hex} or d-{8-4-4-4-12 hex})';
     if (!value.startsWith('d-')) issue = 'missing d- prefix (legacy V2 template? regenerate as dynamic in SendGrid)';
-    else if (value.length !== 38) issue = `wrong length (${value.length}, expected 38)`;
-    else if ((value.match(/-/g) || []).length !== 5) issue = 'wrong hyphen count (expected 5)';
+    else if (value.length !== 34 && value.length !== 38) issue = `wrong length (${value.length}, expected 34 compact or 38 hyphenated)`;
     else if (value !== raw) issue = 'contains leading/trailing whitespace in the env value';
     else if (/[^0-9a-f-]/i.test(value.slice(2))) issue = 'contains non-hex characters';
 
