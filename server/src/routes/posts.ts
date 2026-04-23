@@ -993,6 +993,7 @@ postsRouter.post(
 postsRouter.post(
   '/:id/poll',
   requireAuth as any,
+  requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const postId = String(req.params.id);
@@ -1051,6 +1052,7 @@ postsRouter.post(
 postsRouter.post(
   '/:id/poll/vote',
   requireAuth as any,
+  requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const postId = String(req.params.id);
@@ -1340,6 +1342,8 @@ postsRouter.get(
 postsRouter.post(
   '/:id/comments',
   requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
   commentLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     // req.user is guaranteed by requireAuth middleware

@@ -29,13 +29,17 @@ const isTruthyEnv = (v: string | undefined): boolean =>
 const rateLimitingDisabled =
   isTruthyEnv(process.env.DISABLE_RATE_LIMITING) || isTruthyEnv(process.env.RATE_LIMIT_DISABLE);
 
-// v1.0.2 pass 9: log loudly at boot when rate limiting is disabled. Previously a stray
-// dev env var leaking into staging/prod would silently disable all limiters.
+// v1.0.2 pass 9 / v1.0.3: hard-fail if rate limiting is disabled in production.
+// Previously this only warned, which meant a stray dev env var leaking into prod
+// silently unthrottled every endpoint — a DoS foot-gun hiding in a log line.
+// Production has no legitimate reason to run without rate limiting; force a
+// loud crash so ops notices immediately and reverts the env var.
 if (rateLimitingDisabled) {
   const msg =
     '⚠️  RATE LIMITING DISABLED via DISABLE_RATE_LIMITING / RATE_LIMIT_DISABLE — every endpoint is unthrottled.';
   if (process.env.NODE_ENV === 'production') {
-    console.error('[CRITICAL]', msg, 'This should NEVER be set in production.');
+    console.error('[FATAL]', msg, 'This must NEVER be set in production. Refusing to start.');
+    process.exit(1);
   } else {
     console.warn(msg);
   }

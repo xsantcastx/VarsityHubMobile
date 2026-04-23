@@ -222,11 +222,15 @@ if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length ===
   );
 }
 
-// Warn if Apple simulator tokens are enabled in production
+// v1.0.3: hard-fail if Apple simulator tokens are enabled in production.
+// Previously only warned, which could let a stray env var ship simulator
+// auth to real users. Simulator tokens bypass Apple's receipt validation
+// pipeline and must never run in production.
 if (process.env.NODE_ENV === 'production' && process.env.ALLOW_APPLE_SIM_TOKENS === 'true') {
   console.error(
-    '[auth] WARNING: ALLOW_APPLE_SIM_TOKENS is enabled in production — this is a security risk. Disable immediately.'
+    '[auth] FATAL: ALLOW_APPLE_SIM_TOKENS is enabled in production — this is a dev-only flag that bypasses Apple receipt validation. Refusing to start.'
   );
+  process.exit(1);
 }
 
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
