@@ -77,6 +77,30 @@ function AdminDashboardScreen() {
   const [coachDetailModal, setCoachDetailModal] = useState<PendingCoach | null>(null);
   const [leagueDetailModal, setLeagueDetailModal] = useState<PendingLeague | null>(null);
 
+  const formatAdminActionError = (err: any, fallback: string) => {
+    const serverData = err?.data || err?.response?.data;
+    const serverError = serverData?.error || serverData?.message;
+    const issues = serverData?.issues || serverData?.details?.issues;
+
+    if (Array.isArray(issues) && issues.length > 0) {
+      const detail = issues
+        .slice(0, 3)
+        .map((i: any) => `${Array.isArray(i.path) ? i.path.join('.') : i.path || 'field'}: ${i.message}`)
+        .join('\n');
+      return detail || fallback;
+    }
+
+    if (typeof serverError === 'string' && serverError.length < 300) {
+      return serverError;
+    }
+
+    if (typeof err?.message === 'string' && err.message.length < 300 && !/^HTTP \d/.test(err.message)) {
+      return err.message;
+    }
+
+    return fallback;
+  };
+
   const handleApproveCoach = (coach: PendingCoach) => {
     setCoachNote('');
     setCoachModal({ coach, action: 'approve' });
@@ -115,7 +139,8 @@ function AdminDashboardScreen() {
         coach_id: coach.id,
         error: e?.message || 'unknown_error',
       }, 'error');
-      Alert.alert('Error', e?.message || `Failed to ${action} coach`);
+      const detail = formatAdminActionError(e, `Failed to ${action} coach`);
+      Alert.alert('Error', detail);
     } finally {
       setCoachActionId(null);
     }
@@ -163,7 +188,8 @@ function AdminDashboardScreen() {
         league_id: league.id,
         error: e?.message || 'unknown_error',
       }, 'error');
-      Alert.alert('Error', e?.message || `Failed to ${action} league`);
+      const detail = formatAdminActionError(e, `Failed to ${action} league`);
+      Alert.alert('Error', detail);
     } finally {
       setLeagueActionId(null);
     }

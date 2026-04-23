@@ -33,6 +33,49 @@ await initEmailService();
   }
 }
 
+// v1.0.3: validate SendGrid template ID formats on boot to catch bad GUIDs early.
+{
+  const templateVars = [
+    'SENDGRID_VERIFICATION_TEMPLATE_ID',
+    'SENDGRID_USER_CONFIRMATION_TEMPLATE_ID',
+    'SENDGRID_PASSWORD_RESET_TEMPLATE_ID',
+    'SENDGRID_TEAM_INVITE_TEMPLATE_ID',
+    'SENDGRID_ORG_INVITE_TEMPLATE_ID',
+    'SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID',
+    'SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID',
+    'SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID',
+    'SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID',
+    'SENDGRID_EVENT_APPROVED_TEMPLATE_ID',
+    'SENDGRID_EVENT_DENIED_TEMPLATE_ID',
+    'SENDGRID_EVENT_CANCELED_TEMPLATE_ID',
+    'SENDGRID_EVENT_CANCELLATION_TEMPLATE_ID',
+    'SENDGRID_PAYMENT_FAILED_TEMPLATE_ID',
+    'SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID',
+    'SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID',
+    'SENDGRID_AD_APPROVED_TEMPLATE_ID',
+    'SENDGRID_AD_REJECTED_TEMPLATE_ID',
+    'SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID',
+    'SENDGRID_ORG_APPROVAL_TEMPLATE_ID',
+    'SENDGRID_ORG_DENIAL_TEMPLATE_ID',
+    'SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID',
+    'SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID',
+  ];
+  const templateIdPattern = /^d-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const invalid: string[] = [];
+
+  for (const key of templateVars) {
+    const value = process.env[key];
+    if (!value) continue;
+    if (!templateIdPattern.test(value.trim())) invalid.push(key);
+  }
+
+  if (invalid.length > 0) {
+    const msg = `[startup] ⚠️  Invalid SendGrid template ID format: ${invalid.join(', ')}`;
+    console.warn(msg);
+    captureMessage(msg, 'warning');
+  }
+}
+
 // v1.0.3: Cloudinary auth smoke test on boot. Runs a 1x1 PNG probe against
 // Cloudinary signed upload, logs the exact outcome to Railway stdout so any
 // signature/credential drift is visible within the first 10 seconds of a
