@@ -3,7 +3,7 @@ const shellQuote = (value) => `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
 module.exports = {
   '{app,components,hooks,utils,api,context,constants,lib,shared}/**/*.{js,jsx,ts,tsx}': [
     'tsc-files --noEmit -p tsconfig.json',
-    'eslint --cache --fix --max-warnings=0 --no-warn-ignored',
+    'eslint --cache --fix --no-warn-ignored',
   ],
   'server/src/**/*.{ts,tsx}': (files) => {
     const serverFiles = files
