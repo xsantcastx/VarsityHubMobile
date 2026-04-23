@@ -837,6 +837,7 @@ export default function SettingsScreen() {
                             await routeCoachOnboarding(fresh);
                           } catch (e: any) {
                             const msg = e?.data?.error || e?.message || '';
+                            const code = e?.data?.code;
                             if (msg.toLowerCase().includes('already a coach')) {
                               setRole('coach');
                               setPlan('rookie');
@@ -844,7 +845,34 @@ export default function SettingsScreen() {
                               await routeCoachOnboarding();
                               return;
                             }
-                            Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');
+                            // v1.0.3: surface the specific server error codes that
+                            // block upgrade so users know exactly what to do.
+                            if (code === 'REJECTION_COOLDOWN') {
+                              const retryAt = e?.data?.retry_at;
+                              const hrs = e?.data?.retry_after_hours;
+                              let msgText = 'You can try again once the cooldown expires.';
+                              if (typeof retryAt === 'string') {
+                                const when = new Date(retryAt);
+                                if (!isNaN(when.getTime())) {
+                                  msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+                                }
+                              } else if (hrs) {
+                                msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
+                              }
+                              Alert.alert('Please wait', msgText);
+                            } else if (code === 'DOB_REQUIRED') {
+                              Alert.alert(
+                                'Date of birth required',
+                                'We need your date of birth on file before you can upgrade to a coach account. Tap Edit Profile to add it.'
+                              );
+                            } else if (code === 'AGE_REQUIREMENT') {
+                              Alert.alert(
+                                'Age requirement',
+                                'Coach accounts require users to be at least 18 years old.'
+                              );
+                            } else {
+                              Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');
+                            }
                           } finally {
                             setUpgradingToCoach(false);
                           }
