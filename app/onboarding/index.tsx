@@ -1,6 +1,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
+import { getPendingCoachRoute } from '@/utils/roleChecks';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -49,15 +50,31 @@ export default function OnboardingIndex() {
     const role = state?.role as 'fan' | 'coach' | undefined;
     const calculatedStepIndex = nextIncompleteStep(state, role);
 
-    // Edge case: if all steps are complete, the user shouldn't be in onboarding at all.
-    // AuthProvider should have routed them to /(tabs), but if they got here anyway
-    // (e.g. deep link, stale navigation), push them out rather than looping on the last step.
+    const serverComplete = user.preferences?.onboarding_completed === true;
+
+    // Only the server can declare onboarding complete. Local draft state can have
+    // all required fields while the completion call is still pending/failed.
+    // Treating draft completeness as "done" kicks users to /(tabs), after which
+    // AuthProvider sends them back into onboarding and creates a loop.
     const allComplete = role === 'coach'
       ? (!!state?.role && !!state?.step_2_visited && !!(state?.join_request_pending || state?.organization_id))
       : (!!state?.role && !!state?.step_2_visited);
-    if (allComplete) {
+    if (serverComplete && allComplete) {
       setHasNavigated(true);
       router.replace('/(tabs)' as any);
+      return;
+    }
+
+    if (!serverComplete && role === 'coach' && allComplete) {
+      setHasNavigated(true);
+      router.replace(
+        getPendingCoachRoute({
+          preferences: {
+            join_request_pending: state?.join_request_pending,
+            organization_id: state?.organization_id,
+          },
+        }) as any
+      );
       return;
     }
 

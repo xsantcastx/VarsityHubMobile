@@ -1,6 +1,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 import { Image } from 'expo-image';
 import { useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
@@ -41,15 +42,7 @@ export default function Index() {
         return;
       }
 
-      if (!user) {
-        router.replace('/sign-in');
-      } else if (user.email_verified !== true) {
-        router.replace('/verify');
-      } else if (user.preferences?.onboarding_completed !== true) {
-        router.replace('/onboarding/step-1-role');
-      } else {
-        router.replace('/(tabs)' as any);
-      }
+      router.replace(getPostAuthLandingRoute(user as any) as any);
     }, 3000);
 
     return () => clearTimeout(timeout);

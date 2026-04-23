@@ -20,6 +20,7 @@ import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import auth from '@/api/auth';
 
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
@@ -42,6 +43,11 @@ export default function SignUpScreen() {
   const submitting = useRef(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [confirmedAge, setConfirmedAge] = useState(false);
+
+  const resetSessionForReplacementAuth = async () => {
+    await auth.clearTokensOnly();
+    await checkAuth().catch(() => {});
+  };
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
@@ -116,6 +122,7 @@ export default function SignUpScreen() {
     setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
 
     try {
+      await resetSessionForReplacementAuth();
       const res: any = await attemptRegistration();
       // Registration response already saved tokens — AuthProvider will pick them up.
       // Don't call checkAuth() here to avoid a navigation race with router.replace below.
@@ -174,6 +181,7 @@ export default function SignUpScreen() {
     }
     setError(null);
     try {
+      await resetSessionForReplacementAuth();
       trackTap('auth_google_tap', { screen: 'sign_up' });
       await signInWithGoogle();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'google' });
@@ -203,6 +211,7 @@ export default function SignUpScreen() {
     }
     setError(null);
     try {
+      await resetSessionForReplacementAuth();
       trackTap('auth_apple_tap', { screen: 'sign_up' });
       await signInWithApple();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'apple' });

@@ -49,6 +49,11 @@ export default function SignInScreen() {
   const { checkAuth, registerPushToken } = useAuth();
   const insets = useSafeAreaInsets();
 
+  const resetSessionForReplacementLogin = async () => {
+    await auth.clearTokensOnly();
+    await checkAuth().catch(() => {});
+  };
+
   const onSubmit = async () => {
     if (loading) return;
     if (!email || !password) {
@@ -67,6 +72,7 @@ export default function SignInScreen() {
       has_email: !!email.trim(),
     });
     try {
+      await resetSessionForReplacementLogin();
       const res: any = await User.loginViaEmailPassword(email, password);
 
       if (!res?.access_token) {
@@ -105,10 +111,8 @@ export default function SignInScreen() {
           captureException(err, { tags: { context: 'push-token-register-email-login' } });
         });
       } catch (authError) {
-        // Token is saved, let AuthProvider handle routing
-        // Don't show error - token is valid, routing will happen
-        // eslint-disable-next-line no-console
         if (__DEV__) console.log('[sign-in] checkAuth after email login:', authError);
+        setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
@@ -162,9 +166,8 @@ export default function SignInScreen() {
     captureBreadcrumb('Sign-in started', 'auth.sign_in', {
       method: 'google',
     });
-    // Clear any existing session so the new token is the only one in use (prevents wrong-account after Apple/Google)
-    await auth.clearTokensOnly();
     try {
+      await resetSessionForReplacementLogin();
       const response: any = await signInWithGoogle();
 
       if (!response?.access_token) {
@@ -235,9 +238,8 @@ export default function SignInScreen() {
     captureBreadcrumb('Sign-in started', 'auth.sign_in', {
       method: 'apple',
     });
-    // Clear any existing session so the new token is the only one in use (prevents wrong-account after Google/Apple)
-    await auth.clearTokensOnly();
     try {
+      await resetSessionForReplacementLogin();
       const response: any = await signInWithApple();
 
       if (!response?.access_token) {

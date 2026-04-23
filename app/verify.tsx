@@ -150,8 +150,16 @@ export default function VerifyScreen() {
         duration_ms: String(resendDuration),
         sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production',
       });
-
-      setInfo('Verification code sent! Please check your email (and spam folder).');
+      if (res?.verification_email_sent === false) {
+        const deliveryError = String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED');
+        setError(
+          deliveryError === 'EMAIL_DELIVERY_TIMEOUT'
+            ? 'We created a new verification code, but email delivery timed out. Try again shortly or contact support if this keeps happening.'
+            : 'We created a new verification code, but the verification email could not be sent. Please try again later or contact support.'
+        );
+      } else {
+        setInfo('Verification code sent! Please check your email (and spam folder).');
+      }
       setResendCooldown(60);
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;

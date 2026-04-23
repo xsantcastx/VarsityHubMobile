@@ -2823,23 +2823,32 @@ authRouter.post(
         code,
         user.display_name || user.email.split('@')[0]
       );
+      const payload: any = { ok: true, verification_email_sent: sent };
       if (!sent) {
         console.error(
           '[verify-code] [verify/request] sendVerificationEmail returned false — email was NOT sent (check SendGridProvider logs above for the specific error)'
         );
+        payload.verification_email_error = 'EMAIL_DELIVERY_FAILED';
       } else {
         console.log(
           '[verify-code] [verify/request] sendVerificationEmail returned true — email accepted by SendGrid'
         );
       }
+      if (shouldExposeDevCodes) payload.dev_verification_code = code;
+      await rlSet(verifyLastKey, String(Date.now()), 30_000);
+      return res.json(payload);
     } catch (e) {
       console.error('[verify-code] [verify/request] sendVerificationEmail threw:', e);
       (req as any).log?.warn?.({ err: e }, 'Email send failed');
+      const payload: any = {
+        ok: true,
+        verification_email_sent: false,
+        verification_email_error: 'EMAIL_DELIVERY_EXCEPTION',
+      };
+      if (shouldExposeDevCodes) payload.dev_verification_code = code;
+      await rlSet(verifyLastKey, String(Date.now()), 30_000);
+      return res.json(payload);
     }
-    const payload: any = { ok: true };
-    if (shouldExposeDevCodes) payload.dev_verification_code = code;
-    await rlSet(verifyLastKey, String(Date.now()), 30_000);
-    return res.json(payload);
   })
 );
 

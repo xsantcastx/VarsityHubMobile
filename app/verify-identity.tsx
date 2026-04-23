@@ -12,6 +12,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
+import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 
 type ParamValue = string | string[] | undefined;
 
@@ -75,15 +76,11 @@ function VerifyScreen() {
       // the error and let the user tap Continue to retry instead.
       try {
         const userInfo = await User.me();
-        const needsOnboarding = userInfo?.preferences?.onboarding_completed !== true;
+        const targetRoute = getPostAuthLandingRoute(userInfo);
 
         // Auto-redirect after 3 seconds
         redirectTimerRef.current = setTimeout(() => {
-          if (needsOnboarding) {
-            router.replace('/onboarding/step-1-role');
-          } else {
-            router.push('/(tabs)' as any);
-          }
+          router.replace(targetRoute as any);
         }, 3000);
 
       } catch (meErr: any) {
@@ -109,7 +106,16 @@ function VerifyScreen() {
     setLoading(true); setError(null); setInfo(null);
     try {
       const res: any = await User.requestVerification();
-      setInfo(__DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
+      if (res?.verification_email_sent === false) {
+        const deliveryError = String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED');
+        setError(
+          deliveryError === 'EMAIL_DELIVERY_TIMEOUT'
+            ? 'A new verification code was created, but email delivery timed out. Please try again shortly.'
+            : 'A new verification code was created, but the email could not be sent. Please try again later.'
+        );
+      } else {
+        setInfo(__DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
+      }
     } catch (e: any) {
       const errorMsg = e?.message || e?.data?.error || 'Resend failed';
       setError(errorMsg);
@@ -121,13 +127,7 @@ function VerifyScreen() {
   const onContinue = async () => {
     try {
       const userInfo = await User.me();
-      const needsOnboarding = userInfo?.preferences?.onboarding_completed !== true;
-
-      if (needsOnboarding) {
-        router.replace('/onboarding/step-1-role');
-      } else {
-        router.push('/(tabs)' as any);
-      }
+      router.replace(getPostAuthLandingRoute(userInfo) as any);
     } catch (err: any) {
       // v1.0.2 pass 12: distinguish auth errors (401/403) from transient network
       // failures. Previously every error dumped the user into step-1-role even

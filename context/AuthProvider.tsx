@@ -253,6 +253,25 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     []
   );
 
+  const clearLocalAuthState = useCallback(() => {
+    if (pushTokenTimeoutRef.current) {
+      clearTimeout(pushTokenTimeoutRef.current);
+      pushTokenTimeoutRef.current = null;
+    }
+    if (subscriptionFetchTimeoutRef.current) {
+      clearTimeout(subscriptionFetchTimeoutRef.current);
+      subscriptionFetchTimeoutRef.current = null;
+    }
+    clearPostCacheOnLogout();
+    setUser(null);
+    setSentryUser(null);
+    setPendingVerificationEmail(null);
+    setHasCompletedOnboarding(false);
+    setSubscriptionTier('rookie');
+    setHasActiveSubscription(false);
+    lastPushRegistrationRef.current = null;
+  }, []);
+
   // Check authentication
   const checkAuth = useCallback(
     async (options?: {
@@ -271,7 +290,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Try to fetch current user only if we have a token
         const token = await auth.getToken();
         if (!token) {
-          setUser(null);
+          clearLocalAuthState();
           return;
         }
 
@@ -279,9 +298,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         // If user is banned, clear session and redirect to sign-in
         if (me?.banned) {
-          setUser(null);
-          setSentryUser(null);
-          setPendingVerificationEmail(null);
+          clearLocalAuthState();
           try {
             await auth.logout();
           } catch {}
@@ -354,9 +371,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Only clear auth state on explicit unauthorized responses.
         // For transient network/server errors, preserve the existing session.
         if (err?.status === 401) {
-          setUser(null);
-          setSentryUser(null);
-          setPendingVerificationEmail(null);
+          clearLocalAuthState();
           throw err; // Rethrow 401 so callers (sign-in, sign-up) can handle it
         }
         if (__DEV__)
@@ -364,7 +379,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return null; // Don't crash the app on transient network/server errors
       }
     },
-    [fetchSubscription, isOnboardingComplete]
+    [clearLocalAuthState, fetchSubscription, isOnboardingComplete]
   );
 
   const checkAuthRef = React.useRef(checkAuth);
@@ -440,21 +455,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     } catch (error) {
       if (__DEV__) console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
-      if (pushTokenTimeoutRef.current) {
-        clearTimeout(pushTokenTimeoutRef.current);
-        pushTokenTimeoutRef.current = null;
-      }
-      if (subscriptionFetchTimeoutRef.current) {
-        clearTimeout(subscriptionFetchTimeoutRef.current);
-        subscriptionFetchTimeoutRef.current = null;
-      }
-      clearPostCacheOnLogout();
-      setUser(null);
-      setSentryUser(null);
-      setPendingVerificationEmail(null);
-      setHasCompletedOnboarding(false);
-      setSubscriptionTier('rookie');
-      setHasActiveSubscription(false);
+      clearLocalAuthState();
       await AsyncStorage.multiRemove([
         ONBOARDING_COMPLETE_KEY,
         ONBOARDING_COMPLETE_USER_KEY,
@@ -462,10 +463,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         'onboarding_progress',
         'onboarding_reducer_state',
       ]);
-      lastPushRegistrationRef.current = null;
       redirectWithTelemetry('/sign-in', 'sign_out', userBeforeSignOut);
     }
-  }, [redirectWithTelemetry, user]);
+  }, [clearLocalAuthState, redirectWithTelemetry, user]);
 
   const registerPushToken = useCallback(async () => {
     if (!user?.id) return false;
@@ -868,7 +868,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // Approved coach with incomplete onboarding (approved while app was closed)
-      // Send to the correct onboarding step — NOT back to pending-approval (causes loop)
+      // must finish through the pending-completion screen. Routing them to a raw
+      // onboarding step or a coach tool screen creates a bounce:
+      // incomplete auth state -> non-onboarding route -> AuthProvider yanks them
+      // back -> screen logic pushes elsewhere again.
       if (
         needsOnboarding &&
         coachAccess.isApprovedCoach &&
@@ -876,9 +879,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       ) {
         if (__DEV__)
           console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
-        // Check if they have an org yet — if not, send to league step; if yes, send to create-team
-        const hasOrg = !!(user.organization_id || user.preferences?.organization_id);
-        const target = hasOrg ? '/(tabs)/create-team' : '/onboarding/step-3-league';
+        const target = getPendingCoachRoute(user);
         if (lastRedirectRef.current !== target) {
           redirectWithTelemetry(target, 'approved_coach_post_approval_setup');
         }

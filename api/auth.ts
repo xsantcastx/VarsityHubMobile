@@ -204,6 +204,7 @@ export async function loadToken(): Promise<string | null> {
 /** Clear tokens locally only (no server call). Use before OAuth so the new provider’s token is the only one in use. */
 export const auth = {
   async clearTokensOnly() {
+    invalidateMeCache();
     clearAuthToken();
     try {
       if (Platform.OS === 'web') {

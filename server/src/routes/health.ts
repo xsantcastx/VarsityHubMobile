@@ -7,6 +7,7 @@ import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
 import { prisma } from '../lib/prisma.js';
 import { getObjectStorageAdapter } from '../lib/objectStorage.js';
+import { resolveHealthCheckSecret } from '../lib/healthCheckSecret.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
@@ -21,8 +22,8 @@ export const healthRouter = Router();
  */
 healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
   // Only return detailed status if the caller provides the correct secret
-  const secret = process.env.HEALTH_CHECK_SECRET;
-  const provided = req.headers['x-health-check-secret'] as string | undefined;
+  const secret = resolveHealthCheckSecret();
+  const provided = String(req.headers['x-health-check-secret'] || '').trim();
   if (!secret || !provided || provided !== secret) {
     // Basic health: verify DB connectivity with a real query. Timestamp is
     // emitted unconditionally — it's non-sensitive and lets external probes
@@ -137,10 +138,7 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
  * Use for external monitoring (UptimeRobot, etc.) and quick CI checks post-deploy.
  */
 healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
-  // v1.0.3: trim both sides defensively. Railway paste errors commonly leave
-  // a trailing \n or space in env values; without trim() the secret compare
-  // fails even when the visible value matches.
-  const secret = (process.env.HEALTH_CHECK_SECRET || '').trim();
+  const secret = resolveHealthCheckSecret();
   const provided = String(req.headers['x-health-check-secret'] || '').trim();
   if (!secret || !provided || provided !== secret) {
     return res.status(401).json({ status: 'unauthorized' });
@@ -222,10 +220,7 @@ healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
  *     "https://api-production-xxx.up.railway.app/health/cloudinary"
  */
 healthRouter.get('/cloudinary', asyncHandler(async (req: AuthedRequest, res) => {
-  // v1.0.3: trim both sides defensively. Railway paste errors commonly leave
-  // a trailing \n or space in env values; without trim() the secret compare
-  // fails even when the visible value matches.
-  const secret = (process.env.HEALTH_CHECK_SECRET || '').trim();
+  const secret = resolveHealthCheckSecret();
   const provided = String(req.headers['x-health-check-secret'] || '').trim();
   if (!secret || !provided || provided !== secret) {
     return res.status(401).json({ status: 'unauthorized' });
@@ -301,4 +296,3 @@ healthRouter.get('/cloudinary', asyncHandler(async (req: AuthedRequest, res) => 
     });
   }
 }));
-
