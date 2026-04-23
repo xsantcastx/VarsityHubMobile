@@ -640,7 +640,27 @@ function Step3League() {
           'The name or description contains harmful language. Please revise.'
         );
       } else {
-        Alert.alert('Failed to create page', 'Something went wrong. Please try again.');
+        // v1.0.3: surface the ACTUAL server error instead of the useless
+        // "Something went wrong" fallback. Users spent an entire device
+        // testing session hitting this dialog with no way to tell what
+        // was rejected. Server errors carry actionable info — show it.
+        const serverData = e?.data || e?.response?.data;
+        const serverError = serverData?.error || serverData?.message;
+        const zodIssues = serverData?.issues || serverData?.details?.issues;
+        let detail = '';
+        if (Array.isArray(zodIssues) && zodIssues.length > 0) {
+          detail = zodIssues
+            .slice(0, 3)
+            .map((i: any) => `${Array.isArray(i.path) ? i.path.join('.') : i.path || 'field'}: ${i.message}`)
+            .join('\n');
+        } else if (typeof serverError === 'string' && serverError.length < 300) {
+          detail = serverError;
+        } else if (typeof e?.message === 'string' && e.message.length < 300 && !/^HTTP \d/.test(e.message)) {
+          detail = e.message;
+        }
+        const status = e?.status || e?.response?.status;
+        const title = status ? `Create failed (${status})` : 'Create failed';
+        Alert.alert(title, detail || 'Please try again, or contact support@varsityhub.app if this keeps happening.');
       }
     } finally { 
       setSaving(false); 

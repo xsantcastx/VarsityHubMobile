@@ -593,7 +593,22 @@ organizationsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const parsed = createOrganizationSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+      if (!parsed.success) {
+        // v1.0.3: return the Zod issues so the client can show WHICH field
+        // failed validation. The bare "Invalid payload" response caused an
+        // entire session of "Failed to create page — something went wrong"
+        // with no way for users OR support to diagnose missing fields
+        // (most commonly: supporting_document_url null after a silent upload
+        // failure).
+        return res.status(400).json({
+          error: 'Invalid payload',
+          code: 'VALIDATION_FAILED',
+          issues: parsed.error.issues.map(i => ({
+            path: i.path,
+            message: i.message,
+          })),
+        });
+      }
 
       // v1.0.2: 48hr cooldown if prior application was rejected (mirrors POST /create).
       const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
@@ -794,7 +809,17 @@ organizationsRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+      if (!parsed.success) {
+        // v1.0.3: return Zod issues so client can render actionable errors.
+        return res.status(400).json({
+          error: 'Invalid payload',
+          code: 'VALIDATION_FAILED',
+          issues: parsed.error.issues.map(i => ({
+            path: i.path,
+            message: i.message,
+          })),
+        });
+      }
 
       // v1.0.2: 48hr cooldown for users whose prior org application was rejected.
       const REJECTION_COOLDOWN_MS = 48 * 60 * 60 * 1000;
