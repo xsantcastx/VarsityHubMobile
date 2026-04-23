@@ -89,53 +89,56 @@ const getCommonTemplateData = () => ({
   customer_service_email: CUSTOMER_SERVICE_EMAIL,
 });
 
+// v1.0.3: trim every env read so paste errors in Railway (leading/trailing
+// whitespace, stray newlines) don't get sent to SendGrid as-is — which
+// silently fails with "template_id must be a valid GUID". The startup
+// validator in index.ts surfaces the dirty values; this helper is the
+// belt-and-suspenders at the consumption point.
+const tmpl = (key: string, fallbackKey?: string): string => {
+  const primary = (process.env[key] || '').trim();
+  if (primary) return primary;
+  if (fallbackKey) return (process.env[fallbackKey] || '').trim();
+  return '';
+};
+
 // Approved SendGrid template IDs.
 // Per product policy, only templates present in the Railway-approved catalog may be used.
 const TEMPLATE_IDS = {
   // Auth & Security
-  VERIFICATION:
-    process.env.SENDGRID_VERIFICATION_TEMPLATE_ID ||
-    process.env.SENDGRID_USER_CONFIRMATION_TEMPLATE_ID ||
-    '',
-  PASSWORD_RESET: process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID || '',
+  VERIFICATION: tmpl('SENDGRID_VERIFICATION_TEMPLATE_ID', 'SENDGRID_USER_CONFIRMATION_TEMPLATE_ID'),
+  PASSWORD_RESET: tmpl('SENDGRID_PASSWORD_RESET_TEMPLATE_ID'),
 
   // Team & Organization
-  TEAM_INVITE: process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID || '',
-  ORG_INVITE: process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID || '',
-  JOIN_REQUEST_ADMIN:
-    process.env.SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID ||
-    process.env.SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID ||
-    '',
-  JOIN_REQUEST_APPROVED: process.env.SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID || '',
-  JOIN_REQUEST_DENIED: process.env.SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID || '',
+  TEAM_INVITE: tmpl('SENDGRID_TEAM_INVITE_TEMPLATE_ID'),
+  ORG_INVITE: tmpl('SENDGRID_ORG_INVITE_TEMPLATE_ID'),
+  JOIN_REQUEST_ADMIN: tmpl('SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID', 'SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID'),
+  JOIN_REQUEST_APPROVED: tmpl('SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID'),
+  JOIN_REQUEST_DENIED: tmpl('SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID'),
 
   // Events
-  EVENT_APPROVED: process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID || '',
-  EVENT_DENIED: process.env.SENDGRID_EVENT_DENIED_TEMPLATE_ID || '',
-  EVENT_CANCELED:
-    process.env.SENDGRID_EVENT_CANCELED_TEMPLATE_ID ||
-    process.env.SENDGRID_EVENT_CANCELLATION_TEMPLATE_ID ||
-    '',
+  EVENT_APPROVED: tmpl('SENDGRID_EVENT_APPROVED_TEMPLATE_ID'),
+  EVENT_DENIED: tmpl('SENDGRID_EVENT_DENIED_TEMPLATE_ID'),
+  EVENT_CANCELED: tmpl('SENDGRID_EVENT_CANCELED_TEMPLATE_ID', 'SENDGRID_EVENT_CANCELLATION_TEMPLATE_ID'),
 
   // Billing
-  PAYMENT_FAILED: process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID || '',
-  SUBSCRIPTION_EXPIRING: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID || '',
+  PAYMENT_FAILED: tmpl('SENDGRID_PAYMENT_FAILED_TEMPLATE_ID'),
+  SUBSCRIPTION_EXPIRING: tmpl('SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID'),
 
   // Ads
-  AD_PENDING_REVIEW: process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID || '',
-  AD_APPROVED: process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID || '',
-  AD_REJECTED: process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID || '',
-  AD_TAKEN_DOWN_PENDING_REVIEW: process.env.SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID || '',
+  AD_PENDING_REVIEW: tmpl('SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID'),
+  AD_APPROVED: tmpl('SENDGRID_AD_APPROVED_TEMPLATE_ID'),
+  AD_REJECTED: tmpl('SENDGRID_AD_REJECTED_TEMPLATE_ID'),
+  AD_TAKEN_DOWN_PENDING_REVIEW: tmpl('SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID'),
 
   // Organization approval/rejection (sent to org owner after admin action)
-  ORG_APPROVED: process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID || '',
-  ORG_DENIED: process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID || '',
+  ORG_APPROVED: tmpl('SENDGRID_ORG_APPROVAL_TEMPLATE_ID'),
+  ORG_DENIED: tmpl('SENDGRID_ORG_DENIAL_TEMPLATE_ID'),
 
   // Admin confirmation (sent to admin after they approve/reject)
-  ADMIN_ACTION_CONFIRMATION: process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID || '',
+  ADMIN_ACTION_CONFIRMATION: tmpl('SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID'),
 
   // Parental consent for 13-17 users (sent to parent_email on complete-onboarding)
-  PARENTAL_CONSENT_REQUEST: process.env.SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID || '',
+  PARENTAL_CONSENT_REQUEST: tmpl('SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID'),
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
