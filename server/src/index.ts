@@ -101,19 +101,36 @@ await initEmailService();
     });
   }
 
+  // v1.0.3: log fingerprint of EVERY configured template, not just invalid
+  // ones. Lets ops cross-reference each key's prefix with the Railway UI
+  // without exposing secrets. Unset vars are listed explicitly so missing
+  // config is visible too.
+  console.log(`[startup] SendGrid template IDs from Railway env (${templateVars.length} total):`);
+  for (const key of templateVars) {
+    const raw = process.env[key];
+    if (!raw) {
+      console.log(`  ⚪ ${key}: not set`);
+      continue;
+    }
+    const trimmed = raw.trim();
+    const ok = templateIdPattern.test(trimmed);
+    const hasWhitespace = trimmed !== raw;
+    const icon = ok && !hasWhitespace ? '✅' : ok && hasWhitespace ? '🟡' : '⚠️';
+    const wsNote = hasWhitespace ? ' (paste has whitespace — auto-trimmed by email.ts)' : '';
+    console.log(`  ${icon} ${key}: prefix="${trimmed.slice(0, 4)}" len=${trimmed.length}${wsNote}`);
+  }
+
   if (invalid.length > 0) {
-    console.warn(`[startup] ⚠️  ${invalid.length} SendGrid template ID(s) failed format check:`);
+    console.warn(`[startup] ⚠️  ${invalid.length} of ${templateVars.length} SendGrid template ID(s) failed format check:`);
     for (const entry of invalid) {
-      console.warn(
-        `  ${entry.key}: len=${entry.length} prefix="${entry.prefix}" starts_with_d-=${entry.startsWithD} hyphens=${entry.hyphens} → ${entry.issue}`
-      );
+      console.warn(`    ${entry.key}: ${entry.issue}`);
     }
     captureMessage(
       `Invalid SendGrid template ID format: ${invalid.map(i => i.key).join(', ')}`,
       'warning'
     );
   } else {
-    console.log(`[startup] ✅ All configured SendGrid template IDs match d-{uuid} format`);
+    console.log(`[startup] ✅ All configured SendGrid template IDs pass format check`);
   }
 }
 
