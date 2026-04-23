@@ -904,9 +904,15 @@ authRouter.post(
       // Google account. Avatar updates only fill a blank avatar.
       if (user) {
         const syncUpdates: any = {};
-        if (user.email !== email) {
-          // Check that the new email isn't taken by another account
-          const emailTaken = await prisma.user.findUnique({ where: { email } });
+        if (user.email.toLowerCase() !== email.toLowerCase()) {
+          // Check that the new email isn't taken by another account.
+          // Use case-insensitive lookup so we don't end up with duplicate
+          // accounts differing only in case (register stores lowercased
+          // email; Google may return mixed-case from the ID token).
+          const emailTaken = await prisma.user.findFirst({
+            where: { email: { equals: email, mode: 'insensitive' }, NOT: { id: user.id } },
+            select: { id: true },
+          });
           if (!emailTaken) {
             syncUpdates.email = email;
             syncUpdates.email_verified = true;
@@ -922,7 +928,12 @@ authRouter.post(
 
       if (!user) {
         stage = 'user-resolve';
-        const existingByEmail = await prisma.user.findUnique({ where: { email } });
+        // Case-insensitive so a Google sign-in with mixed-case email finds
+        // the existing lowercased account instead of silently creating a
+        // duplicate. Matches the behavior of Apple Sign In below.
+        const existingByEmail = await prisma.user.findFirst({
+          where: { email: { equals: email, mode: 'insensitive' } },
+        });
 
         if (existingByEmail) {
           stage = 'link-google';
