@@ -184,6 +184,34 @@ export async function uploadBufferToCloudinary(
     } else if (response.status >= 500) {
       kind = 'server_error';
     }
+
+    // v1.0.3: emit structured diagnostics to Railway logs when Cloudinary
+    // rejects the upload. Logs what we signed, what we sent, and an
+    // anonymized secret fingerprint (first 3 chars + length). Compare the
+    // reconstructed string against the "String to sign" in Cloudinary's
+    // error response — if they match but the signature still fails, the
+    // API_SECRET on Railway doesn't match the real Cloudinary secret (most
+    // common cause: rotated in dashboard but not updated in env).
+    const toSignString = Object.keys(signedParams)
+      .sort()
+      .map((k) => `${k}=${signedParams[k]}`)
+      .join('&');
+    const secretFingerprint = `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`;
+    console.error('[cloudinary] Upload rejected — diagnostic dump', {
+      status: response.status,
+      cloudinary_message: message,
+      kind,
+      our_string_to_sign: toSignString,
+      signed_params_sent: Object.keys(signedParams).sort(),
+      computed_signature: signature,
+      secret_fingerprint: secretFingerprint,
+      cloud_name: cloudName,
+      api_key_prefix: `${apiKey.slice(0, 4)}…`,
+      resource_type: resourceType,
+      folder,
+      file_bytes: file.buffer.byteLength,
+    });
+
     throw new CloudinaryUpstreamError(message, response.status, message, kind);
   }
 
