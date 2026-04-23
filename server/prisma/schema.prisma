@@ -152,6 +152,12 @@ model User {
   password_reset_code        String?
   password_reset_expires     DateTime?
   password_changed_at        DateTime? @default(now())
+  // Monotonic counter bumped on every successful login / password reset.
+  // The value is embedded as `se` in access-token JWTs; middleware rejects
+  // tokens whose `se` doesn't match the current value, which enforces the
+  // "only one active session per user" rule: a new login invalidates every
+  // prior access token and refresh token family immediately.
+  session_epoch              Int       @default(0)
   banned                     Boolean   @default(false)
   ban_reason                 String?   @db.Text
   banned_until               DateTime?

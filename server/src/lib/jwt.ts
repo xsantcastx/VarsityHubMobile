@@ -21,6 +21,16 @@ export function signJwt(payload: Record<string, unknown>, expiresIn: string = DE
   return jwt.sign(payload, JWT_SECRET, opts);
 }
 
+/**
+ * Sign an access token bound to a specific user's current session epoch.
+ * The `se` claim lets the auth middleware reject every token issued before
+ * the user's most recent login, which is what enforces the "only one active
+ * session per user" rule.
+ */
+export function signAccessTokenForSession(userId: string, sessionEpoch: number): string {
+  return signJwt({ id: userId, se: sessionEpoch });
+}
+
 export function verifyJwt<T = Record<string, unknown>>(token: string): T | null {
   try {
     return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as T;

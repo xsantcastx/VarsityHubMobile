@@ -13,10 +13,12 @@ import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import {
   signJwt,
+  signAccessTokenForSession,
   generateRefreshToken,
   hashRefreshToken,
   REFRESH_TOKEN_EXPIRY_DAYS,
 } from '../lib/jwt.js';
+import { startNewSession } from '../lib/session.js';
 import { prisma } from '../lib/prisma.js';
 import { captureException } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -412,7 +414,11 @@ authRouter.post(
       console.log(
         `[verify-code] [register] Code hash stored in DB for user ${user.id} (expires ${exp.toISOString()})`
       );
-    const access_token = signJwt({ id: user.id });
+    // New user defaults to session_epoch=0 in schema. Sign the access token
+    // with `se: 0` so that when the user later logs in from another device
+    // (which bumps the epoch), this initial token is rejected by auth
+    // middleware — single-session enforcement applies from day one.
+    const access_token = signAccessTokenForSession(user.id, 0);
     // Issue refresh token on registration
     const rawRefreshReg = generateRefreshToken();
     const regTokenHash = hashRefreshToken(rawRefreshReg);
@@ -516,21 +522,14 @@ authRouter.post(
     }
     // Success — clear the failure counter so this account isn't half-locked.
     await clearLoginFailures(sanitizedEmail);
-    const access_token = signJwt({ id: user.id });
 
-    // AUTH-4: Issue refresh token with device fingerprint binding
-    const rawRefresh = generateRefreshToken();
-    const tokenHash = hashRefreshToken(rawRefresh);
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    // Enforce single-active-session: bump session_epoch, drop all prior
+    // refresh tokens for this user, and mint a fresh token pair bound to
+    // the new epoch. Every access token issued to any other device dies
+    // instantly — the auth middleware rejects tokens whose `se` claim no
+    // longer matches the user's current epoch.
     const deviceInfo = req.headers['user-agent'] || null;
-    await prisma.refreshToken.create({
-      data: {
-        token_hash: tokenHash,
-        user_id: user.id,
-        expires_at: expiresAt,
-        device_info: deviceInfo,
-      },
-    });
+    const { access_token, refresh_token: rawRefresh } = await startNewSession(user.id, deviceInfo);
 
     const sanitized = sanitizeUser(user);
     const needsOnboarding = !isUserOnboardingComplete(user as any);
@@ -631,7 +630,11 @@ authRouter.post(
         throw txErr;
       }
 
-      const access_token = signJwt({ id: user.id });
+      // Refresh rotates tokens WITHIN an existing session — it doesn't start a
+      // new one — so we don't bump session_epoch here. Mint the new access
+      // token against the user's current epoch so it stays valid until the
+      // user logs in again on any device (which is what bumps the epoch).
+      const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
       return res.json({ access_token, refresh_token: newRawRefresh });
     } catch (err) {
       return res.status(401).json({ error: 'Invalid refresh token' });
@@ -990,23 +993,16 @@ authRouter.post(
         await invalidateMeCacheForUser(user.id);
       }
 
-      // Stage 5: Generate JWT + refresh token
+      // Stage 5: Generate JWT + refresh token via the single-session helper.
+      // Bumps session_epoch, purges prior refresh tokens, and mints the new
+      // pair — same enforcement as /auth/login.
       stage = 'jwt';
       const sanitized = sanitizeUser(user);
-      const access_token = signJwt({ id: sanitized.id });
+      const { access_token, refresh_token: rawRefresh } = await startNewSession(
+        sanitized.id,
+        req.headers['user-agent'] || null,
+      );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
-
-      const rawRefresh = generateRefreshToken();
-      const rtHash = hashRefreshToken(rawRefresh);
-      const rtExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-      await prisma.refreshToken.create({
-        data: {
-          token_hash: rtHash,
-          user_id: sanitized.id,
-          expires_at: rtExpiry,
-          device_info: req.headers['user-agent'] || null,
-        },
-      });
 
       // Include is_admin so AuthProvider knows admin status immediately
       const isOAuthAdmin = isAdminEmail(sanitized.email);
@@ -1217,21 +1213,12 @@ authRouter.post(
       user = await ensureOAuthUserVerified(user);
 
       const sanitized = sanitizeUser(user);
-      const access_token = signJwt({ id: sanitized.id });
+      // Single-session: bump epoch, purge prior refresh tokens, mint fresh pair.
+      const { access_token, refresh_token: appleRawRefresh } = await startNewSession(
+        sanitized.id,
+        req.headers['user-agent'] || null,
+      );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
-
-      // Issue refresh token
-      const appleRawRefresh = generateRefreshToken();
-      const appleRtHash = hashRefreshToken(appleRawRefresh);
-      const appleRtExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
-      await prisma.refreshToken.create({
-        data: {
-          token_hash: appleRtHash,
-          user_id: sanitized.id,
-          expires_at: appleRtExpiry,
-          device_info: req.headers['user-agent'] || null,
-        },
-      });
 
       const isAppleOAuthAdmin = isAdminEmail(sanitized.email);
       return res.json({

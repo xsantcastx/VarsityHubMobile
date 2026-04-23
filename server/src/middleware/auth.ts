@@ -25,7 +25,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
     return next();
   }
   const token = header.slice('Bearer '.length).trim();
-  const payload = verifyJwt<{ id: string; iat?: number }>(token);
+  const payload = verifyJwt<{ id: string; iat?: number; se?: number }>(token);
   if (!payload) {
     // AUTH-6: Log invalid/expired token attempts for security monitoring
     console.warn('[auth] Invalid or expired token presented', {
@@ -45,6 +45,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
         where: { id: payload.id },
         select: {
           password_changed_at: true,
+          session_epoch: true,
           banned: true,
           banned_until: true,
           ban_reason: true,
@@ -78,6 +79,16 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
 
     // Reject tokens issued before the last password change
     if (payload.iat && user.password_changed_at && payload.iat < Math.floor(user.password_changed_at.getTime() / 1000)) {
+      clearUserContext();
+      return next();
+    }
+
+    // Enforce single-session: reject tokens whose `se` doesn't match the user's
+    // current epoch. A new login (login/oauth/password-reset) bumps the epoch,
+    // which immediately invalidates every other access token the user holds.
+    // Tokens minted before this rollout don't have `se`; treat those as legacy
+    // and let them expire on their own 15-minute TTL.
+    if (typeof payload.se === 'number' && payload.se !== (user as any).session_epoch) {
       clearUserContext();
       return next();
     }
