@@ -1496,11 +1496,16 @@ authRouter.post(
       const elapsed = Date.now() - new Date(rejectedAt).getTime();
       if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
         const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
+        // v1.0.3: also return an absolute ISO timestamp. `retry_after_hours`
+        // rounds up and reads misleadingly ("48 hours" sounds like 2 full days
+        // from now when the real cooldown started from the prior rejection).
+        // Clients should prefer `retry_at` for a concrete date/time display.
         return res.status(429).json({
           error: 'Your previous coach application was declined. Please wait before trying again.',
           code: 'REJECTION_COOLDOWN',
           retry_after_ms: retryAfterMs,
           retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+          retry_at: new Date(Date.now() + retryAfterMs).toISOString(),
           reason: user.rejection_reason || null,
         });
       }
@@ -2599,9 +2604,16 @@ authRouter.post(
         return res.status(400).json({ error: 'Plan selection required for coach onboarding' });
       }
       if (!effectiveTeamId && !effectiveOrgId) {
+        // v1.0.3: add explicit error code so the client can render a
+        // path-specific message instead of a generic 400. Previously users
+        // hitting this branch (e.g. via a deep-link that skipped step-3) saw
+        // "Failed to complete onboarding" with no direction.
         return res
           .status(400)
-          .json({ error: 'Team or organization required for coach onboarding' });
+          .json({
+            error: 'Team or organization required for coach onboarding',
+            code: 'ORG_TEAM_REQUIRED',
+          });
       }
       // Use DB values as fallback if not in payload
       if (!data.username && effectiveUsername) data.username = effectiveUsername;

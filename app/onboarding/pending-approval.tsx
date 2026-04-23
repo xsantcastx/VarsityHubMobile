@@ -141,8 +141,13 @@ function PendingApproval() {
         }
         if (!completed) {
           const errMsg = completeOnboardingErr?.message;
-          const userFacingMsg = errMsg && errMsg.length < 200 && !/^HTTP \d/.test(errMsg)
-            ? errMsg
+          // v1.0.3: raised 200 → 400 chars. The 200-char cap was truncating
+          // useful server validation errors like field-level issues from
+          // complete-onboarding. Also split on \n and use the first line so
+          // multi-line payloads don't dump trailing "HTTP 400" lines into UI.
+          const firstLine = typeof errMsg === 'string' ? errMsg.split('\n')[0] : '';
+          const userFacingMsg = firstLine && firstLine.length < 400 && !/^HTTP \d/.test(firstLine)
+            ? firstLine
             : 'Approval is complete, but final account setup failed. Tap retry below.';
           setCompletionError(userFacingMsg);
           completionStartedRef.current = false; // allow retry
@@ -161,7 +166,11 @@ function PendingApproval() {
     // Initial check
     void checkApproval();
     // Poll every 60 seconds — approvals are admin actions that take minutes at minimum
-    intervalRef.current = setInterval(() => void checkApproval(), 60000);
+    // v1.0.3: poll every 30s (was 60s) — approvals are admin actions that can
+    // happen any time, and the 0-60s worst-case lag between admin click and
+    // coach-side "Approved!" transition was a common UX complaint during
+    // testing. 30s halves that while staying well under request-rate alarms.
+    intervalRef.current = setInterval(() => void checkApproval(), 30000);
     // Stop polling after 30 minutes — admin has been notified, user should continue as fan
     timeoutRef.current = setTimeout(() => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -295,8 +304,22 @@ function PendingApproval() {
                     const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
                     const code = e?.data?.code;
                     const hrs = e?.data?.retry_after_hours;
-                    if (code === 'REJECTION_COOLDOWN' && hrs) {
-                      Alert.alert('Please wait', `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`);
+                    const retryAt = e?.data?.retry_at;
+                    if (code === 'REJECTION_COOLDOWN') {
+                      // v1.0.3: prefer the exact ISO timestamp when the server
+                      // provides it — rounded hours alone read like "2 full
+                      // days from now" when a 48hr cooldown is actually 48h
+                      // from the prior rejection timestamp.
+                      let msgText = 'You can try again once the cooldown expires.';
+                      if (typeof retryAt === 'string') {
+                        const when = new Date(retryAt);
+                        if (!isNaN(when.getTime())) {
+                          msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+                        }
+                      } else if (hrs) {
+                        msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
+                      }
+                      Alert.alert('Please wait', msgText);
                     } else {
                       Alert.alert('Failed', msg);
                     }

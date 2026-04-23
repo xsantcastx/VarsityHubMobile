@@ -266,10 +266,26 @@ export default function Step1Role() {
         await persistRole();
       } catch (error: any) {
         if (__DEV__) console.warn('[Onboarding][Step1] failed to persist role to server', error);
-        Alert.alert(
-          'Could not save your role',
-          'We couldn\'t save your selection. Please check your connection and try again.'
-        );
+        // v1.0.3: distinguish the "role change post-onboarding" rejection
+        // (auth.ts:2195) from generic network failure. A user who completed
+        // onboarding as one role and lands back on step-1 (deep link, back
+        // nav, etc.) can't switch via PATCH /me/preferences — they'd need
+        // the /auth/upgrade-to-coach endpoint. Show them that path instead
+        // of a vague "could not save" alert.
+        const errMsg = String(error?.data?.error || error?.message || '').toLowerCase();
+        const isRoleChangeBlocked =
+          error?.status === 403 && errMsg.includes('cannot change role');
+        if (isRoleChangeBlocked) {
+          Alert.alert(
+            'Role already set',
+            'Your account role is locked after onboarding. To change from fan to coach, use the "Upgrade to Coach" option in Settings. Contact support for any other role change.'
+          );
+        } else {
+          Alert.alert(
+            'Could not save your role',
+            "We couldn't save your selection. Please check your connection and try again."
+          );
+        }
         dispatch({ type: 'SAVE_FAIL', error: error as Error });
         return; // Do NOT navigate to step 2 — continuing would leave server role unset.
       }

@@ -346,8 +346,17 @@ function Step3League() {
         step_3_visited: true,
       }));
 
-      // Persist org_id so it survives app restarts
-      await User.updatePreferences({ organization_id: selectedOrg.id, organization_name: selectedOrg.name }).catch(() => {});
+      // Persist org_id + join_request_pending so state survives app restarts.
+      // v1.0.3: previously only org_id/name were persisted — join_request_pending
+      // lived only in local onboarding context, so a force-close after this
+      // point lost the pending flag and users could re-submit the same join
+      // request on next launch (dup risk). Persist the flag to the server
+      // preferences here so /me reliably reflects the waiting state.
+      await User.updatePreferences({
+        organization_id: selectedOrg.id,
+        organization_name: selectedOrg.name,
+        join_request_pending: true,
+      }).catch(() => {});
 
       // v1.0.2 pass 5 fix: wording now matches the new flow (waiting screen, not main app).
       Alert.alert(

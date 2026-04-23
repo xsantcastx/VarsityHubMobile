@@ -58,6 +58,12 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   // v1.0.3: use canonical role (checks both the `role` column and
   // `preferences.role`) so a coach whose prefs JSON hasn't been repopulated
   // after the last write can still submit their org during step 3.
+  //
+  // Invariant: `buildAuthStateColumns` (column write) and
+  // `mergeAuthStateIntoPreferences` (JSON write) MUST be called together in
+  // the same Prisma update so role/onboarding state stays atomic across both
+  // storage surfaces. Any code path that writes only one side will recreate
+  // the exact drift this canonical-role bypass was added to work around.
   if (
     onboardingFlag &&
     (isTeamsCreateRoute || isOrgCreateRoute) &&

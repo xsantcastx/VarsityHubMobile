@@ -160,7 +160,8 @@ function LeaguePendingApproval() {
   useEffect(() => {
     if (!orgId) return;
     void checkApproval();
-    intervalRef.current = setInterval(() => void checkApproval(), 60000);
+    // v1.0.3: poll every 30s (was 60s) — see pending-approval.tsx for rationale.
+    intervalRef.current = setInterval(() => void checkApproval(), 30000);
     // Stop polling after 30 minutes — admin has been notified, user should continue as fan
     timeoutRef.current = setTimeout(() => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
