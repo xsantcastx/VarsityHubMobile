@@ -19,7 +19,18 @@ function LeaguePendingApproval() {
   const isDark = colorScheme === 'dark';
   const params = useLocalSearchParams<{ leagueName?: string; orgId?: string }>();
   const leagueName = params.leagueName || 'your league';
-  const orgId = String(params.orgId || ob.organization_id || '').trim();
+  // v1.0.3: orgId is STATE, not a derived const, so it can be hydrated from
+  // /me on cold-start when both route params and OnboardingContext are empty.
+  // Previously: a user who closed the app mid-approval and reopened would hit
+  // the pending screen with an empty orgId, get redirected back to step-3,
+  // and appear to "skip screens" in a loop even though the org was already
+  // submitted server-side.
+  const [orgId, setOrgId] = useState<string>(() =>
+    String(params.orgId || ob.organization_id || '').trim()
+  );
+  const [hydrating, setHydrating] = useState<boolean>(() => {
+    return !String(params.orgId || ob.organization_id || '').trim();
+  });
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
@@ -39,6 +50,42 @@ function LeaguePendingApproval() {
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
     router.replace('/onboarding/step-3-league');
   }, [router]);
+
+  // v1.0.3: hydrate orgId from /me when it's missing at mount (cold-start
+  // race where OnboardingContext hasn't loaded yet). Only redirect back to
+  // step-3 if the SERVER truly has no organization_id — otherwise we loop
+  // users back to a step they already completed.
+  useEffect(() => {
+    if (orgId) {
+      setHydrating(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const me: any = await User.me();
+        if (cancelled) return;
+        const fromServer = String(
+          me?.organization_id || me?.preferences?.organization_id || ''
+        ).trim();
+        if (fromServer) {
+          setOrgId(fromServer);
+        } else {
+          // Server confirms no org — safe to redirect back to step-3.
+          redirectToLeagueSetup();
+        }
+      } catch {
+        // Network failure — don't redirect. Let the user see the waiting
+        // screen with a "Continue as Fan" escape rather than ping-ponging
+        // back to step-3 where they'd have to re-upload everything.
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, redirectToLeagueSetup]);
 
   // Poll organization status every 30 seconds
   const checkApproval = useCallback(async () => {
@@ -260,11 +307,30 @@ function LeaguePendingApproval() {
           </View>
         ) : null}
 
-        {!orgId ? (
+        {!orgId && hydrating ? (
+          // v1.0.3: while we're hydrating orgId from /me, show a spinner
+          // instead of the red "missing" error. Prevents the flash of
+          // "please return to league setup" on cold-start before the
+          // server data loads.
+          <View style={{ marginTop: 12, alignItems: 'center' }}>
+            <ActivityIndicator />
+            <Text style={[styles.supportText, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 8 }]}>
+              Loading your application…
+            </Text>
+          </View>
+        ) : null}
+
+        {!orgId && !hydrating ? (
           <>
             <Text style={[styles.supportText, { color: '#EF4444', marginTop: 0, marginBottom: 12 }]}>
-              Organization ID is missing for this account. Please return to league setup.
+              Organization ID is missing for this account. You can retry the setup or continue as a fan for now.
             </Text>
+            <Pressable
+              style={[styles.primaryButton, { marginBottom: 12 }]}
+              onPress={handleProceedAsFan}
+            >
+              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
+            </Pressable>
             <Pressable
               style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
               onPress={() => router.replace('/onboarding/step-3-league' as any)}
