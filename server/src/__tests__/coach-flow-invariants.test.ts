@@ -253,6 +253,24 @@ describe('coach flow structural invariants', () => {
       expect(/admin_approved:\s*false/.test(organizations)).toBe(true);
     });
 
+    it('organization writes flow through an explicit create-data sanitizer', () => {
+      expect(/function buildOrganizationCreateData/.test(organizations)).toBe(true);
+      const createRouteBlock = organizations.match(/organizationsRouter\.post\(\s*['"]\/['"][\s\S]{0,5000}/)?.[0] || '';
+      const createWithTeamsBlock = organizations.match(/organizationsRouter\.post\(\s*['"]\/create['"][\s\S]{0,5000}/)?.[0] || '';
+      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id\)/.test(createRouteBlock)).toBe(true);
+      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id\)/.test(createWithTeamsBlock)).toBe(true);
+    });
+
+    it('organization create routes do not spread parsed onboarding payloads into Prisma writes', () => {
+      expect(/\.\.\.orgFields/.test(organizations)).toBe(false);
+      const createCalls = organizations.match(/organization\.create\(\{[\s\S]{0,600}/g) || [];
+      expect(createCalls.length).toBeGreaterThan(0);
+      for (const call of createCalls) {
+        expect(/\.\.\.data/.test(call)).toBe(false);
+        expect(/\.\.\.orgFields/.test(call)).toBe(false);
+      }
+    });
+
     it('POST /organizations triggers sendLeagueApprovalRequestEmail', () => {
       expect(/sendLeagueApprovalRequestEmail/.test(organizations)).toBe(true);
     });

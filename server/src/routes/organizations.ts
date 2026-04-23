@@ -62,6 +62,40 @@ function normalizeOrganizationName(name: string): string {
     .trim();
 }
 
+type OrganizationCreatePayload = {
+  name: string;
+  description?: string;
+  sport?: string;
+  org_type?: string;
+  location?: string;
+  zip_code?: string;
+  season_start?: string;
+  season_end?: string;
+  supporting_document_url?: string;
+};
+
+function buildOrganizationCreateData(
+  input: OrganizationCreatePayload,
+  ownerId: string
+) {
+  // Explicitly map DB-owned organization fields so middleware-only request keys
+  // such as `onboarding` can never drift into Prisma writes via object spread.
+  return {
+    name: input.name,
+    description: input.description,
+    sport: input.sport,
+    org_type: input.org_type,
+    location: input.location,
+    zip_code: input.zip_code,
+    supporting_document_url: input.supporting_document_url,
+    season_start: input.season_start ? new Date(input.season_start) : null,
+    season_end: input.season_end ? new Date(input.season_end) : null,
+    updated_at: new Date(),
+    league_owner_id: ownerId,
+    admin_approved: false,
+  };
+}
+
 // Determine if a membership role is considered an administrator of the organization.
 function isOrganizationAdmin(role: string | null | undefined): boolean {
   if (!role) return false;
@@ -661,24 +695,9 @@ organizationsRouter.post(
           .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
       }
       // Transaction: create org + owner membership + set coach to PENDING atomically
-      const {
-        formatted_address: _fa,
-        place_id: _pid,
-        latitude: _lat,
-        longitude: _lng,
-        onboarding: _ob,
-        ...orgFields
-      } = data;
       const organization = await prisma.$transaction(async tx => {
         const org = await tx.organization.create({
-          data: {
-            ...orgFields,
-            season_start: data.season_start ? new Date(data.season_start) : null,
-            season_end: data.season_end ? new Date(data.season_end) : null,
-            updated_at: new Date(),
-            league_owner_id: req.user!.id,
-            admin_approved: false, // requires super admin approval
-          },
+          data: buildOrganizationCreateData(data, req.user!.id),
         });
         await tx.organizationMembership.create({
           data: {
@@ -865,20 +884,7 @@ organizationsRouter.post(
       // League owner has no coach access until super admin approves the league
       const organization = await prisma.$transaction(async tx => {
         const org = await tx.organization.create({
-          data: {
-            name: data.name,
-            description: data.description,
-            sport: data.sport,
-            org_type: data.org_type,
-            location: data.location,
-            zip_code: data.zip_code,
-            supporting_document_url: data.supporting_document_url,
-            season_start: data.season_start ? new Date(data.season_start) : null,
-            season_end: data.season_end ? new Date(data.season_end) : null,
-            updated_at: new Date(),
-            league_owner_id: req.user!.id,
-            admin_approved: false, // requires super admin approval
-          },
+          data: buildOrganizationCreateData(data, req.user!.id),
         });
         await tx.organizationMembership.create({
           data: {
