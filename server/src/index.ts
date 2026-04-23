@@ -61,18 +61,52 @@ await initEmailService();
     'SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID',
   ];
   const templateIdPattern = /^d-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const invalid: string[] = [];
+  const invalid: Array<{
+    key: string;
+    length: number;
+    prefix: string;
+    startsWithD: boolean;
+    hyphens: number;
+    issue: string;
+  }> = [];
 
   for (const key of templateVars) {
-    const value = process.env[key];
-    if (!value) continue;
-    if (!templateIdPattern.test(value.trim())) invalid.push(key);
+    const raw = process.env[key];
+    if (!raw) continue;
+    const value = raw.trim();
+    if (templateIdPattern.test(value)) continue;
+
+    // Diagnostic fingerprint — safe to log, doesn't expose the full secret.
+    let issue = 'does not match d-{uuid} format';
+    if (!value.startsWith('d-')) issue = 'missing d- prefix (legacy V2 template? regenerate as dynamic in SendGrid)';
+    else if (value.length !== 38) issue = `wrong length (${value.length}, expected 38)`;
+    else if ((value.match(/-/g) || []).length !== 5) issue = 'wrong hyphen count (expected 5)';
+    else if (value !== raw) issue = 'contains leading/trailing whitespace in the env value';
+    else if (/[^0-9a-f-]/i.test(value.slice(2))) issue = 'contains non-hex characters';
+
+    invalid.push({
+      key,
+      length: raw.length,
+      prefix: raw.slice(0, 4),
+      startsWithD: raw.trim().startsWith('d-'),
+      hyphens: (raw.match(/-/g) || []).length,
+      issue,
+    });
   }
 
   if (invalid.length > 0) {
-    const msg = `[startup] ⚠️  Invalid SendGrid template ID format: ${invalid.join(', ')}`;
-    console.warn(msg);
-    captureMessage(msg, 'warning');
+    console.warn(`[startup] ⚠️  ${invalid.length} SendGrid template ID(s) failed format check:`);
+    for (const entry of invalid) {
+      console.warn(
+        `  ${entry.key}: len=${entry.length} prefix="${entry.prefix}" starts_with_d-=${entry.startsWithD} hyphens=${entry.hyphens} → ${entry.issue}`
+      );
+    }
+    captureMessage(
+      `Invalid SendGrid template ID format: ${invalid.map(i => i.key).join(', ')}`,
+      'warning'
+    );
+  } else {
+    console.log(`[startup] ✅ All configured SendGrid template IDs match d-{uuid} format`);
   }
 }
 
