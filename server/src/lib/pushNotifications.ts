@@ -1,6 +1,7 @@
 import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
+import { shouldClearPushTokenForExpoError } from './pushReceiptPolicy.js';
 import { updateUserAndInvalidate } from './userCache.js';
 
 const expo = new Expo();
@@ -60,7 +61,7 @@ export async function sendPushNotification(
     debugLog(`Sent notification to user ${userId}: ${title}`);
 
     const errorTickets = tickets.filter(
-      (t: any) => t?.status === 'error' && t?.details?.error === 'DeviceNotRegistered'
+      (t: any) => t?.status === 'error' && shouldClearPushTokenForExpoError(t?.details?.error)
     );
     if (errorTickets.length > 0) {
       try {
@@ -70,7 +71,8 @@ export async function sendPushNotification(
             where: { id: userId },
             data: { preferences: { ...currentPrefs, push_token: null } },
           });
-          debugLog(`Cleared stale push_token for user ${userId} (DeviceNotRegistered)`);
+          const firstError = errorTickets[0]?.details?.error || 'unknown';
+          debugLog(`Cleared stale push_token for user ${userId} (${firstError})`);
         }
       } catch (clearErr) {
         console.warn('[notifications] Failed to clear stale push_token:', clearErr);

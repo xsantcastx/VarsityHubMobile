@@ -79,6 +79,575 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   return baseDebugLog(...args);
 };
 
+type WebhookRouteResponse = {
+  status: number;
+  body: Record<string, any>;
+};
+
+async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRouteResponse> {
+  // Event-level deduplication: retain the row and mark it processed only after success.
+  // Failed events remain retryable instead of deleting the dedup row and risking partial-work replays.
+  try {
+    const existing = await prisma.processedStripeEvent.findUnique({
+      where: { event_id: event.id },
+      select: { processed: true },
+    });
+    if (existing?.processed) {
+      debugLog('[webhook] Duplicate event skipped', { event_id: event.id, event_type: event.type });
+      return { status: 200, body: { received: true, deduplicated: true } };
+    }
+    if (!existing) {
+      await prisma.processedStripeEvent.create({
+        data: {
+          event_id: event.id,
+          event_type: event.type,
+          processed: false,
+          processing_started_at: new Date(),
+        },
+      });
+    } else {
+      await prisma.processedStripeEvent.update({
+        where: { event_id: event.id },
+        data: {
+          event_type: event.type,
+          processing_started_at: new Date(),
+          last_error: null,
+        },
+      });
+    }
+  } catch (dedupErr: any) {
+    console.error('[webhook] Failed to record event state for dedup, rejecting for retry:', dedupErr?.message || dedupErr);
+    return { status: 500, body: { error: 'Dedup recording failed, will retry' } };
+  }
+
+  try {
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    if (!session?.id) {
+      console.error('[webhook] Malformed checkout.session.completed — missing session.id', { eventId: event.id });
+      await markStripeEventFailed(event.id, new Error('Invalid session object'));
+      return { status: 400, body: { error: 'Invalid session object' } };
+    }
+    try {
+      await finalizeFromSession(session);
+    } catch (e) {
+      await markStripeEventFailed(event.id, e);
+      console.error('[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:', (e as any)?.message || e);
+      captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
+      return { status: 500, body: { error: 'Finalization failed' } };
+    }
+  }
+
+  // Send billing notification emails for subscription events
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object as Stripe.Invoice;
+    if (invoice.customer_email && invoice.subscription) {
+      await sendBillingNoticeEmail({
+        to: invoice.customer_email,
+        type: 'payment_succeeded',
+        amount: `$${(invoice.amount_paid / 100).toFixed(2)}`,
+        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] payment_succeeded failed:', err));
+    }
+    // Log renewal transaction
+    if (invoice.customer && invoice.subscription) {
+      const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
+      if (renewalUser) {
+        // v1.0.2 audit fix: await so renewal audit trail is never silently dropped.
+        try {
+          await logTransaction({
+            transactionType: 'SUBSCRIPTION_RENEWAL',
+            status: 'COMPLETED',
+            userId: renewalUser.id,
+            totalCents: invoice.amount_paid || 0,
+            stripeSessionId: String(invoice.id),
+            stripeSubscriptionId: String(invoice.subscription),
+            metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
+          });
+        } catch (err) {
+          captureException(err as Error, { context: 'renewal_transaction_log' });
+        }
+      }
+    }
+  }
+
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice;
+    // Mark user's subscription as past_due so the app can prompt for payment update
+    if (invoice.customer && invoice.subscription) {
+      const failedUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) } });
+      if (failedUser) {
+        await prisma.user.update({
+          where: { id: failedUser.id },
+          data: { subscription_status: 'past_due' },
+        });
+        await invalidateMeCacheForUser(failedUser.id);
+        console.warn('[webhook] invoice.payment_failed — marked user as past_due', { userId: failedUser.id, invoiceId: invoice.id });
+      }
+    }
+    if (invoice.customer_email) {
+      await sendBillingNoticeEmail({
+        to: invoice.customer_email,
+        type: 'payment_failed',
+        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
+    }
+  }
+
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!customerId) {
+      console.error('[webhook] customer.subscription.deleted: subscription.customer is null');
+      return { status: 400, body: { error: 'Missing customer ID' } };
+    }
+    const customer = await stripe.customers.retrieve(customerId).catch(() => null);
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
+    if (customerEmail) {
+      await sendBillingNoticeEmail({
+        to: customerEmail,
+        type: 'subscription_canceled',
+        planName: subscription.items?.data?.[0]?.price?.nickname || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
+    }
+
+    // Downgrade user to rookie plan now that subscription period has ended
+    const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: customerId } });
+    if (canceledUser) {
+      const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
+      const previousPlan = getCanonicalPlan(canceledUser as any);
+      delete prefs.subscription_id;
+      delete prefs.subscription_period_end;
+      const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      });
+      // ATOMIC: downgrade + cancellation log must succeed or fail together
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: canceledUser.id },
+          data: {
+            preferences: nextPrefs,
+            ...buildBillingStateColumns({
+              plan: 'rookie',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_CANCEL',
+            status: 'COMPLETED',
+            stripe_subscription_id: subscription.id,
+            user_id: canceledUser.id,
+            metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
+            subtotal_cents: 0,
+            tax_cents: 0,
+            stripe_fee_cents: 0,
+            discount_cents: 0,
+            total_cents: 0,
+            net_cents: 0,
+            promo_discount_cents: 0,
+            currency: 'usd',
+          },
+        }),
+      ]);
+      await invalidateMeCacheForUser(canceledUser.id);
+    }
+  }
+
+  if (event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const subCustomerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!subCustomerId) {
+      console.error('[webhook] customer.subscription.updated: subscription.customer is null');
+      return { status: 400, body: { error: 'Missing customer ID' } };
+    }
+    const customer = await stripe.customers.retrieve(subCustomerId).catch(() => null);
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
+
+    // Sync subscription state to database (independent of email availability)
+    const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subCustomerId } });
+    if (subUser) {
+      const priceId = subscription.items?.data?.[0]?.price?.id;
+      // Map Stripe price ID back to plan tier
+      let newTier: string = subUser.subscription_tier || 'free';
+      if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
+      else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
+
+      const statusMap: Record<string, string> = {
+        active: 'active', past_due: 'past_due', unpaid: 'unpaid',
+        canceled: 'canceled', incomplete: 'incomplete', incomplete_expired: 'canceled',
+        trialing: 'active', paused: 'paused',
+      };
+      const newStatus = statusMap[subscription.status] || subscription.status;
+
+      // Also update preferences.plan to keep it in sync with subscription_tier
+      const planFromTier = newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
+      const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
+      if (planFromTier && (newStatus === 'active')) {
+        const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
+        updateData.preferences = mergeBillingStateIntoPreferences(existingPrefs, {
+          plan: planFromTier as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        });
+        Object.assign(updateData, buildBillingStateColumns({
+          plan: planFromTier as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }));
+      }
+
+      await prisma.user.update({
+        where: { id: subUser.id },
+        data: updateData,
+      });
+      await invalidateMeCacheForUser(subUser.id);
+      console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
+
+      // Update any PENDING transaction log created by PaymentSheet flow
+      updateTransactionStatus(subscription.id, 'COMPLETED', {
+        metadata: { event: 'subscription.updated', status: subscription.status },
+      }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
+    }
+
+    if (subscription.status === 'active' && customerEmail) {
+      await sendBillingNoticeEmail({
+        to: customerEmail,
+        type: 'subscription_renewed',
+        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
+        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
+    }
+  }
+
+  // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
+  // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
+  // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
+  // affect the user's plan or ad — they kept access without paying.
+  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+    const charge = event.data.object as Stripe.Charge;
+    const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+    const refundAmount = charge.amount_refunded || charge.amount;
+    try {
+      // Find the original transaction by payment intent
+      const tx = piId
+        ? await prisma.transactionLog.findFirst({ where: { stripe_payment_intent_id: piId }, orderBy: { created_at: 'desc' } })
+        : null;
+      if (!tx) {
+        console.error('[webhook] charge.refunded without matching transactionLog', { charge_id: charge.id, pi: piId });
+        captureException(new Error('charge.refunded: no matching transaction'), { context: 'refund_no_tx', chargeId: charge.id });
+      } else {
+        const promoRollbackRefs = Array.from(
+          new Set(
+            [tx.stripe_payment_intent_id, tx.stripe_session_id]
+              .map((value) => String(value || '').trim())
+              .filter(Boolean)
+          )
+        );
+
+        const { promoRollback } = await prisma.$transaction(async (db) => {
+          const promoRollbackResult = await reversePromoRedemption(
+            { orderReferences: promoRollbackRefs },
+            db
+          );
+
+          await db.transactionLog.update({
+            where: { id: tx.id },
+            data: {
+              status: 'REFUNDED' as any,
+              metadata: {
+                ...(tx.metadata as any || {}),
+                refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+                refunded_amount_cents: refundAmount,
+                stripe_charge_id: charge.id,
+                refunded_at: new Date().toISOString(),
+                promo_redemption_reversed: promoRollbackResult.reversed,
+                promo_reversal_count: promoRollbackResult.count,
+                promo_reversal_refs: promoRollbackResult.orderReferences,
+              },
+            },
+          });
+
+          // Cascade based on transaction type:
+          // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+          // - AD_PURCHASE → mark ad refunded + release reservations
+          if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+            const u = await db.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
+            const prefs = (u?.preferences as any) || {};
+            const nextPrefs = mergeBillingStateIntoPreferences(
+              { ...prefs, subscription_id: null, subscription_period_end: null },
+              {
+                plan: 'rookie',
+                pending_plan: null,
+                payment_pending: false,
+                payment_approved: false,
+              }
+            );
+            await db.user.update({
+              where: { id: tx.user_id },
+              data: {
+                preferences: nextPrefs,
+                ...buildBillingStateColumns({
+                  plan: 'rookie',
+                  pending_plan: null,
+                  payment_pending: false,
+                  payment_approved: false,
+                }),
+                subscription_tier: 'free',
+                subscription_status: 'cancelled',
+                max_teams: 3,
+              },
+            });
+          } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+            await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
+            await db.ad.updateMany({
+              where: { id: tx.order_id },
+              data: { status: 'draft', payment_status: 'refunded' },
+            });
+          }
+
+          return { promoRollback: promoRollbackResult };
+        });
+
+        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+          await invalidateMeCacheForUser(tx.user_id);
+          console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
+        } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+          console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
+        }
+
+        if (promoRollback.reversed) {
+          console.warn('[webhook] Promo redemption reversed after refund', {
+            transaction_id: tx.id,
+            refs: promoRollback.orderReferences,
+            count: promoRollback.count,
+          });
+        }
+      }
+    } catch (refundErr: any) {
+      console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
+      captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+    }
+  }
+
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await updateTransactionStatus(session.id, 'FAILED', {
+      metadata: { reason: 'checkout_expired' },
+    }).catch(err => { console.error('[transaction-log] expired session update failed:', err); captureException(err as Error, { context: 'transaction_log_expired_session' }); });
+
+    // Release ad slot holds if this was an ad checkout
+    const expiredAdId = session.metadata?.ad_id;
+    if (expiredAdId) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: expiredAdId }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
+            prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on expiry:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_expired', adId: expiredAdId });
+      }
+    }
+  }
+
+  // Handle failed payment intents
+  if (event.type === 'payment_intent.payment_failed') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    await logTransaction({
+      transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+      status: 'FAILED',
+      stripePaymentIntentId: pi.id,
+      userId: meta.user_id || undefined,
+      totalCents: pi.amount,
+      metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
+    }).catch(err => { console.error('[transaction-log] failed payment log failed:', err); captureException(err as Error, { context: 'transaction_log_failed_payment' }); });
+
+    // Release ad slot holds on payment failure
+    if (meta.ad_id) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: meta.ad_id }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
+            prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on payment failure:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_failed_pi', adId: meta.ad_id });
+      }
+    }
+
+    // Notify user of failed payment
+    if (meta.user_id) {
+      const failedUser = await prisma.user.findUnique({ where: { id: meta.user_id } });
+      if (failedUser?.email) {
+        await sendBillingNoticeEmail({
+          to: failedUser.email,
+          type: 'payment_failed',
+          amount: `$${(pi.amount / 100).toFixed(2)}`,
+          planName: meta.ad_id ? 'Ad Purchase' : 'VarsityHub Subscription',
+        }).catch(err => console.warn('[billing-email] payment_intent.failed notification failed:', err));
+      }
+    }
+  }
+
+  // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
+  if (event.type === 'payment_intent.succeeded') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    if (meta.ad_id) {
+      const adId = meta.ad_id;
+      let piDates: string[] = [];
+      try { piDates = JSON.parse(String(meta.dates || '[]')); } catch { /* ignore */ }
+      if (piDates.length > 0) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            const MAX_AD_SLOTS = 2;
+            const adRecord = await tx.ad.findUnique({ where: { id: adId }, select: { target_zip_code: true } });
+            if (adRecord?.target_zip_code) {
+              // Count paid and held ads (excluding this one) to check slot availability
+              const reservedAdsInZip = await tx.ad.findMany({
+                where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: adId } },
+                select: { id: true },
+                take: 100,
+              });
+              if (reservedAdsInZip.length > 0) {
+                const dateObjects = piDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+                const bookedSlots = await tx.adReservation.groupBy({
+                  by: ['date'],
+                  where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+                  _count: { date: true },
+                });
+                const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+                if (fullDates.length > 0) {
+                  const err = new Error('SLOT_FULL') as any;
+                  err.slotFull = true;
+                  err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+                  throw err;
+                }
+              }
+            }
+            // SECURITY: Only activate ads that have been approved by admin
+            const adCheck = await tx.ad.findUnique({ where: { id: adId }, select: { status: true } });
+            if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
+              throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`);
+            }
+
+            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
+            await tx.adReservation.createMany({
+              data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
+              skipDuplicates: true,
+            });
+          }, { isolationLevel: 'Serializable' });
+
+          // Update transaction (ad payment confirmation email removed — non-mandatory)
+          await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+          // Ad was already approved before payment — no admin review needed
+
+          // Redeem promo code if one was used — retry up to 3 times to prevent reuse
+          if (meta.promo_code && meta.user_id) {
+            const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
+            let promoRedeemed = false;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id });
+                promoRedeemed = true;
+                break;
+              } catch (e) {
+                console.warn(`[webhook] promo redeem attempt ${attempt}/3 failed:`, (e as any)?.message);
+                if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+              }
+            }
+            if (!promoRedeemed) {
+              // PAY-5: Payment succeeded but promo usage wasn't decremented — promo can be reused.
+              // Use NEEDS_REVIEW (not FAILED — the payment completed) so the admin
+              // dashboard surfaces it without misrepresenting the payment outcome.
+              console.error('[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable', { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id });
+              captureException(new Error('Promo redemption failed after retries — revenue leak risk'), {
+                context: 'promo_redeem_failed',
+                promoCode: meta.promo_code,
+                piId: pi.id,
+                userId: meta.user_id,
+                level: 'fatal',
+              });
+              updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
+                metadata: { promo_redemption_failed: true, promo_code: meta.promo_code, needs_review: true },
+              }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
+            }
+          }
+        } catch (e: any) {
+          if (e?.slotFull) {
+            console.error('[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund', { ad_id: adId, dates: e.dates, pi_id: pi.id });
+            // Auto-refund: charge the user's card back immediately
+            try {
+              const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
+              await updateTransactionStatus(pi.id, 'REFUNDED', {
+                metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
+              });
+              // Notify user their dates were unavailable and they've been refunded
+              const adForRefund = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+              const refundUser = meta.user_id ? await prisma.user.findUnique({ where: { id: meta.user_id }, select: { email: true } }) : null;
+              if (refundUser?.email) {
+                sendBillingNoticeEmail({
+                  to: refundUser.email,
+                  type: 'payment_failed',
+                  planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
+                  amount: `$${(pi.amount / 100).toFixed(2)}`,
+                  perks: [`Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(pi.amount / 100).toFixed(2)}.`],
+                }).catch(err => {
+                  console.error('[payments] Failed to send refund email:', err);
+                  captureException(err as Error, { context: 'slot_full_refund_email', adId, piId: pi.id });
+                });
+              }
+            } catch (refundErr: any) {
+              // Refund failed — this is critical, requires manual intervention
+              console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { ad_id: adId, pi_id: pi.id, error: refundErr?.message });
+              captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed', adId, piId: pi.id, amount: pi.amount });
+              await updateTransactionStatus(pi.id, 'FAILED', {
+                metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
+              }).catch(err => { console.error('[transaction-log] PI slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full_pi' }); });
+              await markStripeEventFailed(event.id, refundErr);
+              return { status: 500, body: { error: 'Auto-refund failed; retrying webhook' } };
+            }
+          } else {
+            await markStripeEventFailed(event.id, e);
+            console.error('[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry', { ad_id: adId, pi_id: pi.id, error: e });
+            captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
+            return { status: 500, body: { error: 'Ad processing failed' } };
+          }
+        }
+      }
+    }
+  }
+  } catch (eventErr: any) {
+    await markStripeEventFailed(event.id, eventErr);
+    console.error('[webhook] CRITICAL: Unhandled webhook processing failure:', eventErr?.message || eventErr);
+    captureException(eventErr as Error, { context: 'stripe_webhook_unhandled_processing_error', eventType: event.type, eventId: event.id });
+    return { status: 500, body: { error: 'Webhook processing failed' } };
+  }
+
+  await markStripeEventProcessed(event.id);
+  return { status: 200, body: { received: true } };
+}
+
 
 // Public config for coach onboarding and payment UI (no auth required)
 paymentsRouter.get('/config', (_req, res) => {
@@ -1123,6 +1692,58 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
 // IMPORTANT: The raw body parser is registered at the app level (server/src/index.ts)
 // for route /payments/webhook BEFORE express.json(). Do not add parsers here.
 paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  if (!sig) {
+    return res.status(400).json({ error: 'Missing stripe-signature header' });
+  }
+
+  const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+  if (!webhookSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
+    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), { context: 'webhook_secret_missing' });
+    return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' });
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
+  } catch (err: any) {
+    console.error('Stripe webhook signature verification failed:', err?.message || err);
+    captureException(err, { context: 'stripe_webhook_verification_failed' });
+    return res.status(400).send('Webhook Error: Invalid signature');
+  }
+
+  try {
+    const response = await withDistributedLock(
+      {
+        namespace: 'payments:webhook-event',
+        key: event.id,
+        ttlMs: 10 * 60 * 1000,
+        acquireTimeoutMs: 15 * 1000,
+        retryDelayMs: 100,
+        localLocks: webhookEventLocks,
+      },
+      () => processStripeWebhookEvent(event)
+    );
+    return res.status(response.status).json(response.body);
+  } catch (lockErr: any) {
+    const existing = await prisma.processedStripeEvent.findUnique({
+      where: { event_id: event.id },
+      select: { processed: true },
+    }).catch(() => null);
+    if (existing?.processed) {
+      debugLog('[webhook] Duplicate event skipped after lock wait', { event_id: event.id, event_type: event.type });
+      return res.json({ received: true, deduplicated: true });
+    }
+    console.error('[webhook] Failed to acquire event lock, rejecting for retry:', lockErr?.message || lockErr);
+    captureException(lockErr as Error, { context: 'stripe_webhook_lock_failed', eventType: event.type, eventId: event.id });
+    return res.status(500).json({ error: 'Webhook lock acquisition failed' });
+  }
+}));
+
+// Legacy webhook handler retained only for diff safety while the locked path above
+// owns /payments/webhook. Do not reuse this route.
+paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) => {
   const sig = req.headers['stripe-signature'];
   if (!sig) {
     // No signature = not from Stripe (bot, crawler, health check). Reject silently.

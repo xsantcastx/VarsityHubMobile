@@ -53,8 +53,11 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(block).toMatch(/catch|400/);
     });
 
-    it('webhook events are deduped via distributed lock (no double-processing)', () => {
-      expect(payments).toMatch(/withDistributedLock|webhookEventLocks/);
+    it('webhook events are deduped via the per-event distributed lock (no double-processing)', () => {
+      const block = payments.match(/paymentsRouter\.post\('\/webhook'[\s\S]{0,2500}/)?.[0] || '';
+      expect(block).toMatch(/withDistributedLock/);
+      expect(block).toMatch(/namespace:\s*['"]payments:webhook-event['"]/);
+      expect(block).toMatch(/localLocks:\s*webhookEventLocks/);
     });
 
     it('server requires STRIPE_SECRET_KEY in production (fatal throw)', () => {

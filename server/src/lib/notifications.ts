@@ -23,6 +23,7 @@ export {
 import { Expo } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
+import { shouldClearPushTokenForExpoError } from './pushReceiptPolicy.js';
 import { captureException, captureMessage } from './sentry.js';
 import { updateUserAndInvalidate } from './userCache.js';
 import { sendPushNotification } from './pushNotifications.js';
@@ -424,7 +425,8 @@ export async function cancelGameReminders(eventId: string, userId: string): Prom
 /**
  * Verify push notification delivery receipts from Expo.
  * Queries recent notifications with a ticket_id in meta, checks receipts,
- * and clears stale push tokens on DeviceNotRegistered errors.
+ * and clears stale push tokens for receipt errors that prove the token is no
+ * longer usable for this app.
  */
 export async function verifyPushReceipts(): Promise<void> {
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -495,9 +497,9 @@ export async function verifyPushReceipts(): Promise<void> {
         } else if (receipt.status === 'error') {
           const details = receipt.details;
 
-          if (details?.error === 'DeviceNotRegistered') {
+          if (shouldClearPushTokenForExpoError(details?.error)) {
             // Clear the stale push token from user preferences
-            debugLog(`[verifyPushReceipts] Clearing stale push token for user ${entry.user_id}`);
+            debugLog(`[verifyPushReceipts] Clearing stale push token for user ${entry.user_id} (${details?.error})`);
             const user = await prisma.user.findUnique({
               where: { id: entry.user_id },
               select: { preferences: true },
