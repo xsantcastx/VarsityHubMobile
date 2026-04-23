@@ -33,6 +33,49 @@ await initEmailService();
   }
 }
 
+// v1.0.3: Cloudinary auth smoke test on boot. Runs a 1x1 PNG probe against
+// Cloudinary signed upload, logs the exact outcome to Railway stdout so any
+// signature/credential drift is visible within the first 10 seconds of a
+// deploy (instead of surfacing only when a user tries an upload).
+void (async () => {
+  try {
+    const { isCloudinaryConfigured, getCloudinaryCredentials, getCloudinaryFolder, uploadBufferToCloudinary, CloudinaryUpstreamError } = await import('./lib/cloudinary.js');
+    if (!isCloudinaryConfigured()) {
+      console.warn('[startup] Cloudinary not configured — uploads will fail');
+      return;
+    }
+    const { cloudName, apiKey, apiSecret } = getCloudinaryCredentials();
+    const folder = getCloudinaryFolder();
+    console.log(`[startup] Cloudinary config: cloud=${cloudName} key_prefix=${apiKey.slice(0,4)}… secret_fingerprint=${apiSecret.slice(0,3)}…[${apiSecret.length}ch] folder=${folder}`);
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+      'base64'
+    );
+    await uploadBufferToCloudinary(
+      {
+        buffer: tinyPng,
+        originalname: 'startup-probe.png',
+        mimetype: 'image/png',
+        size: tinyPng.length,
+      } as any,
+      { resourceType: 'image' }
+    );
+    console.log('[startup] ✅ Cloudinary auth probe: OK — signed upload accepted');
+  } catch (err: any) {
+    const isUpstream = err?.name === 'CloudinaryUpstreamError';
+    const kind = isUpstream ? err.kind : 'unknown';
+    const httpCode = isUpstream ? err.http_code : undefined;
+    const message = err?.message || String(err);
+    console.error(`[startup] ❌ Cloudinary auth probe FAILED — kind=${kind} http=${httpCode} message="${message}"`);
+    if (kind === 'invalid_signature') {
+      console.error('[startup] HINT: CLOUDINARY_API_SECRET on Railway does not match Cloudinary dashboard. Open Cloudinary → Settings → API Keys → copy API Secret → paste into Railway CLOUDINARY_API_SECRET → save → redeploy.');
+    } else if (kind === 'unauthorized') {
+      console.error('[startup] HINT: CLOUDINARY_API_KEY on Railway does not match Cloudinary dashboard. Verify it in Cloudinary → Settings → API Keys.');
+    }
+    captureMessage(`Cloudinary boot probe failed: ${message}`, 'error');
+  }
+})();
+
 // Initialize job queues (async, non-blocking)
 initializeQueues().catch(error => {
   console.error('[startup] Failed to initialize queues:', error);
