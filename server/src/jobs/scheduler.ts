@@ -161,19 +161,10 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   // Founder metrics job removed — non-mandatory internal report email
-  {
-    name: 'subscription-expiry-check',
-    cron: '0 9 * * *', // Every day at 9:00 AM
-    description: 'Send renewal reminders for expiring subscriptions',
-    handler: async () => {
-      try {
-        const { checkExpiringSubscriptions } = await import('./subscriptionExpiryChecker.js');
-        await checkExpiringSubscriptions();
-      } catch (error) {
-        console.error('[Scheduler] Failed to check expiring subscriptions:', error);
-      }
-    },
-  },
+  // subscription-expiry-check removed — the handler was a no-op stub and the
+  // renewal reminder email was intentionally dropped as non-mandatory marketing.
+  // Scheduling a daily no-op misleads anyone reading the startup log into
+  // thinking renewal reminders are going out.
   {
     name: 'coach-approval-reminder',
     cron: '30 9 * * *', // Every day at 9:30 AM

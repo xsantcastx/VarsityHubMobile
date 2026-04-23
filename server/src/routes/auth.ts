@@ -1685,8 +1685,12 @@ authRouter.post(
         reason: user.rejection_reason || null,
       });
     }
-    // Reset to PENDING, clear rejection, force re-run of onboarding (org connect)
-    const merged = { ...prefs, onboarding_completed: false, join_request_pending: false };
+    // Reset to PENDING, clear rejection, force re-run of onboarding (org connect).
+    // Strip the dead organization pointer so step-3-league starts fresh — otherwise
+    // the coach's /me keeps pointing at the rejected org and the onboarding UI
+    // shows stale league info.
+    const { organization_id: _oid, organization_name: _oname, ...scrubbedPrefs } = prefs as Record<string, unknown>;
+    const merged = { ...scrubbedPrefs, onboarding_completed: false, join_request_pending: false };
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: {

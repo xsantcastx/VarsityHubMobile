@@ -14,7 +14,6 @@
 
 module.exports = ({ config }) => {
   const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || '64489ed7-a8c0-41de-91ec-5846ea79a27f';
-  const EXPO_RUNTIME_VERSION = process.env.EXPO_RUNTIME_VERSION || '1.0.2';
 
   // Client IDs are NOT secrets — they're embedded in the app bundle.
   // Hardcoded fallbacks ensure the URL scheme is always registered even
@@ -29,7 +28,10 @@ module.exports = ({ config }) => {
     slug: 'varsityhub',
     owner: 'varsity-hub',
     version: '1.0.2',
-    runtimeVersion: EXPO_RUNTIME_VERSION,
+    // Auto-derived from `version` — never hardcode a string.
+    // The installed App Store binary embeds this as the resolved string, so OTA
+    // updates only match binaries whose native `version` matches the current one.
+    runtimeVersion: { policy: 'appVersion' },
     description:
       'The ultimate sports team management and social platform for athletes, coaches, and fans.',
     githubUrl: 'https://github.com/xsantcastx/VarsityHubMobile',

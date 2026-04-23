@@ -23,7 +23,7 @@ import {
 } from './email.js';
 import { sendPushNotification } from './pushNotifications.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from './userCache.js';
-import { addBreadcrumb } from './sentry.js';
+import { addBreadcrumb, captureException } from './sentry.js';
 import {
   buildAuthStateColumns,
   getCanonicalOrganizationId,
@@ -489,7 +489,28 @@ export async function rejectCoach(
     },
   });
 
-  // ── Fire-and-forget notifications ──
+  // In-app notification is the guaranteed channel — the pending-approval screen
+  // reads the rejection reason from here. Await it so a DB write failure surfaces
+  // to Sentry instead of dying as an unhandled rejection.
+  try {
+    await prisma.notification.create({
+      data: {
+        user_id: userId,
+        type: 'COACH_REJECTED',
+        meta: { rejected_by: 'admin', reason: reason || null },
+      },
+    });
+  } catch (err) {
+    console.error('[approvalService] coach rejected in-app notification failed:', (err as any)?.message || err);
+    captureException(err as Error, {
+      context: 'coach_rejection_notification_failed',
+      userId,
+      adminId,
+      reason: reason || null,
+    });
+  }
+
+  // Email and push are best-effort — in-app above is the canonical record.
   if (user.email) {
     const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
     const orgName = prefs?.organization_name || 'VarsityHub';
@@ -498,16 +519,11 @@ export async function rejectCoach(
       coachName: user.display_name || user.username || 'Coach',
       leagueName: orgName,
       reason: reason || undefined,
-    }).catch((err) => console.error('[approvalService] coach rejected email failed:', err));
+    }).catch((err) => {
+      console.error('[approvalService] coach rejected email failed:', err);
+      captureException(err as Error, { context: 'coach_rejection_email_failed', userId });
+    });
   }
-
-  prisma.notification.create({
-    data: {
-      user_id: userId,
-      type: 'COACH_REJECTED',
-      meta: { rejected_by: 'admin', reason: reason || null },
-    },
-  }).catch((err) => console.error('[approvalService] coach rejected in-app notification failed:', (err as any)?.message || err));
 
   sendPushNotification(
     userId,
