@@ -1,5 +1,6 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
-import { isCloudinaryConfigured } from '../lib/cloudinary.js';
+import { CloudinaryUpstreamError, getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { getMissingEmailTemplates, getMissingRecommendedTemplates, isSendGridConfigured, sendVerificationEmail } from '../lib/email.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
@@ -198,5 +199,100 @@ healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
     missing_recommended_templates: missingRecommended,
     timestamp: new Date().toISOString(),
   });
+}));
+
+/**
+ * v1.0.3: /health/cloudinary
+ *
+ * Verifies Cloudinary signed upload auth end-to-end without requiring a user
+ * to trigger an upload. Sends a 1-byte test image through
+ * `uploadBufferToCloudinary` — if the signature is valid AND Cloudinary
+ * accepts the credentials, it returns 200 with the uploaded URL. If
+ * Cloudinary rejects ("Invalid Signature" / "Unknown API key"), it returns
+ * 502 with a diagnostic dump so you can tell at a glance whether the env
+ * var secret is wrong.
+ *
+ * Requires HEALTH_CHECK_SECRET. Safe to call from CI or a curl prompt.
+ *
+ * Usage:
+ *   curl -H "x-health-check-secret: $S" \
+ *     "https://api-production-xxx.up.railway.app/health/cloudinary"
+ */
+healthRouter.get('/cloudinary', asyncHandler(async (req: AuthedRequest, res) => {
+  const secret = process.env.HEALTH_CHECK_SECRET;
+  const provided = req.headers['x-health-check-secret'] as string | undefined;
+  if (!secret || !provided || provided !== secret) {
+    return res.status(401).json({ status: 'unauthorized' });
+  }
+  if (!isCloudinaryConfigured()) {
+    return res.status(503).json({ status: 'not_configured' });
+  }
+
+  const { cloudName, apiKey, apiSecret } = getCloudinaryCredentials();
+  const folder = getCloudinaryFolder();
+
+  // A 1x1 red PNG — smallest valid image bytes we can upload to verify
+  // the signed-upload pipeline end-to-end.
+  const tinyPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const startMs = Date.now();
+  try {
+    const result = await uploadBufferToCloudinary(
+      {
+        buffer: tinyPng,
+        originalname: 'health-probe.png',
+        mimetype: 'image/png',
+        size: tinyPng.length,
+      } as Express.Multer.File,
+      { resourceType: 'image' }
+    );
+    const durationMs = Date.now() - startMs;
+    return res.status(200).json({
+      status: 'ok',
+      duration_ms: durationMs,
+      uploaded_url: result.secure_url || result.url,
+      public_id: result.public_id,
+      cloud_name: cloudName,
+      api_key_prefix: `${apiKey.slice(0, 4)}…`,
+      secret_fingerprint: `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`,
+      folder,
+    });
+  } catch (err: any) {
+    const durationMs = Date.now() - startMs;
+    const isUpstream = err instanceof CloudinaryUpstreamError;
+    // Reproduce the exact string-to-sign so the caller can compare against
+    // Cloudinary's error payload directly. Keys must mirror cloudinary.ts.
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signedParams: Record<string, string> = {
+      folder,
+      timestamp: String(timestamp),
+      flags: 'exif_autostrip,strip_profile',
+    };
+    const sampleToSign = Object.keys(signedParams)
+      .sort()
+      .map((k) => `${k}=${signedParams[k]}`)
+      .join('&');
+    const sampleSignature = crypto
+      .createHash('sha1')
+      .update(`${sampleToSign}${apiSecret}`)
+      .digest('hex');
+    return res.status(502).json({
+      status: isUpstream ? 'upstream_rejected' : 'error',
+      duration_ms: durationMs,
+      cloudinary_status: isUpstream ? err.http_code : undefined,
+      cloudinary_kind: isUpstream ? err.kind : undefined,
+      cloudinary_message: isUpstream ? err.cloudinary_message : err?.message,
+      sample_string_to_sign: sampleToSign,
+      sample_signature: sampleSignature,
+      cloud_name: cloudName,
+      api_key_prefix: `${apiKey.slice(0, 4)}…`,
+      secret_fingerprint: `${apiSecret.slice(0, 3)}…[${apiSecret.length}ch]`,
+      hint: isUpstream && err.kind === 'invalid_signature'
+        ? 'Our string-to-sign matches Cloudinary reconstruction but the signatures differ. Verify CLOUDINARY_API_SECRET in Railway matches Cloudinary → Settings → API Keys.'
+        : undefined,
+    });
+  }
 }));
 
