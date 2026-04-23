@@ -45,7 +45,11 @@ describe('cloudinary upload helper', () => {
     const form = init.body as FormData;
 
     expect(form.has('image_metadata')).toBe(false);
-    expect(form.get('flags')).toBe('exif_autostrip,strip_profile');
+    // v1.0.3: `flags` was dropped from the signed upload params because
+    // Cloudinary's signature reconstruction did not include it in production,
+    // causing persistent "Invalid Signature" errors. EXIF stripping moves to
+    // an upload preset / account-level pipeline (not required here).
+    expect(form.has('flags')).toBe(false);
   });
 
   // v1.0.3: regression test for the "Invalid Signature" production bug.

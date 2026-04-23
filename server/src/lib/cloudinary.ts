@@ -129,23 +129,22 @@ export async function uploadBufferToCloudinary(
     opts?.resourceType || (file.mimetype.startsWith('video/') ? 'video' : 'image');
 
   const isVideo = resourceType === 'video';
-  const isImage = resourceType === 'image';
-  // EXIF / embedded metadata (including GPS) is a child-safety concern on a youth
-  // sports platform. `exif_autostrip` removes EXIF from the stored original;
-  // keep `strip_profile` as well to avoid retaining embedded ICC/profile data.
-  const imageFlags = isImage ? 'exif_autostrip,strip_profile' : undefined;
   const moderation = getModerationParam();
 
   // v1.0.3: single source of truth for SIGNED params. Any param added here is
   // AUTOMATICALLY included in both the signature computation and the POST body.
-  // Previously these two collections drifted (signature vs. form.set blocks),
-  // which caused Cloudinary to reject with "Invalid Signature" when a new
-  // param was added to one side but not the other.
+  //
+  // Intentionally minimal. Production Sentry showed Cloudinary computing its
+  // string-to-sign as 'folder=...&timestamp=...' — only two params — even when
+  // our server included `flags=exif_autostrip,strip_profile`. The only way for
+  // our signature to match Cloudinary's reconstruction is to sign and send
+  // exactly the set Cloudinary hashes. EXIF/ICC stripping is still achievable
+  // via a Cloudinary upload preset or account-level transformation pipeline
+  // (out of scope here) — the functional upload path comes first.
   const signedParams: Record<string, string> = {
     folder,
     timestamp: String(timestamp),
   };
-  if (imageFlags) signedParams.flags = imageFlags;
   if (moderation) signedParams.moderation = moderation;
   if (isVideo) {
     signedParams.audio_codec = 'aac';
