@@ -177,6 +177,7 @@ testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, asyncHa
     const oneHourFromNow = new Date(now.getTime() + 1 * 60 * 60 * 1000);
 
     const [games12h, games1h] = await Promise.all([
+      // @allow-unbounded-findMany — bounded by 10-minute date window + single-user RSVP filter
       prisma.event.findMany({
         where: {
           date: {
@@ -197,6 +198,7 @@ testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, asyncHa
           location: true,
         }
       }),
+      // @allow-unbounded-findMany — bounded by 10-minute date window + single-user RSVP filter
       prisma.event.findMany({
         where: {
           date: {
