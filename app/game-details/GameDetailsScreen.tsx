@@ -5,6 +5,7 @@ import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { safeGoBack } from '@/utils/navigation';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -1562,6 +1563,7 @@ const GameDetailsScreen = () => {
       if (!result || result.canceled || !result.assets || !result.assets.length) return;
 
       const asset = result.assets[0];
+      const materializedUri = await materializeICloudAssetIfNeeded(asset.uri);
       const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
       const fileName =
         asset.fileName ||
@@ -1570,13 +1572,13 @@ const GameDetailsScreen = () => {
 
       // For videos, show trim preview before uploading
       if (asset.type === 'video') {
-        setStoryPreview({ uri: asset.uri, mimeType, fileName, type: 'video' });
+        setStoryPreview({ uri: materializedUri, mimeType, fileName, type: 'video' });
         setStoryTrimmedUri(null);
         return; // Upload will happen via confirmStoryUpload
       }
 
       const base = getApiBaseUrl();
-      let uri = asset.uri;
+      let uri = materializedUri;
       const ensured = await (
         await import('../../utils/ensureUploadableUri')
       ).ensureUploadableUri(uri, mimeType);
