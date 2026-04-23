@@ -50,8 +50,12 @@ export function getCloudinaryCredentials(): { cloudName: string; apiKey: string;
 }
 
 // Get folder name based on environment
+// v1.0.3: trim NODE_ENV defensively. A trailing newline or space on the env
+// var would make our signed string include the whitespace while Cloudinary's
+// reconstructed string strips it, causing a silent signature mismatch with
+// the same params on both sides. Cheap insurance.
 export const getCloudinaryFolder = (): string => {
-  const env = process.env.NODE_ENV || 'development';
+  const env = (process.env.NODE_ENV || 'development').trim();
   return `varsityhub/${env}`;
 };
 
