@@ -42,14 +42,19 @@ function LeaguePendingApproval() {
   // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
   const completionStartedRef = useRef(false);
   const redirectedRef = useRef(false);
+  const proceedingAsFanRef = useRef(false);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+  }, []);
 
   const redirectToLeagueSetup = useCallback(() => {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    stopPolling();
     router.replace('/onboarding/step-3-league');
-  }, [router]);
+  }, [router, stopPolling]);
 
   // v1.0.3: hydrate orgId from /me when it's missing at mount (cold-start
   // race where OnboardingContext hasn't loaded yet). Only redirect back to
@@ -102,6 +107,11 @@ function LeaguePendingApproval() {
       ]);
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
+      const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+      if (isProceedingAsFan || proceedingAsFanRef.current) {
+        stopPolling();
+        return;
+      }
       const orgState = String(org?.status || '').toLowerCase();
       const canViewPendingApproval =
         role === 'coach' &&
@@ -117,8 +127,7 @@ function LeaguePendingApproval() {
       const isRejected = org?.status === 'rejected' || me?.approval_status === 'REJECTED';
       if (isRejected) {
         setRejected(true);
-        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        stopPolling();
         // Fetch rejection reason from notifications
         try {
           const page = await NotificationApi.listPage(null, 20, false);
@@ -136,11 +145,7 @@ function LeaguePendingApproval() {
       // Approved when org is admin_approved OR user approval_status is APPROVED
       if (org?.admin_approved === true || me?.approval_status === 'APPROVED') {
         setApproved(true);
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        stopPolling();
         // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
         if (completionStartedRef.current) return;
         completionStartedRef.current = true;
@@ -202,7 +207,7 @@ function LeaguePendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [leagueName, markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, redirectToLeagueSetup]);
+  }, [leagueName, markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, redirectToLeagueSetup, stopPolling]);
 
   useEffect(() => {
     if (!orgId) return;
@@ -231,6 +236,8 @@ function LeaguePendingApproval() {
 
   const handleProceedAsFan = async () => {
     try {
+      proceedingAsFanRef.current = true;
+      stopPolling();
       const me: any = await User.me().catch(() => null);
       await User.completeOnboarding({
         role: 'fan',
@@ -245,6 +252,7 @@ function LeaguePendingApproval() {
       await checkAuth();
       router.replace('/(tabs)' as any);
     } catch (err) {
+      proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[league-pending-approval] Failed to proceed as fan:', err);
       captureException(err instanceof Error ? err : new Error(String(err)), {
         tags: { component: 'LeaguePendingApproval', action: 'proceedAsFan' },

@@ -30,14 +30,19 @@ function PendingApproval() {
   // v1.0.2 audit fix C-3/H-4: prevent double completeOnboarding if screen re-mounts after approval
   const completionStartedRef = useRef(false);
   const redirectedRef = useRef(false);
+  const proceedingAsFanRef = useRef(false);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+  }, []);
 
   const redirectToOnboarding = useCallback(() => {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    stopPolling();
     router.replace('/onboarding');
-  }, [router]);
+  }, [router, stopPolling]);
 
   // Poll /me every 30 seconds to check approval_status
   const checkApproval = useCallback(async () => {
@@ -47,6 +52,11 @@ function PendingApproval() {
       const me: any = await User.me();
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
+      const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+      if (isProceedingAsFan || proceedingAsFanRef.current) {
+        stopPolling();
+        return;
+      }
       const canViewPendingApproval =
         role === 'coach' && ['PENDING', 'APPROVED', 'REJECTED'].includes(approvalStatus);
 
@@ -57,8 +67,7 @@ function PendingApproval() {
 
       if (me?.approval_status === 'REJECTED') {
         setRejected(true);
-        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        stopPolling();
         // Fetch rejection reason from the most recent COACH_REJECTED notification
         try {
           const page = await NotificationApi.listPage(null, 20, false);
@@ -77,11 +86,7 @@ function PendingApproval() {
         setApproved(true);
         const resolvedOrgId = me?.preferences?.organization_id || ob.organization_id || null;
         if (resolvedOrgId) setOrgId(resolvedOrgId);
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+        stopPolling();
         // v1.0.2 audit fix H-4: prevent double completeOnboarding on re-mount
         if (completionStartedRef.current) return;
         completionStartedRef.current = true;
@@ -160,7 +165,7 @@ function PendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, redirectToOnboarding]);
+  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, redirectToOnboarding, stopPolling]);
 
   useEffect(() => {
     // Initial check
@@ -193,6 +198,8 @@ function PendingApproval() {
 
   const handleProceedAsFan = async () => {
     try {
+      proceedingAsFanRef.current = true;
+      stopPolling();
       const me: any = await User.me().catch(() => null);
       const username = me?.username || ob.username;
       const dob = me?.dob || ob.dob;
@@ -213,6 +220,7 @@ function PendingApproval() {
       await checkAuth();
       router.replace('/(tabs)' as any);
     } catch (err: any) {
+      proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[pending-approval] Failed to proceed as fan:', err);
       const msg = err?.data?.error || err?.message || 'Could not complete setup. Please try again.';
       Alert.alert('Failed', msg);
