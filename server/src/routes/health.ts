@@ -137,8 +137,11 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
  * Use for external monitoring (UptimeRobot, etc.) and quick CI checks post-deploy.
  */
 healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
-  const secret = process.env.HEALTH_CHECK_SECRET;
-  const provided = req.headers['x-health-check-secret'] as string | undefined;
+  // v1.0.3: trim both sides defensively. Railway paste errors commonly leave
+  // a trailing \n or space in env values; without trim() the secret compare
+  // fails even when the visible value matches.
+  const secret = (process.env.HEALTH_CHECK_SECRET || '').trim();
+  const provided = String(req.headers['x-health-check-secret'] || '').trim();
   if (!secret || !provided || provided !== secret) {
     return res.status(401).json({ status: 'unauthorized' });
   }
@@ -219,8 +222,11 @@ healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
  *     "https://api-production-xxx.up.railway.app/health/cloudinary"
  */
 healthRouter.get('/cloudinary', asyncHandler(async (req: AuthedRequest, res) => {
-  const secret = process.env.HEALTH_CHECK_SECRET;
-  const provided = req.headers['x-health-check-secret'] as string | undefined;
+  // v1.0.3: trim both sides defensively. Railway paste errors commonly leave
+  // a trailing \n or space in env values; without trim() the secret compare
+  // fails even when the visible value matches.
+  const secret = (process.env.HEALTH_CHECK_SECRET || '').trim();
+  const provided = String(req.headers['x-health-check-secret'] || '').trim();
   if (!secret || !provided || provided !== secret) {
     return res.status(401).json({ status: 'unauthorized' });
   }
