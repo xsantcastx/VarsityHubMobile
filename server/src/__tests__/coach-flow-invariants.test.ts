@@ -30,6 +30,7 @@ const requireOnboarded = read(join(MIDDLEWARE_DIR, 'requireOnboarded.ts'));
 const requireVerified = read(join(MIDDLEWARE_DIR, 'requireVerified.ts'));
 const auth = read(join(ROUTES_DIR, 'auth.ts'));
 const organizations = read(join(ROUTES_DIR, 'organizations.ts'));
+const teams = read(join(ROUTES_DIR, 'teams.ts'));
 const admin = read(join(ROUTES_DIR, 'admin.ts'));
 
 describe('coach flow structural invariants', () => {
@@ -146,6 +147,20 @@ describe('coach flow structural invariants', () => {
       expect(requireVerified.includes('role: true')).toBe(true);
       expect(requireVerified.includes('onboarding_completed: true')).toBe(true);
     });
+
+    it('requireOnboarded payment gate uses canonical billing/auth helpers, not prefs.role drift', () => {
+      expect(/getSelectedPlan/.test(requireOnboarded)).toBe(true);
+      expect(/isPaymentPending/.test(requireOnboarded)).toBe(true);
+      expect(/isPaymentApproved/.test(requireOnboarded)).toBe(true);
+      expect(/prefs\?\.role\s*===\s*['"]coach['"]/.test(requireOnboarded)).toBe(false);
+    });
+
+    it('teams create route uses canonical role/onboarding helpers for approval gating', () => {
+      expect(/getCanonicalUserRole/.test(teams)).toBe(true);
+      expect(/isUserOnboardingComplete/.test(teams)).toBe(true);
+      expect(/prefsCheck\.role\s*===\s*['"]coach['"]/.test(teams)).toBe(false);
+      expect(/prefsCheck\.onboarding_completed\s*!==\s*true/.test(teams)).toBe(false);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────
@@ -170,7 +185,8 @@ describe('coach flow structural invariants', () => {
 
     it('requireOnboarded enforces paid-plan checkout for paying coaches', () => {
       expect(/PAYMENT_REQUIRED/.test(requireOnboarded)).toBe(true);
-      expect(/payment_pending/.test(requireOnboarded)).toBe(true);
+      expect(/isPaymentPending/.test(requireOnboarded)).toBe(true);
+      expect(/getSelectedPlan/.test(requireOnboarded)).toBe(true);
     });
   });
 

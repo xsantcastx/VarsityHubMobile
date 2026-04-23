@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
 import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
+import { getSelectedPlan, isPaymentApproved, isPaymentPending } from '../lib/userBillingState.js';
 
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
@@ -146,13 +147,11 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   // Approved coach accounts that selected a paid tier must complete checkout
   // before accessing coach tools, unless their league owner covers billing.
-  if (prefs?.role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
-    const pendingPlan = String((prefs?.pending_plan as string | undefined) || '').toLowerCase();
-    const currentPlan = String((prefs?.plan as string | undefined) || '').toLowerCase();
-    const selectedPlan = pendingPlan || currentPlan;
+  if (canonicalRole === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
+    const selectedPlan = getSelectedPlan(u as any);
     const requiresPayment = selectedPlan === 'veteran' || selectedPlan === 'legend';
-    const paymentPending = prefs?.payment_pending === true;
-    const paymentApproved = prefs?.payment_approved === true;
+    const paymentPending = isPaymentPending(u as any);
+    const paymentApproved = isPaymentApproved(u as any);
     const joinRequestPending = prefs?.join_request_pending === true;
     const canCheckoutNow = paymentApproved || !joinRequestPending;
 

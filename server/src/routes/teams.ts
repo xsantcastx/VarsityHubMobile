@@ -30,6 +30,7 @@ import {
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { sendError } from '../lib/http/sendError.js';
 import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
+import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
@@ -1020,16 +1021,28 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
   
   const data = parsed.data;
   const userId = req.user!.id;
-  const me = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, preferences: true, approval_status: true, paid_by_owner: true } });
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      onboarding_completed: true,
+      preferences: true,
+      approval_status: true,
+      paid_by_owner: true,
+    },
+  });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
   // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
   // OR if their profile role is 'coach' (covers new coaches who completed onboarding
   // but haven't created their first team yet).
   const prefsCheck = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const isCoachByPrefs = prefsCheck.role === 'coach';
+  const canonicalRole = getCanonicalUserRole(me as any);
+  const onboardingComplete = isUserOnboardingComplete(me as any);
+  const isCoach = canonicalRole === 'coach';
 
-  if (!isCoachByPrefs) {
+  if (!isCoach) {
     // Only check DB memberships if preferences don't confirm coach role
     const hasCoachRole = await prisma.teamMembership.findFirst({
       where: {
@@ -1057,10 +1070,9 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
 
   // Guard: Coach must be approved before creating teams
   // Exception: League owners creating during onboarding — verified server-side (not client flag)
-  if (isCoachByPrefs && me.approval_status !== 'APPROVED') {
+  if (isCoach && me.approval_status !== 'APPROVED') {
     // Server-side onboarding check: user has not completed onboarding AND is an org owner
-    const mePrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-    const isOnboarding = mePrefs.onboarding_completed !== true;
+    const isOnboarding = !onboardingComplete;
     const isOrgOwner = await prisma.organizationMembership.findFirst({
       where: { user_id: userId, role: 'owner', status: 'active' },
     });
@@ -1282,7 +1294,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       // Check target org is admin-approved before creating a team under it
       if (!(await isOrganizationApproved(organizationId, prisma))) {
         // Exception: org owners during onboarding are creating their first team before org gets approved
-        const isOnboarding = prefsCheck.onboarding_completed !== true;
+        const isOnboarding = !onboardingComplete;
         const isOrgOwnerOfTarget = await prisma.organizationMembership.findFirst({
           where: { organization_id: organizationId, user_id: me.id, role: 'owner', status: 'active' },
         });
