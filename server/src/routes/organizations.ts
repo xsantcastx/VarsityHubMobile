@@ -666,6 +666,7 @@ organizationsRouter.post(
         place_id: _pid,
         latitude: _lat,
         longitude: _lng,
+        onboarding: _ob,
         ...orgFields
       } = data;
       const organization = await prisma.$transaction(async tx => {
