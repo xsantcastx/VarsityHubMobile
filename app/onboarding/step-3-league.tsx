@@ -20,6 +20,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -70,6 +71,7 @@ function Step3League() {
   const [supportingDocumentUri, setSupportingDocumentUri] = useState<string | null>(null);
   const [supportingDocumentUrl, setSupportingDocumentUrl] = useState<string | null>(null);
   const [supportingDocumentName, setSupportingDocumentName] = useState<string | null>(null);
+  const [supportingDocumentMimeType, setSupportingDocumentMimeType] = useState<string | null>(null);
   const [backgroundImageUri, setBackgroundImageUri] = useState<string | null>(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null);
   const [_uploadingDocument, setUploadingDocument] = useState(false);
@@ -499,9 +501,10 @@ function Step3League() {
           file_type: supportingDocumentName?.toLowerCase().endsWith('.pdf') ? 'pdf' : 'image',
         });
         try {
-          const isPdf = supportingDocumentName?.toLowerCase().endsWith('.pdf');
-          const fileName = supportingDocumentName || 'supporting-doc.jpg';
-          const mimeType = isPdf ? 'application/pdf' : 'image/jpeg';
+          const nameHasPdf = supportingDocumentName?.toLowerCase().endsWith('.pdf');
+          const mimeType = supportingDocumentMimeType || (nameHasPdf ? 'application/pdf' : 'image/jpeg');
+          const isPdf = mimeType === 'application/pdf' || nameHasPdf === true;
+          const fileName = supportingDocumentName || (isPdf ? 'supporting-doc.pdf' : 'supporting-doc.jpg');
           const result = await uploadFile(getApiBaseUrl(), supportingDocumentUri, fileName, mimeType, {
             formFields: {
               onboarding: true,
@@ -520,7 +523,11 @@ function Step3League() {
           captureException(typeof uploadErr === 'string' ? new Error(uploadErr) : uploadErr, {
             tags: { context: 'onboarding-step-3-supporting-document-upload' },
           });
-          Alert.alert('Upload Failed', String(uploadErr?.message || uploadErr || 'Could not upload supporting document. Please try again.'));
+          showUploadErrorAlert(uploadErr, {
+            fallbackTitle: 'Upload Failed',
+            fallbackMessage: 'Could not upload supporting document. Please try again.',
+            logTag: 'onboarding-step-3-supporting-document-upload',
+          });
           setSaving(false);
           setUploadingDocument(false);
           return;
@@ -874,6 +881,7 @@ function Step3League() {
                         setSupportingDocumentUri(materialized);
                         setSupportingDocumentUrl(null);
                         setSupportingDocumentName(null);
+                        setSupportingDocumentMimeType(result.assets[0].mimeType || 'image/jpeg');
                       }
                     },
                   },
@@ -888,6 +896,7 @@ function Step3League() {
                         setSupportingDocumentUri(result.assets[0].uri);
                         setSupportingDocumentUrl(null);
                         setSupportingDocumentName(result.assets[0].name || 'Document');
+                        setSupportingDocumentMimeType(result.assets[0].mimeType || null);
                       }
                     },
                   },
@@ -907,7 +916,15 @@ function Step3League() {
                     <Image source={{ uri: supportingDocumentUri }} style={{ width: 48, height: 48, borderRadius: 8 }} />
                   )}
                   <Text style={[styles.selectFieldText, { flex: 1 }]}>{supportingDocumentName || 'Document selected'}</Text>
-                  <Pressable onPress={() => { setSupportingDocumentUri(null); setSupportingDocumentUrl(null); setSupportingDocumentName(null); }} hitSlop={8}>
+                  <Pressable
+                    onPress={() => {
+                      setSupportingDocumentUri(null);
+                      setSupportingDocumentUrl(null);
+                      setSupportingDocumentName(null);
+                      setSupportingDocumentMimeType(null);
+                    }}
+                    hitSlop={8}
+                  >
                     <MaterialIcons name="close" size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
                   </Pressable>
                 </View>
