@@ -95,7 +95,6 @@ export default function Step2Basic() {
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('other');
   const [dob, setDob] = useState('');
-  const [dobLocked, setDobLocked] = useState(false);
   const [zip, setZip] = useState('');
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -153,17 +152,6 @@ export default function Step2Basic() {
               (me?.date_of_birth ? String(me.date_of_birth).slice(0, 10) : '');
             if (storedDob) setDob(storedDob);
 
-            // v1.0.3: compute DOB lock status from `dob_set_at`. Once the
-            // grace window elapses the server will 403 on any change — disable
-            // the field so users don't edit then hit DOB_LOCKED on submit.
-            const dobSetAtRaw = me?.dob_set_at;
-            if (storedDob && dobSetAtRaw) {
-              const setAtMs = new Date(dobSetAtRaw).getTime();
-              if (Number.isFinite(setAtMs)) {
-                const GRACE_MS = 24 * 60 * 60 * 1000;
-                if (Date.now() - setAtMs > GRACE_MS) setDobLocked(true);
-              }
-            }
 
             if (normalized && existingUsername && normalized === existingUsername.toLowerCase()) {
               setAvailable(true);
@@ -704,18 +692,11 @@ export default function Step2Basic() {
         </>
       )}
 
-      <View pointerEvents={dobLocked ? 'none' : 'auto'} style={{ opacity: dobLocked ? 0.55 : 1 }}>
-        <DateField
-          label={ob.role === 'coach' ? 'Date of birth (Authorized User)' : 'Date of birth'}
-          value={dob}
-          onChange={setDob}
-        />
-      </View>
-      {dobLocked && (
-        <Text style={[styles.muted, { marginTop: 4 }]}>
-          Your date of birth is locked. Contact support@varsityhub.app to correct an error.
-        </Text>
-      )}
+      <DateField
+        label={ob.role === 'coach' ? 'Date of birth (Authorized User)' : 'Date of birth'}
+        value={dob}
+        onChange={setDob}
+      />
       {dobError && (
         <Text style={styles.error}>Please enter a valid date of birth</Text>
       )}
