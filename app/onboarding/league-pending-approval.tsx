@@ -240,6 +240,7 @@ function LeaguePendingApproval() {
         affiliation: me?.preferences?.affiliation || ob.affiliation,
         proceeding_as_fan: true,
       });
+      await User.updatePreferences({ proceeding_as_fan: true, role: 'fan', onboarding_completed: true });
       await markOnboardingCompleteLocally();
       await checkAuth();
       router.replace('/(tabs)' as any);
