@@ -129,7 +129,7 @@ export default function Step2Basic() {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
 
-          // First focus: also load username, zip, and check availability
+          // First focus: also load username, zip, DOB, and check availability
           if (!initialLoadDone.current) {
             initialLoadDone.current = true;
             const existingUsername = me?.username || '';
@@ -138,6 +138,19 @@ export default function Step2Basic() {
             serverUsernameRef.current = existingUsername.toLowerCase();
             setUsername(normalized);
             setZip(me?.preferences?.zip_code || '');
+
+            // v1.0.3: prefill DOB from the server. The backend locks DOB after a
+            // 24-hour grace window (server/src/lib/userAge.ts:184). Returning
+            // users whose DOB was set >24h ago used to see an empty field,
+            // re-enter a value, hit Continue, and get DOB_LOCKED. Loading the
+            // stored value lets them confirm (no-op submit) or see what's on
+            // file before contacting support to change it. Try preferences.dob
+            // first (client legacy), fall back to the canonical date_of_birth
+            // column (ISO datetime string from Prisma).
+            const storedDob =
+              (typeof me?.preferences?.dob === 'string' && me.preferences.dob) ||
+              (me?.date_of_birth ? String(me.date_of_birth).slice(0, 10) : '');
+            if (storedDob) setDob(storedDob);
 
             if (normalized && existingUsername && normalized === existingUsername.toLowerCase()) {
               setAvailable(true);
