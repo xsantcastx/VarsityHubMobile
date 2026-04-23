@@ -20,7 +20,6 @@ import {
   approveAd as approveAdService,
   rejectAd as rejectAdService,
 } from '../lib/approvalService.js';
-import { validateContent } from '../lib/contentFilter.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -202,11 +201,6 @@ adsRouter.post(
       target_zip_code,
       description,
     } = parsed.data;
-
-    const filterResult = validateContent({ content: parsed.data.description ?? undefined });
-    if (!filterResult.valid) {
-      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-    }
 
     const zipCoords = await getZipCoordinatesWithFallback(target_zip_code);
     const ad = await prisma.ad.create({
@@ -646,15 +640,8 @@ adsRouter.put(
       'description' in data && data.description !== ad.description;
     const textChanged = businessNameChanged || descriptionChanged;
 
-    if (textChanged) {
-      const filterResult = validateContent({
-        title: (('business_name' in data ? data.business_name : ad.business_name) ?? undefined),
-        content: (('description' in data ? data.description : ad.description) ?? undefined),
-      });
-      if (!filterResult.valid) {
-        return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-      }
-    }
+    // (Content filtering removed — admin approval is the moderation gate.)
+    void textChanged;
 
     // Populate lat/lng when zip code changes
     if ('target_zip_code' in data && data.target_zip_code) {

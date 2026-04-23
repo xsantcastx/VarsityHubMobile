@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { validateContent } from '../lib/contentFilter.js';
 import {
   sendOrganizationInviteEmail,
   sendLeagueApprovalRequestEmail,
@@ -399,16 +398,6 @@ organizationsRouter.patch(
 
       const data = parsed.data;
 
-      // Content filter on name and description
-      if (data.name || data.description) {
-        const filterResult = validateContent({
-          title: data.name,
-          content: data.description ?? undefined,
-        });
-        if (!filterResult.valid)
-          return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-      }
-
       const updated = await prisma.organization.update({
         where: { id: orgId },
         data: {
@@ -671,13 +660,6 @@ organizationsRouter.post(
           .status(409)
           .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
       }
-      const filterResult = validateContent({
-        title: data.name,
-        content: data.description ?? undefined,
-      });
-      if (!filterResult.valid) {
-        return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-      }
       // Transaction: create org + owner membership + set coach to PENDING atomically
       const {
         formatted_address: _fa,
@@ -878,14 +860,6 @@ organizationsRouter.post(
           .status(409)
           .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
       }
-      const filterResult = validateContent({
-        title: data.name,
-        content: data.description ?? undefined,
-      });
-      if (!filterResult.valid) {
-        return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-      }
-
       // Transaction: create org + owner membership + set league owner to PENDING atomically
       // League owner has no coach access until super admin approves the league
       const organization = await prisma.$transaction(async tx => {

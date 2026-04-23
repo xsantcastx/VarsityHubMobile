@@ -9,7 +9,6 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '../lib/email.js';
-import { validateContent } from '../lib/contentFilter.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import {
@@ -320,14 +319,6 @@ authRouter.post(
     }
     const { email, password, display_name, role, dob } = parsed.data;
     const sanitizedEmail = email.trim().toLowerCase();
-
-    // Content filter display_name to prevent profane/abusive names at registration
-    if (display_name) {
-      const nameFilter = validateContent({ content: display_name });
-      if (!nameFilter.valid) {
-        return res.status(400).json({ error: 'Display name contains inappropriate content.' });
-      }
-    }
 
     // SECURITY: Rate limiting to prevent mass account creation / enumeration
     if (!(await checkAuthRateLimit(`register:${sanitizedEmail}`))) {
@@ -1886,12 +1877,6 @@ authRouter.put(
       priorUsername = me?.username || null;
       patch.username = data.username;
     }
-    if (data.bio != null && data.bio !== '') {
-      const filterResult = validateContent({ content: data.bio });
-      if (!filterResult.valid) {
-        return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-      }
-    }
     const { preferences, ...rest } = patch;
     const user = await prisma.user.update({
       where: { id: req.user!.id },
@@ -1979,12 +1964,6 @@ authRouter.patch(
         });
       }
       patch.username = data.username;
-    }
-    if (data.bio != null && data.bio !== '') {
-      const filterResult = validateContent({ content: data.bio });
-      if (!filterResult.valid) {
-        return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-      }
     }
     const { preferences: prefs2, ...rest } = patch;
     const user = await prisma.user.update({

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { validateContent } from '../lib/contentFilter.js';
 import { sendEventCanceledEmail } from '../lib/email.js';
 import {
   cancelGameReminders,
@@ -730,18 +729,6 @@ eventsRouter.post(
     // Normalize: accept either team_id or home_team_id from frontend
     if (data.team_id && !data.home_team_id) {
       data.home_team_id = data.team_id;
-    }
-
-    // Content filter: profanity, spam, bullying
-    const filterResult = validateContent({
-      title: data.title,
-      description: data.description,
-    });
-    if (!filterResult.valid) {
-      return res.status(400).json({
-        error: filterResult.error,
-        code: filterResult.code,
-      });
     }
 
     // Validate event date is in the future

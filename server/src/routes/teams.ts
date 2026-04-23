@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendTeamInviteEmail } from '../lib/email.js';
-import { validateContent } from '../lib/contentFilter.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -663,11 +662,6 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     }
   }
 
-  const filterResult = validateContent({ title: parsed.data.name, content: parsed.data.description ?? undefined });
-  if (!filterResult.valid) {
-    return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-  }
-
   // Validate organization exists and is approved
   const org = await prisma.organization.findUnique({ where: { id: parsed.data.organization_id } });
   if (!org) return res.status(400).json({ error: 'Organization not found' });
@@ -815,17 +809,9 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   
   const updateData: any = {};
   if (parsed.data.name !== undefined) {
-    const filterResult = validateContent({ title: parsed.data.name, content: parsed.data.description ?? undefined });
-    if (!filterResult.valid) {
-      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-    }
     updateData.name = parsed.data.name;
   }
   if (parsed.data.description !== undefined) {
-    const filterResult = validateContent({ content: parsed.data.description });
-    if (!filterResult.valid) {
-      return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-    }
     updateData.description = parsed.data.description;
   }
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;

@@ -5,7 +5,6 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { prisma } from '../lib/prisma.js';
 import { groupMessageLimiter } from '../middleware/rateLimiters.js';
-import { validateContent } from '../lib/contentFilter.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 const groupChatsRouter = Router();
@@ -181,11 +180,6 @@ groupChatsRouter.post(
           .status(400)
           .json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
       const { content } = parsed.data;
-
-      const filterResult = validateContent({ content });
-      if (!filterResult.valid) {
-        return res.status(400).json({ error: filterResult.error, code: filterResult.code });
-      }
 
       // Verify user is a member of this chat
       const membership = await prisma.groupChatMember.findFirst({

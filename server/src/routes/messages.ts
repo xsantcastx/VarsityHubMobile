@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import * as Sentry from '@sentry/node';
 import { z } from 'zod';
-import { validateContent } from '../lib/contentFilter.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { getUserAge } from '../lib/userAge.js';
@@ -152,11 +151,6 @@ messagesRouter.post(
 
     if (!conversation_id && !recipient_id && !recipient_email && !to) {
       return sendError(res, 400, 'Provide conversation_id or recipient_id/email');
-    }
-
-    const filterResult = validateContent({ content });
-    if (!filterResult.valid) {
-      return sendError(res, 400, filterResult.error, { code: filterResult.code });
     }
 
     const meId = req.user.id;
