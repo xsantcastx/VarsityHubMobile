@@ -139,17 +139,6 @@ function SubmitAdScreen() {
             Alert.alert('Error', 'Unable to create ad. Please try again or contact support.');
             return;
           }
-          if (code === 'PLAN_UPGRADE_REQUIRED' || msg.includes('veteran') || msg.includes('legend plan')) {
-            Alert.alert(
-              'Upgrade Required',
-              'Local ads require a Veteran or Legend plan.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription' as any) },
-              ]
-            );
-            return;
-          }
         }
       }
 
@@ -290,6 +279,7 @@ function SubmitAdScreen() {
               aspectRatio={16 / 9}
               required={true}
               onScrollLock={(locked) => setScrollEnabled(!locked)}
+              uploadFormFields={{ purpose: 'ad_banner' }}
             />
             {!bannerUrl && (
               <Text style={[styles.muted, { color: theme.mutedText }]}>Banner image is required for your ad</Text>

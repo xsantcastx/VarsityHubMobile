@@ -41,6 +41,7 @@ interface BannerUploadProps {
   maxWidth?: number; // Max width for preview
   required?: boolean;
   onScrollLock?: (locked: boolean) => void;
+  uploadFormFields?: Record<string, string | number | boolean | null | undefined>;
 }
 
 export function BannerUpload({
@@ -50,6 +51,7 @@ export function BannerUpload({
   maxWidth = 400,
   required = false,
   onScrollLock,
+  uploadFormFields,
 }: BannerUploadProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
@@ -196,7 +198,9 @@ export function BannerUpload({
           filename: fileName,
         });
         try {
-          uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
+          uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType, {
+            formFields: uploadFormFields,
+          });
         } catch (uploadError: any) {
           // v1.0.3: re-throw the original error (preserves status, isSessionExpired,
           // etc.) so showUploadErrorAlert can classify it correctly. Previously we

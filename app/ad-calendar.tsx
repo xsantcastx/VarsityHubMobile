@@ -450,18 +450,6 @@ function AdCalendarScreen() {
       );
     } catch (err: any) {
       if (__DEV__) console.error('Submit for approval failed:', err);
-      const code = err?.data?.code || err?.code;
-      if (code === 'PLAN_UPGRADE_REQUIRED') {
-        Alert.alert(
-          'Upgrade Required',
-          'Local ads require a Veteran or Legend plan.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription' as any) },
-          ]
-        );
-        return;
-      }
       const msg = err?.data?.error || err?.message || 'Failed to submit for approval. Please try again.';
       Alert.alert('Error', msg);
     } finally {
@@ -483,14 +471,6 @@ function AdCalendarScreen() {
       return;
     }
 
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        'Web checkout unavailable',
-        'Ad payment checkout is currently supported in the mobile app only. Please continue on iOS or Android.'
-      );
-      return;
-    }
-
     // Guard against local-only ad IDs that were never persisted to the server
     if (adId.startsWith('local-')) {
       Alert.alert('Ad Not Saved', 'This ad was not saved to the server. Please go back and re-submit your ad.');
@@ -506,6 +486,40 @@ function AdCalendarScreen() {
         'Some selected dates are beyond the 8-week booking window. Please remove them and try again.'
       );
       return;
+    }
+
+    const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
+    const lastEnd = new Date(dates[dates.length - 1] + 'T23:59:59');
+    const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
+
+    if (Platform.OS === 'web') {
+      setDirty(false);
+      setSubmitting(true);
+      try {
+        const data: any = await httpPost('/payments/checkout', {
+          ad_id: String(adId),
+          dates,
+          promo_code: promo || undefined,
+          checkout_mode: 'web',
+        });
+        if (!data?.url || typeof data.url !== 'string') {
+          throw new Error('Unable to start web checkout');
+        }
+        (globalThis as any).location?.assign?.(data.url);
+        return;
+      } catch (err: any) {
+        if (__DEV__) console.error('Failed to start web ad checkout:', err);
+        captureBreadcrumb('Ad web checkout failed', 'payments.ad', {
+          ad_id: String(adId),
+          error: err?.data?.error || err?.message || 'unknown_error',
+          status: err?.status,
+        }, 'error');
+        const raw = err?.data?.error || err?.message || 'Failed to start checkout.';
+        Alert.alert('Error', raw);
+        setDirty(selected.size > 0);
+        setSubmitting(false);
+        return;
+      }
     }
 
     // Stripe must be configured — try build-time config first, then fetch from server
@@ -529,16 +543,12 @@ function AdCalendarScreen() {
 
     setSubmitting(true);
     try {
-      const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
       captureBreadcrumb('Ad checkout initiated', 'payments.ad', {
         ad_id: String(adId),
         dates_count: dates.length,
         has_promo_code: promo.trim().length > 0,
         platform: Platform.OS,
       });
-      // Calculate exact hours remaining for receipt
-      const lastEnd = new Date(dates[dates.length - 1] + 'T23:59:59');
-      const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
 
       if (Platform.OS === 'ios') {
         // iOS: use Apple IAP directly — do NOT create a Stripe PaymentIntent (it would be orphaned)
@@ -664,9 +674,6 @@ function AdCalendarScreen() {
       if (status === 403 && (raw === 'Email verification required' || /verification/i.test(raw))) {
         title = 'Verify Your Email';
         msg = 'Please verify your email before paying. Check your inbox for the verification link.';
-      } else if (status === 403 && (err?.data?.code === 'PLAN_UPGRADE_REQUIRED' || /veteran|legend plan/i.test(raw))) {
-        title = 'Upgrade Required';
-        msg = 'Local ads require a Veteran or Legend plan.';
       } else if (status === 403 && (raw === 'COACH_AGREEMENT_REQUIRED' || /coach agreement/i.test(raw))) {
         title = 'Coach Agreement Required';
         msg = 'You need to accept the coach agreement before booking ads.';
@@ -692,14 +699,7 @@ function AdCalendarScreen() {
       } else {
         msg = 'An error occurred starting checkout. Please try again.';
       }
-      if (title === 'Upgrade Required') {
-        Alert.alert(title, msg, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription' as any) },
-        ]);
-      } else {
-        Alert.alert(title, msg);
-      }
+      Alert.alert(title, msg);
     } finally {
       setSubmitting(false);
       // Re-enable unsaved changes guard if dates still selected

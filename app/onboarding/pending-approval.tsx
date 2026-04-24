@@ -315,7 +315,7 @@ function PendingApproval() {
                     setRejected(false);
                     setRejectionReason(null);
                     Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
-                    router.replace('/onboarding/step-3-league');
+                    router.replace('/onboarding/coach-application' as any);
                   } catch (e: any) {
                     const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
                     const code = e?.data?.code;

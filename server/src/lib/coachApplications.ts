@@ -120,7 +120,7 @@ export function getCoachFlowState(
     }
     return {
       account_state: 'coach_application_required',
-      next_step: '/onboarding/step-3-league',
+      next_step: '/onboarding/coach-application',
     };
   }
 

@@ -1,7 +1,7 @@
 # VarsityHub Mobile — Claude Instructions
 
 ## Stack
-- React Native / Expo SDK 55 with Expo Router (file-based routing)
+- React Native / Expo SDK 54 with Expo Router (file-based routing)
 - Backend: Express + Prisma + PostgreSQL on Railway (project: `capable-trust`, service: `api`)
 - State: React Context — `AuthProvider`, `PostCacheContext`, `OnboardingContext`, `NavigationHistoryContext`
 - API: `api/entities.ts` re-exports from domain modules (`api/teams.ts`, `api/organizations.ts`, etc.)
@@ -10,6 +10,16 @@
 - Uploads: Direct-to-Cloudinary (signed) with server-proxy fallback
 - Push notifications: Expo Server SDK (`sendPushNotification` in `server/src/lib/notifications.ts`)
 - Error tracking: Sentry with source maps
+
+## Quick Start
+```bash
+npm run dev         # app (Expo dev client on :8081) + server concurrently
+npm run dev:expo    # Expo dev client only
+npm run dev:ios     # build/run iOS dev client on a connected device
+npm run dev:server  # server only
+npm run lint        # expo lint
+npm test            # jest
+```
 
 ## Hard Rules
 
@@ -83,15 +93,13 @@ grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 
 ## Known Quirks
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
-- `_layout.tsx` has a pre-existing TS error (`tabBarStyle.overflow`) — does not affect builds, do not fix unless asked
 - Sub-screens appear in both root Stack AND as `hiddenTab` in `(tabs)/_layout.tsx` — this is intentional Expo Router behavior
-- Email templates: all 46 template keys now have HTML files in `sendgrid-templates/`. 5 are "required" (server exits if missing).
+- Email templates: `TEMPLATE_IDS` has 20 keys and `REQUIRED_TEMPLATE_KEYS` has 18 in `server/src/lib/email.ts`
 - `service-account-key.json` in project root is gitignored — needed for Android Play Store submissions
 - `@react-native-community/netinfo` is dynamically imported via try-catch in `OfflineBanner.tsx` — safe for OTA to binaries built before it was added
 - `GOOGLE_MAPS_API_KEY` must be set in Railway for geocoding and map pins to work. Without it, all geocoding returns null silently.
 - Poll voting now hits the API for all events including those without a linked `gameId` (uses `eventId` as fallback). Previously event-only pages silently discarded votes.
 - Signup email send is fire-and-forget — `POST /register` does not await SendGrid before responding.
-- Pre-existing TS errors in `server/src/routes/ads.ts` (`target_lat`/`target_lng` not in schema) — do not affect builds or runtime
 
 ## Code Rules
 - Text colors MUST use `useColorScheme()` or theme constants — never hardcode `#000`, `#111827`, `#374151`, `black`
@@ -110,17 +118,3 @@ grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 - Don't refactor or clean up code beyond what was asked
 - Fix real bugs, not theoretical issues
 - When the fix is in one file, don't touch five
-
-## Engineering Skills (Cowork Plugin)
-Available via `/name` in Cowork. Use these for structured engineering workflows:
-
-- `/architecture` — Create or evaluate architecture decision records (ADRs). Use when choosing between technologies, documenting design decisions with trade-offs, or designing new components from requirements.
-- `/code-review` — Review code changes for security, performance, and correctness. Use with a PR URL or diff to check for N+1 queries, injection risks, missing edge cases, or error handling gaps.
-- `/debug` — Structured debugging: reproduce, isolate, diagnose, fix. Use when behavior diverges from expected and the cause isn't obvious.
-- `/deploy-checklist` — Pre-deployment verification. Use when shipping a release, deploying with migrations or feature flags, verifying CI status, or documenting rollback triggers.
-- `/documentation` — Write and maintain technical docs: API docs, READMEs, runbooks, onboarding guides.
-- `/incident-response` — Incident triage, communication, and postmortem. Use when production is down, an alert needs severity assessment, or writing a blameless postmortem.
-- `/standup` — Generate standup updates from recent activity. Formats work into yesterday/today/blockers.
-- `/system-design` — Design systems, services, and architectures. Use for API design, data modeling, or service boundary decisions.
-- `/tech-debt` — Identify, categorize, and prioritize technical debt. Use for code health audits, refactoring priorities, or maintenance backlog.
-- `/testing-strategy` — Design test strategies and test plans. Use when deciding on testing approaches, coverage goals, or test architecture.

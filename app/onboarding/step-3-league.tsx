@@ -5,7 +5,7 @@ import { Type } from '@/ui/tokens';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
@@ -26,6 +26,7 @@ import OnboardingLayout from './components/OnboardingLayout';
 
 function Step3League() {
   const router = useRouter();
+  const pathname = usePathname();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
@@ -77,6 +78,8 @@ function Step3League() {
   const [backgroundImageUri, setBackgroundImageUri] = useState<string | null>(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null);
   const [_uploadingDocument, setUploadingDocument] = useState(false);
+  const isCoachApplicationRoute = pathname === '/onboarding/coach-application';
+  const isFinalSetupRoute = pathname === '/onboarding/step-3-league';
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -91,6 +94,17 @@ function Step3League() {
         const finalSetupRequired =
           accountState === 'coach_final_setup_required' ||
           (String(me?.approval_status || '').toUpperCase() === 'APPROVED' && !me?.organization_id);
+
+        if (finalSetupRequired && isCoachApplicationRoute) {
+          router.replace('/onboarding/step-3-league');
+          return;
+        }
+
+        if (!finalSetupRequired && isFinalSetupRoute) {
+          router.replace('/onboarding/coach-application' as any);
+          return;
+        }
+
         setIsFinalCoachSetup(finalSetupRequired);
         setSubmittedApplicationName(coachApplication?.organization_name || null);
         if (finalSetupRequired) {
@@ -117,8 +131,8 @@ function Step3League() {
         // ignore
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once on mount
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per route mode
+  }, [isCoachApplicationRoute, isFinalSetupRoute, router]);
 
   // Check if user already has a team or organization in the database
   useEffect(() => {

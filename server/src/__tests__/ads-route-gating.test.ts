@@ -17,35 +17,35 @@ const extractRegistrationLine = (source: string, pattern: RegExp): string | null
 };
 
 describe('Ads route gating', () => {
-  it('POST /ads uses auth + verified + plan, not onboarding', () => {
+  it('POST /ads uses auth only, not verified/onboarded plan gating', () => {
     const line = extractRegistrationLine(ADS_SRC, /adsRouter\.post\(\s*['"]\/['"]/);
     expect(line).not.toBeNull();
     expect(line ?? '').toMatch(/\brequireAuth\b/);
-    expect(line ?? '').toMatch(/\brequireVerified\b/);
     expect(line ?? '').toMatch(/\badCreationLimiter\b/);
     expect(line ?? '').not.toMatch(/\brequireOnboarded\b/);
+    expect(line ?? '').not.toMatch(/\brequireVerified\b/);
   });
 
-  it('POST /ads/:id/submit-for-approval uses auth + verified, not onboarding', () => {
+  it('POST /ads/:id/submit-for-approval uses auth only, not onboarding', () => {
     const line = extractRegistrationLine(
       ADS_SRC,
       /adsRouter\.post\(\s*['"]\/:id\/submit-for-approval['"]/
     );
     expect(line).not.toBeNull();
     expect(line ?? '').toMatch(/\brequireAuth\b/);
-    expect(line ?? '').toMatch(/\brequireVerified\b/);
     expect(line ?? '').not.toMatch(/\brequireOnboarded\b/);
+    expect(line ?? '').not.toMatch(/\brequireVerified\b/);
   });
 
-  it('DELETE /ads/:id uses auth + verified, not onboarding', () => {
+  it('DELETE /ads/:id uses auth only, not onboarding', () => {
     const line = extractRegistrationLine(
       ADS_SRC,
       /adsRouter\.delete\(\s*['"]\/:id\(\[a-z0-9\]\{15,50\}\)['"]/
     );
     expect(line).not.toBeNull();
     expect(line ?? '').toMatch(/\brequireAuth\b/);
-    expect(line ?? '').toMatch(/\brequireVerified\b/);
     expect(line ?? '').not.toMatch(/\brequireOnboarded\b/);
+    expect(line ?? '').not.toMatch(/\brequireVerified\b/);
   });
 
   it('app.ts does not register a duplicate submit-for-approval route', () => {

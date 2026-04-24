@@ -97,6 +97,21 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 // Check if Cloudinary is configured
 const useCloudinary = isCloudinaryConfigured();
 
+function isAdBannerUploadRequest(req: Request) {
+  return String(req.query?.purpose || '').trim().toLowerCase() === 'ad_banner';
+}
+
+function requireVerifiedUnlessAdBannerUpload(req: Request, res: Response, next: NextFunction) {
+  if (
+    isAdBannerUploadRequest(req) &&
+    ((req.method === 'GET' && req.path === '/cloudinary-signature') ||
+      (req.method === 'POST' && req.path === '/'))
+  ) {
+    return next();
+  }
+  return requireVerified(req as any, res, next);
+}
+
 if (useCloudinary) {
   debugLog('✅ Cloudinary configured - using cloud storage');
 } else {
@@ -181,7 +196,7 @@ uploadsRouter.use((req, res, next) => {
 // Returns a signed payload for direct client-to-Cloudinary upload.
 // The file never touches this server — goes straight from phone to CDN.
 // -----------------------------------------------
-uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerified as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
+uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUnlessAdBannerUpload as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!useCloudinary) {
     addBreadcrumb('Cloudinary signature unavailable', 'uploads.signature', 'warning', {
@@ -264,7 +279,7 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
 }));
 
 // Original media upload endpoint (images/videos only).
-uploadsRouter.post('/', requireAuth as any, requireVerified as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/', requireAuth as any, requireVerifiedUnlessAdBannerUpload as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   addBreadcrumb('Media upload started', 'uploads.media', 'info', {
     mime: req.file.mimetype,

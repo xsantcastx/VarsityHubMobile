@@ -180,8 +180,8 @@ function RoleOnboardingScreenInner() {
       }));
       logTelemetry('coach-tier-success', { tier });
 
-      // Redirect to coach onboarding (plan selection) with fan steps skipped
-      router.replace('/onboarding/step-3-league');
+      // Redirect to the coach-application step with fan steps skipped.
+      router.replace('/onboarding/coach-application' as any);
     } catch (e: any) {
       if (__DEV__) console.error('Failed to set coach tier', e);
       logTelemetry('coach-tier-error', { message: e?.message });

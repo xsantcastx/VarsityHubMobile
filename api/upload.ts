@@ -68,7 +68,10 @@ function detectMime(mimeType?: string, filename?: string, uri?: string): string 
 let _sigCache: { sig: { cloudName: string; apiKey: string; signature: string; timestamp: number; folder: string }; fetchedAt: number } | null = null;
 const SIG_CACHE_TTL_MS = 55_000;
 
-async function getCloudinarySignature(baseUrl: string): Promise<{
+async function getCloudinarySignature(
+  baseUrl: string,
+  options?: UploadOptions,
+): Promise<{
   cloudName: string;
   apiKey: string;
   signature: string;
@@ -95,7 +98,7 @@ async function getCloudinarySignature(baseUrl: string): Promise<{
 
   while (token) {
     try {
-      const res = await fetch(`${baseUrl}/uploads/cloudinary-signature`, {
+      const res = await fetch(buildUploadUrl(`${baseUrl}/uploads/cloudinary-signature`, options?.formFields), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json().catch(() => null);
@@ -253,7 +256,7 @@ export async function uploadFile(
 
   // Try direct-to-Cloudinary first (faster — skips server proxy)
   try {
-    const sig = await getCloudinarySignature(finalBase);
+    const sig = await getCloudinarySignature(finalBase, options);
     if (sig) {
       if (__DEV__) console.log('[upload] Using direct Cloudinary upload');
       return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);
@@ -412,7 +415,7 @@ export async function uploadFileWithProgress(
 
   // Try direct-to-Cloudinary (has XHR progress built in)
   try {
-    const sig = await getCloudinarySignature(finalBase);
+    const sig = await getCloudinarySignature(finalBase, options);
     if (sig) {
       if (__DEV__) console.log('[upload] Using direct Cloudinary upload (with progress)');
       return await uploadDirectToCloudinary(finalUri, finalFilename, finalMimeType, sig, options);

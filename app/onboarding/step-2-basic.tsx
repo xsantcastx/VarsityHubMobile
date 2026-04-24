@@ -492,14 +492,14 @@ export default function Step2Basic() {
       const updatedDataWithRole = { ...updatedData, role: currentRole };
 
       if (currentRole === 'coach') {
-        // Coaches go to step 3 (league)
+        // Coaches go to the coach-application step after basic info.
         captureBreadcrumb('Onboarding step 2 completed', 'onboarding.step2', {
           role: 'coach',
-          next: 'step-3-league',
+          next: 'coach-application',
         });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         setProgress(2);
-        router.replace('/onboarding/step-3-league' as any);
+        router.replace('/onboarding/coach-application' as any);
         void persistOptionalProfileMedia('coach');
       } else {
         // Fans are DONE — complete onboarding first (fast), then upload profile media in background

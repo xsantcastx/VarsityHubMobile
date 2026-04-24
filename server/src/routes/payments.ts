@@ -14,6 +14,7 @@ import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
+import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import {
   SERVER_LEGEND_PRICE_CENTS,
   SERVER_LEGEND_PRICE_LABEL,
@@ -78,6 +79,28 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.NODE_ENV === 'production') return console.log(...args);
   return baseDebugLog(...args);
 };
+
+async function enforceVerifiedForSubscriptionFlow(
+  req: AuthedRequest,
+  res: Response,
+  plan?: string,
+) {
+  if (!plan?.trim()) return true;
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  const u = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, email_verified: true, google_id: true, apple_id: true },
+  });
+  const verifiedUser = await ensureOAuthUserVerified(u);
+  if (!verifiedUser?.email_verified) {
+    res.status(403).json({ error: 'Email verification required' });
+    return false;
+  }
+  return true;
+}
 
 type WebhookRouteResponse = {
   status: number;
@@ -675,6 +698,31 @@ const formatUsd = (cents?: number | null) => {
   return `$${(cents / 100).toFixed(2)}`;
 };
 
+function getCheckoutReturnUrls(params: {
+  type: 'subscription' | 'ad';
+  mode?: 'app' | 'web';
+}) {
+  if (params.mode === 'web') {
+    const appBase = (process.env.APP_BASE_URL || process.env.EXPO_PUBLIC_API_URL || '')
+      .trim()
+      .replace(/\/$/, '');
+    if (!appBase && process.env.NODE_ENV === 'production') {
+      throw new Error('APP_BASE_URL must be set in production');
+    }
+    const base = appBase || 'http://localhost:8081';
+    return {
+      success: `${base}/payment-success?session_id={CHECKOUT_SESSION_ID}&type=${params.type}`,
+      cancel: `${base}/payment-cancel${params.type === 'ad' ? '?type=ad' : ''}`,
+    };
+  }
+
+  const appScheme = 'varsityhubmobile';
+  return {
+    success: `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=${params.type}`,
+    cancel: `${appScheme}://payment-cancel${params.type === 'ad' ? '?type=ad' : ''}`,
+  };
+}
+
 async function getUserEmail(userId?: string | null, fallbackEmail?: string | null) {
   if (fallbackEmail && fallbackEmail.includes('@')) return fallbackEmail;
   if (!userId) return null;
@@ -876,14 +924,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         },
       }];
 
-  const appBase = process.env.APP_BASE_URL || process.env.EXPO_PUBLIC_API_URL;
-  if (!appBase && process.env.NODE_ENV === 'production') {
-    throw membershipError(500, 'APP_BASE_URL must be set in production');
-  }
-  // Use deep links for mobile app redirects
-  const appScheme = 'varsityhubmobile';
-  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=subscription`;
-  const cancel = `${appScheme}://payment-cancel`;
+  const { success, cancel } = getCheckoutReturnUrls({ type: 'subscription' });
 
   // Create checkout session configuration
   const sessionConfig: Stripe.Checkout.SessionCreateParams = {
@@ -999,7 +1040,7 @@ async function getOrCreateStripeCustomer(userId: string, email?: string | null) 
 }
 
 // Create a Stripe Checkout Session for ad reservations
-paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   const checkoutSchema = z.object({
     ad_id: z.string().optional(),
     dates: z.array(z.string()).optional(),
@@ -1007,10 +1048,12 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     plan: z.string().optional(),
     team_count: z.number().optional(),
     organization_id: z.string().optional(),
+    checkout_mode: z.enum(['app', 'web']).optional(),
   });
   const parsed = checkoutSchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-  const { ad_id, dates, promo_code, plan, team_count, organization_id } = parsed.data;
+  const { ad_id, dates, promo_code, plan, team_count, organization_id, checkout_mode } = parsed.data;
+  if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
   if (typeof plan === 'string' && plan.trim()) {
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     try {
@@ -1148,10 +1191,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
     return res.json({ free: true });
   }
 
-  // Use deep links for mobile app redirects
-  const appScheme = 'varsityhubmobile';
-  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
-  const cancel = `${appScheme}://payment-cancel?type=ad`;
+  const { success, cancel } = getCheckoutReturnUrls({ type: 'ad', mode: checkout_mode });
 
   // Check if Stripe Price IDs are configured for ads (optional, fallback to price_data)
   const weekdayPriceId = process.env.STRIPE_PRICE_AD_WEEKDAY?.trim() || '';
@@ -1324,7 +1364,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paym
 // ── In-App PaymentSheet endpoint ────────────────────────────────────────────
 // Returns client_secret, ephemeral key, customer id and publishable key
 // so the mobile app can present Stripe PaymentSheet without leaving the app.
-paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
   const userId = req.user!.id;
   const paymentSheetSchema = z.object({
@@ -1338,6 +1378,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified 
   const parsed = paymentSheetSchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
   const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
+  if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -2332,7 +2373,7 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
 
 
 // Cancel an abandoned PaymentIntent and mark transaction as FAILED
-paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+paymentsRouter.post('/cancel-intent', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   const cancelIntentSchema = z.object({
     payment_intent_id: z.string().min(1),
   });
@@ -4014,7 +4055,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
 }));
 
 // Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
-paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });

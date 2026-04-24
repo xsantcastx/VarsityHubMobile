@@ -935,7 +935,7 @@ export default function SettingsScreen() {
                               }
                               setPlan((prefs.plan as string | null) ?? 'rookie');
                               if (hasUsername && hasDob && hasZip) {
-                                router.push('/onboarding/step-3-league');
+                                router.push('/onboarding/coach-application' as any);
                               } else {
                                 router.push('/onboarding/step-2-basic');
                               }

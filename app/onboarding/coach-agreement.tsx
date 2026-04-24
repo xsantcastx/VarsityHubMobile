@@ -40,7 +40,7 @@ function CoachAgreementScreen() {
       const hasOrg = !!prefs.organization_id;
       const redirect = params.redirect;
       if (!hasOrg) {
-        // Coach was approved but hasn't set up org yet — continue onboarding
+        // Coach was approved but hasn't set up the real organization yet.
         router.replace('/onboarding/step-3-league' as any);
       } else if (redirect === 'create-team') {
         router.replace({ pathname: '/(tabs)/create-team', params: { organization_id: prefs.organization_id } } as any);

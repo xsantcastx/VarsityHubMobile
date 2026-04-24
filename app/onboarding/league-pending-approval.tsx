@@ -58,7 +58,7 @@ function LeaguePendingApproval() {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
     stopPolling();
-    router.replace('/onboarding/step-3-league');
+    router.replace('/onboarding/coach-application' as any);
   }, [router, stopPolling]);
 
   useEffect(() => () => {
@@ -350,7 +350,7 @@ function LeaguePendingApproval() {
             </Pressable>
             <Pressable
               style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
-              onPress={() => router.replace('/onboarding/step-3-league' as any)}
+              onPress={() => router.replace('/onboarding/coach-application' as any)}
             >
               <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Back to Organization Setup</Text>
             </Pressable>
