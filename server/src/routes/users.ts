@@ -776,6 +776,18 @@ usersRouter.post('/:id/follow', requireAuth as any, requireVerified as any, foll
     return res.status(400).json({ error: 'You cannot follow yourself.' });
   }
 
+  // Verify target user exists and isn't soft-deleted BEFORE any writes.
+  // Previously the handler fell through to a Follows.create on a bogus
+  // following_id, leaving a dangling row that breaks referential integrity
+  // assumptions downstream (follower-details joins N+1, orphaned rows).
+  const targetUser = await prisma.user.findUnique({
+    where: { id: following_id },
+    select: { id: true, deleted_at: true, preferences: true },
+  });
+  if (!targetUser || targetUser.deleted_at) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
   // Prevent following if either user has blocked the other
   const block = await prisma.blockedUser.findFirst({
     where: {
@@ -790,12 +802,9 @@ usersRouter.post('/:id/follow', requireAuth as any, requireVerified as any, foll
   }
 
   try {
-    // Check if target profile is private
-    const targetUser = await prisma.user.findUnique({
-      where: { id: following_id },
-      select: { preferences: true },
-    });
-    const targetPrefs = (targetUser?.preferences || {}) as any;
+    // Target profile visibility. The pre-fetched targetUser above already
+    // pulled preferences; reuse it rather than a second SELECT.
+    const targetPrefs = (targetUser.preferences || {}) as any;
     const isPrivate = targetPrefs?.profile_private === true;
 
     // Check if there's already a follow record
@@ -814,8 +823,27 @@ usersRouter.post('/:id/follow', requireAuth as any, requireVerified as any, foll
     const followStatus = isPrivate ? 'pending' : 'accepted';
 
     try {
-    await prisma.follows.create({
-      data: { follower_id, following_id, status: followStatus },
+    // Re-check block inside a transaction so a block that committed between
+    // our earlier check and this insert is caught. Without this, user B
+    // blocking user A mid-flight would still leave a live Follows row after
+    // the race completes, contradicting the block on read.
+    await prisma.$transaction(async (tx) => {
+      const raceBlock = await tx.blockedUser.findFirst({
+        where: {
+          OR: [
+            { blocker_id: follower_id, blocked_id: following_id },
+            { blocker_id: following_id, blocked_id: follower_id },
+          ],
+        },
+        select: { id: true },
+      });
+      if (raceBlock) {
+        // Throw a sentinel so the outer handler returns 403 cleanly.
+        throw Object.assign(new Error('BLOCKED_RACE'), { code: 'FOLLOW_BLOCKED_RACE' });
+      }
+      await tx.follows.create({
+        data: { follower_id, following_id, status: followStatus },
+      });
     });
     await invalidateFollowCaches(follower_id, following_id);
 
@@ -855,6 +883,10 @@ usersRouter.post('/:id/follow', requireAuth as any, requireVerified as any, foll
       follow_status: followStatus,
     });
     } catch (createErr: any) {
+      // Block landed inside the transaction — surface as 403 instead of 500.
+      if (createErr?.code === 'FOLLOW_BLOCKED_RACE') {
+        return res.status(403).json({ error: 'Cannot follow this user.' });
+      }
       // P2002 = unique constraint violation (race: duplicate follow request)
       if (createErr?.code === 'P2002') {
         const dup = await prisma.follows.findUnique({
@@ -901,6 +933,22 @@ usersRouter.post('/:id/accept-follow', requireAuth as any, requireVerified as an
     });
     if (!follow) return res.status(404).json({ error: 'Follow request not found' });
     if (follow.status === 'accepted') return res.json({ ok: true, status: 'accepted' });
+
+    // Don't accept a follow request from a soft-deleted account — the row
+    // exists (pre-delete) but the user no longer does. Accepting would
+    // fire a notification + push to a deleted account and leave a live
+    // follow relationship pointing at an anonymized user.
+    const follower = await prisma.user.findUnique({
+      where: { id: followerId },
+      select: { id: true, deleted_at: true },
+    });
+    if (!follower || follower.deleted_at) {
+      // Clean up the stale pending row so it can't be accepted later.
+      await prisma.follows.deleteMany({
+        where: { follower_id: followerId, following_id: currentUserId },
+      }).catch(() => {});
+      return res.status(404).json({ error: 'Follower account no longer exists.' });
+    }
 
     await prisma.follows.update({
       where: { follower_id_following_id: { follower_id: followerId, following_id: currentUserId } },
@@ -1128,6 +1176,16 @@ usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as
 // matches "blocked" as an :id parameter and returns 404.
 usersRouter.get('/blocked', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
+    // Accept a caller-supplied `limit` (clamped 1..500 default 100) and an
+    // optional cursor of the blocked user id to paginate past. Previously the
+    // endpoint hardcoded take: 500 with no pagination, silently truncating
+    // the list for anyone with more than 500 blocks.
+    const rawLimit = Number.parseInt(String(req.query.limit ?? ''), 10);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : 100;
+    const cursorId = typeof req.query.cursor === 'string' && req.query.cursor.length > 0
+      ? String(req.query.cursor)
+      : null;
+
     const blocks = await prisma.blockedUser.findMany({
       where: { blocker_id: req.user!.id },
       include: {
@@ -1140,11 +1198,25 @@ usersRouter.get('/blocked', requireAuth as any, asyncHandler(async (req: AuthedR
           },
         },
       },
-      orderBy: { created_at: 'desc' },
-      take: 500,
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1, // one extra to determine if there's another page
+      ...(cursorId
+        ? { cursor: { id: cursorId }, skip: 1 }
+        : {}),
     });
 
-    return res.json(blocks.map(b => b.blocked));
+    const hasMore = blocks.length > limit;
+    const page = hasMore ? blocks.slice(0, limit) : blocks;
+    const nextCursor = hasMore ? page[page.length - 1].id : null;
+
+    return res.json({
+      items: page.map(b => b.blocked),
+      next_cursor: nextCursor,
+      // Keep a flat array at the root too so existing clients that expect
+      // the old shape (list of users directly) keep working until they
+      // migrate to the paginated shape.
+      blocked: page.map(b => b.blocked),
+    });
   } catch (error) {
     console.error('Get blocked users error:', error);
     return res.status(500).json({ error: 'Failed to get blocked users' });

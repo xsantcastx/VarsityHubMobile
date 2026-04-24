@@ -73,6 +73,30 @@ async function attemptTokenRefreshWithCache(
 // Prevents duplicate fetches when multiple components mount simultaneously.
 const inflightGets = new Map<string, Promise<any>>();
 
+// Track every in-flight request's AbortController so `abortAllInflight()` can
+// cancel them on sign-out. Without this, a request initiated under user A's
+// token could resolve after user B signed in on the same device, and any
+// lingering subscriber to that promise would observe user A's response.
+const inflightControllers = new Set<AbortController>();
+
+/**
+ * Abort every in-flight HTTP request and clear the GET dedup map.
+ * Call on sign-out and session-expiry so user A's pending responses cannot
+ * arrive and be observed by user B who signs in next on the same device.
+ * Called from context/AuthProvider.tsx during teardown.
+ */
+export function abortAllInflight(reason = 'sign_out'): void {
+  for (const controller of inflightControllers) {
+    try {
+      controller.abort(reason);
+    } catch {
+      // abort() is safe to call even if already aborted; swallow.
+    }
+  }
+  inflightControllers.clear();
+  inflightGets.clear();
+}
+
 /**
  * Spot Railway's Correlation Key marker (27 uppercase alphanumeric
  * chars, optionally prefixed with "Correlation Key:") in a response
@@ -191,8 +215,11 @@ async function request(
     headers['If-None-Match'] = headers['If-None-Match'] || '';
   }
 
-  // Add timeout to prevent hanging requests
+  // Add timeout to prevent hanging requests. Register the controller with
+  // the inflight set so abortAllInflight() on sign-out can cancel this
+  // request before user A's response leaks into user B's session.
   const controller = new AbortController();
+  inflightControllers.add(controller);
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -208,6 +235,7 @@ async function request(
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
+    inflightControllers.delete(controller);
     // HTTP response received
     captureBreadcrumb(`HTTP ${res.status} ${path}`, 'http', { status: res.status, path });
 
@@ -357,6 +385,7 @@ async function request(
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
+    inflightControllers.delete(controller);
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
     const isAbortError = error.name === 'AbortError';
