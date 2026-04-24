@@ -292,6 +292,34 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     lastPushRegistrationRef.current = null;
   }, []);
 
+  const clearUserScopedStorage = useCallback(async () => {
+    const baseKeys = [
+      ONBOARDING_COMPLETE_KEY,
+      ONBOARDING_COMPLETE_USER_KEY,
+      'onboarding_state',
+      'onboarding_progress',
+      'onboarding_reducer_state',
+    ];
+
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const userScopedKeys = allKeys.filter(
+        (key) =>
+          key.startsWith('vh_settings_') ||
+          key === 'vh_recent_searches' ||
+          key.startsWith('team_messages_') ||
+          (key.startsWith('team-') && key.endsWith('-files'))
+      );
+
+      const keysToRemove = Array.from(new Set([...baseKeys, ...userScopedKeys]));
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
+      }
+    } catch (storageErr) {
+      if (__DEV__) console.warn('[AuthProvider] Failed to clear user-scoped storage:', storageErr);
+    }
+  }, []);
+
   // Check authentication
   const checkAuth = useCallback(
     async (options?: {
@@ -476,16 +504,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       if (__DEV__) console.warn('[auth] Failed to clear persisted session during sign out:', error);
     } finally {
       clearLocalAuthState();
-      await AsyncStorage.multiRemove([
-        ONBOARDING_COMPLETE_KEY,
-        ONBOARDING_COMPLETE_USER_KEY,
-        'onboarding_state',
-        'onboarding_progress',
-        'onboarding_reducer_state',
-      ]);
+      await clearUserScopedStorage();
       redirectWithTelemetry('/sign-in', 'sign_out', userBeforeSignOut);
     }
-  }, [clearLocalAuthState, redirectWithTelemetry, user]);
+  }, [clearLocalAuthState, clearUserScopedStorage, redirectWithTelemetry, user]);
 
   const registerPushToken = useCallback(async () => {
     if (!user?.id) return false;
@@ -518,18 +540,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       setHasCompletedOnboarding(false);
       setSubscriptionTier('rookie');
       setHasActiveSubscription(false);
-      try {
-        await AsyncStorage.multiRemove([
-          ONBOARDING_COMPLETE_KEY,
-          ONBOARDING_COMPLETE_USER_KEY,
-          'onboarding_state',
-          'onboarding_progress',
-          'onboarding_reducer_state',
-        ]);
-      } catch (storageErr) {
-        if (__DEV__)
-          console.warn('[AuthProvider] Failed to clear storage on session expiry:', storageErr);
-      }
+      await clearUserScopedStorage();
       lastPushRegistrationRef.current = null;
       // Only surface a message if the user was actually signed in — a
       // missing refresh token during a background bootstrap doesn't need
@@ -541,7 +552,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
       redirectWithTelemetry('/sign-in', `session_expired:${reason}`, userBeforeExpiry);
     },
-    [redirectWithTelemetry, user]
+    [clearUserScopedStorage, redirectWithTelemetry, user]
   );
 
   useEffect(() => {

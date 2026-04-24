@@ -108,13 +108,24 @@ describe('session-expired event bus — client wiring invariants', () => {
     it('redirects to /sign-in on session-expired event', () => {
       // Authoritative: search the handleSessionExpired function body. The
       // redirect must reference /sign-in and be tagged with session_expired.
-      expect(authProvider).toMatch(/session_expired[^`]*'\/sign-in'|'\/sign-in'[^`]*session_expired/);
+      const handlerMatch = authProvider.match(/handleSessionExpired[\s\S]{0,2500}/)?.[0] || '';
+      expect(handlerMatch).toContain("redirectWithTelemetry('/sign-in'");
+      expect(handlerMatch).toContain('session_expired:');
     });
 
     it('clears local user state on session-expired (does not leave stale /me data)', () => {
       // Look for the handler block — contains state clears and a redirect.
       const handlerMatch = authProvider.match(/handleSessionExpired[\s\S]{0,2500}/)?.[0] || '';
       expect(handlerMatch).toMatch(/setUser\(null\)|clearTokens|multiRemove|userBeforeExpiry/);
+    });
+
+    it('clears user-scoped AsyncStorage caches on sign-out/session-expiry', () => {
+      expect(authProvider).toMatch(/const clearUserScopedStorage = useCallback/);
+      expect(authProvider).toMatch(/key\.startsWith\('vh_settings_'\)/);
+      expect(authProvider).toMatch(/key === 'vh_recent_searches'/);
+      expect(authProvider).toMatch(/key\.startsWith\('team_messages_'\)/);
+      expect(authProvider).toMatch(/\(key\.startsWith\('team-'\) && key\.endsWith\('-files'\)\)/);
+      expect(authProvider).toMatch(/await clearUserScopedStorage\(\)/);
     });
   });
 
