@@ -1958,6 +1958,12 @@ organizationsRouter.post(
           '[notif] Failed to create JOIN_REQUEST_APPROVED notification:',
           (err as any)?.message || err
         );
+        captureException(err as Error, {
+          context: 'join_request_approval_notification_failed',
+          organizationId: joinRequest.organization_id,
+          userId: joinRequest.user_id,
+          actorId: req.user?.id || null,
+        });
       }
 
       return res.json({ message: 'Join request approved' });
@@ -2111,6 +2117,13 @@ organizationsRouter.post(
         });
       } catch (notifErr) {
         console.warn('[organizations] Failed to create denial notification:', notifErr);
+        captureException(notifErr as Error, {
+          context: 'join_request_denial_notification_failed',
+          organizationId: joinRequest.organization_id,
+          userId: joinRequest.user.id,
+          actorId: req.user?.id || null,
+          reason: reason || null,
+        });
       }
 
       return res.json({ message: 'Join request denied' });
