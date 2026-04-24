@@ -7,8 +7,10 @@
 # 5. /auth/me with token_B → 200
 
 set -u
-API="https://api-production-8ac3.up.railway.app"
-DB="postgresql://postgres:SOVoxCsjuXvcyRzyNFsiQWhuxRtHCUyU@turntable.proxy.rlwy.net:37170/railway"
+API="${API_URL:-https://api-production-8ac3.up.railway.app}"
+# DB URL must be injected at runtime — never hardcode a production credential.
+# Get via: railway variables --service "Postgres-TnGR" --kv | grep DATABASE_PUBLIC_URL
+DB="${DATABASE_URL:?Set DATABASE_URL env var before running. See server/scripts/e2e/README.md.}"
 STAMP=$(date +%s)
 EMAIL="session-test-${STAMP}@varsityhub-test.local"
 PASSWORD="TestPass123!"

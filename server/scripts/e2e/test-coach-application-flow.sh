@@ -5,8 +5,11 @@
 # Every assertion hits the real server via HTTP, with /auth/me as the canonical state oracle.
 
 set -u
-API="https://api-production-8ac3.up.railway.app"
-DB="postgresql://postgres:SOVoxCsjuXvcyRzyNFsiQWhuxRtHCUyU@turntable.proxy.rlwy.net:37170/railway"
+API="${API_URL:-https://api-production-8ac3.up.railway.app}"
+# DB URL must be injected at runtime. Never hardcode a production credential
+# here — the repo is public and a leak triggers a GitGuardian / Snyk / etc. alert.
+# Get the current URL via: railway variables --service "Postgres-TnGR" --kv | grep DATABASE_PUBLIC_URL
+DB="${DATABASE_URL:?Set DATABASE_URL env var to the production Postgres public URL before running. See server/scripts/e2e/README.md.}"
 STAMP=$(date +%s)
 COACH_EMAIL="coach-app-test-${STAMP}@varsityhub-test.local"
 COACH_PASSWORD="TestPass123!"

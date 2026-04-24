@@ -48,12 +48,20 @@ Cross-system boundary test:
 - `curl`, `jq`, `psql` installed locally
 - Admin password (baked into the scripts as `AdminTest123!`); scripts register
   a temp admin via the public register endpoint and clean up after.
-- Read+write access to production Postgres (see `DB` constant; matches
-  `Postgres-TnGR` service per memory note).
+- **`DATABASE_URL` env var must be set** before running — points at the
+  production `Postgres-TnGR` public URL. Never commit this URL; inject it at
+  runtime:
+  ```bash
+  export DATABASE_URL=$(railway variables --service "Postgres-TnGR" --kv | awk -F= '/^DATABASE_PUBLIC_URL=/ {print $2}')
+  ```
+- Optional `API_URL` env var to override the API host (defaults to production).
 
 ## Running after a deploy
 
 ```bash
+# Pull credentials from Railway once per shell session:
+export DATABASE_URL=$(railway variables --service "Postgres-TnGR" --kv | awk -F= '/^DATABASE_PUBLIC_URL=/ {print $2}')
+
 # All three, sequentially:
 for s in test-coach-application-flow test-single-session test-integration-crossmatrix; do
   bash server/scripts/e2e/${s}.sh || { echo "FAIL: $s"; exit 1; }
