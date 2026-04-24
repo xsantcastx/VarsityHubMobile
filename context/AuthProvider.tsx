@@ -19,7 +19,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 // @ts-ignore JS exports
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
-import { httpGet } from '@/api/http';
+import { httpGet, abortAllInflight } from '@/api/http';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
@@ -282,6 +282,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       clearTimeout(subscriptionFetchTimeoutRef.current);
       subscriptionFetchTimeoutRef.current = null;
     }
+    // Cancel every in-flight HTTP request and drop the GET dedup cache.
+    // Without this, a request initiated under user A's token can resolve
+    // after user B signs in on the same device, and any still-mounted
+    // subscriber (or the GET-dedup cache) could observe user A's response.
+    // AbortController cancellation causes fetch() to throw AbortError so
+    // the resolution path never delivers the body.
+    abortAllInflight('sign_out_or_session_expiry');
     clearPostCacheOnLogout();
     setUser(null);
     setSentryUser(null);
