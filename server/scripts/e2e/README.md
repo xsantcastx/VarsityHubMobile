@@ -73,6 +73,22 @@ done
 
 Exit 0 on all three = safe to call the deploy verified.
 
+## Running from GitHub Actions
+
+Use the manual workflow at `.github/workflows/production-e2e.yml` when you want
+the same production checks without putting admin credentials in a local shell.
+
+Required GitHub Actions secrets:
+
+- `RAILWAY_TOKEN` to read the current production `DATABASE_PUBLIC_URL`
+- `PROD_ADMIN_EMAIL` for the existing verified admin account
+- `PROD_ADMIN_PASSWORD` for that admin account
+
+The workflow is `workflow_dispatch` only, runs the three scripts as a matrix
+with `fail-fast: false`, enforces a 5-minute timeout per script, uploads each
+log as an artifact, and writes the last 50 log lines into the job summary when
+one fails.
+
 ## When a script fails
 
 - Check `railway deployment list --service api` — a FAILED deployment is the
