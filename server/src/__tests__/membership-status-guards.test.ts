@@ -27,10 +27,29 @@ describe('membership status guards', () => {
     expect(teamsSrc).toMatch(/teamsRouter\.post\('\/:id\/transfer-ownership'[\s\S]*?newOwnerMembership[\s\S]*?status:\s*'active'/);
   });
 
-  it('requires active org membership for join-request approve/deny and org transfer-ownership', () => {
-    expect(orgsSrc).toMatch(/join-requests\/:requestId\/approve[\s\S]*?membership\.status\s*!==\s*'active'/);
-    expect(orgsSrc).toMatch(/join-requests\/:requestId\/deny[\s\S]*?membership\.status\s*!==\s*'active'/);
-    expect(orgsSrc).toMatch(/organizationsRouter\.post\('\/:id\/transfer-ownership'[\s\S]*?currentOwnership[\s\S]*?status:\s*'active'/);
-    expect(orgsSrc).toMatch(/organizationsRouter\.post\('\/:id\/transfer-ownership'[\s\S]*?newOwnerMembership[\s\S]*?status:\s*'active'/);
+  it('join-request approve requires active org membership', () => {
+    // Bounded [\s\S]{0,NNN}? keeps the regex from backtracking forever across
+    // the 67KB+ routes file and hitting Jest's test timeout before reporting.
+    expect(orgsSrc).toMatch(
+      /\/join-requests\/:requestId\/approve[\s\S]{0,4000}?membership\.status\s*!==\s*'active'/,
+    );
+  });
+
+  it('join-request deny requires active org membership', () => {
+    expect(orgsSrc).toMatch(
+      /\/join-requests\/:requestId\/deny[\s\S]{0,4000}?membership\.status\s*!==\s*'active'/,
+    );
+  });
+
+  it('org transfer-ownership requires active current + new owner memberships', () => {
+    // Allow whitespace between post( and the path string — the org route is
+    // declared across several lines (organizations.ts:2038), unlike the teams
+    // route which is single-line.
+    expect(orgsSrc).toMatch(
+      /organizationsRouter\.post\(\s*'\/:id\/transfer-ownership'[\s\S]{0,2000}?currentOwnership[\s\S]{0,500}?status:\s*'active'/,
+    );
+    expect(orgsSrc).toMatch(
+      /organizationsRouter\.post\(\s*'\/:id\/transfer-ownership'[\s\S]{0,2000}?newOwnerMembership[\s\S]{0,500}?status:\s*'active'/,
+    );
   });
 });
