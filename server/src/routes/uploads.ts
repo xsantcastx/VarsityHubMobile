@@ -473,6 +473,15 @@ uploadsRouter.post('/avatar', requireAuth as any, requireVerified as any, upload
   if (!allowedMimes.includes(req.file.mimetype)) {
     return res.status(400).json({ error: 'Invalid file type. Only images are allowed.' });
   }
+  const isValidImageContent =
+    req.file.mimetype === 'image/heic' || req.file.mimetype === 'image/heif'
+      ? isHeicBuffer(req.file.buffer)
+      : validateMagicBytes(req.file.buffer, req.file.mimetype);
+  if (!isValidImageContent) {
+    return res.status(400).json({
+      error: 'Invalid file type: file content does not match the declared image format.',
+    });
+  }
 
   try {
     if (useCloudinary) {
