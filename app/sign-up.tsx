@@ -4,6 +4,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, Touc
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { AuthenticatedEntryGuard } from '@/components/auth/AuthenticatedEntryGuard';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,10 +18,11 @@ import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePasswo
 import { useAuth } from '@/context/AuthProvider';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
+import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
+import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import auth from '@/api/auth';
 
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
@@ -30,10 +32,11 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
   const { trackTap } = useAnalytics();
-  const { checkAuth } = useAuth();
+  const { user, checkAuth, signOut } = useAuth();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -44,9 +47,18 @@ export default function SignUpScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [confirmedAge, setConfirmedAge] = useState(false);
 
-  const resetSessionForReplacementAuth = async () => {
-    await auth.clearTokensOnly();
-    await checkAuth().catch(() => {});
+  const routeCurrentUser = async () => {
+    const me = await User.me({ force: true }).catch(() => user);
+    router.replace(getPostAuthLandingRoute((me || user) as any) as any);
+  };
+
+  const handleSignOutToContinue = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const handlePasswordChange = (value: string) => {
@@ -122,7 +134,6 @@ export default function SignUpScreen() {
     setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
 
     try {
-      await resetSessionForReplacementAuth();
       const res: any = await attemptRegistration();
       // Registration response already saved tokens — AuthProvider will pick them up.
       // Don't call checkAuth() here to avoid a navigation race with router.replace below.
@@ -181,19 +192,18 @@ export default function SignUpScreen() {
     }
     setError(null);
     try {
-      await resetSessionForReplacementAuth();
       trackTap('auth_google_tap', { screen: 'sign_up' });
       await signInWithGoogle();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'google' });
-      // Let AuthProvider handle routing (onboarding vs tabs)
       await checkAuth();
+      await routeCurrentUser();
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'google-signup' } });
-      setError(message);
+      setError(getOAuthExistingAccountMessage(e, 'Google') || message);
     }
   };
 
@@ -211,12 +221,11 @@ export default function SignUpScreen() {
     }
     setError(null);
     try {
-      await resetSessionForReplacementAuth();
       trackTap('auth_apple_tap', { screen: 'sign_up' });
       await signInWithApple();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'apple' });
-      // Let AuthProvider handle routing (onboarding vs tabs)
       await checkAuth();
+      await routeCurrentUser();
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
@@ -224,7 +233,7 @@ export default function SignUpScreen() {
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
-      setError(message);
+      setError(getOAuthExistingAccountMessage(e, 'Apple') || message);
     }
   };
 
@@ -240,6 +249,14 @@ export default function SignUpScreen() {
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
+        {user ? (
+          <AuthenticatedEntryGuard
+            email={user.email}
+            onContinue={() => void routeCurrentUser()}
+            onSignOut={() => void handleSignOutToContinue()}
+            signingOut={signingOut}
+          />
+        ) : null}
         
         {error ? (
           <View style={styles.errorContainer}>
@@ -257,7 +274,7 @@ export default function SignUpScreen() {
           </View>
         ) : null}
 
-        {!showEmailForm ? (
+        {!user && !showEmailForm ? (
           <>
           {/* TOS Agreement Checkbox */}
           <TouchableOpacity
@@ -379,7 +396,7 @@ export default function SignUpScreen() {
             <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
         </>
-        ) : (
+        ) : !user ? (
           <>
           {/* Back Button */}
           <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)} accessibilityRole="button" accessibilityLabel="Back to sign up options" accessibilityHint="Double tap to return to Apple and Google options">
@@ -489,11 +506,13 @@ export default function SignUpScreen() {
             ) : 'Sign Up'}
           </Button>
           </>
-        )}
+        ) : null}
 
-        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')} accessibilityRole="button" accessibilityLabel="Already have an account? Sign in" accessibilityHint="Double tap to go to sign in">
-          <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
-        </Pressable>
+        {!user ? (
+          <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')} accessibilityRole="button" accessibilityLabel="Already have an account? Sign in" accessibilityHint="Double tap to go to sign in">
+            <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
+          </Pressable>
+        ) : null}
       </KeyboardAwareScreen>
     </SafeAreaView>
   );

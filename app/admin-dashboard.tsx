@@ -2,8 +2,8 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
@@ -32,6 +32,17 @@ interface PendingCoach {
   avatar_url?: string | null;
   created_at: string;
   preferences?: any;
+  coach_application?: {
+    id: string;
+    status: string;
+    organization_name?: string | null;
+    org_type?: string | null;
+    location?: string | null;
+    zip_code?: string | null;
+    supporting_document_url?: string | null;
+    background_url?: string | null;
+    payload?: Record<string, unknown> | null;
+  } | null;
 }
 
 interface DashboardStats {
@@ -56,6 +67,11 @@ interface DashboardStats {
 function AdminDashboardScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    coach_id?: string;
+    action?: 'approve' | 'reject';
+    review?: string;
+  }>();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -72,6 +88,7 @@ function AdminDashboardScreen() {
   const [coachModal, setCoachModal] = useState<{ coach: PendingCoach; action: 'approve' | 'reject' } | null>(null);
   const [coachNote, setCoachNote] = useState('');
   const [coachActionId, setCoachActionId] = useState<string | null>(null);
+  const emailReviewHandledRef = useRef(false);
 
   // Detail view modals
   const [coachDetailModal, setCoachDetailModal] = useState<PendingCoach | null>(null);
@@ -224,6 +241,27 @@ function AdminDashboardScreen() {
   useEffect(() => {
     void loadStats();
   }, [loadStats]);
+
+  useEffect(() => {
+    if (emailReviewHandledRef.current || !stats) return;
+
+    const coachId = String(params.coach_id || '').trim();
+    const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
+    const isCoachReview = String(params.review || '').trim() === 'coach_application';
+    if (!coachId || !isCoachReview) return;
+
+    emailReviewHandledRef.current = true;
+    const matchedCoach = stats.pendingCoaches.find(coach => coach.id === coachId);
+    if (!matchedCoach) return;
+
+    if (action) {
+      setCoachNote('');
+      setCoachModal({ coach: matchedCoach, action });
+      return;
+    }
+
+    setCoachDetailModal(matchedCoach);
+  }, [params.action, params.coach_id, params.review, stats]);
 
   const onRefresh = () => {
     void loadStats(true);
@@ -479,6 +517,11 @@ function AdminDashboardScreen() {
                       <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
                         Applied {new Date(coach.created_at).toLocaleDateString()}
                       </Text>
+                      {coach.coach_application?.organization_name ? (
+                        <Text style={[styles.statSubtitle, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                          Application: {coach.coach_application.organization_name}
+                        </Text>
+                      ) : null}
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                         <Pressable
                           style={[styles.leagueBtn, { backgroundColor: '#16A34A', opacity: isActioning ? 0.6 : 1 }]}
@@ -796,10 +839,22 @@ function AdminDashboardScreen() {
                     <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Applied:</Text>
                     <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{new Date(coachDetailModal.created_at).toLocaleString()}</Text>
                   </View>
-                  {coachDetailModal.preferences?.organization_name && (
+                  {coachDetailModal.coach_application?.organization_name && (
                     <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>League:</Text>
-                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.preferences.organization_name}</Text>
+                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Request:</Text>
+                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.coach_application.organization_name}</Text>
+                    </View>
+                  )}
+                  {coachDetailModal.coach_application?.org_type && (
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Type:</Text>
+                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.coach_application.org_type}</Text>
+                    </View>
+                  )}
+                  {coachDetailModal.coach_application?.location && (
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', width: 80 }}>Location:</Text>
+                      <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1 }}>{coachDetailModal.coach_application.location}</Text>
                     </View>
                   )}
                   {coachDetailModal.preferences?.plan && (
@@ -808,13 +863,23 @@ function AdminDashboardScreen() {
                       <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', flex: 1, textTransform: 'capitalize' }}>{coachDetailModal.preferences.plan}</Text>
                     </View>
                   )}
-                  {coachDetailModal.preferences?.supporting_document_url && (
+                  {coachDetailModal.coach_application?.supporting_document_url && (
                     <Pressable
                       style={{ backgroundColor: colorScheme === 'dark' ? '#1B3A6B' : '#EFF6FF', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}
-                      onPress={() => Linking.openURL(coachDetailModal.preferences.supporting_document_url).catch(() => Alert.alert('Error', 'Could not open document.'))}
+                      onPress={() => Linking.openURL(coachDetailModal.coach_application!.supporting_document_url!).catch(() => Alert.alert('Error', 'Could not open document.'))}
                     >
                       <MaterialIcons name="description" size={20} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                       <Text style={{ color: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', fontWeight: '700', flex: 1 }}>View Supporting Document</Text>
+                      <MaterialIcons name="open-in-new" size={16} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                    </Pressable>
+                  )}
+                  {coachDetailModal.coach_application?.background_url && (
+                    <Pressable
+                      style={{ backgroundColor: colorScheme === 'dark' ? '#1B3A6B' : '#EFF6FF', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                      onPress={() => Linking.openURL(coachDetailModal.coach_application!.background_url!).catch(() => Alert.alert('Error', 'Could not open image.'))}
+                    >
+                      <MaterialIcons name="image" size={20} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                      <Text style={{ color: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', fontWeight: '700', flex: 1 }}>View Submitted Background</Text>
                       <MaterialIcons name="open-in-new" size={16} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                     </Pressable>
                   )}

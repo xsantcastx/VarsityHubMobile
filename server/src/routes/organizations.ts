@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import {
+  buildCoachJoinRequestReviewUrl,
   sendOrganizationInviteEmail,
   sendLeagueApprovalRequestEmail,
   sendCoachApprovedEmail,
@@ -1542,6 +1543,19 @@ organizationsRouter.post(
             coachEmail: joinRequest.user.email || '',
             organizationName: organization.name,
             organizationId: organization.id,
+            requestId: joinRequest.id,
+            approveUrl: buildCoachJoinRequestReviewUrl({
+              organizationId: organization.id,
+              organizationName: organization.name,
+              requestId: joinRequest.id,
+              action: 'approve',
+            }),
+            rejectUrl: buildCoachJoinRequestReviewUrl({
+              organizationId: organization.id,
+              organizationName: organization.name,
+              requestId: joinRequest.id,
+              action: 'reject',
+            }),
           }).catch(err =>
             console.error('[orgs] Failed to send join request email:', (err as any)?.message)
           );

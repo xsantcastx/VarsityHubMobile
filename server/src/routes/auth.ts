@@ -5,11 +5,13 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import {
+  buildCoachApplicationReviewUrl,
   sendCoachApplicationAdminEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '../lib/email.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
+import { AppError } from '../lib/errors/AppError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import {
   signJwt,
@@ -48,6 +50,7 @@ import {
   buildAuthStateColumns,
   getCanonicalAuthState,
   getCanonicalUserRole,
+  getPreferencesObject,
   isProceedingAsFan,
   isUserOnboardingComplete,
   mergeAuthStateIntoPreferences,
@@ -60,6 +63,15 @@ import {
   isPaymentPending,
   mergeBillingStateIntoPreferences,
 } from '../lib/userBillingState.js';
+import {
+  getCoachFlowState,
+  getLatestCoachApplication,
+  serializeCoachApplication,
+} from '../lib/coachApplications.js';
+import {
+  buildOAuthExistingAccountConflict,
+  getLinkedProviders,
+} from '../lib/oauthAccountLinking.js';
 
 export const authRouter = Router();
 
@@ -237,6 +249,138 @@ if (process.env.NODE_ENV === 'production' && process.env.ALLOW_APPLE_SIM_TOKENS 
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
 const appleKeyCache = new Map<string, { key: KeyObject; expiresAt: number }>();
+
+async function issueRefreshTokenForUser(userId: string, deviceInfo: string | null | undefined) {
+  const rawRefresh = generateRefreshToken();
+  const tokenHash = hashRefreshToken(rawRefresh);
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  await prisma.refreshToken.create({
+    data: {
+      token_hash: tokenHash,
+      user_id: userId,
+      expires_at: expiresAt,
+      device_info: deviceInfo || null,
+    },
+  });
+  return rawRefresh;
+}
+
+async function verifyGoogleIdentityToken(idToken: string) {
+  let ticket;
+  try {
+    ticket = await googleOAuthClient.verifyIdToken({
+      idToken,
+      ...(GOOGLE_ALLOWED_AUDIENCES.length
+        ? { audience: GOOGLE_ALLOWED_AUDIENCES.length === 1 ? GOOGLE_ALLOWED_AUDIENCES[0] : GOOGLE_ALLOWED_AUDIENCES }
+        : {}),
+    });
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (
+      msg.includes('audience') ||
+      msg.includes('Token used too late') ||
+      msg.includes('Invalid token')
+    ) {
+      throw new AppError(401, 'Google authentication failed', {
+        errorCode: 'GOOGLE_AUTH_FAILED',
+        metadata: { detail: msg },
+      });
+    }
+    throw new AppError(401, 'Google authentication failed', {
+      errorCode: 'GOOGLE_AUTH_FAILED',
+    });
+  }
+
+  const payload = ticket.getPayload();
+  if (!payload) {
+    throw new AppError(401, 'Google authentication failed', {
+      errorCode: 'GOOGLE_AUTH_FAILED',
+    });
+  }
+
+  const googleId = typeof payload.sub === 'string' ? payload.sub : null;
+  const email = typeof payload.email === 'string' ? String(payload.email).toLowerCase() : null;
+  const emailVerified = payload.email_verified === true;
+  if (!googleId || !email) {
+    throw new ValidationError('Invalid Google credential', {
+      errorCode: 'INVALID_GOOGLE_CREDENTIAL',
+    });
+  }
+  if (!emailVerified) {
+    throw new ValidationError('Google account email is not verified', {
+      errorCode: 'GOOGLE_EMAIL_NOT_VERIFIED',
+    });
+  }
+
+  return {
+    googleId,
+    email,
+    displayName:
+      typeof payload.name === 'string' && payload.name.trim().length ? payload.name.trim() : null,
+    avatarUrl: typeof payload.picture === 'string' ? payload.picture : null,
+  };
+}
+
+async function verifyAppleIdentityToken(identityToken: string, appleClientId: string) {
+  const isDevelopmentToken = identityToken.startsWith('sim-');
+  if (isDevelopmentToken && process.env.ALLOW_APPLE_SIM_TOKENS !== 'true') {
+    throw new AppError(401, 'Simulator tokens are not accepted in this environment', {
+      errorCode: 'APPLE_SIM_TOKEN_REJECTED',
+    });
+  }
+
+  if (isDevelopmentToken) {
+    const appleId = identityToken.replace('sim-', '');
+    return {
+      appleId,
+      email: `${appleId}@privaterelay.appleid.com`,
+    };
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.decode(identityToken, { complete: true });
+  } catch {
+    decoded = null;
+  }
+  if (!decoded || typeof decoded === 'string' || !decoded.header) {
+    throw new ValidationError('Invalid Apple token format', {
+      errorCode: 'INVALID_APPLE_TOKEN',
+    });
+  }
+
+  const kid = decoded.header.kid;
+  if (!kid || typeof kid !== 'string') {
+    throw new ValidationError('Invalid Apple token header', {
+      errorCode: 'INVALID_APPLE_TOKEN',
+    });
+  }
+
+  try {
+    const appleKey = await getApplePublicKey(kid);
+    const jwtPayload = jwt.verify(identityToken, appleKey, {
+      algorithms: ['RS256'],
+      issuer: 'https://appleid.apple.com',
+      audience: appleClientId,
+    }) as JwtPayload;
+    const appleId = jwtPayload.sub as string;
+    const email = (jwtPayload.email as string) || null;
+
+    if (!appleId) {
+      throw new ValidationError('Missing user identifier in token', {
+        errorCode: 'INVALID_APPLE_TOKEN',
+      });
+    }
+
+    return { appleId, email };
+  } catch (err: any) {
+    if (err instanceof ValidationError) throw err;
+    throw new ValidationError('Failed to verify Apple token', {
+      errorCode: 'APPLE_AUTH_FAILED',
+      metadata: { detail: err?.message },
+    });
+  }
+}
 
 async function getApplePublicKey(kid: string): Promise<KeyObject> {
   const cached = appleKeyCache.get(kid);
@@ -839,60 +983,12 @@ authRouter.post(
         return res.status(503).json({ error: 'Google Sign-In is not configured' });
       }
 
-      // Stage 1: Verify token with google-auth-library (signature + expiry, cached public keys)
-      let payload: any;
-      try {
-        const ticket = await googleOAuthClient.verifyIdToken({
-          idToken: id_token,
-          // Audience enforced in production (guarded above). Dev mode accepts any.
-          ...(GOOGLE_ALLOWED_AUDIENCES.length > 0 ? { audience: GOOGLE_ALLOWED_AUDIENCES } : {}),
-        });
-        payload = ticket.getPayload();
-      } catch (verifyErr: any) {
-        const msg = verifyErr?.message || String(verifyErr);
-        console.error('[auth/google] verifyIdToken failed', { message: msg });
-        captureException(verifyErr instanceof Error ? verifyErr : new Error(msg), {
-          stage: 'verify-token',
-        });
-        // Distinguish audience mismatch from other failures
-        if (
-          msg.includes('audience') ||
-          msg.includes('Token used too late') ||
-          msg.includes('Invalid token')
-        ) {
-          return res.status(401).json({ error: 'Google authentication failed', detail: msg });
-        }
-        return res.status(401).json({ error: 'Google authentication failed' });
-      }
-
-      if (!payload) {
-        console.error('[auth/google] verifyIdToken returned no payload');
-        return res.status(401).json({ error: 'Google authentication failed' });
-      }
-
-      // Stage 2: Extract and validate fields
-      stage = 'validate';
-      const googleId = typeof payload.sub === 'string' ? payload.sub : null;
-      const email = typeof payload.email === 'string' ? String(payload.email).toLowerCase() : null;
-      const emailVerified = payload.email_verified === true;
-
-      if (!googleId || !email) {
-        console.warn('[auth/google] missing sub or email', {
-          hasGoogleId: !!googleId,
-          hasEmail: !!email,
-        });
-        return res.status(400).json({ error: 'Invalid Google credential' });
-      }
-
-      if (!emailVerified) {
-        console.warn('[auth/google] email not verified', { email });
-        return res.status(400).json({ error: 'Google account email is not verified' });
-      }
-
-      // Use Google profile name if available, otherwise null — don't use email prefix as display name
-      const displayNameSource =
-        typeof payload.name === 'string' && payload.name.trim().length ? payload.name.trim() : null;
-      const avatarUrl = typeof payload.picture === 'string' ? payload.picture : null;
+      const {
+        googleId,
+        email,
+        displayName: displayNameSource,
+        avatarUrl,
+      } = await verifyGoogleIdentityToken(id_token);
 
       // Stage 4: User lookup/creation
       stage = 'user-lookup';
@@ -936,59 +1032,55 @@ authRouter.post(
         });
 
         if (existingByEmail) {
-          stage = 'link-google';
-          const currentPrefs = (existingByEmail as any)?.preferences || {};
-          const prefPatch: Record<string, unknown> = {};
-          if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
-          if (typeof currentPrefs.onboarding_completed === 'undefined')
-            prefPatch.onboarding_completed = false;
-          const updates: any = {
-            google_id: googleId,
-            email_verified: true,
-            email_verification_code: null,
-            email_verification_expires: null,
-          };
-          if (avatarUrl && !existingByEmail.avatar_url) updates.avatar_url = avatarUrl;
-          if (displayNameSource && !existingByEmail.display_name)
-            updates.display_name = displayNameSource;
-          if (Object.keys(prefPatch).length) {
-            updates.preferences = mergeAuthStateIntoPreferences(
-              mergePreferences(currentPrefs, prefPatch),
-              {
-                role: getCanonicalUserRole(existingByEmail as any),
-                onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
-              }
+          return res
+            .status(409)
+            .json(
+              buildOAuthExistingAccountConflict({
+                email,
+                user: existingByEmail,
+                providerLabel: 'Google',
+              })
             );
-          }
-          Object.assign(
-            updates,
-            buildAuthStateColumns({
-              role: getCanonicalUserRole(existingByEmail as any),
-              onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
-            })
-          );
-          user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
-          await invalidateMeCacheForUser(user.id);
         } else {
           stage = 'create-user';
           const randomSecret = crypto.randomBytes(32).toString('hex');
           const password_hash = await bcrypt.hash(randomSecret, 10);
-          user = await prisma.user.create({
-            data: {
-              email,
-              password_hash,
-              google_id: googleId,
-              display_name: displayNameSource,
-              avatar_url: avatarUrl,
-              email_verified: true,
-              preferences: mergeAuthStateIntoPreferences({}, {
+          try {
+            user = await prisma.user.create({
+              data: {
+                email,
+                password_hash,
+                google_id: googleId,
+                display_name: displayNameSource,
+                avatar_url: avatarUrl,
+                email_verified: true,
+                preferences: mergeAuthStateIntoPreferences({}, {
+                  role: 'fan',
+                  onboarding_completed: false,
+                }),
                 role: 'fan',
                 onboarding_completed: false,
-              }),
-              role: 'fan',
-              onboarding_completed: false,
-            },
-          });
+              },
+            });
+          } catch (createErr: any) {
+            if (createErr?.code === 'P2002') {
+              const existingUser = await prisma.user.findFirst({
+                where: { email: { equals: email, mode: 'insensitive' } },
+              });
+              if (existingUser) {
+                return res
+                  .status(409)
+                  .json(
+                    buildOAuthExistingAccountConflict({
+                      email,
+                      user: existingUser,
+                      providerLabel: 'Google',
+                    })
+                  );
+              }
+            }
+            throw createErr;
+          }
           created = true;
         }
       } else if (!user.email_verified) {
@@ -1024,12 +1116,16 @@ authRouter.post(
           ...sanitized,
           email_verified: true,
           is_admin: isOAuthAdmin,
+          linked_providers: getLinkedProviders(user as any),
           ...(isOAuthAdmin ? { role: 'admin' } : {}),
         },
         needs_onboarding: needsOnboarding,
         created,
       });
     } catch (err: any) {
+      if (err instanceof AppError) {
+        return res.status(err.statusCode).json(err.toJSON());
+      }
       console.error(`[auth/google] error at stage="${stage}"`, {
         message: err?.message,
         code: err?.code,
@@ -1064,60 +1160,7 @@ authRouter.post(
     const { identity_token } = parsed.data;
 
     try {
-      // In development/simulator, accept tokens starting with 'sim-' for testing
-      const isDevelopmentToken = identity_token.startsWith('sim-');
-      if (isDevelopmentToken && process.env.ALLOW_APPLE_SIM_TOKENS !== 'true') {
-        return res
-          .status(401)
-          .json({ error: 'Simulator tokens are not accepted in this environment' });
-      }
-
-      let appleId: string;
-      let email: string | null = null;
-
-      if (isDevelopmentToken) {
-        // Extract the simulator user ID
-        appleId = identity_token.replace('sim-', '');
-        email = `${appleId}@privaterelay.appleid.com`;
-        // Using development token for simulator
-      } else {
-        // Production: Verify Apple identity token
-        try {
-          const decoded = jwt.decode(identity_token, { complete: true });
-          if (!decoded || typeof decoded === 'string' || !decoded.header) {
-            return res.status(400).json({ error: 'Invalid Apple token format' });
-          }
-
-          const kid = decoded.header.kid;
-          if (!kid || typeof kid !== 'string') {
-            return res.status(400).json({ error: 'Invalid Apple token header' });
-          }
-
-          const appleKey = await getApplePublicKey(kid);
-          const jwtPayload = jwt.verify(identity_token, appleKey, {
-            algorithms: ['RS256'],
-            issuer: 'https://appleid.apple.com',
-            audience: APPLE_CLIENT_ID,
-          }) as JwtPayload;
-
-          appleId = jwtPayload.sub as string;
-          email = (jwtPayload.email as string) || null;
-
-          if (!appleId) {
-            return res.status(400).json({ error: 'Missing user identifier in token' });
-          }
-          debugLog('[auth/apple] Apple token verified');
-        } catch (err: any) {
-          console.error('[auth/apple] Token verification failed:', err?.message || err);
-          return res
-            .status(400)
-            .json({ error: 'Failed to verify Apple token', detail: err?.message });
-        }
-      }
-
-      if (!appleId) {
-        return res.status(400).json({ error: 'Invalid Apple credential' });
-      }
+      const { appleId, email } = await verifyAppleIdentityToken(identity_token, APPLE_CLIENT_ID);
 
       // Look up user by Apple ID
       let user = await prisma.user.findUnique({ where: { apple_id: appleId } });
@@ -1133,39 +1176,15 @@ authRouter.post(
         }
 
         if (existingByEmail) {
-          // Link Apple ID to existing account
-          const currentPrefs = (existingByEmail as any)?.preferences || {};
-          const prefPatch: Record<string, unknown> = {};
-          if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
-          if (typeof currentPrefs.onboarding_completed === 'undefined')
-            prefPatch.onboarding_completed = false;
-
-          const updates: any = {
-            apple_id: appleId,
-            email_verified: true,
-            email_verification_code: null,
-            email_verification_expires: null,
-          };
-
-          if (Object.keys(prefPatch).length) {
-            updates.preferences = mergeAuthStateIntoPreferences(
-              mergePreferences(currentPrefs, prefPatch),
-              {
-                role: getCanonicalUserRole(existingByEmail as any),
-                onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
-              }
+          return res
+            .status(409)
+            .json(
+              buildOAuthExistingAccountConflict({
+                email: email || existingByEmail.email,
+                user: existingByEmail,
+                providerLabel: 'Apple',
+              })
             );
-          }
-          Object.assign(
-            updates,
-            buildAuthStateColumns({
-              role: getCanonicalUserRole(existingByEmail as any),
-              onboarding_completed: isUserOnboardingComplete(existingByEmail as any),
-            })
-          );
-
-          user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
-          await invalidateMeCacheForUser(user.id);
         } else {
           // Create new user
           const randomSecret = crypto.randomBytes(32).toString('hex');
@@ -1196,21 +1215,20 @@ authRouter.post(
             // Handle unique constraint violation (P2002) - user may have been created concurrently
             // or exists with different apple_id
             if (createErr?.code === 'P2002') {
-              debugLog('[auth/apple] User already exists, linking Apple ID');
+              debugLog('[auth/apple] User already exists after create race');
               const existingUser = await prisma.user.findFirst({
                 where: { email: { equals: userEmail, mode: 'insensitive' } },
               });
               if (existingUser) {
-                user = await prisma.user.update({
-                  where: { id: existingUser.id },
-                  data: {
-                    apple_id: appleId,
-                    email_verified: true,
-                    email_verification_code: null,
-                    email_verification_expires: null,
-                  },
-                });
-                await invalidateMeCacheForUser(user.id);
+                return res
+                  .status(409)
+                  .json(
+                    buildOAuthExistingAccountConflict({
+                      email: userEmail,
+                      user: existingUser,
+                      providerLabel: 'Apple',
+                    })
+                  );
               } else {
                 throw createErr; // Re-throw if we still can't find the user
               }
@@ -1230,7 +1248,6 @@ authRouter.post(
         req.headers['user-agent'] || null,
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
-
       const isAppleOAuthAdmin = isAdminEmail(sanitized.email);
       return res.json({
         access_token,
@@ -1239,15 +1256,169 @@ authRouter.post(
           ...sanitized,
           email_verified: true,
           is_admin: isAppleOAuthAdmin,
+          linked_providers: getLinkedProviders(user as any),
           ...(isAppleOAuthAdmin ? { role: 'admin' } : {}),
         },
         needs_onboarding: needsOnboarding,
         created,
       });
-    } catch (err) {
+    } catch (err: any) {
+      if (err instanceof AppError) {
+        return res.status(err.statusCode).json(err.toJSON());
+      }
       console.error('[auth/apple] unexpected error', err);
       return res.status(500).json({ error: 'Failed to authenticate with Apple' });
     }
+  })
+);
+
+authRouter.post(
+  '/google/link',
+  requireAuth as any,
+  oauthLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = googleAuthSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        email: true,
+        password_hash: true,
+        google_id: true,
+        apple_id: true,
+        avatar_url: true,
+        display_name: true,
+      },
+    });
+    if (!currentUser) return res.status(404).json({ error: 'Not found' });
+
+    const { googleId, email, displayName, avatarUrl } = await verifyGoogleIdentityToken(
+      parsed.data.id_token
+    );
+    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+    if (normalizedCurrentEmail !== email) {
+      return res.status(409).json({
+        code: 'OAUTH_EMAIL_MISMATCH',
+        email,
+        error: `Google returned ${email}, which does not match your signed-in account.`,
+      });
+    }
+
+    const linkedUser = await prisma.user.findUnique({ where: { google_id: googleId } });
+    if (linkedUser && linkedUser.id !== currentUser.id) {
+      return res.status(409).json({
+        code: 'OAUTH_PROVIDER_ALREADY_LINKED',
+        error: 'This Google account is already linked to another VarsityHub account.',
+      });
+    }
+    if (currentUser.google_id && currentUser.google_id !== googleId) {
+      return res.status(409).json({
+        code: 'OAUTH_PROVIDER_ALREADY_LINKED',
+        error: 'Your VarsityHub account is already linked to a different Google account.',
+      });
+    }
+
+    const updateData: any = {
+      google_id: googleId,
+      email_verified: true,
+      email_verification_code: null,
+      email_verification_expires: null,
+    };
+    if (avatarUrl && !currentUser.avatar_url) updateData.avatar_url = avatarUrl;
+    if (displayName && !currentUser.display_name) updateData.display_name = displayName;
+
+    const updated = await prisma.user.update({
+      where: { id: currentUser.id },
+      data: updateData,
+    });
+    await invalidateMeCacheForUser(updated.id);
+
+    return res.json({
+      ok: true,
+      user: {
+        ...sanitizeUser(updated),
+        linked_providers: getLinkedProviders(updated as any),
+      },
+    });
+  })
+);
+
+authRouter.post(
+  '/apple/link',
+  requireAuth as any,
+  oauthLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
+    if (!APPLE_CLIENT_ID) {
+      return res.status(503).json({ error: 'Apple Sign-In is not configured' });
+    }
+
+    const parsed = appleAuthSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        email: true,
+        password_hash: true,
+        google_id: true,
+        apple_id: true,
+      },
+    });
+    if (!currentUser) return res.status(404).json({ error: 'Not found' });
+
+    const { appleId, email } = await verifyAppleIdentityToken(parsed.data.identity_token, APPLE_CLIENT_ID);
+    if (!email) {
+      return res.status(400).json({
+        code: 'APPLE_EMAIL_REQUIRED_FOR_LINK',
+        error: 'Apple did not provide an email address for this sign-in. Try again and share your email with Apple Sign-In enabled.',
+      });
+    }
+
+    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+    if (normalizedCurrentEmail !== String(email).trim().toLowerCase()) {
+      return res.status(409).json({
+        code: 'OAUTH_EMAIL_MISMATCH',
+        email,
+        error: `Apple returned ${email}, which does not match your signed-in account.`,
+      });
+    }
+
+    const linkedUser = await prisma.user.findUnique({ where: { apple_id: appleId } });
+    if (linkedUser && linkedUser.id !== currentUser.id) {
+      return res.status(409).json({
+        code: 'OAUTH_PROVIDER_ALREADY_LINKED',
+        error: 'This Apple account is already linked to another VarsityHub account.',
+      });
+    }
+    if (currentUser.apple_id && currentUser.apple_id !== appleId) {
+      return res.status(409).json({
+        code: 'OAUTH_PROVIDER_ALREADY_LINKED',
+        error: 'Your VarsityHub account is already linked to a different Apple account.',
+      });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: currentUser.id },
+      data: {
+        apple_id: appleId,
+        email_verified: true,
+        email_verification_code: null,
+        email_verification_expires: null,
+      },
+    });
+    await invalidateMeCacheForUser(updated.id);
+
+    return res.json({
+      ok: true,
+      user: {
+        ...sanitizeUser(updated),
+        linked_providers: getLinkedProviders(updated as any),
+      },
+    });
   })
 );
 
@@ -1708,6 +1879,175 @@ authRouter.post(
   })
 );
 
+const submitCoachApplicationSchema = z.object({
+  organization_name: z.string().trim().min(2).max(255),
+  org_type: z.string().trim().min(2).max(100).optional(),
+  location: z.string().trim().min(2).max(500).optional(),
+  zip_code: z.string().trim().max(20).optional(),
+  place_id: z.string().trim().max(255).optional(),
+  supporting_document_url: z.string().url().max(2000),
+  background_url: z.string().url().max(2000).optional(),
+});
+
+authRouter.post(
+  '/coach-applications',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const parsed = submitCoachApplicationSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Invalid payload',
+        issues: parsed.error.issues.map(issue => ({
+          path: issue.path.map(String),
+          message: issue.message,
+        })),
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        email: true,
+        display_name: true,
+        username: true,
+        approval_status: true,
+        rejected_at: true,
+        rejection_reason: true,
+        preferences: true,
+        role: true,
+        onboarding_completed: true,
+        organization_id: true,
+        proceeding_as_fan: true,
+      },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const currentRole = getCanonicalUserRole(user as any);
+    if (currentRole !== 'coach') {
+      return res.status(400).json({
+        error: 'Upgrade to coach before submitting an application.',
+        code: 'NOT_COACH',
+      });
+    }
+    if (user.approval_status !== 'PENDING') {
+      return res.status(400).json({
+        error: 'Your account is not eligible for a new coach application submission.',
+        code: 'INVALID_APPROVAL_STATE',
+      });
+    }
+    if (user.organization_id) {
+      return res.status(400).json({
+        error: 'Your coach account already has an organization attached.',
+        code: 'ORG_ALREADY_EXISTS',
+      });
+    }
+
+    const data = parsed.data;
+    const now = new Date();
+    const nextPrefs = getPreferencesObject(user.preferences);
+    delete nextPrefs.organization_id;
+    delete nextPrefs.organization_name;
+    delete nextPrefs.team_id;
+    delete nextPrefs.team_name;
+    nextPrefs.join_request_pending = false;
+
+    const result = await prisma.$transaction(async tx => {
+      await tx.coachApplication.updateMany({
+        where: {
+          user_id: user.id,
+          status: { in: ['submitted', 'rejected'] },
+        },
+        data: {
+          status: 'superseded',
+          reviewed_at: now,
+          review_note: 'Superseded by a newer coach application submission.',
+        },
+      });
+
+      const application = await tx.coachApplication.create({
+        data: {
+          user_id: user.id,
+          organization_name: data.organization_name,
+          org_type: data.org_type,
+          location: data.location,
+          zip_code: data.zip_code,
+          place_id: data.place_id,
+          supporting_document_url: data.supporting_document_url,
+          background_url: data.background_url,
+          payload: data,
+          submitted_at: now,
+        },
+      });
+
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          preferences: mergeAuthStateIntoPreferences(nextPrefs, {
+            onboarding_completed: true,
+            organization_id: null,
+            proceeding_as_fan: true,
+          }),
+          ...buildAuthStateColumns({
+            onboarding_completed: true,
+            organization_id: null,
+            proceeding_as_fan: true,
+          }),
+          approval_status: 'PENDING',
+          rejected_at: null,
+          rejection_reason: null,
+        },
+      });
+
+      return { application, updatedUser };
+    });
+
+    await invalidateMeCacheForUser(user.id);
+
+    const flowState = getCoachFlowState(result.updatedUser as any, result.application);
+    const serializedApplication = serializeCoachApplication(result.application);
+
+    const { getAllAdminEmails } = await import('../lib/adminEmails.js');
+    const adminEmails = getAllAdminEmails();
+    for (const adminEmail of adminEmails) {
+      sendCoachApplicationAdminEmail({
+        to: adminEmail,
+        applicantName: result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
+        applicantEmail: result.updatedUser.email,
+        applicantUserId: result.updatedUser.id,
+        organizationName: data.organization_name,
+        approveUrl: buildCoachApplicationReviewUrl({
+          coachId: result.updatedUser.id,
+          action: 'approve',
+        }),
+        rejectUrl: buildCoachApplicationReviewUrl({
+          coachId: result.updatedUser.id,
+          action: 'reject',
+        }),
+        supportingDocumentUrl: data.supporting_document_url,
+      }).catch(err => {
+        console.error(
+          '[auth] Failed to send coach-application admin notification to',
+          adminEmail,
+          err?.message || err
+        );
+      });
+    }
+
+    return res.status(201).json({
+      ok: true,
+      application: serializedApplication,
+      user: {
+        ...sanitizeUser(result.updatedUser),
+        coach_application: serializedApplication,
+        account_state: flowState.account_state,
+        next_step: flowState.next_step,
+      },
+    });
+  })
+);
+
 authRouter.get(
   '/me',
   asyncHandler(async (req: AuthedRequest, res) => {
@@ -1718,7 +2058,7 @@ authRouter.get(
     const cached = await cacheGet(cacheKey);
     if (cached) return res.json(cached);
 
-    const [rawUser, activePostCount] = await Promise.all([
+    const [rawUser, activePostCount, coachApplication] = await Promise.all([
       prisma.user.findUnique({
         where: { id: req.user!.id },
         include: {
@@ -1733,6 +2073,7 @@ authRouter.get(
       prisma.post.count({
         where: { author_id: req.user!.id },
       }),
+      getLatestCoachApplication(prisma, req.user!.id),
     ]);
     const user = await ensureOAuthUserVerified(rawUser);
     if (!user) return res.status(404).json({ error: 'Not found' });
@@ -1759,6 +2100,15 @@ authRouter.get(
     const requiredCoachAgreementVersion = Number(
       process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
     );
+    const serializedApplication = serializeCoachApplication(coachApplication);
+    const flowState = getCoachFlowState(
+      {
+        ...user,
+        coach_agreement_accepted_at: (safe as any).coach_agreement_accepted_at,
+        coach_agreement_version: (safe as any).coach_agreement_version,
+      } as any,
+      coachApplication
+    );
     const payload = {
       ...safe,
       _count: {
@@ -1766,10 +2116,14 @@ authRouter.get(
         posts: activePostCount,
       },
       has_password,
+      linked_providers: getLinkedProviders(user as any),
       role: normalizedRole,
       preferences: prefs,
       required_coach_agreement_version: requiredCoachAgreementVersion,
       is_admin,
+      coach_application: serializedApplication,
+      account_state: flowState.account_state,
+      next_step: flowState.next_step,
     };
     void cacheSet(cacheKey, payload, 60); // 60s TTL
     return res.json(payload);
@@ -2764,6 +3118,23 @@ authRouter.post(
           to: adminEmail,
           applicantName: updated.display_name || updated.email,
           applicantEmail: updated.email,
+          applicantUserId: updated.id,
+          organizationName:
+            typeof (updateData as any)?.organization_name === 'string'
+              ? String((updateData as any).organization_name)
+              : undefined,
+          approveUrl: buildCoachApplicationReviewUrl({
+            coachId: updated.id,
+            action: 'approve',
+          }),
+          rejectUrl: buildCoachApplicationReviewUrl({
+            coachId: updated.id,
+            action: 'reject',
+          }),
+          supportingDocumentUrl:
+            typeof (updateData as any)?.supporting_document_url === 'string'
+              ? String((updateData as any).supporting_document_url)
+              : undefined,
         }).catch(err => {
           console.error(
             '[auth] Failed to send coach-application admin notification to',

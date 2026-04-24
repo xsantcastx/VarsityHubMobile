@@ -21,7 +21,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Event, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
+import { useAppleAuth } from '@/hooks/useAppleAuth';
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { safeGoBack } from '@/utils/navigation';
+import { getOAuthLinkErrorMessage } from '@/utils/oauthErrors';
 
 interface PendingHostRequest {
   id: string;
@@ -43,6 +46,11 @@ interface UserMeResponse {
   google_id?: string | null;
   apple_id?: string | null;
   has_password?: boolean;
+  linked_providers?: {
+    password?: boolean;
+    google?: boolean;
+    apple?: boolean;
+  };
 }
 
 type CommentPermission = 'everyone' | 'following' | 'none';
@@ -60,6 +68,12 @@ interface Preferences {
   profile_private: boolean;
   comment_permission: CommentPermission;
 }
+
+type LinkedProviders = {
+  password: boolean;
+  google: boolean;
+  apple: boolean;
+};
 
 // Inline components for settings
 function SectionCard({
@@ -169,6 +183,13 @@ export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
+  const {
+    linkWithGoogle,
+    loading: googleAuthLoading,
+    ready: googleReady,
+    isConfigured: googleConfigured,
+  } = useGoogleAuth();
+  const { linkWithApple, loading: appleAuthLoading, ready: appleReady } = useAppleAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
 
@@ -198,6 +219,11 @@ export default function SettingsScreen() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(true);
+  const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>({
+    password: true,
+    google: false,
+    apple: false,
+  });
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -259,6 +285,100 @@ export default function SettingsScreen() {
 
       return newPrefs;
     });
+  };
+
+  const getLinkedProvidersFromMe = (me: UserMeResponse | null | undefined): LinkedProviders => {
+    const fromPayload = me?.linked_providers;
+    if (fromPayload) {
+      return {
+        password: fromPayload.password === true,
+        google: fromPayload.google === true,
+        apple: fromPayload.apple === true,
+      };
+    }
+    const hasOauthProvider = !!(me?.google_id || me?.apple_id);
+    return {
+      password: typeof me?.has_password === 'boolean' ? me.has_password : !hasOauthProvider,
+      google: !!me?.google_id,
+      apple: !!me?.apple_id,
+    };
+  };
+
+  const applyMeSnapshot = (me: UserMeResponse, mounted: boolean) => {
+    if (!mounted) return;
+    setEmail(me?.email || null);
+    const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
+    setPrefs({
+      notifications: {
+        game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
+        team_updates: !!serverPrefs?.notifications?.team_updates,
+        comments_upvotes: !!serverPrefs?.notifications?.comments_upvotes,
+        follows_notifications: serverPrefs?.notifications?.follows_notifications !== false,
+        messages_notifications: serverPrefs?.notifications?.messages_notifications !== false,
+      },
+      is_parent: !!serverPrefs?.is_parent,
+      zip_code: serverPrefs?.zip_code ?? null,
+      profile_private: !!serverPrefs?.profile_private,
+      comment_permission:
+        serverPrefs?.comment_permission === 'following' ||
+        serverPrefs?.comment_permission === 'none'
+          ? serverPrefs.comment_permission
+          : 'everyone',
+    });
+    setPlan(serverPrefs?.plan ?? null);
+    const effectiveRole = (serverPrefs?.role || (me?.role === 'admin' ? 'admin' : null)) as
+      | string
+      | null;
+    setRole(effectiveRole);
+    setDeleteRequiresPassword(getLinkedProvidersFromMe(me).password);
+    setLinkedProviders(getLinkedProvidersFromMe(me));
+  };
+
+  const refreshSettingsUser = async (): Promise<UserMeResponse> => {
+    const me = (await User.me({ force: true })) as UserMeResponse;
+    applyMeSnapshot(me, true);
+    await checkAuth().catch(() => {});
+    return me;
+  };
+
+  const connectGoogleProvider = async () => {
+    if (!googleReady || !googleConfigured) {
+      Alert.alert('Google unavailable', 'Google Sign-In is not configured on this build.');
+      return;
+    }
+    try {
+      await linkWithGoogle();
+      await refreshSettingsUser();
+      Alert.alert('Google connected', 'This account can now be used with Google Sign-In.');
+    } catch (error: any) {
+      const message =
+        getOAuthLinkErrorMessage(error, 'Google') ||
+        error?.message ||
+        'Unable to connect Google right now.';
+      Alert.alert('Google connection failed', message);
+    }
+  };
+
+  const connectAppleProvider = async () => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Apple unavailable', 'Apple Sign-In can only be linked from an iPhone or iPad.');
+      return;
+    }
+    if (!appleReady) {
+      Alert.alert('Apple unavailable', 'Apple Sign-In is still initializing. Try again in a moment.');
+      return;
+    }
+    try {
+      await linkWithApple();
+      await refreshSettingsUser();
+      Alert.alert('Apple connected', 'This account can now be used with Apple Sign-In.');
+    } catch (error: any) {
+      const message =
+        getOAuthLinkErrorMessage(error, 'Apple') ||
+        error?.message ||
+        'Unable to connect Apple right now.';
+      Alert.alert('Apple connection failed', message);
+    }
   };
 
   const _restartOnboarding = async () => {
@@ -372,35 +492,11 @@ export default function SettingsScreen() {
       try {
         const me = (await User.me()) as UserMeResponse;
         if (!mounted) return;
-        setEmail(me?.email || null);
-        // Admin status comes from useAuth().isAdmin (user.role / user.is_admin from backend)
+        applyMeSnapshot(me, mounted);
         const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
-        setPrefs({
-          notifications: {
-            game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
-            team_updates: !!serverPrefs?.notifications?.team_updates,
-            comments_upvotes: !!serverPrefs?.notifications?.comments_upvotes,
-            follows_notifications: serverPrefs?.notifications?.follows_notifications !== false,
-            messages_notifications: serverPrefs?.notifications?.messages_notifications !== false,
-          },
-          is_parent: !!serverPrefs?.is_parent,
-          zip_code: serverPrefs?.zip_code ?? null,
-          profile_private: !!serverPrefs?.profile_private,
-          comment_permission:
-            serverPrefs?.comment_permission === 'following' ||
-            serverPrefs?.comment_permission === 'none'
-              ? serverPrefs.comment_permission
-              : 'everyone',
-        });
-        setPlan(serverPrefs?.plan ?? null);
         const effectiveRole = (serverPrefs?.role || (me?.role === 'admin' ? 'admin' : null)) as
           | string
           | null;
-        setRole(effectiveRole);
-        const hasOauthProvider = !!(me?.google_id || me?.apple_id);
-        const hasPassword =
-          typeof me?.has_password === 'boolean' ? me.has_password : !hasOauthProvider;
-        setDeleteRequiresPassword(hasPassword);
 
         // Fetch pending host event requests for coaches
         if (effectiveRole === 'coach') {
@@ -498,8 +594,44 @@ export default function SettingsScreen() {
             />
             <NavRow
               title="Followed Teams"
-              isLast
               onPress={() => void router.push('/settings/followed-teams')}
+            />
+            <NavRow
+              title="Google Sign-In"
+              subtitle={
+                linkedProviders.google
+                  ? 'Connected'
+                  : googleAuthLoading
+                    ? 'Connecting...'
+                    : googleConfigured
+                      ? 'Connect Google to this account'
+                      : 'Google is unavailable on this build'
+              }
+              onPress={() => {
+                if (!linkedProviders.google && !googleAuthLoading && googleConfigured) {
+                  void connectGoogleProvider();
+                }
+              }}
+            />
+            <NavRow
+              title="Apple Sign-In"
+              subtitle={
+                linkedProviders.apple
+                  ? 'Connected'
+                  : appleAuthLoading
+                    ? 'Connecting...'
+                    : Platform.OS !== 'ios'
+                      ? 'Link from an iPhone or iPad'
+                      : appleReady
+                        ? 'Connect Apple to this account'
+                        : 'Apple Sign-In is unavailable right now'
+              }
+              isLast
+              onPress={() => {
+                if (!linkedProviders.apple && !appleAuthLoading) {
+                  void connectAppleProvider();
+                }
+              }}
             />
           </SectionCard>
 

@@ -161,6 +161,22 @@ describe('coach flow structural invariants', () => {
       expect(/prefsCheck\.role\s*===\s*['"]coach['"]/.test(teams)).toBe(false);
       expect(/prefsCheck\.onboarding_completed\s*!==\s*true/.test(teams)).toBe(false);
     });
+
+    it('OAuth sign-in paths return a 409 conflict for same-email existing accounts instead of auto-linking', () => {
+      expect(auth).toMatch(/buildOAuthExistingAccountConflict/);
+      expect(auth).toMatch(/status\(409\)/);
+    });
+
+    it('Google same-email OAuth collision lookup is case-insensitive', () => {
+      expect(auth).toMatch(
+        /existingByEmail\s*=\s*await prisma\.user\.findFirst\(\{\s*where:\s*\{\s*email:\s*\{\s*equals:\s*email,\s*mode:\s*'insensitive'/
+      );
+    });
+
+    it('provider-linked OAuth accounts still sign in by provider id before email collision handling', () => {
+      expect(auth).toMatch(/findUnique\(\{\s*where:\s*\{\s*google_id:\s*googleId\s*\}\s*\}\)/);
+      expect(auth).toMatch(/findUnique\(\{\s*where:\s*\{\s*apple_id:\s*appleId\s*\}\s*\}\)/);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────
@@ -257,6 +273,15 @@ describe('coach flow structural invariants', () => {
     it('enforces 18+ age gate when role transitions to coach', () => {
       const coachGateSnippet = auth.match(/18[\s\S]{0,300}coach/gi)?.join('\n') || '';
       expect(coachGateSnippet.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('coach application submission invariants', () => {
+    it('submitting a coach application does not mutate User.role', () => {
+      const fn = auth.match(/\/coach-applications[\s\S]*?return res\.status\(201\)\.json/m)?.[0];
+      expect(fn).toBeTruthy();
+      expect(fn).toMatch(/currentRole !== 'coach'/);
+      expect(fn).not.toMatch(/role:\s*'coach'/);
     });
   });
 

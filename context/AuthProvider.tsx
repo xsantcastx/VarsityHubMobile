@@ -42,11 +42,31 @@ interface AuthUser {
   email_verified?: boolean;
   username?: string;
   role?: string;
+  account_state?: string;
+  next_step?: string | null;
   onboarding_completed?: boolean;
   is_admin?: boolean;
   approval_status?: string;
   paid_by_owner?: boolean;
+  google_id?: string | null;
+  apple_id?: string | null;
+  has_password?: boolean;
+  linked_providers?: {
+    password?: boolean;
+    google?: boolean;
+    apple?: boolean;
+  };
   required_coach_agreement_version?: number;
+  coach_application?: {
+    id: string;
+    status: string;
+    organization_name?: string;
+    org_type?: string | null;
+    location?: string | null;
+    zip_code?: string | null;
+    supporting_document_url?: string | null;
+    background_url?: string | null;
+  } | null;
   organization_id?: string | null;
   preferences?: {
     onboarding_completed?: boolean;
@@ -766,6 +786,35 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       const coachAccess = getCoachAccessState(user);
+      const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
+      const accountState = String(user.account_state || '').trim();
+      const explicitNextStep =
+        typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
+          ? user.next_step.trim()
+          : null;
+      const normalizedExplicitNextStep = explicitNextStep?.replace(/^\//, '') || '';
+      const isOnExplicitNextStep =
+        !!normalizedExplicitNextStep &&
+        (currentPath === normalizedExplicitNextStep ||
+          currentPath.startsWith(`${normalizedExplicitNextStep}/`));
+
+      if (
+        explicitNextStep &&
+        explicitNextStep !== '/(tabs)' &&
+        [
+          'coach_application_submitted',
+          'coach_application_rejected',
+          'coach_pending_approval',
+          'coach_agreement_required',
+          'coach_final_setup_required',
+        ].includes(accountState) &&
+        !isOnExplicitNextStep
+      ) {
+        if (lastRedirectRef.current !== explicitNextStep) {
+          redirectWithTelemetry(explicitNextStep, `server_next_step:${accountState}`);
+        }
+        return;
+      }
 
       // Approved coach who was browsing as fan — restore coach role and route to coach onboarding.
       // When a coach taps "Continue as Fan", role is saved as 'fan' with proceeding_as_fan=true.
@@ -816,7 +865,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // Block unapproved coaches (pending/rejected) on coach path.
       // Unless they chose "Continue as Fan" to use the app while waiting.
-      const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       // isPendingCoach is derived from user state, not route string — avoids fragile path matching
       const isPendingCoach =
         (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) &&
@@ -937,13 +985,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // paywall logic before Stripe state is finalized.
       const isPaymentRedirectScreen =
         firstSegment === 'payment-success' || firstSegment === 'payment-cancel';
+      const isAuthEntryScreen = firstSegment === 'sign-in' || firstSegment === 'sign-up';
 
       // If on public route and doesn't need onboarding (but NOT verify-email or payment redirects)
       if (
         isPublic &&
         !needsOnboarding &&
         firstSegment !== 'verify-email' &&
-        !isPaymentRedirectScreen
+        !isPaymentRedirectScreen &&
+        !isAuthEntryScreen
       ) {
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {

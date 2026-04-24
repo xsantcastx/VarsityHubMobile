@@ -201,7 +201,7 @@ export async function loadToken(): Promise<string | null> {
   return t;
 }
 
-/** Clear tokens locally only (no server call). Use before OAuth so the new provider’s token is the only one in use. */
+/** Clear tokens locally only (no server call). Used for logout/session-expiry cleanup, never for silent account replacement. */
 export const auth = {
   async clearTokensOnly() {
     invalidateMeCache();
@@ -249,6 +249,14 @@ export const auth = {
     if (res?.access_token) await saveToken(res.access_token);
     if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
+  },
+  async linkGoogle(idToken: string) {
+    invalidateMeCache();
+    return httpPostLongTimeout('/auth/google/link', { id_token: idToken });
+  },
+  async linkApple(identityToken: string) {
+    invalidateMeCache();
+    return httpPostLongTimeout('/auth/apple/link', { identity_token: identityToken });
   },
   async me(config?: { force?: boolean }) {
     if (config?.force) {

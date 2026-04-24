@@ -15,6 +15,8 @@ type CoachPreferencesLike = {
 export type CoachUserLike = {
   role?: string | null;
   approval_status?: string | null;
+  account_state?: string | null;
+  next_step?: string | null;
   paid_by_owner?: boolean;
   is_admin?: boolean;
   required_coach_agreement_version?: number | string | null;
@@ -99,6 +101,13 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
 }
 
 export function getPendingCoachRoute(user: CoachUserLike | null | undefined): string {
+  const explicitNextStep =
+    typeof user?.next_step === 'string' && user.next_step.trim().startsWith('/')
+      ? user.next_step.trim()
+      : null;
+  if (explicitNextStep) {
+    return explicitNextStep;
+  }
   const preferences = user?.preferences ?? null;
   if (preferences?.join_request_pending === true) {
     return '/onboarding/pending-approval';

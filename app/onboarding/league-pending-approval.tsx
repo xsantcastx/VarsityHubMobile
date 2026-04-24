@@ -18,7 +18,9 @@ function LeaguePendingApproval() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const params = useLocalSearchParams<{ leagueName?: string; orgId?: string }>();
-  const leagueName = params.leagueName || 'your league';
+  const [leagueName, setLeagueName] = useState<string>(() =>
+    String(params.leagueName || ob.organization_name || 'this organization').trim() || 'this organization'
+  );
   // v1.0.3: orgId is STATE, not a derived const, so it can be hydrated from
   // /me on cold-start when both route params and OnboardingContext are empty.
   // Previously: a user who closed the app mid-approval and reopened would hit
@@ -68,8 +70,20 @@ function LeaguePendingApproval() {
     let cancelled = false;
     (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await User.refresh();
         if (cancelled) return;
+        const applicationName = String(me?.coach_application?.organization_name || '').trim();
+        if (applicationName) setLeagueName(applicationName);
+        const accountState = String(me?.account_state || '').trim();
+        if (
+          accountState === 'coach_application_submitted' ||
+          accountState === 'coach_application_rejected' ||
+          accountState === 'coach_agreement_required' ||
+          accountState === 'coach_final_setup_required'
+        ) {
+          setHydrating(false);
+          return;
+        }
         const fromServer = String(
           me?.organization_id || me?.preferences?.organization_id || ''
         ).trim();
@@ -92,19 +106,52 @@ function LeaguePendingApproval() {
     };
   }, [orgId, redirectToLeagueSetup]);
 
-  // Poll organization status every 30 seconds
+  // Poll organization status every 30 seconds for legacy org-backed pending flows.
   const checkApproval = useCallback(async () => {
-    if (!orgId) {
-      redirectToLeagueSetup();
-      return;
-    }
     try {
       setChecking(true);
       setCompletionError(null);
-      const [org, me]: [any, any] = await Promise.all([
-        httpGet(`/organizations/${orgId}`),
-        User.me().catch(() => null),
-      ]);
+      const me: any = await User.refresh().catch(() => null);
+      const accountState = String(me?.account_state || '').trim();
+      const applicationName = String(me?.coach_application?.organization_name || '').trim();
+      if (applicationName) setLeagueName(applicationName);
+
+      if (accountState === 'coach_application_submitted') {
+        setApproved(false);
+        setRejected(false);
+        stopPolling();
+        return;
+      }
+
+      if (accountState === 'coach_application_rejected') {
+        setRejected(true);
+        stopPolling();
+        try {
+          const page = await NotificationApi.listPage(null, 20, false);
+          const rejectionNotif = Array.isArray(page?.items)
+            ? page.items.find((n: any) => (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') && n.meta?.reason)
+            : null;
+          if (rejectionNotif?.meta?.reason) {
+            setRejectionReason(rejectionNotif.meta.reason);
+          }
+        } catch {
+          // best-effort
+        }
+        return;
+      }
+
+      if (accountState === 'coach_agreement_required' || accountState === 'coach_final_setup_required') {
+        setApproved(true);
+        stopPolling();
+        return;
+      }
+
+      if (!orgId) {
+        redirectToLeagueSetup();
+        return;
+      }
+
+      const org: any = await httpGet(`/organizations/${orgId}`);
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
       const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
@@ -142,72 +189,20 @@ function LeaguePendingApproval() {
         }
         return;
       }
-      // Approved when org is admin_approved OR user approval_status is APPROVED
+      // Legacy org-backed approval path.
       if (org?.admin_approved === true || me?.approval_status === 'APPROVED') {
         setApproved(true);
         stopPolling();
-        // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
-        if (completionStartedRef.current) return;
-        completionStartedRef.current = true;
-        // Complete onboarding on server, then go to main app.
-        // If completion fails, stay here and surface a retry action.
-        let completed = false;
-        try {
-          // Use server data (me) as primary source, fall back to local state (ob)
-          const me: any = await User.me().catch(() => null);
-          const mePrefs = me?.preferences || {};
-          // v1.0.2 pass 5 fix: explicitly set proceeding_as_fan:false so the league owner
-          // leaves the "fan limbo" state once the org is approved. Without this, AuthProvider's
-          // "continue as fan" fallback logic could keep them mode-stuck even after approval.
-          await User.completeOnboarding({
-            role: 'coach',
-            proceeding_as_fan: false,
-            username: me?.username || ob.username || mePrefs.username,
-            dob: me?.dob || ob.dob || mePrefs.dob,
-            zip_code: me?.zip_code || ob.zip_code || ob.zip || mePrefs.zip_code,
-            affiliation: mePrefs.affiliation || ob.affiliation,
-            organization_id: orgId || mePrefs.organization_id || ob.organization_id,
-            organization_name: leagueName || mePrefs.organization_name || ob.organization_name,
-            plan: mePrefs.plan || (ob as any).plan || 'rookie',
-            team_id: mePrefs.team_id || (ob as any).team_id,
-            team_name: mePrefs.team_name || (ob as any).team_name,
-          });
-          await markOnboardingCompleteLocally();
-          // Do NOT call checkAuth() here — it triggers AuthProvider redirect
-          // before the user sees "Approved!" and the action buttons.
-          // checkAuth() is called when the user taps a button → coach-agreement.tsx.
-          registerPushToken().catch(() => {});
-          completed = true;
-        } catch (err) {
-          if (__DEV__) console.warn('[league-pending-approval] Failed to complete onboarding:', err);
-          captureException(err instanceof Error ? err : new Error(String(err)), {
-            tags: { component: 'LeaguePendingApproval', action: 'completeOnboarding' },
-          });
-        }
-        if (!completed) {
-          try {
-            const refreshed: any = await User.me();
-            if (refreshed?.preferences?.onboarding_completed === true) {
-              await markOnboardingCompleteLocally();
-              completed = true;
-            }
-          } catch {
-            // ignore follow-up check failures
-          }
-        }
-        if (!completed) {
-          setCompletionError('VarsityHub has approved your organization, but account setup failed. Tap retry below or continue as a fan.');
-          completionStartedRef.current = false; // allow retry
-          return;
-        }
-        // Don't auto-redirect — let user tap Continue when ready
+        // Keep this as a display state. AuthProvider will route off /auth/me.next_step.
+        await markOnboardingCompleteLocally().catch(() => {});
+        registerPushToken().catch(() => {});
       }
     } catch {
       // ignore polling errors
     } finally {
       setChecking(false);
     }
-  }, [leagueName, markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, orgId, redirectToLeagueSetup, stopPolling]);
+  }, [markOnboardingCompleteLocally, orgId, redirectToLeagueSetup, stopPolling]);
 
   useEffect(() => {
     if (!orgId) return;
@@ -238,16 +233,7 @@ function LeaguePendingApproval() {
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      const me: any = await User.me().catch(() => null);
-      await User.completeOnboarding({
-        role: 'fan',
-        username: me?.username || ob.username,
-        dob: me?.dob || ob.dob,
-        zip_code: me?.zip_code || ob.zip_code || ob.zip,
-        affiliation: me?.preferences?.affiliation || ob.affiliation,
-        proceeding_as_fan: true,
-      });
-      await User.updatePreferences({ proceeding_as_fan: true, role: 'fan', onboarding_completed: true });
+      await User.updatePreferences({ proceeding_as_fan: true, onboarding_completed: true });
       await markOnboardingCompleteLocally();
       await checkAuth();
       router.replace('/(tabs)' as any);
@@ -452,18 +438,20 @@ function LeaguePendingApproval() {
                     router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
                   }}
                 >
-                  <MaterialIcons name="business" size={20} color="#fff" />
-                  <Text style={styles.primaryButtonText}>View Your Organization</Text>
+                  <MaterialIcons name={orgId ? 'business' : 'arrow-forward'} size={20} color="#fff" />
+                  <Text style={styles.primaryButtonText}>{orgId ? 'View Your Organization' : 'Continue Coach Setup'}</Text>
                 </Pressable>
-                <Pressable
-                  style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
-                  onPress={async () => {
-                    await checkAuth();
-                    router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
-                  }}
-                >
-                  <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
-                </Pressable>
+                {orgId ? (
+                  <Pressable
+                    style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
+                    onPress={async () => {
+                      await checkAuth();
+                      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
+                    }}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
+                  </Pressable>
+                ) : null}
               </>
             )}
           </>

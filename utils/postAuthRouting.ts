@@ -13,6 +13,24 @@ export function getPostAuthLandingRoute(user: PostAuthUserLike | null | undefine
   if (!user) return '/sign-in';
   if (user.email_verified !== true) return '/verify';
 
+  const explicitNextStep =
+    typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
+      ? user.next_step.trim()
+      : null;
+  const accountState = String(user.account_state || '').trim();
+  if (
+    explicitNextStep &&
+    [
+      'coach_application_submitted',
+      'coach_application_rejected',
+      'coach_pending_approval',
+      'coach_agreement_required',
+      'coach_final_setup_required',
+    ].includes(accountState)
+  ) {
+    return explicitNextStep;
+  }
+
   const coachAccess = getCoachAccessState(user);
   const needsOnboarding = user.preferences?.onboarding_completed !== true;
 

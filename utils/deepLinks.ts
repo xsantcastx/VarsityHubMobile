@@ -93,6 +93,8 @@ const ROUTE_MAP: Record<string, string> = {
   // Onboarding continuation (after coach approval)
   'onboarding': '/onboarding',
   'approvals': '/approvals',
+  'admin-dashboard': '/admin-dashboard',
+  'organization-join-requests': '/organization-join-requests',
   // Payment redirect routes
   'payment-success': '/payment-success',
   'payment-cancel': '/payment-cancel',
@@ -138,21 +140,22 @@ export function parseDeepLink(url: string): ParsedDeepLink | null {
  */
 function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const pathParts = parsed.path?.split('/').filter(Boolean) || [];
+  const queryParams = parsed.queryParams || {};
 
-  // Handle single-segment auth/public routes where params come from query string
+  // Handle single-segment routes where params come from query string
   // e.g., varsityhubmobile://reset-password?code=123456&email=user@example.com
+  // or varsityhubmobile://admin-dashboard?coach_id=123&action=approve
   if (pathParts.length === 1) {
     const type = pathParts[0];
     const screen = ROUTE_MAP[type];
-    if (screen && PUBLIC_DEEP_LINK_ROUTES.has(screen)) {
-      const queryParams = parsed.queryParams || {};
+    if (screen) {
       const params: Record<string, string> = {};
       for (const [key, value] of Object.entries(queryParams)) {
         if (typeof value === 'string') params[key] = value;
       }
       return { screen, params, source: 'scheme' };
     }
-    if (__DEV__) console.warn('[DeepLinks] Single-segment path not a known public route:', pathParts[0]);
+    if (__DEV__) console.warn('[DeepLinks] Single-segment path not a known route:', pathParts[0]);
     return null;
   }
 
@@ -240,6 +243,24 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
  */
 function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const pathParts = parsed.path?.split('/').filter(Boolean) || [];
+  const queryParams = parsed.queryParams || {};
+
+  if (pathParts.length === 1) {
+    const type = pathParts[0];
+    const screen = ROUTE_MAP[type];
+    if (!screen) {
+      return null;
+    }
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(queryParams)) {
+      if (typeof value === 'string') params[key] = value;
+    }
+    return {
+      screen,
+      params,
+      source: parsed.scheme === 'https' || parsed.scheme === 'http' ? 'universal' : 'unknown',
+    };
+  }
 
   if (pathParts.length < 2) {
     return null;
@@ -403,4 +424,3 @@ export function getContentTypeFromUrl(url: string): string | null {
 export {
     APP_SCHEME, ROUTE_MAP, WEB_DOMAINS, type ParsedDeepLink
 };
-

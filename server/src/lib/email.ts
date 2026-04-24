@@ -63,6 +63,7 @@ const getEmailService = async (): Promise<EmailService | null> => {
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const APP_SCHEME = (process.env.APP_SCHEME || 'varsityhubmobile').replace(/:.*$/, '');
 const API_BASE_URL = (
   process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app'
 ).replace(/\/$/, '');
@@ -937,6 +938,45 @@ async function sendJoinRequestAdminTemplate(params: {
   );
 }
 
+function buildAppReviewUrl(
+  pathname: string,
+  params: Record<string, string | null | undefined>
+): string {
+  const normalizedPath = pathname.replace(/^\/+/, '');
+  const url = new URL(`${APP_SCHEME}://${normalizedPath}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return url.toString();
+}
+
+export function buildCoachJoinRequestReviewUrl(params: {
+  organizationId: string;
+  organizationName?: string | null;
+  requestId?: string | null;
+  action?: 'approve' | 'reject';
+}): string {
+  return buildAppReviewUrl('/organization-join-requests', {
+    organization_id: params.organizationId,
+    organization_name: params.organizationName || undefined,
+    request_id: params.requestId || undefined,
+    action: params.action,
+  });
+}
+
+export function buildCoachApplicationReviewUrl(params: {
+  coachId: string;
+  action?: 'approve' | 'reject';
+}): string {
+  return buildAppReviewUrl('/admin-dashboard', {
+    coach_id: params.coachId,
+    action: params.action,
+    review: 'coach_application',
+  });
+}
+
 /**
  * Notify super admin that a new league was created and needs approval.
  * Uses the approved Join Request Admin template.
@@ -995,6 +1035,7 @@ export async function sendCoachJoinRequestEmail(params: {
   coachEmail: string;
   organizationName: string;
   organizationId: string;
+  requestId?: string;
   approveUrl?: string;
   rejectUrl?: string;
   coachNotes?: string;
@@ -1020,6 +1061,7 @@ export async function sendCoachApplicationAdminEmail(params: {
   to: string;
   applicantName: string;
   applicantEmail: string;
+  applicantUserId?: string;
   organizationName?: string;
   approveUrl?: string;
   rejectUrl?: string;

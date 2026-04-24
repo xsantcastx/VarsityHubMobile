@@ -15,6 +15,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { AuthenticatedEntryGuard } from '@/components/auth/AuthenticatedEntryGuard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -24,7 +25,8 @@ import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { validateEmail } from '@/utils/formUtils';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
-import auth from '@/api/auth';
+import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
+import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -43,15 +45,25 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading } = useAppleAuth();
-  const { checkAuth, registerPushToken } = useAuth();
+  const { user, checkAuth, registerPushToken, signOut } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const resetSessionForReplacementLogin = async () => {
-    await auth.clearTokensOnly();
-    await checkAuth().catch(() => {});
+  const routeCurrentUser = async () => {
+    const me = await User.me({ force: true }).catch(() => user);
+    router.replace(getPostAuthLandingRoute((me || user) as any) as any);
+  };
+
+  const handleSignOutToContinue = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const onSubmit = async () => {
@@ -72,7 +84,6 @@ export default function SignInScreen() {
       has_email: !!email.trim(),
     });
     try {
-      await resetSessionForReplacementLogin();
       const res: any = await User.loginViaEmailPassword(email, password);
 
       if (!res?.access_token) {
@@ -102,6 +113,7 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
         await checkAuth();
+        await routeCurrentUser();
         captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
           method: 'email',
         });
@@ -167,7 +179,6 @@ export default function SignInScreen() {
       method: 'google',
     });
     try {
-      await resetSessionForReplacementLogin();
       const response: any = await signInWithGoogle();
 
       if (!response?.access_token) {
@@ -180,6 +191,7 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        await routeCurrentUser();
         captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
           method: 'google',
         });
@@ -208,6 +220,7 @@ export default function SignInScreen() {
         });
         return;
       }
+      const oauthConflictMessage = getOAuthExistingAccountMessage(e, 'Google');
       captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
         method: 'google',
       }, 'warning');
@@ -217,6 +230,8 @@ export default function SignInScreen() {
         setError('Unable to connect to server. Please check your internet connection.');
       } else if (message.includes('not configured')) {
         setError('Google sign-in is not configured. Please use email/password login.');
+      } else if (oauthConflictMessage) {
+        setError(oauthConflictMessage);
       } else {
         setError(message || 'Google sign-in failed. Please try again.');
       }
@@ -239,7 +254,6 @@ export default function SignInScreen() {
       method: 'apple',
     });
     try {
-      await resetSessionForReplacementLogin();
       const response: any = await signInWithApple();
 
       if (!response?.access_token) {
@@ -252,6 +266,7 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
+        await routeCurrentUser();
         captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
           method: 'apple',
         });
@@ -280,6 +295,7 @@ export default function SignInScreen() {
         });
         return;
       }
+      const oauthConflictMessage = getOAuthExistingAccountMessage(e, 'Apple');
       captureBreadcrumb('Sign-in failed', 'auth.sign_in', {
         method: 'apple',
         status: e?.status ?? 'unknown',
@@ -292,6 +308,8 @@ export default function SignInScreen() {
         setError('Unable to connect to server. Please check your internet connection.');
       } else if (message.toLowerCase().includes('internal server') || e?.status === 500) {
         setError('Server is temporarily unavailable. Please try again in a moment.');
+      } else if (oauthConflictMessage) {
+        setError(oauthConflictMessage);
       } else {
         setError(message || 'Apple sign-in failed. Please try again.');
       }
@@ -340,11 +358,19 @@ export default function SignInScreen() {
           </View>
 
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border, borderWidth: 2 }]}>
+            {user ? (
+              <AuthenticatedEntryGuard
+                email={user.email}
+                onContinue={() => void routeCurrentUser()}
+                onSignOut={() => void handleSignOutToContinue()}
+                signingOut={signingOut}
+              />
+            ) : null}
             {error ? (
               <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
             ) : null}
 
-            {Platform.OS === 'ios' ? (
+            {!user && Platform.OS === 'ios' ? (
               <AppleAuthenticationButton
                 onPress={handleAppleLogin}
                 buttonType={AppleAuthenticationButtonType.SIGN_IN}
@@ -355,7 +381,7 @@ export default function SignInScreen() {
               />
             ) : null}
 
-            {googleReady ? (
+            {!user && googleReady ? (
               <Pressable
                 style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
                 onPress={handleGoogleLogin}
@@ -398,98 +424,104 @@ export default function SignInScreen() {
               </View>
             )}
 
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-              <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
-              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-            </View>
+            {!user ? (
+              <>
+                <View style={styles.divider}>
+                  <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+                  <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+                </View>
 
-            <View style={styles.fieldSpacing}>
-              <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
-              <Input
-                testID="sign-in-email"
-                placeholder="name@school.edu"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                keyboardType="email-address"
-                returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
-                placeholderTextColor={palette.mutedText}
-                accessibilityLabel="Email"
-                accessibilityHint="Enter your email address"
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: palette.surface,
-                    borderColor: palette.border,
-                    borderWidth: 2,
-                    color: palette.text,
-                  },
-                ]}
-              />
-            </View>
+                <View style={styles.fieldSpacing}>
+                  <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
+                  <Input
+                    testID="sign-in-email"
+                    placeholder="name@school.edu"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    keyboardType="email-address"
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                    placeholderTextColor={palette.mutedText}
+                    accessibilityLabel="Email"
+                    accessibilityHint="Enter your email address"
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: palette.surface,
+                        borderColor: palette.border,
+                        borderWidth: 2,
+                        color: palette.text,
+                      },
+                    ]}
+                  />
+                </View>
 
-            <View style={styles.fieldSpacing}>
-              <Text style={[styles.label, { color: palette.mutedText }]}>Password</Text>
-              <Input
-                ref={passwordRef}
-                testID="sign-in-password"
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="go"
-                onSubmitEditing={onSubmit}
-                placeholderTextColor={palette.mutedText}
-                accessibilityLabel="Password"
-                accessibilityHint="Enter your password"
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: palette.surface,
-                    borderColor: palette.border,
-                    borderWidth: 2,
-                    color: palette.text,
-                  },
-                ]}
-              />
-            </View>
+                <View style={styles.fieldSpacing}>
+                  <Text style={[styles.label, { color: palette.mutedText }]}>Password</Text>
+                  <Input
+                    ref={passwordRef}
+                    testID="sign-in-password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="go"
+                    onSubmitEditing={onSubmit}
+                    placeholderTextColor={palette.mutedText}
+                    accessibilityLabel="Password"
+                    accessibilityHint="Enter your password"
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: palette.surface,
+                        borderColor: palette.border,
+                        borderWidth: 2,
+                        color: palette.text,
+                      },
+                    ]}
+                  />
+                </View>
 
-            <Pressable
-              style={styles.forgotLink}
-              onPress={() => void router.push('/forgot-password')}
-              accessibilityRole="button"
-              accessibilityLabel="Forgot password?"
-              accessibilityHint="Double tap to reset your password"
-            >
-              <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password?</Text>
-            </Pressable>
+                <Pressable
+                  style={styles.forgotLink}
+                  onPress={() => void router.push('/forgot-password')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Forgot password?"
+                  accessibilityHint="Double tap to reset your password"
+                >
+                  <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password?</Text>
+                </Pressable>
 
-            <Button
-              onPress={onSubmit}
-              disabled={loading}
-              accessibilityLabel={loading ? 'Signing in' : 'Sign In'}
-              accessibilityHint="Double tap to sign in with email and password"
-            >
-              {loading ? <ActivityIndicator color="white" /> : 'Sign In'}
-            </Button>
+                <Button
+                  onPress={onSubmit}
+                  disabled={loading}
+                  accessibilityLabel={loading ? 'Signing in' : 'Sign In'}
+                  accessibilityHint="Double tap to sign in with email and password"
+                >
+                  {loading ? <ActivityIndicator color="white" /> : 'Sign In'}
+                </Button>
+              </>
+            ) : null}
           </View>
 
-          <Pressable
-            style={styles.footer}
-            onPress={() => void router.replace('/sign-up')}
-            accessibilityRole="button"
-            accessibilityLabel="Need an account? Create one"
-            accessibilityHint="Double tap to go to sign up"
-          >
-            <Text style={[styles.footerText, { color: palette.mutedText }]}>Need an account?</Text>
-            <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
-          </Pressable>
+          {!user ? (
+            <Pressable
+              style={styles.footer}
+              onPress={() => void router.replace('/sign-up')}
+              accessibilityRole="button"
+              accessibilityLabel="Need an account? Create one"
+              accessibilityHint="Double tap to go to sign up"
+            >
+              <Text style={[styles.footerText, { color: palette.mutedText }]}>Need an account?</Text>
+              <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
     </SafeAreaView>
   );

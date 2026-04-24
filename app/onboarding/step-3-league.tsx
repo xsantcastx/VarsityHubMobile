@@ -66,6 +66,8 @@ function Step3League() {
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
   const [_emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [isFinalCoachSetup, setIsFinalCoachSetup] = useState(false);
+  const [submittedApplicationName, setSubmittedApplicationName] = useState<string | null>(null);
   const [duplicateOrg, setDuplicateOrg] = useState<{ id: string; name: string; location?: string; sport?: string } | null>(null);
   const dupCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [supportingDocumentUri, setSupportingDocumentUri] = useState<string | null>(null);
@@ -84,10 +86,38 @@ function Step3League() {
       try {
         const me: any = await User.me();
         setEmailVerified(me?.email_verified ?? null);
+        const accountState = String(me?.account_state || '').trim();
+        const coachApplication = me?.coach_application || null;
+        const finalSetupRequired =
+          accountState === 'coach_final_setup_required' ||
+          (String(me?.approval_status || '').toUpperCase() === 'APPROVED' && !me?.organization_id);
+        setIsFinalCoachSetup(finalSetupRequired);
+        setSubmittedApplicationName(coachApplication?.organization_name || null);
+        if (finalSetupRequired) {
+          if (coachApplication?.organization_name && !orgName.trim()) {
+            setOrgName(coachApplication.organization_name);
+          }
+          if (coachApplication?.location && !location.trim()) {
+            setLocation(coachApplication.location);
+          }
+          if (coachApplication?.org_type && !orgType) {
+            setOrgType(coachApplication.org_type);
+          }
+          if (coachApplication?.background_url && !backgroundImageUrl) {
+            setBackgroundImageUrl(coachApplication.background_url);
+          }
+          if (coachApplication?.supporting_document_url && !supportingDocumentUrl) {
+            setSupportingDocumentUrl(coachApplication.supporting_document_url);
+          }
+          if (coachApplication?.zip_code && !searchZip.trim()) {
+            setSearchZip(coachApplication.zip_code);
+          }
+        }
       } catch {
         // ignore
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once on mount
   }, []);
 
   // Check if user already has a team or organization in the database
@@ -168,16 +198,28 @@ function Step3League() {
         alreadyExists: true
       };
     }
-    
-    // All coaches get organization search/create flow
+
+    if (isFinalCoachSetup) {
+      return {
+        type: 'organization',
+        title: 'Create Organization',
+        subtitle: submittedApplicationName
+          ? `Approved to set up ${submittedApplicationName}`
+          : 'Create your approved organization',
+        description: 'Your application was approved. Finish coach setup by creating the real organization page now.',
+        alreadyExists: false
+      };
+    }
+
+    // New coach applicants submit an application first.
     return {
       type: 'organization',
-      title: 'Connect to Organization',
-      subtitle: 'Find and join a school or club, or create a new organization',
-      description: 'Search for an organization to join existing teams, or create a new organization page.',
+      title: 'Submit Coach Application',
+      subtitle: 'Tell VarsityHub about the organization you want to create',
+      description: 'This information is reviewed as your application. VarsityHub will not create the organization until you are approved.',
       alreadyExists: false
     };
-  }, [alreadyExists, existingOrg, existingTeam, ob.organization_name, ob.team_id, ob.team_name]);
+  }, [alreadyExists, existingOrg, existingTeam, isFinalCoachSetup, ob.organization_name, ob.team_id, ob.team_name, submittedApplicationName]);
 
   const canContinue = useMemo(() => {
     if (saving) return false;
@@ -540,10 +582,41 @@ function Step3League() {
         return;
       }
 
-      // All coaches create organization page
       const locationLabel = selectedPlace?.description || location.trim();
-      // Create an organization using the dedicated API
-      // Note: server schema expects location as a string (not an object)
+      if (!isFinalCoachSetup) {
+        const applicationPayload: any = {
+          organization_name: orgName.trim(),
+          org_type: orgType || undefined,
+          location: locationLabel || undefined,
+          zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
+          place_id: selectedPlace?.place_id || undefined,
+          background_url: nextBackgroundUrl || undefined,
+          supporting_document_url: docUrl,
+        };
+
+        await httpPost('/auth/coach-applications', applicationPayload);
+        setOB((prev) => ({
+          ...prev,
+          organization_name: orgName.trim(),
+          organization_place_id: selectedPlace?.place_id ?? null,
+          organization_location: locationLabel || null,
+          step_3_visited: true,
+        }));
+        await markOnboardingCompleteLocally();
+        await User.refresh().catch(() => null);
+        await checkAuth();
+        captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
+          mode: 'submit-application',
+          next: 'league-pending-approval',
+        });
+        router.replace({
+          pathname: '/onboarding/league-pending-approval',
+          params: { leagueName: orgName.trim() },
+        } as any);
+        return;
+      }
+
+      // Approved coach final setup: create the real organization now.
       const payload: any = {
         name: orgName.trim(),
         org_type: orgType,
@@ -569,13 +642,11 @@ function Step3League() {
         step_3_visited: true,
       }));
 
-      // Complete onboarding as coach proceeding as fan — user can use the app
-      // while waiting for the super admin to approve the org.
       try {
         const me: any = await User.me().catch(() => null);
         await User.completeOnboarding({
           role: 'coach',
-          proceeding_as_fan: true,
+          proceeding_as_fan: false,
           username: me?.username || ob.username,
           dob: me?.dob || ob.dob,
           zip_code: me?.zip_code || ob.zip_code || ob.zip,
@@ -590,16 +661,12 @@ function Step3League() {
         await User.updatePreferences({ organization_id: orgId, organization_name: orgName.trim() }).catch(() => {});
       }
 
-      // Navigate to league-pending-approval — coach waits for org + coach approval
       checkAuth().catch(() => {});
       captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
         mode: 'create-org',
-        next: 'league-pending-approval',
+        next: 'coach-agreement',
       });
-      router.replace({
-        pathname: '/onboarding/league-pending-approval',
-        params: { leagueName: orgName.trim(), orgId: orgId },
-      } as any);
+      router.replace({ pathname: '/(tabs)/create-team', params: { organization_id: orgId } } as any);
     } catch (e: any) { 
       captureBreadcrumb('Onboarding step 3 submit failed', 'onboarding.step3', {
         mode: showSearch ? 'search' : 'create',

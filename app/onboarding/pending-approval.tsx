@@ -200,22 +200,7 @@ function PendingApproval() {
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      const me: any = await User.me().catch(() => null);
-      const username = me?.username || ob.username;
-      const dob = me?.dob || ob.dob;
-      if (!username) {
-        Alert.alert('Missing Info', 'Username is required. Please sign out and register again.');
-        return;
-      }
-      await User.completeOnboarding({
-        role: 'fan',
-        username,
-        ...(dob ? { dob } : {}),
-        ...(me?.zip_code || ob.zip_code || ob.zip ? { zip_code: me?.zip_code || ob.zip_code || ob.zip } : {}),
-        ...(me?.preferences?.affiliation || ob.affiliation ? { affiliation: me?.preferences?.affiliation || ob.affiliation } : {}),
-        proceeding_as_fan: true,
-      });
-      await User.updatePreferences({ proceeding_as_fan: true, role: 'fan', onboarding_completed: true });
+      await User.updatePreferences({ proceeding_as_fan: true, onboarding_completed: true });
       await markOnboardingCompleteLocally();
       await checkAuth();
       router.replace('/(tabs)' as any);

@@ -4,7 +4,7 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { captureException } from '@/utils/sentry';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
@@ -40,7 +40,12 @@ function OrganizationJoinRequestsScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const params = useLocalSearchParams<{ organization_id: string; organization_name?: string }>();
+  const params = useLocalSearchParams<{
+    organization_id: string;
+    organization_name?: string;
+    request_id?: string;
+    action?: 'approve' | 'reject';
+  }>();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,6 +54,7 @@ function OrganizationJoinRequestsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<{ visible: boolean; request: JoinRequest | null; reason: string }>({ visible: false, request: null, reason: '' });
+  const emailReviewHandledRef = useRef(false);
 
   const loadRequests = useCallback(async () => {
     // Guard: require organization_id
@@ -97,6 +103,24 @@ function OrganizationJoinRequestsScreen() {
   useEffect(() => {
     void loadRequests();
   }, [loadRequests]);
+
+  useEffect(() => {
+    if (emailReviewHandledRef.current) return;
+
+    const requestId = String(params.request_id || '').trim();
+    const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
+    if (!requestId || !action || requests.length === 0) return;
+
+    const request = requests.find(item => item.id === requestId && item.status === 'pending');
+    emailReviewHandledRef.current = true;
+    if (!request) return;
+
+    if (action === 'approve') {
+      void handleApprove(request);
+      return;
+    }
+    handleReject(request);
+  }, [params.action, params.request_id, requests]);
 
   const handleApprove = async (request: JoinRequest) => {
     Alert.alert(

@@ -33,7 +33,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     },
   });
   const prefs = u?.preferences as Record<string, unknown> | null;
-  const canonicalRole = getCanonicalUserRole(u as any);
+  const role = getCanonicalUserRole(u as any);
   const onboardingComplete = isUserOnboardingComplete(u as any);
 
   // God-admins bypass all onboarding/approval checks
@@ -69,7 +69,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     onboardingFlag &&
     (isTeamsCreateRoute || isOrgCreateRoute) &&
     !onboardingComplete &&
-    canonicalRole === 'coach'
+    role === 'coach'
   ) {
     return next();
   }
@@ -81,7 +81,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   // Block coaches whose approval_status is not explicitly APPROVED.
   // The Prisma default is APPROVED (for fans), but coaches must be set to PENDING
   // during onboarding and only transition to APPROVED via god-admin or org-admin action.
-  if (canonicalRole === 'coach' && u?.approval_status !== 'APPROVED') {
+  if (role === 'coach' && u?.approval_status !== 'APPROVED') {
     const isRejected = u?.approval_status === 'REJECTED';
     return res.status(403).json({
       error: isRejected
@@ -92,7 +92,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   }
 
   // Extra guard: coaches must belong to an admin-approved org
-  if (canonicalRole === 'coach' && u?.approval_status === 'APPROVED') {
+  if (role === 'coach' && u?.approval_status === 'APPROVED') {
     const orgId = prefs?.organization_id as string | undefined;
     if (orgId) {
       const org = await prisma.organization.findUnique({
@@ -110,7 +110,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   // v1.0.2: Approved coaches must accept the coach agreement before accessing coach tools.
   // Previously this was UI-only — any API client could bypass by calling coach endpoints directly.
-  if (canonicalRole === 'coach' && u?.approval_status === 'APPROVED') {
+  if (role === 'coach' && u?.approval_status === 'APPROVED') {
     const acceptedAt = prefs?.coach_agreement_accepted_at;
     if (!acceptedAt) {
       return res.status(403).json({
@@ -147,7 +147,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
 
   // Approved coach accounts that selected a paid tier must complete checkout
   // before accessing coach tools, unless their league owner covers billing.
-  if (canonicalRole === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
+  if (role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
     const selectedPlan = getSelectedPlan(u as any);
     const requiresPayment = selectedPlan === 'veteran' || selectedPlan === 'legend';
     const paymentPending = isPaymentPending(u as any);

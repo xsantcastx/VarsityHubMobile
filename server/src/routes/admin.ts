@@ -149,9 +149,38 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
           avatar_url: true,
           created_at: true,
           preferences: true,
+          coachApplications: {
+            where: { status: { in: ['submitted', 'approved', 'rejected'] } },
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            take: 1,
+            select: {
+              id: true,
+              status: true,
+              organization_name: true,
+              org_type: true,
+              location: true,
+              zip_code: true,
+              place_id: true,
+              supporting_document_url: true,
+              background_url: true,
+              payload: true,
+              submitted_at: true,
+              reviewed_at: true,
+              reviewed_by: true,
+              review_note: true,
+              created_at: true,
+              updated_at: true,
+            },
+          },
         },
       }).catch((err) => { console.error('[admin] Failed to fetch pending coaches:', err); return []; })
     ]);
+
+    const normalizedPendingCoaches = (pendingCoaches || []).map((coach: any) => ({
+      ...coach,
+      coach_application: Array.isArray(coach.coachApplications) ? coach.coachApplications[0] || null : null,
+      coachApplications: undefined,
+    }));
 
     return res.json({
       ok: true,
@@ -162,7 +191,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       totalAds,
       pendingAds,
       pendingLeagues: pendingLeagues || [],
-      pendingCoaches: pendingCoaches || [],
+      pendingCoaches: normalizedPendingCoaches,
       totalPosts,
       totalMessages,
       recentActivity: recentActivity || [],

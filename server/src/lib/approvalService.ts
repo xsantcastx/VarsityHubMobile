@@ -22,7 +22,7 @@ import {
   sendAdminActionConfirmationEmail,
 } from './email.js';
 import { sendPushNotification } from './pushNotifications.js';
-import { invalidateMeCacheForUser, updateUserAndInvalidate } from './userCache.js';
+import { invalidateMeCacheForUser } from './userCache.js';
 import { addBreadcrumb, captureException } from './sentry.js';
 import {
   buildAuthStateColumns,
@@ -31,6 +31,7 @@ import {
   mergeAuthStateIntoPreferences,
 } from './userAuthState.js';
 import { buildBillingStateColumns } from './userBillingState.js';
+import { getLatestCoachApplication } from './coachApplications.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -356,6 +357,7 @@ export async function approveCoach(
   // also create org/team memberships — otherwise the coach is "approved" but not
   // actually attached to the league they requested to join.
   const teamId = prefs?.team_id as string | undefined;
+  const latestApplication = await getLatestCoachApplication(prisma as any, userId);
 
   const txOps: any[] = [
     prisma.user.update({
@@ -379,6 +381,20 @@ export async function approveCoach(
       },
     }),
   ];
+
+  if (latestApplication?.status === 'submitted') {
+    txOps.push(
+      prisma.coachApplication.update({
+        where: { id: latestApplication.id },
+        data: {
+          status: 'approved',
+          reviewed_at: new Date(),
+          reviewed_by: adminId,
+          review_note: opts?.note || null,
+        },
+      }),
+    );
+  }
 
   // Create org membership if the coach has an organization
   if (orgId) {
@@ -471,23 +487,39 @@ export async function rejectCoach(
   if (user.approval_status !== 'PENDING') return { error: 'User is not pending approval', status: 400 };
 
   const reason = opts?.reason;
+  const rejectedAt = new Date();
+  const latestApplication = await getLatestCoachApplication(prisma as any, userId);
 
   // v1.0.2: persist rejected_at + reason so requireOnboarded / auth handlers
   // can enforce 48hr cooldown on re-apply (see REJECTION_COOLDOWN_MS below).
-  await updateUserAndInvalidate(prisma, {
-    where: { id: userId },
-    data: {
-      approval_status: 'REJECTED',
-      paid_by_owner: false,
-      rejected_at: new Date(),
-      rejection_reason: reason || null,
-      preferences: buildCoachRejectedPreferences(user.preferences),
-      ...buildAuthStateColumns({
-        role: 'coach',
-        organization_id: getCanonicalOrganizationId(user as any),
-      }),
-    },
+  await prisma.$transaction(async tx => {
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        approval_status: 'REJECTED',
+        paid_by_owner: false,
+        rejected_at: rejectedAt,
+        rejection_reason: reason || null,
+        preferences: buildCoachRejectedPreferences(user.preferences),
+        ...buildAuthStateColumns({
+          role: 'coach',
+          organization_id: getCanonicalOrganizationId(user as any),
+        }),
+      },
+    });
+    if (latestApplication?.status === 'submitted') {
+      await tx.coachApplication.update({
+        where: { id: latestApplication.id },
+        data: {
+          status: 'rejected',
+          reviewed_at: rejectedAt,
+          reviewed_by: adminId,
+          review_note: reason || null,
+        },
+      });
+    }
   });
+  await invalidateMeCacheForUser(userId);
 
   // In-app notification is the guaranteed channel — the pending-approval screen
   // reads the rejection reason from here. Await it so a DB write failure surfaces

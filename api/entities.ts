@@ -34,6 +34,8 @@ export const User = {
   loginViaEmailPassword: (email: string, password: string) => auth.login(email, password),
   loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
   loginViaApple: (identityToken: string) => auth.loginWithApple(identityToken),
+  linkGoogleProvider: (idToken: string) => auth.linkGoogle(idToken),
+  linkAppleProvider: (identityToken: string) => auth.linkApple(identityToken),
   logout: () => auth.logout(),
   updateMe: (data: UpdateMePayload) => {
     invalidateMeCache();
