@@ -433,6 +433,24 @@ function deriveParentalConsentFields(dob: Date | null) {
     : { parental_consent_status: 'not_required' as const, parental_consent_at: null };
 }
 
+function resolveEffectiveDob(
+  currentDob: Date | string | null | undefined,
+  currentPrefs: Record<string, any>,
+  incomingDob?: string | null,
+): Date | null {
+  if (incomingDob) return parseDobLocal(incomingDob);
+  return getCanonicalDob({
+    date_of_birth: currentDob,
+    preferences:
+      currentPrefs?.dob || currentPrefs?.date_of_birth
+        ? {
+            ...currentPrefs,
+            dob: currentPrefs?.dob ?? currentPrefs?.date_of_birth,
+          }
+        : currentPrefs,
+  });
+}
+
 const passwordRequirement = z
   .string()
   .min(8)
@@ -1684,7 +1702,7 @@ authRouter.post(
     // SECURITY: previously `if (dob) { ... }` silently skipped the gate when a
     // user had no DOB on record, which let clients bypass 18+ by simply never
     // submitting one. DOB is now required at coach-role transition.
-    const dob = currentPrefs.dob || currentPrefs.date_of_birth;
+    const dob = resolveEffectiveDob(user.date_of_birth, currentPrefs);
     if (!dob) {
       return res.status(400).json({
         error: 'Date of birth required to upgrade to a coach account.',
@@ -1692,7 +1710,7 @@ authRouter.post(
       });
     }
     {
-      const birthDate = parseDobLocal(dob);
+      const birthDate = dob;
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -2631,14 +2649,14 @@ authRouter.patch(
     // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach and /complete-onboarding).
     // SECURITY: DOB is required — previously a missing DOB silently bypassed the gate.
     if (incoming.role === 'coach' && currentAuthState.role !== 'coach') {
-      const effectiveDob = incoming.dob || currentPrefs.dob || currentPrefs.date_of_birth;
+      const effectiveDob = resolveEffectiveDob(current?.date_of_birth, currentPrefs, incoming.dob);
       if (!effectiveDob) {
         return res.status(400).json({
           error: 'Date of birth required to set coach role.',
           code: 'DOB_REQUIRED',
         });
       }
-      const birthDate = parseDobLocal(effectiveDob);
+      const birthDate = effectiveDob;
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -2949,14 +2967,14 @@ authRouter.post(
     // Server-side 18+ age gate for coaches (mirrors /upgrade-to-coach validation).
     // SECURITY: DOB is required — previously a missing DOB silently bypassed the gate.
     if (finalRole === 'coach') {
-      const effectiveDob = data.dob || currentPrefs.dob || currentPrefs.date_of_birth;
+      const effectiveDob = resolveEffectiveDob(current?.date_of_birth, currentPrefs, data.dob);
       if (!effectiveDob) {
         return res.status(400).json({
           error: 'Date of birth required to complete coach onboarding.',
           code: 'DOB_REQUIRED',
         });
       }
-      const birthDate = parseDobLocal(effectiveDob);
+      const birthDate = effectiveDob;
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const monthDiff = today.getMonth() - birthDate.getMonth();
