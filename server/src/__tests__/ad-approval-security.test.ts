@@ -37,6 +37,8 @@ describe('Ad Approval Security', () => {
         password_hash: hash,
         display_name: 'Ad Owner',
         email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'fan',
@@ -53,6 +55,8 @@ describe('Ad Approval Security', () => {
         password_hash: hash,
         display_name: 'Verified Admin',
         email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'fan',
@@ -69,6 +73,8 @@ describe('Ad Approval Security', () => {
         password_hash: hash,
         display_name: 'Unverified Admin',
         email_verified: false,
+        role: 'fan',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'fan',
@@ -85,6 +91,8 @@ describe('Ad Approval Security', () => {
         password_hash: hash,
         display_name: 'Verified Non Admin',
         email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'fan',
@@ -101,6 +109,8 @@ describe('Ad Approval Security', () => {
         password_hash: hash,
         display_name: 'Limiter Admin',
         email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'fan',

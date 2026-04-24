@@ -39,6 +39,8 @@ describe('API Event Endpoints', () => {
         password_hash: coachPasswordHash,
         display_name: 'Test Coach',
         email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
@@ -88,6 +90,8 @@ describe('API Event Endpoints', () => {
         password_hash: fanPasswordHash,
         display_name: 'Test Fan',
         email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
         preferences: {
           role: 'fan',
           onboarding_completed: true,
@@ -356,6 +360,8 @@ describe('API Event Endpoints', () => {
           password_hash: passwordHash,
           display_name: 'Event Creator',
           email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
           approval_status: 'APPROVED',
           preferences: {
             role: 'coach',
@@ -411,6 +417,8 @@ describe('API Event Endpoints', () => {
           password_hash: passwordHash,
           display_name: 'Team Coach Member',
           email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
           approval_status: 'APPROVED',
           preferences: {
             role: 'coach',
@@ -439,6 +447,8 @@ describe('API Event Endpoints', () => {
           password_hash: passwordHash,
           display_name: 'Another Creator',
           email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
           approval_status: 'APPROVED',
           preferences: {
             role: 'coach',

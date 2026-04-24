@@ -38,6 +38,8 @@ describe('Coach Agreement Versioning', () => {
         display_name: 'Version Test Coach',
         username: `versioncoach${ts}`.slice(0, 20),
         email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         date_of_birth: new Date('1990-01-01'),
         preferences: {

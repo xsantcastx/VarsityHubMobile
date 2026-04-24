@@ -75,6 +75,11 @@ async function createUser(
       password_hash: hash,
       display_name: displayName,
       email_verified: true,
+      // Mirror canonical role + onboarding columns; the runtime readers
+      // prefer column over preferences JSON and the column defaults to
+      // (fan, false), so prefs-only fixtures get misread.
+      role,
+      onboarding_completed: true,
       ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
       preferences,
       ...extras,

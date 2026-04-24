@@ -37,6 +37,8 @@ describe('API Team Endpoints', () => {
         password_hash: coachPasswordHash,
         display_name: 'Test Coach',
         email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
@@ -72,6 +74,8 @@ describe('API Team Endpoints', () => {
         password_hash: fanPasswordHash,
         display_name: 'Test Fan',
         email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
         preferences: {
           role: 'fan',
           onboarding_completed: true,
