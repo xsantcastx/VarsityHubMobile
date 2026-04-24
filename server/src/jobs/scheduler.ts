@@ -207,6 +207,23 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    name: 'coach-state-drift-probe',
+    cron: '45 3 * * *', // Every day at 3:45 AM — after stale-event-auto-reject
+    description: 'Detect drift between User.approval_status and CoachApplication.status; report findings to Sentry',
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { runCoachStateDriftProbe } = await import('../lib/coachStateDriftProbe.js');
+        const result = await runCoachStateDriftProbe(prisma);
+        console.log(`[Scheduler] coach-state-drift-probe: total=${result.total} buckets=${result.buckets.length}`);
+      } catch (error) {
+        console.error('[Scheduler] coach-state-drift-probe failed:', error);
+        const { captureException } = await import('../lib/sentry.js');
+        captureException(error as Error, { context: 'coach_state_drift_probe_failed' });
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;
