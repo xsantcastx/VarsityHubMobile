@@ -1261,20 +1261,28 @@ const GameDetailsScreen = () => {
           maxDelayMs: 4000,
         }).catch(() => null);
       }
-      // Do not block first render on posts/media.
+      // Do not block first render on posts/media. Retry transient failures —
+      // a swallowed network blip used to leave past-event pages stuck on
+      // "No highlights yet" even when the game had posts.
       deferredPostsPromise = retryWithBackoff(
         () => Post.feedForGame(gameIdValue, { limit: 20, sort: 'newest' }),
         {
-          maxRetries: 0,
+          maxRetries: 2,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }
-      ).catch(() => null);
+      ).catch((err) => {
+        if (__DEV__) console.warn('[GameDetails] deferred posts fetch failed:', err?.message || err);
+        return null;
+      });
       deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue), {
-        maxRetries: 0,
+        maxRetries: 2,
         initialDelayMs: 800,
         maxDelayMs: 4000,
-      }).catch(() => null);
+      }).catch((err) => {
+        if (__DEV__) console.warn('[GameDetails] deferred media fetch failed:', err?.message || err);
+        return null;
+      });
 
       // Extract venue coordinates for proactive geofencing
       const rawLat =

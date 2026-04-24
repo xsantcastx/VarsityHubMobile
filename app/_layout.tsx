@@ -1,6 +1,7 @@
 // Must be the very first import so Reactotron patches globals before anything else
 if (__DEV__ && process.env.EXPO_OS !== 'web') { require('../ReactotronConfig'); }
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
@@ -92,6 +93,10 @@ function RootLayout() {
   const _router = useRouter();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    // Explicitly load icon fonts so iOS doesn't render `?` glyphs for
+    // arrow-upward / chat-bubble-outline at small sizes (PostCard StatPill).
+    ...MaterialIcons.font,
+    ...Ionicons.font,
   });
   const navState = useRootNavigationState();
 
