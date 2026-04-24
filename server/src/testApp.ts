@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { authMiddleware } from './middleware/auth.js';
+import { requireParentalConsent } from './middleware/requireParentalConsent.js';
 import { authRouter } from './routes/auth.js';
 import { adsRouter } from './routes/ads.js';
 import { eventsRouter } from './routes/events.js';
@@ -23,6 +24,11 @@ app.disable('x-powered-by');
 
 app.use(express.json());
 app.use(authMiddleware);
+// Mirror app.ts: parental consent firewall runs before all API routes so
+// minors with pending/denied consent are blocked from non-allowlisted
+// endpoints. Without this in the test app, the firewall never executes
+// and security tests give false-greens.
+app.use(requireParentalConsent as any);
 
 app.use('/auth', authRouter);
 app.use('/ads', adsRouter);
