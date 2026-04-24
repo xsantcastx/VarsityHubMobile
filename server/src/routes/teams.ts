@@ -1519,6 +1519,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
     });
   }
   const { email, role } = parsed.data;
+  const inviteEmail = email.trim().toLowerCase();
   const assignedRole = String(role || 'member');
   if (!(VALID_TEAM_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
     return res.status(400).json({
@@ -1552,24 +1553,47 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
         throw new Error('TEAM_PLAN_LOCKED');
       }
 
+      const existingInvite = await tx.teamInvite.findFirst({
+        where: {
+          team_id: id,
+          email: { equals: inviteEmail, mode: 'insensitive' },
+        } as any,
+        select: { id: true },
+      });
+
       if (isAuthorizedTeamRole(assignedRole)) {
         const limit = entitlement.maxAuthorizedUsers;
         if (limit !== null) {
           // Count atomically within transaction
-          const inviteCount = await tx.teamInvite.count({ where: { team_id: id, status: 'pending' } });
+          const inviteCount = await tx.teamInvite.count({
+            where: {
+              team_id: id,
+              status: 'pending',
+              ...(existingInvite ? { id: { not: existingInvite.id } } : {}),
+            },
+          });
           const memberCount = await tx.teamMembership.count({
             where: { team_id: id, status: 'active', role: { in: [...TEAM_AUTHORIZED_ROLES] as any } },
           });
-          const totalAuthorized = inviteCount + memberCount;
+          const totalAuthorized = inviteCount + memberCount + 1;
 
-          if (totalAuthorized >= limit) {
+          if (totalAuthorized > limit) {
             throw new Error(`USER_LIMIT_REACHED:${limit}`);
           }
         }
       }
 
+      if (existingInvite) {
+        return await tx.teamInvite.update({
+          where: { id: existingInvite.id },
+          data: { email: inviteEmail, role: assignedRole as any, status: 'pending' },
+        });
+      }
+
       // Create invite within same transaction
-      return await tx.teamInvite.create({ data: { team_id: id, email, role: assignedRole as any } });
+      return await tx.teamInvite.create({
+        data: { team_id: id, email: inviteEmail, role: assignedRole as any, status: 'pending' },
+      });
     });
   } catch (e: any) {
     if (e?.message === 'TEAM_PLAN_LOCKED') {
@@ -1599,7 +1623,7 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
   const inviter = await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } });
   try {
     await sendTeamInviteEmail({
-      to: email,
+      to: inviteEmail,
       teamName: team.name,
       organizationName: null,
       role: assignedRole,
@@ -1613,8 +1637,8 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
   }
   
   // Find the invited user by email and create notification if they exist
-  const invitedUser = await prisma.user.findUnique({
-    where: { email },
+  const invitedUser = await prisma.user.findFirst({
+    where: { email: { equals: inviteEmail, mode: 'insensitive' } } as any,
     select: { id: true, preferences: true },
   });
   if (invitedUser) {
@@ -1659,12 +1683,17 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
 }));
 
 // List invites for the authed user's email
-teamsRouter.get('/invites/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+teamsRouter.get('/invites/me', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email) return res.status(400).json({ error: 'User email not found' });
-  const invites = await prisma.teamInvite.findMany({ where: { email: user.email, status: 'pending' }, include: { team: true }, orderBy: { created_at: 'desc' }, take: 100 });
+  const invites = await prisma.teamInvite.findMany({
+    where: { email: { equals: user.email, mode: 'insensitive' }, status: 'pending' } as any,
+    include: { team: true },
+    orderBy: { created_at: 'desc' },
+    take: 100,
+  });
   const list = invites.map((i) => ({ id: i.id, role: i.role, created_at: i.created_at, team: { id: i.team_id, name: (i as any).team?.name || '' } }));
   return res.json(list);
   } catch (err) {
@@ -1674,7 +1703,7 @@ teamsRouter.get('/invites/me', requireAuth as any, asyncHandler(async (req: Auth
 }));
 
 // Accept invite
-teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
@@ -1802,7 +1831,7 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, asyncHandler(a
 }));
 
 // Decline invite
-teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const inviteId = String(req.params.inviteId);
