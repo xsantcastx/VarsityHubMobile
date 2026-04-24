@@ -260,7 +260,11 @@ describe('Ad Approval Security', () => {
     expect(res.body?.status).toBe('approved');
   });
 
-  it('rejects profane description updates', async () => {
+  // Per f1a7dd5c (product directive): all automated content filters removed.
+  // Profane copy now goes through; reactive moderation via user reports
+  // handles inappropriate content. Copy edits still flip ads to pending
+  // review (covered by the next test) so admins see the new wording.
+  it('does not pre-emptively reject profane description updates', async () => {
     const ad = await createAd('approved');
 
     const res = await request(app)
@@ -268,8 +272,8 @@ describe('Ad Approval Security', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ description: 'This ad is fucking terrible.' });
 
-    expect(res.status).toBe(400);
-    expect(res.body?.code).toBe('PROFANITY');
+    expect(res.status).toBe(200);
+    expect(res.body?.code).not.toBe('PROFANITY');
   });
 
   it('returns approved ads to pending review when business copy changes', async () => {

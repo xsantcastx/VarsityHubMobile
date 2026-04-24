@@ -300,8 +300,11 @@ describe('coach flow structural invariants', () => {
       );
     });
 
-    it('only onboarding final-setup with approved user plus approved application can skip pending org approval', () => {
-      expect(/params\.onboarding !== true/.test(organizations)).toBe(true);
+    it('only approved user plus approved application can skip pending org approval', () => {
+      // Updated: dropped the `params.onboarding !== true` short-circuit that
+      // demoted approved-application coaches to PENDING when they created
+      // additional orgs outside the onboarding flow. The coach application
+      // is the canonical approval surface; subsequent orgs are workspaces.
       expect(/String\(params\.approvalStatus \|\| ''\)\.toUpperCase\(\) !== 'APPROVED'/.test(organizations)).toBe(true);
       expect(/latestApplication\?\.status !== 'approved'/.test(organizations)).toBe(true);
     });

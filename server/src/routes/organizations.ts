@@ -140,9 +140,19 @@ async function shouldForcePendingApprovalOnOrganizationCreate(params: {
   approvalStatus?: string | null;
   onboarding?: boolean;
 }): Promise<boolean> {
-  if (params.onboarding !== true) return true;
+  // Force PENDING when the user isn't already APPROVED — they need admin
+  // sign-off before any org goes live.
   if (String(params.approvalStatus || '').toUpperCase() !== 'APPROVED') return true;
 
+  // Force PENDING for legacy coaches who never went through the
+  // CoachApplication flow — admin still needs to vouch for the new org.
+  // Coaches who already have an approved CoachApplication keep their
+  // APPROVED status across additional org creates (the application is
+  // the canonical approval surface; subsequent orgs are just workspaces).
+  // The onboarding flag is no longer load-bearing — `onboarding: true`
+  // requests previously short-circuited to PENDING regardless of
+  // application state, demoting already-approved coaches who created
+  // their org outside the onboarding flow.
   const latestApplication = await getLatestCoachApplication(prisma as any, params.userId);
   return latestApplication?.status !== 'approved';
 }
