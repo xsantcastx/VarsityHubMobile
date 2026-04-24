@@ -13,7 +13,7 @@ import { captureException } from '@/utils/sentry';
 
 function LeaguePendingApproval() {
   const router = useRouter();
-  const { signOut, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
+  const { signOut, checkAuth, registerPushToken } = useAuth();
   const { state: ob } = useOnboarding();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
@@ -33,17 +33,15 @@ function LeaguePendingApproval() {
   const [hydrating, setHydrating] = useState<boolean>(() => {
     return !String(params.orgId || ob.organization_id || '').trim();
   });
+  const [isApplicationFlow, setIsApplicationFlow] = useState(false);
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [completionError, setCompletionError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
-  // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
-  const completionStartedRef = useRef(false);
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
   const isNavigatingRef = useRef(false);
@@ -88,9 +86,11 @@ function LeaguePendingApproval() {
           accountState === 'coach_agreement_required' ||
           accountState === 'coach_final_setup_required'
         ) {
+          setIsApplicationFlow(true);
           setHydrating(false);
           return;
         }
+        setIsApplicationFlow(false);
         const fromServer = String(
           me?.organization_id || me?.preferences?.organization_id || ''
         ).trim();
@@ -117,13 +117,13 @@ function LeaguePendingApproval() {
   const checkApproval = useCallback(async () => {
     try {
       setChecking(true);
-      setCompletionError(null);
       const me: any = await User.refresh().catch(() => null);
       const accountState = String(me?.account_state || '').trim();
       const applicationName = String(me?.coach_application?.organization_name || '').trim();
       if (applicationName) setLeagueName(applicationName);
 
       if (accountState === 'coach_application_submitted') {
+        setIsApplicationFlow(true);
         setApproved(false);
         setRejected(false);
         stopPolling();
@@ -131,6 +131,7 @@ function LeaguePendingApproval() {
       }
 
       if (accountState === 'coach_application_rejected') {
+        setIsApplicationFlow(true);
         setRejected(true);
         stopPolling();
         try {
@@ -148,10 +149,13 @@ function LeaguePendingApproval() {
       }
 
       if (accountState === 'coach_agreement_required' || accountState === 'coach_final_setup_required') {
+        setIsApplicationFlow(true);
         setApproved(true);
         stopPolling();
         return;
       }
+
+      setIsApplicationFlow(false);
 
       if (!orgId) {
         redirectToLeagueSetup();
@@ -200,8 +204,7 @@ function LeaguePendingApproval() {
       if (org?.admin_approved === true || me?.approval_status === 'APPROVED') {
         setApproved(true);
         stopPolling();
-        // Keep this as a display state. AuthProvider will route off /auth/me.next_step.
-        await markOnboardingCompleteLocally().catch(() => {});
+        // Approval only unlocks real coach setup. Do not mark onboarding complete here.
         registerPushToken().catch(() => {});
       }
     } catch {
@@ -209,10 +212,9 @@ function LeaguePendingApproval() {
     } finally {
       setChecking(false);
     }
-  }, [markOnboardingCompleteLocally, orgId, redirectToLeagueSetup, stopPolling]);
+  }, [orgId, redirectToLeagueSetup, stopPolling]);
 
   useEffect(() => {
-    if (!orgId) return;
     void checkApproval();
     // v1.0.3: poll every 30s (was 60s) — see pending-approval.tsx for rationale.
     intervalRef.current = setInterval(() => void checkApproval(), 30000);
@@ -240,8 +242,7 @@ function LeaguePendingApproval() {
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      await User.updatePreferences({ proceeding_as_fan: true, onboarding_completed: true });
-      await markOnboardingCompleteLocally();
+      await User.updatePreferences({ proceeding_as_fan: true });
       await checkAuth();
       router.replace('/(tabs)' as any);
     } catch (err) {
@@ -300,15 +301,19 @@ function LeaguePendingApproval() {
 
         {/* Heading */}
         <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>
-          {rejected ? 'League Not Approved' : approved ? 'Approved by VarsityHub!' : 'Submitted to VarsityHub for Review'}
+          {rejected ? (isApplicationFlow ? 'Application Not Approved' : 'League Not Approved') : approved ? 'Application Approved' : 'Submitted to VarsityHub for Review'}
         </Text>
 
         {/* Subheading */}
         <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
           {rejected
-            ? `"${leagueName}" was not approved.${rejectionReason ? '' : ' You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.'}`
+            ? isApplicationFlow
+              ? `Your coach application for "${leagueName}" was not approved.${rejectionReason ? '' : ' You can try again later or continue as a fan. Contact support@varsityhub.app for questions.'}`
+              : `"${leagueName}" was not approved.${rejectionReason ? '' : ' You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.'}`
             : approved
-              ? `"${leagueName}" is now live on VarsityHub! Start by viewing your organization or creating your first team.`
+              ? isApplicationFlow
+                ? `Your application for "${leagueName}" was approved. Continue to accept the coach agreement and finish setting up your real organization.`
+                : `"${leagueName}" is approved. Continue to accept the coach agreement and finish coach setup.`
               : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
           }
         </Text>
@@ -337,7 +342,7 @@ function LeaguePendingApproval() {
           </View>
         ) : null}
 
-        {!orgId && !hydrating ? (
+        {!orgId && !hydrating && !isApplicationFlow && !approved && !rejected ? (
           <>
             <Text style={[styles.supportText, { color: '#EF4444', marginTop: 0, marginBottom: 12 }]}>
               Organization ID is missing for this account. You can retry the setup or continue as a fan for now.
@@ -374,7 +379,7 @@ function LeaguePendingApproval() {
           </>
         )}
 
-        {timedOut && !approved && !rejected && orgId && (
+        {timedOut && !approved && !rejected && (orgId || isApplicationFlow) && (
           <>
             <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}>
               This is taking longer than usual. We'll email you when your league is approved. You can continue as a fan in the meantime.
@@ -394,13 +399,14 @@ function LeaguePendingApproval() {
           </>
         )}
 
-        {!approved && !rejected && !timedOut && orgId && (
+        {!approved && !rejected && !timedOut && (orgId || isApplicationFlow) && (
           <>
-            {/* Info card */}
             <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#D1D5DB' }]}>
               <View style={styles.infoRow}>
                 <MaterialIcons name="business" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
-                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Organization:</Text>
+                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+                  {isApplicationFlow ? 'Application:' : 'Organization:'}
+                </Text>
                 <Text style={[styles.infoValue, { color: isDark ? '#F9FAFB' : '#111827' }]}>{leagueName}</Text>
               </View>
               <View style={styles.infoRow}>
@@ -438,48 +444,31 @@ function LeaguePendingApproval() {
 
         {approved && (
           <>
-            {completionError ? (
-              <>
-                <Text style={[styles.supportText, { color: '#EF4444', marginTop: 16, marginBottom: 8 }]}>
-                  {completionError}
-                </Text>
-                <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB', marginBottom: 12 }]} onPress={() => { completionStartedRef.current = false; void checkApproval(); }}>
-                  <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Retry Setup</Text>
-                </Pressable>
-                {/* v1.0.2 audit fix C-4: always provide fan fallback when completion fails */}
-                <Pressable style={[styles.primaryButton, { marginBottom: 12 }]} onPress={handleProceedAsFan}>
-                  <Text style={styles.primaryButtonText}>Continue as Fan</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Pressable
-                  style={[
-                    styles.primaryButton,
-                    { backgroundColor: '#1B3A6B', marginTop: 24 },
+            <Pressable
+              style={[
+                styles.primaryButton,
+                { backgroundColor: '#1B3A6B', marginTop: 24 },
+                navigationTarget && { opacity: 0.6 },
+              ]}
+              onPress={() => { void handleApprovedNavigation('organization'); }}
+              disabled={navigationTarget !== null}
+            >
+              <MaterialIcons name={orgId ? 'business' : 'arrow-forward'} size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>Continue Coach Setup</Text>
+            </Pressable>
+            {orgId ? (
+              <Pressable
+                style={[
+                    styles.secondaryButton,
+                    { borderColor: '#1B3A6B', marginTop: 0 },
                     navigationTarget && { opacity: 0.6 },
                   ]}
-                  onPress={() => { void handleApprovedNavigation('organization'); }}
-                  disabled={navigationTarget !== null}
-                >
-                  <MaterialIcons name={orgId ? 'business' : 'arrow-forward'} size={20} color="#fff" />
-                  <Text style={styles.primaryButtonText}>{orgId ? 'View Your Organization' : 'Continue Coach Setup'}</Text>
-                </Pressable>
-                {orgId ? (
-                  <Pressable
-                    style={[
-                      styles.secondaryButton,
-                      { borderColor: '#1B3A6B', marginTop: 0 },
-                      navigationTarget && { opacity: 0.6 },
-                    ]}
-                    onPress={() => { void handleApprovedNavigation('create-team'); }}
-                    disabled={navigationTarget !== null}
-                  >
-                    <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
-                  </Pressable>
-                ) : null}
-              </>
-            )}
+                onPress={() => { void handleApprovedNavigation('create-team'); }}
+                disabled={navigationTarget !== null}
+              >
+                <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
+              </Pressable>
+            ) : null}
           </>
         )}
       </ScrollView>

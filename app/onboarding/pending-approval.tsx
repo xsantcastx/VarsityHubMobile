@@ -13,7 +13,7 @@ function PendingApproval() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const { signOut, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
+  const { signOut, checkAuth, registerPushToken } = useAuth();
   const { state: ob } = useOnboarding();
   const params = useLocalSearchParams<{ leagueName?: string; ownerName?: string }>();
   const leagueName = params.leagueName || 'the league';
@@ -22,14 +22,11 @@ function PendingApproval() {
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [completionError, setCompletionError] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
-  // v1.0.2 audit fix C-3/H-4: prevent double completeOnboarding if screen re-mounts after approval
-  const completionStartedRef = useRef(false);
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
   const isNavigatingRef = useRef(false);
@@ -55,7 +52,6 @@ function PendingApproval() {
   const checkApproval = useCallback(async () => {
     try {
       setChecking(true);
-      setCompletionError(null);
       const me: any = await User.me();
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
@@ -94,85 +90,16 @@ function PendingApproval() {
         const resolvedOrgId = me?.preferences?.organization_id || ob.organization_id || null;
         if (resolvedOrgId) setOrgId(resolvedOrgId);
         stopPolling();
-        // v1.0.2 audit fix H-4: prevent double completeOnboarding on re-mount
-        if (completionStartedRef.current) return;
-        completionStartedRef.current = true;
-        // Complete onboarding on server, then go to main app.
-        // If completion fails, stay here and show a retry state instead of redirect loops.
-        let completed = false;
-        let completeOnboardingErr: any = null;
-        try {
-          // Use server data (me) as primary source, fall back to local state (ob)
-          const mePrefs = me?.preferences || {};
-          await User.completeOnboarding({
-            role: 'coach',
-            proceeding_as_fan: false,
-            username: me?.username || ob.username || mePrefs.username,
-            dob: me?.dob || ob.dob || mePrefs.dob,
-            zip_code: me?.zip_code || ob.zip_code || ob.zip || mePrefs.zip_code,
-            affiliation: mePrefs.affiliation || ob.affiliation,
-            organization_id: mePrefs.organization_id || ob.organization_id,
-            organization_name: mePrefs.organization_name || ob.organization_name,
-            plan: mePrefs.plan || (ob as any).plan || 'rookie',
-            team_id: mePrefs.team_id || (ob as any).team_id,
-            team_name: mePrefs.team_name || (ob as any).team_name,
-          });
-          // Server has recorded completion — this is the source of truth.
-          // markOnboardingCompleteLocally + checkAuth are local state syncs; their
-          // failure does NOT mean onboarding is incomplete on the server.
-          completed = true;
-          await markOnboardingCompleteLocally();
-          // Do NOT call checkAuth() here — it triggers AuthProvider redirect
-          // before the user sees "You're Approved!" and the action buttons.
-          // checkAuth() is called when the user taps a button to proceed.
-          registerPushToken().catch(() => {});
-        } catch (err: any) {
-          if (__DEV__) console.warn('[pending-approval] Failed to complete onboarding:', err);
-          if (!completed) {
-            completeOnboardingErr = err;
-          }
-        }
-        if (!completed) {
-          try {
-            // Fallback: try setting onboarding_completed directly via preferences
-            await User.updatePreferences({ onboarding_completed: true });
-            await markOnboardingCompleteLocally();
-            completed = true;
-          } catch {
-            // Final check: maybe onboarding was already completed server-side
-            try {
-              const refreshed: any = await User.me();
-              if (refreshed?.preferences?.onboarding_completed === true) {
-                await markOnboardingCompleteLocally();
-                completed = true;
-              }
-            } catch {
-              // ignore follow-up check failures
-            }
-          }
-        }
-        if (!completed) {
-          const errMsg = completeOnboardingErr?.message;
-          // v1.0.3: raised 200 → 400 chars. The 200-char cap was truncating
-          // useful server validation errors like field-level issues from
-          // complete-onboarding. Also split on \n and use the first line so
-          // multi-line payloads don't dump trailing "HTTP 400" lines into UI.
-          const firstLine = typeof errMsg === 'string' ? errMsg.split('\n')[0] : '';
-          const userFacingMsg = firstLine && firstLine.length < 400 && !/^HTTP \d/.test(firstLine)
-            ? firstLine
-            : 'Approval is complete, but final account setup failed. Tap retry below.';
-          setCompletionError(userFacingMsg);
-          completionStartedRef.current = false; // allow retry
-          return;
-        }
-        // Don't auto-redirect — let user tap Continue when ready
+        // Do not auto-complete coach onboarding here. Approval only unlocks
+        // the real coach setup flow; the user still needs agreement + setup.
+        registerPushToken().catch(() => {});
       }
     } catch {
       // ignore polling errors
     } finally {
       setChecking(false);
     }
-  }, [markOnboardingCompleteLocally, ob.affiliation, ob.dob, ob.organization_id, ob.organization_name, ob.username, ob.zip, ob.zip_code, redirectToOnboarding, stopPolling]);
+  }, [ob.organization_id, redirectToOnboarding, stopPolling]);
 
   useEffect(() => {
     // Initial check
@@ -207,8 +134,7 @@ function PendingApproval() {
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      await User.updatePreferences({ proceeding_as_fan: true, onboarding_completed: true });
-      await markOnboardingCompleteLocally();
+      await User.updatePreferences({ proceeding_as_fan: true });
       await checkAuth();
       router.replace('/(tabs)' as any);
     } catch (err: any) {
@@ -269,7 +195,7 @@ function PendingApproval() {
           {rejected
             ? `Your request to join "${leagueName}" was not approved.${rejectionReason ? '' : ' You can continue as a fan or try joining a different league.'}`
             : approved
-              ? `Welcome to ${leagueName}! Your coach account is ready. Start by viewing your organization or creating your first team.`
+              ? `Your request to join "${leagueName}" was approved. Continue to accept the coach agreement and finish coach setup.`
               : `Your request to join "${leagueName}" has been sent to ${ownerName}. You'll receive a notification when approved — typically within a few hours. You can use the app as a fan while you wait.`
           }
         </Text>
@@ -376,42 +302,29 @@ function PendingApproval() {
 
         {approved && (
           <>
-            {completionError ? (
-              <>
-                <Text style={[styles.supportText, { color: '#EF4444', marginTop: 16, marginBottom: 8 }]}>
-                  {completionError}
-                </Text>
-                <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB', marginBottom: 12 }]} onPress={() => { void checkApproval(); }}>
-                  <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Retry Setup</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Pressable
-                  style={[
-                    styles.primaryButton,
-                    { backgroundColor: '#1B3A6B', marginTop: 24 },
-                    navigationTarget && { opacity: 0.6 },
-                  ]}
-                  onPress={() => { void handleApprovedNavigation('organization'); }}
-                  disabled={navigationTarget !== null}
-                >
-                  <MaterialIcons name="business" size={20} color="#fff" />
-                  <Text style={styles.primaryButtonText}>View Your Organization</Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.secondaryButton,
-                    { borderColor: '#1B3A6B', marginTop: 0 },
-                    navigationTarget && { opacity: 0.6 },
-                  ]}
-                  onPress={() => { void handleApprovedNavigation('create-team'); }}
-                  disabled={navigationTarget !== null}
-                >
-                  <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
-                </Pressable>
-              </>
-            )}
+            <Pressable
+              style={[
+                styles.primaryButton,
+                { backgroundColor: '#1B3A6B', marginTop: 24 },
+                navigationTarget && { opacity: 0.6 },
+              ]}
+              onPress={() => { void handleApprovedNavigation('organization'); }}
+              disabled={navigationTarget !== null}
+            >
+              <MaterialIcons name="business" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>Continue Coach Setup</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.secondaryButton,
+                { borderColor: '#1B3A6B', marginTop: 0 },
+                navigationTarget && { opacity: 0.6 },
+              ]}
+              onPress={() => { void handleApprovedNavigation('create-team'); }}
+              disabled={navigationTarget !== null}
+            >
+              <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
+            </Pressable>
           </>
         )}
       </ScrollView>

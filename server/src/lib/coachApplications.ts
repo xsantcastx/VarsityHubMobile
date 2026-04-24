@@ -86,6 +86,8 @@ export function getCoachFlowState(
   const proceedingAsFan = isProceedingAsFan(user as any);
   const hasCoachAgreement = !!user?.coach_agreement_accepted_at;
 
+  const pendingFanModeNextStep = '/(tabs)';
+
   if (role !== 'coach') {
     return onboardingCompleted
       ? { account_state: 'fan_active', next_step: '/(tabs)' }
@@ -96,12 +98,16 @@ export function getCoachFlowState(
     if (application?.status === 'rejected' && !organizationId) {
       return {
         account_state: 'coach_application_rejected',
-        next_step: '/onboarding/league-pending-approval',
+        next_step: proceedingAsFan ? pendingFanModeNextStep : '/onboarding/league-pending-approval',
       };
     }
     return {
       account_state: 'coach_pending_approval',
-      next_step: organizationId ? '/onboarding/league-pending-approval' : '/onboarding/pending-approval',
+      next_step: proceedingAsFan
+        ? pendingFanModeNextStep
+        : organizationId
+          ? '/onboarding/league-pending-approval'
+          : '/onboarding/pending-approval',
     };
   }
 
@@ -109,13 +115,17 @@ export function getCoachFlowState(
     if (application?.status === 'submitted' && !organizationId) {
       return {
         account_state: 'coach_application_submitted',
-        next_step: '/onboarding/league-pending-approval',
+        next_step: proceedingAsFan ? pendingFanModeNextStep : '/onboarding/league-pending-approval',
       };
     }
     if (organizationId || proceedingAsFan) {
       return {
         account_state: 'coach_pending_approval',
-        next_step: organizationId ? '/onboarding/league-pending-approval' : '/onboarding/pending-approval',
+        next_step: proceedingAsFan
+          ? pendingFanModeNextStep
+          : organizationId
+            ? '/onboarding/league-pending-approval'
+            : '/onboarding/pending-approval',
       };
     }
     return {

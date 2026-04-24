@@ -283,6 +283,13 @@ describe('coach flow structural invariants', () => {
       expect(fn).toMatch(/currentRole !== 'coach'/);
       expect(fn).not.toMatch(/role:\s*'coach'/);
     });
+
+    it('submitting a coach application resets onboarding completion and clears proceed-as-fan mode', () => {
+      const fn = auth.match(/\/coach-applications[\s\S]*?return res\.status\(201\)\.json/m)?.[0];
+      expect(fn).toBeTruthy();
+      expect(fn).toMatch(/onboarding_completed:\s*false/);
+      expect(fn).toMatch(/proceeding_as_fan:\s*false/);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────
