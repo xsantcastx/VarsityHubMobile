@@ -5,6 +5,7 @@ import { describe, expect, it, beforeEach, afterEach, jest } from '@jest/globals
 
 describe('Email template helpers', () => {
   const originalEnv = process.env;
+  const validTemplateId = 'd-0123456789abcdef0123456789abcdef';
 
   beforeEach(() => {
     jest.resetModules();
@@ -41,28 +42,34 @@ describe('Email template helpers', () => {
   });
 
   it('getMissingEmailTemplates returns empty when all required are set', async () => {
-    process.env.SENDGRID_VERIFICATION_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_EVENT_DENIED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_EVENT_CANCELED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID = 'd-xxx';
-    process.env.SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID = 'd-xxx';
+    process.env.SENDGRID_VERIFICATION_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_EVENT_DENIED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_EVENT_CANCELED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID = validTemplateId;
     const { getMissingEmailTemplates } = await import('../lib/email.js');
     const missing = getMissingEmailTemplates();
     expect(missing).toHaveLength(0);
+  });
+
+  it('treats invalid template IDs as missing', async () => {
+    process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = 'd-not-a-real-guid';
+    const { getMissingEmailTemplates } = await import('../lib/email.js');
+    expect(getMissingEmailTemplates(['TEAM_INVITE'])).toEqual(['team_invite']);
   });
 
   it('buildLeagueApprovalReviewUrl points into the admin app flow', async () => {

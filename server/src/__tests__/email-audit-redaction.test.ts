@@ -51,7 +51,7 @@ describe('EmailService audit logging', () => {
     expect(payload.actualRecipient).toBe('[redacted-minor-email]');
   });
 
-  it('keeps non-minor recipients visible in EMAIL_AUDIT logs', async () => {
+  it('redacts non-minor recipients in EMAIL_AUDIT logs too', async () => {
     const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const { EmailService } = await import('../services/email/EmailService.js');
     logSpy.mockClear();
@@ -78,8 +78,8 @@ describe('EmailService audit logging', () => {
 
     expect(auditLine).toBeDefined();
     const payload = JSON.parse(auditLine!);
-    expect(payload.originalRecipient).toBe('coach@example.com');
-    expect(payload.actualRecipient).toBe('coach@example.com');
+    expect(payload.originalRecipient).toBe('c***@example.com');
+    expect(payload.actualRecipient).toBe('c***@example.com');
   });
 
   it('redacts every element of a minor recipient array', async () => {
@@ -145,6 +145,29 @@ describe('EmailService audit logging', () => {
     const allOutput = JSON.stringify(logSpy.mock.calls);
     expect(allOutput).not.toContain('minor-kid@example.com');
     expect(allOutput).toContain('[redacted-minor-email]');
+  });
+
+  it('redacts OTP codes from logged subjects', async () => {
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const { EmailService } = await import('../services/email/EmailService.js');
+    logSpy.mockClear();
+
+    const service = new EmailService({
+      provider: 'test',
+      defaultFrom: 'noreply@varsityhub.app',
+      enableLogging: true,
+    });
+
+    await service.send({
+      to: 'coach@example.com',
+      subject: '123456 is your VarsityHub verification code',
+      templateId: 'd-test',
+      templateData: {},
+    });
+
+    const allOutput = JSON.stringify(logSpy.mock.calls);
+    expect(allOutput).not.toContain('123456 is your VarsityHub verification code');
+    expect(allOutput).toContain('[redacted-code] is your VarsityHub verification code');
   });
 });
 

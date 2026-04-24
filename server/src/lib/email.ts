@@ -5,6 +5,7 @@ import sgMail from '@sendgrid/mail';
 import * as Sentry from '@sentry/node';
 import escapeHtml from 'escape-html';
 import { prisma } from './prisma.js';
+import { redactEmail, sanitizeEmailLogMessage, sanitizeEmailSubject } from './emailRedaction.js';
 
 /**
  * Resolve the EMAIL_AUDIT `audit_privacy` metadata for a recipient email.
@@ -143,6 +144,7 @@ const TEMPLATE_IDS = {
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
+const SENDGRID_TEMPLATE_ID_REGEX = /^d-[a-f0-9]{32}$/i;
 
 // Critical for launch — server exits if missing in production.
 // These keys back every transactional template currently exercised by production flows.
@@ -179,11 +181,39 @@ export function isSendGridConfigured(): boolean {
 export function getMissingEmailTemplates(
   required: TemplateKey[] = REQUIRED_TEMPLATE_KEYS
 ): string[] {
-  return required.filter(key => !TEMPLATE_IDS[key]).map(key => key.toLowerCase());
+  return required.filter(key => !isValidSendGridTemplateId(TEMPLATE_IDS[key])).map(key => key.toLowerCase());
 }
 
 export function getMissingRecommendedTemplates(): string[] {
-  return RECOMMENDED_TEMPLATE_KEYS.filter(key => !TEMPLATE_IDS[key]).map(key => key.toLowerCase());
+  return RECOMMENDED_TEMPLATE_KEYS.filter(key => !isValidSendGridTemplateId(TEMPLATE_IDS[key])).map(key => key.toLowerCase());
+}
+
+export function isValidSendGridTemplateId(templateId: string | undefined | null): boolean {
+  return typeof templateId === 'string' && SENDGRID_TEMPLATE_ID_REGEX.test(templateId.trim());
+}
+
+function buildAppScreenUrl(pathname: string, params: Record<string, string | null | undefined> = {}): string {
+  const normalizedPath = pathname.replace(/^\/+/, '');
+  const url = new URL(`${APP_SCHEME}://${normalizedPath}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return url.toString();
+}
+
+function buildInviteLandingUrl(kind: 'team' | 'org', inviteId?: string): string {
+  const safeInviteId = typeof inviteId === 'string' ? inviteId.trim() : '';
+  return safeInviteId
+    ? `${APP_BASE_URL}/join/${kind}/${encodeURIComponent(safeInviteId)}`
+    : `${APP_BASE_URL}/join/${kind}`;
+}
+
+function buildEventDetailUrl(eventId?: string, fallbackUrl?: string): string {
+  const safeEventId = typeof eventId === 'string' ? eventId.trim() : '';
+  if (safeEventId) return `${APP_BASE_URL}/events/${encodeURIComponent(safeEventId)}`;
+  return fallbackUrl || buildAppScreenUrl('/event-detail');
 }
 
 /**
@@ -240,10 +270,21 @@ function blockUnapprovedEmail(emailType: string, context?: Record<string, unknow
   if (process.env.NODE_ENV === 'production') {
     Sentry.captureMessage(message, {
       level: 'warning',
-      extra: context,
+      extra: sanitizeEmailExtras(context),
     });
   }
   return false;
+}
+
+function sanitizeEmailExtras<T extends Record<string, unknown> | undefined>(context: T): T {
+  if (!context) return context;
+  const sanitized = { ...context } as Record<string, unknown>;
+  if (typeof sanitized.to === 'string') sanitized.to = redactEmail(sanitized.to);
+  if (typeof sanitized.subject === 'string') sanitized.subject = sanitizeEmailSubject(sanitized.subject);
+  for (const [key, value] of Object.entries(sanitized)) {
+    if (typeof value === 'string') sanitized[key] = sanitizeEmailLogMessage(value);
+  }
+  return sanitized as T;
 }
 
 /**
@@ -431,8 +472,8 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
       opponent: params.opponent || '',
       organization_name: params.organizationName || 'VarsityHub',
       approval_notes: params.approvalNotes || '',
-      view_event_url: params.eventLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
-      manage_event_url: params.manageLink || `${APP_BASE_URL}/events`,
+      view_event_url: buildEventDetailUrl(params.eventId, params.eventLink),
+      manage_event_url: params.manageLink || buildAppScreenUrl('/team-hub'),
     },
     `Event approved email sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
@@ -465,7 +506,7 @@ export async function sendEventCanceledEmail(params: {
       event_date: params.eventDate || '',
       event_time: params.eventTime || '',
       event_location: params.eventLocation || '',
-      view_event_url: `${APP_BASE_URL}/event/${params.eventId || ''}`,
+      view_event_url: buildEventDetailUrl(params.eventId),
     },
     `Event cancelled email sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
@@ -488,7 +529,7 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
       coach_name: params.coachName || params.recipientName || 'Coach',
       event_name: params.eventName || params.eventTitle || 'Event',
       denial_reason: params.denialReason || params.reason || '',
-      submit_new_event_url: params.resubmitLink || `${APP_BASE_URL}/create-fan-event`,
+      submit_new_event_url: params.resubmitLink || buildAppScreenUrl('/create-fan-event'),
       contact_support_url: params.supportLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
       organization_name: params.organizationName || 'VarsityHub',
     },
@@ -564,6 +605,7 @@ export async function sendVerificationEmail(
 ): Promise<boolean> {
   const displayName = userName || 'VarsityHub User';
   const subject = `${token} is your VarsityHub verification code`;
+  const verificationUrl = buildAppScreenUrl('/verify', { token, email });
   const templateId = TEMPLATE_IDS.VERIFICATION;
   if (!templateId) {
     console.error('[email] Missing SENDGRID_VERIFICATION_TEMPLATE_ID');
@@ -578,6 +620,8 @@ export async function sendVerificationEmail(
       ...getCommonTemplateData(),
       subject: subject,
       token: token,
+      verification_link: verificationUrl,
+      action_url: verificationUrl,
       verification_code: token,
       code: token,
       user_name: displayName,
@@ -595,7 +639,7 @@ export async function sendVerificationEmail(
  */
 export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
   const subject = `${code} is your VarsityHub password reset code`;
-  const resetUrl = `varsityhubmobile://reset-password?code=${encodeURIComponent(code)}&email=${encodeURIComponent(email)}`;
+  const resetUrl = buildAppScreenUrl('/reset-password', { code, email });
   const templateId = TEMPLATE_IDS.PASSWORD_RESET;
   if (!templateId) {
     console.error('[email] Missing SENDGRID_PASSWORD_RESET_TEMPLATE_ID');
@@ -642,6 +686,7 @@ export async function sendTeamInviteEmail(params: {
     params.role?.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) || 'member';
   const inviterName = params.inviterName || 'VarsityHub Coach';
   const subject = `You've been invited to join ${params.teamName}`;
+  const inviteUrl = buildInviteLandingUrl('team', params.inviteToken);
 
   return sendTemplateEmail(
     TEMPLATE_IDS.TEAM_INVITE,
@@ -655,10 +700,11 @@ export async function sendTeamInviteEmail(params: {
       inviterName: inviterName,
       role: prettyRole,
       expiresIn: '7 days',
-      acceptLink: params.inviteToken
-        ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
-        : `${APP_BASE_URL}/invites`,
-      declineLink: `${APP_BASE_URL}/invites`,
+      acceptLink: inviteUrl,
+      declineLink: inviteUrl,
+      accept_link: inviteUrl,
+      decline_link: inviteUrl,
+      invite_url: inviteUrl,
       team_hero_url: params.teamHeroUrl || `${APP_BASE_URL}/default-team-hero.jpg`,
       team_logo_url: params.teamLogoUrl || '',
       primary_color: params.primaryColor || '#2563EB',
@@ -684,7 +730,7 @@ async function sendTemplateEmail(
   if (!templateId) {
     // v1.0.2 audit fix: missing template IDs in production cause approval emails to silently drop.
     // Log at error level so Railway + Sentry surface these loudly.
-    const msg = `[email] Template ID not configured for: ${subject}`;
+    const msg = `[email] Template ID not configured for: ${sanitizeEmailSubject(subject)}`;
     if (process.env.NODE_ENV === 'production') {
       console.error(msg);
       Sentry.captureMessage(msg, 'error');
@@ -695,14 +741,24 @@ async function sendTemplateEmail(
     return false;
   }
 
+  if (!isValidSendGridTemplateId(templateId)) {
+    const msg = `[email] Invalid SendGrid template ID configured for: ${sanitizeEmailSubject(subject)}`;
+    console.error(msg);
+    Sentry.captureMessage(msg, {
+      level: 'error',
+      extra: sanitizeEmailExtras({ templateId, to, subject, logMessage }),
+    });
+    return false;
+  }
+
   const service = await getEmailService();
   if (!service || !service.isConfigured()) {
     if (process.env.NODE_ENV === 'production') {
       const err = new Error(
-        `[email] Email service not configured in production — template email dropped: ${logMessage}`
+        `[email] Email service not configured in production — template email dropped: ${sanitizeEmailLogMessage(logMessage)}`
       );
       console.error(err.message);
-      Sentry.captureException(err, { extra: { to, subject, logMessage } });
+      Sentry.captureException(err, { extra: sanitizeEmailExtras({ to, subject, logMessage }) });
     } else {
       console.warn('[email] Email service not configured');
     }
@@ -723,16 +779,20 @@ async function sendTemplateEmail(
     });
 
     if (result.success) {
-      console.log(`✅ ${logMessage}`);
+      console.log(`✅ ${sanitizeEmailLogMessage(logMessage)}`);
       return true;
     } else {
-      console.error(`❌ Failed: ${logMessage}`, result.error);
-      Sentry.captureException(result.error ?? new Error(`Email send failed: ${logMessage}`));
+      console.error(`❌ Failed: ${sanitizeEmailLogMessage(logMessage)}`, sanitizeEmailLogMessage(result.error));
+      Sentry.captureException(result.error ?? new Error(`Email send failed: ${sanitizeEmailLogMessage(logMessage)}`), {
+        extra: sanitizeEmailExtras({ to, subject, logMessage, templateId }),
+      });
       return false;
     }
   } catch (error: any) {
-    console.error(`❌ Failed: ${logMessage}`, error);
-    Sentry.captureException(error);
+    console.error(`❌ Failed: ${sanitizeEmailLogMessage(logMessage)}`, error);
+    Sentry.captureException(error, {
+      extra: sanitizeEmailExtras({ to, subject, logMessage, templateId }),
+    });
     return false;
   }
 }
@@ -753,6 +813,7 @@ export async function sendOrganizationInviteEmail(params: {
 }): Promise<boolean> {
   const prettyRole =
     params.role?.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) || 'Member';
+  const inviteUrl = buildInviteLandingUrl('org', params.inviteToken);
 
   return sendTemplateEmail(
     TEMPLATE_IDS.ORG_INVITE,
@@ -765,10 +826,11 @@ export async function sendOrganizationInviteEmail(params: {
       teamName: '',
       role: prettyRole,
       inviterName: params.inviterName || 'VarsityHub Admin',
-      acceptLink: params.inviteToken
-        ? `${APP_BASE_URL}/invites?token=${params.inviteToken}`
-        : `${APP_BASE_URL}/invites`,
-      declineLink: `${APP_BASE_URL}/invites`,
+      acceptLink: inviteUrl,
+      declineLink: inviteUrl,
+      accept_link: inviteUrl,
+      decline_link: inviteUrl,
+      invite_url: inviteUrl,
       expiresIn: '7 days',
       org_logo_url: params.orgLogoUrl || '',
       primary_color: params.primaryColor || '#2563EB',
@@ -866,6 +928,7 @@ export async function sendBillingNoticeEmail(params: {
         plan_name: params.planName || 'VarsityHub Subscription',
         amount: params.amount || '',
         manage_subscription_url: manageSubscriptionLink,
+        manage_url: manageSubscriptionLink,
         team_name: params.teamName || '',
         org_name: params.orgName || '',
       },
@@ -905,6 +968,7 @@ export async function sendBillingNoticeEmail(params: {
         user_name: params.user_name || '',
         plan_name: params.planName || 'VarsityHub Subscription',
         manage_subscription_url: manageSubscriptionLink,
+        manage_url: manageSubscriptionLink,
         team_name: params.teamName || '',
         org_name: params.orgName || '',
       },
@@ -1191,7 +1255,7 @@ export async function sendLeagueApprovedEmail(params: {
       org_name: params.leagueName,
       org_logo_url: '',
       admin_note: params.note || '',
-      dashboard_url: `${APP_BASE_URL}/team-hub`,
+      dashboard_url: buildAppScreenUrl('/team-hub'),
     },
     `League approved email sent to ${params.to}`
   );
@@ -1256,7 +1320,8 @@ export async function sendCoachApprovedEmail(params: {
       org_name: params.leagueName,
       admin_name: 'VarsityHub',
       admin_note: params.note || '',
-      dashboard_url: `${APP_BASE_URL}/team-hub`,
+      org_url: buildAppScreenUrl('/team-hub'),
+      dashboard_url: buildAppScreenUrl('/team-hub'),
       org_logo_url: '',
     },
     `Coach approved email sent to ${params.to}`

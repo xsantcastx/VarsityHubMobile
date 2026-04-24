@@ -2,7 +2,7 @@ import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,9 +17,13 @@ type Invite = { id: string; role?: string; team?: { id: string; name?: string } 
 function TeamInvitesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
   const { invites, loading, error: invitesError, refresh } = useTeamInvites<Invite>();
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const prioritizedInvites = params.id
+    ? [...invites].sort((a, b) => (a.id === params.id ? -1 : b.id === params.id ? 1 : 0))
+    : invites;
 
   const accept = async (id: string, teamId?: string) => {
     if (processingId) return;
@@ -77,12 +81,17 @@ function TeamInvitesScreen() {
             </Pressable>
           ) }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Team Invites</Text>
+      {params.id && prioritizedInvites.some(invite => invite.id === params.id) ? (
+        <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
+          Your emailed invitation is at the top of the list.
+        </Text>
+      ) : null}
       {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
       {invitesError && !loading && <Text style={styles.error}>{invitesError}</Text>}
       {!loading && invites.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>}
-      {!loading && invites.length > 0 && (
+      {!loading && prioritizedInvites.length > 0 && (
         <FlatList
-          data={invites}
+          data={prioritizedInvites}
           keyExtractor={(i) => i.id}
           renderItem={({ item }) => (
             <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>

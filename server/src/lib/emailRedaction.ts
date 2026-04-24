@@ -42,3 +42,16 @@ export function redactEmailList(value: unknown): string | string[] {
   if (Array.isArray(value)) return value.map((v) => redactEmail(v));
   return redactEmail(value);
 }
+
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const OTP_PATTERN = /\b\d{6}\b/g;
+
+export function sanitizeEmailSubject(value: unknown): string {
+  if (typeof value !== 'string' || value.trim().length === 0) return '[redacted-subject]';
+  return value.replace(OTP_PATTERN, '[redacted-code]');
+}
+
+export function sanitizeEmailLogMessage(value: unknown): string {
+  if (typeof value !== 'string' || value.trim().length === 0) return '[redacted-log]';
+  return sanitizeEmailSubject(value).replace(EMAIL_PATTERN, (match) => redactEmail(match));
+}
