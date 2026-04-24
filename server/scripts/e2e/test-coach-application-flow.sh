@@ -10,11 +10,11 @@ API="${API_URL:-https://api-production-8ac3.up.railway.app}"
 # here — the repo is public and a leak triggers a GitGuardian / Snyk / etc. alert.
 # Get the current URL via: railway variables --service "Postgres-TnGR" --kv | grep DATABASE_PUBLIC_URL
 DB="${DATABASE_URL:?Set DATABASE_URL env var to the production Postgres public URL before running. See server/scripts/e2e/README.md.}"
+: "${ADMIN_EMAIL:?Set ADMIN_EMAIL to an existing verified admin account email before running.}"
+: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to that admin account password before running.}"
 STAMP=$(date +%s)
 COACH_EMAIL="coach-app-test-${STAMP}@varsityhub-test.local"
 COACH_PASSWORD="TestPass123!"
-ADMIN_EMAIL="customerservice@varsityhub.app"
-ADMIN_PASSWORD="AdminTest123!"
 
 pass() { echo "  ✅ $1"; }
 fail() { echo "  ❌ $1"; FAILED=1; }
@@ -29,20 +29,13 @@ me_state() {
 }
 
 hdr "Setup — temp admin user via real register + login"
-psql "$DB" -c "DELETE FROM \"RefreshToken\" WHERE user_id IN (SELECT id FROM \"User\" WHERE email='$ADMIN_EMAIL'); DELETE FROM \"User\" WHERE email='$ADMIN_EMAIL';" >/dev/null 2>&1
-
-REG=$(curl -sS -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"display_name\":\"Admin\",\"role\":\"fan\",\"dob\":\"1990-01-01\"}")
-ADMIN_ID=$(echo "$REG" | jq -r '.user.id // empty')
-[ -n "$ADMIN_ID" ] && pass "admin registered id=$ADMIN_ID" || { fail "admin register: $REG"; exit 1; }
-
-psql "$DB" -c "UPDATE \"User\" SET email_verified=true, preferences=jsonb_set(COALESCE(preferences,'{}'::jsonb),'{onboarding_completed}','true'::jsonb) WHERE id='$ADMIN_ID';" >/dev/null 2>&1
-
 ADMIN_LOGIN=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
 ADMIN_TOKEN=$(echo "$ADMIN_LOGIN" | jq -r '.access_token // empty')
 [ -n "$ADMIN_TOKEN" ] && pass "admin logged in" || { fail "admin login: $ADMIN_LOGIN"; exit 1; }
 ADMIN_AUTH="Authorization: Bearer $ADMIN_TOKEN"
+ADMIN_ID=$(psql "$DB" -tA -c "SELECT id FROM \"User\" WHERE lower(email)=lower('$ADMIN_EMAIL') LIMIT 1;" 2>/dev/null)
+[ -n "$ADMIN_ID" ] && pass "admin user resolved id=$ADMIN_ID" || { fail "admin user lookup failed"; exit 1; }
 
 hdr "T1 — Register as fan (canonical UX), check initial state"
 REG=$(curl -sS -X POST "$API/auth/register" -H 'Content-Type: application/json' \
@@ -179,10 +172,10 @@ hdr "CLEANUP"
 [ -n "${ORG_ID:-}" ] && psql "$DB" -c "DELETE FROM \"OrganizationMembership\" WHERE organization_id='$ORG_ID'; DELETE FROM \"Organization\" WHERE id='$ORG_ID';" >/dev/null 2>&1
 psql "$DB" -c "
   DELETE FROM \"CoachApplication\" WHERE user_id='$COACH_ID';
-  DELETE FROM \"Notification\" WHERE user_id IN ('$COACH_ID','$ADMIN_ID');
-  DELETE FROM \"RefreshToken\" WHERE user_id IN ('$COACH_ID','$ADMIN_ID');
-  DELETE FROM \"User\" WHERE id IN ('$COACH_ID','$ADMIN_ID');
-" >/dev/null 2>&1 && pass "test data + temp admin cleaned up" || info "cleanup had issues (non-fatal)"
+  DELETE FROM \"Notification\" WHERE user_id='$COACH_ID';
+  DELETE FROM \"RefreshToken\" WHERE user_id='$COACH_ID';
+  DELETE FROM \"User\" WHERE id='$COACH_ID';
+" >/dev/null 2>&1 && pass "test data cleaned" || info "cleanup had issues (non-fatal)"
 
 TEAMS=$(psql "$DB" -tA -c "SELECT COUNT(*) FROM \"Team\";")
 ORGS=$(psql "$DB" -tA -c "SELECT COUNT(*) FROM \"Organization\";")

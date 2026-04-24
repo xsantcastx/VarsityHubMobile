@@ -5,17 +5,17 @@
 # approval flow; this script targets the boundary conditions between
 # subsystems that are easy to regress independently.
 
-set -u
+set -euo pipefail
 API="${API_URL:-https://api-production-8ac3.up.railway.app}"
 # DB URL must be injected at runtime — never hardcode a production credential.
 # Get via: railway variables --service "Postgres-TnGR" --kv | grep DATABASE_PUBLIC_URL
 DB="${DATABASE_URL:?Set DATABASE_URL env var before running. See server/scripts/e2e/README.md.}"
+: "${ADMIN_EMAIL:?Set ADMIN_EMAIL to an existing verified admin account email before running.}"
+: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to that admin account password before running.}"
 STAMP=$(date +%s)
 COACH_EMAIL="xmatrix-${STAMP}@varsityhub-test.local"
 COACH_PASSWORD="TestPass123!"
 NEW_PASSWORD="NewTestPass456!"
-ADMIN_EMAIL="customerservice@varsityhub.app"
-ADMIN_PASSWORD="AdminTest123!"
 BIZ_EMAIL="xmatrix-biz-${STAMP}@varsityhub-test.local"
 
 pass() { echo "  ✅ $1"; }
@@ -26,17 +26,17 @@ FAILED=0
 
 me_state() { curl -sS "$API/auth/me" -H "Authorization: Bearer $1"; }
 me_code()  { curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $1"; }
+linked_provider_value() {
+  echo "$1" | jq -r ".linked_providers.$2 | if . == true then \"true\" elif . == false then \"false\" else \"\" end"
+}
 
-hdr "Setup — admin user via real register + login"
-psql "$DB" -c "DELETE FROM \"RefreshToken\" WHERE user_id IN (SELECT id FROM \"User\" WHERE email='$ADMIN_EMAIL'); DELETE FROM \"User\" WHERE email='$ADMIN_EMAIL';" >/dev/null 2>&1
-REG=$(curl -sS -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"display_name\":\"Admin\",\"role\":\"fan\",\"dob\":\"1990-01-01\"}")
-ADMIN_ID=$(echo "$REG" | jq -r '.user.id // empty')
-psql "$DB" -c "UPDATE \"User\" SET email_verified=true, preferences=jsonb_set(COALESCE(preferences,'{}'::jsonb),'{onboarding_completed}','true'::jsonb) WHERE id='$ADMIN_ID';" >/dev/null 2>&1
+hdr "Setup — admin user via real login"
 ADMIN_LOGIN=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
 ADMIN_TOKEN=$(echo "$ADMIN_LOGIN" | jq -r '.access_token // empty')
 [ -n "$ADMIN_TOKEN" ] && pass "admin logged in" || { fail "admin login: $ADMIN_LOGIN"; exit 1; }
 ADMIN_AUTH="Authorization: Bearer $ADMIN_TOKEN"
+ADMIN_ID=$(psql "$DB" -tA -c "SELECT id FROM \"User\" WHERE lower(email)=lower('$ADMIN_EMAIL') LIMIT 1;" 2>/dev/null)
+[ -n "$ADMIN_ID" ] && pass "admin user resolved id=$ADMIN_ID" || { fail "admin user lookup failed"; exit 1; }
 
 ###############################################################################
 hdr "X1 — OAuth 409 contract smoke"
@@ -63,9 +63,9 @@ info "Full 409 contract with real Google token: server/src/__tests__/oauth-accou
 
 # /me should expose linked_providers for this password-only user
 ME=$(me_state "$COACH_TOKEN")
-LP_PW=$(echo "$ME" | jq -r '.linked_providers.password // empty')
-LP_G=$(echo "$ME" | jq -r '.linked_providers.google // empty')
-LP_A=$(echo "$ME" | jq -r '.linked_providers.apple // empty')
+LP_PW=$(linked_provider_value "$ME" password)
+LP_G=$(linked_provider_value "$ME" google)
+LP_A=$(linked_provider_value "$ME" apple)
 [ "$LP_PW" = "true" ] && pass "linked_providers.password=true" || fail "linked_providers.password=$LP_PW"
 [ "$LP_G" = "false" ] && pass "linked_providers.google=false" || fail "linked_providers.google=$LP_G"
 [ "$LP_A" = "false" ] && pass "linked_providers.apple=false" || fail "linked_providers.apple=$LP_A"
@@ -187,9 +187,9 @@ psql "$DB" -c "
   DELETE FROM \"AdReservation\" WHERE ad_id IN (SELECT id FROM \"Ad\" WHERE user_id='$COACH_ID');
   DELETE FROM \"Ad\" WHERE user_id='$COACH_ID';
   DELETE FROM \"CoachApplication\" WHERE user_id='$COACH_ID';
-  DELETE FROM \"Notification\" WHERE user_id IN ('$COACH_ID','$ADMIN_ID');
-  DELETE FROM \"RefreshToken\" WHERE user_id IN ('$COACH_ID','$ADMIN_ID');
-  DELETE FROM \"User\" WHERE id IN ('$COACH_ID','$ADMIN_ID');
+  DELETE FROM \"Notification\" WHERE user_id='$COACH_ID';
+  DELETE FROM \"RefreshToken\" WHERE user_id='$COACH_ID';
+  DELETE FROM \"User\" WHERE id='$COACH_ID';
 " >/dev/null 2>&1 && pass "test data cleaned" || info "cleanup had issues (non-fatal)"
 
 if [ "$FAILED" = "0" ]; then

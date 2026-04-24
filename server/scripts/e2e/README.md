@@ -3,8 +3,9 @@
 Three bash scripts that drive real HTTP against the production API to verify
 end-to-end behavior. Run after every deploy to confirm nothing regressed.
 
-Each script creates its own test users + data and cleans up on exit. Safe to
-run repeatedly against production.
+Each script creates its own test users + data and cleans up on exit. The coach
+approval and cross-system scripts now log into an existing verified admin
+account instead of deleting/recreating the canonical admin email.
 
 ## Scripts
 
@@ -46,14 +47,14 @@ Cross-system boundary test:
 ## Requirements
 
 - `curl`, `jq`, `psql` installed locally
-- Admin password (baked into the scripts as `AdminTest123!`); scripts register
-  a temp admin via the public register endpoint and clean up after.
 - **`DATABASE_URL` env var must be set** before running — points at the
   production `Postgres-TnGR` public URL. Never commit this URL; inject it at
   runtime:
   ```bash
   export DATABASE_URL=$(railway variables --service "Postgres-TnGR" --kv | awk -F= '/^DATABASE_PUBLIC_URL=/ {print $2}')
   ```
+- **`ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars must be set** for
+  `test-coach-application-flow.sh` and `test-integration-crossmatrix.sh`.
 - Optional `API_URL` env var to override the API host (defaults to production).
 
 ## Running after a deploy
@@ -61,6 +62,8 @@ Cross-system boundary test:
 ```bash
 # Pull credentials from Railway once per shell session:
 export DATABASE_URL=$(railway variables --service "Postgres-TnGR" --kv | awk -F= '/^DATABASE_PUBLIC_URL=/ {print $2}')
+export ADMIN_EMAIL='your-admin@example.com'
+export ADMIN_PASSWORD='your-admin-password'
 
 # All three, sequentially:
 for s in test-coach-application-flow test-single-session test-integration-crossmatrix; do
