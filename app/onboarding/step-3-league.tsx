@@ -451,23 +451,24 @@ function Step3League() {
         // Only proceed as fan when there's a pending join request (coach waits for approval).
         // If org/team already exists and is approved, coach should go through normal approval flow.
         const isPendingJoin = !!ob.join_request_pending;
-        try {
-          const me: any = await User.me().catch(() => null);
-          await User.completeOnboarding({
-            role: 'coach',
-            proceeding_as_fan: isPendingJoin,
-            username: me?.username || ob.username,
-            dob: me?.dob || ob.dob,
-            zip_code: me?.zip_code || ob.zip_code || ob.zip,
-            affiliation: me?.preferences?.affiliation || ob.affiliation,
-            organization_id: resolvedOrgId || undefined,
-            organization_name: resolvedOrgName || undefined,
-            join_request_pending: isPendingJoin || undefined,
-          });
-          await markOnboardingCompleteLocally();
-          registerPushToken().catch(() => {});
-        } catch (err) {
-          if (__DEV__) console.warn('[step-3] Failed to complete onboarding (existing):', err);
+        if (!isPendingJoin) {
+          try {
+            const me: any = await User.me().catch(() => null);
+            await User.completeOnboarding({
+              role: 'coach',
+              proceeding_as_fan: false,
+              username: me?.username || ob.username,
+              dob: me?.dob || ob.dob,
+              zip_code: me?.zip_code || ob.zip_code || ob.zip,
+              affiliation: me?.preferences?.affiliation || ob.affiliation,
+              organization_id: resolvedOrgId || undefined,
+              organization_name: resolvedOrgName || undefined,
+            });
+            await markOnboardingCompleteLocally();
+            registerPushToken().catch(() => {});
+          } catch (err) {
+            if (__DEV__) console.warn('[step-3] Failed to complete onboarding (existing):', err);
+          }
         }
         checkAuth().catch(() => {});
         if (isPendingJoin) {
@@ -602,7 +603,6 @@ function Step3League() {
           organization_location: locationLabel || null,
           step_3_visited: true,
         }));
-        await markOnboardingCompleteLocally();
         await User.refresh().catch(() => null);
         await checkAuth();
         captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {

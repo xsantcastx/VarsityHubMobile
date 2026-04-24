@@ -907,7 +907,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // SERVER IS SOURCE OF TRUTH for onboarding completion — never trust AsyncStorage alone
       // Treat undefined/null as incomplete (prevents bypass when flag is missing)
       const serverSaysIncomplete = !isOnboardingComplete(user);
-      const needsOnboarding = serverSaysIncomplete;
+      const needsOnboarding = serverSaysIncomplete && !coachAccess.isProceedingAsFan;
       const coachNeedsCheckout = coachAccess.needsPaidPlanCheckout;
       const isOnPaymentPath =
         currentPath.includes('settings/manage-subscription') ||

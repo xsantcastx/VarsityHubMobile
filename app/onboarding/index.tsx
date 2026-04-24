@@ -45,6 +45,26 @@ export default function OnboardingIndex() {
       return;
     }
 
+    const accountState = String(user.account_state || '').trim();
+    const explicitNextStep =
+      typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
+        ? user.next_step.trim()
+        : null;
+    if (
+      explicitNextStep &&
+      [
+        'coach_application_submitted',
+        'coach_application_rejected',
+        'coach_pending_approval',
+        'coach_agreement_required',
+        'coach_final_setup_required',
+      ].includes(accountState)
+    ) {
+      setHasNavigated(true);
+      router.replace(explicitNextStep as any);
+      return;
+    }
+
     // Route to the first incomplete step based on actual field-level completion checks.
     // Previously hardcoded `state?.role ? 1 : 0` which always sent returning coaches to step 2.
     const role = state?.role as 'fan' | 'coach' | undefined;

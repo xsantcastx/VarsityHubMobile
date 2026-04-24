@@ -1996,14 +1996,14 @@ authRouter.post(
         where: { id: user.id },
         data: {
           preferences: mergeAuthStateIntoPreferences(nextPrefs, {
-            onboarding_completed: true,
+            onboarding_completed: false,
             organization_id: null,
-            proceeding_as_fan: true,
+            proceeding_as_fan: false,
           }),
           ...buildAuthStateColumns({
-            onboarding_completed: true,
+            onboarding_completed: false,
             organization_id: null,
-            proceeding_as_fan: true,
+            proceeding_as_fan: false,
           }),
           approval_status: 'PENDING',
           rejected_at: null,
