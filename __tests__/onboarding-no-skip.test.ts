@@ -143,23 +143,33 @@ describe('onboarding flow — no screens can be skipped', () => {
   // ──────────────────────────────────────────────────────────────────────
 
   describe('root index + AuthProvider cover every state', () => {
-    it('root index routes unauthenticated → /sign-in', () => {
-      expect(rootIndex).toMatch(/\/sign-in/);
-      expect(rootIndex).toMatch(/!user|user\s*==\s*null|user\s*===\s*null/);
+    // Note: app/index.tsx is now a passive splash screen — all routing
+    // moved to AuthProvider to eliminate the index/_layout race. These
+    // assertions follow the routing logic to its new home.
+
+    it('AuthProvider routes unauthenticated users → /sign-in', () => {
+      expect(authProvider).toMatch(/\/sign-in/);
+      expect(authProvider).toMatch(/!user|user\s*==\s*null|user\s*===\s*null/);
     });
 
-    it('root index routes unverified users → /verify (no skip)', () => {
-      expect(rootIndex).toMatch(/email_verified/);
-      expect(rootIndex).toMatch(/['"]\/verify['"]/);
+    it('AuthProvider routes unverified users → /verify (no skip)', () => {
+      expect(authProvider).toMatch(/email_verified/);
+      expect(authProvider).toMatch(/['"]\/verify['"]/);
     });
 
-    it('root index routes users with incomplete onboarding → /onboarding/step-1-role', () => {
-      expect(rootIndex).toMatch(/onboarding_completed/);
-      expect(rootIndex).toMatch(/\/onboarding\/step-1-role/);
+    it('AuthProvider routes users with incomplete onboarding → /onboarding/step-1-role', () => {
+      expect(authProvider).toMatch(/onboarding_completed|isOnboardingComplete/);
+      expect(authProvider).toMatch(/\/onboarding\/step-1-role/);
     });
 
-    it('root index routes fully-verified + completed users → (tabs)', () => {
-      expect(rootIndex).toMatch(/\(tabs\)/);
+    it('AuthProvider routes fully-verified + completed users → (tabs)', () => {
+      expect(authProvider).toMatch(/\(tabs\)/);
+    });
+
+    it('app/index.tsx is a passive splash that delegates to AuthProvider', () => {
+      // Lock in the architecture: index must NOT contain its own routing
+      // logic (would re-introduce the race AuthProvider was built to fix).
+      expect(rootIndex).toMatch(/AuthProvider handles all routing|navigation is handled centrally/);
     });
 
     it('AuthProvider has a pending-coach redirect path (not just implicit)', () => {

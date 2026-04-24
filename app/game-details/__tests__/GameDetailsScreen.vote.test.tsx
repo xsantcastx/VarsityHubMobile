@@ -78,6 +78,16 @@ jest.mock('expo-linear-gradient', () => {
 
 jest.mock('expo-image-picker', () => ({}));
 
+jest.mock('expo-video', () => ({
+  VideoView: 'VideoView',
+  useVideoPlayer: jest.fn(() => ({ play: jest.fn(), pause: jest.fn(), muted: false })),
+}));
+
+jest.mock('expo-media-library', () => ({
+  requestPermissionsAsync: jest.fn(),
+  saveToLibraryAsync: jest.fn(),
+}));
+
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');
   return {

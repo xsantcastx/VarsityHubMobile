@@ -38,7 +38,9 @@ describe('notification badge guardrails', () => {
     const source = readRepoFile('app/(tabs)/notifications/index.tsx');
 
     expect(source).toContain("import { clearNotificationBadge, syncNotificationBadge } from '@/utils/pushNotifications';");
+    // Both badge calls are intentionally fire-and-forget: blocking the UI
+    // on a badge update would slow mark-all-read for no user benefit.
     expect(source).toContain('void syncNotificationBadge();');
-    expect(source).toContain('await clearNotificationBadge();');
+    expect(source).toContain('void clearNotificationBadge();');
   });
 });
