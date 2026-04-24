@@ -785,6 +785,21 @@ export async function sendOrganizationInviteEmail(params: {
 
 /**
  * Billing emails are restricted to approved templates only.
+ *
+ * The SendGrid templates `payment-failed.html` and `subscription-expiring.html`
+ * use camelCase variable names (`userName`, `planName`, `failedAmount`,
+ * `daysRemaining`, `renewalDate`, etc.) — NOT the snake_case keys that the
+ * rest of this module uses. Prior to this fix the server only sent snake_case
+ * keys, so payment-failed and trial-ending emails rendered with every
+ * critical field blank: no user name, no amount, no retry date, no features-
+ * losing list. Users could receive "Your payment failed" emails with zero
+ * actionable information.
+ *
+ * Fix: send BOTH naming conventions so the template renders correctly no
+ * matter which naming scheme any given template revision uses, and fall back
+ * to sane defaults for fields the caller can't compute (retryDate, contact
+ * link, etc.). Callers with richer context (Stripe invoice objects) can now
+ * supply the precise values.
  */
 export async function sendBillingNoticeEmail(params: {
   to: string;
@@ -801,6 +816,17 @@ export async function sendBillingNoticeEmail(params: {
   teamName?: string;
   orgName?: string;
   perks?: string[];
+  // New optional fields matching what the SendGrid templates actually
+  // reference. Callers with Stripe invoice/subscription context should
+  // supply these; callers without them get reasonable defaults.
+  failedDate?: string;
+  retryDate?: string;
+  paymentMethodLast4?: string;
+  daysRemaining?: number;
+  expiresDate?: string;
+  renewalDate?: string;
+  renewalPrice?: string;
+  featuresLosing?: string[];
 }): Promise<boolean> {
   if (params.type === 'payment_failed') {
     const templateId = TEMPLATE_IDS.PAYMENT_FAILED;
@@ -809,17 +835,37 @@ export async function sendBillingNoticeEmail(params: {
       return false;
     }
 
+    // Reasonable defaults — Stripe's smart retry typically retries failed
+    // invoices within 3-4 days. Use today for failedDate and today+3 for
+    // retryDate when the caller doesn't supply exact values from the invoice.
+    const today = new Date();
+    const threeDaysOut = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    const manageSubscriptionLink =
+      params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`;
+
     return sendTemplateEmail(
       templateId,
       params.to,
       'Payment Failed — VarsityHub',
       {
         ...getCommonTemplateData(),
+        // Canonical keys the template uses (camelCase)
+        userName: params.user_name || '',
+        planName: params.planName || 'VarsityHub Subscription',
+        failedAmount: params.amount || '',
+        failedDate: params.failedDate || fmt(today),
+        retryDate: params.retryDate || fmt(threeDaysOut),
+        paymentMethodLast4: params.paymentMethodLast4 || '',
+        updatePaymentLink: manageSubscriptionLink,
+        contactSupportLink: `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+        // Legacy snake_case keys preserved for template-version compatibility
         user_name: params.user_name || '',
         plan_name: params.planName || 'VarsityHub Subscription',
         amount: params.amount || '',
-        manage_subscription_url:
-          params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
+        manage_subscription_url: manageSubscriptionLink,
         team_name: params.teamName || '',
         org_name: params.orgName || '',
       },
@@ -834,16 +880,31 @@ export async function sendBillingNoticeEmail(params: {
       return false;
     }
 
+    const manageSubscriptionLink =
+      params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`;
+
     return sendTemplateEmail(
       templateId,
       params.to,
       'Subscription Expiring — VarsityHub',
       {
         ...getCommonTemplateData(),
+        // Canonical keys the template uses (camelCase)
+        userName: params.user_name || '',
+        planName: params.planName || 'VarsityHub Subscription',
+        daysRemaining: params.daysRemaining ?? 0,
+        expiresDate: params.expiresDate || '',
+        renewalDate: params.renewalDate || '',
+        renewalPrice: params.renewalPrice || '',
+        manageSubscriptionLink,
+        renewLink: manageSubscriptionLink,
+        // Template uses {{#each features_losing}} — must be an array, even
+        // empty, or the section silently collapses.
+        features_losing: params.featuresLosing || [],
+        // Legacy snake_case keys preserved for template-version compatibility
         user_name: params.user_name || '',
         plan_name: params.planName || 'VarsityHub Subscription',
-        manage_subscription_url:
-          params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`,
+        manage_subscription_url: manageSubscriptionLink,
         team_name: params.teamName || '',
         org_name: params.orgName || '',
       },
