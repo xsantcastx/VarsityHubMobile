@@ -1,0 +1,177 @@
+name: Production E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-e2e:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: coach-approval-flow
+            label: Coach Approval Flow
+            script: server/scripts/e2e/test-coach-application-flow.sh
+            requires_admin: "true"
+          - id: single-session
+            label: Single Session
+            script: server/scripts/e2e/test-single-session.sh
+            requires_admin: "false"
+          - id: cross-system
+            label: Cross-System
+            script: server/scripts/e2e/test-integration-crossmatrix.sh
+            requires_admin: "true"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Enforce allowed branches
+        run: |
+          set -euo pipefail
+
+          case "${GITHUB_REF_NAME}" in
+            main|1.0.1)
+              ;;
+            *)
+              echo "Production E2E may only run from main or 1.0.1. Current ref: ${GITHUB_REF_NAME}"
+              exit 1
+              ;;
+          esac
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install runtime tools
+        run: |
+          npm install --global @railway/cli
+          sudo apt-get update
+          sudo apt-get install --yes jq postgresql-client
+
+      - name: Validate workflow secrets
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          PROD_ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
+          PROD_ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then
+            echo "Missing GitHub secret: RAILWAY_TOKEN"
+            exit 1
+          fi
+
+          if [ "${{ matrix.requires_admin }}" = "true" ]; then
+            if [ -z "${PROD_ADMIN_EMAIL:-}" ]; then
+              echo "Missing GitHub secret: PROD_ADMIN_EMAIL"
+              exit 1
+            fi
+
+            if [ -z "${PROD_ADMIN_PASSWORD:-}" ]; then
+              echo "Missing GitHub secret: PROD_ADMIN_PASSWORD"
+              exit 1
+            fi
+          fi
+
+      - name: Link Railway production project
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -euo pipefail
+          railway link --project 22899614-5ae1-47e9-bdd6-7f6d5ce5619e --environment production --service 6bf477a3-56a7-44d0-aa29-ff86a76cdc02
+
+      - name: Resolve production database URL
+        id: db
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          DATABASE_URL="$(railway variable list --service 9f1e9f03-53f7-4d90-8744-d711e76f5e80 --environment production --kv | awk -F= '/^DATABASE_PUBLIC_URL=/{print $2}')"
+
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Failed to resolve DATABASE_PUBLIC_URL from Railway"
+            exit 1
+          fi
+
+          echo "::add-mask::$DATABASE_URL"
+          echo "database_url=$DATABASE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Run production verification script
+        id: run-script
+        continue-on-error: true
+        env:
+          API_URL: https://api-production-8ac3.up.railway.app
+          DATABASE_URL: ${{ steps.db.outputs.database_url }}
+          ADMIN_EMAIL: ${{ secrets.PROD_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p .github/tmp
+          LOG_FILE=".github/tmp/${{ matrix.id }}.log"
+
+          set +e
+          timeout 300s bash "${{ matrix.script }}" 2>&1 | tee "$LOG_FILE"
+          status=${PIPESTATUS[0]}
+          set -e
+
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          echo "log_file=$LOG_FILE" >> "$GITHUB_OUTPUT"
+
+          exit "$status"
+
+      - name: Upload production verification log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-e2e-${{ matrix.id }}-log
+          path: ${{ steps.run-script.outputs.log_file }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Append run summary
+        if: always()
+        run: |
+          set -euo pipefail
+
+          EXIT_CODE="${{ steps.run-script.outputs.exit_code }}"
+          LOG_FILE="${{ steps.run-script.outputs.log_file }}"
+
+          if [ -z "$EXIT_CODE" ]; then
+            EXIT_CODE="1"
+          fi
+
+          {
+            echo "## ${{ matrix.label }}"
+            echo ""
+            echo "- Script: \`${{ matrix.script }}\`"
+            echo "- Timeout: \`300s\`"
+            if [ "$EXIT_CODE" = "0" ]; then
+              echo "- Result: passed"
+            elif [ "$EXIT_CODE" = "124" ]; then
+              echo "- Result: failed (timeout after 300s)"
+            else
+              echo "- Result: failed (exit $EXIT_CODE)"
+            fi
+
+            if [ "$EXIT_CODE" != "0" ] && [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+              echo ""
+              echo "Last 50 log lines:"
+              echo '```text'
+              tail -n 50 "$LOG_FILE"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail job when verification fails
+        if: ${{ steps.run-script.outputs.exit_code != '0' }}
+        run: exit 1
