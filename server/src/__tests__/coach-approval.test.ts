@@ -625,6 +625,42 @@ describe('Coach Approval Workflow', () => {
 
       await prisma.user.delete({ where: { id: fan.id } });
     });
+
+    it('blocks rejected coaches within 48h cooldown from creating a new join request', async () => {
+      const coachHash = await bcrypt.hash(PASSWORD, 10);
+      const rejectedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const coach = await prisma.user.create({
+        data: {
+          email: `join-request-cooldown-${ts}@example.com`,
+          password_hash: coachHash,
+          display_name: 'Join Request Cooldown Coach',
+          email_verified: true,
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          role: 'coach',
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'REJECTED',
+          rejected_at: rejectedAt,
+          rejection_reason: 'Try again later',
+        },
+      });
+      const token = signJwt({ id: coach.id });
+
+      const res = await request(app)
+        .post('/organizations/join-requests')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ organization_id: orgId, message: 'I want to join right now' });
+
+      expect(res.status).toBe(429);
+      expect(res.body?.code).toBe('REJECTION_COOLDOWN');
+      expect(Number(res.body?.retry_after_ms)).toBeGreaterThan(0);
+
+      const joinReq = await prisma.organizationJoinRequest.findFirst({
+        where: { user_id: coach.id, organization_id: orgId },
+      });
+      expect(joinReq).toBeNull();
+
+      await prisma.user.delete({ where: { id: coach.id } });
+    });
   });
 
   describe('Org manager can govern pending coaches (org-roles-govern parity)', () => {

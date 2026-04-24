@@ -282,6 +282,22 @@ describeDb('requireOnboarded coach gate matrix', () => {
   });
 
   it('allows coach past 48h REJECTION_COOLDOWN to reapply', async () => {
+    const { user: owner } = await createUser({
+      email: `coach-gate-reapply-owner-${ts}@example.com`,
+      displayName: 'Coach Gate Reapply Owner',
+      preferences: {
+        role: 'coach',
+        plan: 'rookie',
+        onboarding_completed: true,
+        coach_agreement_accepted_at: new Date().toISOString(),
+      },
+    });
+    const org = await createOrganization({
+      ownerId: owner.id,
+      name: `Coach Gate Reapply Org ${ts}`,
+      adminApproved: true,
+    });
+
     const rejectedAt = new Date(Date.now() - FORTY_EIGHT_HOURS_MS - 60 * 1000);
     const rejectedCoach = await createUser({
       email: `coach-gate-reapply-ok-${ts}@example.com`,
@@ -293,8 +309,13 @@ describeDb('requireOnboarded coach gate matrix', () => {
         role: 'coach',
         plan: 'rookie',
         onboarding_completed: true,
+        organization_id: org.id,
         join_request_pending: true,
       },
+    });
+    await prisma.user.update({
+      where: { id: rejectedCoach.user.id },
+      data: { organization_id: org.id },
     });
 
     const res = await request(app)
@@ -309,6 +330,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
       where: { id: rejectedCoach.user.id },
       select: {
         approval_status: true,
+        organization_id: true,
         rejected_at: true,
         rejection_reason: true,
         preferences: true,
@@ -317,11 +339,20 @@ describeDb('requireOnboarded coach gate matrix', () => {
     const prefs = (refreshed?.preferences as Record<string, unknown> | null) || {};
 
     expect(refreshed?.approval_status).toBe('PENDING');
+    expect(refreshed?.organization_id).toBeNull();
     expect(refreshed?.rejected_at).toBeNull();
     expect(refreshed?.rejection_reason).toBeNull();
     expect(prefs.onboarding_completed).toBe(false);
     expect(prefs.join_request_pending).toBe(false);
     expect(prefs.role).toBe('coach');
+    expect(prefs.organization_id).toBeUndefined();
+
+    const meRes = await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${rejectedCoach.token}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body?.organization_id ?? null).toBeNull();
+    expect(meRes.body?.account_state).toBe('coach_application_required');
   });
 
   it('allows approved coach with paid_by_owner=true on paid tier without checkout', async () => {

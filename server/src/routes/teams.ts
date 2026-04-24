@@ -22,7 +22,10 @@ import {
   isManagementRole,
   TEAM_AUTHORIZED_ROLES,
 } from '../lib/teamEntitlements.js';
-import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import {
+  canManageTeam as canManageTeamScoped,
+  isOrgAdmin as isOrgAdminScoped,
+} from '../lib/teamAuthorization.js';
 import {
   getExcludedPrivateTeamIds,
   isTeamHiddenFromViewer,
@@ -837,21 +840,38 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
         return res.status(400).json({ error: 'Target organization not found or inactive' });
       }
 
-      // Team may only be moved into orgs where the requester is an active member (unless platform admin).
+      // Moving a team across organizations is stronger than ordinary team edits:
+      // the requester must control the team on the source side AND be an org admin
+      // on the destination side. Plain membership in the target org is not enough.
       if (!isAdmin && targetOrganizationId !== team.organization_id) {
-        const targetMembership = await prisma.organizationMembership.findUnique({
+        const sourceTeamMembership = await prisma.teamMembership.findUnique({
           where: {
-            organization_id_user_id: {
-              organization_id: targetOrganizationId,
+            team_id_user_id: {
+              team_id: teamId,
               user_id: req.user.id,
             },
-          },
-          select: { status: true },
+          } as any,
+          select: { role: true, status: true },
         });
-        if (!targetMembership || targetMembership.status !== 'active') {
+        const canAdminSourceOrg = team.organization_id
+          ? await isOrgAdminScoped(req.user.id, team.organization_id)
+          : false;
+        const canControlSourceTeam =
+          (sourceTeamMembership?.status === 'active' &&
+            (sourceTeamMembership.role === 'owner' || sourceTeamMembership.role === 'manager')) ||
+          canAdminSourceOrg;
+        if (!canControlSourceTeam) {
           return res.status(403).json({
-            error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
-            message: 'You must be an active member of the target organization to move this team.',
+            error: 'TEAM_TRANSFER_ADMIN_REQUIRED',
+            message: 'Only the team owner, a team manager, or a league admin can move a team to another organization.',
+          });
+        }
+
+        const canAdminTargetOrg = await isOrgAdminScoped(req.user.id, targetOrganizationId);
+        if (!canAdminTargetOrg) {
+          return res.status(403).json({
+            error: 'ORGANIZATION_ADMIN_REQUIRED',
+            message: 'You must be an owner or manager of the target organization to move this team.',
           });
         }
       }
