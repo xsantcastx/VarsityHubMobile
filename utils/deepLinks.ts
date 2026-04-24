@@ -95,11 +95,15 @@ const ROUTE_MAP: Record<string, string> = {
   'approvals': '/approvals',
   'admin-dashboard': '/admin-dashboard',
   'organization-join-requests': '/organization-join-requests',
+  'organization-invites': '/organization-invites',
+  'team-hub': '/team-hub',
+  'create-fan-event': '/create-fan-event',
+  'manage-subscription': '/settings/manage-subscription',
   // Payment redirect routes
   'payment-success': '/payment-success',
   'payment-cancel': '/payment-cancel',
   // Invite deep links
-  'join/org': '/request-join-organization',
+  'join/org': '/organization-invites',
   'join/team': '/team-invites',
 };
 
@@ -235,7 +239,8 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   }
   
   // Handle direct path links (/post/123, /game/456, etc.)
-  return parsePathLink(parsed);
+  const pathLink = parsePathLink(parsed);
+  return pathLink ? { ...pathLink, source: 'universal' } : null;
 }
 
 /**

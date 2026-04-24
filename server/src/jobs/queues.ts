@@ -242,12 +242,19 @@ export async function queueEmail(job: EmailJob): Promise<string | null> {
   try {
     const { getEmailService } = await import('../services/email/service.js');
     const emailService = getEmailService();
-    const result = await emailService.send({
-      to: job.to,
-      subject: job.subject || '',
-      text: job.text,
-      html: job.html,
-    });
+    const result = job.template && job.templateData
+      ? await emailService.send({
+          to: job.to,
+          subject: job.subject || '',
+          templateId: job.template,
+          templateData: job.templateData,
+        })
+      : await emailService.send({
+          to: job.to,
+          subject: job.subject || '',
+          text: job.text,
+          html: job.html,
+        });
     if (!result.success) {
       console.error('[Jobs] Fallback email failed:', result.error);
       return null;

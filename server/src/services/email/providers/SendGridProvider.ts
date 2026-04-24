@@ -79,8 +79,8 @@ export class SendGridProvider implements EmailProvider {
           () =>
             resolve({
               success: false,
-              error: 'SendGrid request timed out',
-              errorCode: EmailErrorCode.TIMEOUT,
+              error: 'SendGrid request timed out locally; delivery status is unknown',
+              errorCode: EmailErrorCode.DELIVERY_STATUS_UNKNOWN,
               provider: this.name,
             }),
           this.timeout
@@ -140,8 +140,8 @@ export class SendGridProvider implements EmailProvider {
           () =>
             resolve({
               success: false,
-              error: 'SendGrid request timed out',
-              errorCode: EmailErrorCode.TIMEOUT,
+              error: 'SendGrid request timed out locally; delivery status is unknown',
+              errorCode: EmailErrorCode.DELIVERY_STATUS_UNKNOWN,
               provider: this.name,
             }),
           this.timeout

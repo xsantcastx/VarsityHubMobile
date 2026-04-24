@@ -23,7 +23,7 @@ jest.unstable_mockModule('../services/email/service.js', () => ({
 }));
 
 // Set template ID so sendTeamInviteEmail doesn't bail early
-process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = 'd-test-team-invite';
+process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = 'd-0123456789abcdef0123456789abcdef';
 
 // Dynamic import after mocks and env overrides are in place
 const { sendTeamInviteEmail } = await import('../lib/email.js');
@@ -34,7 +34,7 @@ process.env.JEST_WORKER_ID = savedJestWorker;
 
 describe('Email Invite Functions', () => {
   describe('sendTeamInviteEmail', () => {
-    it('should return true and include inviteToken in invite_url', async () => {
+    it('should return true and include inviteToken in the canonical join URL', async () => {
       mockSend.mockClear();
 
       const result = await sendTeamInviteEmail({
@@ -50,7 +50,8 @@ describe('Email Invite Functions', () => {
       // Verify invite_url contains the token
       expect(mockSend).toHaveBeenCalledTimes(1);
       const payload = mockSend.mock.calls[0]![0] as any;
-      expect(payload.templateData.acceptLink).toContain('token=test-token-123');
+      expect(payload.templateData.acceptLink).toBe('https://varsityhub.app/join/team/test-token-123');
+      expect(payload.templateData.invite_url).toBe('https://varsityhub.app/join/team/test-token-123');
     });
   });
 });

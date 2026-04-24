@@ -19,6 +19,11 @@ import type {
 } from './types.js';
 import { EmailErrorCode } from './types.js';
 import { SendGridProvider } from './providers/SendGridProvider.js';
+import {
+  redactEmailList,
+  sanitizeEmailLogMessage,
+  sanitizeEmailSubject,
+} from '../../lib/emailRedaction.js';
 // debugLog import removed — info-level email logs now use console.log
 // so they're visible in Railway production logs (not gated by ENABLE_SERVER_DEBUG_LOGS)
 
@@ -104,7 +109,7 @@ export class EmailService {
         !isProduction && overrideRecipient ? overrideRecipient : originalRecipient,
         auditPrivacy
       ),
-      subject: options.subject,
+      subject: sanitizeEmailSubject(options.subject),
       redirected: !isProduction && !!overrideRecipient,
       environment: process.env.NODE_ENV || 'development',
     }));
@@ -136,7 +141,7 @@ export class EmailService {
               this.extractRecipient(options.to),
               auditPrivacy
             ),
-            subject: options.subject,
+            subject: sanitizeEmailSubject(options.subject),
             isTemplate,
             attempt,
           }
@@ -293,7 +298,7 @@ export class EmailService {
     recipient: string | string[],
     auditPrivacy?: string
   ): string | string[] {
-    if (auditPrivacy !== 'minor') return recipient;
+    if (auditPrivacy !== 'minor') return redactEmailList(recipient);
     if (Array.isArray(recipient)) {
       return recipient.map(() => '[redacted-minor-email]');
     }
@@ -319,20 +324,31 @@ export class EmailService {
       correlationId,
       service: 'email',
       provider: this.provider.name,
-      ...data,
+      ...this.sanitizeLogData(data),
     };
 
     switch (level) {
       case 'info':
-        console.log(`[EmailService] ${message}`, JSON.stringify(logData));
+        console.log(`[EmailService] ${sanitizeEmailLogMessage(message)}`, JSON.stringify(logData));
         break;
       case 'warn':
-        console.warn(`[EmailService] ${message}`, logData);
+        console.warn(`[EmailService] ${sanitizeEmailLogMessage(message)}`, logData);
         break;
       case 'error':
-        console.error(`[EmailService] ${message}`, logData);
+        console.error(`[EmailService] ${sanitizeEmailLogMessage(message)}`, logData);
         break;
     }
+  }
+
+  private sanitizeLogData(data: any): any {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+    const sanitized = { ...data };
+    if ('subject' in sanitized) sanitized.subject = sanitizeEmailSubject(sanitized.subject);
+    if ('to' in sanitized) sanitized.to = redactEmailList(sanitized.to);
+    if ('error' in sanitized && typeof sanitized.error === 'string') {
+      sanitized.error = sanitizeEmailLogMessage(sanitized.error);
+    }
+    return sanitized;
   }
 
   /**
