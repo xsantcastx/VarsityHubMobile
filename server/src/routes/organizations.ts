@@ -28,7 +28,7 @@ import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { serializeOrganization } from '../lib/serializeOrganization.js';
-import { addBreadcrumb } from '../lib/sentry.js';
+import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { redactEmail } from '../lib/logRedaction.js';
 import {
   buildAuthStateColumns,
@@ -78,8 +78,12 @@ type OrganizationCreatePayload = {
 
 function buildOrganizationCreateData(
   input: OrganizationCreatePayload,
-  ownerId: string
+  ownerId: string,
+  options?: {
+    adminApproved?: boolean;
+  }
 ) {
+  const adminApproved = options?.adminApproved === true;
   // Explicitly map DB-owned organization fields so middleware-only request keys
   // such as `onboarding` can never drift into Prisma writes via object spread.
   return {
@@ -94,7 +98,8 @@ function buildOrganizationCreateData(
     season_end: input.season_end ? new Date(input.season_end) : null,
     updated_at: new Date(),
     league_owner_id: ownerId,
-    admin_approved: false,
+    admin_approved: adminApproved,
+    approved_at: adminApproved ? new Date() : null,
   };
 }
 
@@ -130,8 +135,15 @@ function buildPendingLeagueOwnerPreferences(
   return next;
 }
 
-async function shouldForcePendingApprovalOnOrganizationCreate(userId: string): Promise<boolean> {
-  const latestApplication = await getLatestCoachApplication(prisma as any, userId);
+async function shouldForcePendingApprovalOnOrganizationCreate(params: {
+  userId: string;
+  approvalStatus?: string | null;
+  onboarding?: boolean;
+}): Promise<boolean> {
+  if (params.onboarding !== true) return true;
+  if (String(params.approvalStatus || '').toUpperCase() !== 'APPROVED') return true;
+
+  const latestApplication = await getLatestCoachApplication(prisma as any, params.userId);
   return latestApplication?.status !== 'approved';
 }
 
@@ -653,9 +665,6 @@ organizationsRouter.post(
         },
       });
       const applicantPrefs = getPreferencesObject(applicant?.preferences);
-      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate(
-        req.user!.id
-      );
       if (getCanonicalUserRole(applicant as any) !== 'coach') {
         return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
       }
@@ -685,6 +694,11 @@ organizationsRouter.post(
       }
 
       const data = parsed.data;
+      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
+        userId: req.user!.id,
+        approvalStatus: applicant?.approval_status,
+        onboarding: data.onboarding,
+      });
       // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
       // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
       // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
@@ -707,9 +721,12 @@ organizationsRouter.post(
       // Transaction: create org + owner membership + update coach state atomically.
       // Legacy coach flows still move to PENDING here; coaches with an already-approved
       // CoachApplication keep their approved status during final setup.
+      const preserveApprovedFinalSetup = !shouldForcePendingApproval;
       const organization = await prisma.$transaction(async tx => {
         const org = await tx.organization.create({
-          data: buildOrganizationCreateData(data, req.user!.id),
+          data: buildOrganizationCreateData(data, req.user!.id, {
+            adminApproved: preserveApprovedFinalSetup,
+          }),
         });
         await tx.organizationMembership.create({
           data: {
@@ -747,35 +764,37 @@ organizationsRouter.post(
         where: { id: req.user!.id },
         select: { display_name: true, email: true },
       });
-      const approveToken = signJwt(
-        { orgId: organization.id, action: 'approve_league' },
-        LEAGUE_APPROVAL_TOKEN_TTL
-      );
-      const rejectToken = signJwt(
-        { orgId: organization.id, action: 'reject_league' },
-        LEAGUE_APPROVAL_TOKEN_TTL
-      );
-      sendLeagueApprovalRequestEmail({
-        leagueId: organization.id,
-        leagueName: organization.name,
-        ownerName: creator?.display_name || 'Unknown',
-        ownerEmail: creator?.email || '',
-        sport: data.sport,
-        orgType: data.org_type,
-        approveToken,
-        rejectToken,
-        supportingDocumentUrl: data.supporting_document_url,
-      })
-        .then(sent => {
-          if (!sent) {
-            console.warn(
-              '[organizations] League approval request email reported unsent (/). Check mail provider config.'
-            );
-          }
+      if (shouldForcePendingApproval) {
+        const approveToken = signJwt(
+          { orgId: organization.id, action: 'approve_league' },
+          LEAGUE_APPROVAL_TOKEN_TTL
+        );
+        const rejectToken = signJwt(
+          { orgId: organization.id, action: 'reject_league' },
+          LEAGUE_APPROVAL_TOKEN_TTL
+        );
+        sendLeagueApprovalRequestEmail({
+          leagueId: organization.id,
+          leagueName: organization.name,
+          ownerName: creator?.display_name || 'Unknown',
+          ownerEmail: creator?.email || '',
+          sport: data.sport,
+          orgType: data.org_type,
+          approveToken,
+          rejectToken,
+          supportingDocumentUrl: data.supporting_document_url,
         })
-        .catch(err => {
-          console.warn('[organizations] Failed sending league approval request email (/):', err);
-        });
+          .then(sent => {
+            if (!sent) {
+              console.warn(
+                '[organizations] League approval request email reported unsent (/). Check mail provider config.'
+              );
+            }
+          })
+          .catch(err => {
+            console.warn('[organizations] Failed sending league approval request email (/):', err);
+          });
+      }
 
       return res.status(201).json(organization);
     } catch (err) {
@@ -849,9 +868,6 @@ organizationsRouter.post(
         },
       });
       const applicantPrefs = getPreferencesObject(applicant?.preferences);
-      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate(
-        req.user!.id
-      );
       if (getCanonicalUserRole(applicant as any) !== 'coach') {
         return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
       }
@@ -881,6 +897,11 @@ organizationsRouter.post(
       }
 
       const data = parsed.data;
+      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate({
+        userId: req.user!.id,
+        approvalStatus: applicant?.approval_status,
+        onboarding: data.onboarding,
+      });
       // Duplicate guard (same logic as simple create)
       const nm = normalizeOrganizationName(data.name);
       const duplicateWhere: any = { status: 'active' };
@@ -899,9 +920,12 @@ organizationsRouter.post(
       // Transaction: create org + owner membership + update league owner atomically.
       // Legacy flows still move to PENDING here; approved CoachApplication users
       // keep their approval while attaching the real organization during final setup.
+      const preserveApprovedFinalSetup = !shouldForcePendingApproval;
       const organization = await prisma.$transaction(async tx => {
         const org = await tx.organization.create({
-          data: buildOrganizationCreateData(data, req.user!.id),
+          data: buildOrganizationCreateData(data, req.user!.id, {
+            adminApproved: preserveApprovedFinalSetup,
+          }),
         });
         await tx.organizationMembership.create({
           data: {
@@ -937,38 +961,40 @@ organizationsRouter.post(
         where: { id: req.user!.id },
         select: { display_name: true, email: true },
       });
-      const approveToken = signJwt(
-        { orgId: organization.id, action: 'approve_league' },
-        LEAGUE_APPROVAL_TOKEN_TTL
-      );
-      const rejectToken = signJwt(
-        { orgId: organization.id, action: 'reject_league' },
-        LEAGUE_APPROVAL_TOKEN_TTL
-      );
-      sendLeagueApprovalRequestEmail({
-        leagueId: organization.id,
-        leagueName: organization.name,
-        ownerName: creator?.display_name || 'Unknown',
-        ownerEmail: creator?.email || '',
-        sport: data.sport,
-        orgType: data.org_type,
-        approveToken,
-        rejectToken,
-        supportingDocumentUrl: data.supporting_document_url,
-      })
-        .then(sent => {
-          if (!sent) {
-            console.warn(
-              '[organizations] League approval request email reported unsent (/create). Check mail provider config.'
-            );
-          }
+      if (shouldForcePendingApproval) {
+        const approveToken = signJwt(
+          { orgId: organization.id, action: 'approve_league' },
+          LEAGUE_APPROVAL_TOKEN_TTL
+        );
+        const rejectToken = signJwt(
+          { orgId: organization.id, action: 'reject_league' },
+          LEAGUE_APPROVAL_TOKEN_TTL
+        );
+        sendLeagueApprovalRequestEmail({
+          leagueId: organization.id,
+          leagueName: organization.name,
+          ownerName: creator?.display_name || 'Unknown',
+          ownerEmail: creator?.email || '',
+          sport: data.sport,
+          orgType: data.org_type,
+          approveToken,
+          rejectToken,
+          supportingDocumentUrl: data.supporting_document_url,
         })
-        .catch(err => {
-          console.warn(
-            '[organizations] Failed sending league approval request email (/create):',
-            err
-          );
-        });
+          .then(sent => {
+            if (!sent) {
+              console.warn(
+                '[organizations] League approval request email reported unsent (/create). Check mail provider config.'
+              );
+            }
+          })
+          .catch(err => {
+            console.warn(
+              '[organizations] Failed sending league approval request email (/create):',
+              err
+            );
+          });
+      }
 
       // Send invites to authorized users
       if (data.authorized_users && data.authorized_users.length > 0) {
@@ -2217,6 +2243,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     return res.json({ message: 'League approved', organization_id: orgId });
   } catch (err) {
     console.error('[organizations] POST /:id/approve error:', err);
+    captureException(err instanceof Error ? err : new Error(String(err)), {
+      context: 'approve_league_handler_failed',
+      organizationId: req.params.id,
+      adminId: req.user?.id || null,
+    });
     addBreadcrumb('League approval endpoint crashed', 'approval.organization_route', 'error', {
       action: 'approve',
       organization_id: req.params.id,
@@ -2335,6 +2366,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     return res.json({ message: 'League rejected', organization_id: orgId });
   } catch (err) {
     console.error('[organizations] POST /:id/reject error:', err);
+    captureException(err instanceof Error ? err : new Error(String(err)), {
+      context: 'reject_league_handler_failed',
+      organizationId: req.params.id,
+      adminId: req.user?.id || null,
+    });
     addBreadcrumb('League rejection endpoint crashed', 'approval.organization_route', 'error', {
       action: 'reject',
       organization_id: req.params.id,

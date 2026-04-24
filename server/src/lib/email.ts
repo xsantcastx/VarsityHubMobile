@@ -977,6 +977,17 @@ export function buildCoachApplicationReviewUrl(params: {
   });
 }
 
+export function buildLeagueApprovalReviewUrl(params: {
+  leagueId: string;
+  action?: 'approve' | 'reject';
+}): string {
+  return buildAppReviewUrl('/admin-dashboard', {
+    league_id: params.leagueId,
+    action: params.action,
+    review: 'league_approval',
+  });
+}
+
 /**
  * Notify super admin that a new league was created and needs approval.
  * Uses the approved Join Request Admin template.
@@ -992,8 +1003,16 @@ export async function sendLeagueApprovalRequestEmail(params: {
   rejectToken: string;
   supportingDocumentUrl?: string;
 }): Promise<boolean> {
-  const approveUrl = `${API_BASE_URL}/organizations/${params.leagueId}/approve?token=${params.approveToken}`;
-  const rejectUrl = `${API_BASE_URL}/organizations/${params.leagueId}/reject?token=${params.rejectToken}`;
+  // Use app review links for admin actions so the reviewer lands in the
+  // authenticated admin dashboard instead of a browser confirmation page.
+  const approveUrl = buildLeagueApprovalReviewUrl({
+    leagueId: params.leagueId,
+    action: 'approve',
+  });
+  const rejectUrl = buildLeagueApprovalReviewUrl({
+    leagueId: params.leagueId,
+    action: 'reject',
+  });
 
   // v1.0.2 audit fix: send to ALL admin emails, not just the first
   const { getAllAdminEmails } = await import('./adminEmails.js');

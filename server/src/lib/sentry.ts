@@ -66,6 +66,20 @@ export function addSentryErrorHandler(app: Express) {
 export function captureException(error: Error | string, context?: Record<string, any>) {
   Sentry.withScope((scope) => {
     if (context) {
+      const contextTag = typeof context.context === 'string' ? context.context : null;
+      if (contextTag) {
+        scope.setTag('vh_context', contextTag);
+      }
+
+      const tags = context.tags;
+      if (tags && typeof tags === 'object') {
+        for (const [key, value] of Object.entries(tags)) {
+          if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            scope.setTag(key, String(value));
+          }
+        }
+      }
+
       scope.setContext('additional', context);
     }
     if (typeof error === 'string') {

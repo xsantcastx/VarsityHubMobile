@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { getLinkedProvidersSnapshot } from '@/utils/authState';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
@@ -19,11 +20,18 @@ export default function ResetPasswordScreen() {
   const [saving, setSaving] = useState(false);
 
   // Check if user signed up via OAuth (Apple/Google) — password change not applicable
-  const userRecord = user as { auth_provider?: string; preferences?: { auth_provider?: string }; apple_id?: string; google_id?: string } | null;
+  const userRecord = user as {
+    auth_provider?: string;
+    preferences?: { auth_provider?: string };
+    apple_id?: string;
+    google_id?: string;
+    linked_providers?: { password?: boolean; google?: boolean; apple?: boolean };
+  } | null;
   let authProvider = userRecord?.auth_provider || userRecord?.preferences?.auth_provider;
   if (!authProvider && userRecord) {
-    const hasApple = !!userRecord.apple_id;
-    const hasGoogle = !!userRecord.google_id;
+    const linked = getLinkedProvidersSnapshot(userRecord);
+    const hasApple = linked.apple;
+    const hasGoogle = linked.google;
     authProvider = hasApple && hasGoogle ? 'apple,google' : hasApple ? 'apple' : hasGoogle ? 'google' : undefined;
   }
   const isOAuth = authProvider === 'apple' || authProvider === 'google' || authProvider === 'apple,google';

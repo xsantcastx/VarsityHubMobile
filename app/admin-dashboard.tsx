@@ -69,6 +69,7 @@ function AdminDashboardScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     coach_id?: string;
+    league_id?: string;
     action?: 'approve' | 'reject';
     review?: string;
   }>();
@@ -245,23 +246,37 @@ function AdminDashboardScreen() {
   useEffect(() => {
     if (emailReviewHandledRef.current || !stats) return;
 
-    const coachId = String(params.coach_id || '').trim();
     const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
-    const isCoachReview = String(params.review || '').trim() === 'coach_application';
-    if (!coachId || !isCoachReview) return;
+    const reviewType = String(params.review || '').trim();
+    const coachId = String(params.coach_id || '').trim();
+    const leagueId = String(params.league_id || '').trim();
+    if (reviewType !== 'coach_application' && reviewType !== 'league_approval') return;
 
     emailReviewHandledRef.current = true;
-    const matchedCoach = stats.pendingCoaches.find(coach => coach.id === coachId);
-    if (!matchedCoach) return;
 
-    if (action) {
-      setCoachNote('');
-      setCoachModal({ coach: matchedCoach, action });
+    if (reviewType === 'coach_application') {
+      if (!coachId) return;
+      const matchedCoach = stats.pendingCoaches.find(coach => coach.id === coachId);
+      if (!matchedCoach) return;
+      if (action) {
+        setCoachNote('');
+        setCoachModal({ coach: matchedCoach, action });
+        return;
+      }
+      setCoachDetailModal(matchedCoach);
       return;
     }
 
-    setCoachDetailModal(matchedCoach);
-  }, [params.action, params.coach_id, params.review, stats]);
+    if (!leagueId) return;
+    const matchedLeague = stats.pendingLeagues.find(league => league.id === leagueId);
+    if (!matchedLeague) return;
+    if (action) {
+      setLeagueNote('');
+      setLeagueModal({ league: matchedLeague, action });
+      return;
+    }
+    setLeagueDetailModal(matchedLeague);
+  }, [params.action, params.coach_id, params.league_id, params.review, stats]);
 
   const onRefresh = () => {
     void loadStats(true);

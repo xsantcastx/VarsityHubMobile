@@ -23,6 +23,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { getLinkedProvidersSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
 import { getOAuthLinkErrorMessage } from '@/utils/oauthErrors';
 
@@ -287,23 +288,6 @@ export default function SettingsScreen() {
     });
   };
 
-  const getLinkedProvidersFromMe = (me: UserMeResponse | null | undefined): LinkedProviders => {
-    const fromPayload = me?.linked_providers;
-    if (fromPayload) {
-      return {
-        password: fromPayload.password === true,
-        google: fromPayload.google === true,
-        apple: fromPayload.apple === true,
-      };
-    }
-    const hasOauthProvider = !!(me?.google_id || me?.apple_id);
-    return {
-      password: typeof me?.has_password === 'boolean' ? me.has_password : !hasOauthProvider,
-      google: !!me?.google_id,
-      apple: !!me?.apple_id,
-    };
-  };
-
   const applyMeSnapshot = (me: UserMeResponse, mounted: boolean) => {
     if (!mounted) return;
     setEmail(me?.email || null);
@@ -330,8 +314,9 @@ export default function SettingsScreen() {
       | string
       | null;
     setRole(effectiveRole);
-    setDeleteRequiresPassword(getLinkedProvidersFromMe(me).password);
-    setLinkedProviders(getLinkedProvidersFromMe(me));
+    const linkedProviders = getLinkedProvidersSnapshot(me);
+    setDeleteRequiresPassword(linkedProviders.password);
+    setLinkedProviders(linkedProviders);
   };
 
   const refreshSettingsUser = async (): Promise<UserMeResponse> => {

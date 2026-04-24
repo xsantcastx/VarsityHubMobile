@@ -64,4 +64,14 @@ describe('Email template helpers', () => {
     const missing = getMissingEmailTemplates();
     expect(missing).toHaveLength(0);
   });
+
+  it('buildLeagueApprovalReviewUrl points into the admin app flow', async () => {
+    process.env.APP_SCHEME = 'varsityhubmobile';
+    const { buildLeagueApprovalReviewUrl } = await import('../lib/email.js');
+    const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
+    expect(url).toContain('varsityhubmobile://admin-dashboard');
+    expect(url).toContain('review=league_approval');
+    expect(url).toContain('league_id=org_123');
+    expect(url).toContain('action=approve');
+  });
 });

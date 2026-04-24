@@ -148,6 +148,12 @@ jobs:
         env:
           DATABASE_URL: 'postgresql://dummy:dummy@localhost:5432/dummy'
 
+      - name: Generate Prisma client
+        working-directory: server
+        run: npx prisma generate
+        env:
+          DATABASE_URL: 'postgresql://dummy:dummy@localhost:5432/dummy'
+
       - name: TypeScript check (server)
         working-directory: server
         run: npx tsc --noEmit --skipLibCheck
@@ -162,6 +168,56 @@ jobs:
         env:
           DATABASE_URL: 'postgresql://dummy:dummy@localhost:5432/dummy'
 
+  server-invariants:
+    name: Server Invariants
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: varsityhub_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d varsityhub_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/varsityhub_test
+      JWT_SECRET: test-jwt-secret-with-at-least-32-chars
+      SENDGRID_API_KEY: test-sendgrid-key
+      ADMIN_EMAILS: admin@example.com
+      CLOUDINARY_CLOUD_NAME: test
+      CLOUDINARY_API_KEY: test
+      CLOUDINARY_API_SECRET: test
+      STRIPE_SECRET_KEY: sk_test_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_dummy
+      APPLE_IAP_SHARED_SECRET: test-apple-secret
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Apply Prisma schema
+        working-directory: server
+        run: npx prisma migrate deploy
+
+      - name: Run approval, OAuth, and session invariants
+        working-directory: server
+        run: npm run test:invariants
   server-tests:
     name: Server Tests
     runs-on: ubuntu-latest
@@ -225,6 +281,7 @@ jobs:
         lint,
         typecheck,
         server-checks,
+        server-invariants,
         server-tests,
         test,
         format-check,
@@ -240,6 +297,7 @@ jobs:
              [ "${{ needs.lint.result }}" != "success" ] || \
              [ "${{ needs.typecheck.result }}" != "success" ] || \
              [ "${{ needs.server-checks.result }}" != "success" ] || \
+             [ "${{ needs.server-invariants.result }}" != "success" ] || \
              [ "${{ needs.server-tests.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ] || \
              [ "${{ needs.format-check.result }}" != "success" ] || \

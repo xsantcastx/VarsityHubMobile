@@ -338,6 +338,13 @@ describe('Coach Approval Workflow', () => {
       expect(userAfter?.organization_id).toBe(createdOrgId);
       expect((userAfter?.preferences as any)?.organization_id).toBe(createdOrgId);
 
+      const orgAfter = await prisma.organization.findUnique({
+        where: { id: createdOrgId },
+        select: { admin_approved: true, approved_at: true },
+      });
+      expect(orgAfter?.admin_approved).toBe(true);
+      expect(orgAfter?.approved_at).toBeTruthy();
+
       await prisma.organizationMembership.deleteMany({ where: { organization_id: createdOrgId } });
       await prisma.organization.delete({ where: { id: createdOrgId } });
       await prisma.coachApplication.deleteMany({ where: { user_id: creator.id } });
@@ -449,6 +456,13 @@ describe('Coach Approval Workflow', () => {
         'Approved App Onboarding Create'
       );
       expect((userAfter?.preferences as any)?.join_request_pending).toBe(false);
+
+      const orgAfter = await prisma.organization.findUnique({
+        where: { id: createdOrgId },
+        select: { admin_approved: true, approved_at: true },
+      });
+      expect(orgAfter?.admin_approved).toBe(true);
+      expect(orgAfter?.approved_at).toBeTruthy();
 
       await prisma.organizationMembership.deleteMany({ where: { organization_id: createdOrgId } });
       await prisma.organization.delete({ where: { id: createdOrgId } });

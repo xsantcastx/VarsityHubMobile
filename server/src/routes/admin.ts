@@ -18,6 +18,7 @@ import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdm
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { adminLimiter } from '../middleware/rateLimiters.js';
+import { captureException } from '../lib/sentry.js';
 
 const adminRouter = express.Router();
 registerIdValidation(adminRouter);
@@ -223,6 +224,11 @@ adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMid
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} approved` });
   } catch (error) {
     console.error('[admin] Error approving coach:', error);
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      context: 'admin_approve_coach_failed',
+      coachId: req.params.id,
+      adminId: req.user?.id || null,
+    });
     return res.status(500).json({ error: 'Failed to approve coach' });
   }
 }));
@@ -247,6 +253,11 @@ adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMidd
     return res.json({ ok: true, message: `Coach ${user.display_name || user.username} rejected` });
   } catch (error) {
     console.error('[admin] Error rejecting coach:', error);
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      context: 'admin_reject_coach_failed',
+      coachId: req.params.id,
+      adminId: req.user?.id || null,
+    });
     return res.status(500).json({ error: 'Failed to reject coach' });
   }
 }));

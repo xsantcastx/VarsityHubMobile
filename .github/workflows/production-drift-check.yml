@@ -1,0 +1,39 @@
+name: Production Drift Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 10 * * *'
+
+jobs:
+  coach-approval-drift:
+    name: Coach Approval Drift Probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Probe production coach approval drift
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Missing GitHub secret: PRODUCTION_DATABASE_URL"
+            exit 1
+          fi
+          npx tsx scripts/probe-coach-approval-drift.ts
+
+      - name: Check production /health
+        run: |
+          curl --fail --silent --show-error https://api-production-8ac3.up.railway.app/health >/dev/null

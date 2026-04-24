@@ -51,6 +51,14 @@
                         <td style="padding:8px 0;font-size:14px;color:#0f172a;text-align:right;border-top:1px solid #e0f2fe;">{{coach_notes}}</td>
                       </tr>
                       {{/if}}
+                      {{#if supporting_document_url}}
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">Supporting document</td>
+                        <td style="padding:8px 0;font-size:14px;text-align:right;border-top:1px solid #e0f2fe;">
+                          <a href="{{supporting_document_url}}" style="color:#0284c7;text-decoration:underline;font-weight:600;">Open PDF</a>
+                        </td>
+                      </tr>
+                      {{/if}}
                     </table>
                   </td>
                 </tr>

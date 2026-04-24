@@ -1549,6 +1549,7 @@ authRouter.post(
           password_reset_code: null,
           password_reset_expires: null,
           password_changed_at: new Date(),
+          session_epoch: { increment: 1 },
         },
       }),
       // Revoke all refresh tokens — stolen tokens can no longer mint new access tokens
@@ -1594,7 +1595,11 @@ authRouter.post(
     await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
-        data: { password_hash, password_changed_at: new Date() },
+        data: {
+          password_hash,
+          password_changed_at: new Date(),
+          session_epoch: { increment: 1 },
+        },
       }),
       prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
     ]);
@@ -2026,13 +2031,28 @@ authRouter.post(
           action: 'reject',
         }),
         supportingDocumentUrl: data.supporting_document_url,
-      }).catch(err => {
-        console.error(
-          '[auth] Failed to send coach-application admin notification to',
-          adminEmail,
-          err?.message || err
-        );
-      });
+      })
+        .then(sent => {
+          if (!sent) {
+            captureException(new Error('Coach application admin notification reported unsent'), {
+              context: 'coach_application_admin_notification_unsent',
+              adminEmail,
+              userId: result.updatedUser.id,
+            });
+          }
+        })
+        .catch(err => {
+          console.error(
+            '[auth] Failed to send coach-application admin notification to',
+            adminEmail,
+            err?.message || err
+          );
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            context: 'coach_application_admin_notification_failed',
+            adminEmail,
+            userId: result.updatedUser.id,
+          });
+        });
     }
 
     return res.status(201).json({
@@ -3135,13 +3155,28 @@ authRouter.post(
             typeof (updateData as any)?.supporting_document_url === 'string'
               ? String((updateData as any).supporting_document_url)
               : undefined,
-        }).catch(err => {
-          console.error(
-            '[auth] Failed to send coach-application admin notification to',
-            adminEmail,
-            err?.message || err
-          );
-        });
+        })
+          .then(sent => {
+            if (!sent) {
+              captureException(new Error('Coach application admin notification reported unsent'), {
+                context: 'coach_application_admin_notification_unsent',
+                adminEmail,
+                userId: updated.id,
+              });
+            }
+          })
+          .catch(err => {
+            console.error(
+              '[auth] Failed to send coach-application admin notification to',
+              adminEmail,
+              err?.message || err
+            );
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'coach_application_admin_notification_failed',
+              adminEmail,
+              userId: updated.id,
+            });
+          });
       }
     }
 

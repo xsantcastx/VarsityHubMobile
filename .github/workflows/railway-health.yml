@@ -3,7 +3,7 @@ name: Railway Health Check
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 9 * * 1' # Weekly Monday 9 AM UTC
+    - cron: '0 * * * *' # Hourly uptime probe
 
 jobs:
   health-check:

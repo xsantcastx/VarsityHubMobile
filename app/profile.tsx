@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
+import { isApprovedCoach } from '@/utils/authState';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
@@ -781,12 +782,12 @@ export default function ProfileScreen() {
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
-  const approvalStatus = (me as any)?.approval_status;
+  const approvedCoach = isApprovedCoach(me as any);
   // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
   // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
   const roleLabel =
     roleRaw === 'coach'
-      ? approvalStatus === 'APPROVED'
+      ? approvedCoach
         ? 'Coach / Organizer'
         : 'Fan'
       : roleRaw === 'fan'
@@ -1112,14 +1113,14 @@ export default function ProfileScreen() {
                 style={[
                   styles.roleBadge,
                   roleRaw === 'coach' &&
-                    (approvalStatus === 'APPROVED' ? styles.coachBadge : styles.fanBadge),
+                    (approvedCoach ? styles.coachBadge : styles.fanBadge),
                   roleRaw === 'player' && styles.playerBadge,
                   roleRaw === 'fan' && styles.fanBadge,
                 ]}
               >
                 <Text style={styles.roleText}>
                   {roleRaw === 'coach'
-                    ? approvalStatus === 'APPROVED'
+                    ? approvedCoach
                       ? 'COACH'
                       : 'FAN'
                     : roleRaw.toUpperCase()}

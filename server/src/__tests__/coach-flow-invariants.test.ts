@@ -290,16 +290,28 @@ describe('coach flow structural invariants', () => {
   // ──────────────────────────────────────────────────────────────────────
 
   describe('organization creation notification flow', () => {
-    it('POST /organizations creates with admin_approved=false by default', () => {
-      expect(/admin_approved:\s*false/.test(organizations)).toBe(true);
+    it('organization create-data sanitizer defaults to pending but supports approved final-setup orgs', () => {
+      expect(/const adminApproved = options\?\.adminApproved === true;/.test(organizations)).toBe(
+        true
+      );
+      expect(/admin_approved:\s*adminApproved/.test(organizations)).toBe(true);
+      expect(/approved_at:\s*adminApproved \? new Date\(\) : null/.test(organizations)).toBe(
+        true
+      );
+    });
+
+    it('only onboarding final-setup with approved user plus approved application can skip pending org approval', () => {
+      expect(/params\.onboarding !== true/.test(organizations)).toBe(true);
+      expect(/String\(params\.approvalStatus \|\| ''\)\.toUpperCase\(\) !== 'APPROVED'/.test(organizations)).toBe(true);
+      expect(/latestApplication\?\.status !== 'approved'/.test(organizations)).toBe(true);
     });
 
     it('organization writes flow through an explicit create-data sanitizer', () => {
       expect(/function buildOrganizationCreateData/.test(organizations)).toBe(true);
       const createRouteBlock = organizations.match(/organizationsRouter\.post\(\s*['"]\/['"][\s\S]{0,5000}/)?.[0] || '';
       const createWithTeamsBlock = organizations.match(/organizationsRouter\.post\(\s*['"]\/create['"][\s\S]{0,5000}/)?.[0] || '';
-      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id\)/.test(createRouteBlock)).toBe(true);
-      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id\)/.test(createWithTeamsBlock)).toBe(true);
+      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id,\s*\{/.test(createRouteBlock)).toBe(true);
+      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id,\s*\{/.test(createWithTeamsBlock)).toBe(true);
     });
 
     it('organization create routes do not spread parsed onboarding payloads into Prisma writes', () => {

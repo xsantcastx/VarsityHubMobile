@@ -166,6 +166,32 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
   // Scheduling a daily no-op misleads anyone reading the startup log into
   // thinking renewal reminders are going out.
   {
+    name: 'coach-approval-drift-probe',
+    cron: '45 9 * * *',
+    description: 'Detect drift between CoachApplication.status and User.approval_status',
+    handler: async () => {
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const { findCoachApprovalDrift } = await import('../lib/coachApprovalDrift.js');
+        const drift = await findCoachApprovalDrift(prisma, 25);
+        if (drift.length === 0) {
+          console.log('[Scheduler] Coach approval drift probe clean');
+          return;
+        }
+        console.error(`[Scheduler] Coach approval drift detected (${drift.length} rows)`);
+        captureException(new Error(`Coach approval drift detected (${drift.length} rows)`), {
+          context: 'coach_approval_drift_probe',
+          mismatches: drift,
+        });
+      } catch (error) {
+        console.error('[Scheduler] Coach approval drift probe failed:', error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+          context: 'coach_approval_drift_probe_failed',
+        });
+      }
+    },
+  },
+  {
     name: 'coach-approval-reminder',
     cron: '30 9 * * *', // Every day at 9:30 AM
     description: 'Log reminder about coaches pending > 7 days',
@@ -361,6 +387,27 @@ function setupFallbackCron(): boolean {
       await remindPendingCoachApprovals(prisma);
     } catch (error) {
       console.error('[Scheduler] Coach approval reminder failed:', error);
+    }
+  }, 24 * 60 * 60 * 1000);
+
+  // Coach approval drift probe - daily
+  setInterval(async () => {
+    try {
+      const { prisma } = await import('../lib/prisma.js');
+      const { findCoachApprovalDrift } = await import('../lib/coachApprovalDrift.js');
+      const drift = await findCoachApprovalDrift(prisma, 25);
+      if (drift.length > 0) {
+        console.error(`[Scheduler] Coach approval drift detected (${drift.length} rows)`);
+        captureException(new Error(`Coach approval drift detected (${drift.length} rows)`), {
+          context: 'coach_approval_drift_probe',
+          mismatches: drift,
+        });
+      }
+    } catch (error) {
+      console.error('[Scheduler] Coach approval drift probe failed:', error);
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        context: 'coach_approval_drift_probe_failed',
+      });
     }
   }, 24 * 60 * 60 * 1000);
 
