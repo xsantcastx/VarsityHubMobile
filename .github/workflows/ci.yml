@@ -152,6 +152,16 @@ jobs:
         working-directory: server
         run: npx tsc --noEmit --skipLibCheck
 
+      # Full server build — catches regressions that tsc alone misses
+      # (file copies in the build chain, missing dist outputs, etc.).
+      # Railway runs this exact command at deploy time; if it fails here,
+      # the deploy would fail there. Pre-deploy catch.
+      - name: Server build
+        working-directory: server
+        run: npm run build
+        env:
+          DATABASE_URL: 'postgresql://dummy:dummy@localhost:5432/dummy'
+
   server-tests:
     name: Server Tests
     runs-on: ubuntu-latest
