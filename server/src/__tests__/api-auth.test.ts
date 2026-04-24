@@ -162,6 +162,11 @@ describe('API Authentication Endpoints', () => {
       expect(response.body).toHaveProperty('user');
       expect(response.body.user.email).toBe(TEST_EMAIL);
       expect(response.body.access_token).toBeDefined();
+
+      // Refresh the shared accessToken — login bumps the user's
+      // session_epoch, which invalidates the token from the earlier
+      // /register call. Subsequent /auth/me tests must use this fresh token.
+      accessToken = response.body.access_token;
     });
 
     it('should reject incorrect password', async () => {
