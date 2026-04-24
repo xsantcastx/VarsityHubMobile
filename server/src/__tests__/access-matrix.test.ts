@@ -112,6 +112,11 @@ async function createUser(
           ? `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '')}${ts}`.slice(0, 20)
           : undefined,
       email_verified: true,
+      // Mirror role + onboarding to canonical columns; canonical readers
+      // prefer the column over preferences JSON, and the column defaults
+      // to (fan, false), so prefs-only fixtures get misread as fan/incomplete.
+      role,
+      onboarding_completed: true,
       ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
       preferences,
     },
