@@ -398,6 +398,13 @@ describeDb('Critical Server Flows', () => {
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
+          // COPPA gate in /me/complete-onboarding requires a DOB on file.
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          // Mirror plan to the canonical column — getSelectedPlan reads
+          // the column first; the JSON-only `preferences.plan: 'veteran'`
+          // would be invisible to complete-onboarding's preserve-paid-plan
+          // logic, which would default the user back to rookie.
+          plan: 'veteran',
           approval_status: 'APPROVED',
           preferences: {
             role: 'coach',
@@ -441,6 +448,8 @@ describeDb('Critical Server Flows', () => {
           email_verified: true,
           role: 'fan',
           onboarding_completed: true,
+          // COPPA gate in /me/complete-onboarding requires a DOB on file.
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           approval_status: 'APPROVED',
           preferences: {
             role: 'fan',
@@ -484,6 +493,14 @@ describeDb('Critical Server Flows', () => {
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
+          // Mirror billing state to canonical columns — isPaymentPending
+          // reads the column first and only falls back to the JSON when
+          // the column is null. Without these, /auth/skip-payment treats
+          // the user as having no pending payment and short-circuits.
+          plan: 'rookie',
+          pending_plan: 'legend',
+          payment_pending: true,
+          payment_approved: true,
           approval_status: 'PENDING',
           preferences: {
             role: 'coach',
