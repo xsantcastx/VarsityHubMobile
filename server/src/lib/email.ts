@@ -877,13 +877,19 @@ async function sendJoinRequestAdminTemplate(params: {
   to: string;
   subject: string;
   leagueName: string;
-  ownerName: string;
-  ownerEmail: string;
+  /** Name shown in the "Coach" row of the email (the person being reviewed). */
+  requesterName: string;
+  /** Contact email of the requester — shown or linked in the request details. */
+  requesterEmail: string;
+  /** Name used to greet the admin reviewing the request. */
+  adminName?: string;
   sport?: string;
   orgType?: string;
   approveUrl?: string;
   rejectUrl?: string;
   supportingDocumentUrl?: string;
+  coachNotes?: string;
+  orgLogoUrl?: string;
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.JOIN_REQUEST_ADMIN;
   if (!templateId) {
@@ -893,19 +899,34 @@ async function sendJoinRequestAdminTemplate(params: {
     return false;
   }
 
+  // The SendGrid join-request-admin template renders `{{requester_name}}`,
+  // `{{org_name}}`, `{{admin_name}}`, `{{deny_url}}`, `{{coach_notes}}`,
+  // `{{org_logo_url}}`. Previously the helper sent `league_name`/`owner_name`/
+  // `reject_url`, none of which the template references — so the "Coach:" and
+  // "League:" rows rendered blank and the Deny button had no href. Send both
+  // canonical (template-matching) and legacy keys.
   return sendTemplateEmail(
     templateId,
     params.to,
     params.subject,
     {
       ...getCommonTemplateData(),
+      // Canonical keys that match join-request-admin.html
+      requester_name: params.requesterName,
+      org_name: params.leagueName,
+      admin_name: params.adminName || 'Admin',
+      approve_url: params.approveUrl || '',
+      deny_url: params.rejectUrl || '',
+      coach_notes: params.coachNotes || '',
+      org_logo_url: params.orgLogoUrl || '',
+      // Legacy keys (preserved for backward compatibility with any other
+      // template revisions that may reference them)
       league_name: params.leagueName,
-      owner_name: params.ownerName,
-      owner_email: params.ownerEmail,
+      owner_name: params.requesterName,
+      owner_email: params.requesterEmail,
       sport: params.sport || 'Not specified',
       org_type: params.orgType || 'Not specified',
       created_date: new Date().toLocaleDateString(),
-      approve_url: params.approveUrl || '',
       reject_url: params.rejectUrl || '',
       supporting_document_url: params.supportingDocumentUrl || '',
       supporting_document_link: params.supportingDocumentUrl
@@ -938,15 +959,18 @@ export async function sendLeagueApprovalRequestEmail(params: {
   const { getAllAdminEmails } = await import('./adminEmails.js');
   const adminEmails = getAllAdminEmails();
 
-  // Send to all admins in parallel
+  // Send to all admins in parallel. The requester in this flow is the
+  // league-owner applicant (the one who just created the league and needs
+  // platform approval).
   const results = await Promise.all(
     adminEmails.map(to =>
       sendJoinRequestAdminTemplate({
         to,
         subject: `New League Awaiting Approval: ${params.leagueName}`,
         leagueName: params.leagueName,
-        ownerName: params.ownerName,
-        ownerEmail: params.ownerEmail,
+        requesterName: params.ownerName,
+        requesterEmail: params.ownerEmail,
+        adminName: 'Admin',
         sport: params.sport,
         orgType: params.orgType,
         approveUrl,
@@ -971,15 +995,24 @@ export async function sendCoachJoinRequestEmail(params: {
   coachEmail: string;
   organizationName: string;
   organizationId: string;
+  approveUrl?: string;
+  rejectUrl?: string;
+  coachNotes?: string;
 }): Promise<boolean> {
+  // The email goes TO the league owner; the requester (shown in the
+  // "Coach" row of the template) is the coach who wants to join.
   return sendJoinRequestAdminTemplate({
     to: params.ownerEmail,
     subject: `New Coach Request: ${params.coachName} wants to join ${params.organizationName}`,
     leagueName: params.organizationName,
-    ownerName: params.ownerName,
-    ownerEmail: params.coachEmail,
+    requesterName: params.coachName,
+    requesterEmail: params.coachEmail,
+    adminName: params.ownerName,
     sport: 'N/A',
     orgType: 'Coach join request',
+    approveUrl: params.approveUrl,
+    rejectUrl: params.rejectUrl,
+    coachNotes: params.coachNotes,
   });
 }
 
@@ -987,15 +1020,25 @@ export async function sendCoachApplicationAdminEmail(params: {
   to: string;
   applicantName: string;
   applicantEmail: string;
+  organizationName?: string;
+  approveUrl?: string;
+  rejectUrl?: string;
+  coachNotes?: string;
+  supportingDocumentUrl?: string;
 }): Promise<boolean> {
   return sendJoinRequestAdminTemplate({
     to: params.to,
     subject: `New coach application: ${params.applicantName}`,
-    leagueName: 'VarsityHub Coach Application',
-    ownerName: params.applicantName,
-    ownerEmail: params.applicantEmail,
+    leagueName: params.organizationName || 'VarsityHub Coach Application',
+    requesterName: params.applicantName,
+    requesterEmail: params.applicantEmail,
+    adminName: 'Admin',
     sport: 'N/A',
     orgType: 'Coach application',
+    approveUrl: params.approveUrl,
+    rejectUrl: params.rejectUrl,
+    coachNotes: params.coachNotes,
+    supportingDocumentUrl: params.supportingDocumentUrl,
   });
 }
 
