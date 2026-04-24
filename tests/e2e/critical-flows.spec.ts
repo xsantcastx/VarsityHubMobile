@@ -33,7 +33,14 @@ test.describe('Critical User Flows', () => {
     await page.waitForLoadState('networkidle');
 
     // Find and click sign up
-    const signUpButton = page.locator('text=/sign up/i, button:has-text("Sign Up"), a:has-text("Sign Up")').first();
+    // Playwright's text= engine can't be combined with CSS selectors via
+    // a comma — the previous "text=/.../, button:has-text(...)" string was
+    // an invalid selector that Playwright rejected. Use .or() chaining.
+    const signUpButton = page
+      .locator('text=/sign up/i')
+      .or(page.locator('button:has-text("Sign Up")'))
+      .or(page.locator('a:has-text("Sign Up")'))
+      .first();
     await signUpButton.click();
     await page.waitForTimeout(1000);
 
@@ -81,7 +88,10 @@ test.describe('Critical User Flows', () => {
       // If no verification screen, check for success message or redirect
       await page.waitForTimeout(2000);
       // App should not be in error state
-      const errorText = page.locator('text=/error/i, text=/failed/i').first();
+      const errorText = page
+        .locator('text=/error/i')
+        .or(page.locator('text=/failed/i'))
+        .first();
       const hasError = await errorText.isVisible().catch(() => false);
       expect(hasError).toBeFalsy();
     }
@@ -107,7 +117,11 @@ test.describe('Critical User Flows', () => {
     await page.waitForLoadState('networkidle');
 
     // Find and click sign in
-    const signInButton = page.locator('text=/sign in/i, button:has-text("Sign In"), a:has-text("Sign In")').first();
+    const signInButton = page
+      .locator('text=/sign in/i')
+      .or(page.locator('button:has-text("Sign In")'))
+      .or(page.locator('a:has-text("Sign In")'))
+      .first();
     await signInButton.click();
     await page.waitForTimeout(1000);
 
@@ -126,7 +140,11 @@ test.describe('Critical User Flows', () => {
     await page.waitForTimeout(3000);
 
     // Check for success indicators (no error messages)
-    const errorText = page.locator('text=/error/i, text=/invalid/i, text=/failed/i').first();
+    const errorText = page
+      .locator('text=/error/i')
+      .or(page.locator('text=/invalid/i'))
+      .or(page.locator('text=/failed/i'))
+      .first();
     const hasError = await errorText.isVisible().catch(() => false);
     expect(hasError).toBeFalsy();
   });
@@ -172,7 +190,11 @@ test.describe('Critical User Flows', () => {
     ];
 
     for (const navItem of navItems) {
-      const navLink = page.locator(`text=/${navItem}/i, a:has-text("${navItem}"), button:has-text("${navItem}")`).first();
+      const navLink = page
+        .locator(`text=/${navItem}/i`)
+        .or(page.locator(`a:has-text("${navItem}")`))
+        .or(page.locator(`button:has-text("${navItem}")`))
+        .first();
       const isVisible = await navLink.isVisible().catch(() => false);
       
       if (isVisible) {

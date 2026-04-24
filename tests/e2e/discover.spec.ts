@@ -33,7 +33,9 @@ async function createTestUser(request: any) {
   const displayName = `Test User ${Date.now()}`;
 
   // Sign up
-  const signupResponse = await request.post(`${API_BASE_URL}/auth/signup`, {
+  // Note: requires ENABLE_DEV_CODES=1 in server/.env so the response
+  // includes dev_verification_code and we can auto-verify the test user.
+  const signupResponse = await request.post(`${API_BASE_URL}/auth/register`, {
     data: {
       email,
       password,
@@ -43,7 +45,17 @@ async function createTestUser(request: any) {
 
   expect(signupResponse.status()).toBe(201);
   const signupData = await signupResponse.json();
-  const token = signupData.token;
+  // Register response field is `access_token`, not `token`. Older test
+  // code read `signupData.token` which was undefined, then every authed
+  // request silently went out as `Authorization: Bearer undefined`.
+  const token = signupData.access_token;
+
+  if (signupData.dev_verification_code) {
+    await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { code: String(signupData.dev_verification_code) },
+    });
+  }
 
   return { email, password, displayName, token, userId: signupData.user.id };
 }

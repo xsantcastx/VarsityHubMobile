@@ -9,7 +9,10 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE_URL = process.env.API_URL || 'http://localhost:4000';
 
-// Helper to create authenticated coach user
+// Helper to create authenticated coach user.
+// Auto-verifies the email when ENABLE_DEV_CODES=1 in the server env —
+// without verification, POST /teams/create returns 403 before the Zod
+// validation runs and tests fail with the wrong status code.
 async function createTestCoach(request: any) {
   const testEmail = `coach-${Date.now()}@varsityhub-test.app`;
   const testPassword = 'TestPassword123!';
@@ -24,11 +27,16 @@ async function createTestCoach(request: any) {
   });
 
   expect(registerResponse.ok()).toBeTruthy();
-  const { access_token, user } = await registerResponse.json();
-  
-  // Note: In real scenario, user would verify email
-  // For testing, we'll work with what we have
-  
+  const body = await registerResponse.json();
+  const { access_token, user, dev_verification_code } = body;
+
+  if (dev_verification_code) {
+    await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+      data: { code: String(dev_verification_code) },
+    });
+  }
+
   return { access_token, user, email: testEmail, password: testPassword };
 }
 
@@ -134,8 +142,9 @@ test.describe('Teams API', () => {
       },
     });
 
-    // Should either return 404 (not found) or 200 (if test team exists)
-    expect([200, 404]).toContain(response.status());
+    // Acceptable outcomes: 200 (team exists), 404 (not found),
+    // 400 (bad CUID — id format validation runs before lookup).
+    expect([200, 400, 404]).toContain(response.status());
   });
 
   test('POST /teams/create should enforce team limits for rookie plan', async ({ request }) => {

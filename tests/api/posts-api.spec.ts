@@ -8,7 +8,10 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE_URL = process.env.API_URL || 'http://localhost:4000';
 
-// Helper to create authenticated user
+// Helper to create authenticated user.
+// Auto-verifies the email when ENABLE_DEV_CODES=1 in the server env so
+// downstream POST /posts (which requires verified email) doesn't 403
+// before payload validation runs.
 async function createTestUser(request: any) {
   const testEmail = `posts-test-${Date.now()}@varsityhub-test.app`;
   const testPassword = 'TestPassword123!';
@@ -22,8 +25,16 @@ async function createTestUser(request: any) {
   });
 
   expect(response.ok()).toBeTruthy();
-  const { access_token, user } = await response.json();
-  
+  const body = await response.json();
+  const { access_token, user, dev_verification_code } = body;
+
+  if (dev_verification_code) {
+    await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
+      headers: { Authorization: `Bearer ${access_token}` },
+      data: { code: String(dev_verification_code) },
+    });
+  }
+
   return { access_token, user, email: testEmail, password: testPassword };
 }
 
@@ -46,7 +57,9 @@ test.describe('Posts API', () => {
 
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
-    expect(Array.isArray(body)).toBeTruthy();
+    // GET /posts is now paginated: returns { items, nextCursor } instead
+    // of a bare array.
+    expect(Array.isArray(body.items)).toBeTruthy();
   });
 
   test('POST /posts should create a new post with content', async ({ request }) => {

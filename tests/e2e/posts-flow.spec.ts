@@ -33,9 +33,14 @@ test.describe('Posts E2E Flow', () => {
     await page.waitForLoadState('networkidle');
 
     // Look for create post button/link
-    const createPostButton = page.locator(
-      'text=/create post/i, button:has-text("Post"), a:has-text("Create"), [aria-label*="post" i]'
-    ).first();
+    // Playwright's text= engine can't be combined with CSS via a comma —
+    // use .or() chaining instead so each branch is a real locator.
+    const createPostButton = page
+      .locator('text=/create post/i')
+      .or(page.locator('button:has-text("Post")'))
+      .or(page.locator('a:has-text("Create")'))
+      .or(page.locator('[aria-label*="post" i]'))
+      .first();
 
     const isVisible = await createPostButton.isVisible().catch(() => false);
     
@@ -126,9 +131,11 @@ test.describe('Posts E2E Flow', () => {
         await page.waitForTimeout(2000);
 
         // Should show validation error
-        const errorText = page.locator(
-          'text=/required/i, text=/error/i, text=/invalid/i'
-        ).first();
+        const errorText = page
+          .locator('text=/required/i')
+          .or(page.locator('text=/error/i'))
+          .or(page.locator('text=/invalid/i'))
+          .first();
         
         const hasError = await errorText.isVisible().catch(() => false);
         // Error may or may not be shown depending on validation

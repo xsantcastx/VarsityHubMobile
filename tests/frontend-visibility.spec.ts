@@ -166,7 +166,12 @@ test.describe('Front-End Visibility Tests', () => {
       }
 
       // Check for empty state indicators
-      const emptyStateText = page.locator('text=/no posts/i, text=/no content/i, text=/empty/i, [data-testid="empty-state"]').first();
+      const emptyStateText = page
+        .locator('text=/no posts/i')
+        .or(page.locator('text=/no content/i'))
+        .or(page.locator('text=/empty/i'))
+        .or(page.locator('[data-testid="empty-state"]'))
+        .first();
       const createButton = page.locator('button:has-text(/create/i), button:has-text(/first/i), [data-testid="create-button"]').first();
 
       const emptyStateVisible = await emptyStateText.isVisible().catch(() => false);
@@ -244,7 +249,10 @@ test.describe('Front-End Visibility Tests', () => {
       // Check for text elements that should be visible
       const userName = page.locator('h1, h2, [class*="name"], [data-testid="user-name"]').first();
       const handle = page.locator('[class*="handle"], [class*="username"], text=/^@/').first();
-      const joinDate = page.locator('text=/joined/i, text=/member since/i').first();
+      const joinDate = page
+        .locator('text=/joined/i')
+        .or(page.locator('text=/member since/i'))
+        .first();
 
       const checks = {
         userName: await userName.isVisible().catch(() => false),

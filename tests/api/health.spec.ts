@@ -9,50 +9,61 @@ import { test, expect } from '@playwright/test';
 
 const API_BASE_URL = process.env.API_URL || 'http://localhost:4000';
 
+// Detailed health (integrations, env, templates) lives behind
+// HEALTH_CHECK_SECRET so the public endpoint never leaks template IDs or
+// service-name fingerprinting. The detail suite runs only when the env
+// var is set; otherwise we just smoke-test the public bare response.
+const HEALTH_SECRET = process.env.HEALTH_CHECK_SECRET || '';
+
 test.describe('API Health Checks', () => {
-  test('Health endpoint should return OK status', async ({ request }) => {
+  test('Public health endpoint returns OK + timestamp', async ({ request }) => {
     const response = await request.get(`${API_BASE_URL}/health`);
-    
+
     expect(response.ok()).toBeTruthy();
-    
+
     const body = await response.json();
     expect(body.status).toBe('ok');
     expect(body.timestamp).toBeDefined();
   });
 
-  test('Health endpoint should report database connection', async ({ request }) => {
-    const response = await request.get(`${API_BASE_URL}/health`);
-    const body = await response.json();
-    
-    expect(body.integrations).toBeDefined();
-    expect(body.integrations.database).toBe(true);
-  });
+  test.describe('Detailed health (requires HEALTH_CHECK_SECRET)', () => {
+    test.skip(!HEALTH_SECRET, 'Set HEALTH_CHECK_SECRET to run detailed health assertions');
 
-  test('Health endpoint should report JWT configuration', async ({ request }) => {
-    const response = await request.get(`${API_BASE_URL}/health`);
-    const body = await response.json();
-    
-    expect(body.integrations.jwt).toBe(true);
-  });
+    const headers = { 'x-health-check-secret': HEALTH_SECRET };
 
-  test('Health endpoint should report email service status', async ({ request }) => {
-    const response = await request.get(`${API_BASE_URL}/health`);
-    const body = await response.json();
-    
-    // Email service should be configured (SendGrid)
-    expect(body.integrations.sendgrid).toBeDefined();
-    
-    // If not configured, should have warning
-    if (!body.integrations.sendgrid) {
-      expect(body.warnings).toContain(expect.stringContaining('SendGrid'));
-    }
-  });
+    test('reports database connection', async ({ request }) => {
+      const response = await request.get(`${API_BASE_URL}/health`, { headers });
+      const body = await response.json();
 
-  test('Health endpoint should include environment info', async ({ request }) => {
-    const response = await request.get(`${API_BASE_URL}/health`);
-    const body = await response.json();
-    
-    expect(body.environment).toBeDefined();
-    expect(['development', 'production', 'test']).toContain(body.environment);
+      expect(body.integrations).toBeDefined();
+      expect(body.integrations.database).toBe(true);
+    });
+
+    test('reports JWT configuration', async ({ request }) => {
+      const response = await request.get(`${API_BASE_URL}/health`, { headers });
+      const body = await response.json();
+
+      expect(body.integrations.jwt).toBe(true);
+    });
+
+    test('reports email service status', async ({ request }) => {
+      const response = await request.get(`${API_BASE_URL}/health`, { headers });
+      const body = await response.json();
+
+      expect(body.integrations.sendgrid).toBeDefined();
+      if (!body.integrations.sendgrid) {
+        expect(body.warnings).toEqual(
+          expect.arrayContaining([expect.stringContaining('SendGrid')])
+        );
+      }
+    });
+
+    test('includes environment info', async ({ request }) => {
+      const response = await request.get(`${API_BASE_URL}/health`, { headers });
+      const body = await response.json();
+
+      expect(body.environment).toBeDefined();
+      expect(['development', 'production', 'test']).toContain(body.environment);
+    });
   });
 });

@@ -21,7 +21,15 @@ const generateTestData = () => {
   };
 };
 
-// Helper to create authenticated user via API
+// Helper to create authenticated user via API.
+//
+// Registers, then auto-verifies the email so the test can perform
+// verified-only actions (uploads, posts, team creation, etc.). Email
+// verification requires the plaintext code, which the server only
+// returns in the register response when ENABLE_DEV_CODES=1 is set in
+// the server env. Tests that hit verified-only endpoints will fail
+// with 403 "Email verification required" otherwise — set the env var
+// in server/.env for local Playwright runs.
 async function createUser(request: any, email: string, password: string, displayName: string) {
   const response = await request.post(`${API_URL}/auth/register`, {
     data: {
@@ -30,15 +38,28 @@ async function createUser(request: any, email: string, password: string, display
       display_name: displayName,
     },
   });
-  
+
   if (response.status() !== 201) {
     const body = await response.text();
     throw new Error(`Failed to create user: ${response.status()} - ${body}`);
   }
-  
+
   const data = await response.json();
+  const accessToken = data.access_token;
+
+  if (data.dev_verification_code) {
+    const verifyRes = await request.post(`${API_URL}/auth/verify/confirm`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      data: { code: String(data.dev_verification_code) },
+    });
+    if (verifyRes.status() !== 200) {
+      const body = await verifyRes.text();
+      throw new Error(`Failed to auto-verify test user: ${verifyRes.status()} - ${body}`);
+    }
+  }
+
   return {
-    accessToken: data.access_token,
+    accessToken,
     user: data.user,
   };
 }
