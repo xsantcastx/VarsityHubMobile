@@ -80,6 +80,15 @@ describeDb('requireOnboarded coach gate matrix', () => {
 
   async function createUser(options: CreateUserOptions) {
     const passwordHash = await bcrypt.hash(PASSWORD, 10);
+    // Mirror role + onboarding_completed from preferences to the canonical
+    // columns. The runtime canonical readers prefer the column over the
+    // JSON, and the column defaults to (fan, false), so a fixture that
+    // only sets `preferences.role: 'coach'` is read as a fan with
+    // incomplete onboarding — exactly the drift the v1.0.3 atomic-write
+    // pass was added to prevent in production code.
+    const prefsRole = options.preferences?.role;
+    const role = prefsRole === 'coach' || prefsRole === 'fan' ? prefsRole : undefined;
+    const onboardingCompleted = options.preferences?.onboarding_completed === true;
     const user = await prisma.user.create({
       data: {
         email: options.email,
@@ -93,6 +102,8 @@ describeDb('requireOnboarded coach gate matrix', () => {
         rejected_at: options.rejectedAt ?? null,
         rejection_reason: options.rejectionReason ?? null,
         date_of_birth: options.dateOfBirth ?? new Date('1990-01-01'),
+        ...(role ? { role } : {}),
+        onboarding_completed: onboardingCompleted,
         preferences: options.preferences,
       },
     });
