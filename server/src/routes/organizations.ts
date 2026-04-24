@@ -840,6 +840,13 @@ organizationsRouter.post(
   '/create',
   requireAuth as any,
   requireVerified as any,
+  // Align with the canonical POST /organizations route (line 630). The legacy
+  // /create variant previously omitted requireOnboarded and relied on inline
+  // role + rejection-cooldown checks in the handler body. Those inline checks
+  // remain as defense-in-depth, but middleware alignment removes the asymmetric
+  // gate-chain that's historically been how regressions reappear (the two
+  // routes drift when someone updates one and not the other).
+  requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
