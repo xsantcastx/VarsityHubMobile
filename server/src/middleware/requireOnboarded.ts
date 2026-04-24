@@ -5,6 +5,7 @@ import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
 import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
 import { getSelectedPlan, isPaymentApproved, isPaymentPending } from '../lib/userBillingState.js';
+import { getLatestCoachApplication } from '../lib/coachApplications.js';
 
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
@@ -91,19 +92,33 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     });
   }
 
-  // Extra guard: coaches must belong to an admin-approved org
+  // Extra guard: coaches must belong to an admin-approved org.
+  //
+  // In the pre-CoachApplication model, creating an organization WAS the coach's
+  // approval application — so Org.admin_approved=false meant the coach hadn't
+  // been approved yet. In the current model, CoachApplication is the canonical
+  // approval surface and the Org is just the coach's workspace. Approved-via-
+  // application coaches who create their real org during final setup should NOT
+  // be re-blocked here just because the new org row hasn't been admin-approved
+  // (it never will be — admin approval now happens on the application, not the
+  // org). Only enforce this gate on legacy coaches who never went through the
+  // CoachApplication flow.
   if (role === 'coach' && u?.approval_status === 'APPROVED') {
     const orgId = prefs?.organization_id as string | undefined;
     if (orgId) {
-      const org = await prisma.organization.findUnique({
-        where: { id: orgId },
-        select: { admin_approved: true },
-      });
-      if (org && !org.admin_approved) {
-        return res.status(403).json({
-          error: 'Your organization is pending approval.',
-          code: 'APPROVAL_REQUIRED',
+      const latestApp = await getLatestCoachApplication(prisma as any, req.user.id).catch(() => null);
+      const hasApprovedApplication = latestApp?.status === 'approved';
+      if (!hasApprovedApplication) {
+        const org = await prisma.organization.findUnique({
+          where: { id: orgId },
+          select: { admin_approved: true },
         });
+        if (org && !org.admin_approved) {
+          return res.status(403).json({
+            error: 'Your organization is pending approval.',
+            code: 'APPROVAL_REQUIRED',
+          });
+        }
       }
     }
   }
