@@ -28,6 +28,8 @@ describe('Team transfer authorization boundaries', () => {
         password_hash: passwordHash,
         display_name: 'Team Transfer Mover',
         email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         date_of_birth: new Date('1990-01-01'),
         preferences: {

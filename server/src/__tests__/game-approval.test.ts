@@ -62,6 +62,8 @@ describe('Game Approval Flow', () => {
         password_hash: hash,
         display_name: 'Test Coach',
         email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
@@ -84,6 +86,8 @@ describe('Game Approval Flow', () => {
         password_hash: hash,
         display_name: 'Org Manager',
         email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
@@ -107,6 +111,8 @@ describe('Game Approval Flow', () => {
         password_hash: hash,
         display_name: 'Test Fan',
         email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'fan',

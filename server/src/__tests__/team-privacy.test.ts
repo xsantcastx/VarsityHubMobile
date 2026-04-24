@@ -41,6 +41,8 @@ describe('Team Privacy (is_private)', () => {
 
   async function makeUser(prefix: string, prefs: Record<string, unknown> = {}) {
     const hash = await bcrypt.hash(PASSWORD, 10);
+    const prefsRole = (prefs as any)?.role;
+    const role = prefsRole === 'coach' || prefsRole === 'fan' ? prefsRole : undefined;
     return prisma.user.create({
       data: {
         email: `${prefix}-${ts}-${Math.random()}@example.com`,
@@ -50,6 +52,8 @@ describe('Team Privacy (is_private)', () => {
         email_verified: true,
         approval_status: 'APPROVED',
         date_of_birth: new Date('1990-01-01'),
+        ...(role ? { role } : {}),
+        onboarding_completed: true,
         preferences: { onboarding_completed: true, ...prefs },
       },
     });

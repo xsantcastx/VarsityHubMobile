@@ -32,6 +32,8 @@ describeDb('Posts API Endpoints', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Test Posts User',
         email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
         approval_status: 'APPROVED',
         preferences: {
           role: 'coach',
