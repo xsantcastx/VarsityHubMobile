@@ -1871,9 +1871,15 @@ authRouter.post(
         preferences: mergeAuthStateIntoPreferences(merged, {
           role: 'coach',
           onboarding_completed: false,
+          organization_id: null,
+          proceeding_as_fan: false,
         }),
-        role: 'coach',
-        onboarding_completed: false,
+        ...buildAuthStateColumns({
+          role: 'coach',
+          onboarding_completed: false,
+          organization_id: null,
+          proceeding_as_fan: false,
+        }),
         approval_status: 'PENDING',
         rejected_at: null,
         rejection_reason: null,

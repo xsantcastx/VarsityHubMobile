@@ -1515,13 +1515,43 @@ organizationsRouter.post(
       // Check if requester is a coach before the write so we can set PENDING atomically
       const requester = await prisma.user.findUnique({
         where: { id: req.user!.id },
-        select: { preferences: true, role: true },
+        select: {
+          preferences: true,
+          role: true,
+          approval_status: true,
+          rejected_at: true,
+          rejection_reason: true,
+        },
       });
       const requesterPrefs = getPreferencesObject(requester?.preferences);
       if (getCanonicalUserRole(requester as any) !== 'coach') {
         return res
           .status(403)
           .json({ error: 'Upgrade to a coach account before requesting to join a league.' });
+      }
+      if (requester?.approval_status === 'REJECTED') {
+        const rejectionCooldownMs = 48 * 60 * 60 * 1000;
+        let rejectedAt = requester.rejected_at;
+        if (!rejectedAt) {
+          rejectedAt = new Date();
+          await prisma.user.update({
+            where: { id: req.user!.id },
+            data: { rejected_at: rejectedAt },
+          });
+          await invalidateMeCacheForUser(req.user!.id);
+        }
+        const elapsed = Date.now() - new Date(rejectedAt).getTime();
+        if (Number.isFinite(elapsed) && elapsed < rejectionCooldownMs) {
+          const retryAfterMs = rejectionCooldownMs - elapsed;
+          return res.status(429).json({
+            error: 'Your previous coach application was declined. Please wait before trying again.',
+            code: 'REJECTION_COOLDOWN',
+            retry_after_ms: retryAfterMs,
+            retry_after_hours: Math.ceil(retryAfterMs / (60 * 60 * 1000)),
+            retry_at: new Date(Date.now() + retryAfterMs).toISOString(),
+            reason: requester.rejection_reason || null,
+          });
+        }
       }
 
       // Create join request + set coach to PENDING atomically
