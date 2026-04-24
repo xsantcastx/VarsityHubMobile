@@ -117,6 +117,7 @@ describe('Coach Approval Workflow', () => {
         where: { league_owner_id: approvedCoachId },
       });
       if (approvedOrg) orgIds.push(approvedOrg.id);
+      await prisma.coachApplication.deleteMany({ where: { user_id: { in: ids } } });
       await prisma.organizationJoinRequest.deleteMany({ where: { user_id: { in: ids } } });
       await prisma.organizationMembership.deleteMany({
         where: { user_id: { in: ids } },
@@ -241,8 +242,8 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('POST /organizations sets creator to PENDING', () => {
-    it('creator is PENDING after POST /organizations', async () => {
+  describe('POST /organizations approval transition', () => {
+    it('legacy creator is PENDING after POST /organizations', async () => {
       const creatorHash = await bcrypt.hash(PASSWORD, 10);
       const creator = await prisma.user.create({
         data: {
@@ -282,10 +283,70 @@ describe('Coach Approval Workflow', () => {
       await prisma.organization.delete({ where: { id: createdOrgId } });
       await prisma.user.delete({ where: { id: creator.id } });
     });
+
+    it('approved coach application creator stays APPROVED after POST /organizations', async () => {
+      const creatorHash = await bcrypt.hash(PASSWORD, 10);
+      const creator = await prisma.user.create({
+        data: {
+          email: `org-approved-app-${ts}@example.com`,
+          password_hash: creatorHash,
+          display_name: 'Approved App Org Creator',
+          email_verified: true,
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          role: 'coach',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+          approval_status: 'APPROVED',
+        },
+      });
+      const token = signJwt({ id: creator.id });
+
+      await prisma.coachApplication.create({
+        data: {
+          user_id: creator.id,
+          status: 'approved',
+          organization_name: `Approved App League ${ts}`,
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+          reviewed_at: new Date(),
+        },
+      });
+
+      const res = await request(app)
+        .post('/organizations')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: `Approved App Simple Create ${ts}`,
+          sport: 'basketball',
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+        });
+
+      expect(res.status).toBe(201);
+      const createdOrgId = res.body?.id;
+      expect(createdOrgId).toBeTruthy();
+
+      const userAfter = await prisma.user.findUnique({
+        where: { id: creator.id },
+        select: { approval_status: true, organization_id: true, preferences: true },
+      });
+      expect(userAfter?.approval_status).toBe('APPROVED');
+      expect(userAfter?.organization_id).toBe(createdOrgId);
+      expect((userAfter?.preferences as any)?.organization_id).toBe(createdOrgId);
+
+      await prisma.organizationMembership.deleteMany({ where: { organization_id: createdOrgId } });
+      await prisma.organization.delete({ where: { id: createdOrgId } });
+      await prisma.coachApplication.deleteMany({ where: { user_id: creator.id } });
+      await prisma.user.delete({ where: { id: creator.id } });
+    });
   });
 
-  describe('POST /organizations/create sets creator to PENDING', () => {
-    it('creator is PENDING after POST /organizations/create', async () => {
+  describe('POST /organizations/create approval transition', () => {
+    it('legacy creator is PENDING after POST /organizations/create', async () => {
       const creatorHash = await bcrypt.hash(PASSWORD, 10);
       const creator = await prisma.user.create({
         data: {
@@ -329,6 +390,70 @@ describe('Coach Approval Workflow', () => {
       await prisma.organization.delete({ where: { id: orgIdFromCreate } });
       await prisma.user.delete({ where: { id: creator.id } });
       orgIdFromCreate = '';
+    });
+
+    it('approved coach application creator stays APPROVED after POST /organizations/create', async () => {
+      const creatorHash = await bcrypt.hash(PASSWORD, 10);
+      const creator = await prisma.user.create({
+        data: {
+          email: `onboarding-approved-app-${ts}@example.com`,
+          password_hash: creatorHash,
+          display_name: 'Approved App Onboarding Creator',
+          email_verified: true,
+          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+          role: 'coach',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+          approval_status: 'APPROVED',
+        },
+      });
+      const token = signJwt({ id: creator.id });
+
+      await prisma.coachApplication.create({
+        data: {
+          user_id: creator.id,
+          status: 'approved',
+          organization_name: `Approved App Onboarding League ${ts}`,
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+          reviewed_at: new Date(),
+        },
+      });
+
+      const res = await request(app)
+        .post('/organizations/create')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: `Approved App Onboarding Create ${ts}`,
+          sport: 'basketball',
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+        });
+
+      expect(res.status).toBe(201);
+      const createdOrgId = res.body?.id;
+      expect(createdOrgId).toBeTruthy();
+
+      const userAfter = await prisma.user.findUnique({
+        where: { id: creator.id },
+        select: { approval_status: true, preferences: true, organization_id: true },
+      });
+      expect(userAfter?.approval_status).toBe('APPROVED');
+      expect(userAfter?.organization_id).toBe(createdOrgId);
+      expect((userAfter?.preferences as any)?.organization_id).toBe(createdOrgId);
+      expect((userAfter?.preferences as any)?.organization_name).toContain(
+        'Approved App Onboarding Create'
+      );
+      expect((userAfter?.preferences as any)?.join_request_pending).toBe(false);
+
+      await prisma.organizationMembership.deleteMany({ where: { organization_id: createdOrgId } });
+      await prisma.organization.delete({ where: { id: createdOrgId } });
+      await prisma.coachApplication.deleteMany({ where: { user_id: creator.id } });
+      await prisma.user.delete({ where: { id: creator.id } });
     });
   });
 

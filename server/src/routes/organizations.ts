@@ -23,6 +23,7 @@ import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
+import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -127,6 +128,11 @@ function buildPendingLeagueOwnerPreferences(
   next.organization_name = organization.name;
   next.join_request_pending = false;
   return next;
+}
+
+async function shouldForcePendingApprovalOnOrganizationCreate(userId: string): Promise<boolean> {
+  const latestApplication = await getLatestCoachApplication(prisma as any, userId);
+  return latestApplication?.status !== 'approved';
 }
 
 function buildApprovedCoachPreferences(params: {
@@ -647,6 +653,9 @@ organizationsRouter.post(
         },
       });
       const applicantPrefs = getPreferencesObject(applicant?.preferences);
+      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate(
+        req.user!.id
+      );
       if (getCanonicalUserRole(applicant as any) !== 'coach') {
         return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
       }
@@ -695,7 +704,9 @@ organizationsRouter.post(
           .status(409)
           .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
       }
-      // Transaction: create org + owner membership + set coach to PENDING atomically
+      // Transaction: create org + owner membership + update coach state atomically.
+      // Legacy coach flows still move to PENDING here; coaches with an already-approved
+      // CoachApplication keep their approved status during final setup.
       const organization = await prisma.$transaction(async tx => {
         const org = await tx.organization.create({
           data: buildOrganizationCreateData(data, req.user!.id),
@@ -707,7 +718,8 @@ organizationsRouter.post(
             role: 'owner',
           },
         });
-        // Set coach to PENDING until league is approved by super admin
+        // Preserve legacy pending behavior unless an approved coach application
+        // already moved this coach through the new final-setup path.
         await tx.user.update({
           where: { id: req.user!.id },
           data: {
@@ -719,7 +731,7 @@ organizationsRouter.post(
               role: 'coach',
               organization_id: org.id,
             }),
-            approval_status: 'PENDING',
+            ...(shouldForcePendingApproval ? { approval_status: 'PENDING' } : {}),
             paid_by_owner: false,
             // v1.0.2: clear prior rejection tracking on a fresh application
             rejected_at: null,
@@ -837,6 +849,9 @@ organizationsRouter.post(
         },
       });
       const applicantPrefs = getPreferencesObject(applicant?.preferences);
+      const shouldForcePendingApproval = await shouldForcePendingApprovalOnOrganizationCreate(
+        req.user!.id
+      );
       if (getCanonicalUserRole(applicant as any) !== 'coach') {
         return res.status(403).json({ error: 'Only coach accounts can create organizations.' });
       }
@@ -881,8 +896,9 @@ organizationsRouter.post(
           .status(409)
           .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
       }
-      // Transaction: create org + owner membership + set league owner to PENDING atomically
-      // League owner has no coach access until super admin approves the league
+      // Transaction: create org + owner membership + update league owner atomically.
+      // Legacy flows still move to PENDING here; approved CoachApplication users
+      // keep their approval while attaching the real organization during final setup.
       const organization = await prisma.$transaction(async tx => {
         const org = await tx.organization.create({
           data: buildOrganizationCreateData(data, req.user!.id),
@@ -905,7 +921,7 @@ organizationsRouter.post(
               role: 'coach',
               organization_id: org.id,
             }),
-            approval_status: 'PENDING',
+            ...(shouldForcePendingApproval ? { approval_status: 'PENDING' } : {}),
             paid_by_owner: false,
             // v1.0.2: clear prior rejection tracking on a fresh application
             rejected_at: null,
