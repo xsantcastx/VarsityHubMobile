@@ -21,8 +21,13 @@ jest.unstable_mockModule('../lib/userCache.js', () => ({
   updateUserAndInvalidate: jest.fn(),
 }));
 
-jest.unstable_mockModule('../lib/prisma.js', () => ({
-  prisma: {
+jest.unstable_mockModule('../lib/prisma.js', () => {
+  // Self-referential mock so $transaction can pass `tx` (which mirrors the
+  // prisma shape) to its callback. The follow route's transactional
+  // re-check of BlockedUser uses tx.blockedUser.findFirst + tx.follows.create.
+  const prismaMock: any = {};
+  Object.assign(prismaMock, {
+    $transaction: jest.fn(async (cb: any) => cb(prismaMock)),
     user: {
       findUnique: mockUserFindUnique,
       findMany: jest.fn(async () => []),
@@ -60,8 +65,9 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
     teamMembership: {
       findMany: jest.fn(async () => []),
     },
-  },
-}));
+  });
+  return { prisma: prismaMock };
+});
 
 jest.unstable_mockModule('../lib/notifications.js', () => ({
   notifyNewFollower: mockNotifyNewFollower,
