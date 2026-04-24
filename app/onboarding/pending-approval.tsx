@@ -27,10 +27,13 @@ function PendingApproval() {
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
   // v1.0.2 audit fix C-3/H-4: prevent double completeOnboarding if screen re-mounts after approval
   const completionStartedRef = useRef(false);
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
+  const isNavigatingRef = useRef(false);
+  const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(null);
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -43,6 +46,10 @@ function PendingApproval() {
     stopPolling();
     router.replace('/onboarding');
   }, [router, stopPolling]);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   // Poll /me every 30 seconds to check approval_status
   const checkApproval = useCallback(async () => {
@@ -212,6 +219,21 @@ function PendingApproval() {
     }
   };
 
+  const handleApprovedNavigation = useCallback(async (redirect: 'organization' | 'create-team') => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    setNavigationTarget(redirect);
+    try {
+      await checkAuth();
+      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect } } as any);
+    } catch {
+      Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
+    } finally {
+      isNavigatingRef.current = false;
+      if (mountedRef.current) setNavigationTarget(null);
+    }
+  }, [checkAuth, router]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -366,29 +388,25 @@ function PendingApproval() {
             ) : (
               <>
                 <Pressable
-                  style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
-                  onPress={async () => {
-                    try {
-                      await checkAuth();
-                      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
-                    } catch {
-                      Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
-                    }
-                  }}
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: '#1B3A6B', marginTop: 24 },
+                    navigationTarget && { opacity: 0.6 },
+                  ]}
+                  onPress={() => { void handleApprovedNavigation('organization'); }}
+                  disabled={navigationTarget !== null}
                 >
                   <MaterialIcons name="business" size={20} color="#fff" />
                   <Text style={styles.primaryButtonText}>View Your Organization</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
-                  onPress={async () => {
-                    try {
-                      await checkAuth();
-                      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
-                    } catch {
-                      Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
-                    }
-                  }}
+                  style={[
+                    styles.secondaryButton,
+                    { borderColor: '#1B3A6B', marginTop: 0 },
+                    navigationTarget && { opacity: 0.6 },
+                  ]}
+                  onPress={() => { void handleApprovedNavigation('create-team'); }}
+                  disabled={navigationTarget !== null}
                 >
                   <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
                 </Pressable>

@@ -41,10 +41,13 @@ function LeaguePendingApproval() {
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
   // v1.0.2 audit fix C-4: prevent double completeOnboarding on re-mount
   const completionStartedRef = useRef(false);
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
+  const isNavigatingRef = useRef(false);
+  const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(null);
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -57,6 +60,10 @@ function LeaguePendingApproval() {
     stopPolling();
     router.replace('/onboarding/step-3-league');
   }, [router, stopPolling]);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   // v1.0.3: hydrate orgId from /me when it's missing at mount (cold-start
   // race where OnboardingContext hasn't loaded yet). Only redirect back to
@@ -247,6 +254,21 @@ function LeaguePendingApproval() {
     }
   };
 
+  const handleApprovedNavigation = useCallback(async (redirect: 'organization' | 'create-team') => {
+    if (isNavigatingRef.current) return;
+    isNavigatingRef.current = true;
+    setNavigationTarget(redirect);
+    try {
+      await checkAuth();
+      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect } } as any);
+    } catch {
+      Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
+    } finally {
+      isNavigatingRef.current = false;
+      if (mountedRef.current) setNavigationTarget(null);
+    }
+  }, [checkAuth, router]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -432,22 +454,26 @@ function LeaguePendingApproval() {
             ) : (
               <>
                 <Pressable
-                  style={[styles.primaryButton, { backgroundColor: '#1B3A6B', marginTop: 24 }]}
-                  onPress={async () => {
-                    await checkAuth();
-                    router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'organization' } } as any);
-                  }}
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: '#1B3A6B', marginTop: 24 },
+                    navigationTarget && { opacity: 0.6 },
+                  ]}
+                  onPress={() => { void handleApprovedNavigation('organization'); }}
+                  disabled={navigationTarget !== null}
                 >
                   <MaterialIcons name={orgId ? 'business' : 'arrow-forward'} size={20} color="#fff" />
                   <Text style={styles.primaryButtonText}>{orgId ? 'View Your Organization' : 'Continue Coach Setup'}</Text>
                 </Pressable>
                 {orgId ? (
                   <Pressable
-                    style={[styles.secondaryButton, { borderColor: '#1B3A6B', marginTop: 0 }]}
-                    onPress={async () => {
-                      await checkAuth();
-                      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect: 'create-team' } } as any);
-                    }}
+                    style={[
+                      styles.secondaryButton,
+                      { borderColor: '#1B3A6B', marginTop: 0 },
+                      navigationTarget && { opacity: 0.6 },
+                    ]}
+                    onPress={() => { void handleApprovedNavigation('create-team'); }}
+                    disabled={navigationTarget !== null}
                   >
                     <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
                   </Pressable>

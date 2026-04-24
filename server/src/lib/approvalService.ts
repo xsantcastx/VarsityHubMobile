@@ -81,6 +81,29 @@ async function notifyAllAdminsOfLeagueAction(params: {
   );
 }
 
+async function createApprovalNotification(
+  prisma: PrismaClient,
+  params: {
+    data: any;
+    errorMessage: string;
+    sentryContext: string;
+    extra?: Record<string, any>;
+  },
+) {
+  try {
+    await prisma.notification.create({ data: params.data });
+  } catch (err) {
+    console.error(`[approvalService] ${params.errorMessage}:`, (err as any)?.message || err);
+    captureException(err as Error, {
+      context: params.sentryContext,
+      notification_type: params.data?.type ?? 'unknown',
+      userId: params.data?.user_id ?? null,
+      actorId: params.data?.actor_id ?? null,
+      ...params.extra,
+    });
+  }
+}
+
 function buildOrganizationOwnerApprovedPreferences(
   currentPrefs: unknown,
   organization: { id: string; name: string }
@@ -198,20 +221,23 @@ export async function approveOrganization(
   }
 
   if (org.leagueOwner?.id) {
+    await createApprovalNotification(prisma, {
+      data: {
+        user_id: org.leagueOwner.id,
+        type: 'ORG_APPROVED' as any,
+        meta: { organization_id: orgId, organization_name: org.name },
+      },
+      errorMessage: 'org approved in-app notification failed',
+      sentryContext: 'organization_approval_notification_failed',
+      extra: { orgId, adminId: adminId || 'email-token' },
+    });
+
     sendPushNotification(
       org.leagueOwner.id,
       'Organization Approved!',
       `Your organization "${org.name}" has been approved on VarsityHub.`,
       { type: 'org_approved', organization_id: orgId },
     ).catch((err) => console.warn('[approvalService] org approved push failed:', (err as any)?.message || err));
-
-    prisma.notification.create({
-      data: {
-        user_id: org.leagueOwner.id,
-        type: 'ORG_APPROVED' as any,
-        meta: { organization_id: orgId, organization_name: org.name },
-      },
-    }).catch((err) => console.error('[approvalService] org approved in-app notification failed:', (err as any)?.message || err));
   }
 
   await notifyAllAdminsOfLeagueAction({
@@ -284,20 +310,23 @@ export async function rejectOrganization(
   // v1.0.2: `reason` is declared above (line 146) as `string | null`. Use || undefined
   // where downstream signatures expect `string | undefined`.
   if (org.leagueOwner?.id) {
+    await createApprovalNotification(prisma, {
+      data: {
+        user_id: org.leagueOwner.id,
+        type: 'ORG_REJECTED',
+        meta: { organization_id: orgId, organization_name: org.name, reason: reason || undefined },
+      },
+      errorMessage: 'org rejected in-app notification failed',
+      sentryContext: 'organization_rejection_notification_failed',
+      extra: { orgId, adminId: adminId || 'email-token', reason: reason || null },
+    });
+
     sendPushNotification(
       org.leagueOwner.id,
       'League Not Approved',
       `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
       { type: 'org_rejected', organization_id: orgId },
     ).catch((err) => console.warn('[approvalService] org rejected push failed:', (err as any)?.message || err));
-
-    prisma.notification.create({
-      data: {
-        user_id: org.leagueOwner.id,
-        type: 'ORG_REJECTED',
-        meta: { organization_id: orgId, organization_name: org.name, reason: reason || undefined },
-      },
-    }).catch((err) => console.error('[approvalService] org rejected in-app notification failed:', (err as any)?.message || err));
   }
 
   if (org.leagueOwner?.email) {
@@ -452,13 +481,16 @@ export async function approveCoach(
     }).catch((err) => console.error('[approvalService] coach approved email failed:', err));
   }
 
-  prisma.notification.create({
+  await createApprovalNotification(prisma, {
     data: {
       user_id: userId,
       type: 'JOIN_REQUEST_APPROVED',
       meta: { approved_by: 'admin', note: note || undefined },
     },
-  }).catch((err) => console.error('[approvalService] coach approved in-app notification failed:', (err as any)?.message || err));
+    errorMessage: 'coach approved in-app notification failed',
+    sentryContext: 'coach_approval_notification_failed',
+    extra: { userId, adminId, note: note || null },
+  });
 
   sendPushNotification(
     userId,
@@ -524,23 +556,16 @@ export async function rejectCoach(
   // In-app notification is the guaranteed channel — the pending-approval screen
   // reads the rejection reason from here. Await it so a DB write failure surfaces
   // to Sentry instead of dying as an unhandled rejection.
-  try {
-    await prisma.notification.create({
-      data: {
-        user_id: userId,
-        type: 'COACH_REJECTED',
-        meta: { rejected_by: 'admin', reason: reason || null },
-      },
-    });
-  } catch (err) {
-    console.error('[approvalService] coach rejected in-app notification failed:', (err as any)?.message || err);
-    captureException(err as Error, {
-      context: 'coach_rejection_notification_failed',
-      userId,
-      adminId,
-      reason: reason || null,
-    });
-  }
+  await createApprovalNotification(prisma, {
+    data: {
+      user_id: userId,
+      type: 'COACH_REJECTED',
+      meta: { rejected_by: 'admin', reason: reason || null },
+    },
+    errorMessage: 'coach rejected in-app notification failed',
+    sentryContext: 'coach_rejection_notification_failed',
+    extra: { userId, adminId, reason: reason || null },
+  });
 
   // Email and push are best-effort — in-app above is the canonical record.
   if (user.email) {
@@ -660,16 +685,23 @@ export async function approveAd(
       .catch((err) => console.error('[approvalService] ad approved email error:', (err as any)?.message || err));
   }
   if (ad.user_id) {
+    await createApprovalNotification(prisma, {
+      data: {
+        user_id: ad.user_id,
+        type: 'AD_APPROVED' as any,
+        meta: { ad_id: adId, business_name: ad.business_name },
+      },
+      errorMessage: 'ad approved in-app notification failed',
+      sentryContext: 'ad_approval_notification_failed',
+      extra: { adId, adminId: adminId || null },
+    });
+
     sendPushNotification(
       ad.user_id,
       'Ad Approved!',
       `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
       { type: 'ad_approved', ad_id: adId },
     ).catch((err) => console.warn('[approvalService] ad approved push failed:', (err as any)?.message || err));
-
-    prisma.notification.create({
-      data: { user_id: ad.user_id, type: 'AD_APPROVED' as any, meta: { ad_id: adId, business_name: ad.business_name } },
-    }).catch((err) => console.error('[approvalService] ad approved in-app notification failed:', (err as any)?.message || err));
   }
 
   return { ad: updated };
@@ -782,16 +814,23 @@ export async function rejectAd(
       .catch((err) => console.warn('[approvalService] ad reject email failed:', (err as any)?.message || err));
   }
   if (ad.user_id) {
+    await createApprovalNotification(prisma, {
+      data: {
+        user_id: ad.user_id,
+        type: 'AD_REJECTED' as any,
+        meta: { ad_id: adId, business_name: ad.business_name, reason: reason || null },
+      },
+      errorMessage: 'ad rejected in-app notification failed',
+      sentryContext: 'ad_rejection_notification_failed',
+      extra: { adId, adminId: adminId || null, reason: reason || null },
+    });
+
     sendPushNotification(
       ad.user_id,
       'Ad Needs Changes',
       `Your ad for "${ad.business_name || 'your business'}" was not approved.${reason ? ` Reason: ${reason}` : ' Please review and resubmit.'}`,
       { type: 'ad_rejected', ad_id: adId },
     ).catch((err) => console.warn('[approvalService] ad reject push failed:', (err as any)?.message || err));
-
-    prisma.notification.create({
-      data: { user_id: ad.user_id, type: 'AD_REJECTED' as any, meta: { ad_id: adId, business_name: ad.business_name, reason: reason || null } },
-    }).catch((err) => console.error('[approvalService] ad rejected in-app notification failed:', (err as any)?.message || err));
   }
 
   const updated = await prisma.ad.findUnique({ where: { id: adId } });

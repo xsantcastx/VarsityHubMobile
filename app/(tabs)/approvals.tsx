@@ -190,6 +190,7 @@ export default function ApprovalsScreen() {
   const handleDeclineConfirm = async () => {
     if (!declineTarget) return;
     setDeclining(true);
+    setActionLoading(declineTarget.user.id);
     captureBreadcrumb('League owner coach rejection started', 'admin.approval', {
       action: 'reject',
       actor: 'league_owner',
@@ -223,7 +224,10 @@ export default function ApprovalsScreen() {
       const msg = err?.data?.error || err?.message || 'Failed to decline coach';
       Alert.alert('Error', msg);
     } finally {
-      if (mountedRef.current) setDeclining(false);
+      if (mountedRef.current) {
+        setActionLoading(null);
+        setDeclining(false);
+      }
     }
   };
 
