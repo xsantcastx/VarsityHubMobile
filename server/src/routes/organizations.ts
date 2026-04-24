@@ -1080,6 +1080,7 @@ organizationsRouter.post(
       if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
       const { email, role } = parsed.data;
+      const inviteEmail = email.trim().toLowerCase();
 
       // Validate role against allowed org roles
       const VALID_ORG_INVITE_ROLES = ['manager', 'member'];
@@ -1138,15 +1139,27 @@ organizationsRouter.post(
       // INSERTs, over-counting the authorized-user cap. Serializable forces one to retry.
       const invite = await prisma.$transaction(
         async tx => {
+          const existingInvite = await tx.organizationInvite.findFirst({
+            where: {
+              organization_id: id,
+              email: { equals: inviteEmail, mode: 'insensitive' },
+            } as any,
+            select: { id: true },
+          });
+
           if (limit !== null) {
             const inviteCount = await tx.organizationInvite.count({
-              where: { organization_id: id, status: 'pending' },
+              where: {
+                organization_id: id,
+                status: 'pending',
+                ...(existingInvite ? { id: { not: existingInvite.id } } : {}),
+              },
             });
             const memberCount = await tx.organizationMembership.count({
               where: { organization_id: id, status: 'active', role: { in: ['manager', 'member'] } },
             });
-            const totalAuthorized = inviteCount + memberCount;
-            if (totalAuthorized >= limit) {
+            const totalAuthorized = inviteCount + memberCount + 1;
+            if (totalAuthorized > limit) {
               throw Object.assign(new Error('USER_LIMIT_REACHED'), {
                 status: 403,
                 body: {
@@ -1158,8 +1171,14 @@ organizationsRouter.post(
               });
             }
           }
+          if (existingInvite) {
+            return tx.organizationInvite.update({
+              where: { id: existingInvite.id },
+              data: { email: inviteEmail, role: role || 'member', status: 'pending' },
+            });
+          }
           return tx.organizationInvite.create({
-            data: { organization_id: id, email, role: role || 'member' },
+            data: { organization_id: id, email: inviteEmail, role: role || 'member', status: 'pending' },
           });
         },
         { isolationLevel: 'Serializable' }
@@ -1173,7 +1192,7 @@ organizationsRouter.post(
       });
       if (org) {
         await sendOrganizationInviteEmail({
-          to: email,
+          to: inviteEmail,
           organizationName: org.name,
           role: role || 'member',
           inviterName: inviter?.display_name || 'An organizer',
@@ -1183,7 +1202,7 @@ organizationsRouter.post(
             if (!sent) {
               console.warn(
                 '[organizations] Direct invite email reported unsent for',
-                redactEmail(email)
+                redactEmail(inviteEmail)
               );
             }
             return sent;
@@ -1191,7 +1210,7 @@ organizationsRouter.post(
           .catch(err => {
             console.warn(
               '[organizations] Failed sending direct invite email to',
-              redactEmail(email),
+              redactEmail(inviteEmail),
               err
             );
             return false;
@@ -1213,13 +1232,14 @@ organizationsRouter.post(
 organizationsRouter.get(
   '/invites/me',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
       if (!user) return res.status(404).json({ error: 'User not found' });
 
       const invites = await prisma.organizationInvite.findMany({
-        where: { email: user.email, status: 'pending' },
+        where: { email: { equals: user.email, mode: 'insensitive' }, status: 'pending' } as any,
         include: { organization: true },
         orderBy: { created_at: 'desc' },
         take: 100,
@@ -1237,6 +1257,7 @@ organizationsRouter.get(
 organizationsRouter.post(
   '/invites/:inviteId/accept',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const inviteId = String(req.params.inviteId);
@@ -1244,12 +1265,21 @@ organizationsRouter.post(
       if (!user) return res.status(404).json({ error: 'User not found' });
 
       const invite = await prisma.organizationInvite.findUnique({ where: { id: inviteId } });
-      if (!invite || invite.email !== user.email || invite.status !== 'pending') {
+      if (!invite || invite.status !== 'pending') {
         return res.status(404).json({ error: 'Invite not found or not valid' });
       }
+      if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
+        return res.status(403).json({ error: 'Invite not for this user' });
+      }
 
-      await prisma.$transaction([
-        prisma.organizationMembership.upsert({
+      const accepted = await prisma.$transaction(async tx => {
+        const transition = await tx.organizationInvite.updateMany({
+          where: { id: inviteId, status: 'pending' },
+          data: { status: 'accepted' },
+        });
+        if (transition.count === 0) return false;
+
+        await tx.organizationMembership.upsert({
           where: {
             organization_id_user_id: {
               organization_id: invite.organization_id,
@@ -1263,9 +1293,10 @@ organizationsRouter.post(
             role: invite.role,
             status: 'active',
           },
-        }),
-        prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
-      ]);
+        });
+        return true;
+      });
+      if (!accepted) return res.status(409).json({ error: 'Invite already processed' });
 
       // Organization approval welcome email removed — non-mandatory
 
@@ -1281,6 +1312,7 @@ organizationsRouter.post(
 organizationsRouter.post(
   '/invites/:inviteId/decline',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const inviteId = String(req.params.inviteId);
@@ -1288,14 +1320,18 @@ organizationsRouter.post(
       if (!user) return res.status(404).json({ error: 'User not found' });
 
       const invite = await prisma.organizationInvite.findUnique({ where: { id: inviteId } });
-      if (!invite || invite.email !== user.email || invite.status !== 'pending') {
+      if (!invite || invite.status !== 'pending') {
         return res.status(404).json({ error: 'Invite not found or not valid' });
       }
+      if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
+        return res.status(403).json({ error: 'Invite not for this user' });
+      }
 
-      await prisma.organizationInvite.update({
-        where: { id: inviteId },
+      const declined = await prisma.organizationInvite.updateMany({
+        where: { id: inviteId, status: 'pending' },
         data: { status: 'declined' },
       });
+      if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
       return res.json({ message: 'Invite declined' });
     } catch (err) {
       console.error('[organizations] POST /invites/:inviteId/decline error:', err);

@@ -88,6 +88,42 @@ const EXPECTATIONS: Expectation[] = [
     registrationPattern: /teamsRouter\.post\(\s*['"]\/:id\/invite['"]/,
     mustInclude: ['requireAuth', 'requireVerified', 'requireOnboarded', 'inviteLimiter'],
   },
+  {
+    file: 'teams.ts',
+    description: 'GET /teams/invites/me',
+    registrationPattern: /teamsRouter\.get\(\s*['"]\/invites\/me['"]/,
+    mustInclude: ['requireAuth', 'requireVerified'],
+  },
+  {
+    file: 'teams.ts',
+    description: 'POST /teams/invites/:inviteId/accept',
+    registrationPattern: /teamsRouter\.post\(\s*['"]\/invites\/:inviteId\/accept['"]/,
+    mustInclude: ['requireAuth', 'requireVerified'],
+  },
+  {
+    file: 'teams.ts',
+    description: 'POST /teams/invites/:inviteId/decline',
+    registrationPattern: /teamsRouter\.post\(\s*['"]\/invites\/:inviteId\/decline['"]/,
+    mustInclude: ['requireAuth', 'requireVerified'],
+  },
+  {
+    file: 'organizations.ts',
+    description: 'GET /organizations/invites/me',
+    registrationPattern: /organizationsRouter\.get\(\s*['"]\/invites\/me['"]/,
+    mustInclude: ['requireAuth', 'requireVerified'],
+  },
+  {
+    file: 'organizations.ts',
+    description: 'POST /organizations/invites/:inviteId/accept',
+    registrationPattern: /organizationsRouter\.post\(\s*['"]\/invites\/:inviteId\/accept['"]/,
+    mustInclude: ['requireAuth', 'requireVerified'],
+  },
+  {
+    file: 'organizations.ts',
+    description: 'POST /organizations/invites/:inviteId/decline',
+    registrationPattern: /organizationsRouter\.post\(\s*['"]\/invites\/:inviteId\/decline['"]/,
+    mustInclude: ['requireAuth', 'requireVerified'],
+  },
 ];
 
 describe('Middleware coverage on critical mutation routes', () => {
