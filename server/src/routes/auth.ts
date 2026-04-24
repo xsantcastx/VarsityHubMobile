@@ -2490,17 +2490,6 @@ authRouter.patch(
     // SECURITY: Strip any protected keys the client tries to sneak in
     const incoming = stripProtectedKeys(parsed.data as any) as any;
 
-    // Server-side normalize: when a client writes `coach_agreement_accepted_at`
-    // (the accept action), stamp the CURRENT required version alongside it so
-    // the client never has to know the version number. Without this, bumping
-    // REQUIRED_COACH_AGREEMENT_VERSION env var would put coaches in a re-accept
-    // loop because the client patch only writes the timestamp.
-    if (incoming.coach_agreement_accepted_at !== undefined) {
-      incoming.coach_agreement_version = Number(
-        process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
-      );
-    }
-
     // COPPA: Reject if DOB indicates under 13 - do not store
     if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
       return res.status(403).json({
@@ -2527,6 +2516,34 @@ authRouter.patch(
     });
     const currentPrefs = (current?.preferences as any) || {};
     const currentAuthState = getCanonicalAuthState(current as any);
+
+    // Gate `coach_agreement_accepted_at` writes so only an approved coach can
+    // accept the agreement. Previously the PATCH accepted the timestamp from
+    // any user in any state — a fan or pending coach could land a bogus
+    // acceptance timestamp on their row. The server state machine already
+    // compensated (a fan with this field still resolves to `fan_active` via
+    // getCoachFlowState's role check), but the audit trail would show an
+    // agreement the user never actually saw. Defense-in-depth: refuse the
+    // write at the endpoint boundary instead of relying on downstream reads
+    // to ignore it. Only after passing the gate do we stamp the version.
+    if (incoming.coach_agreement_accepted_at !== undefined) {
+      if (
+        currentAuthState.role !== 'coach' ||
+        current?.approval_status !== 'APPROVED'
+      ) {
+        return res.status(403).json({
+          error: 'You must be an approved coach to accept the coach agreement.',
+          code: 'COACH_AGREEMENT_NOT_ELIGIBLE',
+        });
+      }
+      // Server-side normalize: when a client writes the accept timestamp,
+      // stamp the CURRENT required version alongside it so the client never
+      // has to know the version number. Without this, bumping
+      // REQUIRED_COACH_AGREEMENT_VERSION would loop coaches in re-accept.
+      incoming.coach_agreement_version = Number(
+        process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
+      );
+    }
 
     // Canonical DOB gate: once the column is set and the 24h grace window has
     // lapsed, DOB is locked to normal users. Admins can still update via admin
