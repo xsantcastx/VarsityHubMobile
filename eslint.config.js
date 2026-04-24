@@ -47,7 +47,10 @@ module.exports = [
       import: importPlugin,
     },
     rules: {
-      'react-native/no-raw-text': ['error', { skip: ['ThemedText'] }],
+      // `Button` (components/ui/button.tsx) wraps raw-text children in <Text>
+      // internally via React.Children.map, so lint's static "no raw text"
+      // check is a false positive there. Same pattern as ThemedText.
+      'react-native/no-raw-text': ['error', { skip: ['ThemedText', 'Button'] }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       'no-unused-vars': 'off',

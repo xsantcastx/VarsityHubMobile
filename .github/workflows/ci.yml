@@ -262,8 +262,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # Threshold: high+critical fail the build; moderate is surfaced in the
+      # dedicated Snyk Security Scanning workflow + npm-audit.yml nightly,
+      # which are where we triage and remediate. Blocking every PR on a
+      # moderate transitive dep makes the gate too noisy and encourages
+      # --no-verify bypasses, which is worse than deliberate triage.
       - name: Audit frontend dependencies
-        run: npm audit
+        run: npm audit --audit-level=high
 
       - name: Install server dependencies
         working-directory: server
@@ -271,7 +276,7 @@ jobs:
 
       - name: Audit server dependencies
         working-directory: server
-        run: npm audit
+        run: npm audit --audit-level=high
 
   format-check:
     name: Format Check
