@@ -69,6 +69,9 @@ const API_BASE_URL = (
   process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app'
 ).replace(/\/$/, '');
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
+const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
+const TERMS_URL = `${APP_BASE_URL}/terms`;
+const SUPPORT_URL = `${APP_BASE_URL}/support`;
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
@@ -78,16 +81,18 @@ const getCommonTemplateData = () => ({
     'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png',
   hero_image_url:
     'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
-  privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
-  community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+  privacy_policy_url: PRIVACY_POLICY_URL,
+  community_guidelines_url: TERMS_URL,
   instagram_url: 'https://www.instagram.com/varsityhubapp/',
   tiktok_url: 'https://www.tiktok.com/@varsityhubapp',
   youtube_url: 'https://www.youtube.com/@varsityhubapp',
   facebook_url: 'https://www.facebook.com/varsityhubapp/',
   x_url: 'https://x.com/varsityhub00',
-  website_url: 'https://limeprod.com',
-  communityGuidelinesUrl: 'https://limeprod.com/VarsityHubPrivacy',
-  privacyPolicyUrl: 'https://limeprod.com/VarsityHubPrivacy',
+  website_url: APP_BASE_URL,
+  communityGuidelinesUrl: TERMS_URL,
+  privacyPolicyUrl: PRIVACY_POLICY_URL,
+  support_url: SUPPORT_URL,
+  supportUrl: SUPPORT_URL,
   customer_service_email: CUSTOMER_SERVICE_EMAIL,
 });
 
@@ -882,6 +887,9 @@ export async function sendOrganizationInviteEmail(params: {
 export async function sendBillingNoticeEmail(params: {
   to: string;
   user_name?: string;
+  // Only `trial_ending` and `payment_failed` have approved templates today.
+  // The broader union remains for backward compatibility with stale callers;
+  // unsupported variants are blocked below and should be removed at call sites.
   type:
     | 'trial_ending'
     | 'payment_succeeded'
@@ -939,6 +947,11 @@ export async function sendBillingNoticeEmail(params: {
         paymentMethodLast4: params.paymentMethodLast4 || '',
         updatePaymentLink: manageSubscriptionLink,
         contactSupportLink: `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+        // Compatibility keys for template revisions that render extra detail
+        // lines (for example, refund explanations on failed ad reservations).
+        perks: params.perks || [],
+        message_lines: params.perks || [],
+        additional_context: (params.perks || []).join('\n'),
         // Legacy snake_case keys preserved for template-version compatibility
         user_name: params.user_name || '',
         plan_name: params.planName || 'VarsityHub Subscription',
@@ -979,7 +992,8 @@ export async function sendBillingNoticeEmail(params: {
         renewLink: manageSubscriptionLink,
         // Template uses {{#each features_losing}} — must be an array, even
         // empty, or the section silently collapses.
-        features_losing: params.featuresLosing || [],
+        features_losing: params.featuresLosing || params.perks || [],
+        perks: params.perks || [],
         // Legacy snake_case keys preserved for template-version compatibility
         user_name: params.user_name || '',
         plan_name: params.planName || 'VarsityHub Subscription',

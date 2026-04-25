@@ -164,14 +164,6 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
   // Send billing notification emails for subscription events
   if (event.type === 'invoice.payment_succeeded') {
     const invoice = event.data.object as Stripe.Invoice;
-    if (invoice.customer_email && invoice.subscription) {
-      await sendBillingNoticeEmail({
-        to: invoice.customer_email,
-        type: 'payment_succeeded',
-        amount: `$${(invoice.amount_paid / 100).toFixed(2)}`,
-        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
-      }).catch(err => console.warn('[billing-email] payment_succeeded failed:', err));
-    }
     // Log renewal transaction
     if (invoice.customer && invoice.subscription) {
       const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
@@ -226,13 +218,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     }
     const customer = await stripe.customers.retrieve(customerId).catch(() => null);
     const customerEmail = customer && !customer.deleted ? customer.email : null;
-    if (customerEmail) {
-      await sendBillingNoticeEmail({
-        to: customerEmail,
-        type: 'subscription_canceled',
-        planName: subscription.items?.data?.[0]?.price?.nickname || 'VarsityHub Subscription',
-      }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
-    }
+    void customerEmail;
 
     // Downgrade user to rookie plan now that subscription period has ended
     const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: customerId } });
@@ -343,14 +329,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
       }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
     }
 
-    if (subscription.status === 'active' && customerEmail) {
-      await sendBillingNoticeEmail({
-        to: customerEmail,
-        type: 'subscription_renewed',
-        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
-        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
-      }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
-    }
+    void customerEmail;
   }
 
   // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
@@ -745,23 +724,11 @@ async function sendSubscriptionEmail({
 }) {
   const email = await getUserEmail(userId, fallbackEmail);
   if (!email) return;
-  const planName = plan === 'veteran' ? 'Veteran Membership' : plan === 'legend' ? 'Legend Membership' : 'VarsityHub Subscription';
-  const perks = plan === 'veteran'
-    ? [`Add unlimited teams beyond the first ${SERVER_ROOKIE_TEAM_LIMIT}`, 'Priority scheduling support']
-    : plan === 'legend'
-      ? ['Unlimited teams included', `${SERVER_LEGEND_PRICE_LABEL} pricing`]
-      : ['Premium access activated'];
-  try {
-    await sendBillingNoticeEmail({
-      to: email,
-      type: 'payment_succeeded',
-      planName,
-      amount: formatUsd(totalCents),
-      perks,
-    });
-  } catch (err) {
-    console.warn('[payments] Unable to send subscription email:', (err as any)?.message || err);
-  }
+  // No approved SendGrid template exists for successful subscription
+  // confirmations today. Keep the helper as a no-op so finalize flows stay
+  // readable without claiming an email was sent.
+  void plan;
+  void totalCents;
 }
 
 // Ad pricing now uses the shared helper from utils/adPricing.ts
@@ -1620,11 +1587,22 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
     }
     try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid', status: 'active' } }),
-        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
-    } catch (e) {
+      await prisma.$transaction(async (tx) => {
+        await reserveAdSlots(tx, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'paid',
+          status: 'active',
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (e: any) {
+      if (e?.slotFull) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: e.dates,
+        });
+      }
       console.error('Failed to create ad reservations for free promo:', e);
       return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
@@ -1874,14 +1852,6 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
   // Send billing notification emails for subscription events
   if (event.type === 'invoice.payment_succeeded') {
     const invoice = event.data.object as Stripe.Invoice;
-    if (invoice.customer_email && invoice.subscription) {
-      await sendBillingNoticeEmail({
-        to: invoice.customer_email,
-        type: 'payment_succeeded',
-        amount: `$${(invoice.amount_paid / 100).toFixed(2)}`,
-        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
-      }).catch(err => console.warn('[billing-email] payment_succeeded failed:', err));
-    }
     // Log renewal transaction
     if (invoice.customer && invoice.subscription) {
       const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
@@ -1936,13 +1906,7 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
     }
     const customer = await stripe.customers.retrieve(customerId).catch(() => null);
     const customerEmail = customer && !customer.deleted ? customer.email : null;
-    if (customerEmail) {
-      await sendBillingNoticeEmail({
-        to: customerEmail,
-        type: 'subscription_canceled',
-        planName: subscription.items?.data?.[0]?.price?.nickname || 'VarsityHub Subscription',
-      }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
-    }
+    void customerEmail;
 
     // Downgrade user to rookie plan now that subscription period has ended
     const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: customerId } });
@@ -2053,14 +2017,7 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
       }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
     }
 
-    if (subscription.status === 'active' && customerEmail) {
-      await sendBillingNoticeEmail({
-        to: customerEmail,
-        type: 'subscription_renewed',
-        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
-        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
-      }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
-    }
+    void customerEmail;
   }
 
   // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
@@ -3670,14 +3627,17 @@ async function finalizeAppleAdPurchase(params: {
       select: { id: true },
     });
 
-    await tx.ad.update({
+    const adRecord = await tx.ad.findUnique({
       where: { id: String(params.adId) },
-      data: { payment_status: 'paid', status: 'active' },
+      select: { target_zip_code: true },
     });
 
-    await tx.adReservation.createMany({
-      data: params.dates.map((s: string) => ({ ad_id: String(params.adId), date: new Date(s + 'T00:00:00.000Z') })),
-      skipDuplicates: true,
+    await reserveAdSlots(tx, {
+      adId: String(params.adId),
+      targetZipCode: adRecord?.target_zip_code,
+      isoDates: params.dates,
+      paymentStatus: 'paid',
+      status: 'active',
     });
 
     if (!existingTx) {
@@ -4039,20 +3999,6 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
       throw error;
     }
     await invalidateMeCacheForUser(userId);
-
-    // Send confirmation email
-    if (user?.email) {
-      sendBillingNoticeEmail({
-        to: user.email,
-        type: 'payment_succeeded',
-        planName: plan.charAt(0).toUpperCase() + plan.slice(1),
-        amount: 'Purchased via Apple',
-        manageLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/manage-subscription`,
-      }).catch(err => captureException(err as Error, {
-        context: 'apple_iap_confirmation_email',
-        provider: 'apple_iap',
-      }));
-    }
 
     debugLog('apple-iap', `User ${userId} subscribed to ${plan} via Apple IAP`);
 
@@ -4569,18 +4515,6 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       await invalidateMeCacheForUser(userId);
       debugLog('apple-s2s', `User ${userId} downgraded to rookie — reason: ${notificationType}`);
 
-      // Send billing notice for cancellation/refund
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-      if (user?.email) {
-        sendBillingNoticeEmail({
-          to: user.email,
-          type: 'subscription_canceled',
-          planName: previousPlan.charAt(0).toUpperCase() + previousPlan.slice(1),
-        }).catch(err => captureException(err as Error, {
-          context: 'apple_s2s_cancel_email',
-          provider: 'apple_iap',
-        }));
-      }
     } else {
       debugLog('apple-s2s', `Unhandled notification type: ${notificationType}/${subtype} for user ${userId}`);
     }
@@ -4820,20 +4754,6 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
       }),
     ]);
     await invalidateMeCacheForUser(userId);
-
-    // Send confirmation email
-    if (user?.email) {
-      sendBillingNoticeEmail({
-        to: user.email,
-        type: 'payment_succeeded',
-        planName: plan.charAt(0).toUpperCase() + plan.slice(1),
-        amount: 'Purchased via Google Play',
-        manageLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/manage-subscription`,
-      }).catch(err => captureException(err as Error, {
-        context: 'google_iap_confirmation_email',
-        provider: 'google_iap',
-      }));
-    }
 
     debugLog('google-iap', `User ${userId} subscribed to ${plan} via Google Play Billing`);
 

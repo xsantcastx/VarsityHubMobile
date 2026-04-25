@@ -90,13 +90,20 @@ router.post('/org-invite', asyncHandler(async (req, res) => {
 router.post('/billing', asyncHandler(async (req, res) => {
   const {
     to = 'user@example.com',
-    type = 'payment_succeeded',
+    type = 'payment_failed',
     planName = 'VarsityHub Pro',
     amount = '$49.99',
     teamName,
     orgName,
     perks = ['Unlimited posts', 'Analytics', 'Custom branding'],
   } = req.body || {};
+  if (type !== 'payment_failed' && type !== 'trial_ending') {
+    return res.status(400).json({
+      ok: false,
+      error: 'Unsupported billing test type',
+      supported: ['payment_failed', 'trial_ending'],
+    });
+  }
   const ok = await sendBillingNoticeEmail({
     to,
     type,
