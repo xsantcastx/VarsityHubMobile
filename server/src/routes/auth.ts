@@ -17,8 +17,13 @@ import {
   signJwt,
   signAccessTokenForSession,
   generateRefreshToken,
+  generateRefreshTokenV2,
   hashRefreshToken,
+  hashRefreshTokenSecret,
+  parseRefreshToken,
+  verifyRefreshTokenHash,
   REFRESH_TOKEN_EXPIRY_DAYS,
+  REFRESH_TOKEN_HASH_VERSION_V2,
 } from '../lib/jwt.js';
 import { startNewSession } from '../lib/session.js';
 import { prisma } from '../lib/prisma.js';
@@ -251,18 +256,21 @@ const APPLE_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
 const appleKeyCache = new Map<string, { key: KeyObject; expiresAt: number }>();
 
 async function issueRefreshTokenForUser(userId: string, deviceInfo: string | null | undefined) {
-  const rawRefresh = generateRefreshToken();
-  const tokenHash = hashRefreshToken(rawRefresh);
+  // v2 always: keyId is the lookup index, bcrypt(secret) is the verification hash.
+  const { raw, keyId, secret } = generateRefreshTokenV2();
+  const tokenHash = await hashRefreshTokenSecret(secret);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
   await prisma.refreshToken.create({
     data: {
       token_hash: tokenHash,
+      key_id: keyId,
+      hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
       user_id: userId,
       expires_at: expiresAt,
       device_info: deviceInfo || null,
     },
   });
-  return rawRefresh;
+  return raw;
 }
 
 async function verifyGoogleIdentityToken(idToken: string) {
@@ -582,12 +590,14 @@ authRouter.post(
     // middleware — single-session enforcement applies from day one.
     const access_token = signAccessTokenForSession(user.id, 0);
     // Issue refresh token on registration
-    const rawRefreshReg = generateRefreshToken();
-    const regTokenHash = hashRefreshToken(rawRefreshReg);
+    const { raw: rawRefreshReg, keyId: regKeyId, secret: regSecret } = generateRefreshTokenV2();
+    const regTokenHash = await hashRefreshTokenSecret(regSecret);
     const regExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
     await prisma.refreshToken.create({
       data: {
         token_hash: regTokenHash,
+        key_id: regKeyId,
+        hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
         user_id: user.id,
         expires_at: regExpiry,
         device_info: req.headers['user-agent'] || null,
@@ -732,11 +742,25 @@ authRouter.post(
       if (!parsed.success) return res.status(401).json({ error: 'Invalid refresh token' });
 
       const { refresh_token } = parsed.data;
-      const tokenHash = hashRefreshToken(refresh_token);
 
-      // Find and validate the refresh token
-      const stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
+      // Look up the row. v2 tokens carry their own keyId in the raw value
+      // and use bcrypt for verification; v1 tokens are looked up directly
+      // by SHA-256 of the raw value. Both paths are handled here so we
+      // can read legacy and new rows during the migration window.
+      const parsedToken = parseRefreshToken(refresh_token);
+      let stored;
+      if (parsedToken.version === 2) {
+        stored = await prisma.refreshToken.findUnique({ where: { key_id: parsedToken.keyId } });
+      } else {
+        const tokenHash = hashRefreshToken(refresh_token);
+        stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
+      }
       if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
+
+      // Constant-time verification against the stored hash.
+      const matches = await verifyRefreshTokenHash(refresh_token, stored.token_hash, stored.hash_version);
+      if (!matches) return res.status(401).json({ error: 'Invalid refresh token' });
+
       if (stored.expires_at < new Date()) {
         await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
         return res.status(401).json({ error: 'Refresh token expired' });
@@ -765,11 +789,13 @@ authRouter.post(
         });
       }
 
-      // Rotate: delete old token, issue new pair
-      // Wrapped in try-catch to handle race condition where two concurrent
-      // refresh requests find the same token but only one can delete it.
-      const newRawRefresh = generateRefreshToken();
-      const newHash = hashRefreshToken(newRawRefresh);
+      // Rotate: delete old token, issue new pair. Always issue v2 going
+      // forward — that's the lazy-upgrade path for any v1 token still in
+      // circulation. Wrapped in try-catch to handle the race where two
+      // concurrent refresh requests find the same row but only one can
+      // delete it.
+      const { raw: newRawRefresh, keyId: newKeyId, secret: newSecret } = generateRefreshTokenV2();
+      const newHash = await hashRefreshTokenSecret(newSecret);
       const newExpiry = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
       try {
@@ -778,6 +804,8 @@ authRouter.post(
           prisma.refreshToken.create({
             data: {
               token_hash: newHash,
+              key_id: newKeyId,
+              hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
               user_id: user.id,
               expires_at: newExpiry,
               device_info: currentDevice,
@@ -828,15 +856,30 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const { refresh_token } = req.body || {};
     if (refresh_token && typeof refresh_token === 'string') {
-      const tokenHash = hashRefreshToken(refresh_token);
+      // Look up the row by whichever index matches the token shape — v2
+      // uses key_id, v1 uses token_hash. We don't bcrypt-verify here:
+      // logout's purpose is delete + push-token cleanup, so a key-id-only
+      // match is sufficient (revealing nothing more than "yes there was a
+      // token with this ID, now there isn't").
+      const parsedToken = parseRefreshToken(refresh_token);
       // Resolve the user from the refresh token BEFORE deleting it, so we can
       // also proactively clear their push token. Stale push tokens on logged-out
       // devices are a privacy leak (the device keeps receiving pushes for a user
       // who is no longer signed in) and an abuse vector if the device is shared.
-      const row = await prisma.refreshToken
-        .findUnique({ where: { token_hash: tokenHash }, select: { user_id: true } })
-        .catch(() => null);
-      await prisma.refreshToken.deleteMany({ where: { token_hash: tokenHash } }).catch(() => {});
+      let row: { user_id: string; id: string } | null = null;
+      if (parsedToken.version === 2) {
+        row = await prisma.refreshToken
+          .findUnique({ where: { key_id: parsedToken.keyId }, select: { user_id: true, id: true } })
+          .catch(() => null);
+      } else {
+        const tokenHash = hashRefreshToken(refresh_token);
+        row = await prisma.refreshToken
+          .findUnique({ where: { token_hash: tokenHash }, select: { user_id: true, id: true } })
+          .catch(() => null);
+      }
+      if (row) {
+        await prisma.refreshToken.delete({ where: { id: row.id } }).catch(() => {});
+      }
       if (row?.user_id) {
         try {
           const user = await prisma.user.findUnique({

@@ -1,5 +1,11 @@
 import { prisma } from './prisma.js';
-import { signAccessTokenForSession, generateRefreshToken, hashRefreshToken, REFRESH_TOKEN_EXPIRY_DAYS } from './jwt.js';
+import {
+  signAccessTokenForSession,
+  generateRefreshTokenV2,
+  hashRefreshTokenSecret,
+  REFRESH_TOKEN_EXPIRY_DAYS,
+  REFRESH_TOKEN_HASH_VERSION_V2,
+} from './jwt.js';
 
 /**
  * Starts a fresh authenticated session for a user and invalidates every other
@@ -25,8 +31,9 @@ export async function startNewSession(
   userId: string,
   deviceInfo: string | null,
 ): Promise<{ access_token: string; refresh_token: string; session_epoch: number }> {
-  const rawRefresh = generateRefreshToken();
-  const tokenHash = hashRefreshToken(rawRefresh);
+  // v2 always: bcrypt-over-secret with a key_id lookup index.
+  const { raw: rawRefresh, keyId, secret } = generateRefreshTokenV2();
+  const tokenHash = await hashRefreshTokenSecret(secret);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
   // Bump the epoch, purge old refresh tokens, and write the new one in a
@@ -42,6 +49,8 @@ export async function startNewSession(
     await tx.refreshToken.create({
       data: {
         token_hash: tokenHash,
+        key_id: keyId,
+        hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
         user_id: userId,
         expires_at: expiresAt,
         device_info: deviceInfo,
