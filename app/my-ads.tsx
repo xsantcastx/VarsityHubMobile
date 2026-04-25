@@ -224,6 +224,16 @@ function MyAdsScreen() {
     const hasUpcoming = future.length > 0;
     const hasDates = dates.length > 0;
     const isPaid = item.payment_status === 'paid';
+    const requiresEditBeforeScheduling = item.status === 'rejected' || item.status === 'archived';
+    const primaryActionLabel = item.status === 'rejected'
+      ? 'Edit to Resubmit'
+      : item.status === 'archived'
+        ? 'Edit to Run Again'
+        : isPaid && hasDates
+          ? '✓ Paid - Schedule More'
+          : hasDates
+            ? 'Schedule More'
+            : 'Schedule Dates';
     
     return (
       <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
@@ -362,12 +372,16 @@ function MyAdsScreen() {
         <View style={styles.actionsContainer}>
           <Pressable 
             style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
-            onPress={() => { void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } }); }}
+            onPress={() => {
+              if (requiresEditBeforeScheduling) {
+                void router.push({ pathname: '/edit-ad', params: { id: item.id } });
+                return;
+              }
+              void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } });
+            }}
           >
             <MaterialIcons name="event" size={18} color="#FFFFFF" />
-            <Text style={styles.actionButtonTextPrimary}>
-              {isPaid && hasDates ? '✓ Paid - Schedule More' : hasDates ? 'Schedule More' : 'Schedule Dates'}
-            </Text>
+            <Text style={styles.actionButtonTextPrimary}>{primaryActionLabel}</Text>
           </Pressable>
           
           <Pressable 

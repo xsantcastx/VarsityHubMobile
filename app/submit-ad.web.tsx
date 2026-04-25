@@ -3,8 +3,8 @@ import { BannerUpload } from '@/components/BannerUpload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
@@ -33,6 +33,7 @@ type DraftAd = {
 
 function SubmitAdScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ zip?: string }>();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
@@ -45,6 +46,13 @@ function SubmitAdScreen() {
   const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const nextZip = Array.isArray(params.zip) ? params.zip[0] : params.zip;
+    if (typeof nextZip === 'string' && nextZip.trim()) {
+      setZip(nextZip.trim());
+    }
+  }, [params.zip]);
 
   const normalizeUrl = (url: string): string => {
     const trimmed = url.trim();

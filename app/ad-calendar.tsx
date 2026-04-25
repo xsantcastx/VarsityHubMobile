@@ -286,6 +286,8 @@ function AdCalendarScreen() {
   const isApproved = adStatus === 'approved';
   const isDraft = adStatus === 'draft' || adStatus === null;
   const isActive = adStatus === 'active';
+  const isRejected = adStatus === 'rejected';
+  const isArchived = adStatus === 'archived';
   const canPay = isApproved || isActive; // Once approved, no re-approval for future runs
 
   const theme = Colors[colorScheme];
@@ -348,6 +350,16 @@ function AdCalendarScreen() {
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
     const maxDate = maxDateISO();
+
+    if (adStatus === 'rejected') {
+      Alert.alert('Edit Required', 'This ad was rejected. Update it and resubmit before scheduling dates.');
+      return;
+    }
+
+    if (adStatus === 'archived') {
+      Alert.alert('Campaign Ended', 'This campaign has ended. Edit the ad to run it again.');
+      return;
+    }
     
     // Prevent selection beyond 8 weeks
     if (iso > maxDate) {
@@ -1095,6 +1107,38 @@ function AdCalendarScreen() {
                 </Text>
               </View>
             </View>
+          )}
+          {(isRejected || isArchived) && (
+            <>
+              <View style={[styles.pendingBanner, { backgroundColor: colorScheme === 'dark' ? '#3F1D1D' : '#FEF2F2', borderColor: colorScheme === 'dark' ? '#B91C1C' : '#FCA5A5' }]}>
+                <MaterialIcons
+                  name={isRejected ? 'error-outline' : 'history'}
+                  size={24}
+                  color={colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C'}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>
+                    {isRejected ? 'Edit Before Scheduling' : 'Edit to Run Again'}
+                  </Text>
+                  <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#FECACA' : '#991B1B' }]}>
+                    {isRejected
+                      ? 'This ad was rejected. Update the content and resubmit it before choosing dates.'
+                      : 'This campaign has ended. Update the ad to start a new run.'}
+                  </Text>
+                </View>
+              </View>
+              <Pressable
+                onPress={() => { void router.push({ pathname: '/edit-ad', params: { id: String(adId) } }); }}
+                accessibilityRole="button"
+                accessibilityLabel={isRejected ? 'Edit ad to resubmit' : 'Edit ad to run again'}
+                style={[
+                  styles.payBtn,
+                  { backgroundColor: Colors[colorScheme].tint },
+                ]}
+              >
+                <Text style={styles.payBtnText}>{isRejected ? 'Edit Ad to Resubmit' : 'Edit Ad to Run Again'}</Text>
+              </Pressable>
+            </>
           )}
           {canPay && (
             <>

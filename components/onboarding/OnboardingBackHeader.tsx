@@ -19,7 +19,6 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const borderColor = theme.border;
   const handleBack = () => {
     if (onBack) {
       onBack();
@@ -34,7 +33,17 @@ export function OnboardingBackHeader({ title, subtitle, onBack, rightSlot }: Pro
       style={[styles.safeArea, { paddingTop: Math.max(insets.top, 16), borderBottomColor: theme.border, backgroundColor: theme.background }]}
     >
       <View style={styles.headerRow}>
-        <Pressable accessibilityRole="button" onPress={handleBack} style={styles.backButton}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={handleBack}
+          style={[
+            styles.backButton,
+            {
+              borderColor: theme.border,
+              backgroundColor: theme.surface,
+            },
+          ]}
+        >
           <MaterialIcons name="chevron-left" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.textContainer}>
@@ -65,8 +74,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#F9FAFB',
   },
   textContainer: {
     flex: 1,
@@ -84,4 +91,3 @@ const styles = StyleSheet.create({
     height: 40,
   },
 });
-

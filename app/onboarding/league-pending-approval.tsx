@@ -366,9 +366,51 @@ function LeaguePendingApproval() {
           <>
             <Pressable
               style={[styles.primaryButton, { marginBottom: 12 }]}
+              onPress={async () => {
+                if (isApplicationFlow) {
+                  try {
+                    setChecking(true);
+                    await User.reapplyCoach();
+                    setRejected(false);
+                    setRejectionReason(null);
+                    Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
+                    router.replace('/onboarding/coach-application' as any);
+                  } catch (e: any) {
+                    const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
+                    const code = e?.data?.code;
+                    const hrs = e?.data?.retry_after_hours;
+                    const retryAt = e?.data?.retry_at;
+                    if (code === 'REJECTION_COOLDOWN') {
+                      let msgText = 'You can try again once the cooldown expires.';
+                      if (typeof retryAt === 'string') {
+                        const when = new Date(retryAt);
+                        if (!isNaN(when.getTime())) {
+                          msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+                        }
+                      } else if (hrs) {
+                        msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
+                      }
+                      Alert.alert('Please wait', msgText);
+                    } else {
+                      Alert.alert('Failed', msg);
+                    }
+                  } finally {
+                    setChecking(false);
+                  }
+                  return;
+                }
+
+                router.replace('/onboarding/coach-application' as any);
+              }}
+              disabled={checking}
+            >
+              <Text style={styles.primaryButtonText}>{isApplicationFlow ? 'Try Again' : 'Back to Organization Setup'}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
               onPress={handleProceedAsFan}
             >
-              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
+              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Continue as Fan</Text>
             </Pressable>
             <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
               <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
