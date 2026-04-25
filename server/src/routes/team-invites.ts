@@ -75,7 +75,32 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
   let invite;
   try {
     invite = await prisma.$transaction(async (tx) => {
-      if (limit !== null && !existingInvite) {
+      // Re-fetch inside the transaction so two concurrent invites to the
+      // same email don't both see "no existing invite" and race past the
+      // role-conflict check below.
+      const current = await tx.teamInvite.findUnique({
+        where: { team_id_email: { team_id: teamId, email: emailLower } } as any,
+      });
+
+      // Conflict: an invite for this email is ALREADY pending with a
+      // different role. The previous behavior silently overwrote the role,
+      // so coach A could invite as `coach` and coach B (or a rapid second
+      // tap by the same coach) would silently downgrade or change it —
+      // confusing because the original invitee already received an email
+      // referencing the original role. Same role is a no-op idempotent
+      // re-invite (still allowed). Re-inviting a declined/expired invite
+      // with any role still works (only conflicts on `pending`).
+      if (
+        current &&
+        (current as any).status === 'pending' &&
+        (current as any).role !== assignedRole
+      ) {
+        throw new Error(
+          `INVITE_ROLE_CONFLICT:An invite for this email is already pending with role "${(current as any).role}". Cancel it first or re-invite with the same role.`
+        );
+      }
+
+      if (limit !== null && !current) {
         const inviteCount = await tx.teamInvite.count({ where: { team_id: teamId, status: 'pending' } });
         const memberCount = await tx.teamMembership.count({
           where: { team_id: teamId, role: { in: ['manager', 'coach', 'assistant_coach', 'equipment', 'health_wellness'] } },
@@ -92,6 +117,13 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
       });
     });
   } catch (e: any) {
+    if (e?.message?.startsWith('INVITE_ROLE_CONFLICT:')) {
+      const [, message] = e.message.split(':');
+      return res.status(409).json({
+        error: 'INVITE_ROLE_CONFLICT',
+        message: message || 'An invite for this email is already pending with a different role.',
+      });
+    }
     if (e?.message?.includes('USER_LIMIT_REACHED')) {
       const [, message] = e.message.split(':');
       return res.status(403).json({
