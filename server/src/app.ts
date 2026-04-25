@@ -52,6 +52,7 @@ import { testNotificationsRouter } from './routes/test-notifications.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
 import { wellKnownRouter } from './routes/well-known.js';
+import { shareLandingRouter } from './routes/shareLanding.js';
 
 const app = express();
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
@@ -263,6 +264,15 @@ app.use('/health', healthRouter);
 
 // Universal links - must be at /.well-known/ for iOS and Android
 app.use('/.well-known', wellKnownRouter);
+
+// Share-landing fallback: serves an HTML page with OG metadata + smart
+// "Open in app" UX when a browser hits a universal-link URL (e.g.
+// https://varsityhub.app/posts/abc when the app isn't installed).
+// JSON clients (Accept: application/json) fall through to the API
+// routers below — no behavior change for the mobile app or web fetches.
+// MUST be mounted before mountApiRoutes so the API GET /:id handlers
+// don't intercept browser requests first.
+app.use(shareLandingRouter);
 
 // API Documentation
 const swaggerUiOptions = swaggerUi.setup(swaggerSpec, {
