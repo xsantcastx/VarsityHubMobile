@@ -74,7 +74,14 @@ export default function PostDetailScreen() {
         ? [params.id]
         : [];
   }, [params.postIds, params.id]);
-  const initialIndex = params.index ? parseInt(params.index, 10) : 0;
+  const initialIndex = (() => {
+    if (!params.index) return 0;
+    const n = parseInt(params.index, 10);
+    // parseInt('abc', 10) returns NaN — using NaN as an array index resolves
+    // to undefined for the post ID, which then breaks the swipe sequence.
+    // Treat any non-finite or negative value as the start of the list.
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  })();
 
   // State for current post in swipe sequence
   const [currentPostIndex, setCurrentPostIndex] = useState(initialIndex);
@@ -92,7 +99,8 @@ export default function PostDetailScreen() {
   // Sync currentPostIndex only when navigation params actually change (not on every focus)
   useFocusEffect(
     useCallback(() => {
-      const newIndex = params.index ? parseInt(params.index, 10) : 0;
+      const newIndexRaw = params.index ? parseInt(params.index, 10) : 0;
+      const newIndex = Number.isFinite(newIndexRaw) && newIndexRaw >= 0 ? newIndexRaw : 0;
       const paramsChanged =
         prevParamsRef.current.index !== params.index ||
         prevParamsRef.current.postIds !== params.postIds;

@@ -828,6 +828,13 @@ export default function ProfileScreen() {
         const r = parseInt(match[1], 10);
         const g = parseInt(match[2], 10);
         const b = parseInt(match[3], 10);
+        // Defensive: parseInt of a non-numeric capture returns NaN, which
+        // .toString(16) renders as "NaN" — produces an invalid hex color
+        // that breaks the contrast calculation. Fall back to black on any
+        // bad parse rather than rendering broken text on top of unknown bg.
+        if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
+          return '#000000';
+        }
         hexColor = `#${[r, g, b]
           .map(x => {
             const hex = x.toString(16);

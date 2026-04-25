@@ -70,6 +70,21 @@ type FeedItem =
 
 const LIVE_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours — must match GameDetailsScreen
 
+const normalizeGamesPage = (gamesData: any): { games: GameItem[]; cursor: string | null } => {
+  if (gamesData && typeof gamesData === 'object' && !Array.isArray(gamesData)) {
+    const list = gamesData.games || gamesData.items || [];
+    return {
+      games: Array.isArray(list) ? list : [],
+      cursor: gamesData.nextCursor || null,
+    };
+  }
+
+  return {
+    games: Array.isArray(gamesData) ? gamesData : [],
+    cursor: null,
+  };
+};
+
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any; onRSVPChange?: () => void }) => {
   const colorScheme = useColorScheme();
@@ -288,7 +303,15 @@ export default function FeedScreen() {
   // Performance: cooldown to prevent re-fetching within 30s of the last successful load
   const lastLoadTimestampRef = useRef(0);
   const loadInFlightRef = useRef(false);
+  const loadRequestIdRef = useRef(0);
   const LOAD_COOLDOWN_MS = 30_000;
+
+  useEffect(() => {
+    return () => {
+      loadRequestIdRef.current += 1;
+      loadInFlightRef.current = false;
+    };
+  }, []);
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
@@ -354,44 +377,20 @@ export default function FeedScreen() {
     // Deduplicate concurrent load calls
     if (loadInFlightRef.current && silent) return;
     loadInFlightRef.current = true;
+    const requestId = ++loadRequestIdRef.current;
+    const isCurrentRequest = () => loadRequestIdRef.current === requestId;
     if (!silent) setLoading(true);
     setError(null);
     try {
-      let user: any = null;
-      try {
-        user = await User.me();
-        setMe(user);
-      } catch (err) {
-        if (__DEV__) console.warn('Feed load: unable to fetch user', err);
-      }
-      const countryCode =
-        typeof user?.preferences?.country_code === 'string'
-          ? String(user.preferences.country_code).toUpperCase()
-          : undefined;
-      const todayISO = new Date().toISOString().slice(0, 10);
-
-      // Resolve user location for ad targeting
-      const userZip =
-        typeof user?.preferences?.zip_code === 'string' ? user.preferences.zip_code : undefined;
-      let deviceLat: number | undefined;
-      let deviceLng: number | undefined;
-      if (!userZip) {
-        try {
-          const { status } = await Location.getForegroundPermissionsAsync();
-          if (status === 'granted') {
-            const loc =
-              (await Location.getLastKnownPositionAsync().catch(() => null)) ||
-              (await Location.getCurrentPositionAsync({}).catch(() => null));
-            if (loc) {
-              deviceLat = loc.coords.latitude;
-              deviceLng = loc.coords.longitude;
-            }
-          }
-        } catch (e) {
-          if (__DEV__) console.warn('Feed: location for ads failed', e);
-        }
-      }
-      setHasDeviceLocation(!!(userZip || deviceLat));
+      const userPromise = User.me()
+        .then(user => {
+          if (isCurrentRequest()) setMe(user);
+          return user;
+        })
+        .catch(err => {
+          if (__DEV__) console.warn('Feed load: unable to fetch user', err);
+          return null;
+        });
 
       // Load games with better error handling
       let gamesData: any = null;
@@ -410,69 +409,7 @@ export default function FeedScreen() {
         gamesData = null;
       }
 
-      // Load followed posts (people + teams) when signed in, highlights, and ads
-      const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
-        user
-          ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(err => {
-              if (__DEV__) console.warn('[feed] Followed posts load failed:', err);
-              return {
-                items: [],
-                nextCursor: null,
-                followed_feed_meta: undefined,
-                followed_teams_feed_meta: undefined,
-              };
-            })
-          : Promise.resolve({
-              items: [],
-              nextCursor: null,
-              followed_feed_meta: undefined,
-              followed_teams_feed_meta: undefined,
-            }),
-        user
-          ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(err => {
-              if (__DEV__) console.warn('[feed] Followed teams load failed:', err);
-              return {
-                items: [],
-                nextCursor: null,
-                followed_feed_meta: undefined,
-                followed_teams_feed_meta: undefined,
-              };
-            })
-          : Promise.resolve({
-              items: [],
-              nextCursor: null,
-              followed_feed_meta: undefined,
-              followed_teams_feed_meta: undefined,
-            }),
-        Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch(
-          err => {
-            if (__DEV__) console.warn('Highlights preview load failed', err);
-            return null;
-          }
-        ),
-        Advertisement.forFeed(todayISO, userZip, 2, deviceLat, deviceLng).catch(err => {
-          if (__DEV__) console.warn('[feed] Ads load failed:', err);
-          return null;
-        }),
-      ]);
-      setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
-      setFollowedFeedMeta(followedPage?.followed_feed_meta);
-      setFollowedTeamsPosts(Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []);
-      setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
-
-      // Handle cursor-based response or legacy array
-      let normalizedGames: any[] = [];
-      let cursor: string | null = null;
-      if (gamesData && typeof gamesData === 'object' && !Array.isArray(gamesData)) {
-        const list = gamesData.games || gamesData.items || [];
-        normalizedGames = Array.isArray(list) ? list : [];
-        cursor = gamesData.nextCursor || null;
-      } else if (Array.isArray(gamesData)) {
-        normalizedGames = gamesData;
-      } else if (gamesData === null || gamesData === undefined) {
-        // If games failed to load, don't inject sample data - show error instead
-        normalizedGames = [];
-      }
+      let { games: normalizedGames, cursor } = normalizeGamesPage(gamesData);
 
       // If no games exist, seed sample games as real DB records (stories/polls work)
       if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
@@ -481,40 +418,127 @@ export default function FeedScreen() {
           await httpPost('/games/seed-samples', {});
           // Re-fetch games now that seeds exist
           const seeded = await Game.list('-date', { limit: 30 }).catch(() => ({ games: [] }));
-          const seededList = seeded?.games || (Array.isArray(seeded) ? seeded : []);
-          if (seededList.length > 0) {
-            normalizedGames = seededList;
-            setShowSeedBanner(true);
+          const seededPage = normalizeGamesPage(seeded);
+          if (seededPage.games.length > 0) {
+            normalizedGames = seededPage.games;
+            cursor = seededPage.cursor;
+            if (isCurrentRequest()) setShowSeedBanner(true);
           }
         } catch (seedErr: any) {
           if (__DEV__) console.warn('[feed] seed-samples failed:', seedErr?.message);
         }
       }
-      setGames(normalizedGames);
-      setGamesCursor(cursor);
-      setHasMoreGames(!!cursor);
-      if (highlightsData) {
-        const merged: any[] = [];
-        if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
-        if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
-        const firstWithMedia = merged.find(
-          item => typeof item?.media_url === 'string' && item.media_url
-        );
-        setHighlightPreview(firstWithMedia || null);
-      } else {
-        setHighlightPreview(null);
+
+      if (isCurrentRequest()) {
+        setGames(normalizedGames);
+        setGamesCursor(cursor);
+        setHasMoreGames(!!cursor);
+        if (!silent) setLoading(false);
       }
-      if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
-        const list = ((forFeedAds as any).ads as any[]).filter(a => !!a); // Allow ads with or without banners
-        // Shuffle order for fairness
-        for (let i = list.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [list[i], list[j]] = [list[j], list[i]];
+
+      void (async () => {
+        try {
+          const user = await userPromise;
+          if (!isCurrentRequest()) return;
+
+          const countryCode =
+            typeof user?.preferences?.country_code === 'string'
+              ? String(user.preferences.country_code).toUpperCase()
+              : undefined;
+          const todayISO = new Date().toISOString().slice(0, 10);
+          const userZip =
+            typeof user?.preferences?.zip_code === 'string' ? user.preferences.zip_code : undefined;
+
+          let deviceLat: number | undefined;
+          let deviceLng: number | undefined;
+          if (userZip) {
+            if (isCurrentRequest()) setHasDeviceLocation(true);
+          } else {
+            try {
+              const { status } = await Location.getForegroundPermissionsAsync();
+              if (status === 'granted') {
+                const loc =
+                  (await Location.getLastKnownPositionAsync().catch(() => null)) ||
+                  (await Location.getCurrentPositionAsync({}).catch(() => null));
+                if (loc) {
+                  deviceLat = loc.coords.latitude;
+                  deviceLng = loc.coords.longitude;
+                }
+              }
+            } catch (e) {
+              if (__DEV__) console.warn('Feed: location for ads failed', e);
+            }
+
+            if (isCurrentRequest()) setHasDeviceLocation(!!deviceLat);
+          }
+
+          const emptyPage = {
+            items: [],
+            nextCursor: null,
+            followed_feed_meta: undefined,
+            followed_teams_feed_meta: undefined,
+          };
+
+          const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
+            user
+              ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(err => {
+                  if (__DEV__) console.warn('[feed] Followed posts load failed:', err);
+                  return emptyPage;
+                })
+              : Promise.resolve(emptyPage),
+            user
+              ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(err => {
+                  if (__DEV__) console.warn('[feed] Followed teams load failed:', err);
+                  return emptyPage;
+                })
+              : Promise.resolve(emptyPage),
+            Highlights.fetch(
+              countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }
+            ).catch(err => {
+              if (__DEV__) console.warn('Highlights preview load failed', err);
+              return null;
+            }),
+            Advertisement.forFeed(todayISO, userZip, 2, deviceLat, deviceLng).catch(err => {
+              if (__DEV__) console.warn('[feed] Ads load failed:', err);
+              return null;
+            }),
+          ]);
+
+          if (!isCurrentRequest()) return;
+
+          setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
+          setFollowedFeedMeta(followedPage?.followed_feed_meta);
+          setFollowedTeamsPosts(
+            Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []
+          );
+          setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
+
+          if (highlightsData) {
+            const merged: any[] = [];
+            if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
+            if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
+            const firstWithMedia = merged.find(
+              item => typeof item?.media_url === 'string' && item.media_url
+            );
+            setHighlightPreview(firstWithMedia || null);
+          } else {
+            setHighlightPreview(null);
+          }
+
+          if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
+            const list = ((forFeedAds as any).ads as any[]).filter(a => !!a);
+            for (let i = list.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [list[i], list[j]] = [list[j], list[i]];
+            }
+            setSponsoredAds(list);
+          } else {
+            setSponsoredAds([]);
+          }
+        } catch (backgroundErr) {
+          if (__DEV__) console.warn('[Feed] Background hydration failed:', backgroundErr);
         }
-        setSponsoredAds(list);
-      } else {
-        setSponsoredAds([]);
-      }
+      })();
     } catch (e: any) {
       if (__DEV__) console.error('[Feed] Failed to load feed:', e);
       if (e?.isNetworkError || e?.status === 0) {
@@ -526,14 +550,17 @@ export default function FeedScreen() {
       }
       setGames([]);
       setHighlightPreview(null);
+      setSponsoredAds([]);
       setFollowedPosts([]);
       setFollowedFeedMeta(undefined);
       setFollowedTeamsPosts([]);
       setFollowedTeamsFeedMeta(undefined);
     } finally {
-      if (!silent) setLoading(false);
-      loadInFlightRef.current = false;
-      lastLoadTimestampRef.current = Date.now();
+      if (!silent && isCurrentRequest()) setLoading(false);
+      if (isCurrentRequest()) {
+        loadInFlightRef.current = false;
+        lastLoadTimestampRef.current = Date.now();
+      }
     }
   }, []);
 
@@ -671,7 +698,16 @@ export default function FeedScreen() {
 
     filtered.forEach(game => {
       if (game.date) {
+        // Defensive: malformed date string (null, "invalid", undefined-after-cast)
+        // gives Invalid Date whose .getTime() returns NaN. Without the guard, all
+        // NaN comparisons with LIVE_WINDOW_MS are false, so the game silently
+        // falls into `past` regardless of when it actually is. Treat unparseable
+        // as "no date" → bucket into upcoming where dateless games already go.
         const gameMs = new Date(game.date).getTime();
+        if (!Number.isFinite(gameMs)) {
+          upcoming.push(game);
+          return;
+        }
         const elapsed = now - gameMs;
         if (elapsed <= LIVE_WINDOW_MS) {
           // Not yet started (elapsed < 0) OR started within live window
