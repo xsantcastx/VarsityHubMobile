@@ -49,12 +49,17 @@ searchRouter.get(
     // Without this, blocked users could discover each other via exact-username search and infer the block.
     let blockedIds: string[] = [];
     if (currentUserId) {
-      // v1.0.2 pass 12: cap at 10k — user block sets are tiny in practice and this keeps the
-      // query bounded so a pathological user can't stall every search request.
+      // Cap is a safety stop on a pathological user — block sets are tiny in
+      // practice (median single digits, 99p < 200). Prior cap was 10k which
+      // both consumes a lot more memory than needed AND, more importantly,
+      // hides the failure mode: if a user ever DOES hit the cap, search
+      // silently lets blocked users slip through. 500 is comfortably above
+      // any real-world block list and tight enough that hitting it signals a
+      // problem worth investigating, not absorbing.
       const blocks = await prisma.blockedUser.findMany({
         where: { OR: [{ blocker_id: currentUserId }, { blocked_id: currentUserId }] },
         select: { blocker_id: true, blocked_id: true },
-        take: 10000,
+        take: 500,
       });
       const ids = new Set<string>();
       for (const b of blocks) {

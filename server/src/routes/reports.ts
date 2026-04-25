@@ -248,18 +248,21 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, asyncHandler(async (r
     return res.status(404).json({ error: `${target_type} not found` });
   }
 
-  // Check for duplicate recent report (same user, same target, within 24 hours)
-  // We use AbuseReport table since ContentReport doesn't exist yet
-  // For now, create a workaround using the existing AbuseReport model
+  // Check for duplicate recent report (same user, same target, within 24 hours).
+  // Encoded as `[type:id] Reason: ...` in the AbuseReport.subject column —
+  // ContentReport schema doesn't exist yet (tracked debt). Use startsWith,
+  // not contains: the marker is always at index 0 of the subject, so the
+  // range scan is both more precise (no false-positive substring hits if a
+  // future subject template contains brackets elsewhere) and cheaper than
+  // a full-text contains scan.
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  
-  // Check existing reports using a custom approach
+  const dedupSubjectPrefix = `[${target_type}:${target_id}]`;
+
   const recentReports = await prisma.abuseReport.findMany({
     where: {
       reporter_id: req.user.id,
       created_at: { gte: twentyFourHoursAgo },
-      // Use subject field to store target info
-      subject: { contains: `[${target_type}:${target_id}]` },
+      subject: { startsWith: dedupSubjectPrefix },
     },
     take: 1,
   });
