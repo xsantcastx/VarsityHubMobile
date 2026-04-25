@@ -17,13 +17,22 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 import { app } from '../testApp.js';
 
 let prisma: any;
 let signJwt: any;
 
-const ts = Date.now();
+// Stable per-suite suffix for fixture uniqueness. Using randomUUID instead
+// of Date.now() so two runs at the same millisecond don't hit a unique-
+// constraint collision (older pattern was email = `${prefix}-${Date.now()}`).
+const ts = randomUUID();
 const PASSWORD = 'TestPassword123!';
+
+// Fixed UTC future date — far enough out that nothing in the test relies on
+// "now". Was `Date.now() + 7 days` which is fine for relative-future-ness
+// but adds spurious cross-run variance.
+const FUTURE_EVENT_DATE = new Date('2099-01-01T12:00:00Z');
 
 describe('Event Cancel Permissions', () => {
   let orgId: string;
@@ -43,7 +52,7 @@ describe('Event Cancel Permissions', () => {
     const role = prefsRole === 'coach' || prefsRole === 'fan' ? prefsRole : undefined;
     return prisma.user.create({
       data: {
-        email: `${emailPrefix}-${ts}-${Math.random()}@example.com`,
+        email: `${emailPrefix}-${ts}-${randomUUID()}@example.com`,
         password_hash: hash,
         display_name: emailPrefix,
         email_verified: true,
@@ -59,8 +68,8 @@ describe('Event Cancel Permissions', () => {
   async function createCancellableEvent(label: string) {
     return prisma.event.create({
       data: {
-        title: `${label} ${ts}-${Math.random()}`,
-        date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        title: `${label} ${ts}-${randomUUID()}`,
+        date: FUTURE_EVENT_DATE,
         team_id: teamId,
         status: 'approved',
         approval_status: 'approved',

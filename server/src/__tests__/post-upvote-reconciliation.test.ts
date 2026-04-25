@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 
 let prisma: any;
 let runPostUpvoteReconciliation: (limit?: number) => Promise<{
@@ -23,7 +24,7 @@ describeDb('Post upvote reconciliation', () => {
     const passwordHash = await bcrypt.hash('TestPassword123!', 10);
     const author = await prisma.user.create({
       data: {
-        email: `post-reconcile-author-${Date.now()}@example.com`,
+        email: `post-reconcile-author-${randomUUID()}@example.com`,
         password_hash: passwordHash,
         display_name: 'Post Reconcile Author',
         email_verified: true,
@@ -35,7 +36,7 @@ describeDb('Post upvote reconciliation', () => {
     });
     const voterOne = await prisma.user.create({
       data: {
-        email: `post-reconcile-voter-1-${Date.now()}@example.com`,
+        email: `post-reconcile-voter-1-${randomUUID()}@example.com`,
         password_hash: passwordHash,
         display_name: 'Post Reconcile Voter One',
         email_verified: true,
@@ -47,7 +48,7 @@ describeDb('Post upvote reconciliation', () => {
     });
     const voterTwo = await prisma.user.create({
       data: {
-        email: `post-reconcile-voter-2-${Date.now()}@example.com`,
+        email: `post-reconcile-voter-2-${randomUUID()}@example.com`,
         password_hash: passwordHash,
         display_name: 'Post Reconcile Voter Two',
         email_verified: true,
