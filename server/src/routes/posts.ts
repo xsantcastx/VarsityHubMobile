@@ -1421,28 +1421,44 @@ postsRouter.post(
       });
     }
 
-    // Validate parent_id if provided (reply to comment)
-    if (parent_id) {
-      const parentComment = await prisma.comment.findFirst({
-        where: { id: parent_id, post_id: id },
-        select: { id: true, author_id: true },
+    // Validate parent_id and create the reply atomically. Doing the find +
+    // create as separate awaits lets the parent be deleted in the gap, and
+    // because the parent FK is `onDelete: SetNull`, Prisma won't fail the
+    // insert — the new reply ends up with a parent_id pointing at a row
+    // that's already gone (resolves to null on next read). Wrapping in
+    // $transaction keeps the read+write tied together.
+    let comment;
+    try {
+      comment = await prisma.$transaction(async (tx) => {
+        if (parent_id) {
+          const parentComment = await tx.comment.findFirst({
+            where: { id: parent_id, post_id: id },
+            select: { id: true },
+          });
+          if (!parentComment) {
+            // Sentinel — re-thrown so the transaction rolls back. Caught
+            // below and translated to a 404 response.
+            throw new Error('__PARENT_NOT_FOUND__');
+          }
+        }
+        return tx.comment.create({
+          data: {
+            post_id: id,
+            author_id: req.user!.id,
+            content: sanitizedContent,
+            parent_id: parent_id || undefined,
+          },
+          include: {
+            author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+          },
+        });
       });
-      if (!parentComment) {
+    } catch (err: any) {
+      if (err?.message === '__PARENT_NOT_FOUND__') {
         return res.status(404).json({ error: 'Parent comment not found' });
       }
+      throw err;
     }
-
-    const comment = await prisma.comment.create({
-      data: {
-        post_id: id,
-        author_id: req.user!.id,
-        content: sanitizedContent,
-        parent_id: parent_id || undefined,
-      },
-      include: {
-        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-      },
-    });
 
     const actorName = comment.author?.display_name || 'Someone';
 

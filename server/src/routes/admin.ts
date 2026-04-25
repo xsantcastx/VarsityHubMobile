@@ -669,6 +669,12 @@ adminRouter.post('/users/:id/ban', requireVerified as any, requireAdminMiddlewar
       data: {
         banned: true,
         ban_reason: reason || 'Banned by admin for violating community guidelines.',
+        // Bump session_epoch so existing access tokens fail the auth gate
+        // immediately (auth middleware compares jwt.se to user.session_epoch).
+        // Without this, a banned user keeps using their access token until
+        // it naturally expires — refresh-token deletion below only stops
+        // them from minting NEW tokens, not from using their current one.
+        session_epoch: { increment: 1 },
       },
     });
 

@@ -59,7 +59,17 @@ usersRouter.post('/:id/ban', requireAdmin as any, asyncHandler(async (req, res) 
   try {
     const id = String(req.params.id);
     const { reason } = req.body || {};
-    const u = await updateUserAndInvalidate(prisma, { where: { id }, data: { banned: true, ban_reason: reason || 'Banned for violating community guidelines.' } });
+    // session_epoch bump invalidates existing access tokens immediately;
+    // without it the banned user keeps acting until their JWT expires.
+    const u = await updateUserAndInvalidate(prisma, {
+      where: { id },
+      data: {
+        banned: true,
+        ban_reason: reason || 'Banned for violating community guidelines.',
+        session_epoch: { increment: 1 },
+      },
+    });
+    await prisma.refreshToken.deleteMany({ where: { user_id: id } }).catch(() => {});
     return res.json({ ok: true, id: u.id, banned: true });
   } catch (err) {
     console.error('[users] POST /:id/ban error:', err);

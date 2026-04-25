@@ -231,8 +231,15 @@ export async function suspendUser(params: {
     data: {
       banned_until: suspendUntil,
       ban_reason: reason,
+      // Bump session_epoch so existing access tokens fail the auth gate
+      // immediately. Same reasoning as the ban endpoints — without this,
+      // a suspended user keeps acting until their JWT naturally expires.
+      session_epoch: { increment: 1 },
     },
   });
+  // Drop refresh tokens too so they can't mint new access tokens during
+  // the suspension window.
+  await prisma.refreshToken.deleteMany({ where: { user_id: userId } }).catch(() => {});
 
   await issueWarning({
     userId,
