@@ -229,25 +229,37 @@ export const auth = {
   },
   async login(email: string, password: string) {
     invalidateMeCache();
-    const res = await httpPost('/auth/login', { email, password });
-    if (res?.access_token) await saveToken(res.access_token);
-    if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
+    // parseAuthTokenResponse validates the shape and throws "Invalid auth
+    // response" on null/undefined/array/scalar — without it, an unexpected
+    // response (proxy returning HTML, network shim returning string,
+    // future API contract drift) silently no-ops the token save and
+    // returns whatever the response was, leaving the caller in a half-
+    // signed-in state.
+    const res = parseAuthTokenResponse(
+      await httpPost('/auth/login', { email, password })
+    );
+    if (res.access_token) await saveToken(res.access_token);
+    if (res.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async loginWithGoogle(idToken: string) {
     invalidateMeCache();
     // Google auth involves server-side token verification with Google — allow longer timeout
-    const res = await httpPostLongTimeout('/auth/google', { id_token: idToken });
-    if (res?.access_token) await saveToken(res.access_token);
-    if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
+    const res = parseAuthTokenResponse(
+      await httpPostLongTimeout('/auth/google', { id_token: idToken })
+    );
+    if (res.access_token) await saveToken(res.access_token);
+    if (res.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async loginWithApple(identityToken: string) {
     invalidateMeCache();
     // Apple auth can be slow on real devices; allow longer timeout
-    const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
-    if (res?.access_token) await saveToken(res.access_token);
-    if (res?.refresh_token) await saveRefreshToken(res.refresh_token);
+    const res = parseAuthTokenResponse(
+      await httpPostLongTimeout('/auth/apple', { identity_token: identityToken })
+    );
+    if (res.access_token) await saveToken(res.access_token);
+    if (res.refresh_token) await saveRefreshToken(res.refresh_token);
     return res;
   },
   async linkGoogle(idToken: string) {
