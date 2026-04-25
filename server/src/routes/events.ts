@@ -20,6 +20,7 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
 import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
+import { mustSucceed } from '../lib/sideEffect.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
@@ -1366,7 +1367,18 @@ eventsRouter.patch(
 
       // Cancel scheduled reminders for all RSVPed users (parallel)
       await Promise.all(
-        rsvps.map(rsvp => cancelGameReminders(eventId, rsvp.user_id).catch(() => {}))
+        rsvps.map(rsvp =>
+          mustSucceed(
+            'events.cancel.reminder-cancel',
+            {
+              route: '/events/:id/cancel',
+              event_id: eventId,
+              actor_user_id: userId,
+              target_user_id: rsvp.user_id,
+            },
+            () => cancelGameReminders(eventId, rsvp.user_id)
+          )
+        )
       );
 
       return res.json({

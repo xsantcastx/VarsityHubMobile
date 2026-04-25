@@ -23,6 +23,7 @@ import {
 import { startNewSession } from '../lib/session.js';
 import { prisma } from '../lib/prisma.js';
 import { captureException } from '../lib/sentry.js';
+import { mustSucceed } from '../lib/sideEffect.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -738,20 +739,44 @@ authRouter.post(
       const stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
       if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
       if (stored.expires_at < new Date()) {
-        await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+        await mustSucceed(
+          'auth.refresh.delete-expired-token',
+          {
+            route: '/auth/refresh',
+            refresh_token_id: stored.id,
+            user_id: stored.user_id,
+          },
+          () => prisma.refreshToken.delete({ where: { id: stored.id } })
+        );
         return res.status(401).json({ error: 'Refresh token expired' });
       }
 
       // Check user still valid
       const user = await prisma.user.findUnique({ where: { id: stored.user_id } });
       if (!user || user.banned) {
-        await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+        await mustSucceed(
+          'auth.refresh.delete-banned-token',
+          {
+            route: '/auth/refresh',
+            refresh_token_id: stored.id,
+            user_id: stored.user_id,
+          },
+          () => prisma.refreshToken.delete({ where: { id: stored.id } })
+        );
         return res.status(401).json({ error: 'Account not found or banned' });
       }
 
       // Reject tokens issued before a password change
       if (user.password_changed_at && stored.created_at < user.password_changed_at) {
-        await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+        await mustSucceed(
+          'auth.refresh.delete-password-invalidated-token',
+          {
+            route: '/auth/refresh',
+            refresh_token_id: stored.id,
+            user_id: stored.user_id,
+          },
+          () => prisma.refreshToken.delete({ where: { id: stored.id } })
+        );
         return res.status(401).json({ error: 'Token invalidated by password change' });
       }
 
