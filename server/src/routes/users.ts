@@ -448,12 +448,18 @@ usersRouter.get('/:id/posts', asyncHandler(async (req: AuthedRequest, res) => {
     const nextCursor = rows.length > limit ? rows[limit].id : null;
 
     const payload = items.map(mapPostForPayload);
+    const [postsCount, likesCount, commentsCount, savesCount] = await Promise.all([
+      prisma.post.count({ where: { author_id: id, deleted_at: null } }),
+      prisma.postUpvote.count({ where: { user_id: id } }),
+      prisma.comment.count({ where: { author_id: id } as any }),
+      prisma.postBookmark.count({ where: { user_id: id } }),
+    ]);
     const counts = {
-      posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
-      likes: await prisma.postUpvote.count({ where: { user_id: id } }),
-      comments: await prisma.comment.count({ where: { author_id: id } as any }),
+      posts: postsCount,
+      likes: likesCount,
+      comments: commentsCount,
       reposts: 0,
-      saves: await prisma.postBookmark.count({ where: { user_id: id } }),
+      saves: savesCount,
     };
 
     return res.json({ items: payload, nextCursor, counts });
