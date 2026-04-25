@@ -82,10 +82,14 @@ const ROUTE_MAP: Record<string, string> = {
   post: '/post-detail',
   posts: '/post-detail', // /posts/:id (web URL format)
   game: '/game-detail',
+  games: '/game-detail', // /games/:id matches the server's shareLanding plural form
   event: '/event-detail',
+  events: '/event-detail', // /events/:id (server + email links)
   team: '/team-page',
+  teams: '/team-page', // /teams/:id (server + share URLs)
   profile: '/user-profile',
   user: '/user-profile',
+  users: '/user-profile', // /users/:id (server's plural form)
   // Auth-related routes
   'reset-password': '/reset-password',
   'verify-email': '/verify',
@@ -99,6 +103,8 @@ const ROUTE_MAP: Record<string, string> = {
   'team-hub': '/team-hub',
   'create-fan-event': '/create-fan-event',
   'manage-subscription': '/settings/manage-subscription',
+  // Multi-segment routes without a resource ID (e.g., billing emails link to /settings/manage-subscription directly)
+  'settings/manage-subscription': '/settings/manage-subscription',
   // Payment redirect routes
   'payment-success': '/payment-success',
   'payment-cancel': '/payment-cancel',
@@ -165,6 +171,16 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
 
   if (pathParts.length < 2) {
     return null;
+  }
+
+  // Multi-segment routes that have NO resource ID — same handling as the path-link parser.
+  const wholePathKey = pathParts.join('/');
+  if (ROUTE_MAP[wholePathKey]) {
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(queryParams)) {
+      if (typeof value === 'string') params[key] = value;
+    }
+    return { screen: ROUTE_MAP[wholePathKey], params, source: 'scheme' };
   }
 
   // Support multi-segment types like 'join/org' (3 parts: join, org, id)
@@ -269,6 +285,22 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
 
   if (pathParts.length < 2) {
     return null;
+  }
+
+  // Multi-segment routes that have NO resource ID (e.g., /settings/manage-subscription).
+  // Match the full joined path against ROUTE_MAP first; only fall through to the
+  // type+id pattern if no whole-path key exists.
+  const wholePathKey = pathParts.join('/');
+  if (ROUTE_MAP[wholePathKey]) {
+    const params: Record<string, string> = {};
+    for (const [key, value] of Object.entries(queryParams)) {
+      if (typeof value === 'string') params[key] = value;
+    }
+    return {
+      screen: ROUTE_MAP[wholePathKey],
+      params,
+      source: parsed.scheme === 'https' || parsed.scheme === 'http' ? 'universal' : 'unknown',
+    };
   }
 
   // Support multi-segment types like 'join/org' (3 parts: join, org, id)
