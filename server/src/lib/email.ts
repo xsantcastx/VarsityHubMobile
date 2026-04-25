@@ -483,7 +483,10 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
       event_date: params.eventDate || '',
       event_time: params.eventTime || '',
       event_location: params.eventLocation || '',
-      opponent: params.opponent || '',
+      // Template renders {{opponent}} unconditionally in the event-details
+      // table (event-approved.html:84). Empty string leaves a blank cell;
+      // 'TBD' communicates the absence properly.
+      opponent: params.opponent || 'TBD',
       organization_name: params.organizationName || 'VarsityHub',
       approval_notes: params.approvalNotes || '',
       view_event_url: buildEventDetailUrl(params.eventId, params.eventLink),
@@ -979,7 +982,11 @@ export async function sendBillingNoticeEmail(params: {
         failedAmount: params.amount || '',
         failedDate: params.failedDate || fmt(today),
         retryDate: params.retryDate || fmt(threeDaysOut),
-        paymentMethodLast4: params.paymentMethodLast4 || '',
+        // Template renders "Card ending in {{paymentMethodLast4}}"
+        // unconditionally (payment-failed.html:76). '****' renders as
+        // a placeholder that doesn't look broken when the caller didn't
+        // resolve the actual last-4 from the Stripe invoice.
+        paymentMethodLast4: params.paymentMethodLast4 || '****',
         updatePaymentLink: manageSubscriptionLink,
         contactSupportLink: `mailto:${CUSTOMER_SERVICE_EMAIL}`,
         // Compatibility keys for template revisions that render extra detail
@@ -1010,6 +1017,17 @@ export async function sendBillingNoticeEmail(params: {
     const manageSubscriptionLink =
       params.manageLink || buildManageSubscriptionUrl();
 
+    // Compute a date fallback from daysRemaining when the caller didn't
+    // resolve the exact subscription period_end. Templates use these
+    // unconditionally in the subject line and details table; empty
+    // strings render obviously-broken text like "Your subscription
+    // renews on " in the inbox preview.
+    const fmtDate = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const fallbackExpires = fmtDate(
+      new Date(Date.now() + (params.daysRemaining ?? 0) * 24 * 60 * 60 * 1000)
+    );
+
     return sendTemplateEmail(
       templateId,
       params.to,
@@ -1020,9 +1038,9 @@ export async function sendBillingNoticeEmail(params: {
         userName: params.user_name || '',
         planName: params.planName || 'VarsityHub Subscription',
         daysRemaining: params.daysRemaining ?? 0,
-        expiresDate: params.expiresDate || '',
-        renewalDate: params.renewalDate || '',
-        renewalPrice: params.renewalPrice || '',
+        expiresDate: params.expiresDate || fallbackExpires,
+        renewalDate: params.renewalDate || fallbackExpires,
+        renewalPrice: params.renewalPrice || 'your current subscription price',
         manageSubscriptionLink,
         renewLink: manageSubscriptionLink,
         // Template uses {{#each features_losing}} — must be an array, even
@@ -1460,7 +1478,11 @@ export async function sendAdminActionConfirmationEmail(params: {
       league_name: params.leagueName,
       owner_name: params.ownerName || '',
       owner_email: params.ownerEmail || '',
-      reason: params.reason || '',
+      // Template renders {{reason}} unconditionally
+      // (admin-action-confirmation.html:59). Without a default the
+      // paragraph renders empty; "No reason provided" is the same
+      // language used elsewhere in the email layer.
+      reason: params.reason || 'No reason provided',
     },
     `Admin action confirmation (${params.action}) sent to ${params.to}`
   );
