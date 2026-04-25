@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -7,6 +8,7 @@ import { prisma } from '../lib/prisma.js';
 import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import { captureMessage } from '../lib/sentry.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
@@ -51,57 +53,34 @@ groupChatsRouter.get('/', requireAuth as any, requireVerified as any, asyncHandl
       orderBy: { joined_at: 'desc' },
     });
 
-    // Unread count: previously this was N+1 — one count() per chat parallelized
-    // via Promise.all (see git history). Replaced with a single bounded scan +
-    // in-memory bucket. Each chat has a different last_read_at cutoff, so we
-    // can't use Prisma groupBy directly (single WHERE per groupBy call).
-    const chatIds = memberships.map((m: any) => m.chat_id);
-    const lastReadByChat = new Map<string, Date | null>(
-      memberships.map((m: any) => [m.chat_id, m.last_read_at ?? null])
+    // Mirror the joined_at floor that the message-fetch path enforces (see
+    // GET /:chatId/messages — line ~134, `created_at: { gte: membership.joined_at }`).
+    // Without this AND clause, a member added after a chat already had history
+    // would see unread badges for messages they cannot actually load —
+    // confusing badge-vs-list mismatch.
+    const unreadRows =
+      memberships.length > 0
+        ? await prisma.$queryRaw<Array<{ chat_id: string; unread_count: number }>>(Prisma.sql`
+            SELECT
+              m.chat_id,
+              COUNT(*)::int AS unread_count
+            FROM "GroupChatMember" m
+            JOIN "GroupChatMessage" msg
+              ON msg.chat_id = m.chat_id
+            WHERE m.user_id = ${req.user.id}
+              AND msg.sender_id <> ${req.user.id}
+              AND msg.created_at >= m.joined_at
+              AND (
+                m.last_read_at IS NULL
+                OR msg.created_at > m.last_read_at
+              )
+            GROUP BY m.chat_id
+          `)
+        : [];
+
+    const unreadByChat = new Map<string, number>(
+      unreadRows.map(row => [row.chat_id, Number(row.unread_count) || 0])
     );
-
-    // Optimization: if every chat has a non-null last_read_at, we only need to
-    // scan messages newer than the OLDEST cutoff across all chats. Anything
-    // older than that can't be unread for any of them.
-    const lastReadValues: Date[] = [];
-    let allChatsHaveLastRead = true;
-    for (const chatId of chatIds) {
-      const lastRead = lastReadByChat.get(chatId);
-      if (lastRead == null) {
-        allChatsHaveLastRead = false;
-        break;
-      }
-      lastReadValues.push(lastRead);
-    }
-    const globalCutoff = allChatsHaveLastRead && lastReadValues.length > 0
-      ? new Date(Math.min(...lastReadValues.map((d) => d.getTime())))
-      : null;
-
-    // Scan cap: anyone with > 1000 unread messages is already past the point
-    // where a precise count matters; the UI can show "999+". Sorting by newest
-    // first means we get the freshest unread within the cap budget.
-    const UNREAD_SCAN_CAP = 1000;
-
-    const candidateMessages = chatIds.length > 0
-      ? await prisma.groupChatMessage.findMany({
-          where: {
-            chat_id: { in: chatIds },
-            sender_id: { not: req.user!.id },
-            ...(globalCutoff ? { created_at: { gt: globalCutoff } } : {}),
-          },
-          select: { chat_id: true, created_at: true },
-          take: UNREAD_SCAN_CAP,
-          orderBy: { created_at: 'desc' },
-        })
-      : [];
-
-    const unreadByChat = new Map<string, number>();
-    for (const msg of candidateMessages) {
-      const lastRead = lastReadByChat.get(msg.chat_id);
-      if (!lastRead || msg.created_at > lastRead) {
-        unreadByChat.set(msg.chat_id, (unreadByChat.get(msg.chat_id) ?? 0) + 1);
-      }
-    }
 
     const chats = memberships.map((m: any) => ({
       ...m.chat,
@@ -140,12 +119,28 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, requireVerified as
     // Block-list: filter out messages from users the requester has blocked or
     // who have blocked the requester. Blocking otherwise only prevented DMs —
     // in group chats, blocked users were still fully visible to each other.
-    // Bounded to 10k matching the search.ts cap.
+    //
+    // Same overflow detection as search.ts: take=LIMIT+1 so a pathological
+    // user with > LIMIT block relationships fails closed (503) instead of
+    // silently letting blocked users' messages through.
+    const BLOCK_LIST_HARD_LIMIT = 10_000;
     const blocks = await prisma.blockedUser.findMany({
       where: { OR: [{ blocker_id: meId }, { blocked_id: meId }] },
       select: { blocker_id: true, blocked_id: true },
-      take: 10000,
+      take: BLOCK_LIST_HARD_LIMIT + 1,
     });
+    if (blocks.length > BLOCK_LIST_HARD_LIMIT) {
+      captureMessage('Group-chat blocked-list exceeded hard limit — failing closed', 'error', {
+        context: 'group_chat_blocked_list_overflow',
+        userId: meId,
+        chatId,
+        limit: BLOCK_LIST_HARD_LIMIT,
+      });
+      return res.status(503).json({
+        error: 'CHAT_TEMPORARILY_UNAVAILABLE',
+        message: 'Chat is temporarily unavailable for this account. Please contact support.',
+      });
+    }
     const blockedUserIds = new Set<string>();
     for (const b of blocks) {
       if (b.blocker_id !== meId) blockedUserIds.add(b.blocker_id);

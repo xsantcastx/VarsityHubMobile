@@ -122,10 +122,15 @@ describe('API Group chats', () => {
     });
     chatId = chat.id;
 
+    // joined_at MUST predate the message timeline below — the unread count
+    // query enforces a `msg.created_at >= m.joined_at` floor so pre-join
+    // history doesn't appear as unread (matches what the message-fetch path
+    // returns to the client).
+    const memberJoinedAt = new Date('2024-05-01T00:00:00.000Z');
     await prisma.groupChatMember.createMany({
       data: [
-        { chat_id: chatId, user_id: userAId, last_read_at: null },
-        { chat_id: chatId, user_id: userBId, last_read_at: null },
+        { chat_id: chatId, user_id: userAId, last_read_at: null, joined_at: memberJoinedAt },
+        { chat_id: chatId, user_id: userBId, last_read_at: null, joined_at: memberJoinedAt },
       ],
     });
 
@@ -208,6 +213,61 @@ describe('API Group chats', () => {
       .expect(200);
     const row2 = (res2.body as any[]).find((c) => c.id === chatId);
     expect(row2?.unreadCount).toBe(1);
+  });
+
+  it('GET /group-chats applies joined_at floor — pre-join history is NOT counted unread', async () => {
+    // Regression: previously the unread-count query only filtered by
+    // last_read_at, NOT joined_at. A new member added after a chat already
+    // had history would see unread badges for messages they cannot
+    // actually fetch (the message-fetch path does enforce joined_at).
+    // This test pins the contract: unread count must mirror what's
+    // visible in the message list.
+    await prisma.groupChatMember.updateMany({
+      where: { chat_id: chatId, user_id: userAId },
+      data: {
+        last_read_at: null,
+        joined_at: new Date('2024-12-01T00:00:00.000Z'),
+      },
+    });
+
+    const res = await request(app)
+      .get('/group-chats')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    const row = (res.body as any[]).find((c) => c.id === chatId);
+    // The 3 fixture messages from beforeAll (2024-06-01..03) all predate
+    // the simulated join (2024-12-01), so unread MUST be 0.
+    expect(row?.unreadCount).toBe(0);
+  });
+
+  it('GET /group-chats returns exact unread counts beyond 1000 messages', async () => {
+    await prisma.groupChatMessage.deleteMany({ where: { chat_id: chatId } });
+    await prisma.groupChatMember.updateMany({
+      where: { chat_id: chatId, user_id: userAId },
+      data: {
+        last_read_at: null,
+        // Reset joined_at to predate the bulk messages — the prior test
+        // pushed it forward to 2024-12-01 to verify the floor, which would
+        // exclude every message here if not reset.
+        joined_at: new Date('2024-05-01T00:00:00.000Z'),
+      },
+    });
+
+    const bulk = Array.from({ length: 1005 }, (_, index) => ({
+      chat_id: chatId,
+      sender_id: userBId,
+      content: `bulk-${index + 1}`,
+      created_at: new Date(`2024-07-01T00:${String(index % 60).padStart(2, '0')}:00.000Z`),
+    }));
+    await prisma.groupChatMessage.createMany({ data: bulk });
+
+    const res = await request(app)
+      .get('/group-chats')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+
+    const row = (res.body as any[]).find((c) => c.id === chatId);
+    expect(row?.unreadCount).toBe(1005);
   });
 
   it('allows an org manager to create a team chat without direct team membership', async () => {

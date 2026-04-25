@@ -6,6 +6,7 @@ import { searchLimiter } from '../middleware/rateLimiters.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { getExcludedPrivateAuthorIds, getExcludedPrivateTeamIds } from '../lib/privacyUtils.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { captureMessage } from '../lib/sentry.js';
 
 export const searchRouter = Router();
 
@@ -47,20 +48,33 @@ searchRouter.get(
 
     // v1.0.2 pass 8: exclude users that the requester has blocked OR who have blocked the requester.
     // Without this, blocked users could discover each other via exact-username search and infer the block.
+    //
+    // BLOCK_LIST_HARD_LIMIT is the absolute ceiling. We fetch take=LIMIT+1 to
+    // detect overflow — if the user has more than LIMIT block relationships,
+    // the previous behavior silently truncated and let the un-fetched blocked
+    // users reappear in search results (defeating the privacy intent). On
+    // overflow we fail-closed (503) and capture an error: search dropping
+    // for one pathological user is preferable to blocked users leaking
+    // through everyone else's results.
+    const BLOCK_LIST_HARD_LIMIT = 10_000;
     let blockedIds: string[] = [];
     if (currentUserId) {
-      // Cap is a safety stop on a pathological user — block sets are tiny in
-      // practice (median single digits, 99p < 200). Prior cap was 10k which
-      // both consumes a lot more memory than needed AND, more importantly,
-      // hides the failure mode: if a user ever DOES hit the cap, search
-      // silently lets blocked users slip through. 500 is comfortably above
-      // any real-world block list and tight enough that hitting it signals a
-      // problem worth investigating, not absorbing.
       const blocks = await prisma.blockedUser.findMany({
         where: { OR: [{ blocker_id: currentUserId }, { blocked_id: currentUserId }] },
         select: { blocker_id: true, blocked_id: true },
-        take: 500,
+        take: BLOCK_LIST_HARD_LIMIT + 1,
       });
+      if (blocks.length > BLOCK_LIST_HARD_LIMIT) {
+        captureMessage('Search blocked-list exceeded hard limit — failing closed', 'error', {
+          context: 'search_blocked_list_overflow',
+          userId: currentUserId,
+          limit: BLOCK_LIST_HARD_LIMIT,
+        });
+        return res.status(503).json({
+          error: 'SEARCH_TEMPORARILY_UNAVAILABLE',
+          message: 'Search is temporarily unavailable for this account. Please contact support.',
+        });
+      }
       const ids = new Set<string>();
       for (const b of blocks) {
         if (b.blocker_id !== currentUserId) ids.add(b.blocker_id);
