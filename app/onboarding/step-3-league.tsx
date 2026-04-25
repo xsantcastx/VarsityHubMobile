@@ -95,6 +95,7 @@ function Step3League() {
   const [showSearch, setShowSearch] = useState(!!initialZip);
   const [searchZip, setSearchZip] = useState(initialZip);
   const { organizations: nearbyOrgs, loading: searching, search: searchOrganizations, clear: clearOrganizations } = useOrganizationSearch(false);
+  const [hasSearchedNearby, setHasSearchedNearby] = useState(!!initialZip);
   const [requestingJoin, setRequestingJoin] = useState(false);
   const [joinMessage, setJoinMessage] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
@@ -305,9 +306,11 @@ function Step3League() {
   const executeNearbySearch = useCallback((query?: string) => {
     const term = (query ?? searchZip).trim();
     if (!term) {
+      setHasSearchedNearby(false);
       clearOrganizations();
       return;
     }
+    setHasSearchedNearby(true);
     searchOrganizations({ query: term, limit: 20, mode: 'nearby', orgType: orgType || undefined }).catch(() => {});
   }, [clearOrganizations, orgType, searchOrganizations, searchZip]);
 
@@ -321,6 +324,7 @@ function Step3League() {
         void executeNearbySearch(text);
       }, 400);
     } else {
+      setHasSearchedNearby(false);
       clearOrganizations();
     }
   }, [clearOrganizations, executeNearbySearch]);
@@ -1142,6 +1146,7 @@ function Step3League() {
                     style={styles.backButton}
                     onPress={() => {
                       setShowSearch(false);
+                      setHasSearchedNearby(false);
                       clearOrganizations();
                       setSelectedOrg(null);
                       setShowOrgDropdown(false);
@@ -1236,6 +1241,28 @@ function Step3League() {
                         </ScrollView>
                       )}
                     </>
+                  )}
+
+                  {hasSearchedNearby && !searching && nearbyOrgs.length === 0 && (
+                    <View
+                      style={[
+                        styles.searchEmptyState,
+                        {
+                          borderColor: isDark ? '#374151' : '#E2E8F0',
+                          backgroundColor: isDark ? '#111827' : '#F8FAFC',
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="travel-explore"
+                        size={22}
+                        color={isDark ? '#93C5FD' : '#2563EB'}
+                      />
+                      <Text style={styles.searchEmptyTitle}>No organizations found for that search</Text>
+                      <Text style={styles.searchEmptyText}>
+                        This clean test slate does not have any active leagues yet. Tap Create New Instead to set up the first organization.
+                      </Text>
+                    </View>
                   )}
                 </View>
               </>
@@ -1926,6 +1953,22 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   orgList: {
     maxHeight: 400,
+  },
+  searchEmptyState: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+  },
+  searchEmptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors[colorScheme].text,
+  },
+  searchEmptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: Colors[colorScheme].mutedText,
   },
   resultsHeader: {
     fontSize: 15,
