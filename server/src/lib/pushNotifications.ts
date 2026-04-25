@@ -3,6 +3,7 @@ import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 import { shouldClearPushTokenForExpoError } from './pushReceiptPolicy.js';
 import { updateUserAndInvalidate } from './userCache.js';
+import { captureException } from './sentry.js';
 
 const expo = new Expo();
 
@@ -54,7 +55,19 @@ export async function sendPushNotification(
         const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
         tickets.push(...ticketChunk);
       } catch (error) {
+        // Without Sentry capture, bulk delivery failures (Expo platform
+        // outage, network blip, malformed payload) only land in console
+        // output and never get triaged. The loop continues regardless so
+        // a single bad chunk doesn't kill the whole batch — but the
+        // failure now surfaces in the alerts pipeline.
         console.error('Error sending push notification chunk:', error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+          context: 'push_notification_chunk_failed',
+          provider: 'expo-push',
+          job: 'send-push',
+          userId,
+          chunkSize: chunk.length,
+        });
       }
     }
 

@@ -132,14 +132,36 @@ async function checkAuthRateLimit(identifier: string): Promise<boolean> {
 }
 
 // Redis-backed password reset failure tracking
+type ResetFailureRecord = { attempts: number; lockedUntil: number };
+
+// Defensive parse: malformed cache rows (Redis flush partial, schema change,
+// version skew) shouldn't crash the auth endpoint. Treat un-parseable rows as
+// "no failures recorded" — the worst case is one extra reset attempt allowed,
+// which the rate limiter still gates separately.
+function parseResetFailureRecord(raw: string | null): ResetFailureRecord | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed.attempts === 'number' &&
+      typeof parsed.lockedUntil === 'number'
+    ) {
+      return parsed as ResetFailureRecord;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function checkResetAttempt(
   email: string
 ): Promise<{ allowed: boolean; retryAfterMs?: number }> {
   const key = `resetfail:${email}`;
   const raw = await rlGet(key);
-  if (!raw) return { allowed: true };
-
-  const record = JSON.parse(raw) as { attempts: number; lockedUntil: number };
+  const record = parseResetFailureRecord(raw);
+  if (!record) return { allowed: true };
 
   // Currently locked out
   if (record.attempts >= MAX_RESET_FAILURES && record.lockedUntil > Date.now()) {
@@ -152,9 +174,8 @@ async function checkResetAttempt(
 async function recordResetFailure(email: string): Promise<void> {
   const key = `resetfail:${email}`;
   const raw = await rlGet(key);
-  let record = raw
-    ? (JSON.parse(raw) as { attempts: number; lockedUntil: number })
-    : { attempts: 0, lockedUntil: 0 };
+  let record: ResetFailureRecord =
+    parseResetFailureRecord(raw) ?? { attempts: 0, lockedUntil: 0 };
 
   record.attempts++;
   if (record.attempts >= MAX_RESET_FAILURES) {
