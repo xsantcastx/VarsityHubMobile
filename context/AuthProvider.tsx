@@ -227,8 +227,18 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       });
 
       const token = tokenData.data;
-      if (__DEV__)
-        console.log('[PushNotifications] Got push token:', token.substring(0, 30) + '...');
+      if (__DEV__) {
+        // Defensive: token MIGHT be null/undefined on failed registration —
+        // tokenData.data is typed as string but in practice the SDK can
+        // hand back null on Expo push service issues. Avoid throwing in the
+        // dev-log path.
+        const preview = typeof token === 'string' ? `${token.substring(0, 30)}...` : '<missing>';
+        console.log('[PushNotifications] Got push token:', preview);
+      }
+      if (typeof token !== 'string' || token.length === 0) {
+        if (__DEV__) console.warn('[PushNotifications] Empty push token from Expo SDK; skipping save');
+        return;
+      }
 
       // 4. Save token to backend (with retry on failure)
       const saveToken = async (attempt = 1): Promise<void> => {

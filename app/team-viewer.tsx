@@ -87,7 +87,13 @@ function TeamViewerScreen() {
       setTeam(teamData);
       // Server returns { id: membershipId, role, status, user: { id, display_name, ... } }
       // Flatten the nested user object so the component can read display_name, username, etc. at top level
-      const flatMembers = (Array.isArray(membersData) ? membersData : []).map((m: any) => ({
+      // Defensive shape check: filter out null/non-object items the API might
+      // hand back during partial responses or cache-corruption edge cases.
+      // Without this, m.user?.id reads on a null item would throw at render
+      // time and take down the whole team page.
+      const flatMembers = (Array.isArray(membersData) ? membersData : [])
+        .filter((m: any) => m && typeof m === 'object')
+        .map((m: any) => ({
         id: m.user?.id || m.id, // Use user ID, not membership ID
         display_name: m.user?.display_name || m.display_name || '',
         username: m.user?.username || m.username || '',
