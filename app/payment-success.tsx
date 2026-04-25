@@ -35,7 +35,9 @@ function PaymentSuccessScreen() {
   const [adDetails, setAdDetails] = useState<AdDetails | null>(null);
   const [amountCents, setAmountCents] = useState(0);
   const [verificationAttempt, setVerificationAttempt] = useState(0);
+  const [manualRetryCount, setManualRetryCount] = useState(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MAX_MANUAL_RETRIES = 3;
   const adIdRef = useRef<string | null>(null);
   const checkOpacity = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
@@ -245,18 +247,34 @@ function PaymentSuccessScreen() {
             <MaterialIcons name="warning-amber" size={56} color="#DC2626" />
             <Text style={[styles.errorTitle, { color: theme.text }]}>Verification Issue</Text>
             <Text style={[styles.errorBody, { color: theme.mutedText }]}>{error}</Text>
-            <Pressable
-              style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
-              onPress={() => {
-                attemptKeyRef.current = null;
-                setLoading(true);
-                setError(null);
-                setShowSignInAction(false);
-                setVerificationAttempt(0);
-              }}
-            >
-              <Text style={styles.primaryBtnText}>Try Again</Text>
-            </Pressable>
+            {manualRetryCount < MAX_MANUAL_RETRIES ? (
+              <Pressable
+                style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
+                onPress={() => {
+                  attemptKeyRef.current = null;
+                  setLoading(true);
+                  setError(null);
+                  setShowSignInAction(false);
+                  setVerificationAttempt(0);
+                  setManualRetryCount((n) => n + 1);
+                }}
+              >
+                <Text style={styles.primaryBtnText}>
+                  Try Again {manualRetryCount > 0 ? `(${MAX_MANUAL_RETRIES - manualRetryCount} left)` : ''}
+                </Text>
+              </Pressable>
+            ) : (
+              // After 3 manual retries the underlying condition (webhook
+              // delay, session pending, etc.) is unlikely to resolve from
+              // another tap. Stop offering the loop and route the user to
+              // support, where the operator can look up the session_id.
+              <Pressable
+                style={[styles.primaryBtn, { backgroundColor: theme.tint }]}
+                onPress={() => router.replace('/(tabs)' as any)}
+              >
+                <Text style={styles.primaryBtnText}>Continue to App — we'll keep verifying in the background</Text>
+              </Pressable>
+            )}
             {showSignInAction ? (
               <Pressable
                 style={[styles.secondaryBtn, { borderColor: theme.border, width: '100%', marginTop: 12 }]}

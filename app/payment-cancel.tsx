@@ -16,11 +16,15 @@ function PaymentCancelScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
-  // For ad cancellations, auto-navigate back after a short delay
+  // For ad cancellations, auto-navigate to /my-ads after a short delay.
+  // Use router.replace explicitly (not safeGoBack) so the destination is
+  // deterministic — if the user happened to navigate during the 1.5s
+  // window, safeGoBack would unwind to an unexpected stack frame
+  // instead of landing on /my-ads.
   useEffect(() => {
     if (isAd) {
       const timer = setTimeout(() => {
-        safeGoBack(router, '/my-ads');
+        router.replace('/my-ads' as any);
       }, 1500);
       return () => clearTimeout(timer);
     }
