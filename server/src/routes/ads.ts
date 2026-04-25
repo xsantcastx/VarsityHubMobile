@@ -818,7 +818,7 @@ adsRouter.get('/reservations', requireAuth as any, asyncHandler(async (req: Auth
  * GET /ads/availability?zip=12345&from=2025-01-15&to=2025-01-31
  *
  * Returns availability status for each date in the range.
- * Each date can have up to 3 ads (slots). If 3+ ads already exist, date is full.
+ * Each date can have up to 2 ads (slots). If 2 ads already exist, date is full.
  */
 adsRouter.get('/availability', asyncHandler(async (req, res) => {
   const zipCode = req.query.zip
@@ -955,12 +955,14 @@ adsRouter.get(
         });
     }
 
-    // Get ads that actually hold slots (active + paid/hold/pending_approval).
-    // Draft ads have no reservations and shouldn't affect availability checks.
+    const MAX_ADS_PER_DATE = 2;
+
+    // Gather candidate zips from ads that currently hold capacity. Status cannot
+    // be the filter here because pending/approved ads also reserve dates.
     const allAds = await prisma.ad.findMany({
       where: {
-        status: 'active',
         payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+        target_zip_code: { not: null },
       },
       select: {
         id: true,
@@ -1012,50 +1014,51 @@ adsRouter.get(
         ? await prisma.ad.findMany({
             where: {
               target_zip_code: { in: nearbyZips },
-              status: 'active',
               payment_status: { in: ['paid', 'hold', 'pending_approval'] },
             },
-            include: {
-              reservations: {
-                where: {
-                  date: { in: dateList.map(d => new Date(d + 'T00:00:00.000Z')) },
-                },
-              },
+            select: {
+              id: true,
+              target_zip_code: true,
             },
             take: 200,
           })
         : [];
 
-    // Group ads by zip code
-    const adsByZip = new Map<string, typeof allNearbyAds>();
-    for (const ad of allNearbyAds) {
-      const zip = ad.target_zip_code || '';
-      const list = adsByZip.get(zip) || [];
-      list.push(ad);
-      adsByZip.set(zip, list);
+    const nearbyAdIds = allNearbyAds.map((ad) => ad.id);
+    const requestedDateObjects = dateList.map((date) => new Date(`${date}T00:00:00.000Z`));
+    const reservations =
+      nearbyAdIds.length > 0
+        ? await prisma.adReservation.findMany({
+            where: {
+              ad_id: { in: nearbyAdIds },
+              date: { in: requestedDateObjects },
+            },
+            select: {
+              ad_id: true,
+              date: true,
+            },
+          })
+        : [];
+
+    const zipByAdId = new Map(allNearbyAds.map((ad) => [ad.id, ad.target_zip_code || '']));
+    const reservationCountsByZipDate = new Map<string, number>();
+
+    for (const reservation of reservations) {
+      const zip = zipByAdId.get(reservation.ad_id);
+      if (!zip) continue;
+      const dateIso = reservation.date.toISOString().slice(0, 10);
+      const key = `${zip}:${dateIso}`;
+      reservationCountsByZipDate.set(key, (reservationCountsByZipDate.get(key) || 0) + 1);
     }
 
     // Check availability for each nearby zip
     const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
 
     for (const [nearbyZip, distance] of zipDistances.entries()) {
-      const adsInZip = adsByZip.get(nearbyZip) || [];
-
-      // If no ads exist in this zip, it's available
-      let hasAvailability = adsInZip.length === 0;
-
-      if (!hasAvailability) {
-        for (const ad of adsInZip) {
-          const bookedDates = new Set(
-            ad.reservations.map(r => r.date.toISOString().split('T')[0])
-          );
-          const allDatesBooked = dateList.every(date => bookedDates.has(date));
-          if (!allDatesBooked) {
-            hasAvailability = true;
-            break;
-          }
-        }
-      }
+      const hasAvailability = dateList.every((date) => {
+        const key = `${nearbyZip}:${date}`;
+        return (reservationCountsByZipDate.get(key) || 0) < MAX_ADS_PER_DATE;
+      });
 
       alternatives.push({
         zip: nearbyZip,

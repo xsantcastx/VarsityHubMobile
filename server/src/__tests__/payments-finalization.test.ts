@@ -362,4 +362,124 @@ describeDb('Checkout session finalization', () => {
       statusCode: 409,
     });
   });
+
+  it('rejects Apple ad finalization when the target slot is already full and rolls back claims', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const targetDate = '2035-04-01';
+    const [buyer, competingUserA, competingUserB] = await Promise.all([
+      prisma.user.create({
+        data: {
+          email: `apple-ad-slot-full-buyer-${now}@example.com`,
+          password_hash: await bcrypt.hash('TestPassword123!', 10),
+          display_name: 'Apple Slot Full Buyer',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+        },
+      }),
+      prisma.user.create({
+        data: {
+          email: `apple-ad-slot-full-a-${now}@example.com`,
+          password_hash: await bcrypt.hash('TestPassword123!', 10),
+          display_name: 'Apple Slot Full A',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+        },
+      }),
+      prisma.user.create({
+        data: {
+          email: `apple-ad-slot-full-b-${now}@example.com`,
+          password_hash: await bcrypt.hash('TestPassword123!', 10),
+          display_name: 'Apple Slot Full B',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+        },
+      }),
+    ]);
+    createdUserIds.push(buyer.id, competingUserA.id, competingUserB.id);
+
+    const [targetAd, competingAdA, competingAdB] = await Promise.all([
+      prisma.ad.create({
+        data: {
+          user_id: buyer.id,
+          business_name: 'Apple Slot Full Target',
+          contact_email: buyer.email,
+          target_zip_code: '10005',
+          status: 'approved',
+          payment_status: 'hold',
+        },
+      }),
+      prisma.ad.create({
+        data: {
+          user_id: competingUserA.id,
+          business_name: 'Apple Slot Full Existing A',
+          contact_email: competingUserA.email,
+          target_zip_code: '10005',
+          status: 'active',
+          payment_status: 'paid',
+        },
+      }),
+      prisma.ad.create({
+        data: {
+          user_id: competingUserB.id,
+          business_name: 'Apple Slot Full Existing B',
+          contact_email: competingUserB.email,
+          target_zip_code: '10005',
+          status: 'approved',
+          payment_status: 'hold',
+        },
+      }),
+    ]);
+    createdAdIds.push(targetAd.id, competingAdA.id, competingAdB.id);
+
+    await prisma.adReservation.createMany({
+      data: [
+        { ad_id: competingAdA.id, date: new Date(`${targetDate}T00:00:00.000Z`) },
+        { ad_id: competingAdB.id, date: new Date(`${targetDate}T00:00:00.000Z`) },
+      ],
+      skipDuplicates: true,
+    });
+
+    const appleTransactionIds = [`apple-ad-slot-full-${now}-1`, `apple-ad-slot-full-${now}-2`];
+    createdAppleTransactionIds.push(...appleTransactionIds);
+
+    await expect(
+      finalizeAppleAdPurchase({
+        userId: buyer.id,
+        adId: targetAd.id,
+        dates: [targetDate],
+        appleTransactionIds,
+        receiptsCount: 2,
+      })
+    ).rejects.toMatchObject({
+      message: 'SLOT_FULL',
+      slotFull: true,
+      dates: [targetDate],
+    });
+
+    const [refreshedTargetAd, targetReservations, tx, claims] = await Promise.all([
+      prisma.ad.findUnique({ where: { id: targetAd.id } }),
+      prisma.adReservation.findMany({ where: { ad_id: targetAd.id } }),
+      prisma.transactionLog.findFirst({
+        where: {
+          user_id: buyer.id,
+          order_id: targetAd.id,
+          transaction_type: 'AD_PURCHASE',
+        },
+      }),
+      prisma.appleTransactionClaim.findMany({
+        where: { apple_transaction_id: { in: appleTransactionIds } },
+      }),
+    ]);
+
+    expect(refreshedTargetAd?.payment_status).toBe('hold');
+    expect(refreshedTargetAd?.status).toBe('approved');
+    expect(targetReservations).toHaveLength(0);
+    expect(tx).toBeNull();
+    expect(claims).toHaveLength(0);
+  });
 });
