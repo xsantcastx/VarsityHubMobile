@@ -441,17 +441,30 @@ export async function sendAdTakenDownPendingReviewEmail(params: {
   reason?: string;
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.AD_TAKEN_DOWN_PENDING_REVIEW;
+  const subject = `Ad update for "${params.businessName || 'your business'}"`;
   if (!templateId) {
     console.warn(
-      '[email] Missing SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID — advertiser will not receive takedown email'
+      '[email] Missing SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID — using local takedown email fallback'
     );
-    return false;
+    const fallback = buildAdTakedownFallbackEmail({
+      subject,
+      businessName: params.businessName,
+      reason: params.reason,
+    });
+    return sendHtmlFallbackEmail({
+      to: params.to,
+      subject,
+      html: fallback.html,
+      text: fallback.text,
+      logMessage: `Ad takedown pending-review email sent to ${params.to}`,
+      fallbackKey: 'ad_takedown_pending_review',
+    });
   }
 
   return sendTemplateEmail(
     templateId,
     params.to,
-    `Ad update for "${params.businessName || 'your business'}"`,
+    subject,
     {
       ...getCommonTemplateData(),
       business_name: params.businessName || 'your business',
@@ -612,29 +625,47 @@ export async function sendParentalConsentRequestEmail(params: {
   expiresInDays?: number;
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.PARENTAL_CONSENT_REQUEST;
-  if (!templateId) {
-    console.error(
-      '[email] Missing SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID — parent will not receive consent email'
-    );
-    return false;
-  }
   // Parent lands on GET /consent/:token which renders an HTML form with both
   // Approve and Deny buttons. Both URLs point at the same landing page; the
   // older /auth/parental-consent/:token format is not wired up and would 404.
   const consentUrl = `${API_BASE_URL}/consent/${encodeURIComponent(params.consentToken)}`;
   const approveUrl = consentUrl;
   const denyUrl = consentUrl;
+  const subject = `Approve ${params.minorDisplayName || 'your child'}'s VarsityHub account`;
+  const expiresInDays = params.expiresInDays ?? 14;
+  if (!templateId) {
+    console.error(
+      '[email] Missing SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID — using local parental consent email fallback'
+    );
+    const fallback = buildParentalConsentFallbackEmail({
+      subject,
+      minorDisplayName: params.minorDisplayName,
+      minorEmail: params.minorEmail,
+      approveUrl,
+      denyUrl,
+      expiresInDays,
+    });
+    return sendHtmlFallbackEmail({
+      to: params.to,
+      subject,
+      html: fallback.html,
+      text: fallback.text,
+      logMessage: `Parental consent request sent to ${params.to}`,
+      fallbackKey: 'parental_consent_request',
+      metadata: { audit_privacy: 'minor' },
+    });
+  }
   return sendTemplateEmail(
     templateId,
     params.to,
-    `Approve ${params.minorDisplayName || 'your child'}'s VarsityHub account`,
+    subject,
     {
       ...getCommonTemplateData(),
       minor_display_name: params.minorDisplayName || 'your child',
       minor_email: params.minorEmail || '',
       approve_url: approveUrl,
       deny_url: denyUrl,
-      expires_in_days: params.expiresInDays ?? 14,
+      expires_in_days: expiresInDays,
     },
     `Parental consent request sent to ${params.to}`,
     {
@@ -849,6 +880,203 @@ async function sendTemplateEmail(
     });
     return false;
   }
+}
+
+async function sendHtmlFallbackEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  logMessage: string;
+  fallbackKey: string;
+  metadata?: Record<string, string>;
+}): Promise<boolean> {
+  const service = await getEmailService();
+  if (!service || !service.isConfigured()) {
+    const err = new Error(
+      `[email] Email service not configured — fallback email dropped: ${sanitizeEmailLogMessage(params.logMessage)}`
+    );
+    console.error(err.message);
+    captureException(err, {
+      context: 'sendgrid_fallback_service_unconfigured',
+      provider: 'sendgrid',
+      extra: sanitizeEmailExtras({
+        to: params.to,
+        subject: params.subject,
+        fallbackKey: params.fallbackKey,
+      }),
+    });
+    return false;
+  }
+
+  captureMessage(
+    `[email] Hosted SendGrid template missing; using local HTML fallback (${params.fallbackKey})`,
+    'warning',
+    {
+      context: 'sendgrid_local_fallback_used',
+      provider: 'sendgrid',
+      extra: sanitizeEmailExtras({
+        to: params.to,
+        subject: params.subject,
+        fallbackKey: params.fallbackKey,
+      }),
+    }
+  );
+
+  try {
+    const replyTo = process.env.SUPPORT_REPLY_TO || 'support@varsityhub.app';
+    const result = await service.send({
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+      text: params.text,
+      replyTo,
+      metadata: params.metadata,
+    });
+
+    if (result.success) {
+      console.log(`✅ ${sanitizeEmailLogMessage(params.logMessage)} (local fallback)`);
+      return true;
+    }
+
+    console.error(
+      `❌ Failed: ${sanitizeEmailLogMessage(params.logMessage)} (local fallback)`,
+      sanitizeEmailLogMessage(result.error)
+    );
+    captureException(
+      result.error ?? new Error(`Email fallback send failed: ${sanitizeEmailLogMessage(params.logMessage)}`),
+      {
+        context: 'sendgrid_fallback_send_failed',
+        provider: 'sendgrid',
+        extra: sanitizeEmailExtras({
+          to: params.to,
+          subject: params.subject,
+          fallbackKey: params.fallbackKey,
+        }),
+      }
+    );
+    return false;
+  } catch (error: any) {
+    console.error(`❌ Failed: ${sanitizeEmailLogMessage(params.logMessage)} (local fallback)`, error);
+    captureException(error, {
+      context: 'sendgrid_fallback_send_threw',
+      provider: 'sendgrid',
+      extra: sanitizeEmailExtras({
+        to: params.to,
+        subject: params.subject,
+        fallbackKey: params.fallbackKey,
+      }),
+    });
+    return false;
+  }
+}
+
+function buildParentalConsentFallbackEmail(params: {
+  subject: string;
+  minorDisplayName?: string;
+  minorEmail?: string;
+  approveUrl: string;
+  denyUrl: string;
+  expiresInDays: number;
+}): { html: string; text: string } {
+  const minorName = escapeHtml(params.minorDisplayName || 'your child');
+  const minorEmail = escapeHtml(params.minorEmail || '');
+  const approveUrl = escapeHtml(params.approveUrl);
+  const denyUrl = escapeHtml(params.denyUrl);
+  const supportEmail = escapeHtml(CUSTOMER_SERVICE_EMAIL);
+  const expiresInDays = String(params.expiresInDays);
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:32px;">
+    <p style="margin:0 0 10px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#1B3A6B;font-weight:700;">Parental consent required</p>
+    <h1 style="margin:0 0 16px;font-size:28px;line-height:1.3;">Approve ${minorName}'s VarsityHub account</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">
+      A child or teen in your household signed up for VarsityHub. Because they are under 18, a parent or guardian must review and approve the account before it can be activated.
+    </p>
+    <div style="margin:0 0 20px;padding:18px;border:1px solid #bae6fd;border-radius:14px;background:#f0f9ff;">
+      <p style="margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:#0ea5e9;font-weight:700;">Account details</p>
+      <p style="margin:0 0 6px;font-size:14px;"><strong>Name:</strong> ${minorName}</p>
+      ${minorEmail ? `<p style="margin:0 0 6px;font-size:14px;"><strong>Email:</strong> ${minorEmail}</p>` : ''}
+      <p style="margin:0;font-size:14px;"><strong>Expires in:</strong> ${expiresInDays} days</p>
+    </div>
+    <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#334155;">
+      By approving this request, you confirm that you are a parent or guardian of the minor listed above and consent to their VarsityHub account being activated.
+    </p>
+    <p style="margin:0 0 16px;text-align:center;">
+      <a href="${approveUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:999px;font-weight:700;">Approve account</a>
+    </p>
+    <p style="margin:0 0 24px;text-align:center;">
+      <a href="${denyUrl}" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:999px;font-weight:700;">Deny request</a>
+    </p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
+      Questions? Contact <a href="mailto:${supportEmail}" style="color:#1B3A6B;text-decoration:none;">${supportEmail}</a>.
+    </p>
+  </div>
+</body>
+</html>`;
+  const text = [
+    `Approve ${params.minorDisplayName || 'your child'}'s VarsityHub account`,
+    '',
+    'A child or teen in your household signed up for VarsityHub and requires parent or guardian approval before their account can be activated.',
+    `Name: ${params.minorDisplayName || 'your child'}`,
+    params.minorEmail ? `Email: ${params.minorEmail}` : undefined,
+    `Expires in: ${expiresInDays} days`,
+    '',
+    `Approve: ${params.approveUrl}`,
+    `Deny: ${params.denyUrl}`,
+    '',
+    `Questions? Contact ${CUSTOMER_SERVICE_EMAIL}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return { html, text };
+}
+
+function buildAdTakedownFallbackEmail(params: {
+  subject: string;
+  businessName?: string;
+  reason?: string;
+}): { html: string; text: string } {
+  const businessName = escapeHtml(params.businessName || 'your business');
+  const reason = escapeHtml(params.reason || 'Your ad was temporarily taken down for moderation review.');
+  const supportEmail = escapeHtml(CUSTOMER_SERVICE_EMAIL);
+  const appUrl = escapeHtml(APP_BASE_URL);
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;">
+  <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:32px;">
+    <p style="margin:0 0 10px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#b45309;font-weight:700;">Ad under review</p>
+    <h1 style="margin:0 0 16px;font-size:28px;line-height:1.3;">Your ad for ${businessName} was temporarily taken down</h1>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">
+      We removed your ad from rotation while it goes through an additional moderation review. This does not necessarily mean the ad was permanently rejected.
+    </p>
+    <div style="margin:0 0 20px;padding:18px;border:1px solid #fde68a;border-radius:14px;background:#fffbeb;">
+      <p style="margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:#b45309;font-weight:700;">Review reason</p>
+      <p style="margin:0;font-size:15px;line-height:1.6;color:#0f172a;">${reason}</p>
+    </div>
+    <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#334155;">
+      Open the VarsityHub app to review your campaign. If the moderation team needs changes, you will receive a follow-up update.
+    </p>
+    <p style="margin:0 0 24px;text-align:center;">
+      <a href="${appUrl}" style="display:inline-block;background:#1B3A6B;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:999px;font-weight:700;">Open VarsityHub</a>
+    </p>
+    <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">
+      Questions? Contact <a href="mailto:${supportEmail}" style="color:#1B3A6B;text-decoration:none;">${supportEmail}</a>.
+    </p>
+  </div>
+</body>
+</html>`;
+  const text = [
+    `Your ad for ${params.businessName || 'your business'} was temporarily taken down`,
+    '',
+    'We removed your ad from rotation while it goes through additional moderation review.',
+    `Reason: ${params.reason || 'Your ad was temporarily taken down for moderation review.'}`,
+    '',
+    `Open VarsityHub: ${APP_BASE_URL}`,
+    `Questions? Contact ${CUSTOMER_SERVICE_EMAIL}`,
+  ].join('\n');
+  return { html, text };
 }
 
 /**
