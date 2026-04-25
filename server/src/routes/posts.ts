@@ -12,6 +12,7 @@ import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import {
   getExcludedPrivateAuthorIds,
   getBlockedUserIds,
+  getRequestBlockedCache,
   isAuthorHiddenFromViewer,
 } from '../lib/privacyUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -261,7 +262,7 @@ postsRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
     }
 
     // Block filtering: hide posts from users the viewer has blocked or been blocked by
-    const blockedIds = await getBlockedUserIds(currentUserId);
+    const blockedIds = await getBlockedUserIds(currentUserId, getRequestBlockedCache(req));
     if (blockedIds.length) {
       const existing = typeof where.author_id === 'object' ? where.author_id : {};
       const merged = [...(existing.notIn || []), ...blockedIds];
@@ -1223,7 +1224,7 @@ postsRouter.get(
 
     // Block filtering: hide posts from blocked users
     if (post.author_id && currentUserId) {
-      const blockedIds = await getBlockedUserIds(currentUserId);
+      const blockedIds = await getBlockedUserIds(currentUserId, getRequestBlockedCache(req));
       if (blockedIds.includes(post.author_id)) return res.status(404).json({ error: 'Not found' });
     }
 
@@ -1315,7 +1316,7 @@ postsRouter.get(
     const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50));
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
     // Filter out comments from blocked users
-    const blockedIds = await getBlockedUserIds(req.user?.id ?? null);
+    const blockedIds = await getBlockedUserIds(req.user?.id ?? null, getRequestBlockedCache(req));
     const commentWhere: any = { post_id: id };
     if (blockedIds.length) {
       commentWhere.author_id = { notIn: blockedIds };
@@ -1371,7 +1372,7 @@ postsRouter.post(
     // Block interaction with hidden/blocked authors' posts
     const isHidden = await isAuthorHiddenFromViewer(post.author_id, req.user!.id);
     if (isHidden) return res.status(404).json({ error: 'Post not found' });
-    const blockedIds = await getBlockedUserIds(req.user!.id);
+    const blockedIds = await getBlockedUserIds(req.user!.id, getRequestBlockedCache(req));
     if (blockedIds.includes(post.author_id))
       return res.status(404).json({ error: 'Post not found' });
 
@@ -1522,7 +1523,7 @@ postsRouter.post(
       if (!postExists) return res.status(404).json({ error: 'Post not found' });
       const upvoteHidden = await isAuthorHiddenFromViewer(postExists.author_id, userId);
       if (upvoteHidden) return res.status(404).json({ error: 'Post not found' });
-      const upvoteBlocked = await getBlockedUserIds(userId);
+      const upvoteBlocked = await getBlockedUserIds(userId, getRequestBlockedCache(req));
       if (upvoteBlocked.includes(postExists.author_id))
         return res.status(404).json({ error: 'Post not found' });
 
@@ -1647,7 +1648,7 @@ postsRouter.post(
       if (!postExists) return res.status(404).json({ error: 'Post not found' });
       const bmHidden = await isAuthorHiddenFromViewer(postExists.author_id, userId);
       if (bmHidden) return res.status(404).json({ error: 'Post not found' });
-      const bmBlocked = await getBlockedUserIds(userId);
+      const bmBlocked = await getBlockedUserIds(userId, getRequestBlockedCache(req));
       if (bmBlocked.includes(postExists.author_id))
         return res.status(404).json({ error: 'Post not found' });
 
@@ -1692,7 +1693,7 @@ postsRouter.post(
       if (!post) return res.status(404).json({ error: 'Post not found' });
       const shareHidden = await isAuthorHiddenFromViewer(post.author_id, userId);
       if (shareHidden) return res.status(404).json({ error: 'Post not found' });
-      const shareBlocked = await getBlockedUserIds(userId);
+      const shareBlocked = await getBlockedUserIds(userId, getRequestBlockedCache(req));
       if (shareBlocked.includes(post.author_id))
         return res.status(404).json({ error: 'Post not found' });
 
