@@ -81,4 +81,13 @@ describe('Email template helpers', () => {
     expect(url).toContain('league_id=org_123');
     expect(url).toContain('action=approve');
   });
+
+  it('buildAdReviewUrl points into the admin ads app flow', async () => {
+    process.env.APP_SCHEME = 'varsityhubmobile';
+    const { buildAdReviewUrl } = await import('../lib/email.js');
+    const url = buildAdReviewUrl({ adId: 'ad_123', action: 'reject' });
+    expect(url).toContain('varsityhubmobile://admin-ads');
+    expect(url).toContain('ad_id=ad_123');
+    expect(url).toContain('action=reject');
+  });
 });

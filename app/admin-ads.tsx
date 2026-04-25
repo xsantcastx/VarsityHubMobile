@@ -3,9 +3,9 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -16,6 +16,10 @@ type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'paused';
 function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    ad_id?: string;
+    action?: 'approve' | 'reject';
+  }>();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +33,7 @@ function AdminAdsScreen() {
   const [reviewModal, setReviewModal] = useState<{ adId: string; action: 'approve' | 'reject' } | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [detailAd, setDetailAd] = useState<any>(null);
+  const emailReviewHandledRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -43,6 +48,25 @@ function AdminAdsScreen() {
   }, [isAdmin]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (emailReviewHandledRef.current || !isAdmin || items.length === 0) return;
+
+    const adId = String(params.ad_id || '').trim();
+    const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
+    if (!adId) return;
+
+    const matchedAd = items.find((ad) => String(ad.id) === adId);
+    if (!matchedAd) return;
+
+    emailReviewHandledRef.current = true;
+    if (action) {
+      setReviewNote('');
+      setReviewModal({ adId: matchedAd.id, action });
+      return;
+    }
+    setDetailAd(matchedAd);
+  }, [isAdmin, items, params.action, params.ad_id]);
 
   const toggleAdSelection = (adId: string) => {
     const newSet = new Set(selectedAds);

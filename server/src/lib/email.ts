@@ -322,11 +322,11 @@ export async function sendAdPendingReviewEmail(params: {
     return false;
   }
 
-  const approveUrl = params.approveToken
-    ? `${API_BASE_URL}/ads/${params.adId}/approve?token=${params.approveToken}`
+  const approveUrl = params.adId
+    ? buildAdReviewUrl({ adId: params.adId, action: 'approve' })
     : '';
-  const rejectUrl = params.rejectToken
-    ? `${API_BASE_URL}/ads/${params.adId}/reject?token=${params.rejectToken}`
+  const rejectUrl = params.adId
+    ? buildAdReviewUrl({ adId: params.adId, action: 'reject' })
     : '';
 
   return sendTemplateEmail(
@@ -1075,6 +1075,16 @@ function buildAppReviewUrl(
     }
   }
   return url.toString();
+}
+
+export function buildAdReviewUrl(params: {
+  adId: string;
+  action?: 'approve' | 'reject';
+}): string {
+  return buildAppReviewUrl('/admin-ads', {
+    ad_id: params.adId,
+    action: params.action,
+  });
 }
 
 export function buildCoachJoinRequestReviewUrl(params: {
