@@ -19,6 +19,11 @@ This document defines the minimum production observability baseline required bef
 
 ## 2.1 Sentry (mobile + server)
 
+Concrete saved searches and alert definitions now live in:
+
+- [SENTRY alerts and searches](/Users/varsityhub/VarsityHubMobile/docs/deploy/SENTRY_ALERTS_AND_SEARCHES.md)
+- [Sentry observability templates JSON](/Users/varsityhub/VarsityHubMobile/server/scripts/sentry-observability.templates.json)
+
 1. **Crash spike (mobile)**
    - Condition: crash-free sessions below 99.5% for 15 minutes
    - Severity: Critical
@@ -76,4 +81,3 @@ At minimum, maintain one launch dashboard with:
 - screenshot/link to launch dashboard with current build deployed
 - Sentry test issue links (client and server)
 - confirmation note that alert notifications reach on-call channel
-

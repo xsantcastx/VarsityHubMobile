@@ -1,0 +1,207 @@
+{
+  "notes": {
+    "service_tag": "Use service=server and service=mobile. Do not use service!=server to mean mobile.",
+    "release_tag": "Release is a git SHA from SENTRY_RELEASE or RAILWAY_GIT_COMMIT_SHA. Use release:latest for burn alerts.",
+    "route_tag": "Route prefers Express route templates when available and falls back to normalized paths."
+  },
+  "savedSearches": [
+    {
+      "name": "Live prod errors",
+      "query": "environment:production level:error"
+    },
+    {
+      "name": "Live server errors only",
+      "query": "environment:production level:error service:server"
+    },
+    {
+      "name": "Live mobile errors only",
+      "query": "environment:production level:error service:mobile"
+    },
+    {
+      "name": "Provider Cloudinary",
+      "query": "environment:production provider:cloudinary"
+    },
+    {
+      "name": "Provider SendGrid",
+      "query": "environment:production provider:sendgrid"
+    },
+    {
+      "name": "Provider Stripe",
+      "query": "environment:production provider:stripe"
+    },
+    {
+      "name": "Provider Apple IAP",
+      "query": "environment:production provider:apple_iap"
+    },
+    {
+      "name": "Provider Google IAP",
+      "query": "environment:production provider:google_iap"
+    },
+    {
+      "name": "Provider BullMQ",
+      "query": "environment:production provider:bullmq"
+    },
+    {
+      "name": "Scheduler failures",
+      "query": "environment:production job:*"
+    },
+    {
+      "name": "Coach state drift probe",
+      "query": "environment:production job:coach-state-drift-probe"
+    },
+    {
+      "name": "Uploads route",
+      "query": "environment:production route:/uploads"
+    },
+    {
+      "name": "Post detail route",
+      "query": "environment:production route:/posts/:id"
+    },
+    {
+      "name": "Payments webhook route",
+      "query": "environment:production route:/payments/webhook"
+    },
+    {
+      "name": "Auth refresh route",
+      "query": "environment:production route:/auth/refresh"
+    },
+    {
+      "name": "Tagged contexts",
+      "query": "environment:production vh_context:*"
+    },
+    {
+      "name": "One-user triage",
+      "query": "environment:production user.id:<paste-id>"
+    },
+    {
+      "name": "Just deployed soak watch",
+      "query": "environment:production timestamp:>=-15m"
+    },
+    {
+      "name": "Specific release",
+      "query": "environment:production release:<git-sha>"
+    }
+  ],
+  "issueAlerts": [
+    {
+      "name": "Prod Server New Error",
+      "when": "new_issue",
+      "filters": [
+        "event.environment = production",
+        "event.tags[service] = server",
+        "event.tags[level] = error"
+      ],
+      "actions": [
+        "Slack #alerts-prod",
+        "Email"
+      ]
+    },
+    {
+      "name": "Prod Mobile New Error",
+      "when": "new_issue",
+      "filters": [
+        "event.environment = production",
+        "event.tags[service] = mobile",
+        "event.tags[level] = error"
+      ],
+      "actions": [
+        "Slack #alerts-prod",
+        "Email"
+      ]
+    },
+    {
+      "name": "Prod Regression",
+      "when": "regression",
+      "filters": [
+        "event.environment = production"
+      ],
+      "actions": [
+        "Slack #alerts-prod",
+        "Email"
+      ]
+    },
+    {
+      "name": "Prod Provider Failure - Payments",
+      "when": "new_issue",
+      "filters": [
+        "event.environment = production",
+        "event.tags[level] = error",
+        "event.tags[provider] in [stripe, apple_iap, google_iap]"
+      ],
+      "actions": [
+        "Slack #alerts-payments",
+        "Email"
+      ]
+    },
+    {
+      "name": "Prod Actionable Warning Only",
+      "when": "new_issue",
+      "filters": [
+        "event.environment = production",
+        "event.tags[level] = warning",
+        "event.message does not contain legacy_approved_without_application"
+      ],
+      "actions": [
+        "Slack #alerts-warnings"
+      ]
+    }
+  ],
+  "metricAlerts": [
+    {
+      "name": "Prod Error Spike 5m",
+      "dataset": "errors",
+      "query": "environment:production level:error",
+      "aggregate": "count()",
+      "window": "5m",
+      "trigger": "above 10",
+      "actions": [
+        "Slack #alerts-prod"
+      ]
+    },
+    {
+      "name": "Prod Uploads Spike",
+      "dataset": "errors",
+      "query": "environment:production level:error route:/uploads",
+      "aggregate": "count()",
+      "window": "5m",
+      "trigger": "above 5",
+      "actions": [
+        "Slack #alerts-prod"
+      ]
+    },
+    {
+      "name": "Prod Cloudinary Provider Spike",
+      "dataset": "errors",
+      "query": "environment:production level:error provider:cloudinary",
+      "aggregate": "count()",
+      "window": "5m",
+      "trigger": "above 5",
+      "actions": [
+        "Slack #alerts-prod"
+      ]
+    },
+    {
+      "name": "Prod Cron Failures Spike",
+      "dataset": "errors",
+      "query": "environment:production level:error job:*",
+      "aggregate": "count()",
+      "window": "30m",
+      "trigger": "above 3",
+      "actions": [
+        "Slack #alerts-warnings"
+      ]
+    },
+    {
+      "name": "Latest Release Burn",
+      "dataset": "errors",
+      "query": "environment:production level:error release:latest",
+      "aggregate": "count()",
+      "window": "15m",
+      "trigger": "above 5",
+      "actions": [
+        "Slack #alerts-prod",
+        "Email"
+      ]
+    }
+  ]
+}
