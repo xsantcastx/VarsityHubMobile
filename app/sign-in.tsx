@@ -53,9 +53,16 @@ export default function SignInScreen() {
   const { user, checkAuth, registerPushToken, signOut } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const routeCurrentUser = async () => {
-    const me = await User.me({ force: true }).catch(() => user);
-    const landingRoute = getPostAuthLandingRoute((me || user) as any);
+  const routeCurrentUser = async (resolvedUser?: any) => {
+    const effectiveUser = resolvedUser || user;
+    if (!effectiveUser) {
+      captureException(new Error('routeCurrentUser called without a resolved auth user'), {
+        tags: { context: 'sign_in_missing_routing_user' },
+      });
+      throw new Error('We could not determine which account is signed in.');
+    }
+
+    const landingRoute = getPostAuthLandingRoute(effectiveUser as any);
 
     if (landingRoute !== '/(tabs)') {
       router.replace(landingRoute as any);
@@ -135,8 +142,8 @@ export default function SignInScreen() {
 
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
-        await checkAuth();
-        await routeCurrentUser();
+        const authUser = await checkAuth({ replaceSession: true });
+        await routeCurrentUser(authUser);
         captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
           method: 'email',
         });
@@ -193,6 +200,10 @@ export default function SignInScreen() {
   };
 
   const handleGoogleLogin = async () => {
+    if (user?.id) {
+      setError('Sign out before using a different Google account on this device.');
+      return;
+    }
     if (!googleReady) {
       setError('Google sign in is not configured yet.');
       return;
@@ -213,8 +224,8 @@ export default function SignInScreen() {
 
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
-        await checkAuth();
-        await routeCurrentUser();
+        const authUser = await checkAuth({ replaceSession: true });
+        await routeCurrentUser(authUser);
         captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
           method: 'google',
         });
@@ -267,6 +278,10 @@ export default function SignInScreen() {
   };
 
   const handleAppleLogin = async () => {
+    if (user?.id) {
+      setError('Sign out before using a different Apple account on this device.');
+      return;
+    }
     if (appleLoading) return;
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
@@ -288,8 +303,8 @@ export default function SignInScreen() {
 
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
-        await checkAuth();
-        await routeCurrentUser();
+        const authUser = await checkAuth({ replaceSession: true });
+        await routeCurrentUser(authUser);
         captureBreadcrumb('Sign-in succeeded', 'auth.sign_in', {
           method: 'apple',
         });
@@ -384,7 +399,7 @@ export default function SignInScreen() {
             {user ? (
               <AuthenticatedEntryGuard
                 email={user.email}
-                onContinue={() => void routeCurrentUser()}
+                onContinue={() => void routeCurrentUser(user)}
                 onSignOut={() => void handleSignOutToContinue()}
                 signingOut={signingOut}
               />

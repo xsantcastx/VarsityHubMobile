@@ -96,7 +96,11 @@ export interface AuthContextType {
   isAdmin: boolean;
   subscriptionTier: string;
   hasActiveSubscription: boolean;
-  checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<void>;
+  checkAuth: (options?: {
+    email?: string;
+    pendingVerification?: boolean;
+    replaceSession?: boolean;
+  }) => Promise<any>;
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
   markOnboardingCompleteLocally: () => Promise<void>;
@@ -323,6 +327,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     const baseKeys = [
       ONBOARDING_COMPLETE_KEY,
       ONBOARDING_COMPLETE_USER_KEY,
+      LAST_ONBOARDING_USER_KEY,
       'onboarding_state',
       'onboarding_progress',
       'onboarding_reducer_state',
@@ -353,6 +358,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       email?: string;
       pendingVerification?: boolean;
       skipSubscriptionRefresh?: boolean;
+      replaceSession?: boolean;
     }) => {
       try {
         // If pending verification flag is set, store email and don't try to fetch user
@@ -369,7 +375,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           return;
         }
 
-        const me: any = await User.me();
+        const previousUserId = user?.id ?? null;
+        if (options?.replaceSession) {
+          // A fresh sign-in replaced the token on this device. Clear any old
+          // in-memory identity first so user A cannot bleed into user B if the
+          // subsequent /me refresh fails or resolves slowly.
+          clearLocalAuthState();
+        }
+
+        const me: any = await User.me({ force: options?.replaceSession === true });
 
         // If user is banned, clear session and redirect to sign-in
         if (me?.banned) {
@@ -411,6 +425,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           await AsyncStorage.setItem(LAST_ONBOARDING_USER_KEY, me.id);
         }
 
+        if (options?.replaceSession && previousUserId && previousUserId !== me.id) {
+          // User identity changed on this device without a clean sign-out path.
+          // Drop any user-scoped local data so the new account does not inherit
+          // the prior account's drafts, settings caches, or onboarding state.
+          await clearUserScopedStorage();
+        }
+
         // NOW set user — routing effect will fire with correct hasCompletedOnboarding
         setUser(me);
         setSentryUser({ id: me.id, email: me.email, username: me.username });
@@ -443,6 +464,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         return me;
       } catch (err: any) {
+        if (options?.replaceSession) {
+          clearLocalAuthState();
+          throw err;
+        }
         // Only clear auth state on explicit unauthorized responses.
         // For transient network/server errors, preserve the existing session.
         if (err?.status === 401) {
@@ -454,7 +479,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return null; // Don't crash the app on transient network/server errors
       }
     },
-    [clearLocalAuthState, fetchSubscription, isOnboardingComplete]
+    [clearLocalAuthState, clearUserScopedStorage, fetchSubscription, isOnboardingComplete, user?.id]
   );
 
   const checkAuthRef = React.useRef(checkAuth);

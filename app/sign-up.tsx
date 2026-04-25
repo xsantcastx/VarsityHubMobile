@@ -48,9 +48,16 @@ export default function SignUpScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [confirmedAge, setConfirmedAge] = useState(false);
 
-  const routeCurrentUser = async () => {
-    const me = await User.me({ force: true }).catch(() => user);
-    const landingRoute = getPostAuthLandingRoute((me || user) as any);
+  const routeCurrentUser = async (resolvedUser?: any) => {
+    const effectiveUser = resolvedUser || user;
+    if (!effectiveUser) {
+      captureException(new Error('routeCurrentUser called without a resolved auth user'), {
+        tags: { context: 'sign_up_missing_routing_user' },
+      });
+      throw new Error('We could not determine which account is signed in.');
+    }
+
+    const landingRoute = getPostAuthLandingRoute(effectiveUser as any);
 
     if (landingRoute !== '/(tabs)') {
       router.replace(landingRoute as any);
@@ -199,6 +206,10 @@ export default function SignUpScreen() {
   };
 
   const handleGoogleSignUp = async () => {
+    if (user?.id) {
+      setError('Sign out before using a different Google account on this device.');
+      return;
+    }
     if (!googleReady) {
       setError('Google sign up is not configured yet. Please use email for now.');
       return;
@@ -208,8 +219,8 @@ export default function SignUpScreen() {
       trackTap('auth_google_tap', { screen: 'sign_up' });
       await signInWithGoogle();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'google' });
-      await checkAuth();
-      await routeCurrentUser();
+      const authUser = await checkAuth({ replaceSession: true });
+      await routeCurrentUser(authUser);
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
@@ -221,6 +232,10 @@ export default function SignUpScreen() {
   };
 
   const handleAppleSignUp = async () => {
+    if (user?.id) {
+      setError('Sign out before using a different Apple account on this device.');
+      return;
+    }
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
       return;
@@ -237,8 +252,8 @@ export default function SignUpScreen() {
       trackTap('auth_apple_tap', { screen: 'sign_up' });
       await signInWithApple();
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'apple' });
-      await checkAuth();
-      await routeCurrentUser();
+      const authUser = await checkAuth({ replaceSession: true });
+      await routeCurrentUser(authUser);
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
