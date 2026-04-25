@@ -54,7 +54,7 @@ const APPROVED_USER = {
 };
 
 const mockUserMe = jest.fn();
-const mockNotificationListPage = jest.fn(async () => ({ items: [] }));
+const mockNotificationListPage = jest.fn(async (..._args: any[]) => ({ items: [] }));
 
 jest.mock('@/api/entities', () => ({
   User: {
