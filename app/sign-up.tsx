@@ -18,6 +18,7 @@ import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePasswo
 import { useAuth } from '@/context/AuthProvider';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
+import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,7 +50,19 @@ export default function SignUpScreen() {
 
   const routeCurrentUser = async () => {
     const me = await User.me({ force: true }).catch(() => user);
-    router.replace(getPostAuthLandingRoute((me || user) as any) as any);
+    const landingRoute = getPostAuthLandingRoute((me || user) as any);
+
+    if (landingRoute !== '/(tabs)') {
+      router.replace(landingRoute as any);
+      return;
+    }
+
+    const pendingUrl = consumePendingDeepLink();
+    if (pendingUrl && handleDeepLink(pendingUrl)) {
+      return;
+    }
+
+    router.replace(landingRoute as any);
   };
 
   const handleSignOutToContinue = async () => {

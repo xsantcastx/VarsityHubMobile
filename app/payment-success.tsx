@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as ExpoLinking from 'expo-linking';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -8,7 +9,9 @@ import { Payments, User } from '@/api/entities';
 // @ts-ignore
 import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { setPendingDeepLink } from '@/utils/deepLinks';
 import { safeGoBack } from '@/utils/navigation';
 
 type AdDetails = {
@@ -22,11 +25,13 @@ type AdDetails = {
 
 function PaymentSuccessScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const params = useLocalSearchParams<{ session_id?: string; type?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showSignInAction, setShowSignInAction] = useState(false);
   const [adDetails, setAdDetails] = useState<AdDetails | null>(null);
   const [amountCents, setAmountCents] = useState(0);
   const [verificationAttempt, setVerificationAttempt] = useState(0);
@@ -47,8 +52,29 @@ function PaymentSuccessScreen() {
     }
   };
 
+  const isAuthError = (err: any) => {
+    const status = err?.status ?? err?.response?.status;
+    const message = String(err?.message || err?.data?.error || '').toLowerCase();
+    return (
+      status === 401 ||
+      status === 403 ||
+      message.includes('unauthorized') ||
+      message.includes('session expired') ||
+      message.includes('forbidden')
+    );
+  };
+
+  const openSignInRecovery = () => {
+    const queryParams: Record<string, string> = {};
+    if (params.session_id) queryParams.session_id = params.session_id;
+    if (params.type) queryParams.type = params.type;
+    setPendingDeepLink(ExpoLinking.createURL('payment-success', { queryParams }));
+    router.push('/sign-in');
+  };
+
   const showSuccessState = () => {
     setError(null);
+    setShowSignInAction(false);
     setLoading(false);
     checkOpacity.setValue(0);
     contentOpacity.setValue(0);
@@ -68,6 +94,7 @@ function PaymentSuccessScreen() {
     let mounted = true;
     const verify = async () => {
       try {
+        setShowSignInAction(false);
         if (!params.session_id) {
           if (!mounted) return;
           setError('Payment session information is missing. If you completed payment, please contact support.');
@@ -78,6 +105,14 @@ function PaymentSuccessScreen() {
         if (!sessionId.startsWith('cs_') && !sessionId.startsWith('sess_')) {
           if (!mounted) return;
           setError('Invalid payment session. Please contact support if you completed payment.');
+          setLoading(false);
+          return;
+        }
+
+        if (isSubscription && !user) {
+          if (!mounted) return;
+          setShowSignInAction(true);
+          setError('Sign in with the account that started this purchase to confirm your subscription and unlock premium features.');
           setLoading(false);
           return;
         }
@@ -98,7 +133,7 @@ function PaymentSuccessScreen() {
               return;
             }
           } else if (isSubscription) {
-            const me = await User.me();
+            const me = await User.me({ force: true });
             if (!mounted) return;
             const plan = me?.preferences?.plan;
             if ((plan === 'veteran' || plan === 'legend') && !me?.preferences?.payment_pending && !me?.preferences?.pending_plan) {
@@ -108,6 +143,13 @@ function PaymentSuccessScreen() {
           }
         } catch (err: any) {
           if (__DEV__) console.warn('[payment-success] finalize attempt failed:', err?.message);
+          if (isSubscription && isAuthError(err)) {
+            if (!mounted) return;
+            setShowSignInAction(true);
+            setError('We could not verify this subscription on your current session. Sign in with the purchasing account and try again.');
+            setLoading(false);
+            return;
+          }
         }
 
         if (!mounted) return;
@@ -130,15 +172,22 @@ function PaymentSuccessScreen() {
           }
         } else {
           try {
-            const me = await User.me();
+            const me = await User.me({ force: true });
             if (!mounted) return;
             const plan = me?.preferences?.plan;
             if ((plan === 'veteran' || plan === 'legend') && !me?.preferences?.payment_pending && !me?.preferences?.pending_plan) {
               showSuccessState();
               return;
             }
-          } catch (e) {
+          } catch (e: any) {
             if (__DEV__) console.warn('[payment-success] subscription poll:', e);
+            if (isAuthError(e)) {
+              if (!mounted) return;
+              setShowSignInAction(true);
+              setError('Your purchase may have completed, but we need you to sign in with the purchasing account to confirm the subscription.');
+              setLoading(false);
+              return;
+            }
           }
         }
 
@@ -151,9 +200,14 @@ function PaymentSuccessScreen() {
             setVerificationAttempt((a) => a + 1);
           }, 2000);
         } else {
-          setError(isAdPayment
-            ? "Your ad is being processed — you'll receive an email confirmation shortly."
-            : "This is taking longer than usual — you'll receive a confirmation email shortly.");
+          if (isAdPayment) {
+            setError("Your ad is being processed — you'll receive an email confirmation shortly.");
+          } else {
+            setShowSignInAction(true);
+            setError(user
+              ? 'This purchase is taking longer than expected to appear on this account. If you checked out under a different account, switch accounts and try again.'
+              : 'We could not confirm this subscription without a signed-in session. Sign in with the purchasing account and try again.');
+          }
           setLoading(false);
         }
       } catch (err: any) {
@@ -167,7 +221,7 @@ function PaymentSuccessScreen() {
     void verify();
     return () => { mounted = false; clearRetry(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- checkOpacity and contentOpacity are Animated.Values (ref-like), adding them causes infinite loops
-  }, [params.session_id, params.type, isAdPayment, isSubscription, verificationAttempt]);
+  }, [params.session_id, params.type, isAdPayment, isSubscription, verificationAttempt, user]);
 
   const formatDate = (iso: string) => {
     try {
@@ -197,11 +251,22 @@ function PaymentSuccessScreen() {
                 attemptKeyRef.current = null;
                 setLoading(true);
                 setError(null);
+                setShowSignInAction(false);
                 setVerificationAttempt(0);
               }}
             >
               <Text style={styles.primaryBtnText}>Try Again</Text>
             </Pressable>
+            {showSignInAction ? (
+              <Pressable
+                style={[styles.secondaryBtn, { borderColor: theme.border, width: '100%', marginTop: 12 }]}
+                onPress={openSignInRecovery}
+              >
+                <Text style={[styles.secondaryBtnText, { color: theme.text }]}>
+                  {user ? 'Switch Account' : 'Sign In to Confirm'}
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={styles.linkBtn}
               onPress={() => {

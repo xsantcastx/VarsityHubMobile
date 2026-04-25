@@ -1,10 +1,20 @@
 import type { ErrorBoundaryProps } from 'expo-router';
 import { Button, Text, View } from 'react-native';
+import auth from '@/api/auth';
 import { captureException } from '@/utils/sentry';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
+
+const RESETTABLE_STORAGE_KEYS = [
+  '@onboarding_completed_once',
+  '@onboarding_completed_user_id',
+  '@last_onboarding_user_id',
+  'onboarding_state',
+  'onboarding_progress',
+  'onboarding_reducer_state',
+];
 
 export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
   const colorScheme = useColorScheme() ?? 'light';
@@ -20,7 +30,8 @@ export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
 
   const handleSignOutAndRestart = async () => {
     try {
-      await AsyncStorage.clear();
+      await auth.clearTokensOnly();
+      await AsyncStorage.multiRemove(RESETTABLE_STORAGE_KEYS);
       await Updates.reloadAsync();
     } catch {
       // If Updates.reloadAsync fails (e.g. in dev), retry as fallback

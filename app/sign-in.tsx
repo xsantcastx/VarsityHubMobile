@@ -25,6 +25,7 @@ import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { validateEmail } from '@/utils/formUtils';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
 import { Ionicons } from '@expo/vector-icons';
@@ -54,7 +55,19 @@ export default function SignInScreen() {
 
   const routeCurrentUser = async () => {
     const me = await User.me({ force: true }).catch(() => user);
-    router.replace(getPostAuthLandingRoute((me || user) as any) as any);
+    const landingRoute = getPostAuthLandingRoute((me || user) as any);
+
+    if (landingRoute !== '/(tabs)') {
+      router.replace(landingRoute as any);
+      return;
+    }
+
+    const pendingUrl = consumePendingDeepLink();
+    if (pendingUrl && handleDeepLink(pendingUrl)) {
+      return;
+    }
+
+    router.replace(landingRoute as any);
   };
 
   const handleSignOutToContinue = async () => {
