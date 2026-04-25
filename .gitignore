@@ -128,3 +128,6 @@ overnight-logs-*/
 builds/
 credentials.json
 dist-verify/
+
+# Claude Code internal — agent worktrees, never push
+.claude/worktrees/
