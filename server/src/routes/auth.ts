@@ -1591,8 +1591,6 @@ authRouter.post(
 
     const code = String(crypto.randomInt(100000, 999999)); // 6-digit cryptographically secure code
     const expires = new Date(Date.now() + 30 * 60 * 1000);
-    const codeHash = hashRefreshToken(code);
-
     // AUTH-5: Hash the reset code at rest (matches email verification code hashing).
     // Ephemeral 30-min secret, but DB leaks during the TTL window would otherwise
     // hand attackers a working reset code.
@@ -1610,7 +1608,12 @@ authRouter.post(
       debugLog('[email] Sending password reset email to:', user.email);
       const sent = await sendPasswordResetEmail(user.email, code);
       if (!sent) {
-        console.warn('[email] Password reset email skipped (SendGrid not configured)');
+        console.warn('[email] Password reset email was not sent');
+        captureException(new Error('Password reset email reported unsent'), {
+          context: 'password_reset_email_unsent',
+          route: '/auth/password/forgot',
+          userId: user.id,
+        });
       } else {
         debugLog('[email] Password reset email sent successfully');
       }
