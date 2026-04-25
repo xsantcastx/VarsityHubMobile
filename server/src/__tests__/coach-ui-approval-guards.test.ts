@@ -30,6 +30,10 @@ const onboardingIndexScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'index.tsx'),
   'utf8'
 );
+const appRouteDecisions = readFileSync(
+  join(process.cwd(), '..', 'utils', 'appRouteDecisions.ts'),
+  'utf8'
+);
 const step3LeagueScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'step-3-league.tsx'),
   'utf8'
@@ -68,7 +72,7 @@ describe('coach approval UI guards', () => {
 
   it('coach application submission routes to waiting instead of locally completing onboarding', () => {
     const submitSnippet = step3LeagueScreen.match(
-      /httpPost\('\/auth\/coach-applications'[\s\S]*?router\.replace\(\{\s*pathname:\s*'\/onboarding\/league-pending-approval'/
+      /httpPost\('\/auth\/coach-applications'[\s\S]*?const nextDecision = getPostAuthRouteDecision\(authUser\)[\s\S]*?if \(nextDecision\.route === '\/onboarding\/league-pending-approval'\)[\s\S]*?router\.replace\(\{[\s\S]*?pathname:\s*nextDecision\.route/
     )?.[0];
     expect(submitSnippet).toBeTruthy();
     expect(submitSnippet).not.toMatch(/markOnboardingCompleteLocally/);
@@ -100,7 +104,8 @@ describe('coach approval UI guards', () => {
   });
 
   it('onboarding index trusts canonical onboarding completion before falling back to preferences', () => {
-    expect(onboardingIndexScreen).toMatch(
+    expect(onboardingIndexScreen).toContain('getOnboardingIndexRouteDecision');
+    expect(appRouteDecisions).toMatch(
       /const serverComplete =\s*user\.onboarding_completed === true \|\| user\.preferences\?\.onboarding_completed === true;/
     );
   });
