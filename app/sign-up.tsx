@@ -140,6 +140,15 @@ export default function SignUpScreen() {
     // leaving a small window where a rapid second tap could slip through.
     if (submitting.current) return;
     submitting.current = true;
+    // Boundary parity with Google + Apple sign-up paths and with sign-in.
+    // A signed-in user creating a new account would silently switch
+    // sessions; the prior account's push_token would remain registered
+    // server-side, mixing notifications across accounts on this device.
+    if (user?.id) {
+      submitting.current = false;
+      setError('Sign out before creating a different account on this device.');
+      return;
+    }
     if (loading) { submitting.current = false; return; }
     if (!email || !password) { submitting.current = false; setError('Please enter email and password'); return; }
 

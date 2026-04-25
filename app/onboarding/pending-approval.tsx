@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
+import { Alert, AppState, ScrollView, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User, Notification as NotificationApi } from '@/api/entities';
@@ -31,6 +32,8 @@ function PendingApproval() {
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
   const isNavigatingRef = useRef(false);
+  const approvalCheckInFlightRef = useRef(false);
+  const lastLifecycleCheckRef = useRef(0);
   const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -50,8 +53,15 @@ function PendingApproval() {
   }, []);
 
   // Poll /me every 30 seconds to check approval_status
-  const checkApproval = useCallback(async () => {
+  const checkApproval = useCallback(async (trigger: 'initial' | 'interval' | 'focus' | 'foreground' = 'interval') => {
+    if (approvalCheckInFlightRef.current) return;
+    if (trigger === 'focus' || trigger === 'foreground') {
+      const now = Date.now();
+      if (now - lastLifecycleCheckRef.current < 2000) return;
+      lastLifecycleCheckRef.current = now;
+    }
     try {
+      approvalCheckInFlightRef.current = true;
       setChecking(true);
       const me: any = await User.me();
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
@@ -98,19 +108,20 @@ function PendingApproval() {
     } catch {
       // ignore polling errors
     } finally {
+      approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
   }, [ob.organization_id, redirectToOnboarding, stopPolling]);
 
   useEffect(() => {
     // Initial check
-    void checkApproval();
+    void checkApproval('initial');
     // Poll every 60 seconds — approvals are admin actions that take minutes at minimum
     // v1.0.3: poll every 30s (was 60s) — approvals are admin actions that can
     // happen any time, and the 0-60s worst-case lag between admin click and
     // coach-side "Approved!" transition was a common UX complaint during
     // testing. 30s halves that while staying well under request-rate alarms.
-    intervalRef.current = setInterval(() => void checkApproval(), 30000);
+    intervalRef.current = setInterval(() => void checkApproval('interval'), 30000);
     // Stop polling after 30 minutes — admin has been notified, user should continue as fan
     timeoutRef.current = setTimeout(() => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -119,6 +130,23 @@ function PendingApproval() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [checkApproval]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void checkApproval('focus');
+    }, [checkApproval])
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        void checkApproval('foreground');
+      }
+    });
+    return () => {
+      subscription.remove();
     };
   }, [checkApproval]);
 

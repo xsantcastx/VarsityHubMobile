@@ -98,6 +98,17 @@ export default function SignInScreen() {
 
   const onSubmit = async () => {
     if (loading) return;
+    // Same boundary as Google + Apple OAuth (handleGoogleLogin / handleAppleLogin).
+    // Without this, a signed-in user could submit credentials for a different
+    // account and effectively switch silently — local state would replace
+    // correctly, but the previous user's push_token preference would remain
+    // registered server-side, causing pushes for both accounts to land on this
+    // device. Force explicit sign-out so /auth/logout properly clears the
+    // server-side push_token of the outgoing account.
+    if (user?.id) {
+      setError('Sign out before signing in to a different account on this device.');
+      return;
+    }
     if (!email || !password) {
       setError('Please enter email and password');
       return;

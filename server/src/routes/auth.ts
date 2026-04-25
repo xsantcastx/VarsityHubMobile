@@ -2851,6 +2851,57 @@ authRouter.patch(
       },
     });
 
+    // Push-token de-duplication: if this PATCH wrote a push_token, ensure no
+    // OTHER user still has the same token registered. Without this, switching
+    // accounts on the same device leaves the prior account's preferences
+    // pointing at this device's push token, so notifications targeting either
+    // account get delivered here. The user reports it as "feeling signed into
+    // multiple accounts at once."
+    //
+    // Whoever most-recently registered owns the device. Background-write per
+    // affected row to keep the request bounded; failures are logged + captured
+    // but don't fail the PATCH because the new user's preference IS already
+    // saved correctly.
+    const newPushToken = typeof incoming.push_token === 'string' ? incoming.push_token : null;
+    if (newPushToken && newPushToken.length > 0) {
+      try {
+        const others = await prisma.user.findMany({
+          where: {
+            AND: [
+              { id: { not: req.user!.id } },
+              { preferences: { path: ['push_token'], equals: newPushToken } as any },
+            ],
+          },
+          select: { id: true, preferences: true },
+        });
+        for (const other of others) {
+          const otherPrefs = ((other.preferences as any) || {}) as Record<string, unknown>;
+          if (otherPrefs.push_token !== newPushToken) continue;
+          const { push_token: _stripped, ...rest } = otherPrefs;
+          await prisma.user
+            .update({
+              where: { id: other.id },
+              data: { preferences: rest as any },
+            })
+            .catch((err: any) => {
+              console.warn('[auth] push_token reassignment cleanup failed:', err?.message || err);
+              captureException(err instanceof Error ? err : new Error(String(err)), {
+                context: 'push_token_reassign_cleanup_failed',
+                outgoingUserId: other.id,
+                incomingUserId: req.user!.id,
+              });
+            });
+          await invalidateMeCacheForUser(other.id).catch(() => {});
+        }
+      } catch (err: any) {
+        console.warn('[auth] push_token reassignment scan failed:', err?.message || err);
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          context: 'push_token_reassign_scan_failed',
+          incomingUserId: req.user!.id,
+        });
+      }
+    }
+
     // Invalidate profile cache so GET /me returns fresh data immediately
     await invalidateMeCacheForUser(req.user!.id);
 

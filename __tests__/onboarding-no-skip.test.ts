@@ -119,6 +119,31 @@ describe('onboarding flow — no screens can be skipped', () => {
       // admin is slow could be stuck on this screen indefinitely.
       expect(pendingApproval).toMatch(/proceeding_as_fan|proceedAsFan|role:\s*['"]fan['"]/i);
     });
+
+    it('pending approval screens re-check immediately on screen focus', () => {
+      // Poll-only waiting screens create a 0-30s stale window after the user
+      // returns from background or navigates back from another screen.
+      expect(pendingApproval).toMatch(/useFocusEffect/);
+      expect(pendingApproval).toMatch(/checkApproval\('focus'\)/);
+      expect(leaguePendingApproval).toMatch(/useFocusEffect/);
+      expect(leaguePendingApproval).toMatch(/checkApproval\('focus'\)/);
+    });
+
+    it('pending approval screens re-check immediately when the app becomes active', () => {
+      // Admin approvals frequently happen while the coach has the app in the
+      // background. Active-state refresh closes the stale timer gap.
+      expect(pendingApproval).toMatch(/AppState\.addEventListener\('change'/);
+      expect(pendingApproval).toMatch(/checkApproval\('foreground'\)/);
+      expect(leaguePendingApproval).toMatch(/AppState\.addEventListener\('change'/);
+      expect(leaguePendingApproval).toMatch(/checkApproval\('foreground'\)/);
+    });
+
+    it('lifecycle-triggered approval checks are guarded against duplicate storms', () => {
+      expect(pendingApproval).toMatch(/approvalCheckInFlightRef/);
+      expect(pendingApproval).toMatch(/lastLifecycleCheckRef/);
+      expect(leaguePendingApproval).toMatch(/approvalCheckInFlightRef/);
+      expect(leaguePendingApproval).toMatch(/lastLifecycleCheckRef/);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────
