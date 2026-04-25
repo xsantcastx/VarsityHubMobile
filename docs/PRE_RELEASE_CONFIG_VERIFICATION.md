@@ -42,8 +42,8 @@
 
 | ID | Location |
 |----|----------|
-| `veteran_vhub` | `hooks/useIAP.ts`, `server/src/routes/payments.ts` |
-| `Legend_vhub` | Same |
+| `MIDTIER` | `hooks/useIAP.ts`, `server/src/routes/payments.ts` |
+| `TOPTIER` | Same |
 
 **Status:** ✅ Correctly wired. Product IDs are consistent across client and server.
 
@@ -83,8 +83,8 @@
 
 | Item | Code Reference |
 |------|----------------|
-| `veteran_vhub` | `hooks/useIAP.ts` line 34, `server/src/routes/payments.ts` |
-| `Legend_vhub` | Same |
+| `MIDTIER` | `hooks/useIAP.ts`, `server/src/routes/payments.ts` |
+| `TOPTIER` | Same |
 
 **Status:** ✅ Product IDs match across codebase. Must match App Store Connect exactly.
 
@@ -154,6 +154,6 @@ curl -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
 | Google | ✅ | RAILWAY_ENV_SETUP.md shows ✅ |
 | Stripe | ✅ | RAILWAY_ENV_SETUP.md shows ✅ |
 | Privacy Policy | ✅ In app.json | — |
-| IAP Product IDs | ✅ veteran_vhub, Legend_vhub | Must match App Store Connect |
+| IAP Product IDs | ✅ MIDTIER, TOPTIER | Must match App Store Connect |
 
 **Verdict:** The codebase is correctly configured for all checklist items. Variable names, fallbacks, and validation logic are consistent. To confirm production values, run the health check as admin or verify in Railway dashboard.

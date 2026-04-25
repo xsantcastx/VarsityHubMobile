@@ -131,6 +131,11 @@ if (isProd) {
       'FATAL: SENDGRID_API_KEY is not set. Outbound email would silently fail in production. Set this in Railway env vars immediately.'
     );
   }
+  if (env.APPLE_IAP_SHARED_SECRET && !env.APPLE_BUNDLE_ID) {
+    throw new Error(
+      'FATAL: APPLE_BUNDLE_ID is not set. Apple IAP signed-transaction verification will fail in production. Set this to the iOS bundle identifier immediately.'
+    );
+  }
   if (!env.APPLE_BUNDLE_ID) warnings.push('APPLE_BUNDLE_ID (Apple Sign-In/IAP)');
   if (!env.APPLE_CLIENT_ID) warnings.push('APPLE_CLIENT_ID (Apple Sign-In)');
   if (!env.REDIS_URL)

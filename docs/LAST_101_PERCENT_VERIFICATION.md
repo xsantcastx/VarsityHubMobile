@@ -49,7 +49,7 @@ So the **“10 fixes”** from the audit that landed in ac02e53 are present in t
 | 21 | Settings: Report Abuse / Leave Feedback under Contact VarsityHub; “VarsityHub” one word | ✅ **Fixed.** `settings/index.tsx`: “Contact VarsityHub Team” section with “Leave Feedback” and “Report Abuse”. |
 | 22 | Admin terminology (GOD-ADMIN, org admin, team admin) | ✅ Reflected in server (ADMIN_EMAILS, org admin_approved, coach approval). |
 | 23 | Exclusive coach onboarding page; extracurricular for Legend | ✅ pending-approval / league-pending-approval; Legend/extracurricular in plan-definitions and server. |
-| 24 | SKU not found; Rookie bronze, Veteran silver, Legend gold | ✅ **Fixed.** CoachTierBadge and subscription-paywall: bronze/silver/gold; IAP IDs veteran_vhub, legend_vhub in useIAP. |
+| 24 | SKU not found; Rookie bronze, Veteran silver, Legend gold | ✅ **Fixed.** CoachTierBadge and subscription-paywall: bronze/silver/gold; IAP IDs MIDTIER, TOPTIER in useIAP. |
 | 25–26 | Close gap on settings; do settings work front and back | ✅ Settings toggles persist to server; layout addressed. |
 | 27 | Ad deletion; analytics when ad deleted | ✅ Ad delete endpoint exists; analytics/reporting can be wired per product need. |
 | 28 | Back button working | ✅ Noted as resolved in PDF. |

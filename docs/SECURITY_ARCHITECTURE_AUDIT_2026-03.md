@@ -39,7 +39,7 @@ This audit maps major systems (Auth, Payments, Teams/Orgs, Ads, Uploads), identi
 | Component | Location | Notes |
 |-----------|----------|-------|
 | Routes | `server/src/routes/payments.ts` | Stripe checkout, webhook, IAP verify |
-| IAP | `hooks/useIAP.ts` | veteran_vhub, Legend_vhub; Apple/Google receipt validation |
+| IAP | `hooks/useIAP.ts` | MIDTIER, TOPTIER; Apple/Google receipt validation |
 | Plan Limits | `server/src/lib/planLimits.ts` | Rookie 2 teams; Veteran unlimited; Legend extracurricular |
 | Stripe Webhook | checkout.session.completed | finalizeFromSession; idempotency via processedStripeEvent |
 

@@ -37,7 +37,7 @@ type PurchaseError = any;
 const isIOS = Platform.OS === 'ios';
 const isAndroid = Platform.OS === 'android';
 
-// IAP product IDs — must match App Store Connect / Google Play Console exactly (use lowercase)
+// IAP product IDs — must match App Store Connect / Google Play Console exactly.
 export const IAP_PRODUCT_IDS = {
   veteran: 'MIDTIER',
   legend: 'TOPTIER',

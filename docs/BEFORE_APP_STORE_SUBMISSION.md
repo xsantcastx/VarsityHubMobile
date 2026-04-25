@@ -95,7 +95,7 @@ Code is ready. The items below are **store/backend config** (not code changes). 
 
 | Item | Where | Notes |
 |------|--------|------|
-| **IAP product IDs** | `hooks/useIAP.ts` (`IAP_PRODUCT_IDS`), `server/src/routes/payments.ts` | App and server use **veteran_vhub** and **legend_vhub**; no code change needed. |
+| **IAP product IDs** | `hooks/useIAP.ts` (`IAP_PRODUCT_IDS`), `server/src/routes/payments.ts` | App and server use **MIDTIER** and **TOPTIER**; no code change needed. |
 | **ADMIN_EMAILS fallback** | `server` (payments, ads, email, auth, games, etc.) | If `ADMIN_EMAILS` is unset, server uses **emancero@varsityhub.app**. |
 | **Client admin email** | `app.json` → `EXPO_PUBLIC_ADMIN_EMAILS` | Set to **emancero@varsityhub.app** for in-app use (e.g. request-host-event). |
 | **SendGrid template keys** | `server/src/lib/email.ts` | All template IDs read from env (e.g. `SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID`); see `.env.example` for full list. |
@@ -106,13 +106,13 @@ You only need to create products in the stores and set env vars on Railway (belo
 
 1. App Store Connect → Your App → **In-App Purchases**.
 2. Create (if missing) and submit for review products that **match the IDs in code**:
-   - **veteran_vhub** — Auto-Renewable Subscription, $0.99/month.
-   - **legend_vhub** — Auto-Renewable Subscription, $19.99/year.
+   - **MIDTIER** — Auto-Renewable Subscription, Veteran plan.
+   - **TOPTIER** — Auto-Renewable Subscription, Legend plan.
 3. SKUs must be **Ready to Submit** before they work in sandbox.
 
 ### Google Play Console
 
-1. **Monetization → Subscriptions**: Create same product IDs: **veteran_vhub**, **legend_vhub**.
+1. **Monetization → Subscriptions**: Create the same product IDs: **MIDTIER**, **TOPTIER**.
 
 ### Railway (production API)
 
@@ -127,7 +127,7 @@ Add or verify on your Railway production service:
 ### Summary
 
 - **Code**: IAP IDs, admin fallback, and SendGrid env keys are already set. No code changes required.
-- **Your config**: Create **veteran_vhub** / **legend_vhub** in App Store Connect and Google Play; set SendGrid template IDs (and optionally ADMIN_EMAILS) on Railway.
+- **Your config**: Create **MIDTIER** / **TOPTIER** in App Store Connect and Google Play; set SendGrid template IDs (and optionally ADMIN_EMAILS) on Railway.
 
 ---
 

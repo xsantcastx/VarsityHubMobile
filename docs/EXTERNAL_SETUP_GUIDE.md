@@ -26,7 +26,7 @@ Set these in **Railway Dashboard → Your Project → Variables** (or via `railw
 
 ### Overview
 
-VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for subscription tiers: `veteran_vhub` ($2.50/mo) and `Legend_vhub` ($19.99/yr). The server validates receipts via Apple/Google APIs.
+VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for subscription tiers backed by the store product IDs `MIDTIER` (Veteran) and `TOPTIER` (Legend). The server validates receipts via Apple/Google APIs.
 
 ### Requirements
 
@@ -39,15 +39,15 @@ VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for su
 
 1. **App Store Connect** → Your App → **In-App Purchases**
 2. Create **Auto-Renewable Subscriptions**:
-   - Product ID: `veteran_vhub` — $2.50/month
-   - Product ID: `Legend_vhub` — $19.99/year
+   - Product ID: `MIDTIER` — Veteran subscription
+   - Product ID: `TOPTIER` — Legend subscription
 3. Ensure products are **Ready to Submit** (linked to a subscription group).
 4. **App Store Connect** → App Information → **App-Specific Shared Secret** → Generate/Copy → set as `APPLE_IAP_SHARED_SECRET` on Railway.
 
 ### Android Setup (Google Play Console)
 
 1. **Google Play Console** → Your App → **Monetize** → **Subscriptions**
-2. Create products with IDs: `veteran_vhub`, `Legend_vhub`
+2. Create products with IDs: `MIDTIER`, `TOPTIER`
 3. Use **Internal testing** track for development.
 
 ### Testing
@@ -212,7 +212,7 @@ Check that critical integrations report as configured.
 | Component | Location | Status |
 |-----------|----------|--------|
 | Onboarding completion | `server/src/routes/auth.ts` (GET /me) | `onboarding_completed` defaults to `false` |
-| IAP product IDs | `hooks/useIAP.ts` | `veteran_vhub`, `Legend_vhub` |
+| IAP product IDs | `hooks/useIAP.ts` | `MIDTIER`, `TOPTIER` |
 | IAP receipt validation | `server/src/routes/payments.ts` | Apple/Google verify endpoints |
 | Email verification | `server/src/routes/auth.ts` | `POST /auth/verify/request`, `POST /auth/verify/confirm` |
 | SendGrid templates | `server/src/lib/email.ts` | Template IDs from env |
@@ -225,7 +225,7 @@ Check that critical integrations report as configured.
 - [ ] SendGrid domain verified, templates created
 - [ ] Cloudinary configured
 - [ ] `APPLE_IAP_SHARED_SECRET` set for iOS IAP
-- [ ] App Store Connect products `veteran_vhub`, `Legend_vhub` Ready to Submit
+- [ ] App Store Connect products `MIDTIER`, `TOPTIER` Ready to Submit
 - [ ] EAS build (not Expo Go) for IAP testing
 - [ ] Sandbox Apple ID for iOS IAP testing
 - [ ] Stripe webhook URL correct and secret set
@@ -237,7 +237,7 @@ Check that critical integrations report as configured.
 | Issue | Likely Cause | Fix |
 |-------|--------------|-----|
 | IAP "Store Unavailable" | Expo Go, or store not connected | Use EAS build; check Sandbox/network |
-| IAP products empty | Product IDs mismatch, not Ready to Submit | Match `veteran_vhub`, `Legend_vhub` in App Store Connect |
+| IAP products empty | Product IDs mismatch, not Ready to Submit | Match `MIDTIER`, `TOPTIER` in App Store Connect |
 | Verification email not sent | SendGrid key/template missing | Set `SENDGRID_API_KEY`, `SENDGRID_VERIFICATION_TEMPLATE_ID` |
 | Upload fails | Cloudinary not configured | Set all 3 Cloudinary env vars |
 | Google Sign-In fails | Client ID / bundle mismatch | Verify OAuth credentials match app.json |

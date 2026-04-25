@@ -1,3 +1,5 @@
+import 'dotenv/config';
+import { PrismaClient } from '../../server/node_modules/@prisma/client/index.js';
 import { test, expect } from '@playwright/test';
 
 /**
@@ -8,14 +10,16 @@ import { test, expect } from '@playwright/test';
  */
 
 const API_BASE_URL = process.env.API_URL || 'http://localhost:4000';
+const prisma = new PrismaClient();
 
-// Helper to create authenticated coach user.
-// Auto-verifies the email when ENABLE_DEV_CODES=1 in the server env —
-// without verification, POST /teams/create returns 403 before the Zod
-// validation runs and tests fail with the wrong status code.
+// Team creation now requires a verified, onboarded, approved coach who has
+// accepted the coach agreement, so smoke promotes the registered user into
+// that server-side state once per suite.
 async function createTestCoach(request: any) {
+  const idSuffix = Date.now().toString(36);
   const testEmail = `coach-${Date.now()}@varsityhub-test.app`;
   const testPassword = 'TestPassword123!';
+  const username = `tc${idSuffix}`.slice(0, 20);
 
   const registerResponse = await request.post(`${API_BASE_URL}/auth/register`, {
     data: {
@@ -23,6 +27,7 @@ async function createTestCoach(request: any) {
       password: testPassword,
       display_name: 'Test Coach',
       role: 'coach',
+      dob: '1990-01-15',
     },
   });
 
@@ -30,12 +35,53 @@ async function createTestCoach(request: any) {
   const body = await registerResponse.json();
   const { access_token, user, dev_verification_code } = body;
 
-  if (dev_verification_code) {
-    await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
-      headers: { Authorization: `Bearer ${access_token}` },
-      data: { code: String(dev_verification_code) },
-    });
+  if (!dev_verification_code) {
+    throw new Error(
+      'ENABLE_DEV_CODES not set on API: smoke coach registration did not return dev_verification_code, so teams API smoke cannot verify its test user.'
+    );
   }
+
+  const verifyResponse = await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
+    headers: { Authorization: `Bearer ${access_token}` },
+    data: { code: String(dev_verification_code) },
+  });
+  expect(verifyResponse.ok()).toBeTruthy();
+
+  const now = new Date();
+  const currentUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { preferences: true },
+  });
+  const nextPreferences =
+    currentUser?.preferences && typeof currentUser.preferences === 'object'
+      ? { ...(currentUser.preferences as Record<string, unknown>) }
+      : {};
+
+  nextPreferences.role = 'coach';
+  nextPreferences.onboarding_completed = true;
+  nextPreferences.coach_agreement_accepted_at = now.toISOString();
+  nextPreferences.plan = 'rookie';
+  delete nextPreferences.pending_plan;
+  delete nextPreferences.payment_pending;
+  delete nextPreferences.payment_approved;
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      username,
+      role: 'coach',
+      onboarding_completed: true,
+      approval_status: 'APPROVED',
+      coach_agreement_accepted_at: now,
+      coach_agreement_version: Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1),
+      plan: 'rookie',
+      pending_plan: null,
+      payment_pending: false,
+      payment_approved: false,
+      subscription_tier: 'free',
+      preferences: nextPreferences,
+    },
+  });
 
   return { access_token, user, email: testEmail, password: testPassword };
 }
@@ -44,10 +90,14 @@ test.describe('Teams API', () => {
   let accessToken: string;
   let userId: string;
 
-  test.beforeEach(async ({ request }) => {
+  test.beforeAll(async ({ request }) => {
     const coachData = await createTestCoach(request);
     accessToken = coachData.access_token;
     userId = coachData.user.id;
+  });
+
+  test.afterAll(async () => {
+    await prisma.$disconnect();
   });
 
   test('GET /teams should return teams list', async ({ request }) => {
@@ -77,8 +127,9 @@ test.describe('Teams API', () => {
     // May require email verification, so check for either success or verification required
     if (response.ok()) {
       const body = await response.json();
-      expect(body.id).toBeDefined();
-      expect(body.name).toBeDefined();
+      expect(body.ok).toBe(true);
+      expect(body.team?.id).toBeDefined();
+      expect(body.team?.name).toBeDefined();
     } else {
       // If fails, should be due to verification requirement
       expect([401, 403]).toContain(response.status());

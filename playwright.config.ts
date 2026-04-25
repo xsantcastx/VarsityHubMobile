@@ -1,14 +1,24 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const skipEmbeddedServer = process.env.PLAYWRIGHT_SKIP_SERVER === '1';
+process.env.API_URL = process.env.API_URL || 'http://localhost:4000';
+
 const webServerConfig = skipEmbeddedServer
   ? undefined
-  : {
-      command: 'npm run web:playwright',
-      url: 'http://localhost:8081',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    };
+  : [
+      {
+        command: 'NODE_ENV=development ENABLE_DEV_CODES=1 npm run server:dev',
+        url: `${process.env.API_URL}/health`,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      },
+      {
+        command: 'npm run web:playwright',
+        url: 'http://localhost:8081',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      },
+    ];
 
 export default defineConfig({
   testDir: './tests',
