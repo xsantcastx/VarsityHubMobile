@@ -112,31 +112,75 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
  * Check if a single user's private profile is hidden from the viewer.
  */
 /**
+ * Optional per-request cache for `getBlockedUserIds` results, keyed by viewerId.
+ * Pass an instance into each call for the same request so repeated lookups
+ * (feed → posts → comments → upvote/bookmark/share filters) share one DB hit
+ * instead of N. The values are the in-flight promise itself, so concurrent
+ * callers in the same request also dedupe instead of racing.
+ *
+ * Use `getRequestBlockedCache(req)` below to grab/lazy-init the cache off
+ * the Express request object — that gives you per-request lifetime with
+ * automatic cleanup when the request ends.
+ */
+export type BlockedCache = Map<string, Promise<string[]>>;
+
+/**
  * Returns IDs of users the viewer has blocked or been blocked by (bidirectional).
  * Used to filter posts and comments from blocked users out of feeds.
+ *
+ * Pass `cache` (from `getRequestBlockedCache(req)`) to share results across
+ * sibling lookups in the same request. Without it, each call hits the DB.
  */
-export async function getBlockedUserIds(viewerId: string | null): Promise<string[]> {
+export async function getBlockedUserIds(
+  viewerId: string | null,
+  cache?: BlockedCache,
+): Promise<string[]> {
   if (!viewerId) return [];
+
+  if (cache) {
+    const existing = cache.get(viewerId);
+    if (existing) return existing;
+  }
 
   // v1.0.2 pass 12: bound the scan. A single user's bidirectional block set is tiny in
   // practice; 10k is orders of magnitude beyond real use and keeps the query bounded.
-  const blocks = await prisma.blockedUser.findMany({
-    where: {
-      OR: [
-        { blocker_id: viewerId },
-        { blocked_id: viewerId },
-      ],
-    },
-    select: { blocker_id: true, blocked_id: true },
-    take: 10000,
-  });
+  const promise = prisma.blockedUser
+    .findMany({
+      where: {
+        OR: [
+          { blocker_id: viewerId },
+          { blocked_id: viewerId },
+        ],
+      },
+      select: { blocker_id: true, blocked_id: true },
+      take: 10000,
+    })
+    .then((blocks) => {
+      const ids = new Set<string>();
+      for (const b of blocks) {
+        if (b.blocker_id !== viewerId) ids.add(b.blocker_id);
+        if (b.blocked_id !== viewerId) ids.add(b.blocked_id);
+      }
+      return Array.from(ids);
+    });
 
-  const ids = new Set<string>();
-  for (const b of blocks) {
-    if (b.blocker_id !== viewerId) ids.add(b.blocker_id);
-    if (b.blocked_id !== viewerId) ids.add(b.blocked_id);
-  }
-  return Array.from(ids);
+  if (cache) cache.set(viewerId, promise);
+  return promise;
+}
+
+/**
+ * Lazily attach a per-request blocked-user cache to the Express request and
+ * return it. Each request gets its own Map; it's collected when the request
+ * goes out of scope. No middleware needed at the app level — just call this
+ * at the top of any handler that uses `getBlockedUserIds` more than once.
+ */
+export function getRequestBlockedCache(req: object): BlockedCache {
+  // Mutate the request object to attach the cache. Express requests are
+  // routinely augmented this way (e.g. req.user); using an explicit
+  // namespaced key avoids collision with any other middleware.
+  const slot = req as { _blockedCache?: BlockedCache };
+  if (!slot._blockedCache) slot._blockedCache = new Map();
+  return slot._blockedCache;
 }
 
 export async function isAuthorHiddenFromViewer(authorId: string, viewerId: string | null): Promise<boolean> {
