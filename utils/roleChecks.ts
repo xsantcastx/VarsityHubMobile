@@ -117,3 +117,62 @@ export function getPendingCoachRoute(user: CoachUserLike | null | undefined): st
   }
   return '/onboarding/pending-approval';
 }
+
+export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): string | null {
+  const explicitNextStep =
+    typeof user?.next_step === 'string' && user.next_step.trim().startsWith('/')
+      ? user.next_step.trim()
+      : null;
+  const accountState = normalizeString(user?.account_state);
+
+  if (
+    explicitNextStep &&
+    accountState &&
+    [
+      'coach_application_required',
+      'coach_application_submitted',
+      'coach_application_rejected',
+      'coach_pending_approval',
+      'coach_agreement_required',
+      'coach_final_setup_required',
+    ].includes(accountState)
+  ) {
+    return explicitNextStep;
+  }
+
+  if (accountState === 'coach_application_required') {
+    return '/onboarding/coach-application';
+  }
+
+  if (
+    accountState === 'coach_application_submitted' ||
+    accountState === 'coach_application_rejected' ||
+    accountState === 'coach_pending_approval'
+  ) {
+    return getPendingCoachRoute(user);
+  }
+
+  if (accountState === 'coach_agreement_required') {
+    return '/onboarding/coach-agreement';
+  }
+
+  if (accountState === 'coach_final_setup_required') {
+    return '/onboarding/step-3-league';
+  }
+
+  const coachAccess = getCoachAccessState(user);
+
+  if (coachAccess.isProceedingAsFan) {
+    return '/(tabs)';
+  }
+
+  if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && !coachAccess.isProceedingAsFan) {
+    return getPendingCoachRoute(user);
+  }
+
+  if (coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement) {
+    return '/onboarding/coach-agreement';
+  }
+
+  return null;
+}

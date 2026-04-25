@@ -13,7 +13,7 @@
  * relevant case below fails.
  */
 import { describe, expect, it } from '@jest/globals';
-import { getCoachAccessState, getPendingCoachRoute } from '../utils/roleChecks';
+import { getCoachAccessState, getCoachRecoveryRoute, getPendingCoachRoute } from '../utils/roleChecks';
 
 describe('getCoachAccessState — identity', () => {
   it('null / undefined user produces a safe default (no access)', () => {
@@ -210,5 +210,60 @@ describe('getPendingCoachRoute', () => {
   it('defaults to /onboarding/pending-approval for missing preferences', () => {
     expect(getPendingCoachRoute({} as any)).toBe('/onboarding/pending-approval');
     expect(getPendingCoachRoute(null)).toBe('/onboarding/pending-approval');
+  });
+});
+
+describe('getCoachRecoveryRoute', () => {
+  it('uses server next_step for rejected application recovery', () => {
+    expect(
+      getCoachRecoveryRoute({
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        preferences: { role: 'coach' },
+      })
+    ).toBe('/onboarding/league-pending-approval');
+  });
+
+  it('routes application-required coaches back to the application flow', () => {
+    expect(
+      getCoachRecoveryRoute({
+        account_state: 'coach_application_required',
+        preferences: { role: 'coach' },
+      })
+    ).toBe('/onboarding/coach-application');
+  });
+
+  it('routes pending or rejected coaches to their waiting screen', () => {
+    expect(
+      getCoachRecoveryRoute({
+        approval_status: 'PENDING',
+        preferences: { role: 'coach', organization_id: 'org_123' },
+      })
+    ).toBe('/onboarding/league-pending-approval');
+
+    expect(
+      getCoachRecoveryRoute({
+        approval_status: 'REJECTED',
+        preferences: { role: 'coach', join_request_pending: true },
+      })
+    ).toBe('/onboarding/pending-approval');
+  });
+
+  it('returns tabs when a pending or rejected coach is already proceeding as fan', () => {
+    expect(
+      getCoachRecoveryRoute({
+        approval_status: 'PENDING',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      })
+    ).toBe('/(tabs)');
+  });
+
+  it('routes approved coaches without an agreement to coach-agreement', () => {
+    expect(
+      getCoachRecoveryRoute({
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', onboarding_completed: true },
+      })
+    ).toBe('/onboarding/coach-agreement');
   });
 });

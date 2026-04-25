@@ -20,6 +20,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { getCoachRecoveryRoute } from '@/utils/roleChecks';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -501,7 +502,44 @@ function Step3League() {
         // Only proceed as fan when there's a pending join request (coach waits for approval).
         // If org/team already exists and is approved, coach should go through normal approval flow.
         const isPendingJoin = !!ob.join_request_pending;
-        if (!isPendingJoin) {
+        const freshUser: any = await User.refresh().catch(() => User.me().catch(() => null));
+        const mergedUserForRouting = freshUser
+          ? {
+              ...freshUser,
+              preferences: {
+                ...(freshUser?.preferences || {}),
+                organization_id:
+                  freshUser?.preferences?.organization_id ||
+                  resolvedOrgId ||
+                  undefined,
+                join_request_pending:
+                  freshUser?.preferences?.join_request_pending ?? isPendingJoin,
+              },
+            }
+          : null;
+        const recoveryRoute = getCoachRecoveryRoute(mergedUserForRouting);
+        const accountState = String(freshUser?.account_state || '').trim();
+        const approvalStatus = String(freshUser?.approval_status || '').toUpperCase();
+        const shouldResumeRecoveryFlow =
+          isPendingJoin ||
+          accountState === 'coach_application_required' ||
+          accountState === 'coach_application_submitted' ||
+          accountState === 'coach_application_rejected' ||
+          accountState === 'coach_pending_approval' ||
+          accountState === 'coach_agreement_required' ||
+          recoveryRoute === '/(tabs)' ||
+          approvalStatus === 'PENDING' ||
+          approvalStatus === 'REJECTED';
+
+        if (resolvedOrgId || resolvedOrgName) {
+          await User.updatePreferences({
+            ...(resolvedOrgId ? { organization_id: resolvedOrgId } : {}),
+            ...(resolvedOrgName ? { organization_name: resolvedOrgName } : {}),
+            ...(isPendingJoin ? { join_request_pending: true } : {}),
+          }).catch(() => {});
+        }
+
+        if (!isPendingJoin && !shouldResumeRecoveryFlow) {
           try {
             const me: any = await User.me().catch(() => null);
             await User.completeOnboarding({
@@ -537,6 +575,22 @@ function Step3League() {
               ownerName: 'the league admin',
             },
           } as any);
+        } else if (recoveryRoute && recoveryRoute !== '/onboarding/coach-agreement') {
+          captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
+            mode: 'existing-org-recovery',
+            next: recoveryRoute,
+          });
+          if (recoveryRoute === '/onboarding/league-pending-approval') {
+            router.replace({
+              pathname: '/onboarding/league-pending-approval',
+              params: {
+                ...(resolvedOrgName ? { leagueName: resolvedOrgName } : {}),
+                ...(resolvedOrgId ? { orgId: resolvedOrgId } : {}),
+              },
+            } as any);
+          } else {
+            router.replace(recoveryRoute as any);
+          }
         } else {
           // Existing org/team — go to coach agreement
           captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {

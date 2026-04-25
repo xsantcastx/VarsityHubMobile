@@ -71,6 +71,11 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(step1).toMatch(/Do NOT navigate to step 2/i);
     });
 
+    it('step-1-role resumes coach recovery routes instead of dead-ending on role lock', () => {
+      expect(step1).toMatch(/getCoachRecoveryRoute/);
+      expect(step1).toMatch(/router\.replace\(recoveryRoute/);
+    });
+
     it('step-1-role retries transient network errors before giving up', () => {
       expect(step1).toMatch(/persistRole/);
       expect(step1).toMatch(/attempt\s*<\s*2/);
@@ -210,6 +215,11 @@ describe('onboarding flow — no screens can be skipped', () => {
     it('onContinue calls User.completeOnboarding with the canonical role', () => {
       expect(step3).toMatch(/completeOnboarding/);
       expect(step3).toMatch(/role:\s*['"]coach['"]|role:\s*['"]fan['"]/);
+    });
+
+    it('existing-org continue path respects coach recovery routes before completing onboarding', () => {
+      expect(step3).toMatch(/getCoachRecoveryRoute/);
+      expect(step3).toMatch(/shouldResumeRecoveryFlow/);
     });
   });
 

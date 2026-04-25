@@ -1,6 +1,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
+import { getCoachRecoveryRoute } from '@/utils/roleChecks';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
@@ -276,6 +277,18 @@ export default function Step1Role() {
         const isRoleChangeBlocked =
           error?.status === 403 && errMsg.includes('cannot change role');
         if (isRoleChangeBlocked) {
+          const freshUser: any = await User.refresh().catch(() => User.me().catch(() => null));
+          const recoveryRoute = getCoachRecoveryRoute(freshUser);
+          if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
+            const canonicalRole = freshUser?.preferences?.role || freshUser?.role;
+            if (canonicalRole === 'coach') {
+              setOB((prev) => ({ ...prev, role: 'coach' }));
+            }
+            dispatch({ type: 'SAVE_FAIL', error: error as Error });
+            router.replace(recoveryRoute as any);
+            return;
+          }
+
           Alert.alert(
             'Role already set',
             'Your account role is locked after onboarding. To change from fan to coach, use the "Upgrade to Coach" option in Settings. Contact support for any other role change.'
@@ -507,5 +520,4 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
-
 
