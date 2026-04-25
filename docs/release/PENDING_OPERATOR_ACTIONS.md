@@ -2,9 +2,17 @@
 
 **Source:** consolidated output from the spring-2026 audit + spiderweb sweep + parallel payment / IAP / SendGrid / smoke-harness work. Code-side fixes are merged on `main`; this document tracks **everything that needs an operator (Railway / Stripe / SendGrid / App Store Connect / Play Console / Namecheap / EAS) — i.e. things I cannot do from a code repo.**
 
+For per-provider click paths and dashboard-level verification steps, use the companion guide [PROVIDER_DASHBOARD_VERIFICATION.md](./PROVIDER_DASHBOARD_VERIFICATION.md).
+
 Read top to bottom. Items are ordered so each block can be done independently, with hard ordering called out where it matters.
 
 > **Hard rule reminder (CLAUDE.md):** never run `eas build` / `eas submit` casually — each costs credits.
+
+## How to use this runbook
+
+- Treat each block as incomplete until its validation step passes.
+- Prefer validating with the real production value in your shell immediately after you rotate or set it.
+- For shell snippets below, `export` the fresh value first or paste them into a Railway shell session.
 
 ---
 
@@ -26,6 +34,37 @@ These keys were exposed in commit `97a715ee` (server/.env in git history) and on
 
 **Reference:** `docs/security/scrub-secrets-from-history.md` for the full background and the optional history-scrub procedure.
 
+### Block A validation
+
+**Stripe (A1) pass/fail**
+
+```bash
+for key in STRIPE_PRICE_VETERAN STRIPE_PRICE_LEGEND STRIPE_PRICE_AD_WEEKDAY STRIPE_PRICE_AD_WEEKEND; do
+  id="${!key}"
+  echo "== $key: $id =="
+  curl -sS "https://api.stripe.com/v1/prices/$id" -u "$STRIPE_SECRET_KEY:"
+  echo
+done
+```
+
+Pass:
+- No response contains `api_key_expired`, `invalid_request_error`, or `resource_missing`
+- Each response returns the expected `price_...` object for the corresponding env var
+
+**Webhook secret (A2) pass/fail**
+
+- In Stripe dashboard, send a test event to the production webhook endpoint.
+- Pass when Stripe shows a `2xx` delivery and the API logs show the event was accepted, not rejected for signature mismatch.
+
+**JWT / AWS / Postgres / Maps / SMTP (A3-A7) pass/fail**
+
+- Pass only after one real production action succeeds on the fresh credential:
+- JWT: sign in on a fresh session and hit an authenticated route.
+- AWS: upload one image/file.
+- Postgres: confirm the API stays healthy through the next deploy.
+- Maps: open one map screen on each platform after the next rebuilt binary.
+- SMTP: send one real message from the provider test flow if still used anywhere operationally.
+
 ---
 
 ## Block B — Railway environment configuration
@@ -39,6 +78,63 @@ After A is done, set/verify these in Railway → `capable-trust` → `api` servi
 | B3 | `STRIPE_SECRET_KEY` | new value from A1 | Same. |
 | B4 | `SENDGRID_*_TEMPLATE_ID` (18 keys) | from SendGrid template dashboard | Local smoke still warns several are missing — confirm prod has them. The `getMissingEmailTemplates()` helper lists exactly which are required. |
 | B5 | (none — the Maps key now lives in EAS, not Railway) | n/a | After committing the eas.json change in `ec32714a`, prod Maps key flows through EAS secrets, not Railway env. See Block D. |
+
+### Block B validation
+
+**Core env pass/fail**
+
+```bash
+test "$APPLE_BUNDLE_ID" = "com.varsithub.varsityhub-ios" \
+  && echo "APPLE_BUNDLE_ID ok" \
+  || (echo "APPLE_BUNDLE_ID mismatch"; exit 1)
+
+test -n "$STRIPE_SECRET_KEY" && test -n "$STRIPE_WEBHOOK_SECRET" \
+  && echo "Stripe env vars present" \
+  || (echo "Stripe env vars missing"; exit 1)
+```
+
+**SendGrid template-ID shape check**
+
+```bash
+node - <<'NODE'
+const keys = [
+  'SENDGRID_VERIFICATION_TEMPLATE_ID',
+  'SENDGRID_PASSWORD_RESET_TEMPLATE_ID',
+  'SENDGRID_TEAM_INVITE_TEMPLATE_ID',
+  'SENDGRID_ORG_INVITE_TEMPLATE_ID',
+  'SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID',
+  'SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID',
+  'SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID',
+  'SENDGRID_EVENT_APPROVED_TEMPLATE_ID',
+  'SENDGRID_EVENT_DENIED_TEMPLATE_ID',
+  'SENDGRID_EVENT_CANCELED_TEMPLATE_ID',
+  'SENDGRID_PAYMENT_FAILED_TEMPLATE_ID',
+  'SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID',
+  'SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID',
+  'SENDGRID_AD_APPROVED_TEMPLATE_ID',
+  'SENDGRID_AD_REJECTED_TEMPLATE_ID',
+  'SENDGRID_ORG_APPROVAL_TEMPLATE_ID',
+  'SENDGRID_ORG_DENIAL_TEMPLATE_ID',
+  'SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID',
+];
+const bad = keys.filter(k => !/^d-[a-f0-9]{32}$/i.test((process.env[k] || '').trim()));
+if (bad.length) {
+  console.error(`Missing/invalid template IDs: ${bad.join(', ')}`);
+  process.exit(1);
+}
+console.log('All required SendGrid template IDs look valid');
+NODE
+```
+
+**API boot / health pass/fail**
+
+```bash
+curl -fsS https://varsityhub.app/health && echo
+```
+
+Pass:
+- API returns `200`
+- Railway logs do not show the production fail-fast for missing `APPLE_BUNDLE_ID`, `SENDGRID_API_KEY`, `STRIPE_SECRET_KEY`, or `STRIPE_WEBHOOK_SECRET`
 
 ---
 
@@ -62,6 +158,16 @@ Per the IAP code in `hooks/useIAP.ts` and the `iap-config-invariants.test.ts` re
 
 **Post-verification:** run a live sandbox purchase per platform per SKU before declaring this block done.
 
+### Block C validation
+
+Pass only when all of the following are true:
+- App Store Connect shows `MIDTIER` and `TOPTIER` as the subscription product IDs.
+- App Store Connect shows `MOND_THURS` and `FRI_SUN` as the Apple ad IAP IDs.
+- Play Console shows `MIDTIER` and `TOPTIER` for Android subscriptions.
+- One sandbox subscription purchase succeeds on iOS.
+- One sandbox subscription purchase succeeds on Android.
+- One Apple sandbox ad purchase succeeds for each ad SKU.
+
 ---
 
 ## Block D — EAS secrets + binary rebuild
@@ -82,6 +188,29 @@ Multiple unrelated changes converge on the next iOS/Android binary. Bundle them 
 - Universal-link parser plural aliases (commit `fc5258e3`)
 - Multiple ad-flow + auth-flow + Sentry mobile changes from this week
 
+### Block D validation
+
+**Before any build**
+
+```bash
+eas secret:list | rg 'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY|SENTRY_AUTH_TOKEN'
+npm run verify:build
+```
+
+Pass:
+- `eas secret:list` shows `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`
+- `SENTRY_AUTH_TOKEN` is still present in EAS
+- `npm run verify:build` exits `0`
+
+**After build, before submit**
+
+Pass only after:
+- TestFlight build opens universal links correctly for `varsityhub.app`
+- iOS IAP purchase works in sandbox/TestFlight
+- Android internal-track build can open Stripe checkout / PaymentSheet paths cleanly
+- Maps render on both platforms with the rotated key
+- Sentry source maps upload without project mismatch warnings
+
 ---
 
 ## Block E — DNS (varsityhub.app)
@@ -97,6 +226,19 @@ Started mid-session, paused on Railway-token tier. Picking up where we left off:
 | E5 | Wait for Let's Encrypt cert provisioning (Railway handles this automatically once DNS resolves) | ~15 minutes typical |
 | E6 | Verify: `curl -I https://varsityhub.app/health` returns 200 | |
 | E7 | Verify: `curl -I https://varsityhub.app/.well-known/apple-app-site-association` returns 200 with `application/json` | Required for iOS universal-link verification |
+
+### Block E validation
+
+```bash
+curl -fsSI https://varsityhub.app/health
+curl -fsSI https://www.varsityhub.app/health
+curl -fsSI https://varsityhub.app/.well-known/apple-app-site-association
+```
+
+Pass:
+- Apex and `www` both resolve over HTTPS
+- `/health` returns `200`
+- `/.well-known/apple-app-site-association` returns `200` and `content-type: application/json`
 
 ---
 
@@ -121,6 +263,17 @@ These are sitting on disk and need a commit decision before Block D can pick the
 - `server/prisma/migrations/20260422110117_add_story_and_message_hot_query_indexes/` — duplicate of an applied migration; do NOT push
 - `server/src/__tests__/session-enforcement.test.ts` — orphan from a prior thread; adopt or delete
 - `.claude/worktrees/` — Claude tooling, never push
+
+### Block F validation
+
+```bash
+git status --short
+```
+
+Pass:
+- Only the files you intentionally decided to ship for the next binary remain modified or staged
+- `.claude/worktrees/` is still untracked / excluded
+- The duplicate Prisma migration is not staged for commit
 
 ---
 

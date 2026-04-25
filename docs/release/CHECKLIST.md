@@ -3,6 +3,7 @@
 **Use this checklist before every production release.** This gates releases and prevents "tribal knowledge" from causing issues. For security-relevant changes (auth, payments, approvals, ownership), also complete [docs/PR_CHECKLIST.md](../PR_CHECKLIST.md) Section B.
 
 > For one-time post-audit operator actions (credential rotations, EAS rebuild bundle, DNS attach, etc.) see [PENDING_OPERATOR_ACTIONS.md](./PENDING_OPERATOR_ACTIONS.md). Work through that doc first; it consolidates the spring-2026 audit + spiderweb-sweep follow-ups.
+> For provider-by-provider click paths in Stripe, Railway, SendGrid, App Store Connect, Play Console, EAS, and Namecheap, use [PROVIDER_DASHBOARD_VERIFICATION.md](./PROVIDER_DASHBOARD_VERIFICATION.md).
 
 ## Pre-Release: Code Quality
 - [ ] `./scripts/check-repo-health.sh` passes (no logs/artifacts committed)
