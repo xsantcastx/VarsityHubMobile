@@ -722,8 +722,14 @@ export default function FeedScreen() {
     const PROMO_DURATION_MS = activeAdsCount === 1 ? 15 * 1000 : 0; // 15s placeholder only for single ad
     const CYCLE_DURATION_MS = TOTAL_AD_TIME_MS + PROMO_DURATION_MS;
 
-    // Update every 30 seconds (ads rotate every 2.5-5 min, no need for 1s polling)
+    // Update every 30 seconds (ads rotate every 2.5-5 min, no need for 1s polling).
+    // Local mountedFlag closed over by the tick callback: clearInterval (below) is
+    // the primary stop, but if the effect re-runs (sponsoredAds.length changed)
+    // and the OLD tick is mid-flight or queued, the flag prevents stale state
+    // updates from leaking into the new effect's render cycle.
+    let isCancelled = false;
     const interval = setInterval(() => {
+      if (isCancelled) return;
       const now = Date.now();
       const elapsed = now - adCycleStartTimeRef.current;
       const cyclePosition = elapsed % CYCLE_DURATION_MS;
@@ -740,7 +746,10 @@ export default function FeedScreen() {
       }
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
   }, [sponsoredAds?.length]);
 
   // Insert sponsored ads into upcoming events feed (Instagram-style)

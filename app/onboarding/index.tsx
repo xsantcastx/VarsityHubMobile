@@ -13,6 +13,7 @@ export default function OnboardingIndex() {
   const { user } = useAuth();
   const { progress, state, isLoaded, setProgress, reducerState: _reducerState, dispatch, nextStep: _nextStep, hydrateFromServer } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const hydratedRef = useRef(false);
 
   // CRITICAL: User must be authenticated to access onboarding
@@ -26,22 +27,36 @@ export default function OnboardingIndex() {
     }
 
     // Sync server preferences into local state — DB wins over stale AsyncStorage on conflict.
-    // Fire-and-forget: navigation proceeds immediately; state update is async.
+    // Navigation effect waits on hasHydrated so the routing decision sees the
+    // server-truth, not stale AsyncStorage. Without this, a returning coach with
+    // server preferences.onboarding_completed=true but locally-empty role would
+    // get sent to step 0, then AuthProvider would re-route them back into
+    // onboarding — silent loop.
     if (!hydratedRef.current) {
       hydratedRef.current = true;
-      User.me().then((me: any) => {
-        if (me?.preferences && Object.keys(me.preferences).length > 0) {
-          hydrateFromServer(me.preferences);
-        }
-      }).catch((err: any) => {
-        console.warn('[onboarding] Failed to sync server preferences:', err?.message || err);
-      });
+      User.me()
+        .then((me: any) => {
+          if (me?.preferences && Object.keys(me.preferences).length > 0) {
+            hydrateFromServer(me.preferences);
+          }
+        })
+        .catch((err: any) => {
+          console.warn('[onboarding] Failed to sync server preferences:', err?.message || err);
+        })
+        .finally(() => {
+          // .finally so a hydration failure (offline, 5xx) still unblocks
+          // navigation rather than stranding the user on the spinner forever.
+          // The decision then falls back to whatever's in local state — which
+          // is the same place we'd have started without this guard.
+          setHasHydrated(true);
+        });
     }
   }, [user, isLoaded, router, hydrateFromServer]);
-  
+
   useEffect(() => {
-    // Don't navigate until AsyncStorage has loaded and user is authenticated
-    if (!isLoaded || hasNavigated || !user) {
+    // Don't navigate until AsyncStorage has loaded, user is authenticated, AND
+    // server-side preferences have been merged (or hydration has failed).
+    if (!isLoaded || hasNavigated || !user || !hasHydrated) {
       return;
     }
 
@@ -125,7 +140,7 @@ export default function OnboardingIndex() {
     // Only re-run when loading completes, user changes, or onboarding state changes
     // Exclude progress/setProgress/dispatch to avoid infinite re-render loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasNavigated, isLoaded, state, user, router]);
+  }, [hasNavigated, isLoaded, state, user, router, hasHydrated]);
   
   // Show loading indicator while waiting for state to load
   return (
