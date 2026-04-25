@@ -57,6 +57,7 @@ module.exports = ({ config }) => {
       supportsTablet: true,
       appleTeamId: 'B5H8F69RW5',
       bundleIdentifier: 'com.varsithub.varsityhub-ios',
+      associatedDomains: ['applinks:varsityhub.app', 'applinks:www.varsityhub.app'],
       usesAppleSignIn: true,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -95,6 +96,29 @@ module.exports = ({ config }) => {
       edgeToEdgeEnabled: true,
       versionCode: 2,
       package: 'com.varsityhub.varsityhub',
+      intentFilters: [
+        {
+          action: 'VIEW',
+          autoVerify: true,
+          category: ['BROWSABLE', 'DEFAULT'],
+          data: [
+            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/posts' },
+            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/games' },
+            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/teams' },
+            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/users' },
+            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/events' },
+            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/join' },
+            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/share' },
+            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/posts' },
+            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/games' },
+            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/teams' },
+            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/users' },
+            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/events' },
+            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/join' },
+            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/share' },
+          ],
+        },
+      ],
       permissions: [
         'android.permission.CAMERA',
         'android.permission.READ_MEDIA_IMAGES',
