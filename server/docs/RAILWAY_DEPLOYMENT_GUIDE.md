@@ -49,6 +49,7 @@ EMAIL_FROM=noreply@varsityhub.app
 FROM_EMAIL=noreply@varsityhub.app
 SUPPORT_REPLY_TO=customerservice@varsityhub.app
 ADMIN_EMAILS=xsancastrillonx@hotmail.com
+ADMIN_NOTIFICATION_EMAILS=customerservice@varsityhub.app
 
 # CORS
 ALLOWED_ORIGINS=https://varsityhub.app,https://app.varsityhub.app

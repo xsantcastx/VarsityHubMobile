@@ -42,6 +42,7 @@ const envSchema = z.object({
   APP_BASE_URL: z.string().optional().transform(toOptional),
   EXPO_PUBLIC_API_URL: z.string().optional().transform(toOptional),
   ADMIN_EMAILS: z.string().optional(),
+  ADMIN_NOTIFICATION_EMAILS: z.string().optional(),
   TWILIO_ACCOUNT_SID: z.string().optional().transform(toOptional),
   TWILIO_AUTH_TOKEN: z.string().optional().transform(toOptional),
   TWILIO_VERIFY_SERVICE_SID: z.string().optional().transform(toOptional),

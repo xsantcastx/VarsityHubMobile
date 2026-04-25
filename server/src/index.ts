@@ -15,13 +15,29 @@ await initEmailService();
     .split(',')
     .map(s => s.trim())
     .filter(Boolean);
+  const adminNotificationEmails = (
+    process.env.ADMIN_NOTIFICATION_EMAILS || process.env.ADMIN_EMAILS || ''
+  )
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
   if (adminEmails.length === 0) {
     const msg =
-      '[startup] ⚠️  ADMIN_EMAILS env var is empty — coach, ad, and league approval notifications will NOT be delivered';
+      '[startup] ⚠️  ADMIN_EMAILS env var is empty — no one will have admin dashboard access';
     console.warn(msg);
     captureMessage(msg, 'warning');
   } else {
     console.log(`[startup] ADMIN_EMAILS configured: ${adminEmails.length} recipient(s)`);
+  }
+  if (adminNotificationEmails.length === 0) {
+    const msg =
+      '[startup] ⚠️  ADMIN_NOTIFICATION_EMAILS/ADMIN_EMAILS env vars are empty — coach, ad, and league approval notifications will NOT be delivered';
+    console.warn(msg);
+    captureMessage(msg, 'warning');
+  } else {
+    console.log(
+      `[startup] ADMIN_NOTIFICATION_EMAILS configured: ${adminNotificationEmails.length} recipient(s)`
+    );
   }
   if (!env.SENDGRID_API_KEY) {
     const msg =

@@ -1,12 +1,10 @@
 import type { NextFunction, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { isAdminEmail } from '../lib/adminEmails.js';
 import type { AuthedRequest } from './auth.js';
 
 export function isEmailAdmin(email?: string | null): boolean {
-  if (!email) return false;
-  const raw = process.env.ADMIN_EMAILS || '';
-  const list = raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return list.includes(email.toLowerCase());
+  return isAdminEmail(email);
 }
 
 export async function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
@@ -16,7 +14,7 @@ export async function requireAdmin(req: AuthedRequest, res: Response, next: Next
     select: { email: true, email_verified: true },
   });
   if (!me?.email_verified) return res.status(403).json({ error: 'Email verification required' });
-  if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+  if (!isAdminEmail(me?.email)) return res.status(403).json({ error: 'Admin only' });
   return next();
 }
 
@@ -26,6 +24,5 @@ export async function getIsAdmin(req: AuthedRequest): Promise<boolean> {
     where: { id: req.user.id },
     select: { email: true, email_verified: true },
   });
-  return !!me?.email_verified && isEmailAdmin(me?.email);
+  return !!me?.email_verified && isAdminEmail(me?.email);
 }
-

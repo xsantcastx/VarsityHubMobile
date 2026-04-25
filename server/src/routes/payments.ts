@@ -71,7 +71,11 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Admin notification email — first entry from ADMIN_EMAILS env var
-const ADMIN_NOTIFY_EMAIL = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim()).filter(Boolean)[0] || '';
+const ADMIN_NOTIFY_EMAIL =
+  (process.env.ADMIN_NOTIFICATION_EMAILS || process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)[0] || '';
 
 export const paymentsRouter = Router();
 

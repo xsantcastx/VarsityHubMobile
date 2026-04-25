@@ -2,6 +2,20 @@
 
 This directory contains all E2E tests, smoke tests, and API integration tests for VarsityHub.
 
+## Current Status
+
+Playwright coverage in this folder is currently not load-bearing for release signoff.
+
+- The suite has drifted behind the current React Native Web UI in multiple places.
+- Local Playwright runs that touch signup/email flows also depend on env/template wiring that is not present in the default local setup.
+- Treat failures here as signals for investigation, not as authoritative release blockers, until the suite is rehabilitated.
+
+For the current release window, rely on:
+
+- focused Jest/server regression coverage
+- targeted scripts
+- manual real-device UAT for auth, onboarding, email, push, and approval flows
+
 ## Test Structure
 
 ```
