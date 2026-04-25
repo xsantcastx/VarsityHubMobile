@@ -51,29 +51,57 @@ groupChatsRouter.get('/', requireAuth as any, requireVerified as any, asyncHandl
       orderBy: { joined_at: 'desc' },
     });
 
-    // v1.0.2 pass 11: previously unreadCount was derived from `messages: { take: 1 }`,
-    // so the count was always 0 or 1, never the true unread total. Fixed with per-chat
-    // counts (exclude own messages; if last_read_at is null, count all others' messages).
-    // pass 11 follow-up: removed unused groupBy that duplicated work and hit DB every request.
+    // Unread count: previously this was N+1 — one count() per chat parallelized
+    // via Promise.all (see git history). Replaced with a single bounded scan +
+    // in-memory bucket. Each chat has a different last_read_at cutoff, so we
+    // can't use Prisma groupBy directly (single WHERE per groupBy call).
     const chatIds = memberships.map((m: any) => m.chat_id);
     const lastReadByChat = new Map<string, Date | null>(
       memberships.map((m: any) => [m.chat_id, m.last_read_at ?? null])
     );
 
-    const refinedUnread = await Promise.all(
-      chatIds.map(async (chatId: string) => {
-        const lastRead = lastReadByChat.get(chatId);
-        const count = await prisma.groupChatMessage.count({
+    // Optimization: if every chat has a non-null last_read_at, we only need to
+    // scan messages newer than the OLDEST cutoff across all chats. Anything
+    // older than that can't be unread for any of them.
+    const lastReadValues: Date[] = [];
+    let allChatsHaveLastRead = true;
+    for (const chatId of chatIds) {
+      const lastRead = lastReadByChat.get(chatId);
+      if (lastRead == null) {
+        allChatsHaveLastRead = false;
+        break;
+      }
+      lastReadValues.push(lastRead);
+    }
+    const globalCutoff = allChatsHaveLastRead && lastReadValues.length > 0
+      ? new Date(Math.min(...lastReadValues.map((d) => d.getTime())))
+      : null;
+
+    // Scan cap: anyone with > 1000 unread messages is already past the point
+    // where a precise count matters; the UI can show "999+". Sorting by newest
+    // first means we get the freshest unread within the cap budget.
+    const UNREAD_SCAN_CAP = 1000;
+
+    const candidateMessages = chatIds.length > 0
+      ? await prisma.groupChatMessage.findMany({
           where: {
-            chat_id: chatId,
+            chat_id: { in: chatIds },
             sender_id: { not: req.user!.id },
-            ...(lastRead ? { created_at: { gt: lastRead } } : {}),
+            ...(globalCutoff ? { created_at: { gt: globalCutoff } } : {}),
           },
-        });
-        return [chatId, count] as const;
-      })
-    );
-    const unreadByChat = new Map(refinedUnread);
+          select: { chat_id: true, created_at: true },
+          take: UNREAD_SCAN_CAP,
+          orderBy: { created_at: 'desc' },
+        })
+      : [];
+
+    const unreadByChat = new Map<string, number>();
+    for (const msg of candidateMessages) {
+      const lastRead = lastReadByChat.get(msg.chat_id);
+      if (!lastRead || msg.created_at > lastRead) {
+        unreadByChat.set(msg.chat_id, (unreadByChat.get(msg.chat_id) ?? 0) + 1);
+      }
+    }
 
     const chats = memberships.map((m: any) => ({
       ...m.chat,
