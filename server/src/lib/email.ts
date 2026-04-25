@@ -64,7 +64,6 @@ const getEmailService = async (): Promise<EmailService | null> => {
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-const APP_SCHEME = (process.env.APP_SCHEME || 'varsityhubmobile').replace(/:.*$/, '');
 const API_BASE_URL = (
   process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app'
 ).replace(/\/$/, '');
@@ -197,9 +196,12 @@ export function isValidSendGridTemplateId(templateId: string | undefined | null)
   return typeof templateId === 'string' && SENDGRID_TEMPLATE_ID_REGEX.test(templateId.trim());
 }
 
-function buildAppScreenUrl(pathname: string, params: Record<string, string | null | undefined> = {}): string {
+function buildWebScreenUrl(
+  pathname: string,
+  params: Record<string, string | null | undefined> = {}
+): string {
   const normalizedPath = pathname.replace(/^\/+/, '');
-  const url = new URL(`${APP_SCHEME}://${normalizedPath}`);
+  const url = new URL(`${APP_BASE_URL}/${normalizedPath}`);
   for (const [key, value] of Object.entries(params)) {
     if (typeof value === 'string' && value.trim().length > 0) {
       url.searchParams.set(key, value);
@@ -218,13 +220,13 @@ function buildInviteLandingUrl(kind: 'team' | 'org', inviteId?: string): string 
 function buildEventDetailUrl(eventId?: string, fallbackUrl?: string): string {
   const safeEventId = typeof eventId === 'string' ? eventId.trim() : '';
   if (safeEventId) return `${APP_BASE_URL}/events/${encodeURIComponent(safeEventId)}`;
-  return fallbackUrl || buildAppScreenUrl('/event-detail');
+  return fallbackUrl || buildWebScreenUrl('/event-detail');
 }
 
 // Canonical billing-portal URL. Matches the form the mobile deep-link parser
 // recognizes (see utils/deepLinks.ts ROUTE_MAP['settings/manage-subscription']).
 function buildManageSubscriptionUrl(): string {
-  return `${APP_BASE_URL}/settings/manage-subscription`;
+  return buildWebScreenUrl('/settings/manage-subscription');
 }
 
 /**
@@ -485,7 +487,7 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
       organization_name: params.organizationName || 'VarsityHub',
       approval_notes: params.approvalNotes || '',
       view_event_url: buildEventDetailUrl(params.eventId, params.eventLink),
-      manage_event_url: params.manageLink || buildAppScreenUrl('/team-hub'),
+      manage_event_url: params.manageLink || buildWebScreenUrl('/team-hub'),
     },
     `Event approved email sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
@@ -541,7 +543,7 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
       coach_name: params.coachName || params.recipientName || 'Coach',
       event_name: params.eventName || params.eventTitle || 'Event',
       denial_reason: params.denialReason || params.reason || '',
-      submit_new_event_url: params.resubmitLink || buildAppScreenUrl('/create-fan-event'),
+      submit_new_event_url: params.resubmitLink || buildWebScreenUrl('/create-fan-event'),
       contact_support_url: params.supportLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
       organization_name: params.organizationName || 'VarsityHub',
     },
@@ -617,7 +619,7 @@ export async function sendVerificationEmail(
 ): Promise<boolean> {
   const displayName = userName || 'VarsityHub User';
   const subject = `${token} is your VarsityHub verification code`;
-  const verificationUrl = buildAppScreenUrl('/verify', { token, email });
+  const verificationUrl = buildWebScreenUrl('/verify', { token, email });
   const templateId = TEMPLATE_IDS.VERIFICATION;
   if (!templateId) {
     console.error('[email] Missing SENDGRID_VERIFICATION_TEMPLATE_ID');
@@ -651,7 +653,7 @@ export async function sendVerificationEmail(
  */
 export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
   const subject = `${code} is your VarsityHub password reset code`;
-  const resetUrl = buildAppScreenUrl('/reset-password', { code, email });
+  const resetUrl = buildWebScreenUrl('/reset-password', { code, email });
   const templateId = TEMPLATE_IDS.PASSWORD_RESET;
   if (!templateId) {
     console.error('[email] Missing SENDGRID_PASSWORD_RESET_TEMPLATE_ID');
@@ -1108,14 +1110,7 @@ function buildAppReviewUrl(
   pathname: string,
   params: Record<string, string | null | undefined>
 ): string {
-  const normalizedPath = pathname.replace(/^\/+/, '');
-  const url = new URL(`${APP_SCHEME}://${normalizedPath}`);
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === 'string' && value.trim().length > 0) {
-      url.searchParams.set(key, value);
-    }
-  }
-  return url.toString();
+  return buildWebScreenUrl(pathname, params);
 }
 
 export function buildCoachJoinRequestReviewUrl(params: {
@@ -1296,7 +1291,7 @@ export async function sendLeagueApprovedEmail(params: {
       org_name: params.leagueName,
       org_logo_url: '',
       admin_note: params.note || '',
-      dashboard_url: buildAppScreenUrl('/team-hub'),
+      dashboard_url: buildWebScreenUrl('/team-hub'),
     },
     `League approved email sent to ${params.to}`
   );
@@ -1361,8 +1356,8 @@ export async function sendCoachApprovedEmail(params: {
       org_name: params.leagueName,
       admin_name: 'VarsityHub',
       admin_note: params.note || '',
-      org_url: buildAppScreenUrl('/team-hub'),
-      dashboard_url: buildAppScreenUrl('/team-hub'),
+      org_url: buildWebScreenUrl('/team-hub'),
+      dashboard_url: buildWebScreenUrl('/team-hub'),
       org_logo_url: '',
     },
     `Coach approved email sent to ${params.to}`

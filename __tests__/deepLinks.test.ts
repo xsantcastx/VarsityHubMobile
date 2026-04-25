@@ -91,6 +91,35 @@ describe('parseDeepLink', () => {
     });
   });
 
+  it('parses universal admin dashboard review links used by approval emails', () => {
+    expect(
+      parseDeepLink(
+        'https://varsityhub.app/admin-dashboard?review=league_approval&league_id=org-123&action=approve'
+      )
+    ).toEqual({
+      screen: '/admin-dashboard',
+      params: {
+        review: 'league_approval',
+        league_id: 'org-123',
+        action: 'approve',
+      },
+      source: 'universal',
+    });
+  });
+
+  it('parses universal admin ads links used by review handoff pages', () => {
+    expect(
+      parseDeepLink('https://varsityhub.app/admin-ads?ad_id=ad-123&action=reject')
+    ).toEqual({
+      screen: '/admin-ads',
+      params: {
+        ad_id: 'ad-123',
+        action: 'reject',
+      },
+      source: 'universal',
+    });
+  });
+
   // Regression matrix for the universal-link contract between server
   // (shareLanding.ts + email.ts) and the mobile parser. If any of these
   // fail, taps on shared/email links land users on the web fallback

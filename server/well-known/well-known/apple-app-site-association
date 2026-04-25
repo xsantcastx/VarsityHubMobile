@@ -11,7 +11,18 @@
           "/users/*",
           "/events/*",
           "/join/*",
-          "/share"
+          "/share",
+          "/verify",
+          "/reset-password",
+          "/settings/manage-subscription",
+          "/admin-dashboard",
+          "/admin-ads",
+          "/organization-join-requests",
+          "/team-hub",
+          "/create-fan-event",
+          "/event-detail",
+          "/payment-success",
+          "/payment-cancel"
         ]
       }
     ]

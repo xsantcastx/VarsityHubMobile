@@ -1,5 +1,6 @@
 import cors from 'cors';
 import 'dotenv/config';
+import escapeHtml from 'escape-html';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -349,6 +350,80 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Public legal pages (no auth required — Apple App Store review needs these accessible)
 const legalPageStyle = `body{font-family:-apple-system,Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333;line-height:1.6}h1{color:#1B3A6B}h2{color:#2563eb;margin-top:24px}a{color:#2563eb}`;
+const APP_SCHEME = (process.env.APP_SCHEME || 'varsityhubmobile').replace(/:.*$/, '');
+
+function buildNativeHandoffUrl(pathname: string, req: Request): string {
+  const normalizedPath = pathname.replace(/^\/+/, '');
+  const url = new URL(`${APP_SCHEME}://${normalizedPath}`);
+  for (const [key, value] of Object.entries(req.query || {})) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      url.searchParams.set(key, value);
+    }
+  }
+  return url.toString();
+}
+
+function renderAppHandoffPage(title: string, description: string, nativeUrl: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><style>${legalPageStyle}.card{background:#fff;border:1px solid #E5E7EB;border-radius:16px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,.08)}.btn{display:inline-block;background:#1B3A6B;color:#fff;text-decoration:none;padding:14px 20px;border-radius:10px;font-weight:600;margin-top:8px}</style></head><body><div class="card"><h1>${title}</h1><p>${description}</p><p><a class="btn" href="${escapeHtml(nativeUrl)}">Open in VarsityHub</a></p><p>If the app does not open automatically, tap the button again from this page.</p></div><script>window.setTimeout(function(){window.location.replace(${JSON.stringify(nativeUrl)});},75);</script></body></html>`;
+}
+
+const publicAppHandoffRoutes: Array<{ path: string; title: string; description: string }> = [
+  {
+    path: '/verify',
+    title: 'Verify Your Email',
+    description: 'Open VarsityHub to finish verifying your email address.',
+  },
+  {
+    path: '/reset-password',
+    title: 'Reset Your Password',
+    description: 'Open VarsityHub to continue your password reset.',
+  },
+  {
+    path: '/settings/manage-subscription',
+    title: 'Manage Your Subscription',
+    description: 'Open VarsityHub to view billing details and manage your subscription.',
+  },
+  {
+    path: '/admin-dashboard',
+    title: 'Open Admin Review',
+    description: 'Open VarsityHub with an admin account to review this request.',
+  },
+  {
+    path: '/admin-ads',
+    title: 'Open Ad Review',
+    description: 'Open VarsityHub with an admin account to review this ad.',
+  },
+  {
+    path: '/organization-join-requests',
+    title: 'Open Join Requests',
+    description: 'Open VarsityHub to review this organization join request.',
+  },
+  {
+    path: '/team-hub',
+    title: 'Open Team Hub',
+    description: 'Open VarsityHub to continue in Team Hub.',
+  },
+  {
+    path: '/create-fan-event',
+    title: 'Open VarsityHub',
+    description: 'Open VarsityHub to continue this event flow.',
+  },
+  {
+    path: '/event-detail',
+    title: 'Open Event Detail',
+    description: 'Open VarsityHub to view this event.',
+  },
+  {
+    path: '/payment-success',
+    title: 'Return to VarsityHub',
+    description: 'Open VarsityHub to finish processing your payment.',
+  },
+  {
+    path: '/payment-cancel',
+    title: 'Return to VarsityHub',
+    description: 'Open VarsityHub to continue after cancelling payment.',
+  },
+];
 
 app.get('/privacy-policy', (_req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -398,6 +473,19 @@ app.get('/support', (_req, res) => {
 <p>We typically respond within 24 hours.</p>
 <p>&copy; 2025 Lime Productions. All rights reserved.</p></body></html>`);
 });
+
+for (const route of publicAppHandoffRoutes) {
+  app.get(route.path, (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(
+      renderAppHandoffPage(
+        route.title,
+        route.description,
+        buildNativeHandoffUrl(route.path, req)
+      )
+    );
+  });
+}
 
 // Add centralized error handler (must be before Sentry)
 import { errorHandler } from './middleware/errorHandler.js';

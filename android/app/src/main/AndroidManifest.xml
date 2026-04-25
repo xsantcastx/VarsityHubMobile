@@ -43,6 +43,47 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="varsityhubmobile"/>
       </intent-filter>
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/posts"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/games"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/teams"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/users"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/events"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/join"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/share"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/verify"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/reset-password"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/settings/manage-subscription"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/admin-dashboard"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/admin-ads"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/organization-join-requests"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/team-hub"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/create-fan-event"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/event-detail"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/payment-success"/>
+        <data android:scheme="https" android:host="varsityhub.app" android:pathPrefix="/payment-cancel"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/posts"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/games"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/teams"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/users"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/events"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/join"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/share"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/verify"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/reset-password"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/settings/manage-subscription"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/admin-dashboard"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/admin-ads"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/organization-join-requests"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/team-hub"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/create-fan-event"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/event-detail"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/payment-success"/>
+        <data android:scheme="https" android:host="www.varsityhub.app" android:pathPrefix="/payment-cancel"/>
+      </intent-filter>
     </activity>
     <uses-library android:name="org.apache.http.legacy" android:required="false"/>
   </application>

@@ -73,13 +73,23 @@ describe('Email template helpers', () => {
   });
 
   it('buildLeagueApprovalReviewUrl points into the admin app flow', async () => {
-    process.env.APP_SCHEME = 'varsityhubmobile';
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
     const { buildLeagueApprovalReviewUrl } = await import('../lib/email.js');
     const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
-    expect(url).toContain('varsityhubmobile://admin-dashboard');
+    expect(url).toContain('https://varsityhub.app/admin-dashboard');
     expect(url).toContain('review=league_approval');
     expect(url).toContain('league_id=org_123');
     expect(url).toContain('action=approve');
+  });
+
+  it('buildCoachApplicationReviewUrl points to a browser-safe admin dashboard URL', async () => {
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
+    const { buildCoachApplicationReviewUrl } = await import('../lib/email.js');
+    const url = buildCoachApplicationReviewUrl({ coachId: 'user_123', action: 'reject' });
+    expect(url).toContain('https://varsityhub.app/admin-dashboard');
+    expect(url).toContain('review=coach_application');
+    expect(url).toContain('coach_id=user_123');
+    expect(url).toContain('action=reject');
   });
 
   it('buildAdReviewUrl points into the admin ads app flow', async () => {

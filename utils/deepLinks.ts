@@ -98,10 +98,12 @@ const ROUTE_MAP: Record<string, string> = {
   'onboarding': '/onboarding',
   'approvals': '/approvals',
   'admin-dashboard': '/admin-dashboard',
+  'admin-ads': '/admin-ads',
   'organization-join-requests': '/organization-join-requests',
   'organization-invites': '/organization-invites',
   'team-hub': '/team-hub',
   'create-fan-event': '/create-fan-event',
+  'event-detail': '/event-detail',
   'manage-subscription': '/settings/manage-subscription',
   // Multi-segment routes without a resource ID (e.g., billing emails link to /settings/manage-subscription directly)
   'settings/manage-subscription': '/settings/manage-subscription',

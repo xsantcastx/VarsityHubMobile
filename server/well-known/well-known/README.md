@@ -31,6 +31,16 @@ Paths configured for deep linking:
 - `/events/*` — Event detail
 - `/join/*` — Org/team invite links
 - `/share` — Share endpoint (query params: type, id)
+- `/verify` — Email verification handoff
+- `/reset-password` — Password reset handoff
+- `/settings/manage-subscription` — Billing management handoff
+- `/admin-dashboard` — Admin approval handoff
+- `/admin-ads` — Ad review handoff
+- `/organization-join-requests` — Org join request review
+- `/team-hub` — Team hub handoff
+- `/create-fan-event` — Event creation handoff
+- `/event-detail` — Generic event-detail handoff
+- `/payment-success` and `/payment-cancel` — Checkout return handoff
 
 ## Android: assetlinks.json
 
