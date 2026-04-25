@@ -30,6 +30,49 @@ registerIdValidation(eventsRouter);
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
 
+/** Hard cap on RSVPs we'll fan out to per event update/cancel. Past this we
+ *  stop and trust the next surface (re-open the event, manual notification)
+ *  to catch up. 50k is ~2 orders of magnitude above today's largest event;
+ *  raise if/when production traces show a real ceiling. */
+const RSVP_FANOUT_LIMIT = 50_000;
+const RSVP_FANOUT_BATCH = 200;
+
+/**
+ * Async iterator over an event's RSVPs in cursor-paged batches. Replaces the
+ * `take: 10000` single-shot fetch + in-memory loop in event update/cancel —
+ * which scales linearly in memory and latency with the event size and turns
+ * a single click into a giant query for popular events.
+ *
+ * Each yielded batch carries the same shape the call sites expected (RSVP +
+ * user select). Callers fan out side effects per batch (push, email,
+ * reminder cancel) and the next batch loads only after the current one's
+ * critical work is done — bounded memory regardless of event size.
+ */
+async function* iterateEventRsvps(
+  eventId: string,
+  userSelect: { id?: true; email?: true; display_name?: true; preferences?: true },
+  options: { batchSize?: number; cap?: number } = {},
+): AsyncGenerator<Array<any>> {
+  const batchSize = options.batchSize ?? RSVP_FANOUT_BATCH;
+  const cap = options.cap ?? RSVP_FANOUT_LIMIT;
+  let cursor: string | undefined;
+  let yielded = 0;
+  while (yielded < cap) {
+    const batch = await prisma.eventRsvp.findMany({
+      where: { event_id: eventId },
+      include: { user: { select: userSelect } },
+      orderBy: { id: 'asc' },
+      take: Math.min(batchSize, cap - yielded),
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    });
+    if (batch.length === 0) return;
+    yield batch;
+    yielded += batch.length;
+    if (batch.length < batchSize) return;
+    cursor = batch[batch.length - 1].id;
+  }
+}
+
 // One-time startup backfill: geocode events/games that have a location string but no lat/lng.
 // Fire-and-forget — safe to run repeatedly (skips rows already populated).
 if (shouldRunStartupBackfills) {
@@ -1221,33 +1264,26 @@ eventsRouter.patch(
       }
 
       if (changes.length > 0) {
-        const rsvps = await prisma.eventRsvp.findMany({
-          where: { event_id: eventId },
-          include: { user: { select: { id: true, email: true, display_name: true } } },
-          take: 10000,
-        });
-
         const eventName = updated.title || event.title || 'Event';
         const changeSummary = changes.join('; ');
         const pushBody = `Event Updated: ${eventName} — ${changeSummary}`;
-        const appBase = process.env.APP_BASE_URL || 'https://varsityhub.app';
-        const updatedDate = updated.date instanceof Date ? updated.date : new Date(updated.date);
-        const eventDate = updatedDate.toLocaleDateString(undefined, {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-        const eventDateTime = `${eventDate} at ${updatedDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
 
-        for (const rsvp of rsvps) {
-          // Event updated email removed — non-mandatory transactional email
-          if (rsvp.user?.id && rsvp.user.id !== userId) {
-            sendPushNotification(rsvp.user.id, 'Event Updated', pushBody, {
-              type: 'event_updated',
-              event_id: eventId,
-              screen: 'event-detail',
-            }).catch(err => console.warn('[events] Failed to send push:', err));
+        // Page through RSVPs instead of one giant `take: 10000` fetch. Each
+        // batch's pushes are best-effort (.catch logs locally). Bounded
+        // memory regardless of event size up to RSVP_FANOUT_LIMIT.
+        for await (const batch of iterateEventRsvps(eventId, {
+          id: true,
+          email: true,
+          display_name: true,
+        })) {
+          for (const rsvp of batch) {
+            if (rsvp.user?.id && rsvp.user.id !== userId) {
+              sendPushNotification(rsvp.user.id, 'Event Updated', pushBody, {
+                type: 'event_updated',
+                event_id: eventId,
+                screen: 'event-detail',
+              }).catch(err => console.warn('[events] Failed to send push:', err));
+            }
           }
         }
       }
@@ -1317,15 +1353,6 @@ eventsRouter.patch(
         data: { status: 'cancelled' },
       });
 
-      // Get RSVPed users for emails and push
-      const rsvps = await prisma.eventRsvp.findMany({
-        where: { event_id: eventId },
-        include: {
-          user: { select: { id: true, email: true, display_name: true, preferences: true } },
-        },
-        take: 10000,
-      });
-
       const eventDate = event.date instanceof Date ? event.date : new Date(event.date);
       const eventDateStr = eventDate.toLocaleDateString(undefined, {
         weekday: 'long',
@@ -1339,47 +1366,63 @@ eventsRouter.patch(
       });
       const eventLocation = [event.location].filter(Boolean).join(', ');
 
-      for (const rsvp of rsvps) {
-        if (rsvp.user?.id && rsvp.user.id !== userId) {
-          sendPushNotification(
-            rsvp.user.id,
-            'Event Cancelled',
-            `"${event.title || 'Event'}" has been cancelled.`,
-            { type: 'event_cancelled', event_id: eventId, screen: 'event-detail' }
-          ).catch(err => console.warn('[events] Failed to send push:', err));
+      // Page through RSVPs in batches instead of one `take: 10000` fetch.
+      // Push + email are best-effort per RSVP; reminder cancel is
+      // correctness-critical and runs through `mustSucceed` so failures
+      // surface to Sentry. Each batch's reminder cancellations finish
+      // (Promise.all) before we move to the next batch — bounded memory,
+      // bounded latency, and a true scan limit at RSVP_FANOUT_LIMIT.
+      for await (const batch of iterateEventRsvps(eventId, {
+        id: true,
+        email: true,
+        display_name: true,
+        preferences: true,
+      })) {
+        for (const rsvp of batch) {
+          if (rsvp.user?.id && rsvp.user.id !== userId) {
+            sendPushNotification(
+              rsvp.user.id,
+              'Event Cancelled',
+              `"${event.title || 'Event'}" has been cancelled.`,
+              { type: 'event_cancelled', event_id: eventId, screen: 'event-detail' }
+            ).catch(err => console.warn('[events] Failed to send push:', err));
 
-          // Best-effort email fallback using the approved cancellation template.
-          if (rsvp.user.email) {
-            sendEventCanceledEmail({
-              to: rsvp.user.email,
-              recipientName: rsvp.user.display_name || 'there',
-              eventName: event.title || 'Event',
-              eventDate: eventDateStr,
-              eventTime: eventTimeStr,
-              eventLocation,
-              eventId,
-            }).catch((err: any) =>
-              console.warn('[events] cancel email failed:', err?.message || err)
-            );
+            // Best-effort email fallback using the approved cancellation template.
+            if (rsvp.user.email) {
+              sendEventCanceledEmail({
+                to: rsvp.user.email,
+                recipientName: rsvp.user.display_name || 'there',
+                eventName: event.title || 'Event',
+                eventDate: eventDateStr,
+                eventTime: eventTimeStr,
+                eventLocation,
+                eventId,
+              }).catch((err: any) =>
+                console.warn('[events] cancel email failed:', err?.message || err)
+              );
+            }
           }
         }
-      }
 
-      // Cancel scheduled reminders for all RSVPed users (parallel)
-      await Promise.all(
-        rsvps.map(rsvp =>
-          mustSucceed(
-            'events.cancel.reminder-cancel',
-            {
-              route: '/events/:id/cancel',
-              event_id: eventId,
-              actor_user_id: userId,
-              target_user_id: rsvp.user_id,
-            },
-            () => cancelGameReminders(eventId, rsvp.user_id)
+        // Reminder cancellation is correctness-critical: a missed cancel
+        // means the user gets a reminder for a cancelled event. Surface
+        // failures to Sentry; let the batch fail loudly rather than
+        // silently shipping stale reminders.
+        await Promise.all(
+          batch.map(rsvp =>
+            mustSucceed(
+              'events.cancel.reminder-cancel',
+              {
+                route: '/events/:id/cancel',
+                event_id: eventId,
+                actor_user_id: userId,
+                target_user_id: rsvp.user_id,
+              },
+              () => cancelGameReminders(eventId, rsvp.user_id)
+            )
           )
-        )
-      );
+        );
+      }
 
       return res.json({
         ...serializeEvent(updated),
