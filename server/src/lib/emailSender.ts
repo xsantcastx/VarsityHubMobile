@@ -6,7 +6,7 @@ type EmailSenderEnv = {
 };
 
 export function resolveEmailFrom(
-  env: EmailSenderEnv = process.env
+  env: EmailSenderEnv = process.env as EmailSenderEnv
 ): string {
   const emailFrom = (env.EMAIL_FROM || '').trim();
   const fromEmail = (env.FROM_EMAIL || '').trim();
