@@ -4,5 +4,30 @@ set -eu
 
 echo "Running staged-file guardrails..."
 npx lint-staged
+
+# Defensive: refuse to commit if scripts/verify-guardrails.sh has been
+# deleted or is not executable. Without this guard, a missing script
+# silently succeeds via `bash` interpreting an empty file (set -eu
+# only catches unset vars, not missing files at the top-level invocation
+# in some shells).
+if [ ! -f scripts/verify-guardrails.sh ]; then
+  echo "ERROR: scripts/verify-guardrails.sh is missing — refusing to commit." >&2
+  echo "If you intentionally removed it, also remove this guard from .husky/pre-commit." >&2
+  exit 1
+fi
 bash scripts/verify-guardrails.sh
+
+# Secret scan on staged changes only (fast — diff scan, not full history).
+# Skipped if gitleaks isn't installed locally; CI catches it on the PR.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-banner || {
+    echo "ERROR: gitleaks detected potential secrets in staged changes." >&2
+    echo "Inspect the report above. If the match is a false positive (e.g., a public" >&2
+    echo "OAuth client ID), allowlist it in .gitleaks.toml — do NOT bypass with --no-verify." >&2
+    exit 1
+  }
+else
+  echo "(gitleaks not installed locally — secret scan will run in CI. Install: brew install gitleaks)"
+fi
+
 echo "Staged-file guardrails passed"

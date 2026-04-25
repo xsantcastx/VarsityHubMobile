@@ -1,0 +1,40 @@
+# gitleaks configuration for VarsityHub Mobile
+#
+# Block secrets at commit time + on PRs. The default ruleset already
+# catches most cloud-provider keys, JWTs, and high-entropy strings.
+# This file only adds repo-specific allowlists for values we've
+# deliberately tracked in source.
+
+title = "VarsityHub Mobile gitleaks config"
+
+[extend]
+# Use built-in default ruleset (Stripe, AWS, GCP, Slack, JWT, etc.).
+useDefault = true
+
+[allowlist]
+description = "Repo-specific public values that look like secrets but aren't"
+
+# Files where false-positives are common
+paths = [
+  '''^server/prisma/migrations/''',  # SQL migration files often contain UUIDs
+  '''^.*\.lock$''',                  # package-lock.json / yarn.lock
+  '''^\.gitleaks\.toml$''',          # this file
+  '''^docs/security/scrub-secrets-from-history\.md$''',  # discusses leaked SHAs
+]
+
+# Specific values that are PUBLIC by design — embedded in mobile bundles
+# anyway. Allowlisted as regexes against the matched secret string.
+regexes = [
+  # Google OAuth client IDs (tracked in eas.json + app.config.js — these
+  # are PUBLIC: they're shipped inside every app binary).
+  '''514463516787-[a-z0-9]+\.apps\.googleusercontent\.com''',
+  # Sentry DSN — write-only token, embedded in every mobile binary.
+  '''https://dba14af58de85862ac7f1cb132e19ff5@o4510445730070528\.ingest\.us\.sentry\.io/4510445740687360''',
+  # PostHog public project key — designed to be client-embedded.
+  '''phc_8y7VeTkwQftyHVGWTGxx11UAZO8ng4RigcbH82yzjQ1''',
+]
+
+# Stop ourselves accidentally re-introducing the leaked Maps API key.
+# This is NOT an allowlist — listing it here as a comment so a reviewer
+# is reminded to scrub it from any new commit they see it in:
+#   AIzaSyDhct-4heIbBF1w9l_64SC8VafmyQWWQlg  (rotated; reject if seen)
