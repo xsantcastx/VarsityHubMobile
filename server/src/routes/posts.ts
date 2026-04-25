@@ -25,46 +25,58 @@ registerIdValidation(postsRouter);
 
 const POST_UNDO_WINDOW_MS = 5 * 60 * 1000;
 
-// Dedup guard: prevent identical post creation within a short window.
-// Key = userId:contentHash, value = timestamp. Entries expire after 30s.
+// Dedup guard: prevent identical post / comment creation within a short
+// window. Key = userId:contentHash, value = timestamp. Entries expire
+// after 30s.
+//
+// Pruning strategy: lazy expiration on get (the common read path) keeps
+// growth bounded under steady state without per-request O(N) iteration —
+// the prior implementation prune-scanned all entries whenever size > 1000,
+// which was a synchronous lag spike on busy servers. The HARD_CAP +
+// drop-oldest-N is a safety net for pathological churn that never
+// re-reads (e.g., 1000+ unique users each comment exactly once and never
+// again within the window).
 const recentPostHashes = new Map<string, number>();
-const DEDUP_WINDOW_MS = 30_000;
-
 const recentCommentHashes = new Map<string, number>();
+const DEDUP_WINDOW_MS = 30_000;
+const DEDUP_HARD_CAP = 5_000;
+const DEDUP_DROP_BATCH = 1_000;
+
+function checkAndRecordDedup(map: Map<string, number>, key: string): boolean {
+  const now = Date.now();
+  const prev = map.get(key);
+  if (prev !== undefined) {
+    if (now - prev < DEDUP_WINDOW_MS) return true;
+    // Expired — clean it up while we're here. Lazy expiration is the
+    // primary memory-bound mechanism in steady state.
+    map.delete(key);
+  }
+  map.set(key, now);
+
+  // Safety net: if the map has grown past the hard cap (means lots of
+  // entries that never get re-read within the window), drop the oldest
+  // batch in insertion order. Map iterates in insertion order in V8, so
+  // this is approximate-LRU.
+  if (map.size > DEDUP_HARD_CAP) {
+    let dropped = 0;
+    for (const k of map.keys()) {
+      map.delete(k);
+      if (++dropped >= DEDUP_DROP_BATCH) break;
+    }
+  }
+  return false;
+}
 
 function isDuplicateComment(userId: string, postId: string, content: string): boolean {
   const raw = `${userId}:${postId}:${content?.trim() || ''}`;
   const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
-  const key = `comment:${userId}:${hash}`;
-  const now = Date.now();
-  if (recentCommentHashes.size > 1000) {
-    for (const [k, ts] of recentCommentHashes) {
-      if (now - ts > DEDUP_WINDOW_MS) recentCommentHashes.delete(k);
-    }
-  }
-  const prev = recentCommentHashes.get(key);
-  if (prev && now - prev < DEDUP_WINDOW_MS) return true;
-  recentCommentHashes.set(key, now);
-  return false;
+  return checkAndRecordDedup(recentCommentHashes, `comment:${userId}:${hash}`);
 }
 
 function isDuplicatePost(userId: string, content: string, gameId?: string): boolean {
   const raw = `${userId}:${content?.trim() || ''}:${gameId || ''}`;
   const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
-  const key = `${userId}:${hash}`;
-  const now = Date.now();
-
-  // Prune stale entries (max 1000 to bound memory)
-  if (recentPostHashes.size > 1000) {
-    for (const [k, ts] of recentPostHashes) {
-      if (now - ts > DEDUP_WINDOW_MS) recentPostHashes.delete(k);
-    }
-  }
-
-  const prev = recentPostHashes.get(key);
-  if (prev && now - prev < DEDUP_WINDOW_MS) return true;
-  recentPostHashes.set(key, now);
-  return false;
+  return checkAndRecordDedup(recentPostHashes, `${userId}:${hash}`);
 }
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
