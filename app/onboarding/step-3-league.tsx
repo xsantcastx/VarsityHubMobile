@@ -29,11 +29,47 @@ function Step3League() {
   const pathname = usePathname();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
-  const { markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
+  const { user, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const accountState = String(user?.account_state || '').trim();
+  const canEnterStep3FromServer =
+    accountState === 'coach_application_required' ||
+    accountState === 'coach_agreement_required' ||
+    accountState === 'coach_final_setup_required';
   
   // Prerequisite guard: steps 1-2 must be completed before step-3
   useEffect(() => {
+    if (canEnterStep3FromServer) {
+      setOB((prev) => {
+        const nextRole = prev.role || 'coach';
+        const nextDob =
+          prev.dob ||
+          (typeof user?.dob === 'string' ? user.dob : undefined) ||
+          (typeof user?.date_of_birth === 'string' ? user.date_of_birth : undefined);
+        const nextZip =
+          prev.zip ||
+          prev.zip_code ||
+          (typeof user?.zip_code === 'string' ? user.zip_code : undefined) ||
+          (typeof user?.preferences?.zip_code === 'string' ? user.preferences.zip_code : undefined);
+
+        const alreadySeeded =
+          prev.role === nextRole &&
+          prev.step_2_visited === true &&
+          (nextDob ? prev.dob === nextDob : true) &&
+          (nextZip ? prev.zip === nextZip || prev.zip_code === nextZip : true);
+
+        if (alreadySeeded) return prev;
+        return {
+          ...prev,
+          role: nextRole,
+          step_2_visited: true,
+          ...(nextDob ? { dob: nextDob } : {}),
+          ...(nextZip ? { zip: nextZip, zip_code: nextZip } : {}),
+        };
+      });
+      return;
+    }
+
     if (!ob.role) {
       if (__DEV__) console.warn('[step-3-league] No role set — redirecting to step-1');
       router.replace('/onboarding/step-1-role');
@@ -41,7 +77,7 @@ function Step3League() {
       if (__DEV__) console.warn('[step-3-league] Step-2 not completed — redirecting');
       router.replace('/onboarding/step-2-basic');
     }
-  }, [ob.role, ob.step_2_visited, router]);
+  }, [canEnterStep3FromServer, ob.role, ob.step_2_visited, router, setOB, user?.date_of_birth, user?.dob, user?.preferences?.zip_code, user?.zip_code]);
 
   // Form state
   const [orgName, setOrgName] = useState('');

@@ -47,6 +47,9 @@ interface AuthUser {
   onboarding_completed?: boolean;
   is_admin?: boolean;
   approval_status?: string;
+  dob?: string | null;
+  date_of_birth?: string | null;
+  zip_code?: string | null;
   paid_by_owner?: boolean;
   google_id?: string | null;
   apple_id?: string | null;
@@ -80,6 +83,7 @@ interface AuthUser {
     coach_agreement_accepted_at?: string;
     coach_agreement_version?: number;
     organization_id?: string;
+    zip_code?: string;
   };
 }
 

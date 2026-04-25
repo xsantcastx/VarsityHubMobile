@@ -70,7 +70,8 @@ export default function OnboardingIndex() {
     const role = state?.role as 'fan' | 'coach' | undefined;
     const calculatedStepIndex = nextIncompleteStep(state, role);
 
-    const serverComplete = user.preferences?.onboarding_completed === true;
+    const serverComplete =
+      user.onboarding_completed === true || user.preferences?.onboarding_completed === true;
 
     // Only the server can declare onboarding complete. Local draft state can have
     // all required fields while the completion call is still pending/failed.

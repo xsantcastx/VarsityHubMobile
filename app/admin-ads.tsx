@@ -33,7 +33,9 @@ function AdminAdsScreen() {
   const [reviewModal, setReviewModal] = useState<{ adId: string; action: 'approve' | 'reject' } | null>(null);
   const [reviewNote, setReviewNote] = useState('');
   const [detailAd, setDetailAd] = useState<any>(null);
-  const emailReviewHandledRef = useRef(false);
+  // Track the specific email/deep-link signature we last handled so a second
+  // approval email opened in the same app session still works.
+  const lastHandledLinkRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -50,16 +52,17 @@ function AdminAdsScreen() {
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    if (emailReviewHandledRef.current || !isAdmin || items.length === 0) return;
-
     const adId = String(params.ad_id || '').trim();
     const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
-    if (!adId) return;
+    if (!isAdmin || items.length === 0 || !adId) return;
+
+    const signature = `${adId}|${action ?? ''}`;
+    if (lastHandledLinkRef.current === signature) return;
 
     const matchedAd = items.find((ad) => String(ad.id) === adId);
     if (!matchedAd) return;
 
-    emailReviewHandledRef.current = true;
+    lastHandledLinkRef.current = signature;
     if (action) {
       setReviewNote('');
       setReviewModal({ adId: matchedAd.id, action });

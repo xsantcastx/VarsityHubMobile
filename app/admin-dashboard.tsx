@@ -89,7 +89,12 @@ function AdminDashboardScreen() {
   const [coachModal, setCoachModal] = useState<{ coach: PendingCoach; action: 'approve' | 'reject' } | null>(null);
   const [coachNote, setCoachNote] = useState('');
   const [coachActionId, setCoachActionId] = useState<string | null>(null);
-  const emailReviewHandledRef = useRef(false);
+  // Tracks which deep-link signature we've already handled. Using a
+  // signature instead of a boolean lets a *second* approval email opened
+  // in the same app session (different coach/league/action) re-fire the
+  // modal — the previous boolean-only ref made every link after the first
+  // a silent no-op.
+  const lastHandledLinkRef = useRef<string | null>(null);
 
   // Detail view modals
   const [coachDetailModal, setCoachDetailModal] = useState<PendingCoach | null>(null);
@@ -244,7 +249,7 @@ function AdminDashboardScreen() {
   }, [loadStats]);
 
   useEffect(() => {
-    if (emailReviewHandledRef.current || !stats) return;
+    if (!stats) return;
 
     const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
     const reviewType = String(params.review || '').trim();
@@ -252,7 +257,9 @@ function AdminDashboardScreen() {
     const leagueId = String(params.league_id || '').trim();
     if (reviewType !== 'coach_application' && reviewType !== 'league_approval') return;
 
-    emailReviewHandledRef.current = true;
+    const signature = `${reviewType}|${coachId}|${leagueId}|${action ?? ''}`;
+    if (lastHandledLinkRef.current === signature) return;
+    lastHandledLinkRef.current = signature;
 
     if (reviewType === 'coach_application') {
       if (!coachId) return;
