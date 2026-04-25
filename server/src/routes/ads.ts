@@ -7,7 +7,6 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { checkPlanAtLeast, getUserPlan } from '../middleware/subscription.js';
 import {
   adCreationLimiter,
   adModerationLimiter,
@@ -104,30 +103,6 @@ async function getZipCoordinatesWithFallback(
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
 
-async function enforceAdPlan(req: AuthedRequest, res: Response) {
-  if (!req.user?.id) {
-    res.status(401).json({ error: 'AUTH_REQUIRED', message: 'Authentication required.' });
-    return false;
-  }
-
-  if (await getIsAdmin(req)) {
-    return true;
-  }
-
-  const currentPlan = await getUserPlan(req.user.id);
-  const gate = checkPlanAtLeast(currentPlan, 'veteran');
-  if (!gate) {
-    return true;
-  }
-
-  res.status(403).json({
-    ...gate,
-    message: 'Local ads require a Veteran or Legend plan.',
-    upgrade_url: '/settings/manage-subscription',
-  });
-  return false;
-}
-
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
 
@@ -176,15 +151,12 @@ if (shouldRunStartupBackfills) {
   })();
 }
 
-// Create an ad draft — gated by verified email + plan, not onboarding.
+// Create an ad draft — authenticated users may book ads without onboarding or plan gates.
 adsRouter.post(
   '/',
   requireAuth as any,
-  requireVerified as any,
   adCreationLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!(await enforceAdPlan(req, res))) return;
-
     const { payment_status: _ps, status: _st, ...safeBody } = req.body || {};
     const parsed = adCreateSchema.safeParse(safeBody);
     if (!parsed.success) {
@@ -226,11 +198,9 @@ adsRouter.post(
   })
 );
 
-// Submit ad draft for admin review — verified email + plan, not onboarding.
+// Submit ad draft for admin review — authenticated users may continue without onboarding or plan gates.
 async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
   try {
-    if (!(await enforceAdPlan(req, res))) return;
-
     const id = String(req.params.id).trim();
     if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
       return res.status(400).json({ error: 'Invalid ad ID' });
@@ -383,7 +353,6 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
 adsRouter.post(
   '/:id/submit-for-approval',
   requireAuth as any,
-  requireVerified as any,
   handleAdSubmitForApproval
 );
 
@@ -616,7 +585,6 @@ adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, asyncHandler(async (r
 adsRouter.put(
   '/:id([a-z0-9]{15,50})',
   requireAuth as any,
-  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });
@@ -710,7 +678,6 @@ adsRouter.put(
 adsRouter.delete(
   '/:id([a-z0-9]{15,50})',
   requireAuth as any,
-  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const id = String(req.params.id);
     debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });

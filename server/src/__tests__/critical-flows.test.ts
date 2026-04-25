@@ -540,8 +540,8 @@ describeDb('Critical Server Flows', () => {
 
   // ─── 6. Error Response Shape Consistency ───────────────────────────────────
 
-  describe('Ad Plan Enforcement', () => {
-    it('should block rookie/free users from creating ad drafts', async () => {
+  describe('Ad Booking Access', () => {
+    it('should allow rookie/free users to create ad drafts', async () => {
       const res = await request(app)
         .post('/ads')
         .set('Authorization', `Bearer ${onboardedToken}`)
@@ -555,9 +555,9 @@ describeDb('Critical Server Flows', () => {
           description: 'Blocked ad',
         });
 
-      expect(res.statusCode).toEqual(403);
-      expect(res.body.error).toBe('PLAN_UPGRADE_REQUIRED');
-      expect(res.body.required).toBe('veteran');
+      expect(res.statusCode).toEqual(201);
+      expect(res.body).toHaveProperty('id');
+      await prisma.ad.delete({ where: { id: res.body.id } }).catch(() => {});
     });
 
     it('should allow Veteran users to create ad drafts', async () => {
@@ -618,7 +618,7 @@ describeDb('Critical Server Flows', () => {
       expect(adAfterDelete).toBeNull();
     });
 
-    it('should block rookie/free users from initiating payment on existing approved ads', async () => {
+    it('should allow rookie/free users to initiate payment on existing approved ads', async () => {
       const ad = await prisma.ad.create({
         data: {
           user_id: onboardedUser.id,
@@ -640,9 +640,8 @@ describeDb('Critical Server Flows', () => {
           .set('Authorization', `Bearer ${onboardedToken}`)
           .send({ ad_id: ad.id, dates: ['2035-01-02'] });
 
-        expect(res.statusCode).toEqual(403);
-        expect(res.body.error).toBe('PLAN_UPGRADE_REQUIRED');
-        expect(res.body.required).toBe('veteran');
+        expect(res.statusCode).not.toEqual(403);
+        expect(String(res.body?.error || '')).not.toBe('PLAN_UPGRADE_REQUIRED');
       } finally {
         await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
       }
