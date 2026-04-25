@@ -191,6 +191,34 @@ describe('Ad Approval Security', () => {
     expect(String(res.body?.error || '')).toMatch(/unauthorized/i);
   });
 
+  it('redirects tokenized GET approval links into the admin app flow', async () => {
+    const ad = await createAd('pending');
+    const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
+
+    const res = await request(app)
+      .get(`/ads/${ad.id}/approve`)
+      .query({ token });
+
+    expect(res.status).toBe(302);
+    expect(String(res.headers.location || '')).toContain('admin-ads');
+    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
+    expect(String(res.headers.location || '')).toContain('action=approve');
+  });
+
+  it('redirects tokenized GET rejection links into the admin app flow', async () => {
+    const ad = await createAd('pending');
+    const token = signJwt({ adId: ad.id, action: 'reject_ad' }, '7d');
+
+    const res = await request(app)
+      .get(`/ads/${ad.id}/reject`)
+      .query({ token });
+
+    expect(res.status).toBe(302);
+    expect(String(res.headers.location || '')).toContain('admin-ads');
+    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
+    expect(String(res.headers.location || '')).toContain('action=reject');
+  });
+
   it('blocks verified non-admins from using approval tokens', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');

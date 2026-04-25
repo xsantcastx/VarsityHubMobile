@@ -13,6 +13,7 @@ import {
   alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
+import { buildAdReviewUrl } from '../lib/email.js';
 import { signJwt, verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
@@ -1292,15 +1293,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
       }
-      return res.send(
-        confirmationForm(
-          'approve',
-          id,
-          token,
-          escapeHtml(summary.businessName),
-          summary.moderation
-        )
-      );
+      return res.redirect(302, buildAdReviewUrl({ adId: id, action: 'approve' }));
     }
 
     // POST path = the actual write. Always require admin auth.
@@ -1376,9 +1369,6 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
 
 adsRouter.get(
   '/:id([a-z0-9]{15,50})/approve',
-  requireAuth as any,
-  requireVerified as any,
-  requireAdmin as any,
   adModerationLimiter as any,
   handleAdApprove as any
 );
@@ -1421,10 +1411,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
         action: 'reject',
         ad_id: id,
       });
-      const ad = await prisma.ad.findUnique({ where: { id }, select: { business_name: true } });
-      return res.send(
-        confirmationForm('reject', id, token, escapeHtml(ad?.business_name || 'Unknown'))
-      );
+      return res.redirect(302, buildAdReviewUrl({ adId: id, action: 'reject' }));
     }
 
     // POST path = the actual write. Always require admin auth.
@@ -1466,9 +1453,6 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
 
 adsRouter.get(
   '/:id([a-z0-9]{15,50})/reject',
-  requireAuth as any,
-  requireVerified as any,
-  requireAdmin as any,
   adModerationLimiter as any,
   handleAdReject as any
 );
