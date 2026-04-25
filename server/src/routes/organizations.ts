@@ -1061,6 +1061,13 @@ organizationsRouter.post(
               redactEmail(inv.email),
               err
             );
+            // Org owners can't see why X never got their invite — surface
+            // failures to Sentry so it's triagable. Return false to keep
+            // the bulk-invite flow going.
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'org_invite_email_send_failed',
+              provider: 'sendgrid',
+            });
                   return false;
                 })
             )
@@ -1230,6 +1237,10 @@ organizationsRouter.post(
               redactEmail(inviteEmail),
               err
             );
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'org_direct_invite_email_send_failed',
+              provider: 'sendgrid',
+            });
             return false;
           });
       }

@@ -133,9 +133,13 @@ router.post('/transaction-report', asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error('[test-emails] Transaction report test failed:', error);
+    // Sanitize: don't echo the raw error message back to the client. Even
+    // though this endpoint is admin-gated, it's still a debug surface and
+    // server stack frames / SQL fragments leaking into responses is poor
+    // hygiene. The full detail stays in container stdout for the operator.
     return res.status(500).json({
       ok: false,
-      error: (error as any).message || 'Unknown error'
+      error: 'Transaction report failed. See server logs for details.',
     });
   }
 }));
