@@ -343,9 +343,16 @@ uploadsRouter.post('/', requireAuth as any, requireVerifiedUnlessAdBannerUpload 
         const signed = signMediaPath(rel);
         signedUrl = `${base}${signed.path}?token=${signed.token}&exp=${signed.exp}`;
       } catch (error) {
+        // Without Sentry capture, signing failures sit in stdout invisible
+        // to the alerts pipeline. Client falls back to the unsigned `url`,
+        // which then 401s on access.
         console.warn('[uploads] Unable to sign media URL:', (error as any)?.message || error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+          context: 'media_url_signing_failed',
+          path: req.path,
+        });
       }
-      
+
       if (process.env.NODE_ENV !== 'production') {
         debugLog('[uploads] Local disk upload:', {
           originalname: req.file.originalname,
@@ -434,9 +441,15 @@ uploadsRouter.post('/files', requireAuth as any, requireVerified as any, uploadL
         const signed = signMediaPath(rel);
         signedUrl = `${base}${signed.path}?token=${signed.token}&exp=${signed.exp}`;
       } catch (error) {
+        // Same reasoning as the media-URL signing site above — failure here
+        // means client gets the unsigned URL and the access fails silently.
         console.warn('[uploads] Unable to sign file URL:', (error as any)?.message || error);
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+          context: 'file_url_signing_failed',
+          path: req.path,
+        });
       }
-      
+
       // Determine file type based on MIME type
       if (req.file.mimetype.startsWith('image/')) type = 'image';
       else if (req.file.mimetype.startsWith('video/')) type = 'video';

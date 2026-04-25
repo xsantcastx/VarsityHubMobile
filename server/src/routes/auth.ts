@@ -938,10 +938,14 @@ authRouter.post(
               : null;
           if (prefs && 'push_token' in prefs) {
             const { push_token: _removed, ...rest } = prefs;
+            // Use updateUserAndInvalidate so the /me cache also drops the
+            // stale push_token. Direct prisma.user.update leaves the cache
+            // serving the old token until natural TTL.
             await prisma.user.update({
               where: { id: row.user_id },
               data: { preferences: rest as any },
             });
+            await invalidateMeCacheForUser(row.user_id).catch(() => {});
           }
         } catch (err) {
           console.warn(
