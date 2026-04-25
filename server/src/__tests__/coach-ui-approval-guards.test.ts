@@ -14,6 +14,22 @@ const leaguePendingApprovalScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'league-pending-approval.tsx'),
   'utf8'
 );
+const adminAdsScreen = readFileSync(
+  join(process.cwd(), '..', 'app', 'admin-ads.tsx'),
+  'utf8'
+);
+const adminDashboardScreen = readFileSync(
+  join(process.cwd(), '..', 'app', 'admin-dashboard.tsx'),
+  'utf8'
+);
+const joinRequestsScreen = readFileSync(
+  join(process.cwd(), '..', 'app', 'organization-join-requests.tsx'),
+  'utf8'
+);
+const onboardingIndexScreen = readFileSync(
+  join(process.cwd(), '..', 'app', 'onboarding', 'index.tsx'),
+  'utf8'
+);
 const step3LeagueScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'step-3-league.tsx'),
   'utf8'
@@ -57,5 +73,47 @@ describe('coach approval UI guards', () => {
     expect(submitSnippet).toBeTruthy();
     expect(submitSnippet).not.toMatch(/markOnboardingCompleteLocally/);
     expect(submitSnippet).not.toMatch(/completeOnboarding\(/);
+  });
+
+  it.each([
+    [
+      'admin-ads.tsx',
+      adminAdsScreen,
+      /const signature = `\$\{adId\}\|\$\{action \?\? ''\}`;/,
+    ],
+    [
+      'admin-dashboard.tsx',
+      adminDashboardScreen,
+      /const signature = `\$\{reviewType\}\|\$\{coachId\}\|\$\{leagueId\}\|\$\{action \?\? ''\}`;/,
+    ],
+    [
+      'organization-join-requests.tsx',
+      joinRequestsScreen,
+      /const signature = `\$\{requestId\}\|\$\{action\}`;/,
+    ],
+  ])('%s handles email review links by deep-link signature, not one-shot session state', (_name, source, signatureRegex) => {
+    expect(source).toMatch(/const lastHandledLinkRef = useRef<string \| null>\(null\)/);
+    expect(source).not.toMatch(/emailReviewHandledRef/);
+    expect(source).toMatch(signatureRegex);
+    expect(source).toMatch(/if \(lastHandledLinkRef\.current === signature\) return;/);
+    expect(source).toMatch(/lastHandledLinkRef\.current = signature;/);
+  });
+
+  it('onboarding index trusts canonical onboarding completion before falling back to preferences', () => {
+    expect(onboardingIndexScreen).toMatch(
+      /const serverComplete =\s*user\.onboarding_completed === true \|\| user\.preferences\?\.onboarding_completed === true;/
+    );
+  });
+
+  it('step-3 league allows server-directed coach setup without bouncing back to earlier onboarding steps', () => {
+    expect(step3LeagueScreen).toMatch(
+      /const canEnterStep3FromServer =[\s\S]*coach_application_required[\s\S]*coach_agreement_required[\s\S]*coach_final_setup_required/
+    );
+    expect(step3LeagueScreen).toMatch(
+      /if \(canEnterStep3FromServer\) \{[\s\S]*setOB\(\(prev\) => \{[\s\S]*role: nextRole,[\s\S]*step_2_visited: true,[\s\S]*\}\);[\s\S]*return;/
+    );
+    expect(step3LeagueScreen).toMatch(
+      /if \(!ob\.role\) \{[\s\S]*router\.replace\('\/onboarding\/step-1-role'\);[\s\S]*\} else if \(!ob\.step_2_visited\) \{[\s\S]*router\.replace\('\/onboarding\/step-2-basic'\);/
+    );
   });
 });

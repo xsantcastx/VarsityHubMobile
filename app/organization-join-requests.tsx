@@ -54,7 +54,11 @@ function OrganizationJoinRequestsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<{ visible: boolean; request: JoinRequest | null; reason: string }>({ visible: false, request: null, reason: '' });
-  const emailReviewHandledRef = useRef(false);
+  // Tracks which deep-link signature we've already handled. A boolean
+  // ref made every email link after the first a silent no-op even when
+  // the new link pointed at a different request — admins reported "the
+  // approve button didn't work" on the second join-request email.
+  const lastHandledLinkRef = useRef<string | null>(null);
 
   const loadRequests = useCallback(async () => {
     // Guard: require organization_id
@@ -105,14 +109,15 @@ function OrganizationJoinRequestsScreen() {
   }, [loadRequests]);
 
   useEffect(() => {
-    if (emailReviewHandledRef.current) return;
-
     const requestId = String(params.request_id || '').trim();
     const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
     if (!requestId || !action || requests.length === 0) return;
 
+    const signature = `${requestId}|${action}`;
+    if (lastHandledLinkRef.current === signature) return;
+
     const request = requests.find(item => item.id === requestId && item.status === 'pending');
-    emailReviewHandledRef.current = true;
+    lastHandledLinkRef.current = signature;
     if (!request) return;
 
     if (action === 'approve') {
@@ -426,10 +431,10 @@ function OrganizationJoinRequestsScreen() {
           <Pressable style={[styles.modalCard, { backgroundColor: theme.background }]} onPress={() => {}}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Reject Request</Text>
             <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
-              {rejectModal.request ? `Optional reason for rejecting ${rejectModal.request.requester_name}.` : ''}
+              {rejectModal.request ? `Provide a reason for rejecting ${rejectModal.request.requester_name}.` : ''}
             </Text>
             <TextInput
-              placeholder="Reason (optional)"
+              placeholder="Reason (required)"
               placeholderTextColor={theme.mutedText}
               style={[styles.modalInput, { color: theme.text, borderColor: theme.border }]}
               value={rejectModal.reason}
