@@ -502,12 +502,26 @@ export async function sendEventCanceledEmail(params: {
   eventTime?: string;
   eventLocation?: string;
   eventId?: string;
+  // Added so the template's cancel_reason / canceled_at / organization_name /
+  // reschedule_info / upcoming_events_link / contact_organizer_link variables
+  // resolve to something — previously they rendered as blank sections in the
+  // delivered email. All optional with sensible fallbacks so existing callers
+  // continue to work.
+  cancelReason?: string;
+  canceledAt?: string;
+  organizationName?: string;
+  rescheduleInfo?: string;
+  upcomingEventsLink?: string;
+  contactOrganizerLink?: string;
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.EVENT_CANCELED;
   if (!templateId) {
     console.error('[email] Missing SENDGRID_EVENT_CANCELED_TEMPLATE_ID');
     return false;
   }
+
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   return sendTemplateEmail(
     templateId,
@@ -521,6 +535,16 @@ export async function sendEventCanceledEmail(params: {
       event_time: params.eventTime || '',
       event_location: params.eventLocation || '',
       view_event_url: buildEventDetailUrl(params.eventId),
+      // Template-required fields — fallbacks so the rendered email never has
+      // an empty section where these would otherwise interpolate.
+      cancel_reason: params.cancelReason || 'No reason provided',
+      canceled_at: params.canceledAt || fmtDate(new Date()),
+      organization_name: params.organizationName || 'VarsityHub',
+      reschedule_info:
+        params.rescheduleInfo ||
+        'No rescheduled date has been announced yet. Watch your notifications for updates.',
+      upcoming_events_link: params.upcomingEventsLink || buildWebScreenUrl('/(tabs)/events'),
+      contact_organizer_link: params.contactOrganizerLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
     },
     `Event cancelled email sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
@@ -542,6 +566,10 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
       ...getCommonTemplateData(),
       coach_name: params.coachName || params.recipientName || 'Coach',
       event_name: params.eventName || params.eventTitle || 'Event',
+      // Template uses {{event_date}} unconditionally in both the main
+      // sentence and the event-details block. Without it the date renders
+      // blank and the rejection email looks half-finished.
+      event_date: params.eventDate || params.event_date || 'date not provided',
       denial_reason: params.denialReason || params.reason || '',
       submit_new_event_url: params.resubmitLink || buildWebScreenUrl('/create-fan-event'),
       contact_support_url: params.supportLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
@@ -846,7 +874,12 @@ export async function sendOrganizationInviteEmail(params: {
       ...getCommonTemplateData(),
       recipientName: params.recipientName || '',
       organizationName: params.organizationName,
-      teamName: '',
+      // The org-invitation template still renders {{teamName}} as the
+      // primary subject line ("Join {{teamName}} Coaching Staff") — likely
+      // because it was forked from the team-invite template. Until the
+      // SendGrid-hosted template gets a clean organizationName migration,
+      // mirror the org name into teamName so the email reads correctly.
+      teamName: params.organizationName,
       role: prettyRole,
       inviterName: params.inviterName || 'VarsityHub Admin',
       acceptLink: inviteUrl,
