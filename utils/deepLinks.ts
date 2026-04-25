@@ -37,8 +37,13 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
   '/payment-cancel',
 ]);
 
-// Pending deep link URL — deferred until auth settles
+// Pending deep link URL — deferred until auth settles. Stored with a
+// timestamp so a URL the user set 20 minutes ago (e.g., set during a
+// payment-success → sign-in flow they then abandoned) doesn't get
+// silently consumed by an unrelated later auth event.
 let _pendingDeepLinkUrl: string | null = null;
+let _pendingDeepLinkSetAt = 0;
+const PENDING_DEEP_LINK_TTL_MS = 5 * 60 * 1000;
 
 /** Validate deep link ID — alphanumeric, dash, underscore; 3–64 chars (cuid/uuid compatible) */
 function isValidDeepLinkId(id: string | undefined | null): boolean {
@@ -50,12 +55,25 @@ function isValidDeepLinkId(id: string | undefined | null): boolean {
 /** Store a deep link to be processed after auth completes */
 export function setPendingDeepLink(url: string) {
   _pendingDeepLinkUrl = url;
+  _pendingDeepLinkSetAt = Date.now();
 }
 
-/** Get and clear the pending deep link */
+/**
+ * Get and clear the pending deep link. Returns null if the stored URL
+ * is older than PENDING_DEEP_LINK_TTL_MS — e.g., a payment-success
+ * recovery URL the user set then abandoned, which would otherwise
+ * fire on the next unrelated auth completion event.
+ */
 export function consumePendingDeepLink(): string | null {
   const url = _pendingDeepLinkUrl;
+  const setAt = _pendingDeepLinkSetAt;
   _pendingDeepLinkUrl = null;
+  _pendingDeepLinkSetAt = 0;
+  if (!url) return null;
+  if (Date.now() - setAt > PENDING_DEEP_LINK_TTL_MS) {
+    if (__DEV__) console.log('[DeepLinks] Discarding stale pending URL (>5min old)');
+    return null;
+  }
   return url;
 }
 

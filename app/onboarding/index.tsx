@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { captureException } from '@/utils/sentry';
 
 export default function OnboardingIndex() {
   const router = useRouter();
@@ -41,7 +42,18 @@ export default function OnboardingIndex() {
           }
         })
         .catch((err: any) => {
+          // Hydration failure means the navigation effect (below) routes
+          // off stale AsyncStorage. For most users this is fine; for the
+          // returning-coach edge case where local state diverges from
+          // server, it can cause a brief routing flicker
+          // (onboarding → /(tabs) → onboarding). We unblock navigation
+          // anyway in .finally to avoid spinner-stranding when offline,
+          // but capture the failure so we can see how often it actually
+          // happens in production.
           console.warn('[onboarding] Failed to sync server preferences:', err?.message || err);
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            tags: { context: 'onboarding_hydration_failed' },
+          });
         })
         .finally(() => {
           // .finally so a hydration failure (offline, 5xx) still unblocks

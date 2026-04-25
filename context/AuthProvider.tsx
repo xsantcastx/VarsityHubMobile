@@ -141,6 +141,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Guard against multiple in-flight coach-role restores triggered by repeated
   // effect runs. Cleared in the async block's finally.
   const restoringCoachRef = React.useRef(false);
+  // Tracks whether THIS session has already failed the restore. Without it,
+  // a failed restore (server still returns role=fan) would re-enter the
+  // restore branch on every effect re-run because the trigger condition
+  // hasn't changed. Cleared on sign-out (the user object goes null →
+  // component cycle resets refs).
+  const restoreCoachFailedThisSessionRef = React.useRef(false);
 
   // Update segments ref on every render
   React.useEffect(() => {
@@ -853,10 +859,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Once the org is approved, we must flip them back to coach and send them through agreement.
       if (coachAccess.isApprovedCoach && user.preferences?.proceeding_as_fan === true) {
         // Fire-and-forget restore (the effect callback is sync, so we can't await).
-        // The ref prevents the redirect loop: once the restore is in-flight, we
-        // stop kicking off duplicates; the finally block clears the ref and the
-        // next effect re-run (triggered by setUser) will see the clean state.
-        if (!restoringCoachRef.current) {
+        // Two refs prevent two distinct loops:
+        //   restoringCoachRef — in-flight guard, prevents concurrent calls
+        //   restoreCoachFailedThisSessionRef — once-per-session failure gate.
+        //     Without this, a failed updatePreferences (server still says
+        //     role=fan) leaves the trigger condition unchanged, so the next
+        //     effect re-run would re-attempt indefinitely. The session-level
+        //     gate breaks that loop; the user can retry by signing out and
+        //     back in or by an explicit retry CTA on coach-agreement.
+        if (!restoringCoachRef.current && !restoreCoachFailedThisSessionRef.current) {
           restoringCoachRef.current = true;
           void (async () => {
             try {
@@ -869,10 +880,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
                     }
                   : prev
               );
+              // Successful restore — leave the failure flag clear so a
+              // future re-entry (after another sign-out cycle, etc.) gets
+              // a fresh attempt.
             } catch (err: any) {
               if (__DEV__)
                 console.warn('[AuthProvider] Failed to restore coach role:', err?.message);
               captureException(err, { tags: { context: 'fan_to_coach_restore' } });
+              restoreCoachFailedThisSessionRef.current = true;
             } finally {
               restoringCoachRef.current = false;
             }

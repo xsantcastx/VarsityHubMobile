@@ -42,8 +42,17 @@ export default function VerifyScreen() {
     }
   }, [user?.email_verified, checkAuth, isVerified]);
 
+  // Track mounted state so the deferred router.replace below can no-op
+  // if the user navigated away during the 2-second delay (e.g., back-
+  // gestured to /sign-in manually). Cleanup also clears the timeout so
+  // it doesn't fire orphaned.
+  const isMountedRef = useRef(true);
   useEffect(() => {
-    return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -99,6 +108,7 @@ export default function VerifyScreen() {
         );
         setError('Verification successful but failed to load profile. Please sign in again.');
         redirectTimerRef.current = setTimeout(() => {
+          if (!isMountedRef.current) return;
           router.replace('/sign-in');
         }, 2000);
       }

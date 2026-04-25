@@ -63,8 +63,18 @@ export default function SignInScreen() {
     }
 
     const pendingUrl = consumePendingDeepLink();
-    if (pendingUrl && handleDeepLink(pendingUrl)) {
-      return;
+    if (pendingUrl) {
+      if (handleDeepLink(pendingUrl)) {
+        return;
+      }
+      // The pending URL was already consumed but couldn't be opened (parse
+      // failure, unknown route, router not ready). User isn't stranded —
+      // we fall through to landingRoute below — but the original deep link
+      // is silently lost. Surface it so we can debug what's failing.
+      captureException(new Error('Pending deep link consumed but handleDeepLink returned false'), {
+        tags: { context: 'sign_in_pending_deeplink_unhandled' },
+        extra: { pendingUrl },
+      });
     }
 
     router.replace(landingRoute as any);
