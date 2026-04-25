@@ -464,6 +464,7 @@ if command -v find &> /dev/null; then
     LARGE_FILES_LIST=$(find . -type f -size +50M \
         -not -path "./node_modules/*" \
         -not -path "./.git/*" \
+        -not -path "./.claude/*" \
         -not -path "./ios/build/*" \
         -not -path "./android/build/*" \
         -not -path "./ios/Pods/*" \
@@ -670,7 +671,13 @@ echo ""
 # Step 14: Version Consistency
 echo -e "${BLUE}Step 14: Version consistency check...${NC}"
 APP_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.version || '')" 2>/dev/null)
-RUNTIME_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.runtimeVersion || '')" 2>/dev/null)
+RUNTIME_VERSION=$(node -e "
+const v = JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.runtimeVersion;
+if (!v) { console.log(''); }
+else if (typeof v === 'string') { console.log(v); }
+else if (v && v.policy) { console.log('__POLICY__:' + v.policy); }
+else { console.log(''); }
+" 2>/dev/null)
 PKG_VERSION=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version || '')" 2>/dev/null)
 
 if [ -n "$APP_VERSION" ]; then
@@ -681,11 +688,20 @@ else
 fi
 
 if [ -n "$RUNTIME_VERSION" ]; then
-    if [ "$APP_VERSION" = "$RUNTIME_VERSION" ]; then
-        echo -e "${GREEN}✅ Runtime version matches app version: $RUNTIME_VERSION${NC}"
-    else
-        mark_warning_or_error "Runtime version ($RUNTIME_VERSION) differs from app version ($APP_VERSION)"
-    fi
+    case "$RUNTIME_VERSION" in
+        __POLICY__:appVersion)
+            echo -e "${GREEN}✅ Runtime version policy = appVersion (auto-derives from $APP_VERSION)${NC}"
+            ;;
+        __POLICY__:*)
+            echo -e "${GREEN}✅ Runtime version policy = ${RUNTIME_VERSION#__POLICY__:}${NC}"
+            ;;
+        "$APP_VERSION")
+            echo -e "${GREEN}✅ Runtime version matches app version: $RUNTIME_VERSION${NC}"
+            ;;
+        *)
+            mark_warning_or_error "Runtime version ($RUNTIME_VERSION) differs from app version ($APP_VERSION)"
+            ;;
+    esac
 else
     mark_warning_or_error "Runtime version not set (OTA updates may have issues)"
 fi
