@@ -200,8 +200,7 @@ describe('Ad Approval Security', () => {
       .query({ token });
 
     expect(res.status).toBe(302);
-    expect(String(res.headers.location || '')).toContain('admin-ads');
-    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
+    expect(String(res.headers.location || '')).toContain(`/ads/${ad.id}/review`);
     expect(String(res.headers.location || '')).toContain('action=approve');
   });
 
@@ -214,9 +213,23 @@ describe('Ad Approval Security', () => {
       .query({ token });
 
     expect(res.status).toBe(302);
-    expect(String(res.headers.location || '')).toContain('admin-ads');
-    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
+    expect(String(res.headers.location || '')).toContain(`/ads/${ad.id}/review`);
     expect(String(res.headers.location || '')).toContain('action=reject');
+  });
+
+  it('serves an HTML app handoff page for unauthenticated email review links', async () => {
+    const ad = await createAd('pending');
+
+    const res = await request(app)
+      .get(`/ads/${ad.id}/review`)
+      .query({ action: 'approve' })
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toContain('Open VarsityHub to approve this ad');
+    expect(res.text).toContain(`varsityhubmobile://admin-ads?ad_id=${ad.id}&action=approve`);
+    expect(res.text).not.toContain('Unauthorized');
   });
 
   it('blocks verified non-admins from using approval tokens', async () => {

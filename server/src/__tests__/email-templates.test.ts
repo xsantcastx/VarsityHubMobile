@@ -83,11 +83,10 @@ describe('Email template helpers', () => {
   });
 
   it('buildAdReviewUrl points into the admin ads app flow', async () => {
-    process.env.APP_SCHEME = 'varsityhubmobile';
+    process.env.API_BASE_URL = 'https://api-production-8ac3.up.railway.app';
     const { buildAdReviewUrl } = await import('../lib/email.js');
     const url = buildAdReviewUrl({ adId: 'ad_123', action: 'reject' });
-    expect(url).toContain('varsityhubmobile://admin-ads');
-    expect(url).toContain('ad_id=ad_123');
+    expect(url).toContain('https://api-production-8ac3.up.railway.app/ads/ad_123/review');
     expect(url).toContain('action=reject');
   });
 });

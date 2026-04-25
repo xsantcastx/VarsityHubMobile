@@ -1093,6 +1093,17 @@ async function sendJoinRequestAdminTemplate(params: {
   );
 }
 
+export function buildAdReviewUrl(params: {
+  adId: string;
+  action?: 'approve' | 'reject';
+}): string {
+  const url = new URL(`${API_BASE_URL}/ads/${encodeURIComponent(params.adId)}/review`);
+  if (params.action) {
+    url.searchParams.set('action', params.action);
+  }
+  return url.toString();
+}
+
 function buildAppReviewUrl(
   pathname: string,
   params: Record<string, string | null | undefined>
@@ -1105,16 +1116,6 @@ function buildAppReviewUrl(
     }
   }
   return url.toString();
-}
-
-export function buildAdReviewUrl(params: {
-  adId: string;
-  action?: 'approve' | 'reject';
-}): string {
-  return buildAppReviewUrl('/admin-ads', {
-    ad_id: params.adId,
-    action: params.action,
-  });
 }
 
 export function buildCoachJoinRequestReviewUrl(params: {

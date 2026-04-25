@@ -1125,6 +1125,47 @@ function confirmationPage(safeTitle: string, safeMessage: string, success: boole
 </body></html>`;
 }
 
+function buildNativeAdReviewUrl(id: string, action?: 'approve' | 'reject'): string {
+  const appScheme = (process.env.APP_SCHEME || 'varsityhubmobile').replace(/:.*$/, '');
+  const url = new URL(`${appScheme}://admin-ads`);
+  url.searchParams.set('ad_id', id);
+  if (action) {
+    url.searchParams.set('action', action);
+  }
+  return url.toString();
+}
+
+function adReviewHandoffPage(id: string, action?: 'approve' | 'reject') {
+  const safeAction = action === 'approve' || action === 'reject' ? action : '';
+  const nativeUrl = buildNativeAdReviewUrl(id, safeAction || undefined);
+  const safeNativeUrl = escapeHtml(nativeUrl);
+  const safeHeadline =
+    safeAction === 'approve'
+      ? 'Open VarsityHub to approve this ad'
+      : safeAction === 'reject'
+        ? 'Open VarsityHub to reject this ad'
+        : 'Open VarsityHub to review this ad';
+  const safeSubcopy =
+    safeAction === 'approve' || safeAction === 'reject'
+      ? `You'll be taken to the admin ad review screen with the ${safeAction} action preselected.`
+      : 'You\'ll be taken to the admin ad review screen.';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeHeadline}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:540px;margin:60px auto;padding:20px;text-align:center;background:#F9FAFB;color:#111827;">
+<div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,0.08);">
+<h2 style="margin:0 0 12px;color:#1B3A6B;">${safeHeadline}</h2>
+<p style="margin:0 0 20px;color:#4B5563;line-height:1.5;">${safeSubcopy} Sign in with an admin account if prompted.</p>
+<p style="margin:0 0 20px;"><a href="${safeNativeUrl}" style="display:inline-block;background:#1B3A6B;color:#FFFFFF;text-decoration:none;padding:14px 20px;border-radius:10px;font-weight:600;">Open in VarsityHub</a></p>
+<p style="margin:0;color:#6B7280;font-size:13px;line-height:1.5;">If the app does not open automatically, tap the button again from this page.</p>
+</div>
+<script>
+window.setTimeout(function () {
+  window.location.replace(${JSON.stringify(nativeUrl)});
+}, 75);
+</script>
+</body></html>`;
+}
+
 /** HTML confirmation form — safeName must be pre-escaped via escapeHtml() before calling.
  *  When the ad's banner has been flagged by moderation, the form surfaces the flag and
  *  requires a typed override reason before the approval POST is sent. Submission uses
@@ -1466,6 +1507,22 @@ adsRouter.post(
   requireAdmin as any,
   adModerationLimiter as any,
   handleAdReject as any
+);
+
+// Admin: Review an ad (approve or reject) — used by admin-ads screen.
+adsRouter.get(
+  '/:id([a-z0-9]{15,50})/review',
+  adModerationLimiter as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const id = String(req.params.id);
+    const action =
+      req.query?.action === 'approve' || req.query?.action === 'reject'
+        ? req.query.action
+        : undefined;
+
+    res.type('html');
+    return res.status(200).send(adReviewHandoffPage(id, action));
+  })
 );
 
 // Admin: Review an ad (approve or reject) — used by admin-ads screen.
