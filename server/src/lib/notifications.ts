@@ -212,81 +212,126 @@ export async function notifyNewFollower(
   );
 }
 
+/** Hard cap on RSVPs the reminder cron will scan per call. Past this, the
+ *  cron stops and trusts the next tick (5 min later) to catch up. 50k is
+ *  ~3 orders of magnitude above today's per-window workload; raise once
+ *  production traces show a real ceiling. */
+const REMINDER_CRON_RSVP_CAP = 50_000;
+/** Dedup query fans out user_ids into a single IN-batch this large at
+ *  most. Keeps the indexed `Notification(user_id, created_at)` scan
+ *  bounded even under a runaway window. */
+const REMINDER_CRON_DEDUP_BATCH = 500;
+
 /**
  * Notify users about upcoming RSVPd games
  * Should be called by a cron job or scheduled task
+ *
+ * Query shape (rewritten):
+ *   - ONE join-filtered query for all candidate RSVPs (event in window +
+ *     status approved + user reminder pref not false). Replaces the prior
+ *     `1000 events × 5000 RSVPs` nested loop, which scaled multiplicatively
+ *     in memory.
+ *   - ONE batch query for recent dedup notifications (per user IN-batch).
+ *     Replaces the per-RSVP `findFirst` that fired N queries against the
+ *     Notification table.
+ *
+ * Per-RSVP work (notification create + push send) is still serial — those
+ * touch external systems (Expo) and the prior code's "continue on push
+ * failure" semantic is preserved.
  */
 export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void> {
   const now = new Date();
   const targetTime = new Date(now.getTime() + hoursBeforeGame * 60 * 60 * 1000);
-  
+
   // Find all events happening at the target time (with 5 minute window)
   const windowStart = new Date(targetTime.getTime() - 5 * 60 * 1000);
   const windowEnd = new Date(targetTime.getTime() + 5 * 60 * 1000);
 
-  const upcomingEvents = await prisma.event.findMany({
+  // Single join-scoped query for all candidate RSVPs in the window.
+  const candidateRsvps = await prisma.eventRsvp.findMany({
     where: {
-      date: {
-        gte: windowStart,
-        lte: windowEnd,
+      event: {
+        date: { gte: windowStart, lte: windowEnd },
+        OR: [
+          { status: { in: ['approved'] as any } },
+          { approval_status: 'approved' },
+        ],
       },
-      OR: [
-        { status: { in: ['approved'] as any } },
-        { approval_status: 'approved' },
-      ],
     },
     include: {
-      rsvps: {
-        take: 5000,
-        include: {
-          user: {
-            select: {
-              id: true,
-              display_name: true,
-              preferences: true,
-            },
-          },
+      event: {
+        select: {
+          id: true,
+          title: true,
+          location: true,
+          creator_id: true,
+        },
+      },
+      user: {
+        select: {
+          id: true,
+          display_name: true,
+          preferences: true,
         },
       },
     },
-    take: 1000,
+    orderBy: { id: 'asc' },
+    take: REMINDER_CRON_RSVP_CAP,
   });
 
-  debugLog(`Found ${upcomingEvents.length} events happening in ${hoursBeforeGame} hours`);
+  debugLog(`Found ${candidateRsvps.length} RSVP candidates for ${hoursBeforeGame}h reminders`);
+  if (candidateRsvps.length === 0) return;
 
-  // Send notifications to all RSVPd users
-  for (const event of upcomingEvents) {
-    for (const rsvp of (event as any).rsvps) {
-      const user = rsvp.user;
-      
-      // Check if user has disabled game/event reminders
-      const prefs = user.preferences as any;
-      if (prefs?.notifications?.game_event_reminders === false) {
-        debugLog(`Game reminders disabled for user ${user.id}, skipping notification`);
-        continue;
-      }
-      
-      const title = hoursBeforeGame === 12 
-        ? `Game reminder: ${event.title}` 
-        : `Game starting soon: ${event.title}`;
-      
-      const body = hoursBeforeGame === 12
-        ? `Your game starts in 12 hours at ${event.location || 'the venue'}`
-        : `Your game starts in 1 hour! Get ready!`;
+  // In-memory pref filter (JSON path predicates in Prisma don't compose
+  // cleanly with the OR above; cheaper to filter post-fetch on a bounded
+  // result set).
+  const reminderEnabled = (user: any) => {
+    const prefs = user?.preferences as any;
+    return prefs?.notifications?.game_event_reminders !== false;
+  };
+  const eligibleRsvps = candidateRsvps.filter((r: any) => reminderEnabled(r.user));
 
-      // Dedup: skip if we already sent a reminder for this event+user+window
-      const recentReminder = await prisma.notification.findFirst({
-        where: {
-          user_id: user.id,
-          type: 'GAME_REMINDER',
-          meta: { path: ['event_id'], equals: event.id },
-          created_at: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) }, // 2-hour window
-        },
-      });
-      if (recentReminder) {
-        debugLog(`Skipping duplicate game reminder for user ${user.id}, event ${event.id}`);
-        continue;
-      }
+  // Batch dedup: pull recent GAME_REMINDER rows for all candidate users in
+  // one query, build a Set keyed by `userId:eventId`, then per-RSVP check
+  // is O(1) lookup. Replaces the per-RSVP findFirst that dominated cron
+  // latency at scale.
+  const dedupWindowStart = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const userIdsForDedup = Array.from(new Set(eligibleRsvps.map((r: any) => r.user_id)));
+  const dedupKeys = new Set<string>();
+  for (let i = 0; i < userIdsForDedup.length; i += REMINDER_CRON_DEDUP_BATCH) {
+    const batch = userIdsForDedup.slice(i, i + REMINDER_CRON_DEDUP_BATCH);
+    const recent = await prisma.notification.findMany({
+      where: {
+        type: 'GAME_REMINDER',
+        user_id: { in: batch },
+        created_at: { gte: dedupWindowStart },
+      },
+      select: { user_id: true, meta: true },
+    });
+    for (const n of recent) {
+      const eventIdMeta = (n.meta as any)?.event_id;
+      if (eventIdMeta) dedupKeys.add(`${n.user_id}:${eventIdMeta}`);
+    }
+  }
+
+  // Send notifications. Per-RSVP work touches Expo + DB writes; preserved
+  // sequential semantics (continue on push failure) from the prior loop.
+  for (const rsvp of eligibleRsvps) {
+    const user = (rsvp as any).user;
+    const event = (rsvp as any).event;
+
+    if (dedupKeys.has(`${user.id}:${event.id}`)) {
+      debugLog(`Skipping duplicate game reminder for user ${user.id}, event ${event.id}`);
+      continue;
+    }
+
+    const title = hoursBeforeGame === 12
+      ? `Game reminder: ${event.title}`
+      : `Game starting soon: ${event.title}`;
+
+    const body = hoursBeforeGame === 12
+      ? `Your game starts in 12 hours at ${event.location || 'the venue'}`
+      : `Your game starts in 1 hour! Get ready!`;
 
       // Create in-app notification record so it appears in notification history
       const actorId = (event as any).creator_id ?? user.id;
@@ -348,7 +393,6 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
           console.error('[notifications] Failed to store ticket_id in notification meta:', e);
         }
       }
-    }
   }
 }
 
