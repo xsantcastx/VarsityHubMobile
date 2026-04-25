@@ -1,7 +1,12 @@
 export const CANONICAL_EMAIL_FROM = 'noreply@varsityhub.app';
 
+type EmailSenderEnv = {
+  EMAIL_FROM?: string | undefined;
+  FROM_EMAIL?: string | undefined;
+};
+
 export function resolveEmailFrom(
-  env: Pick<NodeJS.ProcessEnv, 'EMAIL_FROM' | 'FROM_EMAIL'> = process.env
+  env: EmailSenderEnv = process.env
 ): string {
   const emailFrom = (env.EMAIL_FROM || '').trim();
   const fromEmail = (env.FROM_EMAIL || '').trim();
