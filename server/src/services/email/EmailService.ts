@@ -19,6 +19,7 @@ import type {
 } from './types.js';
 import { EmailErrorCode } from './types.js';
 import { SendGridProvider } from './providers/SendGridProvider.js';
+import { captureException, captureMessage } from '../../lib/sentry.js';
 import {
   redactEmailList,
   sanitizeEmailLogMessage,
@@ -167,6 +168,18 @@ export class EmailService {
             error: result.error,
             errorCode: result.errorCode,
           });
+          // Centralized Sentry surface so every fire-and-forget sender (which
+          // historically only console.warn'd on failure) gets observable
+          // failures without per-call-site instrumentation. Provider already
+          // logs the underlying API error; this just guarantees the alert
+          // pipeline sees it.
+          captureMessage(`Email send failed (non-retryable): ${result.error || 'unknown'}`, 'error', {
+            context: 'email_send_non_retryable',
+            provider: this.provider.name,
+            errorCode: result.errorCode,
+            correlationId,
+            isTemplate,
+          });
           return result;
         }
 
@@ -187,6 +200,19 @@ export class EmailService {
         this.log('error', correlationId, 'Email send exception', {
           error: error.message,
           attempt,
+        });
+
+        // Surface to Sentry so the underlying exception (network blip, SendGrid
+        // 5xx, malformed payload) doesn't sit in container stdout invisible.
+        // Captured per attempt — if subsequent retries succeed, the success
+        // log line shows in audit but the captured exception still exists for
+        // forensics on flaky sends.
+        captureException(error instanceof Error ? error : new Error(String(error)), {
+          context: 'email_send_exception',
+          provider: this.provider.name,
+          correlationId,
+          attempt,
+          isTemplate,
         });
 
         // Don't retry on non-retryable errors
