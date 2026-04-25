@@ -209,4 +209,12 @@ describe('games list cache invalidation', () => {
     expect(mockCacheGet).not.toHaveBeenCalled();
     expect(mockCacheSet).not.toHaveBeenCalled();
   });
+
+  it('scopes approved-games cache reads to the authenticated viewer', async () => {
+    mockGameFindMany.mockResolvedValue([]);
+
+    await request(app).get('/games?limit=10').expect(200);
+
+    expect(mockCacheGet).toHaveBeenCalledWith('games:user:admin-1:/games?limit=10');
+  });
 });

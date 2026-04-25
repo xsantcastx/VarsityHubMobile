@@ -242,7 +242,9 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
     const wantsNonApproved =
       showPending || (normalizedApprovalStatus !== '' && normalizedApprovalStatus !== 'approved');
     const shouldUseGamesCache = !wantsNonApproved;
-    const gameCacheKey = `games:${req.url}`;
+    const viewerScope = authedReq.user?.id ? `user:${authedReq.user.id}` : 'anon';
+    const cacheRequestUrl = req.originalUrl || req.url;
+    const gameCacheKey = `games:${viewerScope}:${cacheRequestUrl}`;
 
     if (shouldUseGamesCache) {
       const cachedGames = await cacheGet(gameCacheKey);
