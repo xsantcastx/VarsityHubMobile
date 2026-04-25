@@ -216,6 +216,12 @@ function buildEventDetailUrl(eventId?: string, fallbackUrl?: string): string {
   return fallbackUrl || buildAppScreenUrl('/event-detail');
 }
 
+// Canonical billing-portal URL. Matches the form the mobile deep-link parser
+// recognizes (see utils/deepLinks.ts ROUTE_MAP['settings/manage-subscription']).
+function buildManageSubscriptionUrl(): string {
+  return `${APP_BASE_URL}/settings/manage-subscription`;
+}
+
 /**
  * Initialize email service (now uses new EmailService)
  */
@@ -916,7 +922,7 @@ export async function sendBillingNoticeEmail(params: {
       d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     const manageSubscriptionLink =
-      params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`;
+      params.manageLink || buildManageSubscriptionUrl();
 
     return sendTemplateEmail(
       templateId,
@@ -954,7 +960,7 @@ export async function sendBillingNoticeEmail(params: {
     }
 
     const manageSubscriptionLink =
-      params.manageLink || `${APP_BASE_URL}/settings/manage-subscription`;
+      params.manageLink || buildManageSubscriptionUrl();
 
     return sendTemplateEmail(
       templateId,
