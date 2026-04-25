@@ -1,7 +1,6 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
-import { getPendingCoachRoute } from '@/utils/roleChecks';
+import { getOnboardingIndexRouteDecision } from '@/utils/appRouteDecisions';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -72,69 +71,16 @@ export default function OnboardingIndex() {
       return;
     }
 
-    const accountState = String(user.account_state || '').trim();
-    const explicitNextStep =
-      typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
-        ? user.next_step.trim()
-        : null;
-    if (
-      explicitNextStep &&
-      [
-        'coach_application_submitted',
-        'coach_application_rejected',
-        'coach_pending_approval',
-        'coach_agreement_required',
-        'coach_final_setup_required',
-      ].includes(accountState)
-    ) {
-      setHasNavigated(true);
-      router.replace(explicitNextStep as any);
-      return;
-    }
-
-    // Route to the first incomplete step based on actual field-level completion checks.
-    // Previously hardcoded `state?.role ? 1 : 0` which always sent returning coaches to step 2.
-    const role = state?.role as 'fan' | 'coach' | undefined;
-    const calculatedStepIndex = nextIncompleteStep(state, role);
-
-    const serverComplete =
-      user.onboarding_completed === true || user.preferences?.onboarding_completed === true;
-
-    // Only the server can declare onboarding complete. Local draft state can have
-    // all required fields while the completion call is still pending/failed.
-    // Treating draft completeness as "done" kicks users to /(tabs), after which
-    // AuthProvider sends them back into onboarding and creates a loop.
-    const allComplete = role === 'coach'
-      ? (!!state?.role && !!state?.step_2_visited && !!(state?.join_request_pending || state?.organization_id))
-      : (!!state?.role && !!state?.step_2_visited);
-    if (serverComplete && allComplete) {
-      setHasNavigated(true);
-      router.replace('/(tabs)' as any);
-      return;
-    }
-
-    if (!serverComplete && role === 'coach' && allComplete) {
-      setHasNavigated(true);
-      router.replace(
-        getPendingCoachRoute({
-          preferences: {
-            join_request_pending: state?.join_request_pending,
-            organization_id: state?.organization_id,
-          },
-        }) as any
-      );
-      return;
-    }
-
-    const targetRoute = STEP_ROUTES[calculatedStepIndex] || STEP_ROUTES[0];
+    const decision = getOnboardingIndexRouteDecision(user, state);
 
     if (__DEV__) {
       // eslint-disable-next-line no-console
       console.log('[ONBOARDING INDEX] Navigation decision:', {
+        kind: decision.kind,
         role: state?.role,
         progress,
-        calculatedStepIndex,
-        targetRoute,
+        calculatedStepIndex: decision.stepIndex,
+        targetRoute: decision.route,
         hasStep2: !!(state?.username && state?.dob && (state?.zip || state?.zip_code)),
         hasStep3: !!state?.plan,
         hasStep4: !!(state?.team_id || state?.organization_id),
@@ -142,13 +88,13 @@ export default function OnboardingIndex() {
     }
 
     // Sync progress with calculated step
-    if (calculatedStepIndex !== progress) {
-      setProgress(calculatedStepIndex);
-      dispatch({ type: 'SET_STEP', stepIndex: calculatedStepIndex, reason: 'INDEX_ROUTER' });
+    if (typeof decision.stepIndex === 'number' && decision.stepIndex !== progress) {
+      setProgress(decision.stepIndex);
+      dispatch({ type: 'SET_STEP', stepIndex: decision.stepIndex, reason: 'INDEX_ROUTER' });
     }
 
     setHasNavigated(true);
-    router.replace(targetRoute as any);
+    router.replace(decision.route as any);
     // Only re-run when loading completes, user changes, or onboarding state changes
     // Exclude progress/setProgress/dispatch to avoid infinite re-render loop
     // eslint-disable-next-line react-hooks/exhaustive-deps

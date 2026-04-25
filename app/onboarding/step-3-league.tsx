@@ -20,7 +20,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { getCoachRecoveryRoute } from '@/utils/roleChecks';
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -517,7 +517,8 @@ function Step3League() {
               },
             }
           : null;
-        const recoveryRoute = getCoachRecoveryRoute(mergedUserForRouting);
+        const recoveryDecision = getPostAuthRouteDecision(mergedUserForRouting);
+        const recoveryRoute = recoveryDecision.route;
         const accountState = String(freshUser?.account_state || '').trim();
         const approvalStatus = String(freshUser?.approval_status || '').toUpperCase();
         const shouldResumeRecoveryFlow =
@@ -707,16 +708,21 @@ function Step3League() {
           organization_location: locationLabel || null,
           step_3_visited: true,
         }));
-        await User.refresh().catch(() => null);
-        await checkAuth();
+        const refreshedUser = await User.refresh().catch(() => null);
+        const authUser = (await checkAuth()) || refreshedUser;
+        const nextDecision = getPostAuthRouteDecision(authUser);
         captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
           mode: 'submit-application',
-          next: 'league-pending-approval',
+          next: nextDecision.route,
         });
-        router.replace({
-          pathname: '/onboarding/league-pending-approval',
-          params: { leagueName: orgName.trim() },
-        } as any);
+        if (nextDecision.route === '/onboarding/league-pending-approval') {
+          router.replace({
+            pathname: nextDecision.route,
+            params: { leagueName: orgName.trim() },
+          } as any);
+        } else {
+          router.replace(nextDecision.route as any);
+        }
         return;
       }
 

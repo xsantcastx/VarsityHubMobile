@@ -1,7 +1,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
-import { getCoachRecoveryRoute } from '@/utils/roleChecks';
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
@@ -278,7 +278,7 @@ export default function Step1Role() {
           error?.status === 403 && errMsg.includes('cannot change role');
         if (isRoleChangeBlocked) {
           const freshUser: any = await User.refresh().catch(() => User.me().catch(() => null));
-          const recoveryRoute = getCoachRecoveryRoute(freshUser);
+          const recoveryRoute = getPostAuthRouteDecision(freshUser).route;
           if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
             const canonicalRole = freshUser?.preferences?.role || freshUser?.role;
             if (canonicalRole === 'coach') {
@@ -520,4 +520,3 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 });
-

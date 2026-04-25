@@ -6,6 +6,7 @@ import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme, Pressable, A
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User, Notification as NotificationApi } from '@/api/entities';
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 
@@ -135,8 +136,9 @@ function PendingApproval() {
       proceedingAsFanRef.current = true;
       stopPolling();
       await User.updatePreferences({ proceeding_as_fan: true });
-      await checkAuth();
-      router.replace('/(tabs)' as any);
+      const freshUser = await checkAuth();
+      const decision = getPostAuthRouteDecision(freshUser ?? null);
+      router.replace(decision.route as any);
     } catch (err: any) {
       proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[pending-approval] Failed to proceed as fan:', err);
@@ -150,8 +152,13 @@ function PendingApproval() {
     isNavigatingRef.current = true;
     setNavigationTarget(redirect);
     try {
-      await checkAuth();
-      router.replace({ pathname: '/onboarding/coach-agreement', params: { redirect } } as any);
+      const freshUser = await checkAuth();
+      const decision = getPostAuthRouteDecision(freshUser ?? null);
+      if (decision.route === '/onboarding/coach-agreement') {
+        router.replace({ pathname: decision.route, params: { redirect } } as any);
+      } else {
+        router.replace(decision.route as any);
+      }
     } catch {
       Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
     } finally {

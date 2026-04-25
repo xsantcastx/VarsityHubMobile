@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, useC
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { getCoachAgreementRouteDecision } from '@/utils/appRouteDecisions';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -34,18 +35,12 @@ function CoachAgreementScreen() {
       });
       // Sync auth state so we have the latest preferences
       await checkAuth();
-      // Check if coach already has an org — if not, send to step-3 to create one
-      const me = await User.me();
-      const prefs = me?.preferences || {};
-      const hasOrg = !!prefs.organization_id;
-      const redirect = params.redirect;
-      if (!hasOrg) {
-        // Coach was approved but hasn't set up the real organization yet.
-        router.replace('/onboarding/step-3-league' as any);
-      } else if (redirect === 'create-team') {
-        router.replace({ pathname: '/(tabs)/create-team', params: { organization_id: prefs.organization_id } } as any);
+      const me: any = await User.me();
+      const decision = getCoachAgreementRouteDecision(me, params.redirect);
+      if (decision.params) {
+        router.replace({ pathname: decision.route, params: decision.params } as any);
       } else {
-        router.replace('/(tabs)/team-hub' as any);
+        router.replace(decision.route as any);
       }
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to accept agreement. Please try again.');

@@ -44,10 +44,11 @@ describe('onboarding flow — no screens can be skipped', () => {
     });
 
     it('onboarding/index.tsx routes to the correct step based on state', () => {
-      // Must use the centralized STEP_ROUTES helper (or inline references)
-      // so it can send users to the right incomplete step instead of
-      // defaulting to step-1 when they've already completed some steps.
-      expect(onboardingIndex).toMatch(/STEP_ROUTES|nextIncompleteStep|step-1-role|step-2-basic|step-3-league/);
+      // Must use the centralized route-decision helper so it can send users
+      // to the right incomplete step or server-directed recovery screen
+      // instead of hardcoding inline redirects in the screen.
+      expect(onboardingIndex).toMatch(/getOnboardingIndexRouteDecision/);
+      expect(onboardingIndex).toMatch(/decision\.route/);
     });
   });
 
@@ -72,7 +73,7 @@ describe('onboarding flow — no screens can be skipped', () => {
     });
 
     it('step-1-role resumes coach recovery routes instead of dead-ending on role lock', () => {
-      expect(step1).toMatch(/getCoachRecoveryRoute/);
+      expect(step1).toMatch(/getPostAuthRouteDecision/);
       expect(step1).toMatch(/router\.replace\(recoveryRoute/);
     });
 
@@ -164,7 +165,8 @@ describe('onboarding flow — no screens can be skipped', () => {
 
     it('AuthProvider routes users with incomplete onboarding → /onboarding/step-1-role', () => {
       expect(authProvider).toMatch(/onboarding_completed|isOnboardingComplete/);
-      expect(authProvider).toMatch(/\/onboarding\/step-1-role/);
+      expect(authProvider).toMatch(/generic_onboarding_required|onboarding_required/);
+      expect(authProvider).toMatch(/getPostAuthRouteDecision/);
     });
 
     it('AuthProvider routes fully-verified + completed users → (tabs)', () => {
@@ -218,8 +220,14 @@ describe('onboarding flow — no screens can be skipped', () => {
     });
 
     it('existing-org continue path respects coach recovery routes before completing onboarding', () => {
-      expect(step3).toMatch(/getCoachRecoveryRoute/);
+      expect(step3).toMatch(/getPostAuthRouteDecision/);
       expect(step3).toMatch(/shouldResumeRecoveryFlow/);
+    });
+
+    it('AuthProvider has a redirect-family loop breaker', () => {
+      expect(authProvider).toMatch(/routing_loop_detected/);
+      expect(authProvider).toMatch(/recentRedirectsRef/);
+      expect(authProvider).toMatch(/getRouteFamily/);
     });
   });
 

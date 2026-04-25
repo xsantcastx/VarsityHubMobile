@@ -28,10 +28,8 @@ import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/
 import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
 import { showWarningToast } from '@/components/ErrorToast';
 import Notifications from '@/utils/notifications';
-import {
-  getCoachAccessState,
-  getPendingCoachRoute as resolvePendingCoachRoute,
-} from '@/utils/roleChecks';
+import { getPostAuthRouteDecision, getRouteFamily } from '@/utils/appRouteDecisions';
+import { getCoachAccessState } from '@/utils/roleChecks';
 
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -141,6 +139,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const segments = useSegments();
 
   const lastRedirectRef = React.useRef<string | null>(null);
+  const recentRedirectsRef = React.useRef<Array<{ family: string; to: string; ts: number }>>([]);
   const segmentsRef = React.useRef(segments);
   // Guard against multiple in-flight coach-role restores triggered by repeated
   // effect runs. Cleared in the async block's finally.
@@ -517,6 +516,36 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         coachAgreementAccepted,
       });
 
+      const now = Date.now();
+      const family = getRouteFamily(to);
+      recentRedirectsRef.current = recentRedirectsRef.current.filter(
+        entry => now - entry.ts <= 30000
+      );
+      const recentFamilyRedirects = recentRedirectsRef.current.filter(
+        entry => entry.family === family
+      );
+      if (recentFamilyRedirects.length >= 2) {
+        captureException(new Error('routing_loop_detected'), {
+          tags: {
+            context: 'routing_loop_detected',
+            route_family: family,
+          },
+          from,
+          to,
+          reason,
+          userStateFingerprint,
+          recentTargets: recentFamilyRedirects.map(entry => entry.to),
+        });
+        if (__DEV__) {
+          console.warn('[AuthProvider] Routing loop detected, suppressing redirect:', {
+            family,
+            to,
+            reason,
+          });
+        }
+        return false;
+      }
+
       navigateWithAuthRedirect(router, {
         from,
         to,
@@ -534,17 +563,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         coachAgreementAccepted,
       });
 
+      recentRedirectsRef.current.push({ family, to, ts: now });
       lastRedirectRef.current = to;
+      return true;
     },
     [healthOk, isOnboardingComplete, pendingVerificationEmail, router, user]
-  );
-
-  const getPendingCoachRoute = useCallback(
-    (userSnapshot?: AuthUser | null) => {
-      const effectiveUser = userSnapshot ?? user;
-      return resolvePendingCoachRoute(effectiveUser);
-    },
-    [user]
   );
 
   // Sign out
@@ -849,6 +872,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       const coachAccess = getCoachAccessState(user);
+      const postAuthDecision = getPostAuthRouteDecision(user, {
+        pendingVerification: !!pendingVerificationEmail,
+      });
       const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       const accountState = String(user.account_state || '').trim();
       const explicitNextStep =
@@ -863,6 +889,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       if (
         explicitNextStep &&
+        postAuthDecision.kind.startsWith('server_') &&
         explicitNextStep !== '/(tabs)' &&
         [
           'coach_application_submitted',
@@ -942,7 +969,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) &&
         !coachAccess.isProceedingAsFan;
       // Don't yank pending coaches off onboarding routes (e.g. step-3 during upgrade flow)
-      const pendingCoachRoute = getPendingCoachRoute(user);
+      const pendingCoachRoute = postAuthDecision.route;
       if (
         isPendingCoach &&
         lastRedirectRef.current !== pendingCoachRoute &&
@@ -993,13 +1020,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // incomplete auth state -> non-onboarding route -> AuthProvider yanks them
       // back -> screen logic pushes elsewhere again.
       if (
-        needsOnboarding &&
-        coachAccess.isApprovedCoach &&
+        postAuthDecision.kind === 'approved_coach_finish_setup' &&
         firstSegment !== 'onboarding'
       ) {
         if (__DEV__)
           console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
-        const target = getPendingCoachRoute(user);
+        const target = postAuthDecision.route;
         if (lastRedirectRef.current !== target) {
           redirectWithTelemetry(target, 'approved_coach_post_approval_setup');
         }
@@ -1014,17 +1040,17 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         !coachNeedsCheckout;
       const isOnAgreementScreen = currentPath.includes('coach-agreement');
       if (isCoachWithoutAgreement && !isOnAgreementScreen) {
-        if (lastRedirectRef.current !== '/onboarding/coach-agreement') {
-          redirectWithTelemetry('/onboarding/coach-agreement', 'coach_agreement_required');
+        if (lastRedirectRef.current !== postAuthDecision.route) {
+          redirectWithTelemetry(postAuthDecision.route, 'coach_agreement_required');
         }
         return;
       }
 
       // If needs onboarding and not already there, redirect to start onboarding
-      if (needsOnboarding && firstSegment !== 'onboarding') {
+      if (postAuthDecision.kind === 'generic_onboarding_required' && firstSegment !== 'onboarding') {
         if (__DEV__) console.log('[AuthProvider] User needs onboarding, redirecting to step 1');
-        if (lastRedirectRef.current !== '/onboarding/step-1-role') {
-          redirectWithTelemetry('/onboarding/step-1-role', 'onboarding_required');
+        if (lastRedirectRef.current !== postAuthDecision.route) {
+          redirectWithTelemetry(postAuthDecision.route, 'onboarding_required');
         }
         return;
       }
@@ -1044,7 +1070,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       ) {
         if (__DEV__)
           console.log('[AuthProvider] User completed onboarding, redirecting to main app');
-        const landingRoute = '/(tabs)';
+        const landingRoute = postAuthDecision.route;
         if (lastRedirectRef.current !== landingRoute) {
           redirectWithTelemetry(landingRoute, 'onboarding_complete');
         }
@@ -1062,12 +1088,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // If on public route and doesn't need onboarding (but NOT verify-email or payment redirects)
       if (
         isPublic &&
-        !needsOnboarding &&
+        postAuthDecision.kind === 'app_home' &&
         firstSegment !== 'verify-email' &&
         !isPaymentRedirectScreen &&
         !isAuthEntryScreen
       ) {
-        const landingRoute = '/(tabs)';
+        const landingRoute = postAuthDecision.route;
         if (lastRedirectRef.current !== landingRoute) {
           redirectWithTelemetry(landingRoute, 'public_route_authenticated');
         }
@@ -1105,7 +1131,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     router,
     hasCompletedOnboarding,
     redirectWithTelemetry,
-    getPendingCoachRoute,
   ]);
 
   const value = useMemo<AuthContextType>(
