@@ -91,6 +91,22 @@ describe('parseDeepLink', () => {
     });
   });
 
+  it('parses native root settings links', () => {
+    expect(parseDeepLink('varsityhubmobile://settings')).toEqual({
+      screen: '/settings',
+      params: {},
+      source: 'scheme',
+    });
+  });
+
+  it('parses universal root settings links', () => {
+    expect(parseDeepLink('https://varsityhub.app/settings')).toEqual({
+      screen: '/settings',
+      params: {},
+      source: 'universal',
+    });
+  });
+
   it('parses universal admin dashboard review links used by approval emails', () => {
     expect(
       parseDeepLink(

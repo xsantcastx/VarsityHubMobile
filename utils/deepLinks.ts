@@ -122,6 +122,7 @@ const ROUTE_MAP: Record<string, string> = {
   'team-hub': '/team-hub',
   'create-fan-event': '/create-fan-event',
   'event-detail': '/event-detail',
+  'settings': '/settings',
   'manage-subscription': '/settings/manage-subscription',
   // Multi-segment routes without a resource ID (e.g., billing emails link to /settings/manage-subscription directly)
   'settings/manage-subscription': '/settings/manage-subscription',
@@ -132,6 +133,26 @@ const ROUTE_MAP: Record<string, string> = {
   'join/org': '/organization-invites',
   'join/team': '/team-invites',
 };
+
+// These route keys represent exact destinations, not resource collections.
+// They must never fall through to the generic `type/:id` parser.
+const EXACT_MATCH_ROUTE_KEYS = new Set([
+  'reset-password',
+  'verify-email',
+  'verify',
+  'onboarding',
+  'approvals',
+  'admin-dashboard',
+  'admin-ads',
+  'organization-join-requests',
+  'organization-invites',
+  'team-hub',
+  'create-fan-event',
+  'event-detail',
+  'settings',
+  'payment-success',
+  'payment-cancel',
+]);
 
 /**
  * Parse a deep link URL into screen and params
@@ -212,6 +233,10 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     id = pathParts[2];
   } else {
     type = pathParts[0];
+    if (EXACT_MATCH_ROUTE_KEYS.has(type)) {
+      if (__DEV__) console.warn('[DeepLinks] Exact-match route cannot consume an ID:', type);
+      return null;
+    }
     id = pathParts[1];
   }
   const screen = ROUTE_MAP[type];
@@ -332,6 +357,9 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     id = pathParts[2];
   } else {
     type = pathParts[0];
+    if (EXACT_MATCH_ROUTE_KEYS.has(type)) {
+      return null;
+    }
     id = pathParts[1];
   }
   const screen = ROUTE_MAP[type];
