@@ -244,6 +244,11 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUn
   } catch (error: any) {
     console.error('[uploads] Failed to generate Cloudinary signature:', error);
     addBreadcrumb('Cloudinary signature generation failed', 'uploads.signature', 'error');
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      context: 'cloudinary_signature_generation_failed',
+      provider: 'cloudinary',
+      path: _req.path,
+    });
     return res.status(500).json({ error: 'Failed to generate upload signature' });
   }
 }));
@@ -536,6 +541,11 @@ uploadsRouter.post('/avatar', requireAuth as any, requireVerified as any, upload
   } catch (e: any) {
     console.error('[uploads] POST /avatar error:', e);
     addBreadcrumb('Avatar upload failed', 'uploads.avatar', 'error');
+    captureException(e instanceof Error ? e : new Error(String(e)), {
+      context: 'avatar_upload_failed',
+      provider: useCloudinary ? 'cloudinary' : 'local-disk',
+      path: req.path,
+    });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }));

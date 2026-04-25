@@ -913,18 +913,39 @@ authRouter.post(
       // devices are a privacy leak (the device keeps receiving pushes for a user
       // who is no longer signed in) and an abuse vector if the device is shared.
       let row: { user_id: string; id: string } | null = null;
+      // Lookup catches → null is intentional (logout must never fail), but
+      // surfacing the underlying error to Sentry matters: a Prisma outage
+      // here means the user's token isn't actually being deleted from the
+      // DB and remains valid until natural expiry. Without capture, that
+      // silently degrades to "logout looks fine, token still works."
       if (parsedToken.version === 2) {
         row = await prisma.refreshToken
           .findUnique({ where: { key_id: parsedToken.keyId }, select: { user_id: true, id: true } })
-          .catch(() => null);
+          .catch((err: any) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'logout_refresh_token_lookup_failed',
+              tokenVersion: 2,
+            });
+            return null;
+          });
       } else {
         const tokenHash = hashRefreshToken(refresh_token);
         row = await prisma.refreshToken
           .findUnique({ where: { token_hash: tokenHash }, select: { user_id: true, id: true } })
-          .catch(() => null);
+          .catch((err: any) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'logout_refresh_token_lookup_failed',
+              tokenVersion: 1,
+            });
+            return null;
+          });
       }
       if (row) {
-        await prisma.refreshToken.delete({ where: { id: row.id } }).catch(() => {});
+        await prisma.refreshToken.delete({ where: { id: row.id } }).catch((err: any) => {
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            context: 'logout_refresh_token_delete_failed',
+          });
+        });
       }
       if (row?.user_id) {
         try {
@@ -948,10 +969,18 @@ authRouter.post(
             await invalidateMeCacheForUser(row.user_id).catch(() => {});
           }
         } catch (err) {
+          // Stale push tokens on logged-out devices are a privacy leak —
+          // user keeps receiving pushes after signing out. Failure here
+          // means the token wasn't cleared; surfacing to Sentry so it
+          // gets triaged instead of buried in container stdout.
           console.warn(
             '[auth] logout push_token clear failed:',
             (err as any)?.message || err
           );
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            context: 'logout_push_token_clear_failed',
+            userId: row.user_id,
+          });
         }
       }
     }
