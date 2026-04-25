@@ -196,6 +196,26 @@ describe('share-landing — generic routes', () => {
     expect(gameFindUnique).not.toHaveBeenCalled();
   });
 
+  it('/join/team/:code renders generic landing without DB lookup', async () => {
+    const app = makeApp();
+    const res = await request(app).get('/join/team/SOMECODE').set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(postFindUnique).not.toHaveBeenCalled();
+    expect(gameFindUnique).not.toHaveBeenCalled();
+  });
+
+  it('/join/org/:code renders generic landing without DB lookup', async () => {
+    const app = makeApp();
+    const res = await request(app).get('/join/org/SOMECODE').set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/html/);
+    expect(postFindUnique).not.toHaveBeenCalled();
+    expect(gameFindUnique).not.toHaveBeenCalled();
+  });
+
   it('/share renders generic landing', async () => {
     const app = makeApp();
     const res = await request(app).get('/share').set('Accept', 'text/html');

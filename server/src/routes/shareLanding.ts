@@ -349,10 +349,11 @@ shareLandingRouter.get('/games/:id', gameLanding);
 shareLandingRouter.get('/teams/:id', teamLanding);
 shareLandingRouter.get('/users/:id', userLanding);
 shareLandingRouter.get('/events/:id', eventLanding);
-// /join/:code (org/team invite) and /share (generic share entry) get the
-// generic landing — no DB lookup needed since they're transactional, not
-// content surfaces.
+// Invite/share routes get the generic landing — no DB lookup needed since
+// they're transactional, not content surfaces.
 shareLandingRouter.get('/join/:code', genericLandingHandler);
+shareLandingRouter.get('/join/team/:code', genericLandingHandler);
+shareLandingRouter.get('/join/org/:code', genericLandingHandler);
 shareLandingRouter.get('/share', genericLandingHandler);
 
 export { SHAREABLE_PATHS, renderLanding };
