@@ -21,9 +21,7 @@ await initEmailService();
     console.warn(msg);
     captureMessage(msg, 'warning');
   } else {
-    console.log(
-      `[startup] ADMIN_EMAILS configured: ${adminEmails.length} recipient(s) — first: ${adminEmails[0]}`
-    );
+    console.log(`[startup] ADMIN_EMAILS configured: ${adminEmails.length} recipient(s)`);
   }
   if (!env.SENDGRID_API_KEY) {
     const msg =
