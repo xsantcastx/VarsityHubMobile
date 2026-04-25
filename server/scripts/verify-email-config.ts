@@ -1,10 +1,14 @@
 /**
  * Verify Email Configuration
- * 
+ *
  * Quick script to verify email service is configured correctly
  * Run: npx ts-node server/scripts/verify-email-config.ts
  */
 
+// Load server/.env BEFORE the email service module reads its env. Without
+// this, running `npm --prefix server run verify:email` from a fresh shell
+// reports every key as missing — even when server/.env has them set.
+import 'dotenv/config';
 import { getEmailService } from '../src/services/email/service.js';
 
 console.log('🔍 Verifying Email Configuration...\n');
