@@ -380,8 +380,23 @@ function SubscriptionPaywallScreen() {
 
         {/* IAP Error Banner */}
         {(isIOS || Platform.OS === 'android') && iapError ? (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorBannerText}>Subscription plans are being set up. You can continue with the free Rookie plan for now.</Text>
+          <View
+            style={[
+              styles.errorBanner,
+              colorScheme === 'dark' && {
+                backgroundColor: 'rgba(220, 38, 38, 0.12)',
+                borderColor: 'rgba(220, 38, 38, 0.4)',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.errorBannerText,
+                colorScheme === 'dark' && { color: '#FCA5A5' },
+              ]}
+            >
+              Subscription plans are being set up. You can continue with the free Rookie plan for now.
+            </Text>
           </View>
         ) : null}
 
