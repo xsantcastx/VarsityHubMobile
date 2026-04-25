@@ -64,7 +64,7 @@ supportRouter.post(
 
       // Send email notification to customer service (async, don't block response)
       sendAbuseReportEmail({
-        to: process.env.SUPPORT_EMAIL || 'support@varsityhub.app',
+        to: process.env.SUPPORT_EMAIL || 'customerservice@varsityhub.app',
         reporterName: name,
         reporterEmail: email,
         reportedContentType: 'support_contact',
