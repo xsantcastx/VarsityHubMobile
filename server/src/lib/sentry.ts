@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/node';
 import crypto from 'node:crypto';
-import type { Express } from 'express';
+import type { Express, Request } from 'express';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -10,6 +10,42 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
 
 const SENSITIVE_BREADCRUMB_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
 const MAX_BREADCRUMB_VALUE_LENGTH = 160;
+const SERVER_SERVICE_TAG = 'server';
+
+// Strip ID-like path segments so `route` stays low-cardinality enough to
+// alert on. /posts/cmod7xy123 -> /posts/:id, /games/42 -> /games/:id.
+// Without this, every unique resource ID becomes a distinct tag value and
+// alerts like `route:/posts/:id` never match the stored value.
+const ID_LIKE_SEGMENT_RE =
+  /^(c[a-z0-9]{20,}|[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}|[0-9A-HJKMNP-TV-Z]{26}|\d{3,})$/i;
+
+function normalizeRoutePath(path: string): string {
+  if (!path || path === '/') return path;
+  return path
+    .split('/')
+    .map((seg) => (ID_LIKE_SEGMENT_RE.test(seg) ? ':id' : seg))
+    .join('/');
+}
+
+export function getSentryRouteTag(req: Request): string {
+  const routePath = typeof req.route?.path === 'string' ? req.route.path : null;
+  if (routePath) {
+    return normalizeRoutePath(`${req.baseUrl || ''}${routePath}`);
+  }
+  if (req.baseUrl) {
+    return normalizeRoutePath(req.baseUrl);
+  }
+  return normalizeRoutePath(req.path);
+}
+
+const PROVIDER_TAG_PATTERNS: Array<{ pattern: RegExp; provider: string }> = [
+  { pattern: /\bcloudinary\b/i, provider: 'cloudinary' },
+  { pattern: /\bsendgrid\b|\bemail\b/i, provider: 'sendgrid' },
+  { pattern: /\bbullmq\b|\bredis\b/i, provider: 'bullmq' },
+  { pattern: /\bstripe\b/i, provider: 'stripe' },
+  { pattern: /\bapple(?:[_-]|\s)?(?:iap|s2s)?\b/i, provider: 'apple_iap' },
+  { pattern: /\bgoogle(?:[_-]|\s)?iap\b/i, provider: 'google_iap' },
+];
 
 /**
  * Initialize Sentry error tracking
@@ -23,9 +59,13 @@ export function initSentry(app: Express) {
     return;
   }
 
+  const release =
+    process.env.SENTRY_RELEASE?.trim() || process.env.RAILWAY_GIT_COMMIT_SHA?.trim() || undefined;
+
   Sentry.init({
     dsn,
     environment,
+    release,
     integrations: [
       new Sentry.Integrations.Http({ tracing: true }),
       new Sentry.Integrations.OnUncaughtException(),
@@ -50,6 +90,19 @@ export function initSentry(app: Express) {
   // Tracing middleware
   app.use(Sentry.Handlers.tracingHandler());
 
+  app.use((req, _res, next) => {
+    Sentry.configureScope((scope) => {
+      scope.setTag('service', SERVER_SERVICE_TAG);
+      scope.setTag('route', getSentryRouteTag(req));
+      scope.setTag('method', req.method);
+    });
+    next();
+  });
+
+  Sentry.configureScope((scope) => {
+    scope.setTag('service', SERVER_SERVICE_TAG);
+  });
+
   debugLog(`✅ Sentry initialized for ${environment} environment`);
 }
 
@@ -65,21 +118,9 @@ export function addSentryErrorHandler(app: Express) {
  */
 export function captureException(error: Error | string, context?: Record<string, any>) {
   Sentry.withScope((scope) => {
+    scope.setTag('service', SERVER_SERVICE_TAG);
     if (context) {
-      const contextTag = typeof context.context === 'string' ? context.context : null;
-      if (contextTag) {
-        scope.setTag('vh_context', contextTag);
-      }
-
-      const tags = context.tags;
-      if (tags && typeof tags === 'object') {
-        for (const [key, value] of Object.entries(tags)) {
-          if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-            scope.setTag(key, String(value));
-          }
-        }
-      }
-
+      applyScopeTags(scope, context);
       scope.setContext('additional', context);
     }
     if (typeof error === 'string') {
@@ -93,8 +134,19 @@ export function captureException(error: Error | string, context?: Record<string,
 /**
  * Manually capture message
  */
-export function captureMessage(message: string, level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info') {
-  Sentry.captureMessage(message, level);
+export function captureMessage(
+  message: string,
+  level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info',
+  context?: Record<string, any>
+) {
+  Sentry.withScope((scope) => {
+    scope.setTag('service', SERVER_SERVICE_TAG);
+    if (context) {
+      applyScopeTags(scope, context);
+      scope.setContext('additional', context);
+    }
+    Sentry.captureMessage(message, level);
+  });
 }
 
 /**
@@ -148,6 +200,64 @@ function normalizeBreadcrumbData(data?: Record<string, any>) {
       : normalizeBreadcrumbValue(value);
   }
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function applyScopeTags(scope: Sentry.Scope, context: Record<string, any>) {
+  scope.setTag('service', SERVER_SERVICE_TAG);
+
+  const explicitContextTag =
+    typeof context.context === 'string'
+      ? context.context
+      : typeof context.tags?.context === 'string'
+        ? context.tags.context
+        : null;
+  const contextTag = explicitContextTag?.trim() || null;
+  if (contextTag) {
+    scope.setTag('vh_context', contextTag);
+  }
+
+  const route = typeof context.path === 'string' ? context.path : typeof context.route === 'string' ? context.route : null;
+  if (route && !context.tags?.route) {
+    scope.setTag('route', normalizeRoutePath(route));
+  }
+
+  const job = typeof context.job === 'string' ? context.job : typeof context.jobName === 'string' ? context.jobName : null;
+  if (job && !context.tags?.job) {
+    scope.setTag('job', job);
+  }
+
+  const provider = inferProviderTag(context, contextTag);
+  if (provider && !context.tags?.provider) {
+    scope.setTag('provider', provider);
+  }
+
+  const tags = context.tags;
+  if (tags && typeof tags === 'object') {
+    for (const [key, value] of Object.entries(tags)) {
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        scope.setTag(key, String(value));
+      }
+    }
+  }
+}
+
+function inferProviderTag(context: Record<string, any>, contextTag?: string | null): string | null {
+  const candidates = [
+    contextTag,
+    typeof context.provider === 'string' ? context.provider : null,
+    typeof context.label === 'string' ? context.label : null,
+    typeof context.message === 'string' ? context.message : null,
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    for (const rule of PROVIDER_TAG_PATTERNS) {
+      if (rule.pattern.test(candidate)) {
+        return rule.provider;
+      }
+    }
+  }
+
+  return null;
 }
 
 /**

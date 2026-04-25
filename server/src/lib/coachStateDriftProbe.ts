@@ -10,9 +10,11 @@ import { captureException, captureMessage } from './sentry.js';
  * write site keeps them in sync. This probe finds cases where they've drifted
  * so we learn about the regression from logs instead of support tickets.
  *
- * Capture policy: drift rows are sent to Sentry as `warning` messages tagged
- * `context: coach_state_drift_probe` so alerts can fan out from a single
- * saved search. If the probe itself fails (DB error), that's an exception.
+ * Capture policy: only actionable drift rows are sent to Sentry as `warning`
+ * messages. Legacy approved coaches without a CoachApplication row are an
+ * expected pre-migration bucket, so we keep them in logs but do not raise a
+ * Sentry issue for them. If the probe itself fails (DB error), that's an
+ * exception.
  */
 
 type DriftBucket = {
@@ -25,6 +27,11 @@ export async function runCoachStateDriftProbe(
   prisma: PrismaClient,
 ): Promise<{ ok: true; total: number; buckets: DriftBucket[] }> {
   const buckets: DriftBucket[] = [];
+  const actionableKinds = new Set([
+    'application_approved_user_not',
+    'user_rejected_latest_application_live',
+    'stuck_in_final_setup_7d',
+  ]);
 
   // Bucket 1: coach marked APPROVED but has no CoachApplication record at all.
   // These are legacy-flow coaches (approved before CoachApplication shipped).
@@ -126,13 +133,37 @@ export async function runCoachStateDriftProbe(
       .map(b => `${b.kind}=${b.rows.length}`)
       .join(' ');
     console.warn(`[coach-state-drift] FINDINGS ${summary}`);
-    captureMessage(`[coach-state-drift] ${summary}`, 'warning');
+    const actionableBuckets = buckets.filter(bucket => actionableKinds.has(bucket.kind));
+    const actionableTotal = actionableBuckets.reduce((acc, bucket) => acc + bucket.rows.length, 0);
+    if (actionableTotal > 0) {
+      const actionableSummary = actionableBuckets
+        .map(bucket => `${bucket.kind}=${bucket.rows.length}`)
+        .join(' ');
+      captureMessage(`[coach-state-drift] ${actionableSummary}`, 'warning', {
+        context: 'coach_state_drift_probe',
+        tags: {
+          job: 'coach-state-drift-probe',
+        },
+        buckets: actionableBuckets.map(bucket => ({
+          kind: bucket.kind,
+          count: bucket.rows.length,
+        })),
+      });
+    }
     // Attach buckets as breadcrumb-style context so Sentry-triage can see row
     // IDs without logging full PII to the top-level event.
-    for (const bucket of buckets) {
+    for (const bucket of actionableBuckets) {
       captureMessage(
         `[coach-state-drift] ${bucket.kind} (${bucket.rows.length}): ${bucket.description}`,
         'warning',
+        {
+          context: 'coach_state_drift_probe',
+          tags: {
+            job: 'coach-state-drift-probe',
+            drift_kind: bucket.kind,
+          },
+          row_count: bucket.rows.length,
+        }
       );
     }
   } else {

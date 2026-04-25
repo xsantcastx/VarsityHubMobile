@@ -413,7 +413,16 @@ export async function scheduleGameReminders(eventId: string, userId: string): Pr
 
   const { notificationQueue } = await import('../jobs/queues.js');
   if (!notificationQueue) {
-    captureMessage(`Game reminders dropped: notification queue unavailable (event ${eventId}, user ${userId})`, 'error');
+    captureMessage(`Game reminders dropped: notification queue unavailable (event ${eventId}, user ${userId})`, 'error', {
+      context: 'game_reminder_queue_unavailable',
+      tags: {
+        job: 'game-reminder',
+        route: '/notifications/game-reminder',
+        provider: 'bullmq',
+      },
+      eventId,
+      userId,
+    });
     console.error(`[scheduleGameReminders] No notification queue available — game reminders dropped for event ${eventId}, user ${userId}`);
     return;
   }

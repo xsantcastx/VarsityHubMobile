@@ -2,10 +2,10 @@ import type { FounderMetricsReport } from './founderMetrics.js';
 import type { EmailResult } from '../services/email/types.js';
 import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
-import * as Sentry from '@sentry/node';
 import escapeHtml from 'escape-html';
 import { prisma } from './prisma.js';
 import { redactEmail, sanitizeEmailLogMessage, sanitizeEmailSubject } from './emailRedaction.js';
+import { captureException, captureMessage } from './sentry.js';
 
 /**
  * Resolve the EMAIL_AUDIT `audit_privacy` metadata for a recipient email.
@@ -268,8 +268,9 @@ function blockUnapprovedEmail(emailType: string, context?: Record<string, unknow
   const message = `[email] Blocked unapproved email type: ${emailType}`;
   console.warn(message, context || {});
   if (process.env.NODE_ENV === 'production') {
-    Sentry.captureMessage(message, {
-      level: 'warning',
+    captureMessage(message, 'warning', {
+      context: 'email_unapproved_type_blocked',
+      provider: 'sendgrid',
       extra: sanitizeEmailExtras(context),
     });
   }
@@ -733,10 +734,10 @@ async function sendTemplateEmail(
     const msg = `[email] Template ID not configured for: ${sanitizeEmailSubject(subject)}`;
     if (process.env.NODE_ENV === 'production') {
       console.error(msg);
-      Sentry.captureMessage(msg, 'error');
+      captureMessage(msg, 'error', { context: 'sendgrid_template_missing', provider: 'sendgrid' });
     } else {
       console.warn(msg);
-      Sentry.captureMessage(msg, 'warning');
+      captureMessage(msg, 'warning', { context: 'sendgrid_template_missing', provider: 'sendgrid' });
     }
     return false;
   }
@@ -744,8 +745,9 @@ async function sendTemplateEmail(
   if (!isValidSendGridTemplateId(templateId)) {
     const msg = `[email] Invalid SendGrid template ID configured for: ${sanitizeEmailSubject(subject)}`;
     console.error(msg);
-    Sentry.captureMessage(msg, {
-      level: 'error',
+    captureMessage(msg, 'error', {
+      context: 'sendgrid_template_invalid',
+      provider: 'sendgrid',
       extra: sanitizeEmailExtras({ templateId, to, subject, logMessage }),
     });
     return false;
@@ -758,7 +760,11 @@ async function sendTemplateEmail(
         `[email] Email service not configured in production — template email dropped: ${sanitizeEmailLogMessage(logMessage)}`
       );
       console.error(err.message);
-      Sentry.captureException(err, { extra: sanitizeEmailExtras({ to, subject, logMessage }) });
+      captureException(err, {
+        context: 'sendgrid_service_unconfigured',
+        provider: 'sendgrid',
+        extra: sanitizeEmailExtras({ to, subject, logMessage }),
+      });
     } else {
       console.warn('[email] Email service not configured');
     }
@@ -783,14 +789,18 @@ async function sendTemplateEmail(
       return true;
     } else {
       console.error(`❌ Failed: ${sanitizeEmailLogMessage(logMessage)}`, sanitizeEmailLogMessage(result.error));
-      Sentry.captureException(result.error ?? new Error(`Email send failed: ${sanitizeEmailLogMessage(logMessage)}`), {
+      captureException(result.error ?? new Error(`Email send failed: ${sanitizeEmailLogMessage(logMessage)}`), {
+        context: 'sendgrid_send_failed',
+        provider: 'sendgrid',
         extra: sanitizeEmailExtras({ to, subject, logMessage, templateId }),
       });
       return false;
     }
   } catch (error: any) {
     console.error(`❌ Failed: ${sanitizeEmailLogMessage(logMessage)}`, error);
-    Sentry.captureException(error, {
+    captureException(error, {
+      context: 'sendgrid_send_threw',
+      provider: 'sendgrid',
       extra: sanitizeEmailExtras({ to, subject, logMessage, templateId }),
     });
     return false;

@@ -77,6 +77,17 @@ interface ScheduledJob {
   description: string;
 }
 
+function withJobTags(jobName: string, context: Record<string, any> = {}) {
+  return {
+    ...context,
+    job: jobName,
+    tags: {
+      ...(context.tags && typeof context.tags === 'object' ? context.tags : {}),
+      job: jobName,
+    },
+  };
+}
+
 const SCHEDULED_JOBS: ScheduledJob[] = [
   {
     name: 'game-reminders-12hr',
@@ -180,14 +191,19 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
         }
         console.error(`[Scheduler] Coach approval drift detected (${drift.length} rows)`);
         captureException(new Error(`Coach approval drift detected (${drift.length} rows)`), {
-          context: 'coach_approval_drift_probe',
+          ...withJobTags('coach-approval-drift-probe', {
+            context: 'coach_approval_drift_probe',
+          }),
           mismatches: drift,
         });
       } catch (error) {
         console.error('[Scheduler] Coach approval drift probe failed:', error);
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-          context: 'coach_approval_drift_probe_failed',
-        });
+        captureException(
+          error instanceof Error ? error : new Error(String(error)),
+          withJobTags('coach-approval-drift-probe', {
+            context: 'coach_approval_drift_probe_failed',
+          })
+        );
       }
     },
   },
@@ -246,7 +262,10 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       } catch (error) {
         console.error('[Scheduler] coach-state-drift-probe failed:', error);
         const { captureException } = await import('../lib/sentry.js');
-        captureException(error as Error, { context: 'coach_state_drift_probe_failed' });
+        captureException(
+          error as Error,
+          withJobTags('coach-state-drift-probe', { context: 'coach_state_drift_probe_failed' })
+        );
       }
     },
   },
@@ -399,15 +418,20 @@ function setupFallbackCron(): boolean {
       if (drift.length > 0) {
         console.error(`[Scheduler] Coach approval drift detected (${drift.length} rows)`);
         captureException(new Error(`Coach approval drift detected (${drift.length} rows)`), {
-          context: 'coach_approval_drift_probe',
+          ...withJobTags('coach-approval-drift-probe', {
+            context: 'coach_approval_drift_probe',
+          }),
           mismatches: drift,
         });
       }
     } catch (error) {
       console.error('[Scheduler] Coach approval drift probe failed:', error);
-      captureException(error instanceof Error ? error : new Error(String(error)), {
-        context: 'coach_approval_drift_probe_failed',
-      });
+      captureException(
+        error instanceof Error ? error : new Error(String(error)),
+        withJobTags('coach-approval-drift-probe', {
+          context: 'coach_approval_drift_probe_failed',
+        })
+      );
     }
   }, 24 * 60 * 60 * 1000);
 
@@ -470,7 +494,18 @@ export async function startSchedulerWorker(): Promise<void> {
         const scheduledJob = SCHEDULED_JOBS.find((j) => j.name === job.name);
         if (scheduledJob) {
           console.log(`[Scheduler] Running ${job.name}: ${scheduledJob.description}`);
-          await scheduledJob.handler();
+          try {
+            await scheduledJob.handler();
+          } catch (error) {
+            captureException(
+              error instanceof Error ? error : new Error(String(error)),
+              withJobTags(job.name, {
+                context: 'scheduler_job_failed',
+                cron: scheduledJob.cron,
+              })
+            );
+            throw error;
+          }
         } else {
           console.warn(`[Scheduler] Unknown job: ${job.name}`);
         }
@@ -484,6 +519,9 @@ export async function startSchedulerWorker(): Promise<void> {
 
     worker.on('failed', (job, err) => {
       console.error(`[Scheduler] Job ${job?.name} failed:`, err);
+      if (job?.name) {
+        captureException(err, withJobTags(job.name, { context: 'scheduler_worker_failed' }));
+      }
     });
 
     console.log('[Scheduler] Worker started');

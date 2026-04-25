@@ -1741,7 +1741,10 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
   const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
   if (!webhookSecret) {
     console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
-    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), { context: 'webhook_secret_missing' });
+    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), {
+      context: 'webhook_secret_missing',
+      provider: 'stripe',
+    });
     return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' });
   }
 
@@ -1750,7 +1753,7 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
     event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
   } catch (err: any) {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
-    captureException(err, { context: 'stripe_webhook_verification_failed' });
+    captureException(err, { context: 'stripe_webhook_verification_failed', provider: 'stripe' });
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
@@ -1777,7 +1780,12 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
       return res.json({ received: true, deduplicated: true });
     }
     console.error('[webhook] Failed to acquire event lock, rejecting for retry:', lockErr?.message || lockErr);
-    captureException(lockErr as Error, { context: 'stripe_webhook_lock_failed', eventType: event.type, eventId: event.id });
+    captureException(lockErr as Error, {
+      context: 'stripe_webhook_lock_failed',
+      provider: 'stripe',
+      eventType: event.type,
+      eventId: event.id,
+    });
     return res.status(500).json({ error: 'Webhook lock acquisition failed' });
   }
 }));
@@ -1794,7 +1802,10 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
   const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
   if (!webhookSecret) {
     console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
-    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), { context: 'webhook_secret_missing' });
+    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), {
+      context: 'webhook_secret_missing',
+      provider: 'stripe',
+    });
     return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' });
   }
   let event: Stripe.Event;
@@ -1803,7 +1814,7 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
     event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
   } catch (err: any) {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
-    captureException(err, { context: 'stripe_webhook_verification_failed' });
+    captureException(err, { context: 'stripe_webhook_verification_failed', provider: 'stripe' });
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
@@ -4037,7 +4048,10 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
         planName: plan.charAt(0).toUpperCase() + plan.slice(1),
         amount: 'Purchased via Apple',
         manageLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/manage-subscription`,
-      }).catch(err => captureException(err as Error, { context: 'apple_iap_confirmation_email' }));
+      }).catch(err => captureException(err as Error, {
+        context: 'apple_iap_confirmation_email',
+        provider: 'apple_iap',
+      }));
     }
 
     debugLog('apple-iap', `User ${userId} subscribed to ${plan} via Apple IAP`);
@@ -4049,7 +4063,7 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     });
   } catch (err: any) {
     console.error('[apple-iap] verify-receipt error:', err);
-    captureException(err, { tags: { context: 'apple-iap-verify' } });
+    captureException(err, { context: 'apple-iap-verify', provider: 'apple_iap' });
     return res.status(500).json({ error: 'Receipt verification failed' });
   }
 }));
@@ -4218,7 +4232,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
     }
   } catch (err: any) {
     console.error('[apple-iap] verify-ad-receipt error:', err);
-    captureException(err, { tags: { context: 'apple-iap-verify-ad' } });
+    captureException(err, { context: 'apple-iap-verify-ad', provider: 'apple_iap' });
     return res.status(500).json({ error: 'Receipt verification failed' });
   }
 }));
@@ -4562,7 +4576,10 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
           to: user.email,
           type: 'subscription_canceled',
           planName: previousPlan.charAt(0).toUpperCase() + previousPlan.slice(1),
-        }).catch(err => captureException(err as Error, { context: 'apple_s2s_cancel_email' }));
+        }).catch(err => captureException(err as Error, {
+          context: 'apple_s2s_cancel_email',
+          provider: 'apple_iap',
+        }));
       }
     } else {
       debugLog('apple-s2s', `Unhandled notification type: ${notificationType}/${subtype} for user ${userId}`);
@@ -4571,7 +4588,7 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
     return res.sendStatus(200);
   } catch (err: any) {
     console.error('[apple-s2s] Error processing notification:', err);
-    captureException(err, { tags: { context: 'apple-s2s-notification' } });
+    captureException(err, { context: 'apple-s2s-notification', provider: 'apple_iap' });
     // Always return 200 so Apple doesn't retry indefinitely
     return res.sendStatus(200);
   }
@@ -4812,7 +4829,10 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
         planName: plan.charAt(0).toUpperCase() + plan.slice(1),
         amount: 'Purchased via Google Play',
         manageLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/manage-subscription`,
-      }).catch(err => captureException(err as Error, { context: 'google_iap_confirmation_email' }));
+      }).catch(err => captureException(err as Error, {
+        context: 'google_iap_confirmation_email',
+        provider: 'google_iap',
+      }));
     }
 
     debugLog('google-iap', `User ${userId} subscribed to ${plan} via Google Play Billing`);
@@ -4820,7 +4840,7 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
     return res.json({ ok: true, plan, verified: verifiedByStore });
   } catch (err: any) {
     console.error('[google-iap] verify-purchase error:', err);
-    captureException(err, { tags: { context: 'google-iap-verify' } });
+    captureException(err, { context: 'google-iap-verify', provider: 'google_iap' });
     return res.status(500).json({ error: 'Verification failed' });
   }
 }));

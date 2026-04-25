@@ -16,6 +16,7 @@ const isPlaceholderDsn = (dsn: string) => {
 };
 
 const shouldUseSentry = !__DEV__ && !!SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN);
+const MOBILE_SERVICE_TAG = 'mobile';
 
 let sentryReady = false;
 const SENSITIVE_BREADCRUMB_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
@@ -66,6 +67,7 @@ export function initSentry() {
     sentryReady = true;
 
     // Tag with platform and version for filtering
+    Sentry.setTag('service', MOBILE_SERVICE_TAG);
     Sentry.setTag('platform', Platform.OS);
     Sentry.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
     Sentry.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
@@ -117,6 +119,7 @@ export function captureException(error: Error | unknown, context?: Record<string
 
   if (__DEV__) console.error('[sentry] Capturing exception:', error);
   Sentry.withScope(scope => {
+    scope.setTag('service', MOBILE_SERVICE_TAG);
     if (context) {
       const { tags, ...rest } = context;
       if (tags && typeof tags === 'object' && !Array.isArray(tags)) {

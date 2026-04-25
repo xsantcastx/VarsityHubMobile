@@ -118,14 +118,22 @@ await initEmailService();
     console.log(`  ${icon} ${key}: prefix="${trimmed.slice(0, 4)}" len=${trimmed.length}${wsNote}`);
   }
 
-  if (invalid.length > 0) {
+    if (invalid.length > 0) {
     console.warn(`[startup] ⚠️  ${invalid.length} of ${templateVars.length} SendGrid template ID(s) failed format check:`);
     for (const entry of invalid) {
       console.warn(`    ${entry.key}: ${entry.issue}`);
     }
     captureMessage(
       `Invalid SendGrid template ID format: ${invalid.map(i => i.key).join(', ')}`,
-      'warning'
+      'warning',
+      {
+        context: 'sendgrid_template_validation',
+        tags: {
+          provider: 'sendgrid',
+          job: 'startup',
+        },
+        invalidTemplateKeys: invalid.map(i => i.key),
+      }
     );
   } else {
     console.log(`[startup] ✅ All configured SendGrid template IDs pass format check`);
@@ -171,7 +179,15 @@ void (async () => {
     } else if (kind === 'unauthorized') {
       console.error('[startup] HINT: CLOUDINARY_API_KEY on Railway does not match Cloudinary dashboard. Verify it in Cloudinary → Settings → API Keys.');
     }
-    captureMessage(`Cloudinary boot probe failed: ${message}`, 'error');
+    captureMessage(`Cloudinary boot probe failed: ${message}`, 'error', {
+      context: 'cloudinary_boot_probe',
+      tags: {
+        provider: 'cloudinary',
+        job: 'startup',
+      },
+      kind,
+      httpCode,
+    });
   }
 })();
 

@@ -6,7 +6,7 @@
  */
 
 import type { NextFunction, Request, Response } from 'express';
-import { captureException } from '../lib/sentry.js';
+import { captureException, getSentryRouteTag } from '../lib/sentry.js';
 import { AppError } from '../lib/errors/AppError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import { AuthenticationError } from '../lib/errors/AuthenticationError.js';
@@ -119,8 +119,11 @@ export function errorHandler(
   });
 
   // Capture in Sentry
+  const provider = typeof (err as any)?.provider === 'string' ? (err as any).provider : undefined;
   captureException(err, {
     context: 'unknown_error',
+    provider,
+    route: getSentryRouteTag(req),
     extra: {
       path: req.path,
       method: req.method,
