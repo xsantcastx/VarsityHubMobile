@@ -15,18 +15,26 @@
  */
 
 import 'dotenv/config';
+import {
+  CANONICAL_EMAIL_FROM,
+  isCanonicalEmailFrom,
+  resolveEmailFrom,
+} from '../src/lib/emailSender.js';
 
 // ─── 1. Environment check ───────────────────────────────────────
 console.log('\n═══ VarsityHub Email Diagnostics ═══\n');
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
-const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || '';
+const EMAIL_FROM = resolveEmailFrom();
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 console.log(`Environment:        ${NODE_ENV}`);
 console.log(`SENDGRID_API_KEY:   ${SENDGRID_API_KEY ? `set (${SENDGRID_API_KEY.substring(0, 5)}...)` : '❌ MISSING'}`);
-console.log(`EMAIL_FROM:         ${EMAIL_FROM || '❌ MISSING (defaults to noreply@varsityhub.app)'}`);
+console.log(`EMAIL_FROM:         ${EMAIL_FROM}`);
 console.log(`EMAIL_OVERRIDE_TO:  ${process.env.EMAIL_OVERRIDE_TO || '(none)'}`);
+if (!isCanonicalEmailFrom(EMAIL_FROM)) {
+  console.warn(`⚠️  Sender drift: expected ${CANONICAL_EMAIL_FROM}, got ${EMAIL_FROM}`);
+}
 
 if (!SENDGRID_API_KEY) {
   console.error('\n❌ SENDGRID_API_KEY is not set — emails cannot be sent.');
@@ -104,7 +112,7 @@ if (!probeTo) {
 }
 
 console.log(`Sending test email to: ${probeTo}`);
-const fromAddr = EMAIL_FROM || 'noreply@varsityhub.app';
+const fromAddr = EMAIL_FROM;
 
 try {
   const [response] = await sgMail.send({

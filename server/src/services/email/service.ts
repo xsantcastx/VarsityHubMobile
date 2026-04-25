@@ -6,6 +6,7 @@
 
 import { EmailService } from './EmailService.js';
 import type { EmailServiceConfig } from './types.js';
+import { CANONICAL_EMAIL_FROM, isCanonicalEmailFrom, resolveEmailFrom } from '../../lib/emailSender.js';
 
 let emailServiceInstance: EmailService | null = null;
 
@@ -15,8 +16,7 @@ let emailServiceInstance: EmailService | null = null;
 export function getEmailService(): EmailService {
   if (!emailServiceInstance) {
     const provider = (process.env.EMAIL_PROVIDER || 'sendgrid') as 'sendgrid' | 'smtp' | 'test';
-    // Default sender: noreply@varsityhub.app (Twilio SendGrid)
-    const defaultFrom = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
+    const defaultFrom = resolveEmailFrom();
 
     const config: EmailServiceConfig = {
       provider,
@@ -46,6 +46,11 @@ export function initEmailService(): { success: boolean; errors: string[] } {
     console.log('✅ Email service initialized successfully');
     console.log(`   Provider: ${config.provider}`);
     console.log(`   Sender: ${config.defaultFrom}`);
+    if (!isCanonicalEmailFrom(String(config.defaultFrom))) {
+      console.warn(
+        `⚠️ Email sender drift detected: expected ${CANONICAL_EMAIL_FROM}, got ${String(config.defaultFrom)}`
+      );
+    }
     console.log(`   Timeout: ${config.timeout}ms`);
     console.log(`   Retries: ${config.retryAttempts}`);
   } else {

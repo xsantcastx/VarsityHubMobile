@@ -20,6 +20,7 @@ import type {
 import { EmailErrorCode } from './types.js';
 import { SendGridProvider } from './providers/SendGridProvider.js';
 import { captureException, captureMessage } from '../../lib/sentry.js';
+import { resolveEmailFrom } from '../../lib/emailSender.js';
 import {
   redactEmailList,
   sanitizeEmailLogMessage,
@@ -51,8 +52,7 @@ export class EmailService {
     switch (this.config.provider) {
       case 'sendgrid':
         const apiKey = process.env.SENDGRID_API_KEY || '';
-        const defaultFrom =
-          process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
+        const defaultFrom = resolveEmailFrom();
 
         return new SendGridProvider({
           apiKey,

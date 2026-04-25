@@ -43,12 +43,11 @@ Select "PostgreSQL" from the list. Railway will automatically provide the `DATAB
 JWT_SECRET=your-super-secure-jwt-secret-minimum-32-characters-long-please-change-this
 NODE_ENV=production
 
-# Email Configuration
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=its.sc05@gmail.com
-SMTP_PASS=oqjwfyovgmxuwobg
-FROM_EMAIL=its.sc05@gmail.com
+# Email Configuration (SendGrid)
+EMAIL_PROVIDER=sendgrid
+EMAIL_FROM=noreply@varsityhub.app
+FROM_EMAIL=noreply@varsityhub.app
+SUPPORT_REPLY_TO=customerservice@varsityhub.app
 ADMIN_EMAILS=xsancastrillonx@hotmail.com
 
 # CORS
