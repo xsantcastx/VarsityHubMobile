@@ -27,6 +27,8 @@
     "format:check": "npx prettier --check \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
     "lint:strict": "expo lint --fix && npm run typecheck",
     "doctor": "npx expo-doctor",
+    "coach:uat:baseline": "bash scripts/run-coach-uat-baseline.sh",
+    "coach:uat:prepare": "npm --prefix server run prepare:coach:uat",
     "validate:pre-launch": "bash scripts/validate-pre-launch.sh",
     "build:production": "bash scripts/build-production.sh",
     "build:ios": "bash scripts/build-safe.sh ios",
