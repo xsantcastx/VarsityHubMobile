@@ -14,6 +14,52 @@ import {
   ObjectStorageNotConfiguredError,
 } from '../lib/objectStorage.js';
 
+export async function recoverSlotFullRefundReleaseFailures(referenceTime = new Date()) {
+  const cutoff = new Date(referenceTime.getTime() - 60 * 60 * 1000);
+  const candidates = await prisma.transactionLog.findMany({
+    where: {
+      transaction_type: 'AD_PURCHASE',
+      status: 'NEEDS_REVIEW',
+      order_id: { not: null },
+      updated_at: { lt: cutoff },
+    },
+    orderBy: { updated_at: 'asc' },
+    take: 200,
+  });
+
+  let recovered = 0;
+  for (const tx of candidates) {
+    const metadata = ((tx.metadata as Record<string, unknown> | null) || {}) as Record<string, unknown>;
+    if (metadata.release_pending !== true) continue;
+    if (!tx.order_id) continue;
+
+    await prisma.$transaction([
+      prisma.adReservation.deleteMany({ where: { ad_id: tx.order_id } }),
+      prisma.ad.updateMany({
+        where: {
+          id: tx.order_id,
+          payment_status: { in: ['hold', 'pending_approval'] },
+        },
+        data: { payment_status: 'unpaid' },
+      }),
+      prisma.transactionLog.update({
+        where: { id: tx.id },
+        data: {
+          status: 'REFUNDED',
+          metadata: {
+            ...metadata,
+            release_pending: false,
+            release_recovered_at: new Date().toISOString(),
+          },
+        },
+      }),
+    ]);
+    recovered += 1;
+  }
+
+  return recovered;
+}
+
 /**
  * Overnight monitoring task
  * Runs every 4 hours to check queue health and send alerts
@@ -270,7 +316,15 @@ export function startAdGoLiveCheck() {
         );
       }
 
-      // 5. Archive approved ads that were never paid (older than 30 days)
+      // 5. Recover refunded slot-full transactions whose inventory release failed after refund.
+      const recoveredSlotFullReleaseFailures = await recoverSlotFullRefundReleaseFailures(now);
+      if (recoveredSlotFullReleaseFailures > 0) {
+        debugLog(
+          `[ad-lifecycle] Recovered ${recoveredSlotFullReleaseFailures} refunded ad transactions with stuck inventory`
+        );
+      }
+
+      // 6. Archive approved ads that were never paid (older than 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const unpaidAds = await prisma.ad.findMany({
         where: {
@@ -293,7 +347,7 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Archived ${unpaidAds.length} unpaid approved ads (>30 days)`);
       }
 
-      // 6. Clean up old ProcessedStripeEvent records (older than 30 days)
+      // 7. Clean up old ProcessedStripeEvent records (older than 30 days)
       const deletedEvents = await prisma.processedStripeEvent.deleteMany({
         where: { created_at: { lt: thirtyDaysAgo } },
       });

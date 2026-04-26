@@ -21,6 +21,8 @@ let finalizeAppleAdPurchase: (params: {
   receiptsCount: number;
 }) => Promise<{ ok: true; idempotent: boolean; appleTransactionIds: string[] }>;
 let releaseAdInventoryAfterSlotFullRefund: (adId: string) => Promise<void>;
+let releaseAdInventoryAfterSlotFullRefundWithRetry: (adId: string) => Promise<void>;
+let recoverSlotFullRefundReleaseFailures: (referenceTime?: Date) => Promise<number>;
 let dbReady = false;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
@@ -36,10 +38,15 @@ describeDb('Checkout session finalization', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     const paymentsModule = await import('../routes/payments.js');
+    const overnightTasksModule = await import('../cron/overnightTasks.js');
     runFinalizeFromSession = paymentsModule.__paymentsInternal.runFinalizeFromSession;
     finalizeAppleSubscriptionPurchase = paymentsModule.__paymentsInternal.finalizeAppleSubscriptionPurchase;
     finalizeAppleAdPurchase = paymentsModule.__paymentsInternal.finalizeAppleAdPurchase;
     releaseAdInventoryAfterSlotFullRefund = paymentsModule.__paymentsInternal.releaseAdInventoryAfterSlotFullRefund;
+    releaseAdInventoryAfterSlotFullRefundWithRetry =
+      paymentsModule.__paymentsInternal.releaseAdInventoryAfterSlotFullRefundWithRetry;
+    recoverSlotFullRefundReleaseFailures =
+      overnightTasksModule.recoverSlotFullRefundReleaseFailures;
     try {
       await prisma.$queryRawUnsafe('SELECT 1');
       dbReady = true;
@@ -367,6 +374,115 @@ describeDb('Checkout session finalization', () => {
     expect(refreshedAd?.status).toBe('approved');
     expect(refreshedAd?.payment_status).toBe('unpaid');
     expect(reservations).toHaveLength(0);
+  });
+
+  it('retries slot-full inventory release successfully when the ad is still recoverable', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const user = await prisma.user.create({
+      data: {
+        email: `ad-release-retry-${now}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Ad Release Retry User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+      },
+    });
+    createdUserIds.push(user.id);
+
+    const ad = await prisma.ad.create({
+      data: {
+        user_id: user.id,
+        business_name: 'Release Retry Test Ad',
+        contact_email: user.email,
+        target_zip_code: '10010',
+        status: 'approved',
+        payment_status: 'pending_approval',
+      },
+    });
+    createdAdIds.push(ad.id);
+
+    await prisma.adReservation.create({
+      data: { ad_id: ad.id, date: new Date('2035-05-03T00:00:00.000Z') },
+    });
+
+    await releaseAdInventoryAfterSlotFullRefundWithRetry(ad.id);
+
+    const [refreshedAd, reservations] = await Promise.all([
+      prisma.ad.findUnique({ where: { id: ad.id } }),
+      prisma.adReservation.findMany({ where: { ad_id: ad.id } }),
+    ]);
+
+    expect(refreshedAd?.payment_status).toBe('unpaid');
+    expect(reservations).toHaveLength(0);
+  });
+
+  it('cron recovers slot-full refunds that were refunded but left marked release_pending', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const user = await prisma.user.create({
+      data: {
+        email: `ad-release-recover-${now}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Ad Release Recover User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+      },
+    });
+    createdUserIds.push(user.id);
+
+    const ad = await prisma.ad.create({
+      data: {
+        user_id: user.id,
+        business_name: 'Release Recover Test Ad',
+        contact_email: user.email,
+        target_zip_code: '10011',
+        status: 'approved',
+        payment_status: 'hold',
+      },
+    });
+    createdAdIds.push(ad.id);
+
+    await prisma.adReservation.create({
+      data: { ad_id: ad.id, date: new Date('2035-05-04T00:00:00.000Z') },
+    });
+
+    const tx = await prisma.transactionLog.create({
+      data: {
+        transaction_type: 'AD_PURCHASE',
+        status: 'NEEDS_REVIEW',
+        user_id: user.id,
+        user_email: user.email,
+        order_id: ad.id,
+        metadata: {
+          reason: 'slot_full_release_failed',
+          stripe_refund_id: `re_${now}`,
+          refunded_at: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+          release_pending: true,
+        },
+      } as any,
+    });
+
+    const recovered = await recoverSlotFullRefundReleaseFailures(
+      new Date(now + 2 * 60 * 60 * 1000)
+    );
+
+    const [refreshedAd, reservations, refreshedTx] = await Promise.all([
+      prisma.ad.findUnique({ where: { id: ad.id } }),
+      prisma.adReservation.findMany({ where: { ad_id: ad.id } }),
+      prisma.transactionLog.findUnique({ where: { id: tx.id } }),
+    ]);
+
+    expect(recovered).toBeGreaterThanOrEqual(1);
+    expect(refreshedAd?.payment_status).toBe('unpaid');
+    expect(reservations).toHaveLength(0);
+    expect(refreshedTx?.status).toBe('REFUNDED');
+    expect((refreshedTx?.metadata as any)?.release_pending).toBe(false);
+    expect((refreshedTx?.metadata as any)?.release_recovered_at).toBeTruthy();
   });
 
   it('claims each Apple ad receipt transaction id and treats same-user retries as idempotent', async () => {

@@ -173,7 +173,16 @@ describe('ad lifecycle structural invariants', () => {
     expect(slotFullReleaseHelper).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
 
     const releaseCalls = payments.match(/releaseAdInventoryAfterSlotFullRefund\(/g) || [];
-    expect(releaseCalls.length).toBeGreaterThanOrEqual(3);
+    expect(releaseCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('slot-full refund failures that happen after Stripe refund are flagged for recovery instead of pretending the refund failed', () => {
+    expect(payments).toMatch(/releaseAdInventoryAfterSlotFullRefundWithRetry/);
+    expect(payments).toMatch(/updateTransactionStatus\([^)]*,\s*'NEEDS_REVIEW'/);
+    expect(payments).toMatch(/release_pending:\s*true/);
+    expect(overnightTasks).toMatch(/export async function recoverSlotFullRefundReleaseFailures/);
+    expect(overnightTasks).toMatch(/status:\s*'REFUNDED'/);
+    expect(overnightTasks).toMatch(/release_pending:\s*false/);
   });
 
   it('refund and archive paths use the currently supported terminal tuples', () => {

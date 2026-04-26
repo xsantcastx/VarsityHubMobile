@@ -97,6 +97,22 @@ async function releaseAdInventoryAfterSlotFullRefund(adId: string) {
   ]);
 }
 
+async function releaseAdInventoryAfterSlotFullRefundWithRetry(adId: string) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await releaseAdInventoryAfterSlotFullRefund(adId);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
 async function enforceVerifiedForSubscriptionFlow(
   req: AuthedRequest,
   res: Response,
@@ -618,10 +634,45 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             // Auto-refund: charge the user's card back immediately
             try {
               const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
-              await releaseAdInventoryAfterSlotFullRefund(adId);
-              await updateTransactionStatus(pi.id, 'REFUNDED', {
-                metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
-              });
+              try {
+                await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
+                await updateTransactionStatus(pi.id, 'REFUNDED', {
+                  metadata: {
+                    reason: 'slot_full',
+                    overbooked_dates: e.dates,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                  },
+                });
+              } catch (releaseErr: any) {
+                console.error('[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED', {
+                  ad_id: adId,
+                  pi_id: pi.id,
+                  error: releaseErr?.message,
+                });
+                captureException(releaseErr as Error, {
+                  context: 'slot_full_release_after_refund_failed',
+                  adId,
+                  piId: pi.id,
+                  refundId: refund.id,
+                });
+                await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
+                  metadata: {
+                    reason: 'slot_full_release_failed',
+                    overbooked_dates: e.dates,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                    release_pending: true,
+                    release_error: releaseErr?.message || 'release_failed',
+                  },
+                });
+              }
               // Notify user their dates were unavailable and they've been refunded
               const adForRefund = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
               const refundUser = meta.user_id ? await prisma.user.findUnique({ where: { id: meta.user_id }, select: { email: true } }) : null;
@@ -2406,10 +2457,45 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
             // Auto-refund: charge the user's card back immediately
             try {
               const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
-              await releaseAdInventoryAfterSlotFullRefund(adId);
-              await updateTransactionStatus(pi.id, 'REFUNDED', {
-                metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
-              });
+              try {
+                await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
+                await updateTransactionStatus(pi.id, 'REFUNDED', {
+                  metadata: {
+                    reason: 'slot_full',
+                    overbooked_dates: e.dates,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                  },
+                });
+              } catch (releaseErr: any) {
+                console.error('[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED', {
+                  ad_id: adId,
+                  pi_id: pi.id,
+                  error: releaseErr?.message,
+                });
+                captureException(releaseErr as Error, {
+                  context: 'slot_full_release_after_refund_failed',
+                  adId,
+                  piId: pi.id,
+                  refundId: refund.id,
+                });
+                await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
+                  metadata: {
+                    reason: 'slot_full_release_failed',
+                    overbooked_dates: e.dates,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                    release_pending: true,
+                    release_error: releaseErr?.message || 'release_failed',
+                  },
+                });
+              }
               // Notify user their dates were unavailable and they've been refunded
               const adForRefund = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
               const refundUser = meta.user_id ? await prisma.user.findUnique({ where: { id: meta.user_id }, select: { email: true } }) : null;
@@ -3265,20 +3351,47 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           const piId = session.payment_intent ? String(session.payment_intent) : '';
           if (piId) {
             const refund = await stripe.refunds.create({ payment_intent: piId, reason: 'requested_by_customer' });
-            await releaseAdInventoryAfterSlotFullRefund(ad_id);
-            // v1.0.2 audit fix: persist refunded amount in metadata for audit trail.
-            // Previously only stripe_refund_id was saved — no record of how much was refunded.
-            await updateTransactionStatus(session.id, 'REFUNDED', {
-              metadata: {
-                reason: 'slot_full',
-                overbooked_dates: e.dates,
-                stripe_refund_id: refund.id,
-                refunded_amount_cents: refund.amount ?? totalCents,
-                refund_currency: refund.currency || 'usd',
-                refund_status: refund.status || 'pending',
-                refunded_at: new Date().toISOString(),
-              },
-            });
+            try {
+              await releaseAdInventoryAfterSlotFullRefundWithRetry(ad_id);
+              // v1.0.2 audit fix: persist refunded amount in metadata for audit trail.
+              // Previously only stripe_refund_id was saved — no record of how much was refunded.
+              await updateTransactionStatus(session.id, 'REFUNDED', {
+                metadata: {
+                  reason: 'slot_full',
+                  overbooked_dates: e.dates,
+                  stripe_refund_id: refund.id,
+                  refunded_amount_cents: refund.amount ?? totalCents,
+                  refund_currency: refund.currency || 'usd',
+                  refund_status: refund.status || 'pending',
+                  refunded_at: new Date().toISOString(),
+                },
+              });
+            } catch (releaseErr: any) {
+              console.error('[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED', {
+                ad_id,
+                session_id: session.id,
+                error: releaseErr?.message,
+              });
+              captureException(releaseErr as Error, {
+                context: 'slot_full_release_after_refund_failed_session',
+                adId: ad_id,
+                sessionId: session.id,
+                refundId: refund.id,
+              });
+              await updateTransactionStatus(session.id, 'NEEDS_REVIEW', {
+                metadata: {
+                  reason: 'slot_full_release_failed',
+                  overbooked_dates: e.dates,
+                  stripe_refund_id: refund.id,
+                  refunded_amount_cents: refund.amount ?? totalCents,
+                  refund_currency: refund.currency || 'usd',
+                  refund_status: refund.status || 'pending',
+                  refunded_at: new Date().toISOString(),
+                  release_pending: true,
+                  release_error: releaseErr?.message || 'release_failed',
+                },
+              });
+            }
             // Notify user
             if (fallbackEmail) {
               const adForRefund = await prisma.ad.findUnique({ where: { id: ad_id }, select: { business_name: true, target_zip_code: true } });
@@ -5173,4 +5286,5 @@ export const __paymentsInternal = {
   finalizeAppleAdPurchase,
   getVeteranBillingSnapshot,
   releaseAdInventoryAfterSlotFullRefund,
+  releaseAdInventoryAfterSlotFullRefundWithRetry,
 };
