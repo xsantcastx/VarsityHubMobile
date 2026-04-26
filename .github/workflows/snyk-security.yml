@@ -111,40 +111,13 @@ jobs:
           sarif_file: snyk-server.sarif
           category: snyk-server
 
-  dependency-audit:
-    runs-on: ubuntu-latest
-    name: npm audit
-    if: >-
-      !contains(github.event.head_commit.message, '[skip snyk]') &&
-      (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
-      (vars.SKIP_SNYK != 'true')
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Run npm audit (server)
-        run: cd server && npm ci && npm audit --audit-level=moderate
-        continue-on-error: true
-
-      - name: Check for high/critical vulnerabilities (server)
-        run: |
-          cd server
-          CRITICAL=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.critical // 0')
-          HIGH=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.high // 0')
-          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "Found critical or high severity vulnerabilities in server"
-            npm audit
-            exit 1
-          else
-            echo "No high/critical vulnerabilities found in server"
-          fi
+  # npm audit is intentionally NOT run here. It's covered by:
+  #   - npm-audit.yml (nightly, severity-aware: fails on critical/high)
+  #   - ci.yml audit gate (every PR, fails on high)
+  #   - ci-cd.yml audit gate (every PR, --omit=dev for prod deploy strictness)
+  # Running it again from snyk-security.yml created duplicate notifications
+  # on the same moderate findings without adding any new signal. This file
+  # now focuses on Snyk-unique scans (SAST + container).
 
   container-scan:
     runs-on: ubuntu-latest
@@ -192,7 +165,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Security Summary
     if: always()
-    needs: [snyk-scan, dependency-audit]
+    needs: [snyk-scan]
 
     steps:
       - name: Check scan results
@@ -200,7 +173,9 @@ jobs:
           echo "Security Scanning Complete"
           echo "- Snyk Code scanning (SAST) - completed"
           echo "- Snyk Open Source scanning (SCA) - completed"
-          echo "- npm audit - completed"
+          echo ""
+          echo "npm audit signal lives in npm-audit.yml (nightly) and the"
+          echo "audit gates inside ci.yml + ci-cd.yml — not duplicated here."
           echo ""
           echo "Next steps:"
           echo "  1. Review security tab for detailed findings"
