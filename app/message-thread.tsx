@@ -286,7 +286,7 @@ function MessageThreadScreen() {
 
   const title = useMemo(() => {
     if (otherParticipant) {
-      return otherParticipant.display_name || otherParticipant.email || 'User';
+      return formatUserLabel(otherParticipant, 'User');
     }
     if (withParam) {
       const w = String(withParam);

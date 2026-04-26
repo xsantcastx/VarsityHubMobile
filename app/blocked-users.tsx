@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
+import { formatUserLabel } from '@/utils/userDisplay';
 
 interface BlockedUser {
   id: string;
@@ -122,7 +123,7 @@ function BlockedUsersScreen() {
                 borderColor: isDark ? '#374151' : '#D1D5DB'
               }]}>
                 <View>
-                  <Text style={[styles.email, { color: theme.text }]}>{item.display_name || item.username || 'User'}</Text>
+                  <Text style={[styles.email, { color: theme.text }]}>{formatUserLabel(item)}</Text>
                   {item.username ? <Text style={[styles.muted, { fontSize: 12, color: theme.mutedText }]}>@{item.username}</Text> : null}
                 </View>
                 <Pressable onPress={() => remove(item.id)} style={styles.removeBtn}>

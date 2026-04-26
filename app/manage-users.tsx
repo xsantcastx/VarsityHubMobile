@@ -8,6 +8,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { formatUserLabel } from '@/utils/userDisplay';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
@@ -70,7 +71,7 @@ function ManageUsersScreen() {
         renderItem={({ item }) => (
           <View style={[styles.row, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.name, { color: Colors[colorScheme].text }]}>{item.user?.display_name || item.user?.email || 'User'}</Text>
+              <Text style={[styles.name, { color: Colors[colorScheme].text }]}>{formatUserLabel(item.user)}</Text>
               <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.user?.email || ''}</Text>
             </View>
             <Badge>{item.role}</Badge>
