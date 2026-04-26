@@ -294,7 +294,7 @@ describe('Coach Approval Workflow', () => {
         .send({ option_id: poll.options[0].id });
 
       expect(voteRes.status).toBe(200);
-      expect(voteRes.body?.poll?.userVote).toBe(poll.options[0].id);
+      expect(voteRes.body?.userVote).toBe(poll.options[0].id);
 
       const patchRes = await request(app)
         .patch(`/posts/${ownPostRes.body.id}`)
