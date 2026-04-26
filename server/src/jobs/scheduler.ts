@@ -297,6 +297,35 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    name: 'apple-iap-reconciliation',
+    // Off-clock minutes, twice an hour. Reads only — no Apple API call,
+    // safe to over-fire. Same probe shape as stripe-webhook-reconciliation
+    // but works against local data because we don't have App Store Server
+    // API credentials provisioned.
+    cron: '23,53 * * * *',
+    description:
+      'Detect stuck-PENDING Apple IAP transactions and Apple S2S notification dry-spells; alert via Sentry',
+    handler: async () => {
+      try {
+        const { reconcileAppleIapOrphans } = await import('../lib/appleIapReconciliation.js');
+        const result = await reconcileAppleIapOrphans();
+        if (result.stuckPending > 0 || result.notificationDrySpell) {
+          console.error(
+            `[Scheduler] apple-iap-reconciliation: stuck=${result.stuckPending} dryspell=${result.notificationDrySpell}`
+          );
+        }
+      } catch (error) {
+        console.error('[Scheduler] apple-iap-reconciliation failed:', error);
+        captureException(
+          error instanceof Error ? error : new Error(String(error)),
+          withJobTags('apple-iap-reconciliation', {
+            context: 'apple_iap_reconciliation_failed',
+          })
+        );
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;
