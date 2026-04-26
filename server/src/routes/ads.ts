@@ -483,6 +483,12 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
 
   debugLog('[ads] for-feed where clause for ads:', whereAd);
 
+  // Reservations are used only in `where: { reservations: { some: ... } }`
+  // to filter ads with at least one matching booking. We do NOT include the
+  // full reservation rows: with up to 56 days of reservations per ad and 20
+  // ads returned, that was ~1100 row Cartesian product on every feed load.
+  // The for-feed response shape (below) does not surface reservations to
+  // clients; the per-ad detail endpoint hydrates them on demand.
   const ads = await prisma.ad.findMany({
     where: {
       ...whereAd,
@@ -492,8 +498,20 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
     },
     orderBy: { created_at: 'desc' },
     take: 20,
-    include: {
-      reservations: true,
+    select: {
+      id: true,
+      business_name: true,
+      banner_url: true,
+      banner_fit_mode: true,
+      target_url: true,
+      target_zip_code: true,
+      target_lat: true,
+      target_lng: true,
+      radius: true,
+      description: true,
+      status: true,
+      payment_status: true,
+      created_at: true,
     },
   });
 
@@ -532,11 +550,6 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
       banner_url: !!ad.banner_url,
       target_zip_code: ad.target_zip_code,
       radius: ad.radius,
-      reservations: ad.reservations.map(r => ({
-        id: r.id,
-        date: r.date,
-        dateISO: r.date.toISOString(),
-      })),
     })),
   });
 
