@@ -202,7 +202,10 @@ function buildWebScreenUrl(
   params: Record<string, string | null | undefined> = {}
 ): string {
   const normalizedPath = pathname.replace(/^\/+/, '');
-  const url = new URL(`${APP_BASE_URL}/${normalizedPath}`);
+  // Email review + app-handoff routes are served by the API service.
+  // Using APP_BASE_URL here breaks moderation emails whenever APP_BASE_URL
+  // points at the marketing/app site instead of the Express server.
+  const url = new URL(`${API_BASE_URL}/${normalizedPath}`);
   for (const [key, value] of Object.entries(params)) {
     if (typeof value === 'string' && value.trim().length > 0) {
       url.searchParams.set(key, value);
@@ -1779,7 +1782,7 @@ export async function sendCoachRejectedEmail(params: {
  */
 export async function sendAdminActionConfirmationEmail(params: {
   to: string;
-  action: 'league_approved' | 'league_rejected';
+  action: 'league_approved' | 'league_rejected' | 'ad_approved' | 'ad_rejected';
   leagueName: string;
   ownerName?: string;
   ownerEmail?: string;
@@ -1793,7 +1796,10 @@ export async function sendAdminActionConfirmationEmail(params: {
     return false;
   }
 
-  const actionLabel = params.action === 'league_approved' ? 'Approved' : 'Rejected';
+  const actionLabel =
+    params.action === 'league_approved' || params.action === 'ad_approved'
+      ? 'Approved'
+      : 'Rejected';
 
   return sendTemplateEmail(
     templateId,

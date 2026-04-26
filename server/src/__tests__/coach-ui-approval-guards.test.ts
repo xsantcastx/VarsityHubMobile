@@ -34,6 +34,10 @@ const onboardingIndexScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'index.tsx'),
   'utf8'
 );
+const authProvider = readFileSync(
+  join(process.cwd(), '..', 'context', 'AuthProvider.tsx'),
+  'utf8'
+);
 const appRouteDecisions = readFileSync(
   join(process.cwd(), '..', 'utils', 'appRouteDecisions.ts'),
   'utf8'
@@ -135,5 +139,11 @@ describe('coach approval UI guards', () => {
     expect(step3LeagueScreen).toContain("ownerName: 'the league owner'");
     expect(step3LeagueScreen).toContain('Optional message to league owner');
     expect(pendingApprovalScreen).toContain("params.ownerName || 'the league owner'");
+  });
+
+  it('client admin access requires a verified admin account before showing admin screens', () => {
+    expect(authProvider).toMatch(
+      /const isAdmin =\s*user\?\.email_verified === true &&\s*\(/
+    );
   });
 });

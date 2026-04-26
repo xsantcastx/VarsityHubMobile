@@ -159,7 +159,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Derived state
   const normalizedRole = String(user?.role || '').toLowerCase();
   const isAdmin =
-    normalizedRole === 'admin' || normalizedRole === 'super_admin' || user?.is_admin === true;
+    user?.email_verified === true &&
+    (normalizedRole === 'admin' || normalizedRole === 'super_admin' || user?.is_admin === true);
   const isOnboardingComplete = useCallback(
     (authUser: AuthUser | null | undefined) =>
       authUser?.onboarding_completed === true ||

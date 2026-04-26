@@ -46,4 +46,13 @@ describe('approval notification guards', () => {
       /JOIN_REQUEST_DENIED[\s\S]*?captureException\(notifErr as Error,\s*\{[\s\S]*?context:\s*'join_request_denial_notification_failed'/
     );
   });
+
+  it('ad approval and rejection fan out admin confirmation emails', () => {
+    const approveAdBody = extractFunctionBody(approvalService, 'approveAd');
+    const rejectAdBody = extractFunctionBody(approvalService, 'rejectAd');
+    expect(approveAdBody).toMatch(/await notifyAllAdminsOfAdAction\(\s*\{/);
+    expect(approveAdBody).toMatch(/action:\s*'ad_approved'/);
+    expect(rejectAdBody).toMatch(/await notifyAllAdminsOfAdAction\(\s*\{/);
+    expect(rejectAdBody).toMatch(/action:\s*'ad_rejected'/);
+  });
 });

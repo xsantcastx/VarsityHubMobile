@@ -10,6 +10,7 @@ describe('Email template helpers', () => {
   beforeEach(() => {
     jest.resetModules();
     process.env = { ...originalEnv };
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
   });
 
   afterEach(() => {
@@ -74,11 +75,12 @@ describe('Email template helpers', () => {
 
   it('buildLeagueApprovalReviewUrl points into the admin app flow', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
     const { buildLeagueApprovalReviewUrl } = await import('../lib/email.js');
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.origin).toBe('https://api.varsityhub.app');
     expect(parsed.pathname).toBe('/organizations/org_123/approve');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -88,11 +90,12 @@ describe('Email template helpers', () => {
 
   it('buildCoachApplicationReviewUrl points to a browser-safe admin dashboard URL', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
     const { buildCoachApplicationReviewUrl } = await import('../lib/email.js');
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildCoachApplicationReviewUrl({ coachId: 'user_123', action: 'reject' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.origin).toBe('https://api.varsityhub.app');
     expect(parsed.pathname).toBe('/admin/coaches/user_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -101,6 +104,7 @@ describe('Email template helpers', () => {
 
   it('buildCoachJoinRequestReviewUrl points into the organization join-request app flow', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
     const { buildCoachJoinRequestReviewUrl } = await import('../lib/email.js');
     const url = buildCoachJoinRequestReviewUrl({
       organizationId: 'org_123',
@@ -108,7 +112,7 @@ describe('Email template helpers', () => {
       requestId: 'req_456',
       action: 'approve',
     });
-    expect(url).toContain('https://varsityhub.app/organization-join-requests');
+    expect(url).toContain('https://api.varsityhub.app/organization-join-requests');
     expect(url).toContain('organization_id=org_123');
     expect(url).toContain('organization_name=Example+League');
     expect(url).toContain('request_id=req_456');
@@ -117,6 +121,7 @@ describe('Email template helpers', () => {
 
   it('buildEventReviewUrl points into the event approvals app flow', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
     const { buildEventReviewUrl } = await import('../lib/email.js');
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildEventReviewUrl({
@@ -125,7 +130,7 @@ describe('Email template helpers', () => {
       action: 'reject',
     });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.origin).toBe('https://api.varsityhub.app');
     expect(parsed.pathname).toBe('/games/evt_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -138,11 +143,12 @@ describe('Email template helpers', () => {
 
   it('buildAdReviewUrl points to a browser-safe admin ads URL', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
     const { buildAdReviewUrl } = await import('../lib/email.js');
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildAdReviewUrl({ adId: 'ad_123', action: 'reject' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.origin).toBe('https://api.varsityhub.app');
     expect(parsed.pathname).toBe('/ads/ad_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();

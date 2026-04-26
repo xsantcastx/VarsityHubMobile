@@ -101,6 +101,33 @@ async function notifyAllAdminsOfLeagueAction(params: {
   );
 }
 
+async function notifyAllAdminsOfAdAction(params: {
+  action: 'ad_approved' | 'ad_rejected';
+  adName: string;
+  reason?: string;
+}) {
+  const { getAllAdminEmails } = await import('./adminEmails.js');
+  const adminEmails = getAllAdminEmails();
+
+  await Promise.all(
+    adminEmails.map((to) =>
+      sendAdminActionConfirmationEmail({
+        to,
+        action: params.action,
+        // Reuse the template contract field for the reviewed item name so
+        // ad moderation gets the same admin confirmation fan-out as leagues.
+        leagueName: params.adName,
+        reason: params.reason,
+      }).catch((err) => {
+        console.error(
+          `[approvalService] Admin confirmation email failed (${params.action}) for ${to}:`,
+          (err as any)?.message || err
+        );
+      })
+    )
+  );
+}
+
 async function createApprovalNotification(
   prisma: PrismaClient,
   params: {
@@ -724,6 +751,11 @@ export async function approveAd(
     ).catch((err) => console.warn('[approvalService] ad approved push failed:', (err as any)?.message || err));
   }
 
+  await notifyAllAdminsOfAdAction({
+    action: 'ad_approved',
+    adName: ad.business_name || 'Untitled Ad',
+  });
+
   return { ad: updated };
 }
 
@@ -852,6 +884,12 @@ export async function rejectAd(
       { type: 'ad_rejected', ad_id: adId },
     ).catch((err) => console.warn('[approvalService] ad reject push failed:', (err as any)?.message || err));
   }
+
+  await notifyAllAdminsOfAdAction({
+    action: 'ad_rejected',
+    adName: ad.business_name || 'Untitled Ad',
+    reason: reason || undefined,
+  });
 
   const updated = await prisma.ad.findUnique({ where: { id: adId } });
   return { ad: updated };
