@@ -269,6 +269,34 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    name: 'stripe-webhook-reconciliation',
+    // Off-clock minutes to avoid the :00/:30 herd. Effectively every ~30
+    // minutes. The handler is idempotent (it only reads + alerts), so a
+    // missed fire is fine.
+    cron: '17,47 * * * *',
+    description:
+      'Detect Stripe checkout sessions paid in last 4h with no matching TransactionLog row; alert via Sentry',
+    handler: async () => {
+      try {
+        const { reconcileStripeWebhookOrphans } = await import('../lib/stripeReconciliation.js');
+        const result = await reconcileStripeWebhookOrphans();
+        if (result.orphans > 0) {
+          console.error(
+            `[Scheduler] stripe-webhook-reconciliation FOUND ${result.orphans} orphan(s) in ${result.scanned} scanned sessions`
+          );
+        }
+      } catch (error) {
+        console.error('[Scheduler] stripe-webhook-reconciliation failed:', error);
+        captureException(
+          error instanceof Error ? error : new Error(String(error)),
+          withJobTags('stripe-webhook-reconciliation', {
+            context: 'stripe_webhook_reconciliation_failed',
+          })
+        );
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;
