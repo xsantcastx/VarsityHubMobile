@@ -14,7 +14,7 @@ const webServerConfig = skipEmbeddedServer
         timeout: 120 * 1000,
       },
       {
-        command: 'npm run web:playwright',
+        command: 'npm run web:playwright:ci',
         url: 'http://localhost:8081',
         reuseExistingServer: reuseEmbeddedServer,
         timeout: 120 * 1000,
