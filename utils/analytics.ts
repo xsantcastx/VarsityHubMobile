@@ -13,8 +13,10 @@ const POSTHOG_API_KEY = process.env.EXPO_PUBLIC_POSTHOG_API_KEY || '';
 const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
 
 let posthog: PostHog | null = null;
+let analyticsInitialized = false;
 
 export function initAnalytics() {
+  if (analyticsInitialized) return;
   if (!POSTHOG_API_KEY) {
     if (__DEV__) console.log('[analytics] PostHog API key not set — analytics disabled');
     return;
@@ -23,6 +25,7 @@ export function initAnalytics() {
     host: POSTHOG_HOST,
     enableSessionReplay: false,
   });
+  analyticsInitialized = true;
 }
 
 export const analytics = {

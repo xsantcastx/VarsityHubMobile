@@ -315,6 +315,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     clearPostCacheOnLogout();
     setUser(null);
     setSentryUser(null);
+    analytics.reset();
     setPendingVerificationEmail(null);
     setHasCompletedOnboarding(false);
     setSubscriptionTier('rookie');
@@ -428,6 +429,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           // User identity changed on this device without a clean sign-out path.
           // Drop any user-scoped local data so the new account does not inherit
           // the prior account's drafts, settings caches, or onboarding state.
+          analytics.reset();
           await clearUserScopedStorage();
         }
 
@@ -611,6 +613,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       clearPostCacheOnLogout();
       setUser(null);
       setSentryUser(null);
+      analytics.reset();
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
       setSubscriptionTier('rookie');
