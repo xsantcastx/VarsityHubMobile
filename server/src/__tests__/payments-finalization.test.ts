@@ -20,6 +20,7 @@ let finalizeAppleAdPurchase: (params: {
   appleTransactionIds: string[];
   receiptsCount: number;
 }) => Promise<{ ok: true; idempotent: boolean; appleTransactionIds: string[] }>;
+let releaseAdInventoryAfterSlotFullRefund: (adId: string) => Promise<void>;
 let dbReady = false;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
@@ -38,6 +39,7 @@ describeDb('Checkout session finalization', () => {
     runFinalizeFromSession = paymentsModule.__paymentsInternal.runFinalizeFromSession;
     finalizeAppleSubscriptionPurchase = paymentsModule.__paymentsInternal.finalizeAppleSubscriptionPurchase;
     finalizeAppleAdPurchase = paymentsModule.__paymentsInternal.finalizeAppleAdPurchase;
+    releaseAdInventoryAfterSlotFullRefund = paymentsModule.__paymentsInternal.releaseAdInventoryAfterSlotFullRefund;
     try {
       await prisma.$queryRawUnsafe('SELECT 1');
       dbReady = true;
@@ -317,6 +319,54 @@ describeDb('Checkout session finalization', () => {
     expect(reservations).toHaveLength(2);
     expect(tx?.status).toBe('COMPLETED');
     expect(tx?.stripe_payment_intent_id).toBe('pi_ad_finalize_test');
+  });
+
+  it('releases slot-full ad inventory back to unpaid in one DB step', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const user = await prisma.user.create({
+      data: {
+        email: `ad-release-${now}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Ad Release User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+      },
+    });
+    createdUserIds.push(user.id);
+
+    const ad = await prisma.ad.create({
+      data: {
+        user_id: user.id,
+        business_name: 'Release Test Ad',
+        contact_email: user.email,
+        target_zip_code: '10009',
+        status: 'approved',
+        payment_status: 'hold',
+      },
+    });
+    createdAdIds.push(ad.id);
+
+    await prisma.adReservation.createMany({
+      data: [
+        { ad_id: ad.id, date: new Date('2035-05-01T00:00:00.000Z') },
+        { ad_id: ad.id, date: new Date('2035-05-02T00:00:00.000Z') },
+      ],
+      skipDuplicates: true,
+    });
+
+    await releaseAdInventoryAfterSlotFullRefund(ad.id);
+
+    const [refreshedAd, reservations] = await Promise.all([
+      prisma.ad.findUnique({ where: { id: ad.id } }),
+      prisma.adReservation.findMany({ where: { ad_id: ad.id } }),
+    ]);
+
+    expect(refreshedAd?.status).toBe('approved');
+    expect(refreshedAd?.payment_status).toBe('unpaid');
+    expect(reservations).toHaveLength(0);
   });
 
   it('claims each Apple ad receipt transaction id and treats same-user retries as idempotent', async () => {

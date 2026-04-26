@@ -84,6 +84,19 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   return baseDebugLog(...args);
 };
 
+async function releaseAdInventoryAfterSlotFullRefund(adId: string) {
+  await prisma.$transaction([
+    prisma.adReservation.deleteMany({ where: { ad_id: adId } }),
+    prisma.ad.updateMany({
+      where: {
+        id: adId,
+        payment_status: { in: ['hold', 'pending_approval'] },
+      },
+      data: { payment_status: 'unpaid' },
+    }),
+  ]);
+}
+
 async function enforceVerifiedForSubscriptionFlow(
   req: AuthedRequest,
   res: Response,
@@ -605,6 +618,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             // Auto-refund: charge the user's card back immediately
             try {
               const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
+              await releaseAdInventoryAfterSlotFullRefund(adId);
               await updateTransactionStatus(pi.id, 'REFUNDED', {
                 metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
               });
@@ -2392,6 +2406,7 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
             // Auto-refund: charge the user's card back immediately
             try {
               const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
+              await releaseAdInventoryAfterSlotFullRefund(adId);
               await updateTransactionStatus(pi.id, 'REFUNDED', {
                 metadata: { reason: 'slot_full', overbooked_dates: e.dates, stripe_refund_id: refund.id },
               });
@@ -3250,6 +3265,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           const piId = session.payment_intent ? String(session.payment_intent) : '';
           if (piId) {
             const refund = await stripe.refunds.create({ payment_intent: piId, reason: 'requested_by_customer' });
+            await releaseAdInventoryAfterSlotFullRefund(ad_id);
             // v1.0.2 audit fix: persist refunded amount in metadata for audit trail.
             // Previously only stripe_refund_id was saved — no record of how much was refunded.
             await updateTransactionStatus(session.id, 'REFUNDED', {
@@ -5156,4 +5172,5 @@ export const __paymentsInternal = {
   finalizeAppleSubscriptionPurchase,
   finalizeAppleAdPurchase,
   getVeteranBillingSnapshot,
+  releaseAdInventoryAfterSlotFullRefund,
 };
