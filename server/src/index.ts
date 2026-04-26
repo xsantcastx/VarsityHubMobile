@@ -312,6 +312,16 @@ runStartupChecks().catch(err => {
   console.error('[startup] runStartupChecks threw unexpectedly:', err);
 });
 
+// One-shot org/team/coach wipe — gated by ONESHOT_WIPE_ORG_STATE env var
+// matching an exact safety string. After running, unset the env var and
+// revert this block + lib/oneshotWipe.ts so the code is gone from the repo.
+(async () => {
+  const { runOneshotWipeIfRequested } = await import('./lib/oneshotWipe.js');
+  await runOneshotWipeIfRequested();
+})().catch(err => {
+  console.error('[startup] oneshot wipe wrapper threw unexpectedly:', err);
+});
+
 // ONE-TIME: Ensure Apple Review demo account is verified & onboarded
 // Safe to re-run (upsert). Remove after Apple approves build 90.
 (async () => {
