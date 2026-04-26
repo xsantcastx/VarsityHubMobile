@@ -872,11 +872,11 @@ export default function ProfileScreen() {
         {/* Background Image / Gradient */}
         <Pressable
           testID="profile-background-image"
-          onPress={handleBackgroundImagePress}
+          onPress={isOwnProfile ? handleBackgroundImagePress : undefined}
           style={styles.headerBackgroundPressable}
-          disabled={isUploadingAvatar}
+          disabled={!isOwnProfile || isUploadingAvatar}
           accessibilityRole="button"
-          accessibilityLabel="Edit background image"
+          accessibilityLabel={isOwnProfile ? 'Edit background image' : 'Profile background image'}
         >
           {headerBackgroundImage ? (
             <Image
@@ -907,6 +907,28 @@ export default function ProfileScreen() {
           end={{ x: 0, y: 1 }}
           pointerEvents="none"
         />
+
+        {isOwnProfile ? (
+          <Pressable
+            testID="profile-background-edit-button"
+            onPress={handleBackgroundImagePress}
+            hitSlop={12}
+            disabled={isUploadingAvatar}
+            style={[
+              styles.controlButton,
+              styles.backgroundEditButton,
+              {
+                backgroundColor:
+                  colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.92)',
+                opacity: isUploadingAvatar ? 0.7 : 1,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Change background image"
+          >
+            <Ionicons name="image-outline" size={18} color={theme.text} />
+          </Pressable>
+        ) : null}
 
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
@@ -2019,6 +2041,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 2,
+  },
+  backgroundEditButton: {
+    position: 'absolute',
+    left: 16,
+    top: 12,
+    zIndex: 200,
+    elevation: 200,
   },
   profileContent: {
     position: 'absolute',
