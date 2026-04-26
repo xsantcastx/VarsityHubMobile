@@ -1,0 +1,17 @@
+-- Add APPLE_S2S_NOTIFICATION to the TransactionType enum.
+--
+-- This value has been declared in prisma/schema.prisma since the Apple
+-- S2S notification dedup feature shipped, but no migration was ever
+-- generated to add it to the production database enum. Result: every
+-- code path that wrote `transaction_type: 'APPLE_S2S_NOTIFICATION'`
+-- raised PostgresError 22P02 ("invalid input value for enum"). The
+-- effects observed in production:
+--   - server/src/lib/appleNotificationDedup.ts only caught P2002
+--     (unique violation), so dedup writes silently failed; replay
+--     protection on Apple S2S notifications has been non-functional
+--   - The apple-iap-reconciliation scheduled job (commit 1726ee61)
+--     filtered on this enum value and threw on every run
+--
+-- IF NOT EXISTS makes the migration idempotent — safe in case the
+-- value was added by hand earlier on any environment.
+ALTER TYPE "TransactionType" ADD VALUE IF NOT EXISTS 'APPLE_S2S_NOTIFICATION';
