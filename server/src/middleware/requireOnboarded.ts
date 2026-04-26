@@ -3,7 +3,11 @@ import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
-import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
+import {
+  getCanonicalUserRole,
+  hasCoachFanModeAccess,
+  isUserOnboardingComplete,
+} from '../lib/userAuthState.js';
 import { getSelectedPlan, isPaymentApproved, isPaymentPending } from '../lib/userBillingState.js';
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 
@@ -36,6 +40,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
   const prefs = u?.preferences as Record<string, unknown> | null;
   const role = getCanonicalUserRole(u as any);
   const onboardingComplete = isUserOnboardingComplete(u as any);
+  const hasFanModeAccess = hasCoachFanModeAccess(u as any);
 
   // God-admins bypass all onboarding/approval checks
   if (isEmailAdmin(u?.email)) {
@@ -75,7 +80,42 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     return next();
   }
 
-  if (!onboardingComplete) {
+  const isFanSafePostCreateRoute =
+    req.baseUrl === '/posts' && req.method === 'POST' && req.path === '/';
+  const isFanSafeEventCreateRoute =
+    req.baseUrl === '/events' && req.method === 'POST' && req.path === '/';
+  const isFanSafeCommentRoute =
+    req.baseUrl === '/posts' && req.method === 'POST' && /^\/[^/]+\/comments$/.test(req.path);
+  const isFanSafePollVoteRoute =
+    req.baseUrl === '/posts' && req.method === 'POST' && /^\/[^/]+\/poll\/vote$/.test(req.path);
+
+  let isFanSafeOwnPostManageRoute = false;
+  if (req.baseUrl === '/posts' && (req.method === 'PATCH' || req.method === 'DELETE')) {
+    const postMatch = req.path.match(/^\/([^/]+)$/);
+    if (postMatch) {
+      const post = await prisma.post.findUnique({
+        where: { id: postMatch[1] },
+        select: { author_id: true, deleted_at: true },
+      });
+      isFanSafeOwnPostManageRoute = !!post && !post.deleted_at && post.author_id === req.user.id;
+    }
+  }
+
+  const isFanSafeRoute =
+    isFanSafePostCreateRoute ||
+    isFanSafeEventCreateRoute ||
+    isFanSafeCommentRoute ||
+    isFanSafePollVoteRoute ||
+    isFanSafeOwnPostManageRoute;
+
+  if (hasFanModeAccess && isFanSafeRoute) {
+    return next();
+  }
+
+  // Pending/rejected coaches in "proceed as fan" mode may use the narrow fan-safe
+  // content routes above, but coach-only routes should still be gated by their
+  // approval/account state rather than collapsing into a generic onboarding error.
+  if (!onboardingComplete && !(role === 'coach' && hasFanModeAccess)) {
     return res.status(403).json({ error: 'Please complete onboarding before creating content.' });
   }
 

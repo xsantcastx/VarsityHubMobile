@@ -18,6 +18,7 @@ import {
   getCanonicalUserRole,
   getCoachAgreementAcceptedAt,
   getCoachAgreementVersion,
+  hasCoachFanModeAccess,
   isProceedingAsFan,
   isUserOnboardingComplete,
   mergeAuthStateIntoPreferences,
@@ -435,6 +436,48 @@ describe('coach onboarding logic — universal suite', () => {
 
     it('falls back to prefs when column null', () => {
       expect(isProceedingAsFan({ proceeding_as_fan: null, preferences: { proceeding_as_fan: true } })).toBe(true);
+    });
+  });
+
+  describe('hasCoachFanModeAccess — pending/rejected coach can use fan-safe routes', () => {
+    it('returns true for pending coach proceeding as fan', () => {
+      expect(
+        hasCoachFanModeAccess({
+          role: 'coach',
+          approval_status: 'PENDING',
+          proceeding_as_fan: true,
+        })
+      ).toBe(true);
+    });
+
+    it('returns true for rejected coach proceeding as fan', () => {
+      expect(
+        hasCoachFanModeAccess({
+          role: 'coach',
+          approval_status: 'REJECTED',
+          proceeding_as_fan: true,
+        })
+      ).toBe(true);
+    });
+
+    it('returns false for approved coaches browsing normally', () => {
+      expect(
+        hasCoachFanModeAccess({
+          role: 'coach',
+          approval_status: 'APPROVED',
+          proceeding_as_fan: true,
+        })
+      ).toBe(false);
+    });
+
+    it('returns false when coach is not proceeding as fan', () => {
+      expect(
+        hasCoachFanModeAccess({
+          role: 'coach',
+          approval_status: 'PENDING',
+          proceeding_as_fan: false,
+        })
+      ).toBe(false);
     });
   });
 

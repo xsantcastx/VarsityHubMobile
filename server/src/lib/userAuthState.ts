@@ -4,6 +4,7 @@ export type CanonicalUserRole = 'fan' | 'coach';
 
 export type UserAuthStateSource = {
   role?: CanonicalUserRole | string | null;
+  approval_status?: string | null;
   onboarding_completed?: boolean | null;
   organization_id?: string | null;
   proceeding_as_fan?: boolean | null;
@@ -99,6 +100,19 @@ export function isProceedingAsFan(source: UserAuthStateSource | null | undefined
   if (fromColumn !== null) return fromColumn;
   const prefs = getPreferencesObject(source?.preferences);
   return prefs.proceeding_as_fan === true;
+}
+
+export function hasCoachFanModeAccess(
+  source: UserAuthStateSource | null | undefined,
+): boolean {
+  const role = getCanonicalUserRole(source);
+  if (role !== 'coach') return false;
+
+  const approvalStatus = typeof source?.approval_status === 'string'
+    ? source.approval_status.trim().toUpperCase()
+    : '';
+
+  return (approvalStatus === 'PENDING' || approvalStatus === 'REJECTED') && isProceedingAsFan(source);
 }
 
 export function getCoachAgreementAcceptedAt(

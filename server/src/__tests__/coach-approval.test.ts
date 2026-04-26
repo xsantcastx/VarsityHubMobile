@@ -21,6 +21,8 @@ const PASSWORD = 'TestPassword123!';
 describe('Coach Approval Workflow', () => {
   let pendingCoachId: string;
   let pendingCoachToken: string;
+  let rejectedCoachId: string;
+  let rejectedCoachToken: string;
   let approvedCoachId: string;
   let approvedCoachToken: string;
   let leagueOwnerId: string;
@@ -48,6 +50,30 @@ describe('Coach Approval Workflow', () => {
     });
     pendingCoachId = pendingCoach.id;
     pendingCoachToken = signJwt({ id: pendingCoachId });
+
+    const rejectedHash = await bcrypt.hash(PASSWORD, 10);
+    const rejectedCoach = await prisma.user.create({
+      data: {
+        email: `rejected-coach-${ts}@example.com`,
+        password_hash: rejectedHash,
+        display_name: 'Rejected Coach',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: false,
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: false,
+          proceeding_as_fan: true,
+        },
+        approval_status: 'REJECTED',
+        proceeding_as_fan: true,
+        rejected_at: new Date(Date.now() - 60 * 60 * 1000),
+        rejection_reason: 'Needs more information',
+      },
+    });
+    rejectedCoachId = rejectedCoach.id;
+    rejectedCoachToken = signJwt({ id: rejectedCoachId });
 
     // Approved coach (for league owner approval flow)
     const approvedHash = await bcrypt.hash(PASSWORD, 10);
@@ -117,7 +143,7 @@ describe('Coach Approval Workflow', () => {
 
   afterAll(async () => {
     try {
-      const ids = [pendingCoachId, approvedCoachId, leagueOwnerId];
+      const ids = [pendingCoachId, rejectedCoachId, approvedCoachId, leagueOwnerId];
       const orgIds = [orgId, orgIdFromCreate];
       const approvedOrg = await prisma.organization.findFirst({
         where: { league_owner_id: approvedCoachId },
@@ -163,6 +189,178 @@ describe('Coach Approval Workflow', () => {
         });
       expect(res.status).toBe(403);
       expect(res.body?.code).toBe('APPROVAL_REQUIRED');
+    });
+
+    it('PENDING coach proceeding as fan can create a post without pretending onboarding is complete', async () => {
+      await prisma.user.update({
+        where: { id: pendingCoachId },
+        data: {
+          onboarding_completed: false,
+          proceeding_as_fan: true,
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: false,
+            proceeding_as_fan: true,
+          },
+        },
+      });
+
+      const postRes = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({ content: `Pending fan-mode post ${ts}` });
+
+      expect(postRes.status).toBe(201);
+      expect(postRes.body?.id).toBeTruthy();
+
+      const meRes = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${pendingCoachToken}`);
+
+      expect(meRes.status).toBe(200);
+      expect(meRes.body?.account_state).toBe('coach_pending_approval');
+      expect(meRes.body?.preferences?.onboarding_completed).toBe(false);
+      expect(meRes.body?.proceeding_as_fan).toBe(true);
+      expect(meRes.body?.next_step).toBe('/(tabs)');
+
+      if (postRes.body?.id) {
+        await prisma.post.delete({ where: { id: postRes.body.id } }).catch(() => {});
+      }
+    });
+
+    it('PENDING coach proceeding as fan can create a fan event', async () => {
+      const res = await request(app)
+        .post('/events')
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({
+          title: 'Pending Fan Event',
+          date: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+          location: 'Test Gym',
+          description: 'Pending coach using fan mode',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body?.id).toBeTruthy();
+      expect(String(res.body?.message || '')).toMatch(/submitted|created/i);
+
+      if (res.body?.id) {
+        await prisma.event.delete({ where: { id: res.body.id } }).catch(() => {});
+      }
+    });
+
+    it('PENDING coach proceeding as fan can comment, vote, and manage their own post', async () => {
+      const discussionPost = await prisma.post.create({
+        data: {
+          author_id: approvedCoachId,
+          content: `Discussion post ${ts}`,
+          type: 'post',
+        },
+      });
+      const poll = await prisma.poll.create({
+        data: {
+          post_id: discussionPost.id,
+          options: {
+            create: [
+              { text: 'Option A' },
+              { text: 'Option B' },
+            ],
+          },
+        },
+        include: {
+          options: true,
+        },
+      });
+
+      const ownPostRes = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({ content: `Pending fan-mode editable post ${ts}` });
+
+      expect(ownPostRes.status).toBe(201);
+      expect(ownPostRes.body?.id).toBeTruthy();
+
+      const commentRes = await request(app)
+        .post(`/posts/${discussionPost.id}/comments`)
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({ content: 'Pending coach fan-mode comment' });
+
+      expect(commentRes.status).toBe(201);
+      expect(commentRes.body?.id).toBeTruthy();
+
+      const voteRes = await request(app)
+        .post(`/posts/${discussionPost.id}/poll/vote`)
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({ option_id: poll.options[0].id });
+
+      expect(voteRes.status).toBe(200);
+      expect(voteRes.body?.poll?.userVote).toBe(poll.options[0].id);
+
+      const patchRes = await request(app)
+        .patch(`/posts/${ownPostRes.body.id}`)
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({ content: `Pending fan-mode edited post ${ts}` });
+
+      expect(patchRes.status).toBe(200);
+      expect(patchRes.body?.content).toBe(`Pending fan-mode edited post ${ts}`);
+
+      const deleteRes = await request(app)
+        .delete(`/posts/${ownPostRes.body.id}`)
+        .set('Authorization', `Bearer ${pendingCoachToken}`);
+
+      expect(deleteRes.status).toBe(200);
+      expect(String(deleteRes.body?.message || '')).toMatch(/deleted successfully/i);
+
+      await prisma.post.delete({ where: { id: discussionPost.id } }).catch(() => {});
+    });
+
+    it('PENDING coach proceeding as fan is still blocked from coach-only team creation', async () => {
+      const res = await request(app)
+        .post('/teams/create')
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({ name: 'Still Blocked Team', organization_id: orgId });
+
+      expect(res.status).toBe(403);
+      expect(res.body?.code).toBe('APPROVAL_REQUIRED');
+    });
+
+    it('REJECTED coach proceeding as fan can create a post but remains blocked from coach tools', async () => {
+      const discussionPost = await prisma.post.create({
+        data: {
+          author_id: approvedCoachId,
+          content: `Rejected discussion post ${ts}`,
+          type: 'post',
+        },
+      });
+
+      const postRes = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${rejectedCoachToken}`)
+        .send({ content: `Rejected fan-mode post ${ts}` });
+
+      expect(postRes.status).toBe(201);
+      expect(postRes.body?.id).toBeTruthy();
+
+      const commentRes = await request(app)
+        .post(`/posts/${discussionPost.id}/comments`)
+        .set('Authorization', `Bearer ${rejectedCoachToken}`)
+        .send({ content: 'Rejected coach fan-mode comment' });
+
+      expect(commentRes.status).toBe(201);
+      expect(commentRes.body?.id).toBeTruthy();
+
+      const teamRes = await request(app)
+        .post('/teams/create')
+        .set('Authorization', `Bearer ${rejectedCoachToken}`)
+        .send({ name: 'Rejected Blocked Team', organization_id: orgId });
+
+      expect(teamRes.status).toBe(403);
+      expect(teamRes.body?.code).toBe('APPROVAL_REJECTED');
+
+      if (postRes.body?.id) {
+        await prisma.post.delete({ where: { id: postRes.body.id } }).catch(() => {});
+      }
+      await prisma.post.delete({ where: { id: discussionPost.id } }).catch(() => {});
     });
 
     it('APPROVED coach can create team', async () => {
