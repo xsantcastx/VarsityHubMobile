@@ -130,4 +130,10 @@ describe('coach approval UI guards', () => {
       /if \(!ob\.role\) \{[\s\S]*router\.replace\('\/onboarding\/step-1-role'\);[\s\S]*\} else if \(!ob\.step_2_visited\) \{[\s\S]*router\.replace\('\/onboarding\/step-2-basic'\);/
     );
   });
+
+  it('join-existing onboarding copy points to the league owner as decision maker', () => {
+    expect(step3LeagueScreen).toContain("ownerName: 'the league owner'");
+    expect(step3LeagueScreen).toContain('Optional message to league owner');
+    expect(pendingApprovalScreen).toContain("params.ownerName || 'the league owner'");
+  });
 });

@@ -33,11 +33,32 @@ describe('membership status guards', () => {
     expect(orgsSrc).toMatch(
       /\/join-requests\/:requestId\/approve[\s\S]{0,4000}?membership\.status\s*!==\s*'active'/,
     );
+    expect(orgsSrc).toMatch(
+      /\/join-requests\/:requestId\/approve[\s\S]{0,4000}?membership\.role\s*!==\s*'owner'/,
+    );
   });
 
   it('join-request deny requires active org membership', () => {
     expect(orgsSrc).toMatch(
       /\/join-requests\/:requestId\/deny[\s\S]{0,4000}?membership\.status\s*!==\s*'active'/,
+    );
+    expect(orgsSrc).toMatch(
+      /\/join-requests\/:requestId\/deny[\s\S]{0,4000}?membership\.role\s*!==\s*'owner'/,
+    );
+  });
+
+  it('coach-request review routes require owner role on org membership', () => {
+    expect(orgsSrc).toMatch(
+      /\/:id\/join-requests[\s\S]{0,2500}?membership\.role\s*!==\s*'owner'/,
+    );
+    expect(orgsSrc).toMatch(
+      /\/:id\/pending-coaches[\s\S]{0,2500}?role:\s*'owner'/,
+    );
+    expect(orgsSrc).toMatch(
+      /\/:id\/coaches\/:userId\/approve[\s\S]{0,2500}?role:\s*'owner'/,
+    );
+    expect(orgsSrc).toMatch(
+      /\/:id\/coaches\/:userId\/reject[\s\S]{0,2500}?role:\s*'owner'/,
     );
   });
 

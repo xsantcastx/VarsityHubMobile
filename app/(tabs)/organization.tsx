@@ -8,7 +8,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { canManageOrgAsCoach } from '@/utils/roleChecks';
+import { canManageOrgAsCoach, canReviewCoachRequests } from '@/utils/roleChecks';
 import { safeGoBack } from '@/utils/navigation';
 
 type OrganizationData = {
@@ -62,6 +62,7 @@ export default function OrganizationScreen() {
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [canReviewCoachRequestsForOrg, setCanReviewCoachRequestsForOrg] = useState(false);
   const [pendingCoachCount, setPendingCoachCount] = useState(0);
   const [pendingCoachError, setPendingCoachError] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -135,9 +136,11 @@ export default function OrganizationScreen() {
         const membersList = Array.isArray(members) ? members : [];
         if (currentUser && membersList.length > 0) {
           const isAdmin = canManageOrgAsCoach(currentUser as any, membersList);
+          const canReviewRequests = canReviewCoachRequests(currentUser as any, membersList);
           if (mounted.current) setIsOrgAdmin(isAdmin);
+          if (mounted.current) setCanReviewCoachRequestsForOrg(canReviewRequests);
           // Fetch pending coach count for league owners
-          if (isAdmin) {
+          if (canReviewRequests) {
             Organization.pendingCoaches(orgId as string).then((pending: any) => {
               if (mounted.current) {
                 setPendingCoachError(false);
@@ -146,13 +149,22 @@ export default function OrganizationScreen() {
             }).catch(() => {
               if (mounted.current) setPendingCoachError(true);
             });
+          } else if (mounted.current) {
+            setPendingCoachCount(0);
+            setPendingCoachError(false);
           }
         } else {
-          if (mounted.current) setIsOrgAdmin(false);
+          if (mounted.current) {
+            setIsOrgAdmin(false);
+            setCanReviewCoachRequestsForOrg(false);
+          }
         }
       } catch (err: any) {
         if (__DEV__) console.error('[organization] Failed to load current user:', err);
-        if (mounted.current) setIsOrgAdmin(false);
+        if (mounted.current) {
+          setIsOrgAdmin(false);
+          setCanReviewCoachRequestsForOrg(false);
+        }
       }
 
       let allTeams: any[] = [];
@@ -340,24 +352,34 @@ export default function OrganizationScreen() {
         {/* Admin: View Join Requests */}
         {isOrgAdmin && organization?.id && (
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: '/organization-join-requests',
-                  params: { organization_id: organization.id, organization_name: organization.name || orgName },
-                })
-              }
-              style={[styles.adminButton, { backgroundColor: theme.tint, flex: 1 }]}
-            >
-              <Ionicons name="people" size={20} color="#fff" />
-              <Text style={styles.adminButtonText}>Coach Requests</Text>
-            </Pressable>
+            {canReviewCoachRequestsForOrg && (
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: '/organization-join-requests',
+                    params: { organization_id: organization.id, organization_name: organization.name || orgName },
+                  })
+                }
+                style={[styles.adminButton, { backgroundColor: theme.tint, flex: 1 }]}
+              >
+                <Ionicons name="people" size={20} color="#fff" />
+                <Text style={styles.adminButtonText}>Coach Requests</Text>
+              </Pressable>
+            )}
             <Pressable
               onPress={() => {
                 setInviteEmail('');
                 setInviteModalVisible(true);
               }}
-              style={[styles.adminButton, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flex: 1 }]}
+              style={[
+                styles.adminButton,
+                {
+                  backgroundColor: theme.card,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  flex: canReviewCoachRequestsForOrg ? 1 : undefined,
+                },
+              ]}
             >
               <Ionicons name="person-add-outline" size={20} color={theme.text} />
               <Text style={[styles.adminButtonText, { color: theme.text }]}>Invite Coach</Text>
@@ -505,7 +527,7 @@ export default function OrganizationScreen() {
             </View>
           </Pressable>
         )}
-        {isOrgAdmin && pendingCoachCount > 0 && organization?.id && (
+        {canReviewCoachRequestsForOrg && pendingCoachCount > 0 && organization?.id && (
           <Pressable
             style={[
               styles.card,

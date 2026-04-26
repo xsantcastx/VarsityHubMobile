@@ -19,7 +19,7 @@ function PendingApproval() {
   const { state: ob } = useOnboarding();
   const params = useLocalSearchParams<{ leagueName?: string; ownerName?: string }>();
   const leagueName = params.leagueName || 'this organization';
-  const ownerName = params.ownerName || 'the organization admin';
+  const ownerName = params.ownerName || 'the league owner';
   const [approved, setApproved] = useState(false);
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);

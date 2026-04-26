@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { canManageOrgAsCoach } from '@/utils/roleChecks';
+import { canManageOrgAsCoach, canReviewCoachRequests } from '@/utils/roleChecks';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -192,6 +192,7 @@ function LeagueScreen() {
   const [events, setEvents] = useState<LeagueEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canReviewRequests, setCanReviewRequests] = useState(false);
 
   const resolveOrgAdmin = useCallback(
     (orgData: any) => {
@@ -201,6 +202,15 @@ function LeagueScreen() {
       return canManageOrgAsCoach(user as any, memberships);
     },
     [hasGlobalAdmin, user?.id]
+  );
+
+  const resolveCoachRequestReviewer = useCallback(
+    (orgData: any) => {
+      if (!orgData || !user?.id) return false;
+      const memberships = Array.isArray(orgData.memberships) ? orgData.memberships : [];
+      return canReviewCoachRequests(user as any, memberships);
+    },
+    [user?.id]
   );
 
   const loadLeague = useCallback(async () => {
@@ -254,6 +264,7 @@ function LeagueScreen() {
           contact_info: organizationData.contact_info,
         });
         setIsAdmin(resolveOrgAdmin(organizationData));
+        setCanReviewRequests(resolveCoachRequestReviewer(organizationData));
       } else {
         // Fallback to params if no org found
         const leagueName = params.name || 'Athletic Organization';
@@ -264,6 +275,7 @@ function LeagueScreen() {
           bio: 'Home of champions',
         });
         setIsAdmin(resolveOrgAdmin(null));
+        setCanReviewRequests(false);
       }
 
       const formattedTeams = extractLeagueTeams(organizationData, params.name);
@@ -331,6 +343,7 @@ function LeagueScreen() {
       if (__DEV__) console.error('[League] Error loading league:', err);
       setError('Failed to load league information');
       setIsAdmin(resolveOrgAdmin(null));
+      setCanReviewRequests(false);
     } finally {
       setLoading(false);
     }
@@ -455,17 +468,19 @@ function LeagueScreen() {
               <Ionicons name="pencil" size={20} color="#fff" />
               <Text style={styles.adminButtonText}>Edit Page</Text>
             </Pressable>
-            <Pressable
-              onPress={() => void router.push({
-                  pathname: '/organization-join-requests',
-                  params: { organization_id: league.id, organization_name: league.name },
-                })
-              }
-              style={[styles.adminButton, { backgroundColor: theme.tint }]}
-            >
-              <Ionicons name="people" size={20} color="#fff" />
-              <Text style={styles.adminButtonText}>Coach Requests</Text>
-            </Pressable>
+            {canReviewRequests && (
+              <Pressable
+                onPress={() => void router.push({
+                    pathname: '/organization-join-requests',
+                    params: { organization_id: league.id, organization_name: league.name },
+                  })
+                }
+                style={[styles.adminButton, { backgroundColor: theme.tint }]}
+              >
+                <Ionicons name="people" size={20} color="#fff" />
+                <Text style={styles.adminButtonText}>Coach Requests</Text>
+              </Pressable>
+            )}
           </View>
         )}
 

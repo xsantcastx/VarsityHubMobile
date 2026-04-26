@@ -1,5 +1,5 @@
 import { Organization, User } from '@/api/entities';
-import { canManageOrgAsCoach } from '@/utils/roleChecks';
+import { canReviewCoachRequests } from '@/utils/roleChecks';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { captureException } from '@/utils/sentry';
@@ -73,17 +73,17 @@ function OrganizationJoinRequestsScreen() {
     setError(null);
     try {
       // Permission gate: a pending/rejected coach (or fan) who still has an
-      // owner/manager membership row from a prior approved state could
+      // stale membership row from a prior approved state could
       // otherwise load the review UI and see action controls. Verify the
-      // user is currently allowed to manage this org BEFORE loading any
-      // requests. Mirrors the server gate on approve/reject mutations.
+      // user is currently allowed to review coach requests BEFORE loading
+      // any data. Mirrors the server owner-only gate on the review routes.
       const [currentUser, members] = await Promise.all([
         User.me().catch(() => null),
         Organization.members(params.organization_id).catch(() => []),
       ]);
-      if (!canManageOrgAsCoach(currentUser as any, Array.isArray(members) ? members : [])) {
+      if (!canReviewCoachRequests(currentUser as any, Array.isArray(members) ? members : [])) {
         setLoading(false);
-        setError('You do not have permission to review join requests for this organization.');
+        setError('Only the league owner can review coach requests for this organization.');
         return;
       }
 

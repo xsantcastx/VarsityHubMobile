@@ -1738,7 +1738,7 @@ organizationsRouter.post(
   })
 );
 
-// Get join requests for an organization (admin only)
+// Get join requests for an organization (owner only)
 organizationsRouter.get(
   '/:id/join-requests',
   requireAuth as any,
@@ -1747,7 +1747,7 @@ organizationsRouter.get(
       const id = String(req.params.id);
       const status = String((req.query as any).status || 'pending');
 
-      // Check if user is owner/manager
+      // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findUnique({
         where: {
           organization_id_user_id: {
@@ -1757,8 +1757,8 @@ organizationsRouter.get(
         },
       });
 
-      if (!membership || !isOrganizationAdmin(membership.role)) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
+      if (!membership || membership.status !== 'active' || membership.role !== 'owner') {
+        return res.status(403).json({ error: 'Only the league owner can review coach requests' });
       }
 
       const joinRequests = await prisma.organizationJoinRequest.findMany({
@@ -1849,7 +1849,7 @@ organizationsRouter.post(
         return res.status(404).json({ error: 'Join request not found' });
       }
 
-      // Check if requester is owner/manager
+      // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findUnique({
         where: {
           organization_id_user_id: {
@@ -1860,8 +1860,8 @@ organizationsRouter.post(
         select: { role: true, status: true },
       });
 
-      if (!membership || membership.status !== 'active' || !isOrganizationAdmin(membership.role)) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
+      if (!membership || membership.status !== 'active' || membership.role !== 'owner') {
+        return res.status(403).json({ error: 'Only the league owner can approve coach requests' });
       }
 
       if (joinRequest.status !== 'pending') {
@@ -2042,7 +2042,7 @@ organizationsRouter.post(
         return res.status(404).json({ error: 'Join request not found' });
       }
 
-      // Check if requester is owner/manager
+      // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findUnique({
         where: {
           organization_id_user_id: {
@@ -2053,8 +2053,8 @@ organizationsRouter.post(
         select: { role: true, status: true },
       });
 
-      if (!membership || membership.status !== 'active' || !isOrganizationAdmin(membership.role)) {
-        return res.status(403).json({ error: 'Insufficient permissions' });
+      if (!membership || membership.status !== 'active' || membership.role !== 'owner') {
+        return res.status(403).json({ error: 'Only the league owner can reject coach requests' });
       }
 
       if (joinRequest.status !== 'pending') {
@@ -2541,19 +2541,19 @@ organizationsRouter.get(
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const orgId = req.params.id;
 
-      // Org owners and managers can view pending coaches
+      // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({
         where: {
           organization_id: orgId,
           user_id: req.user.id,
-          role: { in: ['owner', 'manager'] },
+          role: 'owner',
           status: 'active',
         },
       });
       if (!membership)
         return res
           .status(403)
-          .json({ error: 'Only org owners or managers can view pending coaches' });
+          .json({ error: 'Only the league owner can view pending coaches' });
 
       const pendingRequests = await prisma.organizationJoinRequest.findMany({
         where: { organization_id: orgId, status: 'pending' },
@@ -2596,17 +2596,17 @@ organizationsRouter.post(
       const { id: orgId, userId: coachId } = req.params;
       const { team_id: teamId } = req.body || {};
 
-      // Org owners and managers can approve coaches
+      // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({
         where: {
           organization_id: orgId,
           user_id: req.user.id,
-          role: { in: ['owner', 'manager'] },
+          role: 'owner',
           status: 'active',
         },
       });
       if (!membership)
-        return res.status(403).json({ error: 'Only org owners or managers can approve coaches' });
+        return res.status(403).json({ error: 'Only the league owner can approve coaches' });
 
       // Idempotency: if coach is already approved, return success without writing again
       const coachUser = await prisma.user.findUnique({
@@ -2789,17 +2789,17 @@ organizationsRouter.post(
       const { id: orgId, userId: coachId } = req.params;
       const reason = req.body?.reason as string | undefined;
 
-      // Org owners and managers can reject coaches
+      // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({
         where: {
           organization_id: orgId,
           user_id: req.user.id,
-          role: { in: ['owner', 'manager'] },
+          role: 'owner',
           status: 'active',
         },
       });
       if (!membership)
-        return res.status(403).json({ error: 'Only org owners or managers can reject coaches' });
+        return res.status(403).json({ error: 'Only the league owner can reject coaches' });
 
       const joinRequest = await prisma.organizationJoinRequest.findFirst({
         where: { organization_id: orgId, user_id: coachId, status: 'pending' },

@@ -679,7 +679,7 @@ function Step3League() {
             pathname: '/onboarding/pending-approval',
             params: {
               leagueName: resolvedOrgName || 'this organization',
-              ownerName: 'the organization admin',
+              ownerName: 'the league owner',
             },
           } as any);
         } else if (recoveryRoute && recoveryRoute !== '/onboarding/coach-agreement') {
@@ -1564,7 +1564,7 @@ function Step3League() {
                     multiline
                     style={styles.textArea}
                     maxLength={300}
-                    accessibilityLabel="Optional message to organization administrator"
+                    accessibilityLabel="Optional message to league owner"
                   />
                   <View style={styles.charCountRow}>
                     <Text style={styles.charCountText}>{joinMessage.length}/300</Text>

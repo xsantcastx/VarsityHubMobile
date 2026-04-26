@@ -142,6 +142,26 @@ export function canManageOrgAsCoach(
   });
 }
 
+export function canReviewCoachRequests(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined,
+): boolean {
+  if (!user) return false;
+
+  const access = getCoachAccessState(user);
+  if (!access.canAccessCoachTools) return false;
+
+  const userId = user.id;
+  if (!userId || !Array.isArray(memberships)) return false;
+
+  return memberships.some((m) => {
+    const memberUserId = m?.user?.id || m?.user_id;
+    if (!memberUserId || memberUserId !== userId) return false;
+    const role = String(m?.role || '').toLowerCase();
+    return role === 'owner';
+  });
+}
+
 export function getPendingCoachRoute(user: CoachUserLike | null | undefined): string {
   const explicitNextStep =
     typeof user?.next_step === 'string' && user.next_step.trim().startsWith('/')
