@@ -75,6 +75,7 @@ const {
   sendPasswordResetEmail,
   sendTeamInviteEmail,
   sendEventApprovedEmail,
+  sendEventPendingReviewEmail,
   sendCoachApprovedEmail,
   sendCoachRejectedEmail,
   sendAdPendingReviewEmail,
@@ -255,6 +256,24 @@ describe('SendGrid template payload contract', () => {
     expectAllVarsCovered(getTemplateVars('join-request-denied.html'), payload.templateData);
   });
 
+  it('join-request-admin.html — sendEventPendingReviewEmail covers every {{var}}', async () => {
+    const result = await sendEventPendingReviewEmail({
+      to: 'reviewer@example.com',
+      reviewerName: 'Coach Reviewer',
+      requesterName: 'Taylor Fan',
+      requesterEmail: 'taylor@example.com',
+      eventTitle: 'Community Night',
+      eventType: 'fundraiser',
+      teamName: 'Westhill Athletics',
+      reviewId: 'evt_review_123',
+      reviewKind: 'event',
+      coachNotes: 'Date: Friday\nTime: 6:00 PM\nLocation: Westhill HS',
+    });
+    expect(result).toBe(true);
+    const payload = mockSend.mock.calls[0]![0] as any;
+    expectAllVarsCovered(getTemplateVars('join-request-admin.html'), payload.templateData);
+  });
+
   it('ad-pending-review.html — sendAdPendingReviewEmail covers every {{var}}', async () => {
     const result = await sendAdPendingReviewEmail({
       to: 'admin@example.com',
@@ -264,8 +283,6 @@ describe('SendGrid template payload contract', () => {
       zipCode: '06902',
       bannerUrl: 'https://cdn.example.com/banner.jpg',
       adId: 'ad_test_123',
-      approveToken: 'tok_approve_abc',
-      rejectToken: 'tok_reject_abc',
     });
     expect(result).toBe(true);
     const payload = mockSend.mock.calls[0]![0] as any;

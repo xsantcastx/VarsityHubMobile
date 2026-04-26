@@ -22,6 +22,10 @@ const adminDashboardScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'admin-dashboard.tsx'),
   'utf8'
 );
+const eventApprovalsScreen = readFileSync(
+  join(process.cwd(), '..', 'app', '(tabs)', 'event-approvals.tsx'),
+  'utf8'
+);
 const joinRequestsScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'organization-join-requests.tsx'),
   'utf8'
@@ -94,6 +98,11 @@ describe('coach approval UI guards', () => {
       'organization-join-requests.tsx',
       joinRequestsScreen,
       /const signature = `\$\{requestId\}\|\$\{action\}`;/,
+    ],
+    [
+      'event-approvals.tsx',
+      eventApprovalsScreen,
+      /const signature = `\$\{reviewKind \?\? ''\}\|\$\{eventId\}\|\$\{action\}`;/,
     ],
   ])('%s handles email review links by deep-link signature, not one-shot session state', (_name, source, signatureRegex) => {
     expect(source).toMatch(/const lastHandledLinkRef = useRef<string \| null>\(null\)/);

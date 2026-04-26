@@ -394,6 +394,11 @@ const publicAppHandoffRoutes: Array<{ path: string; title: string; description: 
     description: 'Open VarsityHub with an admin account to review this ad.',
   },
   {
+    path: '/event-approvals',
+    title: 'Open Event Review',
+    description: 'Open VarsityHub with a coach or admin account to review this event.',
+  },
+  {
     path: '/organization-join-requests',
     title: 'Open Join Requests',
     description: 'Open VarsityHub to review this organization join request.',

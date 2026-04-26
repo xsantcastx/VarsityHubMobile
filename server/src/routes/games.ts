@@ -17,6 +17,8 @@ import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 import { sendError } from '../lib/http/sendError.js';
+import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import { sendEventApprovedEmail, sendEventDeniedEmail } from '../lib/email.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -636,7 +638,7 @@ gamesRouter.post(
       // Check if user is super admin (can create events for ANY team)
       const currentUser = await prisma.user.findUnique({
         where: { id: req.user.id },
-        select: { email: true },
+        select: { email: true, display_name: true },
       });
       const isAdmin = isEmailAdmin(currentUser?.email);
 
@@ -780,6 +782,23 @@ gamesRouter.post(
               }
             : null,
       };
+
+      if (gameData.approval_status === 'pending') {
+        void notifyPendingEventReviewers(prisma, {
+          reviewId: game.id,
+          reviewKind: 'game',
+          teamId: game.home_team_id || null,
+          requesterName: currentUser?.display_name || 'VarsityHub User',
+          requesterEmail: currentUser?.email || '',
+          eventTitle: game.title,
+          eventType: parsed.data.event_type || 'game',
+          eventDate: game.date,
+          eventLocation: game.location || game.venue_address || undefined,
+          teamName: game.homeTeam?.name || undefined,
+        }).catch((err) => {
+          console.warn('[games] pending review email failed:', (err as any)?.message || err);
+        });
+      }
 
       await invalidateGamesListCache();
       res.status(201).json(response);
@@ -1821,12 +1840,19 @@ gamesRouter.put(
       if (updatedGame.created_by_id && updatedGame.created_by_id !== req.user!.id) {
         try {
           // Get linked event ID so notification tap navigates correctly (client reads event_id)
-          const linkedEvent = await prisma.event.findFirst({
-            where: { game_id: id },
-            select: { id: true },
-            orderBy: { date: 'asc' },
-          });
+          const [linkedEvent, creator] = await Promise.all([
+            prisma.event.findFirst({
+              where: { game_id: id },
+              select: { id: true },
+              orderBy: { date: 'asc' },
+            }),
+            prisma.user.findUnique({
+              where: { id: updatedGame.created_by_id },
+              select: { email: true, display_name: true },
+            }),
+          ]);
           const eventId = linkedEvent?.id || null;
+          const eventDate = updatedGame.date ? new Date(updatedGame.date) : null;
 
           const { sendPushNotification } = await import('../lib/notifications.js');
           if (parsed.data.approval_status === 'approved') {
@@ -1843,6 +1869,29 @@ gamesRouter.put(
                 meta: { game_id: id, event_id: eventId, event_title: updatedGame.title },
               },
             });
+            if (creator?.email) {
+              await sendEventApprovedEmail({
+                to: creator.email,
+                recipientName: creator.display_name || 'User',
+                eventTitle: updatedGame.title,
+                eventDate: eventDate
+                  ? eventDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : undefined,
+                eventTime: eventDate
+                  ? eventDate.toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })
+                  : undefined,
+                eventLocation: updatedGame.location || undefined,
+                eventId: eventId || undefined,
+              });
+            }
             // Approved games appear in the feed carousel automatically via GET /games
           } else {
             await sendPushNotification(
@@ -1863,6 +1912,22 @@ gamesRouter.put(
                 },
               },
             });
+            if (creator?.email) {
+              await sendEventDeniedEmail({
+                to: creator.email,
+                recipientName: creator.display_name || 'User',
+                eventTitle: updatedGame.title,
+                eventDate: eventDate
+                  ? eventDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : undefined,
+                reason: (req.body as any)?.reason || undefined,
+              });
+            }
           }
         } catch (notifErr) {
           console.warn('[games] Failed to notify creator of approval decision:', notifErr);

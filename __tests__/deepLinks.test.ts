@@ -136,6 +136,55 @@ describe('parseDeepLink', () => {
     });
   });
 
+  it('parses universal event approval links used by review emails', () => {
+    expect(
+      parseDeepLink(
+        'https://varsityhub.app/event-approvals?event_id=evt-123&review_kind=game&action=approve'
+      )
+    ).toEqual({
+      screen: '/event-approvals',
+      params: {
+        event_id: 'evt-123',
+        review_kind: 'game',
+        action: 'approve',
+      },
+      source: 'universal',
+    });
+  });
+
+  it('parses universal organization join-request links used by review emails', () => {
+    expect(
+      parseDeepLink(
+        'https://varsityhub.app/organization-join-requests?organization_id=org-123&organization_name=Example+League&request_id=req-456&action=approve'
+      )
+    ).toEqual({
+      screen: '/organization-join-requests',
+      params: {
+        organization_id: 'org-123',
+        organization_name: 'Example League',
+        request_id: 'req-456',
+        action: 'approve',
+      },
+      source: 'universal',
+    });
+  });
+
+  it('parses universal team-hub links used by approval emails', () => {
+    expect(parseDeepLink('https://varsityhub.app/team-hub')).toEqual({
+      screen: '/team-hub',
+      params: {},
+      source: 'universal',
+    });
+  });
+
+  it('parses universal create-fan-event links used by event rejection emails', () => {
+    expect(parseDeepLink('https://varsityhub.app/create-fan-event')).toEqual({
+      screen: '/create-fan-event',
+      params: {},
+      source: 'universal',
+    });
+  });
+
   // Regression matrix for the universal-link contract between server
   // (shareLanding.ts + email.ts) and the mobile parser. If any of these
   // fail, taps on shared/email links land users on the web fallback

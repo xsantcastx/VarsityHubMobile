@@ -24,6 +24,7 @@ import { mustSucceed } from '../lib/sideEffect.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
@@ -917,6 +918,37 @@ eventsRouter.post(
       });
 
       // Submission-received confirmation email removed — non-mandatory transactional email
+
+      if (!autoApprove) {
+        const [creator, team] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: { display_name: true, email: true },
+          }),
+          data.home_team_id
+            ? prisma.team.findUnique({
+                where: { id: data.home_team_id },
+                select: { name: true },
+              })
+            : Promise.resolve(null),
+        ]);
+
+        void notifyPendingEventReviewers(prisma, {
+          reviewId: event.id,
+          reviewKind: 'event',
+          teamId: data.home_team_id || null,
+          requesterName: creator?.display_name || 'VarsityHub User',
+          requesterEmail: creator?.email || '',
+          eventTitle: event.title,
+          eventType: event.event_type || undefined,
+          eventDate: event.date,
+          eventLocation: event.location || undefined,
+          teamName: team?.name || data.linked_league || undefined,
+          notes: event.description || undefined,
+        }).catch((err) => {
+          console.warn('[events] pending review email failed:', (err as any)?.message || err);
+        });
+      }
 
       // Admin events route through /games and appear as game cards in the feed carousel.
       // No separate text post needed — game cards have full detail pages with stories/polls/RSVP.

@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -35,6 +35,7 @@ type PendingEvent = {
   linked_league?: string;
   max_attendees?: number;
   creator?: { id: string; display_name: string; username?: string; avatar_url?: string };
+  _isGame?: boolean;
 };
 
 type TeamInvite = {
@@ -76,6 +77,11 @@ const ROLE_LABELS: Record<string, string> = {
 export default function EventApprovalsScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    event_id?: string;
+    action?: 'approve' | 'reject';
+    review_kind?: 'event' | 'game';
+  }>();
   const colorScheme = useColorScheme() ?? 'light';
   const C = Colors[colorScheme];
 
@@ -95,6 +101,7 @@ export default function EventApprovalsScreen() {
 
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const lastHandledLinkRef = useRef<string | null>(null);
 
   // ── Loaders ──────────────────────────────────────────────────────────────
 
@@ -187,6 +194,34 @@ export default function EventApprovalsScreen() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   useEffect(() => { void loadAll(); }, []);
+
+  useEffect(() => {
+    const eventId = String(params.event_id || '').trim();
+    const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
+    const reviewKind = params.review_kind === 'game' || params.review_kind === 'event'
+      ? params.review_kind
+      : null;
+
+    if (!canAccessCoachTools || events.length === 0 || !eventId || !action) return;
+
+    const signature = `${reviewKind ?? ''}|${eventId}|${action}`;
+    if (lastHandledLinkRef.current === signature) return;
+
+    const matchedEvent = events.find((item) => {
+      if (item.id !== eventId) return false;
+      if (reviewKind === 'game') return item._isGame === true;
+      if (reviewKind === 'event') return item._isGame !== true;
+      return true;
+    });
+    if (!matchedEvent) return;
+
+    lastHandledLinkRef.current = signature;
+    if (action === 'approve') {
+      void handleApproveEvent(matchedEvent.id);
+      return;
+    }
+    handleRejectEvent(matchedEvent.id);
+  }, [canAccessCoachTools, events, params.action, params.event_id, params.review_kind]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

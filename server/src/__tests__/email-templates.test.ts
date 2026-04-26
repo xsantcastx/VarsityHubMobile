@@ -92,11 +92,42 @@ describe('Email template helpers', () => {
     expect(url).toContain('action=reject');
   });
 
-  it('buildAdReviewUrl points into the admin ads app flow', async () => {
-    process.env.API_BASE_URL = 'https://api-production-8ac3.up.railway.app';
+  it('buildCoachJoinRequestReviewUrl points into the organization join-request app flow', async () => {
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
+    const { buildCoachJoinRequestReviewUrl } = await import('../lib/email.js');
+    const url = buildCoachJoinRequestReviewUrl({
+      organizationId: 'org_123',
+      organizationName: 'Example League',
+      requestId: 'req_456',
+      action: 'approve',
+    });
+    expect(url).toContain('https://varsityhub.app/organization-join-requests');
+    expect(url).toContain('organization_id=org_123');
+    expect(url).toContain('organization_name=Example+League');
+    expect(url).toContain('request_id=req_456');
+    expect(url).toContain('action=approve');
+  });
+
+  it('buildEventReviewUrl points into the event approvals app flow', async () => {
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
+    const { buildEventReviewUrl } = await import('../lib/email.js');
+    const url = buildEventReviewUrl({
+      reviewId: 'evt_123',
+      reviewKind: 'game',
+      action: 'reject',
+    });
+    expect(url).toContain('https://varsityhub.app/event-approvals');
+    expect(url).toContain('event_id=evt_123');
+    expect(url).toContain('review_kind=game');
+    expect(url).toContain('action=reject');
+  });
+
+  it('buildAdReviewUrl points to a browser-safe admin ads URL', async () => {
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
     const { buildAdReviewUrl } = await import('../lib/email.js');
     const url = buildAdReviewUrl({ adId: 'ad_123', action: 'reject' });
-    expect(url).toContain('https://api-production-8ac3.up.railway.app/ads/ad_123/review');
+    expect(url).toContain('https://varsityhub.app/admin-ads');
+    expect(url).toContain('ad_id=ad_123');
     expect(url).toContain('action=reject');
   });
 });

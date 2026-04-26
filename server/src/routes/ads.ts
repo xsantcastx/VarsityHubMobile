@@ -14,7 +14,7 @@ import {
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { buildAdReviewUrl } from '../lib/email.js';
-import { signJwt, verifyJwt } from '../lib/jwt.js';
+import { verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
   approveAd as approveAdService,
@@ -311,11 +311,6 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
       updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     }
 
-    // Generate signed tokens for one-click approve/reject from email.
-    // Keep the exposure window aligned with org approval links.
-    const approveToken = signJwt({ adId: id, action: 'approve_ad' }, '48h');
-    const rejectToken = signJwt({ adId: id, action: 'reject_ad' }, '48h');
-
     const { getAllAdminEmails } = await import('../lib/adminEmails.js');
     const adminEmails = getAllAdminEmails();
     void Promise.all(
@@ -328,8 +323,6 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
           zipCode: updated?.target_zip_code || ad.target_zip_code || undefined,
           bannerUrl: updated?.banner_url || ad.banner_url || undefined,
           adId: id,
-          approveToken,
-          rejectToken,
         }).then((sent) => {
           if (!sent) {
             console.error(
@@ -648,26 +641,30 @@ adsRouter.put(
 
     // Notify admin when content changes require another moderation pass.
     if (requiresReapproval) {
-      const { getPrimaryAdminEmail: getAdmin } = await import('../lib/adminEmails.js');
-      void sendAdPendingReviewEmail({
-        to: getAdmin(),
-        businessName: updated.business_name || undefined,
-        contactName: updated.contact_name || undefined,
-        contactEmail: updated.contact_email || undefined,
-        zipCode: updated.target_zip_code || undefined,
-        bannerUrl: updated.banner_url ?? undefined,
-        adId: updated.id,
-      })
-        .then(sent => {
-          if (!sent)
-            console.error(
-              '[ads] review email returned false — email NOT delivered for ad',
-              updated.id
-            );
-        })
-        .catch(err =>
-          console.error('[ads] Failed to send review email:', (err as any)?.message || err)
-        );
+      const { getAllAdminEmails } = await import('../lib/adminEmails.js');
+      const adminEmails = getAllAdminEmails();
+      void Promise.all(
+        adminEmails.map((to) =>
+          sendAdPendingReviewEmail({
+            to,
+            businessName: updated.business_name || undefined,
+            contactName: updated.contact_name || undefined,
+            contactEmail: updated.contact_email || undefined,
+            zipCode: updated.target_zip_code || undefined,
+            bannerUrl: updated.banner_url ?? undefined,
+            adId: updated.id,
+          }).then(sent => {
+            if (!sent) {
+              console.error(
+                '[ads] review email returned false — email NOT delivered for ad',
+                { adId: updated.id, to }
+              );
+            }
+          })
+        )
+      ).catch(err =>
+        console.error('[ads] Failed to send review email:', (err as any)?.message || err)
+      );
     }
 
     return res.json(updated);

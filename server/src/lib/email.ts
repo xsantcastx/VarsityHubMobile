@@ -324,8 +324,6 @@ export async function sendAdPendingReviewEmail(params: {
   zipCode?: string;
   bannerUrl?: string;
   adId?: string;
-  approveToken?: string;
-  rejectToken?: string;
 }): Promise<boolean> {
   const templateId = TEMPLATE_IDS.AD_PENDING_REVIEW;
   if (!templateId) {
@@ -1377,11 +1375,22 @@ export function buildAdReviewUrl(params: {
   adId: string;
   action?: 'approve' | 'reject';
 }): string {
-  const url = new URL(`${API_BASE_URL}/ads/${encodeURIComponent(params.adId)}/review`);
-  if (params.action) {
-    url.searchParams.set('action', params.action);
-  }
-  return url.toString();
+  return buildAppReviewUrl('/admin-ads', {
+    ad_id: params.adId,
+    action: params.action,
+  });
+}
+
+export function buildEventReviewUrl(params: {
+  reviewId: string;
+  reviewKind?: 'event' | 'game';
+  action?: 'approve' | 'reject';
+}): string {
+  return buildAppReviewUrl('/event-approvals', {
+    event_id: params.reviewId,
+    review_kind: params.reviewKind || 'event',
+    action: params.action,
+  });
 }
 
 function buildAppReviewUrl(
@@ -1539,6 +1548,48 @@ export async function sendCoachApplicationAdminEmail(params: {
     rejectUrl: params.rejectUrl,
     coachNotes: params.coachNotes,
     supportingDocumentUrl: params.supportingDocumentUrl,
+  });
+}
+
+export async function sendEventPendingReviewEmail(params: {
+  to: string;
+  reviewerName?: string;
+  requesterName?: string;
+  requesterEmail?: string;
+  eventTitle: string;
+  eventType?: string;
+  teamName?: string;
+  reviewId: string;
+  reviewKind?: 'event' | 'game';
+  approveUrl?: string;
+  rejectUrl?: string;
+  coachNotes?: string;
+}): Promise<boolean> {
+  const reviewKind = params.reviewKind || 'event';
+  return sendJoinRequestAdminTemplate({
+    to: params.to,
+    subject: `New ${reviewKind} awaiting approval: ${params.eventTitle}`,
+    leagueName: params.teamName || 'VarsityHub Event Review',
+    requesterName: params.requesterName || 'VarsityHub User',
+    requesterEmail: params.requesterEmail || '',
+    adminName: params.reviewerName || 'Reviewer',
+    sport: params.eventType || 'Event',
+    orgType: reviewKind === 'game' ? 'Pending game review' : 'Pending event review',
+    approveUrl:
+      params.approveUrl ||
+      buildEventReviewUrl({
+        reviewId: params.reviewId,
+        reviewKind,
+        action: 'approve',
+      }),
+    rejectUrl:
+      params.rejectUrl ||
+      buildEventReviewUrl({
+        reviewId: params.reviewId,
+        reviewKind,
+        action: 'reject',
+      }),
+    coachNotes: params.coachNotes,
   });
 }
 

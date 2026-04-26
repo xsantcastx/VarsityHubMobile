@@ -200,7 +200,8 @@ describe('Ad Approval Security', () => {
       .query({ token });
 
     expect(res.status).toBe(302);
-    expect(String(res.headers.location || '')).toContain(`/ads/${ad.id}/review`);
+    expect(String(res.headers.location || '')).toContain('https://varsityhub.app/admin-ads');
+    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
     expect(String(res.headers.location || '')).toContain('action=approve');
   });
 
@@ -213,7 +214,8 @@ describe('Ad Approval Security', () => {
       .query({ token });
 
     expect(res.status).toBe(302);
-    expect(String(res.headers.location || '')).toContain(`/ads/${ad.id}/review`);
+    expect(String(res.headers.location || '')).toContain('https://varsityhub.app/admin-ads');
+    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
     expect(String(res.headers.location || '')).toContain('action=reject');
   });
 

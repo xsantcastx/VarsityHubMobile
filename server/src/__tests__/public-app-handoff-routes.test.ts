@@ -39,4 +39,46 @@ describe('Public app handoff routes', () => {
       'varsityhubmobile://admin-dashboard?review=league_approval&league_id=org_123&action=approve'
     );
   });
+
+  it('serves an admin ads handoff page with preserved review params', async () => {
+    const res = await request(app)
+      .get('/admin-ads')
+      .query({ ad_id: 'ad_123', action: 'reject' })
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Open Ad Review');
+    expect(res.text).toContain('varsityhubmobile://admin-ads?ad_id=ad_123&action=reject');
+  });
+
+  it('serves an event approvals handoff page with preserved review params', async () => {
+    const res = await request(app)
+      .get('/event-approvals')
+      .query({ event_id: 'evt_123', review_kind: 'game', action: 'approve' })
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Open Event Review');
+    expect(res.text).toContain(
+      'varsityhubmobile://event-approvals?event_id=evt_123&review_kind=game&action=approve'
+    );
+  });
+
+  it('serves an organization join-request handoff page with preserved params', async () => {
+    const res = await request(app)
+      .get('/organization-join-requests')
+      .query({
+        organization_id: 'org_123',
+        organization_name: 'Example League',
+        request_id: 'req_456',
+        action: 'approve',
+      })
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Open Join Requests');
+    expect(res.text).toContain(
+      'varsityhubmobile://organization-join-requests?organization_id=org_123&organization_name=Example+League&request_id=req_456&action=approve'
+    );
+  });
 });
