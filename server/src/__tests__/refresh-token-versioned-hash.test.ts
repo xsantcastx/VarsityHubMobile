@@ -64,9 +64,15 @@ describe('Refresh token v1 / v2 verification', () => {
     it('rejects a tampered secret half', async () => {
       const { raw, secret } = generateRefreshTokenV2();
       const hash = await hashRefreshTokenSecret(secret);
-      // Flip one character in the secret half
+      // Flip one character in the secret half. The mutation must be guaranteed-
+      // different from the original — picking a fixed literal (e.g. 'f') failed
+      // ~1/16 of the time when the random secret happened to already start with
+      // that char, producing a false-positive "tampered" token that still
+      // verified true. Pick the next hex char so the mutation is always real.
       const dotIdx = raw.indexOf('.');
-      const tampered = raw.slice(0, dotIdx + 1) + 'f' + raw.slice(dotIdx + 2);
+      const original = raw[dotIdx + 1];
+      const tamperedChar = original === 'f' ? 'e' : 'f';
+      const tampered = raw.slice(0, dotIdx + 1) + tamperedChar + raw.slice(dotIdx + 2);
       const ok = await verifyRefreshTokenHash(tampered, hash, REFRESH_TOKEN_HASH_VERSION_V2);
       expect(ok).toBe(false);
     });
