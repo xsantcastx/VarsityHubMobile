@@ -368,6 +368,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           return;
         }
 
+        // Recover a stale offline state before the auth flow makes routing
+        // decisions. Without this, OfflineBanner retry and post-login
+        // checkAuth calls can succeed server-side while `healthOk` remains
+        // false, leaving redirects permanently suppressed.
+        if (!healthOk) {
+          await checkHealth();
+        }
+
         // Try to fetch current user only if we have a token
         const token = await auth.getToken();
         if (!token) {
@@ -384,6 +392,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
 
         const me: any = await User.me({ force: options?.replaceSession === true });
+        setHealthOk(true);
+        setHealthError(null);
 
         // If user is banned, clear session and redirect to sign-in
         if (me?.banned) {
@@ -480,7 +490,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return null; // Don't crash the app on transient network/server errors
       }
     },
-    [clearLocalAuthState, clearUserScopedStorage, fetchSubscription, isOnboardingComplete, user?.id]
+    [
+      checkHealth,
+      clearLocalAuthState,
+      clearUserScopedStorage,
+      fetchSubscription,
+      healthOk,
+      isOnboardingComplete,
+      user?.id,
+    ]
   );
 
   const checkAuthRef = React.useRef(checkAuth);
