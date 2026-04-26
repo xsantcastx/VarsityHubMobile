@@ -14,7 +14,8 @@
 
 module.exports = ({ config }) => {
   const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || '64489ed7-a8c0-41de-91ec-5846ea79a27f';
-  const appVersion = process.env.APP_VERSION_OVERRIDE || '1.0.2';
+  const packageVersion = require('./package.json').version;
+  const appVersion = process.env.APP_VERSION_OVERRIDE || packageVersion;
   const runtimeVersion = process.env.RUNTIME_VERSION_OVERRIDE || appVersion;
 
   // Client IDs are NOT secrets — they're embedded in the app bundle.
@@ -113,7 +114,11 @@ module.exports = ({ config }) => {
             { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/share' },
             { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/verify' },
             { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/reset-password' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/settings/manage-subscription' },
+            {
+              scheme: 'https',
+              host: 'varsityhub.app',
+              pathPrefix: '/settings/manage-subscription',
+            },
             { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/admin-dashboard' },
             { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/admin-ads' },
             { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/organization-join-requests' },
@@ -131,10 +136,18 @@ module.exports = ({ config }) => {
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/share' },
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/verify' },
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/reset-password' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/settings/manage-subscription' },
+            {
+              scheme: 'https',
+              host: 'www.varsityhub.app',
+              pathPrefix: '/settings/manage-subscription',
+            },
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/admin-dashboard' },
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/admin-ads' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/organization-join-requests' },
+            {
+              scheme: 'https',
+              host: 'www.varsityhub.app',
+              pathPrefix: '/organization-join-requests',
+            },
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/team-hub' },
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/create-fan-event' },
             { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/event-detail' },

@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 REM VarsityHub Pre-Launch Validation Script
 REM Checks if all required items are configured before building
 
@@ -15,11 +16,15 @@ if not exist "app.json" (
     echo ❌ ERROR: app.json not found
     set /a ERRORS+=1
 ) else (
-    findstr /C:"1.0.1" app.json >nul
-    if %errorlevel% equ 0 (
-        echo ✅ Version found: 1.0.1
+    for /f "usebackq delims=" %%i in (`node -e "const fs=require('fs'); const app=JSON.parse(fs.readFileSync('app.json','utf8')); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); process.stdout.write([app.expo&&app.expo.version||'', pkg.version||''].join('|'))" 2^>nul`) do set "VERSIONS=%%i"
+    for /f "tokens=1,2 delims=|" %%a in ("!VERSIONS!") do (
+        set "APP_JSON_VERSION=%%a"
+        set "PACKAGE_VERSION=%%b"
+    )
+    if "!APP_JSON_VERSION!"=="!PACKAGE_VERSION!" (
+        echo ✅ Version aligned: !APP_JSON_VERSION!
     ) else (
-        echo ⚠️  WARNING: Version not set to 1.0.1
+        echo ⚠️  WARNING: Version mismatch ^(app.json=!APP_JSON_VERSION!, package.json=!PACKAGE_VERSION!^)
         set /a WARNINGS+=1
     )
 )

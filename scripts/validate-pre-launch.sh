@@ -15,10 +15,13 @@ if [ ! -f "app.json" ]; then
     echo "❌ ERROR: app.json not found"
     ((ERRORS++))
 else
-    if grep -q '"version": "1.0.1"' app.json; then
-        echo "✅ Version found: 1.0.1"
+    APP_VERSION=$(node -e "const fs=require('fs'); const app=JSON.parse(fs.readFileSync('app.json','utf8')); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); process.stdout.write([app.expo?.version || '', pkg.version || ''].join('|'))" 2>/dev/null || echo "|")
+    APP_JSON_VERSION="${APP_VERSION%%|*}"
+    PACKAGE_VERSION="${APP_VERSION#*|}"
+    if [ -n "$APP_JSON_VERSION" ] && [ "$APP_JSON_VERSION" = "$PACKAGE_VERSION" ]; then
+        echo "✅ Version aligned: $APP_JSON_VERSION"
     else
-        echo "⚠️  WARNING: Version not set to 1.0.1"
+        echo "⚠️  WARNING: Version mismatch (app.json=${APP_JSON_VERSION:-missing}, package.json=${PACKAGE_VERSION:-missing})"
         ((WARNINGS++))
     fi
 fi

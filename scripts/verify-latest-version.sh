@@ -69,12 +69,21 @@ echo ""
 
 # 2. Check app version
 echo -e "${BLUE}Step 2: App Version Check...${NC}"
-VERSION=$(grep '"version"' app.json | head -1 | cut -d'"' -f4)
-RUNTIME_VERSION=$(grep '"runtimeVersion"' app.json | head -1 | cut -d'"' -f4)
+VERSION=$(node -e "const app=JSON.parse(require('fs').readFileSync('app.json','utf8')); console.log(app.expo?.version || '')" 2>/dev/null)
+RUNTIME_VERSION=$(node -e "
+const app = JSON.parse(require('fs').readFileSync('app.json','utf8'));
+const runtime = app.expo?.runtimeVersion;
+if (!runtime) console.log('');
+else if (typeof runtime === 'string') console.log(runtime);
+else if (runtime.policy) console.log('__POLICY__:' + runtime.policy);
+else console.log('');
+" 2>/dev/null)
+PACKAGE_VERSION=$(node -e "const pkg=JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log(pkg.version || '')" 2>/dev/null)
 echo -e "  App Version: ${VERSION}"
 echo -e "  Runtime Version: ${RUNTIME_VERSION}"
-if [ "$VERSION" = "$RUNTIME_VERSION" ]; then
-    echo -e "${GREEN}✅ Version numbers match${NC}"
+echo -e "  package.json Version: ${PACKAGE_VERSION}"
+if [ "$VERSION" = "$PACKAGE_VERSION" ] && { [ "$RUNTIME_VERSION" = "$VERSION" ] || [ "$RUNTIME_VERSION" = "__POLICY__:appVersion" ]; }; then
+    echo -e "${GREEN}✅ Version metadata aligned${NC}"
 else
     echo -e "${RED}❌ Version mismatch!${NC}"
     exit 1
