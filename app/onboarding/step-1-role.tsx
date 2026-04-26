@@ -246,8 +246,29 @@ export default function Step1Role() {
       // onboarding before creating content." — the user is then trapped. Retry
       // once on transient network errors, and surface a visible error otherwise so
       // the user can retry intentionally instead of ending up in a dead-end at step 3.
+      let freshServerUser: any | null = null;
       const persistRole = async (attempt = 1): Promise<void> => {
         try {
+          if (!freshServerUser) {
+            freshServerUser = await User.refresh().catch(() => User.me().catch(() => null));
+          }
+          const serverRole = String(
+            freshServerUser?.preferences?.role || freshServerUser?.role || ''
+          ).toLowerCase();
+          const onboardingCompleted =
+            freshServerUser?.preferences?.onboarding_completed === true ||
+            freshServerUser?.onboarding_completed === true;
+          const shouldUseCoachUpgradeFlow =
+            role === 'coach' && serverRole !== 'coach' && onboardingCompleted;
+
+          // Users who already finished fan onboarding cannot elevate to coach
+          // via PATCH /me/preferences. Route them through the dedicated
+          // upgrade endpoint here instead of surfacing the generic save alert.
+          if (shouldUseCoachUpgradeFlow) {
+            await User.upgradeToCoach('rookie');
+            freshServerUser = await User.refresh().catch(() => freshServerUser);
+            return;
+          }
           await User.updatePreferences({ role });
         } catch (error: any) {
           const isTransient =
@@ -277,7 +298,8 @@ export default function Step1Role() {
         const isRoleChangeBlocked =
           error?.status === 403 && errMsg.includes('cannot change role');
         if (isRoleChangeBlocked) {
-          const freshUser: any = await User.refresh().catch(() => User.me().catch(() => null));
+          const freshUser: any =
+            freshServerUser ?? (await User.refresh().catch(() => User.me().catch(() => null)));
           const recoveryRoute = getPostAuthRouteDecision(freshUser).route;
           if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
             const canonicalRole = freshUser?.preferences?.role || freshUser?.role;

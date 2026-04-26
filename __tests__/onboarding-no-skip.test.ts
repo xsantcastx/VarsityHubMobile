@@ -69,6 +69,7 @@ describe('onboarding flow — no screens can be skipped', () => {
       // If role persistence fails, the user MUST NOT proceed to step-2 —
       // otherwise they end up stuck at step-3 with requireOnboarded 403.
       expect(step1).toMatch(/updatePreferences\(\s*\{\s*role\s*\}/);
+      expect(step1).toMatch(/upgradeToCoach\(\s*['"]rookie['"]\s*\)/);
       expect(step1).toMatch(/Do NOT navigate to step 2/i);
     });
 
