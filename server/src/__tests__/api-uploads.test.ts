@@ -19,6 +19,8 @@ describeDb('Uploads API Endpoints', () => {
   let testUserToken: string;
   let unverifiedUser: any;
   let unverifiedUserToken: string;
+  let ownedAd: any;
+  let foreignAd: any;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -43,9 +45,32 @@ describeDb('Uploads API Endpoints', () => {
       },
     });
     unverifiedUserToken = signJwt({ id: unverifiedUser.id });
+    ownedAd = await prisma.ad.create({
+      data: {
+        user_id: unverifiedUser.id,
+        business_name: 'Owned Ad Banner Upload',
+        contact_email: unverifiedUser.email,
+        target_zip_code: '10001',
+        status: 'draft',
+        payment_status: 'unpaid',
+      },
+    });
+    foreignAd = await prisma.ad.create({
+      data: {
+        user_id: testUser.id,
+        business_name: 'Foreign Ad Banner Upload',
+        contact_email: testUser.email,
+        target_zip_code: '10002',
+        status: 'draft',
+        payment_status: 'unpaid',
+      },
+    });
   });
 
   afterAll(async () => {
+    await prisma.ad.deleteMany({
+      where: { id: { in: [ownedAd?.id, foreignAd?.id].filter(Boolean) } },
+    }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: testUser.id } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: unverifiedUser.id } }).catch(() => {});
   });
@@ -62,6 +87,14 @@ describeDb('Uploads API Endpoints', () => {
         .set('Authorization', `Bearer ${unverifiedUserToken}`);
       expect(res.statusCode).toEqual(403);
       expect(res.body.error).toEqual('Email verification required');
+    });
+
+    it('should reject unverified ad-banner uploads for ads the caller does not own', async () => {
+      const res = await request(app)
+        .post(`/uploads?purpose=ad_banner&ad_id=${foreignAd.id}`)
+        .set('Authorization', `Bearer ${unverifiedUserToken}`);
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toEqual('Ad banner upload requires an ad you own');
     });
   });
 
@@ -92,6 +125,17 @@ describeDb('Uploads API Endpoints', () => {
         .set('Authorization', `Bearer ${unverifiedUserToken}`);
       expect(res.statusCode).toEqual(403);
       expect(res.body.error).toEqual('Email verification required');
+    });
+
+    it('should allow unverified ad-banner signatures for caller-owned ads only', async () => {
+      const res = await request(app)
+        .get(`/uploads/cloudinary-signature?purpose=ad_banner&ad_id=${ownedAd.id}`)
+        .set('Authorization', `Bearer ${unverifiedUserToken}`);
+
+      expect([200, 503]).toContain(res.statusCode);
+      if (res.statusCode === 503) {
+        expect(res.body.error).toContain('Direct upload not available');
+      }
     });
   });
 

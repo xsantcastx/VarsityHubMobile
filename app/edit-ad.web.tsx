@@ -96,7 +96,7 @@ function EditAdScreen() {
       setUploading(true);
       const manipulated = await ImageManipulator.manipulateAsync(a.uri, [{ resize: { width: 1200 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const up = await uploadFile(getApiBaseUrl(), manipulated.uri, a.fileName || 'banner.jpg', 'image/jpeg', {
-        formFields: { purpose: 'ad_banner' },
+        formFields: { purpose: 'ad_banner', ad_id: String(id) },
       });
       setBannerUrl(up?.url || up?.path || null);
     } catch (e: any) {

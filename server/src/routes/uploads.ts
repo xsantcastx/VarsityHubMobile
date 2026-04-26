@@ -10,6 +10,8 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { prisma } from '../lib/prisma.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 // Magic byte signatures for file type validation (prevents MIME spoofing)
 const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
@@ -101,16 +103,44 @@ function isAdBannerUploadRequest(req: Request) {
   return String(req.query?.purpose || '').trim().toLowerCase() === 'ad_banner';
 }
 
-function requireVerifiedUnlessAdBannerUpload(req: Request, res: Response, next: NextFunction) {
-  if (
+function getAdBannerUploadId(req: Request) {
+  return String(req.query?.ad_id || '').trim();
+}
+
+const MUTABLE_AD_UPLOAD_STATUSES = ['draft', 'pending', 'approved', 'active'] as const;
+
+const requireVerifiedUnlessScopedAdBannerUpload = asyncHandler(async (req: AuthedRequest, res: Response, next: NextFunction) => {
+  const isAdBannerRoute =
     isAdBannerUploadRequest(req) &&
     ((req.method === 'GET' && req.path === '/cloudinary-signature') ||
-      (req.method === 'POST' && req.path === '/'))
-  ) {
-    return next();
+      (req.method === 'POST' && req.path === '/'));
+
+  if (!isAdBannerRoute) {
+    return requireVerified(req as any, res, next);
   }
-  return requireVerified(req as any, res, next);
-}
+
+  const adId = getAdBannerUploadId(req);
+  if (!adId) {
+    return requireVerified(req as any, res, next);
+  }
+  if (!/^[a-zA-Z0-9_-]{10,50}$/.test(adId)) {
+    return res.status(400).json({ error: 'Invalid ad_id' });
+  }
+
+  const ad = await prisma.ad.findFirst({
+    where: {
+      id: adId,
+      user_id: req.user?.id,
+      status: { in: [...MUTABLE_AD_UPLOAD_STATUSES] },
+    },
+    select: { id: true },
+  });
+  if (!ad) {
+    return res.status(403).json({ error: 'Ad banner upload requires an ad you own' });
+  }
+
+  return next();
+});
 
 if (useCloudinary) {
   debugLog('✅ Cloudinary configured - using cloud storage');
@@ -200,7 +230,7 @@ uploadsRouter.use((req, res, next) => {
 // Returns a signed payload for direct client-to-Cloudinary upload.
 // The file never touches this server — goes straight from phone to CDN.
 // -----------------------------------------------
-uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUnlessAdBannerUpload as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
+uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUnlessScopedAdBannerUpload as any, uploadLimiter as any, asyncHandler(async (_req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store');
   if (!useCloudinary) {
     addBreadcrumb('Cloudinary signature unavailable', 'uploads.signature', 'warning', {
@@ -288,7 +318,7 @@ uploadsRouter.get('/sign', requireAuth as any, uploadLimiter as any, asyncHandle
 }));
 
 // Original media upload endpoint (images/videos only).
-uploadsRouter.post('/', requireAuth as any, requireVerifiedUnlessAdBannerUpload as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/', requireAuth as any, requireVerifiedUnlessScopedAdBannerUpload as any, uploadLimiter as any, upload.single('file'), asyncHandler(async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   addBreadcrumb('Media upload started', 'uploads.media', 'info', {
     mime: req.file.mimetype,
