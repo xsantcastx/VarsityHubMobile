@@ -407,6 +407,7 @@ check_native_module_ota_safety() {
   risky="$(grep -rnE \
     "^import .* from '(@react-native-community/netinfo|@react-native-community/blur|@stripe/stripe-react-native|react-native-vision-camera|react-native-iap|@notifee/react-native|react-native-purchases)'" \
     . --include="*.ts" --include="*.tsx" 2>/dev/null \
+    | grep -vE "^\./\.claude/worktrees/" \
     | grep -v "node_modules" \
     | grep -v "OfflineBanner.tsx" \
     || true)"
