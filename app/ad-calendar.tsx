@@ -114,6 +114,10 @@ function getAdBlocks(selectedISO: Set<string>): { weekdayBlocks: number; weekend
   return { weekdayBlocks, weekendBlocks };
 }
 
+function getBookableSlotDates(dateISO: string, today: string, maxDate: string): string[] {
+  return getWeekSlotDates(dateISO).filter((slotDate) => slotDate >= today && slotDate <= maxDate);
+}
+
 function AdCalendarScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ adId?: string }>();
@@ -140,7 +144,13 @@ function AdCalendarScreen() {
   const [preview, setPreview] = useState<any>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
-  const [_taxRate, _setTaxRate] = useState(0); // Tax rate as decimal
+  const [quote, setQuote] = useState<{
+    subtotal_cents: number;
+    tax_cents: number;
+    discount_cents: number;
+    total_cents: number;
+  } | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
   const [zipCode, setZipCode] = useState<string>('');
   const [alternatives, setAlternatives] = useState<Array<{ zip: string; distance: number }>>([]);
   const [showingAlternatives, setShowingAlternatives] = useState(false);
@@ -262,22 +272,12 @@ function AdCalendarScreen() {
     }
   };
 
-  const price = useMemo(() => calculatePrice(selected), [selected]);
-  const taxCents = useMemo(() => {
-    // Client-side estimate only — server calculates exact amount at checkout
-    if (!price || price <= 0) return 0;
-    // Display "estimated tax" without committing to a specific rate.
-    // Actual tax is calculated server-side based on jurisdiction.
-    return Math.round(price * 100 * 0.07);
-  }, [price]);
-  const _priceWithTax = useMemo(() => price + (taxCents / 100), [price, taxCents]);
-  const effectiveCents = useMemo(() => {
-    const subtotalCents = Math.round(price * 100);
-    const discount = preview?.valid ? (preview.discount_cents || 0) : 0;
-    const afterDiscount = Math.max(0, subtotalCents - discount);
-    return afterDiscount + taxCents;
-  }, [price, taxCents, preview?.valid, preview?.discount_cents]);
-  const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
+  const localSubtotal = useMemo(() => calculatePrice(selected), [selected]);
+  const subtotalCents = quote?.subtotal_cents ?? Math.round(localSubtotal * 100);
+  const taxCents = quote?.tax_cents ?? 0;
+  const discountCents = quote?.discount_cents ?? (preview?.valid ? (preview.discount_cents || 0) : 0);
+  const totalCents = quote?.total_cents ?? Math.max(0, subtotalCents - discountCents);
+  const effective = useMemo(() => totalCents / 100, [totalCents]);
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
   const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
@@ -291,6 +291,38 @@ function AdCalendarScreen() {
   const canPay = isApproved || isActive; // Once approved, no re-approval for future runs
 
   const theme = Colors[colorScheme];
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!adId || adId.startsWith('local-') || selected.size === 0) {
+      setQuote(null);
+      setQuoteLoading(false);
+      return;
+    }
+
+    const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
+    setQuoteLoading(true);
+    void (async () => {
+      try {
+        const data: any = await httpPost('/payments/ad-quote', {
+          ad_id: String(adId),
+          dates,
+          promo_code: preview?.valid ? preview.code : undefined,
+        });
+        if (!cancelled) setQuote(data);
+      } catch (err) {
+        if (!cancelled) {
+          setQuote(null);
+          if (__DEV__) console.error('Failed to fetch ad quote:', err);
+        }
+      } finally {
+        if (!cancelled) setQuoteLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adId, selected, preview?.valid, preview?.code]);
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
     
@@ -349,6 +381,7 @@ function AdCalendarScreen() {
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
+    const minDate = todayISO();
     const maxDate = maxDateISO();
 
     if (adStatus === 'rejected') {
@@ -358,6 +391,11 @@ function AdCalendarScreen() {
 
     if (adStatus === 'archived') {
       Alert.alert('Campaign Ended', 'This campaign has ended. Edit the ad to run it again.');
+      return;
+    }
+
+    if (iso < minDate) {
+      Alert.alert('Date Unavailable', 'Ad dates must be today or in the future.');
       return;
     }
     
@@ -378,7 +416,11 @@ function AdCalendarScreen() {
     }
     
     // Get all dates in this week slot (Mon-Thu or Fri-Sun)
-    const weekSlotDates = getWeekSlotDates(iso);
+    const weekSlotDates = getBookableSlotDates(iso, minDate, maxDate);
+    if (weekSlotDates.length === 0) {
+      Alert.alert('Date Unavailable', 'Only current and future dates in this slot can be booked.');
+      return;
+    }
     
     // Check if ANY date in the week slot is already selected
     const isAnySelected = weekSlotDates.some(d => selected.has(d));
@@ -407,7 +449,7 @@ function AdCalendarScreen() {
     setPromoError(null);
     setPromoBusy(true);
     try {
-      const subtotalCents = Math.round(price * 100);
+      const subtotalCents = Math.round(localSubtotal * 100);
       const { httpPost } = await import('@/api/http');
       const data = await httpPost('/promos/preview', { code: promo, subtotal_cents: subtotalCents, service: 'booking' });
       if (!data?.valid) { setPreview(null); setPromoError(data?.reason || 'invalid'); }
@@ -582,7 +624,7 @@ function AdCalendarScreen() {
           if (result.error) Alert.alert('Payment Error', result.error);
           return;
         }
-        const paidAmount = `$${calculatePrice(selected).toFixed(2)}`;
+        const paidAmount = `$${(totalCents / 100).toFixed(2)}`;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), totalAmount: paidAmount } });
         return;
       }
@@ -841,17 +883,17 @@ function AdCalendarScreen() {
         
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Select Ad Campaign Dates</Text>
-          <Text style={[styles.cardDesc, { color: Colors[colorScheme].mutedText }]}>Choose one or more dates to run your ad.</Text>
+          <Text style={[styles.cardDesc, { color: Colors[colorScheme].mutedText }]}>Choose one or more dates to run your ad. Selecting a date books the remaining days in that week slot only.</Text>
 
           {/* Color Legend */}
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - <Text style={{ fontWeight: '700' }}>${weekdayRate.toFixed(2)} total</Text></Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - <Text style={{ fontWeight: '700' }}>${weekdayRate.toFixed(2)} per slot</Text></Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - <Text style={{ fontWeight: '700' }}>${weekendRate.toFixed(2)} total</Text></Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - <Text style={{ fontWeight: '700' }}>${weekendRate.toFixed(2)} per slot</Text></Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: theme.mutedText, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }]}>
@@ -866,6 +908,7 @@ function AdCalendarScreen() {
             markedDates={marked}
             markingType="custom"
             enableSwipeMonths
+            minDate={todayISO()}
             maxDate={maxDateISO()}
             theme={{
               backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].card,
@@ -1017,7 +1060,7 @@ function AdCalendarScreen() {
                             {dateRange} ({slotLabel})
                           </Text>
                           <Text style={[styles.dateBadgeRate, { color: colorScheme === 'dark' ? (isWeekend ? '#FDE68A' : '#93C5FD') : (isWeekend ? '#9A3412' : '#1E3A8A') }]}>
-                            ${rate.toFixed(2)} total
+                            ${rate.toFixed(2)} slot
                           </Text>
                         </View>
                       );
@@ -1042,8 +1085,7 @@ function AdCalendarScreen() {
           {sortedDates.length > 0 && (() => {
             // Each booked day = 24 hours of ad exposure (full day, regardless of when it goes live)
             const totalHrs = sortedDates.length * 24;
-            const hasPastDates = sortedDates.some(d => d < todayISO());
-            const hasCurrentOrPastDates = sortedDates[0] <= todayISO();
+            const includesToday = sortedDates.includes(todayISO());
             return (
               <>
                 <View style={[styles.rowBetween, { marginTop: 4 }]}>
@@ -1054,19 +1096,11 @@ function AdCalendarScreen() {
                     </Text>
                   </View>
                 </View>
-                {hasPastDates && (
+                {includesToday && (
                   <View style={styles.fullPriceNotice}>
                     <MaterialIcons name="info-outline" size={16} color="#92400E" />
                     <Text style={styles.fullPriceNoticeText}>
-                      Past dates are charged at full price.
-                    </Text>
-                  </View>
-                )}
-                {!hasPastDates && hasCurrentOrPastDates && (
-                  <View style={styles.fullPriceNotice}>
-                    <MaterialIcons name="info-outline" size={16} color="#92400E" />
-                    <Text style={styles.fullPriceNoticeText}>
-                      Full price is charged regardless of when your ad goes live during a booked day.
+                      Booking today still charges the full slot price.
                     </Text>
                   </View>
                 )}
@@ -1078,26 +1112,33 @@ function AdCalendarScreen() {
 
           <View style={styles.rowBetween}>
             <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Subtotal:</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: Colors[colorScheme].text }}>${price.toFixed(2)}</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: Colors[colorScheme].text }}>${(subtotalCents / 100).toFixed(2)}</Text>
           </View>
-          {taxCents > 0 && (
+          {quoteLoading ? (
             <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Est. Tax*:</Text>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Tax:</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].mutedText }}>Calculating...</Text>
+            </View>
+          ) : taxCents > 0 ? (
+            <View style={styles.rowBetween}>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Tax:</Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
-          )}
+          ) : null}
           {preview?.valid ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Promo Discount:</Text>
-              <Text style={{ fontSize: 16, color: '#10B981', fontWeight: '700' }}>- ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+              <Text style={{ fontSize: 16, color: '#10B981', fontWeight: '700' }}>- ${((discountCents || 0) / 100).toFixed(2)}</Text>
             </View>
           ) : null}
           <View style={styles.rowBetween}>
             <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>${effective.toFixed(2)}</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>
+              {quoteLoading ? 'Calculating...' : `$${effective.toFixed(2)}`}
+            </Text>
           </View>
-          {taxCents > 0 && (
-            <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 2 }}>* Final tax calculated at checkout.</Text>
+          {!quoteLoading && quote == null && (
+            <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 2 }}>Tax is confirmed at checkout.</Text>
           )}
 
           {isPending && (

@@ -676,10 +676,134 @@ paymentsRouter.get('/config', (_req, res) => {
   });
 });
 
+paymentsRouter.post(
+  '/ad-quote',
+  expressPkg.json(),
+  requireAuth as any,
+  paymentLimiter,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const quoteSchema = z.object({
+      ad_id: z.string(),
+      dates: z.array(z.string()).min(1),
+      promo_code: z.string().optional(),
+    });
+    const parsed = quoteSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    }
+
+    const isoDates = Array.from(new Set(parsed.data.dates.map((d) => String(d))));
+    const quote = await buildAdQuote({
+      adId: parsed.data.ad_id,
+      userId: req.user!.id,
+      isoDates,
+      promoCode: parsed.data.promo_code,
+    });
+    if ('error' in quote) {
+      return res.status(quote.status!).json({
+        error: quote.error!,
+        ...(quote.dates ? { dates: quote.dates } : {}),
+      });
+    }
+
+    return res.json({
+      ad_id: parsed.data.ad_id,
+      dates: isoDates,
+      subtotal_cents: quote.subtotalCents,
+      tax_cents: quote.taxCents,
+      discount_cents: quote.discountCents,
+      total_cents: quote.totalCents,
+      weekday_blocks: quote.weekdayBlocks,
+      weekend_blocks: quote.weekendBlocks,
+      promo_code: quote.appliedPromoCode,
+    });
+  })
+);
+
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
   return `$${(cents / 100).toFixed(2)}`;
 };
+
+function getPastAdDates(isoDates: string[], now: Date = new Date()): string[] {
+  const todayIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    .toISOString()
+    .slice(0, 10);
+  return isoDates.filter((dateIso) => dateIso < todayIso);
+}
+
+async function buildAdQuote(params: {
+  adId: string;
+  userId: string;
+  isoDates: string[];
+  promoCode?: string;
+}) {
+  const ad = await prisma.ad.findUnique({ where: { id: params.adId } });
+  if (!ad) return { error: 'Ad not found', status: 404 as const };
+  if (ad.user_id !== params.userId) {
+    return { error: 'You can only price your own ads', status: 403 as const };
+  }
+
+  const MAX_BOOKING_HORIZON_DAYS = 56;
+  const pastHorizon = getDatesPastBookingHorizon(
+    params.isoDates,
+    new Date(),
+    MAX_BOOKING_HORIZON_DAYS
+  );
+  if (pastHorizon.length > 0) {
+    return {
+      error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`,
+      status: 400 as const,
+      dates: pastHorizon,
+    };
+  }
+
+  const pastDates = getPastAdDates(params.isoDates);
+  if (pastDates.length > 0) {
+    return {
+      error: 'Ad dates must be today or in the future',
+      status: 400 as const,
+      dates: pastDates,
+    };
+  }
+
+  const pricingResult = calculateAdPriceCents(params.isoDates);
+  const subtotalCents = pricingResult.totalCents;
+  if (subtotalCents <= 0) {
+    return { error: 'Invalid amount', status: 400 as const };
+  }
+
+  const taxCents = ad.target_zip_code ? calculateSalesTax(subtotalCents, ad.target_zip_code) : 0;
+  let discountCents = 0;
+  let appliedPromoCode: string | null = null;
+  if (params.promoCode && typeof params.promoCode === 'string') {
+    const preview = await previewPromo({
+      code: params.promoCode,
+      subtotalCents,
+      userId: params.userId,
+      service: 'booking',
+    });
+    if (!preview.valid) {
+      return { error: preview.reason || 'Invalid promo code', status: 400 as const };
+    }
+    discountCents = preview.discount_cents;
+    appliedPromoCode = preview.code;
+  }
+
+  const totalCents = Math.max(0, subtotalCents - discountCents + taxCents);
+  return {
+    ad,
+    subtotalCents,
+    taxCents,
+    discountCents,
+    totalCents,
+    appliedPromoCode,
+    weekdayBlocks: pricingResult.weekdayBlocks,
+    weekendBlocks: pricingResult.weekendBlocks,
+  };
+}
 
 function getCheckoutReturnUrls(params: {
   type: 'subscription' | 'ad';
@@ -1039,18 +1163,19 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-
-  // Enforce booking horizon — no dates beyond 56 days from today
-  const MAX_BOOKING_HORIZON_DAYS = 56;
-  const pastHorizon = getDatesPastBookingHorizon(isoDates, new Date(), MAX_BOOKING_HORIZON_DAYS);
-  if (pastHorizon.length > 0) {
-    return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
+  const quote = await buildAdQuote({
+    adId: String(ad_id),
+    userId: req.user!.id,
+    isoDates,
+    promoCode: promo_code,
+  });
+  if ('error' in quote) {
+    return res.status(quote.status!).json({
+      error: quote.error!,
+      ...(quote.dates ? { dates: quote.dates } : {}),
+    });
   }
-
-  // Ensure ad exists and belongs to the requesting user
-  const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
-  if (!ad) return res.status(404).json({ error: 'Ad not found' });
-  if (ad.user_id !== req.user?.id) return res.status(403).json({ error: 'You can only pay for your own ads' });
+  const { ad } = quote;
 
   // No charge until approved — match PaymentSheet route behavior
   if (ad.status !== 'approved' && ad.status !== 'active') {
@@ -1086,30 +1211,12 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
     }
   }
 
-  // Use shared ad pricing helper for consistent calculation
-  // Groups dates into week blocks: $5/week for Mon-Thu, $8/week for Fri-Sun
-  const pricingResult = calculateAdPriceCents(isoDates);
-  const subtotal = pricingResult.totalCents;
+  const subtotal = quote.subtotalCents;
   if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
-
-  // Calculate sales tax based on ad's target zip code
-  const taxCents = ad.target_zip_code ? calculateSalesTax(subtotal, ad.target_zip_code) : 0;
-  
-  // Calculate total before discount
-  const subtotalWithTax = subtotal + taxCents;
-
-  // Apply promo code if provided (discount applies to subtotal, not tax)
-  let discount = 0;
-  let appliedCode: string | null = null;
-  if (promo_code && typeof promo_code === 'string') {
-    const preview = await previewPromo({ code: promo_code, subtotalCents: subtotal, userId: req.user!.id, service: 'booking' });
-    if (!preview.valid) return res.status(400).json({ error: preview.reason });
-    discount = preview.discount_cents;
-    appliedCode = preview.code;
-  }
-
-  // Total = (subtotal - discount) + tax
-  const total = Math.max(0, subtotal - discount + taxCents);
+  const taxCents = quote.taxCents;
+  const discount = quote.discountCents;
+  const appliedCode = quote.appliedPromoCode;
+  const total = quote.totalCents;
   // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
   const isFullyComped = discount >= subtotal;
   if (total === 0 || isFullyComped) {
@@ -1187,19 +1294,19 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
   if (hasPriceIds && !hasTaxOrDiscount) {
     // Use Stripe Price IDs when available AND no tax/discount (can't add tax/discount to Price IDs easily)
     debugLog('[payments] Using Stripe Price IDs for ad checkout', {
-      weekdayBlocks: pricingResult.weekdayBlocks,
-      weekendBlocks: pricingResult.weekendBlocks,
+      weekdayBlocks: quote.weekdayBlocks,
+      weekendBlocks: quote.weekendBlocks,
       tax: taxCents,
       discount,
     });
     lineItems = [
-      ...(pricingResult.weekdayBlocks > 0 ? [{
+      ...(quote.weekdayBlocks > 0 ? [{
         price: weekdayPriceId,
-        quantity: pricingResult.weekdayBlocks,
+        quantity: quote.weekdayBlocks,
       }] : []),
-      ...(pricingResult.weekendBlocks > 0 ? [{
+      ...(quote.weekendBlocks > 0 ? [{
         price: weekendPriceId,
-        quantity: pricingResult.weekendBlocks,
+        quantity: quote.weekendBlocks,
       }] : []),
     ];
 
@@ -1260,8 +1367,8 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
       tax_cents: String(taxCents),
       promo_code: appliedCode || '',
       discount_cents: String(discount || 0),
-      weekday_blocks: String(pricingResult.weekdayBlocks),
-      weekend_blocks: String(pricingResult.weekendBlocks),
+      weekday_blocks: String(quote.weekdayBlocks),
+      weekend_blocks: String(quote.weekendBlocks),
     },
   };
 
@@ -1526,17 +1633,19 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
     { apiVersion: '2024-06-20' }
   );
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-
-  // Enforce booking horizon — no dates beyond 56 days from today
-  const MAX_BOOKING_HORIZON_DAYS = 56;
-  const pastHorizon = getDatesPastBookingHorizon(isoDates, new Date(), MAX_BOOKING_HORIZON_DAYS);
-  if (pastHorizon.length > 0) {
-    return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
+  const quote = await buildAdQuote({
+    adId: String(ad_id),
+    userId,
+    isoDates,
+    promoCode: promo_code,
+  });
+  if ('error' in quote) {
+    return res.status(quote.status!).json({
+      error: quote.error!,
+      ...(quote.dates ? { dates: quote.dates } : {}),
+    });
   }
-
-  const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
-  if (!ad) return res.status(404).json({ error: 'Ad not found' });
-  if (ad.user_id !== req.user?.id) return res.status(403).json({ error: 'You can only pay for your own ads' });
+  const { ad } = quote;
 
   // No charge until approved by emancero@varsityhub.app. Once approved, no re-approval needed for future runs.
   if (ad.status !== 'approved' && ad.status !== 'active') {
@@ -1568,22 +1677,12 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
     }
   }
 
-  const pricingResult = calculateAdPriceCents(isoDates);
-  const subtotal = pricingResult.totalCents;
+  const subtotal = quote.subtotalCents;
   if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
-
-  const taxCents = ad.target_zip_code ? calculateSalesTax(subtotal, ad.target_zip_code) : 0;
-
-  let discount = 0;
-  let appliedCode: string | null = null;
-  if (promo_code && typeof promo_code === 'string') {
-    const preview = await previewPromo({ code: promo_code, subtotalCents: subtotal, userId, service: 'booking' });
-    if (!preview.valid) return res.status(400).json({ error: preview.reason });
-    discount = preview.discount_cents;
-    appliedCode = preview.code;
-  }
-
-  const total = Math.max(0, subtotal - discount + taxCents);
+  const taxCents = quote.taxCents;
+  const discount = quote.discountCents;
+  const appliedCode = quote.appliedPromoCode;
+  const total = quote.totalCents;
   const isFullyComped = discount >= subtotal;
   if (total === 0 || isFullyComped) {
     // Free via promo — only if already approved (approval required before any charge/activation)
@@ -1648,8 +1747,8 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
         tax_cents: String(taxCents),
         promo_code: appliedCode || '',
         discount_cents: String(discount || 0),
-        weekday_blocks: String(pricingResult.weekdayBlocks),
-        weekend_blocks: String(pricingResult.weekendBlocks),
+        weekday_blocks: String(quote.weekdayBlocks),
+        weekend_blocks: String(quote.weekendBlocks),
       },
     }, {
       // v1.0.2 audit fix: widen fallback window from 60s to 1h to prevent duplicate payment intents on retry

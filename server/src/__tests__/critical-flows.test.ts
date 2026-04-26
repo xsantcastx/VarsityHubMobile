@@ -646,6 +646,71 @@ describeDb('Critical Server Flows', () => {
         await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
       }
     });
+
+    it('should return an authoritative ad quote that matches server tax rules', async () => {
+      const ad = await prisma.ad.create({
+        data: {
+          user_id: onboardedUser.id,
+          contact_name: 'Quote User',
+          contact_email: onboardedUser.email,
+          business_name: 'Quote Biz',
+          banner_url: 'https://example.com/banner-quote.jpg',
+          target_url: 'https://example.com',
+          target_zip_code: '10001',
+          radius: 9,
+          status: 'draft',
+          payment_status: 'unpaid',
+        },
+      });
+
+      try {
+        const quoteDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        const res = await request(app)
+          .post('/payments/ad-quote')
+          .set('Authorization', `Bearer ${onboardedToken}`)
+          .send({ ad_id: ad.id, dates: [quoteDate] });
+
+        expect(res.statusCode).toEqual(200);
+        expect(res.body.subtotal_cents).toEqual(499);
+        expect(res.body.tax_cents).toEqual(20);
+        expect(res.body.total_cents).toEqual(519);
+        expect(res.body.weekday_blocks).toEqual(1);
+        expect(res.body.weekend_blocks).toEqual(0);
+      } finally {
+        await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
+      }
+    });
+
+    it('should reject past dates before ad checkout starts', async () => {
+      const ad = await prisma.ad.create({
+        data: {
+          user_id: onboardedUser.id,
+          contact_name: 'Past Date User',
+          contact_email: onboardedUser.email,
+          business_name: 'Past Date Biz',
+          banner_url: 'https://example.com/banner-past.jpg',
+          target_url: 'https://example.com',
+          target_zip_code: '10001',
+          radius: 9,
+          status: 'approved',
+          payment_status: 'unpaid',
+        },
+      });
+
+      try {
+        const res = await request(app)
+          .post('/payments/ad-quote')
+          .set('Authorization', `Bearer ${onboardedToken}`)
+          .send({ ad_id: ad.id, dates: ['2020-01-01'] });
+
+        expect(res.statusCode).toEqual(400);
+        expect(String(res.body?.error || '')).toMatch(/today or in the future/i);
+      } finally {
+        await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
+      }
+    });
   });
 
   describe('Error Response Shape Consistency', () => {
