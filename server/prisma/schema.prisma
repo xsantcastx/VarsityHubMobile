@@ -498,6 +498,13 @@ model Post {
   @@index([team_id, is_pinned])
   @@index([deleted_at, created_at])
   @@index([country_code, upvotes_count])
+  // Composite index for /highlights queries that filter by country_code,
+  // sort by upvotes_count desc, then break ties by created_at desc, and
+  // paginate with `take`. Without this, Postgres scans every row in the
+  // country bucket and sorts in memory before applying limit. With 500-row
+  // takes per highlight call and 5+ findMany calls per request, that was
+  // the dominant DB cost on feed mount.
+  @@index([country_code, upvotes_count, created_at])
   @@index([type, created_at])
 }
 
