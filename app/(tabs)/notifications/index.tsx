@@ -36,6 +36,7 @@ function NotificationsScreen() {
   const { user: _user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme];
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -139,9 +140,20 @@ function NotificationsScreen() {
         });
       }
     };
-    const theme = Colors[colorScheme];
     return (
-      <Pressable style={[S.row, { borderBottomColor: theme.border }, !item.read_at && { backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.08)' : '#F0F5FF' }]} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}${!item.read_at ? ', unread' : ''}`}>
+      <Pressable
+        style={[
+          S.row,
+          { borderBottomColor: theme.border },
+          !item.read_at && {
+            backgroundColor:
+              colorScheme === 'dark' ? 'rgba(96,165,250,0.12)' : 'rgba(10,126,164,0.08)',
+          },
+        ]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}${!item.read_at ? ', unread' : ''}`}
+      >
         <View style={S.avatarWrap}>
           {/* Always render fallback as base layer */}
           <View style={[S.avatar, S.avatarFallback, { backgroundColor: theme.border }]}>
@@ -178,17 +190,17 @@ function NotificationsScreen() {
   };
 
   return (
-    <View style={[S.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <View style={[S.container, { backgroundColor: theme.background }]}>
       {/* Enhanced header with gradient and safe area */}
       <LinearGradient
-        colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
-        style={[S.headerGradient, { paddingTop: insets.top + 12 }]}
+        colors={colorScheme === 'dark' ? [theme.card, theme.background] : [theme.card, theme.surface]}
+        style={[S.headerGradient, { paddingTop: insets.top + 12, borderBottomColor: theme.border }]}
       >
         <View style={S.headerRow}>
           <Pressable onPress={() => safeGoBack(router)} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
-            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
+            <MaterialIcons name="chevron-left" size={24} color={theme.text} />
           </Pressable>
-          <Text style={[S.topTitle, { color: Colors[colorScheme].text }]}>Notifications</Text>
+          <Text style={[S.topTitle, { color: theme.text }]}>Notifications</Text>
           <View style={{ width: 40 }} />
         </View>
       </LinearGradient>
@@ -199,8 +211,13 @@ function NotificationsScreen() {
         <View style={S.center}><ActivityIndicator /></View>
       ) : error && items.length === 0 ? (
         <View style={S.center}>
-          <Text style={{ color: Colors[colorScheme].destructive, marginBottom: 12 }}>{error}</Text>
-          <Pressable style={[S.retryButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => void load(null, false).catch(() => {})} accessibilityRole="button" accessibilityLabel="Retry loading notifications">
+          <Text style={{ color: theme.destructive, marginBottom: 12 }}>{error}</Text>
+          <Pressable
+            style={[S.retryButton, { backgroundColor: theme.tint }]}
+            onPress={() => void load(null, false).catch(() => {})}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading notifications"
+          >
             <Text style={S.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -211,8 +228,22 @@ function NotificationsScreen() {
           renderItem={renderItem}
           ListHeaderComponent={hasUnread ? (
             <View style={S.headerRow}>
-              <Pressable style={[S.markAllBtn, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6' }]} onPress={onMarkAllRead} disabled={markingAll} accessibilityRole="button" accessibilityLabel={markingAll ? 'Marking all as read' : 'Mark all as read'}>
-                <Text style={[S.markAllText, { color: Colors[colorScheme].text }]}>{markingAll ? 'Marking…' : 'Mark all as read'}</Text>
+              <Pressable
+                style={[
+                  S.markAllBtn,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+                onPress={onMarkAllRead}
+                disabled={markingAll}
+                accessibilityRole="button"
+                accessibilityLabel={markingAll ? 'Marking all as read' : 'Mark all as read'}
+              >
+                <Text style={[S.markAllText, { color: theme.text }]}>
+                  {markingAll ? 'Marking…' : 'Mark all as read'}
+                </Text>
               </Pressable>
             </View>
           ) : null}
@@ -221,9 +252,9 @@ function NotificationsScreen() {
           onEndReached={onEndReached}
           ListEmptyComponent={
             <View style={S.emptyContainer}>
-              <MaterialIcons name="notifications-none" size={56} color={Colors[colorScheme ?? 'light'].mutedText} />
-              <Text style={[S.emptyTitle, { color: Colors[colorScheme ?? 'light'].text }]}>All caught up!</Text>
-              <Text style={[S.emptySubtitle, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              <MaterialIcons name="notifications-none" size={56} color={theme.mutedText} />
+              <Text style={[S.emptyTitle, { color: theme.text }]}>All caught up!</Text>
+              <Text style={[S.emptySubtitle, { color: theme.mutedText }]}>
                 You'll see notifications for follows, upvotes, and comments here.
               </Text>
             </View>

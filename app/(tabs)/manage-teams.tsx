@@ -39,6 +39,7 @@ function ManageTeamsSimpleScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -281,30 +282,52 @@ function ManageTeamsSimpleScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'My Teams', headerShown: false }} />
       
       {/* Simple Header */}
-      <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Pressable 
           style={styles.backButton} 
           onPress={() => safeGoBack(router)}
         >
-          <MaterialIcons name="arrow-back" size={28} color={Colors[colorScheme].text} />
+          <MaterialIcons name="arrow-back" size={28} color={theme.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Teams</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>My Teams</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Payment Status Banner */}
       {paymentStatus === 'pending_approval' && (
-        <View style={styles.paymentBanner}>
-          <MaterialIcons name="hourglass-top" size={24} color="#92400E" />
+        <View
+          style={[
+            styles.paymentBanner,
+            {
+              backgroundColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF3C7',
+              borderColor: colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#FCD34D',
+            },
+          ]}
+        >
+          <MaterialIcons
+            name="hourglass-top"
+            size={24}
+            color={colorScheme === 'dark' ? '#FCD34D' : '#92400E'}
+          />
           <View style={{ flex: 1 }}>
-            <Text style={styles.paymentBannerTitle}>
+            <Text
+              style={[
+                styles.paymentBannerTitle,
+                { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+              ]}
+            >
               {userPlan ? `${userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} Plan Selected` : 'Plan Selected'}
             </Text>
-            <Text style={styles.paymentBannerText}>
+            <Text
+              style={[
+                styles.paymentBannerText,
+                { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' },
+              ]}
+            >
               Payment will be processed after your league admin approves your account.
             </Text>
           </View>
@@ -312,24 +335,50 @@ function ManageTeamsSimpleScreen() {
       )}
       {paymentStatus === 'ready_to_pay' && (
         <Pressable
-          style={styles.paymentBannerAction}
+          style={[
+            styles.paymentBannerAction,
+            {
+              backgroundColor: colorScheme === 'dark' ? 'rgba(16,185,129,0.12)' : '#D1FAE5',
+              borderColor: colorScheme === 'dark' ? 'rgba(52,211,153,0.35)' : '#6EE7B7',
+            },
+          ]}
           onPress={() => void router.push('/subscription-paywall')}
         >
-          <MaterialIcons name="check-circle" size={24} color="#065F46" />
+          <MaterialIcons
+            name="check-circle"
+            size={24}
+            color={colorScheme === 'dark' ? '#6EE7B7' : '#065F46'}
+          />
           <View style={{ flex: 1 }}>
-            <Text style={styles.paymentBannerActionTitle}>You're Approved!</Text>
-            <Text style={styles.paymentBannerActionText}>
+            <Text
+              style={[
+                styles.paymentBannerActionTitle,
+                { color: colorScheme === 'dark' ? '#A7F3D0' : '#065F46' },
+              ]}
+            >
+              You're Approved!
+            </Text>
+            <Text
+              style={[
+                styles.paymentBannerActionText,
+                { color: colorScheme === 'dark' ? '#A7F3D0' : '#065F46' },
+              ]}
+            >
               Complete your {userPlan} plan payment to unlock all features.
             </Text>
           </View>
-          <MaterialIcons name="arrow-forward" size={20} color="#065F46" />
+          <MaterialIcons
+            name="arrow-forward"
+            size={20}
+            color={colorScheme === 'dark' ? '#6EE7B7' : '#065F46'}
+          />
         </Pressable>
       )}
 
       {/* Quick Action Buttons - Inline */}
       <View style={styles.quickActionsContainer}>
         <Pressable 
-          style={[styles.inlineActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+          style={[styles.inlineActionButton, { backgroundColor: theme.tint }]}
           onPress={() => void router.push('/create-team')}
         >
           <MaterialIcons name="add-circle-outline" size={24} color="#fff" />
@@ -372,7 +421,11 @@ function ManageTeamsSimpleScreen() {
             }}
           >
             <LinearGradient
-              colors={['#111827', '#1F2937']}
+              colors={
+                colorScheme === 'dark'
+                  ? [theme.background, theme.card]
+                  : ['#111827', '#1F2937']
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.leagueGradient}
@@ -466,7 +519,7 @@ function ManageTeamsSimpleScreen() {
               {/* v1.0.2 pass 10: use theme tint color so button matches dark/light schemes. */}
               <Pressable
                 onPress={() => router.push('/(tabs)/create-team')}
-                style={{ backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+                style={{ backgroundColor: theme.tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel="Create your first team"
               >
@@ -479,7 +532,7 @@ function ManageTeamsSimpleScreen() {
         {/* Big Action Buttons */}
         <View style={styles.actionsSection}>
           <Pressable
-            style={[styles.bigActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+            style={[styles.bigActionButton, { backgroundColor: theme.tint }]}
             onPress={() => void router.push('/create-team')}
           >
             <MaterialIcons name="add-circle" size={32} color="#FFF" />

@@ -496,26 +496,62 @@ export default function OrganizationScreen() {
             style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]}
             onPress={() => router.push('/approvals')}
           >
-            <MaterialIcons name="error-outline" size={24} color="#DC2626" />
+            <MaterialIcons name="error-outline" size={24} color={theme.destructive} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, color: '#DC2626', fontWeight: '600' }}>Could not load pending coaches</Text>
+              <Text style={{ fontSize: 14, color: theme.destructive, fontWeight: '600' }}>
+                Could not load pending coaches
+              </Text>
               <Text style={{ fontSize: 12, color: theme.mutedText, marginTop: 2 }}>Tap to open approvals</Text>
             </View>
           </Pressable>
         )}
         {isOrgAdmin && pendingCoachCount > 0 && organization?.id && (
           <Pressable
-            style={[styles.card, styles.sectionCard, { backgroundColor: '#FEF9C3', borderColor: '#DAA520', flexDirection: 'row', alignItems: 'center', gap: 12 }]}
+            style={[
+              styles.card,
+              styles.sectionCard,
+              {
+                backgroundColor:
+                  colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3',
+                borderColor:
+                  colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#DAA520',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              },
+            ]}
             onPress={() => router.push('/approvals')}
           >
-            <MaterialIcons name="group-add" size={24} color="#DAA520" />
+            <MaterialIcons
+              name="group-add"
+              size={24}
+              color={colorScheme === 'dark' ? '#FCD34D' : '#DAA520'}
+            />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#92400E' }}>
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: '700',
+                  color: colorScheme === 'dark' ? '#FDE68A' : '#92400E',
+                }}
+              >
                 {pendingCoachCount} coach{pendingCoachCount !== 1 ? 'es' : ''} pending approval
               </Text>
-              <Text style={{ fontSize: 12, color: '#A16207', marginTop: 2 }}>Tap to review requests</Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colorScheme === 'dark' ? '#FCD34D' : '#A16207',
+                  marginTop: 2,
+                }}
+              >
+                Tap to review requests
+              </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#DAA520" />
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={colorScheme === 'dark' ? '#FCD34D' : '#DAA520'}
+            />
           </Pressable>
         )}
 
