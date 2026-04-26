@@ -90,6 +90,7 @@ describe('onboarding flow — no screens can be skipped', () => {
       // error and does NOT navigate — preventing partial-state skipping.
       expect(step2).toMatch(/User\.patchMe/);
       expect(step2).toMatch(/User\.updatePreferences/);
+      expect(step2).toMatch(/ob\.role === ['"]coach['"] \? \{ role: ['"]coach['"] \} : \{\}/);
     });
 
     it('step-3 enforces supporting document for create-new-org path', () => {

@@ -480,7 +480,11 @@ export default function Step2Basic() {
 
       // Save preferences separately so we get a clear error if this specific call fails
       try {
-        const prefsPayload: Record<string, any> = { affiliation, dob };
+        const prefsPayload: Record<string, any> = {
+          affiliation,
+          dob,
+          ...(ob.role === 'coach' ? { role: 'coach' } : {}),
+        };
         if (zip) prefsPayload.zip_code = zip;
         await User.updatePreferences(prefsPayload);
       } catch (prefsErr: any) {
