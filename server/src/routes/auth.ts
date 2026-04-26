@@ -2876,6 +2876,9 @@ authRouter.patch(
             ],
           },
           select: { id: true, preferences: true },
+          // Device push tokens should be effectively unique. Bound the cleanup
+          // scan so a malformed/shared token can never trigger an unbounded read.
+          take: 25,
         });
         for (const other of others) {
           const otherPrefs = ((other.preferences as any) || {}) as Record<string, unknown>;
