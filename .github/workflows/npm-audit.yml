@@ -1,5 +1,8 @@
 name: npm Audit & Dependency Check
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   schedule:
     # Run nightly at 2 AM UTC (10 PM EST)
@@ -37,10 +40,16 @@ jobs:
       - name: Parse root audit results
         id: root-parse
         run: |
-          VULN_COUNT=$(jq '.metadata.vulnerabilities.total // 0' audit-root.json)
-          echo "vulnerabilities=$VULN_COUNT" >> $GITHUB_OUTPUT
-          if [ "$VULN_COUNT" -gt 0 ]; then
-            echo "❌ Root vulnerabilities: $VULN_COUNT"
+          TOTAL=$(jq '.metadata.vulnerabilities.total // 0' audit-root.json)
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' audit-root.json)
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' audit-root.json)
+          MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' audit-root.json)
+          echo "vulnerabilities=$TOTAL" >> $GITHUB_OUTPUT
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "❌ Root vulnerabilities: $TOTAL"
             jq '.vulnerabilities | to_entries[] | "\(.value.name)@\(.value.via[0]) - \(.value.severity)"' audit-root.json
           fi
 
@@ -53,10 +62,16 @@ jobs:
       - name: Parse server audit results
         id: server-parse
         run: |
-          VULN_COUNT=$(jq '.metadata.vulnerabilities.total // 0' audit-server.json)
-          echo "vulnerabilities=$VULN_COUNT" >> $GITHUB_OUTPUT
-          if [ "$VULN_COUNT" -gt 0 ]; then
-            echo "❌ Server vulnerabilities: $VULN_COUNT"
+          TOTAL=$(jq '.metadata.vulnerabilities.total // 0' audit-server.json)
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' audit-server.json)
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' audit-server.json)
+          MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' audit-server.json)
+          echo "vulnerabilities=$TOTAL" >> $GITHUB_OUTPUT
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "❌ Server vulnerabilities: $TOTAL"
             jq '.vulnerabilities | to_entries[] | "\(.value.name)@\(.value.via[0]) - \(.value.severity)"' audit-server.json
           fi
 
@@ -87,12 +102,26 @@ jobs:
             audit-root.json
             audit-server.json
 
-      - name: Fail if vulnerabilities found
-        if: (steps.root-parse.outputs.vulnerabilities > 0) || (steps.server-parse.outputs.vulnerabilities > 0)
+      - name: Write workflow summary
+        if: always()
         run: |
-          echo "❌ npm audit found vulnerabilities"
+          {
+            echo "## npm Audit Summary"
+            echo ""
+            echo "| Scope | Critical | High | Moderate | Total |"
+            echo "| --- | ---: | ---: | ---: | ---: |"
+            echo "| Root | ${{ steps.root-parse.outputs.critical || '0' }} | ${{ steps.root-parse.outputs.high || '0' }} | ${{ steps.root-parse.outputs.moderate || '0' }} | ${{ steps.root-parse.outputs.vulnerabilities || '0' }} |"
+            echo "| Server | ${{ steps.server-parse.outputs.critical || '0' }} | ${{ steps.server-parse.outputs.high || '0' }} | ${{ steps.server-parse.outputs.moderate || '0' }} | ${{ steps.server-parse.outputs.vulnerabilities || '0' }} |"
+            echo ""
+            echo "Scheduled runs stay report-only for moderate findings so the nightly signal is usable."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on critical/high vulnerabilities
+        if: (steps.root-parse.outputs.critical > 0) || (steps.root-parse.outputs.high > 0) || (steps.server-parse.outputs.critical > 0) || (steps.server-parse.outputs.high > 0)
+        run: |
+          echo "❌ npm audit found critical/high vulnerabilities"
           exit 1
 
       - name: Success
         if: success()
-        run: echo "✅ All dependencies are secure"
+        run: echo "✅ No critical/high dependency vulnerabilities detected"

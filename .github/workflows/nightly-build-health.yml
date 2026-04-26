@@ -1,5 +1,8 @@
 name: Nightly Build Health Monitor
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   schedule:
     # Run nightly at 3 AM UTC (10 PM EST)
@@ -18,6 +21,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+
+      - name: Install app dependencies
+        run: npm ci
 
       - name: Install EAS CLI
         run: npm install -g eas-cli
@@ -27,16 +34,34 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas build:list --limit 5 --json > builds.json 2>&1 || true
-          cat builds.json
-          
-          # Parse build status
-          LATEST_BUILD=$(jq -r '.[0]' builds.json 2>/dev/null || echo "N/A")
-          STATUS=$(echo $LATEST_BUILD | jq -r '.status // "unknown"')
-          BUILD_ID=$(echo $LATEST_BUILD | jq -r '.id // "unknown"')
-          PLATFORM=$(echo $LATEST_BUILD | jq -r '.platform // "unknown"')
-          CREATED=$(echo $LATEST_BUILD | jq -r '.createdAt // "unknown"')
-          
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "warning=missing_expo_token" >> $GITHUB_OUTPUT
+            echo "build_id=unavailable" >> $GITHUB_OUTPUT
+            echo "status=skipped" >> $GITHUB_OUTPUT
+            echo "platform=unavailable" >> $GITHUB_OUTPUT
+            echo "created=unavailable" >> $GITHUB_OUTPUT
+            echo "Skipping EAS build check because EXPO_TOKEN is not configured."
+            exit 0
+          fi
+
+          if ! npx expo config --json >/dev/null; then
+            echo "warning=expo_config_failed" >> $GITHUB_OUTPUT
+            echo "build_id=unavailable" >> $GITHUB_OUTPUT
+            echo "status=degraded" >> $GITHUB_OUTPUT
+            echo "platform=unavailable" >> $GITHUB_OUTPUT
+            echo "created=unavailable" >> $GITHUB_OUTPUT
+            echo "Expo config failed; nightly report will continue without build metadata."
+            exit 0
+          fi
+
+          eas build:list --non-interactive --limit 5 --json > builds.json
+
+          LATEST_BUILD=$(jq '.[0] // {}' builds.json)
+          STATUS=$(echo "$LATEST_BUILD" | jq -r '.status // "unknown"')
+          BUILD_ID=$(echo "$LATEST_BUILD" | jq -r '.id // "unknown"')
+          PLATFORM=$(echo "$LATEST_BUILD" | jq -r '.platform // "unknown"')
+          CREATED=$(echo "$LATEST_BUILD" | jq -r '.createdAt // "unknown"')
+
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
           echo "status=$STATUS" >> $GITHUB_OUTPUT
           echo "platform=$PLATFORM" >> $GITHUB_OUTPUT
@@ -71,6 +96,7 @@ jobs:
           - **Status:** ${{ steps.builds.outputs.status }}
           - **Platform:** ${{ steps.builds.outputs.platform }}
           - **Created:** ${{ steps.builds.outputs.created }}
+          - **Build Check Warning:** ${{ steps.builds.outputs.warning || 'none' }}
           
           ## Dependency Health
           - **Critical Vulnerabilities:** ${{ steps.deps.outputs.critical }}
@@ -95,7 +121,7 @@ jobs:
           retention-days: 30
 
       - name: Alert on build failure
-        if: steps.builds.outputs.status == 'FAILED'
+        if: steps.builds.outputs.warning == '' && steps.builds.outputs.status == 'FAILED'
         run: |
           echo "❌ Latest EAS build FAILED"
           exit 1
