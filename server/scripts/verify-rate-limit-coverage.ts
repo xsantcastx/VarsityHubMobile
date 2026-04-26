@@ -11,141 +11,142 @@ import path from 'node:path';
 
 type Check = {
   file: string;
-  mustContain: string;
   label: string;
+  pattern: RegExp;
 };
 
 const checks: Check[] = [
   // Baseline coverage
   {
     file: 'src/middleware/rateLimiters.ts',
-    mustContain: 'export const defaultApiLimiter = createLimiter({',
+    pattern: /export const defaultApiLimiter = createLimiter\(\{/,
     label: 'default API limiter exported',
   },
   {
     file: 'src/app.ts',
-    mustContain: 'parent.use(defaultApiLimiter);',
+    pattern: /parent\.use\(defaultApiLimiter\);/,
     label: 'default API limiter mounted',
   },
 
   // Auth — uses Redis-backed rate limiting (rlIncr + MAX_AUTH_ATTEMPTS)
   {
     file: 'src/routes/auth.ts',
-    mustContain: 'checkAuthRateLimit',
+    pattern: /checkAuthRateLimit/,
     label: 'auth rate limiter function',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: 'MAX_AUTH_ATTEMPTS',
+    pattern: /MAX_AUTH_ATTEMPTS/,
     label: 'auth max attempts config',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "'/register',",
+    pattern: /'\/register',/,
     label: 'auth register endpoint',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "'/login',",
+    pattern: /'\/login',/,
     label: 'auth login endpoint',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "'/verify/request',",
+    pattern: /'\/verify\/request',/,
     label: 'auth verify/request endpoint',
   },
   {
     file: 'src/routes/auth.ts',
-    mustContain: "'/verify/send',",
+    pattern: /'\/verify\/send',/,
     label: 'auth verify/send endpoint',
   },
 
   // Payments
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/checkout',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments checkout limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/create-payment-sheet',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments payment-sheet limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/finalize-session',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments finalize-session limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/cancel-intent', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/cancel-intent',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments cancel-intent limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/subscribe',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments subscribe limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/subscription\/cancel',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments subscription cancel limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/update-subscription-quantity',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments quantity update limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/apple\/verify-receipt',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments apple receipt limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/apple\/verify-ad-receipt',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments apple ad receipt limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    mustContain:
-      "paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerified as any, paymentLimiter",
+    pattern:
+      /paymentsRouter\.post\('\/google\/verify-purchase',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
     label: 'payments google purchase limiter',
   },
 
   // Uploads
   {
     file: 'src/routes/uploads.ts',
-    mustContain: "uploadsRouter.get('/cloudinary-signature', requireAuth as any, uploadLimiter",
+    pattern:
+      /uploadsRouter\.get\('\/cloudinary-signature',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads cloudinary-signature limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    mustContain: "uploadsRouter.get('/sign', requireAuth as any, uploadLimiter",
+    pattern: /uploadsRouter\.get\('\/sign',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads sign limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    mustContain: "uploadsRouter.post('/', requireAuth as any, uploadLimiter",
+    pattern: /uploadsRouter\.post\('\/',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads media endpoint limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    mustContain: "uploadsRouter.post('/files', requireAuth as any, uploadLimiter",
+    pattern: /uploadsRouter\.post\('\/files',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads files endpoint limiter',
   },
   {
     file: 'src/routes/uploads.ts',
-    mustContain: "uploadsRouter.post('/avatar', requireAuth as any, uploadLimiter",
+    pattern: /uploadsRouter\.post\('\/avatar',[\s\S]*?uploadLimiter[\s\S]*?asyncHandler/,
     label: 'uploads avatar limiter',
   },
 ];
@@ -164,7 +165,7 @@ async function main() {
     const filePath = path.join(root, file);
     const content = await fs.readFile(filePath, 'utf8');
     for (const check of fileChecks) {
-      const ok = content.includes(check.mustContain);
+      const ok = check.pattern.test(content);
       if (!ok) failures.push(`${check.label} (${file})`);
       const status = ok ? 'PASS' : 'FAIL';
       // eslint-disable-next-line no-console

@@ -26,8 +26,9 @@ describe('games approval race guard', () => {
 
   it('returns 409 when a concurrent moderator already changed the game status', () => {
     expect(gamesSrc).toMatch(
-      /return sendError\(res,\s*409,\s*'Game approval status changed before this action completed'\)/
+      /return \{\s*error:\s*'Game approval status changed before this action completed',\s*status:\s*409 as const\s*\}/
     );
+    expect(gamesSrc).toMatch(/return sendError\(res,\s*result\.status!,\s*result\.error!\)/);
   });
 
   it('keeps the linked event sync inside the same transaction as the guarded game transition', () => {
