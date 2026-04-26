@@ -124,7 +124,7 @@ describe('coach approval UI guards', () => {
       /const canEnterStep3FromServer =[\s\S]*coach_application_required[\s\S]*coach_agreement_required[\s\S]*coach_final_setup_required/
     );
     expect(step3LeagueScreen).toMatch(
-      /if \(canEnterStep3FromServer\) \{[\s\S]*setOB\(\(prev\) => \{[\s\S]*role: nextRole,[\s\S]*step_2_visited: true,[\s\S]*\}\);[\s\S]*return;/
+      /if \(canEnterStep3FromServer\) \{[\s\S]*setOB\(\(?prev\)? => \{[\s\S]*role: nextRole,[\s\S]*step_2_visited: true,[\s\S]*\}\);[\s\S]*return;/
     );
     expect(step3LeagueScreen).toMatch(
       /if \(!ob\.role\) \{[\s\S]*router\.replace\('\/onboarding\/step-1-role'\);[\s\S]*\} else if \(!ob\.step_2_visited\) \{[\s\S]*router\.replace\('\/onboarding\/step-2-basic'\);/

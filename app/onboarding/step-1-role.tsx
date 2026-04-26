@@ -278,12 +278,11 @@ export default function Step1Role() {
         setOB(prev => ({ ...prev, role }));
       }
 
-      // Persist role to server so the schema/preferences reflect the user's selection.
-      // v1.0.3: do NOT swallow this error silently. A failed role-persist means
-      // requireOnboarded's coach bypass at step 3 will reject with "Please complete
-      // onboarding before creating content." — the user is then trapped. Retry
-      // once on transient network errors, and surface a visible error otherwise so
-      // the user can retry intentionally instead of ending up in a dead-end at step 3.
+      // Fresh onboarding users must be allowed to choose "coach" before DOB exists.
+      // The server's PATCH /me/preferences coach transition correctly requires DOB,
+      // so step-1 keeps role selection local until step-2/step-3 commit the canonical
+      // coach state. Only already-onboarded accounts should hit the server here for
+      // upgrade/recovery flows.
       let freshServerUser: any | null = null;
       const persistRole = async (attempt = 1): Promise<void> => {
         try {
@@ -296,6 +295,11 @@ export default function Step1Role() {
           const onboardingCompleted =
             freshServerUser?.preferences?.onboarding_completed === true ||
             freshServerUser?.onboarding_completed === true;
+
+          if (!onboardingCompleted) {
+            return;
+          }
+
           const shouldUseCoachUpgradeFlow =
             role === 'coach' && serverRole !== 'coach' && onboardingCompleted;
 

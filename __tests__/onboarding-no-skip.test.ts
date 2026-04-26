@@ -65,12 +65,13 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(step2).toMatch(/router\.replace\(['"]\/onboarding\/step-1-role/);
     });
 
-    it('step-1-role persists the role to the server before advancing to step-2', () => {
-      // If role persistence fails, the user MUST NOT proceed to step-2 —
-      // otherwise they end up stuck at step-3 with requireOnboarded 403.
-      expect(step1).toMatch(/updatePreferences\(\s*\{\s*role\s*\}/);
+    it('step-1-role keeps fresh coach selection local until later onboarding steps provide DOB', () => {
+      // Brand-new coach applicants cannot be blocked at step-1 by the server's
+      // DOB_REQUIRED guard. Step-1 should short-circuit server persistence for
+      // incomplete onboarding, then step-2/step-3 commit the canonical coach state.
+      expect(step1).toMatch(/if\s*\(!onboardingCompleted\)\s*\{\s*return;\s*\}/);
       expect(step1).toMatch(/upgradeToCoach\(\s*['"]rookie['"]\s*\)/);
-      expect(step1).toMatch(/Do NOT navigate to step 2/i);
+      expect(step1).toMatch(/step-2\/step-3 commit the canonical/);
     });
 
     it('step-1-role resumes coach recovery routes instead of dead-ending on role lock', () => {
