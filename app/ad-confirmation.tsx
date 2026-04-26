@@ -27,7 +27,8 @@ function AdConfirmationScreen() {
     businessName?: string;
     selectedDates?: string;
     totalAmount?: string;
-    hoursRemaining?: string;
+    purchasedHours?: string;
+    purchasedDays?: string;
   }>();
 
   const [adDetails, setAdDetails] = useState<any>(null);
@@ -103,8 +104,10 @@ function AdConfirmationScreen() {
   const businessName = adDetails?.business_name || params.businessName || 'Your Business';
   const selectedDates = params.selectedDates || 'your selected dates';
   const totalAmount = params.totalAmount || '$0.00';
-  const _parsedHours = parseInt(params.hoursRemaining ?? '', 10);
-  const hoursRemaining = Number.isFinite(_parsedHours) ? _parsedHours : null;
+  const _parsedHours = parseInt(params.purchasedHours ?? '', 10);
+  const purchasedHours = Number.isFinite(_parsedHours) ? _parsedHours : null;
+  const _parsedDays = parseInt(params.purchasedDays ?? '', 10);
+  const purchasedDays = Number.isFinite(_parsedDays) ? _parsedDays : null;
   const bannerUrl = adDetails?.banner_url;
 
   return (
@@ -257,17 +260,20 @@ function AdConfirmationScreen() {
               </View>
             </View>
 
-            {hoursRemaining !== null && (
+            {purchasedHours !== null && (
               <>
                 <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
                 <View style={styles.detailRow}>
                   <MaterialIcons name="schedule" size={24} color="#10B981" />
                   <View style={{ flex: 1, marginLeft: 12 }}>
                     <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
-                      Campaign Duration
+                      Total Exposure
                     </Text>
                     <Text style={[styles.detailValue, { color: Colors[colorScheme].text }]}>
-                      {hoursRemaining} hrs remaining
+                      {purchasedHours} hours
+                      {purchasedDays !== null
+                        ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
+                        : ''}
                     </Text>
                   </View>
                 </View>

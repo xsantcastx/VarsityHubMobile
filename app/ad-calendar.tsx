@@ -501,8 +501,11 @@ function AdCalendarScreen() {
     }
 
     const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
-    const lastEnd = new Date(dates[dates.length - 1] + 'T23:59:59');
-    const hrsRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
+    // Each booked date = 24 hours of full-day ad exposure, regardless of when
+    // checkout happens or whether the campaign has started yet. This is what
+    // the user actually purchased (date-slot model), not the time between now
+    // and the end of the last selected date.
+    const purchasedHours = dates.length * 24;
 
     if (Platform.OS === 'web') {
       setDirty(false);
@@ -580,7 +583,7 @@ function AdCalendarScreen() {
           return;
         }
         const paidAmount = `$${calculatePrice(selected).toFixed(2)}`;
-        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), totalAmount: paidAmount } });
+        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), totalAmount: paidAmount } });
         return;
       }
 
@@ -602,7 +605,7 @@ function AdCalendarScreen() {
         freeSuccessOpacity.setValue(0);
         Animated.timing(freeSuccessOpacity, { toValue: 1, duration: 300, useNativeDriver: true }).start(() => {
           setTimeout(() => {
-            router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), totalAmount: '$0.00 (promo)', hoursRemaining: String(hrsRemaining) } });
+            router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), totalAmount: '$0.00 (promo)', purchasedHours: String(purchasedHours), purchasedDays: String(dates.length) } });
           }, 1200);
         });
         return;
@@ -668,7 +671,7 @@ function AdCalendarScreen() {
           amount_cents: data.amount_cents,
         });
         const paidAmount = data.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : undefined;
-        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), hoursRemaining: String(hrsRemaining), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });
+        router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });
         return;
       }
       throw new Error('Unexpected checkout response');
