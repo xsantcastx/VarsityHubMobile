@@ -6,12 +6,15 @@ import {
   onboardingReducer,
   OnboardingReducerState,
   OnboardingEvent,
-  STEP_ROUTES,
 } from './onboardingReducer';
 
 const ONBOARDING_STATE_KEY = 'onboarding_state';
 const ONBOARDING_PROGRESS_KEY = 'onboarding_progress';
 const ONBOARDING_REDUCER_STATE_KEY = 'onboarding_reducer_state';
+
+type ServerOnboardingPatch = Partial<{
+  [K in keyof OnboardingState]: OnboardingState[K] | null;
+}>;
 
 export type Affiliation = 'none' | 'other' | 'school' | 'independent' | 'university' | 'high_school' | 'club' | 'youth' | 'professional';
 export type Plan = 'rookie' | 'veteran' | 'legend';
@@ -175,18 +178,19 @@ export function OBProvider({ children }: PropsWithChildren) {
 
   const hydrateFromServer = useCallback((serverPrefs: Record<string, unknown>) => {
     if (!serverPrefs || Object.keys(serverPrefs).length === 0) return;
-    // Only apply defined, non-null values — server wins over stale AsyncStorage on conflict
+    // Apply all defined values, including nulls, so server-side clears wipe stale
+    // local draft data instead of leaving old IDs/plans behind.
     const filtered = Object.fromEntries(
-      Object.entries(serverPrefs).filter(([, v]) => v !== null && v !== undefined)
-    ) as Partial<OnboardingState>;
+      Object.entries(serverPrefs).filter(([, v]) => v !== undefined)
+    ) as ServerOnboardingPatch;
     if (Object.keys(filtered).length === 0) return;
     setState(prev => {
-      const merged = { ...prev, ...filtered };
-      AsyncStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(merged)).catch(() => {});
+      const merged = { ...prev, ...filtered } as OnboardingState;
+      persistAsync(ONBOARDING_STATE_KEY, JSON.stringify(merged));
       return merged;
     });
-    dispatch({ type: 'INIT_FROM_PROFILE', profile: filtered });
-  }, []);
+    dispatch({ type: 'INIT_FROM_PROFILE', profile: filtered as Partial<OnboardingState> });
+  }, [persistAsync]);
 
   const clearOnboarding = useCallback(async () => {
     setState({});
@@ -204,19 +208,23 @@ export function OBProvider({ children }: PropsWithChildren) {
   // Persist reducer state
   useEffect(() => {
     if (isLoaded && reducerState.initialized) {
-      AsyncStorage.setItem(ONBOARDING_REDUCER_STATE_KEY, JSON.stringify({
+      persistAsync(ONBOARDING_REDUCER_STATE_KEY, JSON.stringify({
         currentStepIndex: reducerState.currentStepIndex,
         completedStepIds: Array.from(reducerState.completedStepIds),
         draftData: reducerState.draftData,
         isSaving: reducerState.isSaving,
         initialized: reducerState.initialized,
-      })).catch(e => {
-        if (__DEV__) console.error('Failed to persist reducer state', e);
-      });
+      }));
     }
-    // Use specific primitives to avoid re-triggering on object reference changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reducerState.currentStepIndex, reducerState.isSaving, reducerState.initialized, isLoaded]);
+  }, [
+    reducerState.currentStepIndex,
+    reducerState.completedStepIds,
+    reducerState.draftData,
+    reducerState.isSaving,
+    reducerState.initialized,
+    isLoaded,
+    persistAsync,
+  ]);
 
   // Calculate next step deterministically
   const nextStep = useCallback(() => {
