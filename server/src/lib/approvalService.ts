@@ -38,6 +38,26 @@ import { getLatestCoachApplication } from './coachApplications.js';
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Standard error reporter for fire-and-forget approval-notification emails.
+ * Emails in this file are intentionally fire-and-forget so a notification
+ * failure does not block the approval write — but we still need the
+ * operator to see the failure in Sentry, otherwise a user is silently
+ * never notified that they were approved/rejected.
+ */
+function reportEmailFailure(
+  emailType: string,
+  err: unknown,
+  extra?: Record<string, unknown>,
+): void {
+  console.warn(`[approvalService] ${emailType} email failed:`, (err as any)?.message || err);
+  captureException(err instanceof Error ? err : new Error(String(err)), {
+    context: 'approval_service_email_failed',
+    email_type: emailType,
+    ...(extra || {}),
+  });
+}
+
+/**
  * Check whether an organization is admin-approved.
  * Use this before team creation, coach approval, etc.
  */
@@ -217,7 +237,7 @@ export async function approveOrganization(
       ownerName: org.leagueOwner.display_name || 'League Owner',
       leagueName: org.name,
       note: opts?.note,
-    }).catch((err) => console.error('[approvalService] League approved email error:', (err as any)?.message || err));
+    }).catch((err) => reportEmailFailure('league_approved', err, { user_id: org.leagueOwner?.id, org_id: org.id }));
   }
 
   if (org.leagueOwner?.id) {
@@ -335,7 +355,7 @@ export async function rejectOrganization(
       ownerName: org.leagueOwner.display_name || 'League Owner',
       leagueName: org.name,
       reason: reason || undefined,
-    }).catch((err) => console.error('[approvalService] league rejected email failed:', (err as any)?.message || err));
+    }).catch((err) => reportEmailFailure('league_rejected', err, { user_id: org.leagueOwner?.id, org_id: org.id }));
   }
 
   await notifyAllAdminsOfLeagueAction({
@@ -478,7 +498,7 @@ export async function approveCoach(
       coachName: user.display_name || user.username || 'Coach',
       leagueName: orgName,
       note: note || undefined,
-    }).catch((err) => console.error('[approvalService] coach approved email failed:', err));
+    }).catch((err) => reportEmailFailure('coach_approved', err, { user_id: user.id }));
   }
 
   await createApprovalNotification(prisma, {
@@ -682,7 +702,7 @@ export async function approveAd(
   // ── Fire-and-forget notifications ──
   if (ad.contact_email) {
     sendAdApprovedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, note: opts?.note || undefined })
-      .catch((err) => console.error('[approvalService] ad approved email error:', (err as any)?.message || err));
+      .catch((err) => reportEmailFailure('ad_approved', err, { ad_id: adId, user_id: ad.user_id }));
   }
   if (ad.user_id) {
     await createApprovalNotification(prisma, {
@@ -811,7 +831,7 @@ export async function rejectAd(
   const reason = opts?.reason;
   if (ad.contact_email) {
     sendAdRejectedEmail({ to: ad.contact_email, businessName: ad.business_name || undefined, reason: reason || undefined })
-      .catch((err) => console.warn('[approvalService] ad reject email failed:', (err as any)?.message || err));
+      .catch((err) => reportEmailFailure('ad_rejected', err, { ad_id: adId, user_id: ad.user_id }));
   }
   if (ad.user_id) {
     await createApprovalNotification(prisma, {
@@ -908,7 +928,7 @@ export async function approveEvent(
         eventTime: eventDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         eventLocation: updated.location || '',
         eventId,
-      }).catch((err) => console.warn('[approvalService] event approved email failed:', err));
+      }).catch((err) => reportEmailFailure('event_approved', err, { event_id: eventId, user_id: creator?.id }));
     }
   }
 
@@ -982,7 +1002,7 @@ export async function rejectEvent(
         recipientName: creator.display_name || 'User',
         eventTitle: updated.title,
         reason: reason || undefined,
-      }).catch((err) => console.warn('[approvalService] event denied email failed:', err));
+      }).catch((err) => reportEmailFailure('event_denied', err, { event_id: eventId, user_id: creator?.id }));
     }
   }
 
