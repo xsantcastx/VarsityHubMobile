@@ -1,15 +1,15 @@
 /**
- * Regression test: requireOnboarded / requireVerified onboarding-create parity
+ * Regression test: onboarding-create routes may bypass onboarding completion,
+ * but they must never bypass email verification.
  *
  * Why this exists:
- *   Coach onboarding was broken because `requireVerified.ts` had a bypass for
- *   both /teams and /organizations create routes during onboarding, but
- *   `requireOnboarded.ts` did not stay in sync. Upload routes are no longer
- *   part of this contract; uploads are gated independently via auth +
- *   verification.
+ *   The app intentionally lets verified coaches create their org/team before
+ *   onboarding is fully complete, so `requireOnboarded.ts` carries a narrow
+ *   bypass for POST /teams and POST /organizations during onboarding.
+ *   Email verification is a separate hard gate and must never be skipped by
+ *   those routes.
  *
- * This test is a static/structural check over the team/org onboarding bypass.
- * No DB required, runs in ms.
+ * This is a static/structural check over both middlewares. No DB required.
  */
 
 import { describe, it, expect } from '@jest/globals';
@@ -30,31 +30,30 @@ const hasBypass = (src: string, baseUrl: string) => {
   return pattern.test(src);
 };
 
-describe('requireVerified ↔ requireOnboarded bypass parity', () => {
-  it('declares the onboarding flag as the bypass trigger in both middlewares', () => {
-    expect(/onboarding\s*===\s*true/.test(verifiedSrc)).toBe(true);
+describe('onboarding-create middleware boundaries', () => {
+  it('keeps the onboarding flag as the trigger in requireOnboarded only', () => {
+    expect(/onboarding\s*===\s*true/.test(verifiedSrc)).toBe(false);
     expect(/onboarding\s*===\s*true/.test(onboardedSrc)).toBe(true);
   });
 
-  it('bypasses team creation in both middlewares', () => {
-    // Negative assert: the original bug would have passed this — teams was OK.
-    expect(hasBypass(verifiedSrc, '/teams')).toBe(true);
+  it('does not whitelist team creation inside requireVerified', () => {
+    expect(hasBypass(verifiedSrc, '/teams')).toBe(false);
+  });
+
+  it('does not whitelist organization creation inside requireVerified', () => {
+    expect(hasBypass(verifiedSrc, '/organizations')).toBe(false);
+  });
+
+  it('still bypasses team creation in requireOnboarded', () => {
     expect(hasBypass(onboardedSrc, '/teams')).toBe(true);
   });
 
-  it('bypasses organization creation in both middlewares', () => {
-    // Positive assert: this is the exact check that would have red-flagged
-    // the bug we just shipped a fix for. requireVerified had it, requireOnboarded didn't.
-    expect(hasBypass(verifiedSrc, '/organizations')).toBe(true);
+  it('still bypasses organization creation in requireOnboarded', () => {
     expect(hasBypass(onboardedSrc, '/organizations')).toBe(true);
   });
 
-  it('gates bypass on POST method + root/create path in both middlewares', () => {
-    // Make sure nobody "fixes" this by whitelisting /organizations globally.
-    // The bypass must remain scoped to POST '/' | '/create'.
-    expect(/method\s*===\s*['"]POST['"]/.test(verifiedSrc)).toBe(true);
+  it('keeps the requireOnboarded bypass scoped to POST root/create paths', () => {
     expect(/method\s*===\s*['"]POST['"]/.test(onboardedSrc)).toBe(true);
-    expect(/path\s*===\s*['"]\/['"]/.test(verifiedSrc)).toBe(true);
     expect(/path\s*===\s*['"]\/['"]/.test(onboardedSrc)).toBe(true);
   });
 

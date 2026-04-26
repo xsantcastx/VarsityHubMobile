@@ -67,4 +67,33 @@ describe('requireVerified OAuth healing', () => {
     });
     expect(mockCacheDel).toHaveBeenCalledWith('me:user-1');
   });
+
+  it('does not bypass email verification for onboarding organization creation', async () => {
+    mockUserFindUnique.mockResolvedValueOnce({
+      id: 'user-2',
+      email_verified: false,
+      apple_id: null,
+      google_id: null,
+    });
+
+    const req = {
+      user: { id: 'user-2' },
+      baseUrl: '/organizations',
+      method: 'POST',
+      path: '/',
+      body: { onboarding: true },
+    } as any;
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+    const next = jest.fn();
+
+    await requireVerified(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Email verification required' });
+    expect(mockUserUpdate).not.toHaveBeenCalled();
+  });
 });

@@ -34,6 +34,8 @@ let pendingCoach: any;
 let pendingCoachToken: string;
 let approvedCoach: any;
 let approvedCoachToken: string;
+let unverifiedCoach: any;
+let unverifiedCoachToken: string;
 let premiumAdUser: any;
 let premiumAdUserToken: string;
 let premiumUnonboardedAdUser: any;
@@ -103,7 +105,23 @@ describeDb('Critical Server Flows', () => {
     approvedCoachToken = signJwt({ id: approvedCoach.id });
     cleanupIds.users.push(approvedCoach.id);
 
-    // 4. Paid user for ad entitlement checks
+    // 4. Unverified coach candidate — must not complete onboarding server-side.
+    unverifiedCoach = await prisma.user.create({
+      data: {
+        email: `critical-unverified-${ts}@example.com`,
+        password_hash: hash,
+        display_name: 'Unverified Coach',
+        role: 'coach',
+        onboarding_completed: false,
+        approval_status: 'PENDING',
+        email_verified: false,
+        preferences: { role: 'coach', plan: 'rookie', onboarding_completed: false },
+      },
+    });
+    unverifiedCoachToken = signJwt({ id: unverifiedCoach.id });
+    cleanupIds.users.push(unverifiedCoach.id);
+
+    // 5. Paid user for ad entitlement checks
     premiumAdUser = await prisma.user.create({
       data: {
         email: `critical-ad-premium-${ts}@example.com`,
@@ -119,7 +137,7 @@ describeDb('Critical Server Flows', () => {
     premiumAdUserToken = signJwt({ id: premiumAdUser.id });
     cleanupIds.users.push(premiumAdUser.id);
 
-    // 5. Verified but not onboarded paid advertiser — should still be able to manage ad drafts.
+    // 6. Verified but not onboarded paid advertiser — should still be able to manage ad drafts.
     premiumUnonboardedAdUser = await prisma.user.create({
       data: {
         email: `critical-ad-unonboarded-${ts}@example.com`,
@@ -232,6 +250,18 @@ describeDb('Critical Server Flows', () => {
 
       expect(res2.statusCode).toEqual(201);
       cleanupIds.posts.push(res2.body.id);
+    });
+  });
+
+  describe('Verification gate on onboarding', () => {
+    it('blocks unverified users from completing onboarding', async () => {
+      const res = await request(app)
+        .post('/auth/me/complete-onboarding')
+        .set('Authorization', `Bearer ${unverifiedCoachToken}`)
+        .send({});
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toBe('Email verification required');
     });
   });
 

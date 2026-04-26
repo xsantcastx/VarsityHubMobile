@@ -130,8 +130,8 @@ describe('coach flow structural invariants', () => {
       expect(/isUserOnboardingComplete/.test(requireOnboarded)).toBe(true);
     });
 
-    it('requireVerified uses isUserOnboardingComplete for its onboarding bypass', () => {
-      expect(/isUserOnboardingComplete/.test(requireVerified)).toBe(true);
+    it('requireVerified does not embed an onboarding bypass', () => {
+      expect(/isUserOnboardingComplete/.test(requireVerified)).toBe(false);
     });
 
     it('requireOnboarded selects BOTH role column and onboarding_completed column in its findUnique', () => {
@@ -143,9 +143,10 @@ describe('coach flow structural invariants', () => {
       expect(requireOnboarded.includes('onboarding_completed: true')).toBe(true);
     });
 
-    it('requireVerified selects the role + onboarding_completed columns (lockstep with requireOnboarded)', () => {
-      expect(requireVerified.includes('role: true')).toBe(true);
-      expect(requireVerified.includes('onboarding_completed: true')).toBe(true);
+    it('requireVerified only reads verification-linked fields', () => {
+      expect(requireVerified.includes('role: true')).toBe(false);
+      expect(requireVerified.includes('onboarding_completed: true')).toBe(false);
+      expect(requireVerified.includes('email_verified: true')).toBe(true);
     });
 
     it('requireOnboarded payment gate uses canonical billing/auth helpers, not prefs.role drift', () => {
