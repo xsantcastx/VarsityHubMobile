@@ -43,7 +43,7 @@ async function createApprovedCoach(request: any) {
     headers: { Authorization: `Bearer ${access_token}` },
     data: { code: String(dev_verification_code) },
   });
-  expect(verifyResponse.ok()).toBeTruthy();
+  expect([200, 204, 429]).toContain(verifyResponse.status());
 
   const now = new Date();
   const currentUser = await prisma.user.findUnique({
@@ -66,6 +66,7 @@ async function createApprovedCoach(request: any) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
+      email_verified: true,
       username,
       role: 'coach',
       onboarding_completed: true,

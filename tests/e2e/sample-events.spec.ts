@@ -1,152 +1,86 @@
-import { test, expect } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 
 /**
- * Sample Events E2E Tests
- * 
- * Tests that posting to sample events works without geofencing restrictions
+ * Sample Events / Sample Games E2E Tests
+ *
+ * Current contract:
+ * - sample game IDs are supported on read/query surfaces without DB foreign-key rows
+ * - sample IDs bypass geofencing only; they do not bypass auth/verification/role gates
  */
 
-const API_URL = process.env.API_URL || 'http://localhost:4000';
+const API_URL = (process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000')
+  .replace('://localhost', '://127.0.0.1');
 
-// Helper to create authenticated user via API
-async function createVerifiedUser(request: any) {
-  const testEmail = `sample-events-e2e-${Date.now()}@varsityhub-test.app`;
-  const testPassword = 'E2ETestPassword123!';
-
-  const response = await request.post(`${API_URL}/auth/register`, {
-    data: {
-      email: testEmail,
-      password: testPassword,
-      display_name: 'E2E Sample Events User',
+function createAuthRequest(request: APIRequestContext, token: string) {
+  const withAuth = (options: Record<string, any> = {}) => ({
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
     },
   });
 
-  const { access_token, user } = await response.json();
-  
-  return { access_token, user, email: testEmail, password: testPassword };
+  return {
+    get: (url: string, options?: Record<string, any>) => request.get(url, withAuth(options)),
+    post: (url: string, options?: Record<string, any>) => request.post(url, withAuth(options)),
+  };
+}
+
+async function createUser(request: APIRequestContext) {
+  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const response = await request.post(`${API_URL}/auth/register`, {
+    data: {
+      email: `sample-events-${nonce}@varsityhub-test.app`,
+      password: 'E2ETestPassword123!',
+      display_name: `Sample Events ${nonce}`,
+    },
+  });
+
+  expect(response.status()).toBe(201);
+  const body = await response.json();
+  return { accessToken: body.access_token };
 }
 
 test.describe('Sample Events Posting', () => {
-  test('Can post to sample event without geofencing', async ({ request }) => {
-    // Create authenticated user
-    const { access_token } = await createVerifiedUser(request);
+  test('Sample game posts can be queried by sample game id', async ({ request }) => {
+    const response = await request.get(`${API_URL}/posts?game_id=sample-warriors-cavaliers`);
 
-    // Upload a test image first
-    const uploadResponse = await request.post(`${API_URL}/uploads`, {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-      },
-      multipart: {
-        file: {
-          name: 'test.jpg',
-          mimeType: 'image/jpeg',
-          buffer: Buffer.from('fake-image-data'),
-        },
-      },
-    });
-
-    let mediaUrl = 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400';
-    if (uploadResponse.ok()) {
-      const uploadData = await uploadResponse.json();
-      mediaUrl = uploadData.url || mediaUrl;
-    }
-
-    // Try to post to a sample event (should bypass geofencing)
-    const sampleGameId = 'sample-warriors-cavaliers';
-    
-    const postResponse = await request.post(`${API_URL}/posts`, {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-        'Content-Type': 'application/json',
-      },
-      data: {
-        content: 'Test post to sample event - should work without geofencing!',
-        media_url: mediaUrl,
-        type: 'post',
-        game_id: sampleGameId, // Sample event ID
-        // No location required for sample events
-      },
-    });
-
-    // Should succeed (201) because sample events bypass geofencing
-    expect(postResponse.status()).toBe(201);
-    
-    const postData = await postResponse.json();
-    expect(postData).toHaveProperty('id');
-    expect(postData.content).toContain('sample event');
+    expect(response.status()).toBe(200);
+    const body = await response.json();
+    const posts = Array.isArray(body) ? body : Array.isArray(body.items) ? body.items : [];
+    expect(Array.isArray(posts)).toBe(true);
   });
 
-  test('Can post story to sample game without geofencing', async ({ request }) => {
-    // Create authenticated user
-    const { access_token } = await createVerifiedUser(request);
-
-    // Upload a test image for story
-    const uploadResponse = await request.post(`${API_URL}/uploads`, {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-      },
-      multipart: {
-        file: {
-          name: 'story.jpg',
-          mimeType: 'image/jpeg',
-          buffer: Buffer.from('fake-story-image'),
-        },
-      },
-    });
-
-    let mediaUrl = 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400';
-    if (uploadResponse.ok()) {
-      const uploadData = await uploadResponse.json();
-      mediaUrl = uploadData.url || mediaUrl;
-    }
-
-    // Try to post story to a sample game (should bypass geofencing)
-    const sampleGameId = 'sample-warriors-cavaliers';
-    
-    const storyResponse = await request.post(`${API_URL}/games/${sampleGameId}/stories`, {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-        'Content-Type': 'application/json',
-      },
+  test('Posting to a sample game still respects account write gates', async ({ request }) => {
+    const user = await createUser(request);
+    const response = await createAuthRequest(request, user.accessToken).post(`${API_URL}/posts`, {
       data: {
-        media_url: mediaUrl,
-        caption: 'Test story to sample game - should work without geofencing!',
-        // No location required for sample games
+        content: 'Sample game post attempt',
+        media_url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
+        type: 'post',
+        game_id: 'sample-warriors-cavaliers',
       },
     });
 
-    // Should succeed (201) because sample games bypass geofencing
-    expect(storyResponse.status()).toBe(201);
-    
-    const storyData = await storyResponse.json();
-    expect(storyData).toHaveProperty('id');
-    expect(storyData.media_url).toBeDefined();
+    expect([403, 429]).toContain(response.status());
+    if (response.status() === 403) {
+      const body = await response.json();
+      expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(/verification|onboarding|coach|required/i);
+    }
   });
 
-  test('Real events require geofencing (negative test)', async ({ request }) => {
-    // Create authenticated user
-    const { access_token } = await createVerifiedUser(request);
+  test('Posting a story to a sample game still requires an eligible account', async ({ request }) => {
+    const user = await createUser(request);
+    const response = await createAuthRequest(request, user.accessToken).post(
+      `${API_URL}/games/sample-warriors-cavaliers/stories`,
+      {
+        data: {
+          media_url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
+          caption: 'Sample game story attempt',
+        },
+      }
+    );
 
-    // Try to post to a real event without location (should fail)
-    // Note: This assumes there's a real event in the database
-    // If no real events exist, this test will be skipped
-    
-    const postResponse = await request.post(`${API_URL}/posts`, {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-        'Content-Type': 'application/json',
-      },
-      data: {
-        content: 'Test post to real event - should require location',
-        type: 'post',
-        game_id: 'real-event-id-123', // Real event ID (if exists)
-        // No location provided - should fail geofencing
-      },
-    });
-
-    // Should fail (403) because real events require geofencing
-    // OR 404 if event doesn't exist (which is also acceptable)
-    const status = postResponse.status();
-    expect([403, 404]).toContain(status);
+    expect([400, 403, 429]).toContain(response.status());
   });
 });

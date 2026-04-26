@@ -1,25 +1,58 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
+
+const generateTestEmail = () => `onboarding-flow-${Date.now()}@varsityhub-test.app`;
+
+async function enableEmailSignUp(
+  termsCheckbox: Locator,
+  ageCheckbox: Locator,
+  emailSignupButton: Locator,
+) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (await emailSignupButton.isEnabled()) {
+      return;
+    }
+
+    await termsCheckbox.click({ position: { x: 12, y: 12 } });
+    if (await emailSignupButton.isEnabled()) {
+      return;
+    }
+
+    await ageCheckbox.click({ position: { x: 12, y: 12 } });
+    if (await emailSignupButton.isEnabled()) {
+      return;
+    }
+  }
+
+  await expect(emailSignupButton).toBeEnabled();
+}
 
 test.describe('Onboarding Flow', () => {
-  test('User can complete onboarding steps', async ({ page }) => {
-    await page.goto('http://localhost:8081'); // Adjust port if needed
-    await page.click('text=Sign Up');
-    await page.fill('input[name="email"]', 'onboarduser@example.com');
-    await page.fill('input[name="password"]', 'TestPassword123!');
-    await page.click('text=Create Account');
-    await expect(page.locator('text=Welcome')).toBeVisible();
+  test('User can enter onboarding through the current account creation flow', async ({ page, baseURL }) => {
+    const email = generateTestEmail();
+    const password = 'TestPassword123!';
 
-    // Step 1: Role selection
-    await page.click('text=Athlete');
-    await page.click('text=Next');
-    // Step 2: Basic info
-    await page.fill('input[name="firstName"]', 'Onboard');
-    await page.fill('input[name="lastName"]', 'User');
-    await page.click('text=Next');
-    // Step 3: Plan selection
-    await page.click('text=Free Plan');
-    await page.click('text=Next');
-    // ...continue for other steps as needed...
-    await expect(page.locator('text=Onboarding Complete')).toBeVisible();
+    await page.goto(`${baseURL}/sign-in`);
+    await expect(page.getByText('Welcome back')).toBeVisible();
+
+    await page.getByLabel('Need an account? Create one').click();
+    await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
+
+    const termsCheckbox = page.getByRole('checkbox', {
+      name: 'I agree to the Terms of Service and Privacy Policy',
+    });
+    const ageCheckbox = page.getByRole('checkbox', {
+      name: 'I confirm I am at least 13 years old',
+    });
+    const emailSignupButton = page.getByLabel('Sign up with Email');
+
+    await enableEmailSignUp(termsCheckbox, ageCheckbox, emailSignupButton);
+    await emailSignupButton.click();
+
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password').fill(password);
+    await page.getByLabel('Create account').click();
+
+    await expect(page.getByText('Check Your Email')).toBeVisible();
+    await expect(page.getByText(/we sent a 6-digit verification code/i)).toBeVisible();
   });
 });
