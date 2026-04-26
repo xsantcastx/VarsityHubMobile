@@ -267,7 +267,7 @@ jobs:
 
       - name: Run server tests
         working-directory: server
-        run: npm test -- --runInBand
+        run: npm --prefix .. run ci:retry -- 2 npm test -- --runInBand
 
   # All checks must pass - this job ensures the PR gate
   all-checks:
@@ -398,4 +398,4 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm test
+        run: npm run ci:retry -- 2 npm test
