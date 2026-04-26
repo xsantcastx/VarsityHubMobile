@@ -100,7 +100,7 @@ DELETE FROM "CoachApplication";
 UPDATE "User"
 SET
   role               = 'fan',
-  approval_status    = NULL,
+  approval_status    = 'APPROVED',
   rejected_at        = NULL,
   rejection_reason   = NULL,
   proceeding_as_fan  = false,
