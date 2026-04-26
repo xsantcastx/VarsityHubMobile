@@ -1,4 +1,5 @@
-import { Organization } from '@/api/entities';
+import { Organization, User } from '@/api/entities';
+import { canManageOrgAsCoach } from '@/utils/roleChecks';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { captureException } from '@/utils/sentry';
@@ -67,10 +68,25 @@ function OrganizationJoinRequestsScreen() {
       setError('Organization ID is required. Please select an organization.');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     try {
+      // Permission gate: a pending/rejected coach (or fan) who still has an
+      // owner/manager membership row from a prior approved state could
+      // otherwise load the review UI and see action controls. Verify the
+      // user is currently allowed to manage this org BEFORE loading any
+      // requests. Mirrors the server gate on approve/reject mutations.
+      const [currentUser, members] = await Promise.all([
+        User.me().catch(() => null),
+        Organization.members(params.organization_id).catch(() => []),
+      ]);
+      if (!canManageOrgAsCoach(currentUser as any, Array.isArray(members) ? members : [])) {
+        setLoading(false);
+        setError('You do not have permission to review join requests for this organization.');
+        return;
+      }
+
       const status = filter === 'pending' ? 'pending' : undefined;
       const data = await Organization.getJoinRequests(params.organization_id, status);
       const raw = Array.isArray(data) ? data : [];

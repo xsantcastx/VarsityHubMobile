@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { canManageOrgAsCoach } from '@/utils/roleChecks';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -75,11 +76,10 @@ export default function EditOrganizationScreen() {
         safeGoBack(router);
         return;
       }
-      const membership = members.find((m: any) => {
-        const memberUserId = m.user?.id || m.user_id;
-        return memberUserId === currentUser.id && ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
-      });
-      if (!membership) {
+      if (!canManageOrgAsCoach(currentUser, members)) {
+        // Either the user is not an org owner/manager, or they ARE but
+        // their coach access is currently revoked (pending/rejected with
+        // no admin override). Either way, the edit UI must not load.
         Alert.alert('Error', 'Only organization admins can edit this organization.');
         safeGoBack(router);
         return;

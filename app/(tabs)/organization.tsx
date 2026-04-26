@@ -8,6 +8,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { canManageOrgAsCoach } from '@/utils/roleChecks';
 import { safeGoBack } from '@/utils/navigation';
 
 type OrganizationData = {
@@ -133,14 +134,10 @@ export default function OrganizationScreen() {
         if (!mounted.current) return;
         const membersList = Array.isArray(members) ? members : [];
         if (currentUser && membersList.length > 0) {
-          const membership = membersList.find((m: any) => {
-            const memberUserId = m.user?.id || m.user_id;
-            if (memberUserId !== currentUser.id) return false;
-            return ['owner', 'manager'].includes(String(m.role || '').toLowerCase());
-          });
-          if (mounted.current) setIsOrgAdmin(!!membership);
+          const isAdmin = canManageOrgAsCoach(currentUser as any, membersList);
+          if (mounted.current) setIsOrgAdmin(isAdmin);
           // Fetch pending coach count for league owners
-          if (membership) {
+          if (isAdmin) {
             Organization.pendingCoaches(orgId as string).then((pending: any) => {
               if (mounted.current) {
                 setPendingCoachError(false);

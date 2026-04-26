@@ -100,6 +100,48 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
   };
 }
 
+type OrgMembershipLike = {
+  role?: string | null;
+  user_id?: string | null;
+  user?: { id?: string | null } | null;
+};
+
+/**
+ * Single source of truth for "is this user allowed to use org-admin UI."
+ *
+ * Combines two checks the codebase had been doing inconsistently:
+ *   1. The user holds an owner/manager membership in the org.
+ *   2. The user is currently allowed to use coach tools at all (approved
+ *      coach with a current agreement, OR is_admin=true god-override).
+ *
+ * Without (2), a pending or rejected coach who still has membership
+ * left over from a prior approved state could see and tap admin CTAs
+ * (review join requests, edit org, etc.) and only discover the denial
+ * on the eventual API 403. That UX leak — and the broader inconsistency
+ * across organization.tsx, league.tsx, edit-organization.tsx, and
+ * organization-join-requests.tsx — is what this helper fixes.
+ */
+export function canManageOrgAsCoach(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined,
+): boolean {
+  if (!user) return false;
+  if (user.is_admin === true) return true;
+
+  const access = getCoachAccessState(user);
+  if (!access.canAccessCoachTools) return false;
+
+  const userId = user.id;
+  if (!userId || !Array.isArray(memberships)) return false;
+
+  return memberships.some((m) => {
+    const memberUserId = m?.user?.id || m?.user_id;
+    if (!memberUserId || memberUserId !== userId) return false;
+    const role = String(m?.role || '').toLowerCase();
+    return role === 'owner' || role === 'manager';
+  });
+}
+
 export function getPendingCoachRoute(user: CoachUserLike | null | undefined): string {
   const explicitNextStep =
     typeof user?.next_step === 'string' && user.next_step.trim().startsWith('/')
