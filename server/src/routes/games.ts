@@ -20,7 +20,7 @@ import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/t
 import { sendError } from '../lib/http/sendError.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 import { sendEventApprovedEmail, sendEventDeniedEmail } from '../lib/email.js';
-import { verifyJwt } from '../lib/jwt.js';
+import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -195,7 +195,7 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
   const id = String(req.params.id);
   const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
   const payload = token
-    ? verifyJwt<{ reviewId: string; reviewKind: string; action: string }>(token)
+    ? verifyReviewToken<{ reviewId: string; reviewKind: string; action: string }>(token)
     : null;
   const expectedAction = action === 'approve' ? 'approve_game' : 'reject_game';
 
@@ -215,6 +215,18 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
 
   if (req.method === 'GET') {
     return res.send(renderGameReviewPage(action, game.title || 'Unknown', token));
+  }
+
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(renderGameResultPage('Link Already Used', `This ${action} link has already been used.`, false));
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(renderGameResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
   }
 
   const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).trim() : undefined;

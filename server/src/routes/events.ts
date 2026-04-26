@@ -26,7 +26,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
-import { verifyJwt } from '../lib/jwt.js';
+import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
@@ -102,7 +102,7 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
   const eventId = String(req.params.id);
   const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
   const payload = token
-    ? verifyJwt<{ reviewId: string; reviewKind: string; action: string }>(token)
+    ? verifyReviewToken<{ reviewId: string; reviewKind: string; action: string }>(token)
     : null;
   const expectedAction = action === 'approve' ? 'approve_event' : 'reject_event';
 
@@ -128,6 +128,18 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
 
   if (req.method === 'GET') {
     return res.send(renderEventReviewPage(action, event.title || 'Unknown', token));
+  }
+
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(renderEventResultPage('Link Already Used', `This ${action} link has already been used.`, false));
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(renderEventResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
   }
 
   const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : undefined;

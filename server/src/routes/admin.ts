@@ -16,7 +16,7 @@ import {
 } from '../lib/transactionLogger.js';
 import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
-import { verifyJwt } from '../lib/jwt.js';
+import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -53,7 +53,7 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
   const { id } = req.params;
   const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
   const payload = token
-    ? verifyJwt<{ coachId: string; action: string }>(token)
+    ? verifyReviewToken<{ coachId: string; action: string }>(token)
     : null;
   const expectedAction = action === 'approve' ? 'approve_coach' : 'reject_coach';
 
@@ -74,6 +74,18 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
   const coachName = coach.display_name || coach.username || coach.email || 'Unknown Coach';
   if (req.method === 'GET') {
     return res.send(renderCoachReviewPage(action, coachName, token));
+  }
+
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(renderCoachResultPage('Link Already Used', `This ${action} link has already been used.`, false));
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(renderCoachResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
   }
 
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;

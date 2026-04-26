@@ -3,7 +3,7 @@ import type { EmailResult } from '../services/email/types.js';
 import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
 import escapeHtml from 'escape-html';
-import { signJwt } from './jwt.js';
+import { signReviewToken } from './reviewTokens.js';
 import { prisma } from './prisma.js';
 import { redactEmail, sanitizeEmailLogMessage, sanitizeEmailSubject } from './emailRedaction.js';
 import { captureException, captureMessage } from './sentry.js';
@@ -1381,7 +1381,7 @@ export function buildAdReviewUrl(params: {
   const action = params.action === 'reject' ? 'reject' : 'approve';
   const token =
     params.token ||
-    signJwt(
+    signReviewToken(
       {
         adId: params.adId,
         action: action === 'reject' ? 'reject_ad' : 'approve_ad',
@@ -1401,7 +1401,7 @@ export function buildEventReviewUrl(params: {
   const action = params.action === 'reject' ? 'reject' : 'approve';
   const token =
     params.token ||
-    signJwt(
+    signReviewToken(
       {
         reviewId: params.reviewId,
         reviewKind,
@@ -1451,7 +1451,7 @@ export function buildCoachApplicationReviewUrl(params: {
   const action = params.action === 'reject' ? 'reject' : 'approve';
   const token =
     params.token ||
-    signJwt(
+    signReviewToken(
       {
         coachId: params.coachId,
         action: action === 'reject' ? 'reject_coach' : 'approve_coach',
@@ -1471,7 +1471,7 @@ export function buildLeagueApprovalReviewUrl(params: {
   const action = params.action === 'reject' ? 'reject' : 'approve';
   const token =
     params.token ||
-    signJwt(
+    signReviewToken(
       {
         orgId: params.leagueId,
         action: action === 'reject' ? 'reject_league' : 'approve_league',

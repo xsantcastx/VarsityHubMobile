@@ -83,6 +83,7 @@ describe('Email template helpers', () => {
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
     expect(verifyJwt(token!)).toMatchObject({ orgId: 'org_123', action: 'approve_league' });
+    expect((verifyJwt(token!) as any)?.jti).toEqual(expect.any(String));
   });
 
   it('buildCoachApplicationReviewUrl points to a browser-safe admin dashboard URL', async () => {

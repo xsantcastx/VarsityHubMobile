@@ -13,7 +13,7 @@ import {
   alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
-import { verifyJwt } from '../lib/jwt.js';
+import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
   approveAd as approveAdService,
@@ -1131,9 +1131,12 @@ function isTruthyFlag(value: unknown): boolean {
 }
 
 /** Verify a signed moderation token and check it matches the ad + action */
-function verifyModerationToken(token: string, adId: string, expectedAction: string): boolean {
-  const payload = verifyJwt<{ adId: string; action: string }>(token);
-  return !!payload && payload.adId === adId && payload.action === expectedAction;
+function verifyModerationToken(token: string, adId: string, expectedAction: string) {
+  const payload = verifyReviewToken<{ adId: string; action: string }>(token);
+  if (!payload || payload.adId !== adId || payload.action !== expectedAction) {
+    return null;
+  }
+  return payload;
 }
 
 /** Simple HTML result page — title and message must be pre-escaped via escapeHtml() before calling */
@@ -1331,10 +1334,11 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
+    const tokenPayload = token ? verifyModerationToken(token, id, 'approve_ad') : null;
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
-      if (!token || !verifyModerationToken(token, id, 'approve_ad')) {
+      if (!token || !tokenPayload) {
         addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
           action: 'approve',
           ad_id: id,
@@ -1370,7 +1374,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
     }
 
     if (token) {
-      if (!verifyModerationToken(token, id, 'approve_ad')) {
+      if (!tokenPayload) {
         addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
           action: 'approve',
           ad_id: id,
@@ -1379,6 +1383,17 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
         return res
           .status(401)
           .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
+      }
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult === 'already_used') {
+        return res
+          .status(409)
+          .send(confirmationPage('Link Already Used', 'This approval link has already been used.', false));
+      }
+      if (consumeResult === 'store_unavailable') {
+        return res
+          .status(503)
+          .send(confirmationPage('Temporarily Unavailable', 'This approval link cannot be completed right now. Please use the admin dashboard instead.', false));
       }
     } else {
       const isAdmin = await getIsAdmin(req);
@@ -1459,10 +1474,11 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
+    const tokenPayload = token ? verifyModerationToken(token, id, 'reject_ad') : null;
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
-      if (!token || !verifyModerationToken(token, id, 'reject_ad')) {
+      if (!token || !tokenPayload) {
         addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
           action: 'reject',
           ad_id: id,
@@ -1492,7 +1508,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
     }
 
     if (token) {
-      if (!verifyModerationToken(token, id, 'reject_ad')) {
+      if (!tokenPayload) {
         addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
           action: 'reject',
           ad_id: id,
@@ -1501,6 +1517,17 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
         return res
           .status(401)
           .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
+      }
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult === 'already_used') {
+        return res
+          .status(409)
+          .send(confirmationPage('Link Already Used', 'This rejection link has already been used.', false));
+      }
+      if (consumeResult === 'store_unavailable') {
+        return res
+          .status(503)
+          .send(confirmationPage('Temporarily Unavailable', 'This rejection link cannot be completed right now. Please use the admin dashboard instead.', false));
       }
     } else {
       const isAdmin = await getIsAdmin(req);

@@ -194,6 +194,25 @@ describe('Ad Approval Security', () => {
     expect(updated?.status).toBe('approved');
   });
 
+  it('burns a tokenized approval link after the first successful POST', async () => {
+    const ad = await createAd('pending');
+    const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
+
+    const first = await request(app)
+      .post(`/ads/${ad.id}/approve`)
+      .query({ token })
+      .send({});
+
+    const second = await request(app)
+      .post(`/ads/${ad.id}/approve`)
+      .query({ token })
+      .send({});
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(409);
+    expect(second.text).toMatch(/Link Already Used/i);
+  });
+
   it('renders a browser confirmation page for tokenized GET approval links', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
