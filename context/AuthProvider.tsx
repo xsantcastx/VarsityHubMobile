@@ -246,7 +246,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
       if (typeof token !== 'string' || token.length === 0) {
         if (__DEV__) console.warn('[PushNotifications] Empty push token from Expo SDK; skipping save');
-        return;
+        return false;
       }
 
       // 4. Save token to backend (with retry on failure)
