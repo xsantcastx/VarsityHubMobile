@@ -516,15 +516,27 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
   });
 
   // Precise Haversine filter on the smaller bounding-box result set.
-  // Also handles legacy ads (target_lat IS NULL) by resolving their ZIP on the fly.
+  // Modern ads have target_lat/target_lng pre-computed at create time and
+  // do NOT need a geocoding lookup. Only legacy ads (target_lat IS NULL)
+  // require an on-the-fly ZIP lookup. Filtering the unique-zip set to
+  // those legacy rows means the geocoding loop is a no-op in the common
+  // case (everything backfilled), instead of N requests per feed mount.
   const adZipCoords = new Map<string, { lat: number; lon: number }>();
-  const uniqueAdZips = [...new Set(ads.map(a => a.target_zip_code).filter(Boolean))] as string[];
-  await Promise.all(
-    uniqueAdZips.map(async zip => {
-      const coords = await getZipCoordinatesWithFallback(zip);
-      if (coords) adZipCoords.set(zip, coords);
-    })
-  );
+  const legacyZips = [
+    ...new Set(
+      ads
+        .filter(a => a.target_zip_code && (a.target_lat == null || a.target_lng == null))
+        .map(a => a.target_zip_code!)
+    ),
+  ];
+  if (legacyZips.length > 0) {
+    await Promise.all(
+      legacyZips.map(async zip => {
+        const coords = await getZipCoordinatesWithFallback(zip);
+        if (coords) adZipCoords.set(zip, coords);
+      })
+    );
+  }
 
   const filtered = ads.filter(ad => {
     if (!ad.target_zip_code) return false;
