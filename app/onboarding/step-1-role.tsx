@@ -9,27 +9,36 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
+} from 'react-native';
 import OnboardingLayout from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'coach';
 
-function RoleCard({ 
-  title, 
-  description, 
-  icon, 
-  selected, 
-  onPress, 
+function RoleCard({
+  title,
+  description,
+  icon,
+  selected,
+  onPress,
   features,
   onContinue,
   saving,
-  roleType
-}: { 
-  title: string; 
-  description: string; 
-  icon: string; 
-  selected?: boolean; 
-  onPress: () => void; 
+  roleType,
+}: {
+  title: string;
+  description: string;
+  icon: string;
+  selected?: boolean;
+  onPress: () => void;
   features: string[];
   onContinue?: () => void;
   saving?: boolean;
@@ -45,9 +54,21 @@ function RoleCard({
   const buttonBg = isFan ? '#6B7280' : '#DAA520'; // Dark silver vs goldenrod
 
   const colors = {
-    cardBg: isDark ? (selected ? '#1F2937' : '#111827') : (selected ? '#FFFFFF' : '#F9FAFB'),
-    cardBorder: isDark ? (selected ? accentColorLight : '#374151') : (selected ? accentColor : '#D1D5DB'),
-    iconColor: isDark ? (selected ? accentColorLight : '#9CA3AF') : (selected ? accentColor : '#6B7280'),
+    cardBg: isDark ? (selected ? '#1F2937' : '#111827') : selected ? '#FFFFFF' : '#F9FAFB',
+    cardBorder: isDark
+      ? selected
+        ? accentColorLight
+        : '#374151'
+      : selected
+        ? accentColor
+        : '#D1D5DB',
+    iconColor: isDark
+      ? selected
+        ? accentColorLight
+        : '#9CA3AF'
+      : selected
+        ? accentColor
+        : '#6B7280',
     titleColor: isDark ? '#F9FAFB' : '#111827',
     descColor: isDark ? '#9CA3AF' : '#6B7280',
     featureText: isDark ? '#D1D5DB' : '#374151',
@@ -68,41 +89,37 @@ function RoleCard({
             borderColor: colors.cardBorder,
           },
           selected && styles.cardSelected,
-          selected && styles.cardWithButton
+          selected && styles.cardWithButton,
         ]}
       >
-      <View style={styles.cardHeader}>
-        <Ionicons
-          name={icon as any}
-          size={36}
-          color={colors.iconColor}
-        />
-        <View style={styles.cardTitleContainer}>
-          <Text style={[styles.cardTitle, { color: colors.titleColor }]}>{title}</Text>
-          <Text style={[styles.cardDescription, { color: colors.descColor }]}>{description}</Text>
-        </View>
-        {selected && (
-          <MaterialIcons 
-            name="check-circle" 
-            size={24} 
-            color={isDark ? accentColorLight : accentColor} 
-          />
-        )}
-      </View>
-      
-      <View style={styles.featuresList}>
-        {features.map((feature, index) => (
-          <View key={index} style={styles.featureItem}>
-            <MaterialIcons 
-              name="check-circle" 
-              size={18} 
-              color="#16A34A" 
-              style={styles.checkIcon} 
-            />
-            <Text style={[styles.featureText, { color: colors.featureText }]}>{feature}</Text>
+        <View style={styles.cardHeader}>
+          <Ionicons name={icon as any} size={36} color={colors.iconColor} />
+          <View style={styles.cardTitleContainer}>
+            <Text style={[styles.cardTitle, { color: colors.titleColor }]}>{title}</Text>
+            <Text style={[styles.cardDescription, { color: colors.descColor }]}>{description}</Text>
           </View>
-        ))}
-      </View>
+          {selected && (
+            <MaterialIcons
+              name="check-circle"
+              size={24}
+              color={isDark ? accentColorLight : accentColor}
+            />
+          )}
+        </View>
+
+        <View style={styles.featuresList}>
+          {features.map((feature, index) => (
+            <View key={index} style={styles.featureItem}>
+              <MaterialIcons
+                name="check-circle"
+                size={18}
+                color="#16A34A"
+                style={styles.checkIcon}
+              />
+              <Text style={[styles.featureText, { color: colors.featureText }]}>{feature}</Text>
+            </View>
+          ))}
+        </View>
       </Pressable>
 
       {selected && onContinue && (
@@ -132,7 +149,14 @@ export default function Step1Role() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const { user, signOut } = useAuth();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding: _clearOnboarding, dispatch, canNavigate } = useOnboarding();
+  const {
+    state: ob,
+    setState: setOB,
+    setProgress,
+    clearOnboarding: _clearOnboarding,
+    dispatch,
+    canNavigate,
+  } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
@@ -164,9 +188,12 @@ export default function Step1Role() {
       try {
         const me: any = await User.me();
         if (cancelled) return;
-        if (me?.preferences?.role && (me.preferences.role === 'fan' || me.preferences.role === 'coach')) {
+        if (
+          me?.preferences?.role &&
+          (me.preferences.role === 'fan' || me.preferences.role === 'coach')
+        ) {
           setRole(me.preferences.role);
-          setOB((prev) => ({ ...prev, role: me.preferences.role }));
+          setOB(prev => ({ ...prev, role: me.preferences.role }));
         }
       } catch {
         // ignore - user will select role
@@ -176,7 +203,7 @@ export default function Step1Role() {
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- initial mount only; ob.role and setOB are stable context values
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial mount only; ob.role and setOB are stable context values
   }, []);
 
   // Check email verification status on mount and when screen focuses
@@ -203,16 +230,16 @@ export default function Step1Role() {
   const onContinue = async () => {
     if (!role) return;
     if (role === 'coach' && !confirmedCoachAge) return;
-    
+
     // Prevent double-tap race condition
     if (!canNavigate || saving) {
       if (__DEV__) console.warn('[STEP-1] Navigation blocked - saving or already navigating');
       return;
     }
-    
+
     setSaving(true);
     dispatch({ type: 'SAVE_START' });
-    
+
     try {
       // Only clear state when SWITCHING from fan to coach (not when continuing as coach)
       // This prevents losing progress for returning coaches
@@ -220,26 +247,37 @@ export default function Step1Role() {
 
       if (role === 'coach' && !wasCoachBefore) {
         // Switching TO coach - clear only coach-specific fields, preserve shared data (username, dob, zip)
-        if (__DEV__) console.warn('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - clearing coach-specific fields');
-        const preserved = { username: ob.username, dob: ob.dob, zip: ob.zip, zip_code: ob.zip_code };
+        if (__DEV__)
+          console.warn('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - clearing coach-specific fields');
+        const preserved = {
+          username: ob.username,
+          dob: ob.dob,
+          zip: ob.zip,
+          zip_code: ob.zip_code,
+        };
         dispatch({ type: 'INIT_FROM_PROFILE', profile: { ...preserved, role: 'coach' } });
         setOB({ ...preserved, role: 'coach' });
       } else if (role === 'coach') {
         // Already a coach - just continue where they left off
         if (__DEV__) console.warn('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
         dispatch({ type: 'UPDATE_DRAFT', data: { role: 'coach' } });
-        setOB((prev) => ({ ...prev, role: 'coach' }));
+        setOB(prev => ({ ...prev, role: 'coach' }));
       } else if (role === 'fan' && wasCoachBefore) {
         // Switching TO fan - clear coach-specific fields, preserve shared data
         if (__DEV__) console.warn('[FAN ONBOARDING] 🔄 Clearing coach-specific data');
-        const preserved = { username: ob.username, dob: ob.dob, zip: ob.zip, zip_code: ob.zip_code };
+        const preserved = {
+          username: ob.username,
+          dob: ob.dob,
+          zip: ob.zip,
+          zip_code: ob.zip_code,
+        };
         dispatch({ type: 'INIT_FROM_PROFILE', profile: { ...preserved, role: 'fan' } });
         setOB({ ...preserved, role: 'fan' });
       } else {
         dispatch({ type: 'UPDATE_DRAFT', data: { role } });
-        setOB((prev) => ({ ...prev, role }));
+        setOB(prev => ({ ...prev, role }));
       }
-      
+
       // Persist role to server so the schema/preferences reflect the user's selection.
       // v1.0.3: do NOT swallow this error silently. A failed role-persist means
       // requireOnboarded's coach bypass at step 3 will reject with "Please complete
@@ -295,8 +333,7 @@ export default function Step1Role() {
         // the /auth/upgrade-to-coach endpoint. Show them that path instead
         // of a vague "could not save" alert.
         const errMsg = String(error?.data?.error || error?.message || '').toLowerCase();
-        const isRoleChangeBlocked =
-          error?.status === 403 && errMsg.includes('cannot change role');
+        const isRoleChangeBlocked = error?.status === 403 && errMsg.includes('cannot change role');
         if (isRoleChangeBlocked) {
           const freshUser: any =
             freshServerUser ?? (await User.refresh().catch(() => User.me().catch(() => null)));
@@ -304,7 +341,7 @@ export default function Step1Role() {
           if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
             const canonicalRole = freshUser?.preferences?.role || freshUser?.role;
             if (canonicalRole === 'coach') {
-              setOB((prev) => ({ ...prev, role: 'coach' }));
+              setOB(prev => ({ ...prev, role: 'coach' }));
             }
             dispatch({ type: 'SAVE_FAIL', error: error as Error });
             router.replace(recoveryRoute as any);
@@ -324,11 +361,11 @@ export default function Step1Role() {
         dispatch({ type: 'SAVE_FAIL', error: error as Error });
         return; // Do NOT navigate to step 2 — continuing would leave server role unset.
       }
-      
+
       // Always go to step 2 (basic info) after role selection — never skip
       dispatch({
         type: 'SAVE_SUCCESS',
-        data: { role }
+        data: { role },
       });
       setProgress(1);
       router.replace('/onboarding/step-2-basic' as any);
@@ -343,16 +380,20 @@ export default function Step1Role() {
   };
 
   const handleBack = () => {
-    Alert.alert(
-      'Sign Out?',
-      'Going back will sign you out. You can sign in again anytime.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: async () => {
-          try { await signOut(); } catch { router.replace('/sign-in'); }
-        }},
-      ]
-    );
+    Alert.alert('Sign Out?', 'Going back will sign you out. You can sign in again anytime.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+          } catch {
+            router.replace('/sign-in');
+          }
+        },
+      },
+    ]);
   };
 
   return (
@@ -366,7 +407,7 @@ export default function Step1Role() {
       onVerifyEmail={() => void router.push('/verify')}
     >
       <Stack.Screen options={{ title: 'Step 1', headerShown: false }} />
-      
+
       <RoleCard
         title="Fan"
         description="Follow teams and players"
@@ -381,7 +422,7 @@ export default function Step1Role() {
           'Get game updates and highlights',
           'Pitch events to your community',
           '*Fan accounts can be upgraded to athlete/staff*',
-          '- Upon coach approval'
+          '- Upon coach approval',
         ]}
       />
 
@@ -419,7 +460,12 @@ export default function Step1Role() {
               size={24}
               color={confirmedCoachAge ? '#DAA520' : '#9CA3AF'}
             />
-            <Text style={[styles.coachAgeText, { color: colorScheme === 'dark' ? '#F9FAFB' : '#111827' }]}>
+            <Text
+              style={[
+                styles.coachAgeText,
+                { color: colorScheme === 'dark' ? '#F9FAFB' : '#111827' },
+              ]}
+            >
               I confirm I am at least 18 years old
             </Text>
           </TouchableOpacity>
@@ -439,12 +485,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 14,
   },
-  card: { 
+  card: {
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 20,
-    borderRadius: 12, 
-    borderWidth: 2, 
+    borderRadius: 12,
+    borderWidth: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -456,7 +502,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 0,
     borderBottomRightRadius: 0,
   },
-  cardSelected: { 
+  cardSelected: {
     borderWidth: 3,
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -471,8 +517,8 @@ const styles = StyleSheet.create({
     marginLeft: 14,
     flex: 1,
   },
-  cardTitle: { 
-    fontWeight: '800', 
+  cardTitle: {
+    fontWeight: '800',
     fontSize: 20,
     marginBottom: 4,
     letterSpacing: -0.3,
