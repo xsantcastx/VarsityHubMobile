@@ -159,9 +159,21 @@ describe('ad lifecycle structural invariants', () => {
     const unpaidReleases = payments.match(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/g) || [];
     expect(unpaidReleases.length).toBeGreaterThanOrEqual(3);
     expect(overnightTasks).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
+    expect(overnightTasks).toMatch(/status:\s*'pending',\s*payment_status:\s*'pending_approval'/);
+    expect(overnightTasks).toMatch(/data:\s*\{[\s\S]*status:\s*'draft',[\s\S]*payment_status:\s*'unpaid'[\s\S]*\}/);
 
     expectAllowedTuple('approved', 'unpaid');
     expectAllowedTuple('active', 'unpaid');
+  });
+
+  it('slot-full refund recovery explicitly releases reservations before marking the transaction refunded', () => {
+    const slotFullReleaseHelper = sliceFunction(payments, 'async function releaseAdInventoryAfterSlotFullRefund');
+    expect(slotFullReleaseHelper).toMatch(/adReservation\.deleteMany/);
+    expect(slotFullReleaseHelper).toMatch(/payment_status:\s*\{\s*in:\s*\['hold', 'pending_approval'\]\s*\}/);
+    expect(slotFullReleaseHelper).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
+
+    const releaseCalls = payments.match(/releaseAdInventoryAfterSlotFullRefund\(/g) || [];
+    expect(releaseCalls.length).toBeGreaterThanOrEqual(3);
   });
 
   it('refund and archive paths use the currently supported terminal tuples', () => {

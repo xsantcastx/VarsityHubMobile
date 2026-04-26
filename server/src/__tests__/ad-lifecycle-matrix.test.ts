@@ -22,6 +22,7 @@ type Action =
   | 'payment_confirmed'
   | 'cron_archive_expired'
   | 'cron_cleanup_hold'
+  | 'cron_cleanup_stale_pending_approval'
   | 'cron_archive_unpaid_approved'
   | 'edit_banner'
   | 'edit_target_url';
@@ -86,6 +87,14 @@ const VALID_TRANSITIONS: StateTransition[] = [
     expectedStatus: 'draft',
     expectedPayment: 'unpaid',
     description: 'stale hold → unpaid after 1hr (reservations deleted)',
+  },
+  {
+    action: 'cron_cleanup_stale_pending_approval',
+    fromStatus: 'pending',
+    fromPayment: 'pending_approval',
+    expectedStatus: 'draft',
+    expectedPayment: 'unpaid',
+    description: 'stale pending approval → draft/unpaid after 24hr (reservations deleted)',
   },
   {
     action: 'cron_archive_unpaid_approved',
