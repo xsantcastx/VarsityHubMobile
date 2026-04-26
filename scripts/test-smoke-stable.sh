@@ -9,6 +9,7 @@ SERVER_LOG="$(mktemp -t varsityhub-smoke-server.XXXXXX.log)"
 WEB_LOG="$(mktemp -t varsityhub-smoke-web.XXXXXX.log)"
 SERVER_PID=""
 WEB_PID=""
+export HEALTH_CHECK_SECRET="${HEALTH_CHECK_SECRET:-varsityhub-local-smoke-secret}"
 
 kill_repo_listener() {
   local port="$1"

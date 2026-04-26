@@ -245,7 +245,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         console.log('[PushNotifications] Got push token:', preview);
       }
       if (typeof token !== 'string' || token.length === 0) {
-        if (__DEV__) console.warn('[PushNotifications] Empty push token from Expo SDK; skipping save');
+        if (__DEV__)
+          console.warn('[PushNotifications] Empty push token from Expo SDK; skipping save');
         return false;
       }
 
@@ -292,7 +293,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const subscriptionFetchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasCurrentCoachAgreement = useCallback(
-    (authUser: AuthUser | null | undefined) => getCoachAccessState(authUser).hasCurrentCoachAgreement,
+    (authUser: AuthUser | null | undefined) =>
+      getCoachAccessState(authUser).hasCurrentCoachAgreement,
     []
   );
 
@@ -336,7 +338,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
       const userScopedKeys = allKeys.filter(
-        (key) =>
+        key =>
           key.startsWith('vh_settings_') ||
           key === 'vh_recent_searches' ||
           key.startsWith('team_messages_') ||
@@ -1068,7 +1070,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // If needs onboarding and not already there, redirect to start onboarding
-      if (postAuthDecision.kind === 'generic_onboarding_required' && firstSegment !== 'onboarding') {
+      if (
+        postAuthDecision.kind === 'generic_onboarding_required' &&
+        firstSegment !== 'onboarding'
+      ) {
         if (__DEV__) console.log('[AuthProvider] User needs onboarding, redirecting to step 1');
         if (lastRedirectRef.current !== postAuthDecision.route) {
           redirectWithTelemetry(postAuthDecision.route, 'onboarding_required');

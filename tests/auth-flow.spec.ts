@@ -2,7 +2,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const generateTestEmail = () => `e2e-auth-${Date.now()}@varsityhub-test.app`;
 
-async function enableEmailSignUp(termsCheckbox: Locator, ageCheckbox: Locator, emailSignupButton: Locator) {
+async function enableEmailSignUp(
+  termsCheckbox: Locator,
+  ageCheckbox: Locator,
+  emailSignupButton: Locator
+) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (await emailSignupButton.isEnabled()) {
       return;
@@ -73,7 +77,7 @@ async function submitSignInRequest(page: Page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const responsePromise = page.waitForResponse(
-        (response) =>
+        response =>
           response.request().method() === 'POST' && response.url().includes('/auth/login'),
         { timeout: 5000 }
       );
@@ -115,7 +119,10 @@ async function completeSignInToVerification(page: Page) {
 }
 
 test.describe('Authentication Flow', () => {
-  test('User can sign up, sign out, and sign back in through verification flow', async ({ page, baseURL }) => {
+  test('User can sign up, sign out, and sign back in through verification flow', async ({
+    page,
+    baseURL,
+  }) => {
     const email = generateTestEmail();
     const password = 'TestPassword123!';
 
@@ -123,8 +130,12 @@ test.describe('Authentication Flow', () => {
     await recoverFromOfflineBanner(page);
     await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
 
-    const termsCheckbox = page.getByRole('checkbox', { name: 'I agree to the Terms of Service and Privacy Policy' });
-    const ageCheckbox = page.getByRole('checkbox', { name: 'I confirm I am at least 13 years old' });
+    const termsCheckbox = page.getByRole('checkbox', {
+      name: 'I agree to the Terms of Service and Privacy Policy',
+    });
+    const ageCheckbox = page.getByRole('checkbox', {
+      name: 'I confirm I am at least 13 years old',
+    });
     const emailSignupButton = page.getByLabel('Sign up with Email');
 
     await enableEmailSignUp(termsCheckbox, ageCheckbox, emailSignupButton);

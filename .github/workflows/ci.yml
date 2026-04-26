@@ -267,7 +267,12 @@ jobs:
 
       - name: Run server tests
         working-directory: server
-        run: npm --prefix .. run ci:retry -- 2 npm test -- --runInBand
+        # Invoke the wrapper by direct path so the inner `npm test`
+        # resolves against server/package.json (and finds server's
+        # local jest binary). `npm --prefix .. run ci:retry` would
+        # switch cwd to root for the whole chain, breaking jest
+        # resolution because jest is only installed under server/.
+        run: node ../scripts/run-with-retry.js 2 npm test -- --runInBand
 
   # All checks must pass - this job ensures the PR gate
   all-checks:
