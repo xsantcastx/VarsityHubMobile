@@ -467,8 +467,8 @@ export default function PostDetailScreen() {
   const onUpvote = async () => {
     if (!currentPostId || voting) return;
     setVoting(true);
-    // Optimistic update for immediate visual feedback
-    const prevPost = post ? JSON.parse(JSON.stringify(post)) : post;
+    // Only the top-level vote fields change here, so a shallow snapshot is enough.
+    const prevPost = post ? { ...post } : post;
     setPost((p: any) => {
       if (!p) return p;
       const optimisticNext = !p.has_upvoted;
@@ -1575,10 +1575,7 @@ export default function PostDetailScreen() {
         {hasOverflowingContent && (
           <View
             pointerEvents="box-none"
-            style={[
-              styles.scrollJumpOverlay,
-              { bottom: Math.max(insets.bottom + 20, 28) },
-            ]}
+            style={[styles.scrollJumpOverlay, { bottom: Math.max(insets.bottom + 20, 28) }]}
           >
             {canJumpToTop && (
               <Pressable

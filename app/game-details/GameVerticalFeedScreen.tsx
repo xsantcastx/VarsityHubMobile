@@ -522,7 +522,10 @@ const FeedCard = memo(
                 }
               >
                 {post.author?.avatar_url ? (
-                  <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
+                  <FastImage
+                    source={{ uri: post.author.avatar_url }}
+                    style={styles.railAvatarImg}
+                  />
                 ) : (
                   <View style={[styles.railAvatarImg, styles.avatarFallback]}>
                     <Text style={styles.avatarFallbackText}>
@@ -760,42 +763,54 @@ function GameVerticalFeedScreen({
   const cursorRef = useRef<string | null>(null);
   const hasMoreRef = useRef(true);
   const _resetRunCount = useRef(0);
-  const setIfDifferent = useCallback((setter: any, next: any) => {
-    setter((prev: any) => {
-      try {
-        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch (error) {
-        if (__DEV__)
-          console.warn('[GameVerticalFeedScreen] State comparison failed, using new value:', error);
-        // If comparison fails, fall back to setting the new value
+  const setArrayStateIfChanged = useCallback((setter: any, next: any[]) => {
+    setter((prev: any[]) => {
+      if (!Array.isArray(prev) || !Array.isArray(next)) return next;
+      if (prev === next) return prev;
+      if (prev.length !== next.length) return next;
+      for (let i = 0; i < prev.length; i += 1) {
+        const prevItem = prev[i];
+        const nextItem = next[i];
+        if (prevItem === nextItem) continue;
+        if (
+          prevItem &&
+          nextItem &&
+          typeof prevItem === 'object' &&
+          typeof nextItem === 'object' &&
+          'id' in prevItem &&
+          'id' in nextItem &&
+          (prevItem as { id?: unknown }).id === (nextItem as { id?: unknown }).id
+        ) {
+          continue;
+        }
+        return next;
       }
-      return next;
+      return prev;
     });
   }, []);
   const _initialSeedSig = useRef<string | null>(null);
 
   useEffect(() => {
-    // Defensive reset: only update states when the new value differs from current.
-    // This prevents repeated effect runs from creating new object/array instances
-    // which can otherwise trigger re-renders and lead to "maximum update depth" loops.
+    // Reset array state only when its contents changed; primitives already bail out
+    // on identical values without the cost of deep JSON serialization.
     _resetRunCount.current += 1;
-    setIfDifferent(setPosts, []);
+    setArrayStateIfChanged(setPosts, []);
     cursorRef.current = null;
     hasMoreRef.current = true;
-    setIfDifferent(setActiveIndex, 0);
-    setIfDifferent(setLoading, true);
-    setIfDifferent(setRefreshing, false);
-    setIfDifferent(setLoadingMore, false);
-    setIfDifferent(setGame, null);
-    setIfDifferent(setComments, []);
-    setIfDifferent(setCommentsCursor, null);
-    setIfDifferent(setCommentTarget, null);
-    setIfDifferent(setCommentsError, null);
-    setIfDifferent(setCommentInput, '');
-    setIfDifferent(setCommentSending, false);
-    setIfDifferent(setCommentsVisible, false);
-    setIfDifferent(setCommentsLoading, false);
-  }, [gameId, usingInitial, setIfDifferent]);
+    setActiveIndex(0);
+    setLoading(true);
+    setRefreshing(false);
+    setLoadingMore(false);
+    setGame(null);
+    setArrayStateIfChanged(setComments, []);
+    setCommentsCursor(null);
+    setCommentTarget(null);
+    setCommentsError(null);
+    setCommentInput('');
+    setCommentSending(false);
+    setCommentsVisible(false);
+    setCommentsLoading(false);
+  }, [gameId, usingInitial, setArrayStateIfChanged]);
 
   // If acting as a generic viewer with provided posts, seed posts and index.
   useEffect(() => {
@@ -812,15 +827,12 @@ function GameVerticalFeedScreen({
       return;
     }
     _initialSeedSig.current = sig;
-    setIfDifferent(setPosts, filtered);
-    setIfDifferent(
-      setActiveIndex,
-      Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1))
-    );
+    setArrayStateIfChanged(setPosts, filtered);
+    setActiveIndex(Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1)));
     cursorRef.current = null;
     hasMoreRef.current = false;
-    setIfDifferent(setLoading, false);
-  }, [usingInitial, initialPosts, startIndex, excludeSet, normalizeUrl, setIfDifferent]);
+    setLoading(false);
+  }, [usingInitial, initialPosts, startIndex, excludeSet, normalizeUrl, setArrayStateIfChanged]);
 
   const registerVideo = useCallback((id: string, player: any | null) => {
     if (!player) {

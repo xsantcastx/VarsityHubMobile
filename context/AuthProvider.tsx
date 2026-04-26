@@ -699,13 +699,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     let mounted = true;
 
     (async () => {
-      // 0. Clear stale Keychain tokens from previous install (iOS Keychain persists across uninstall)
-      const { clearStaleTokensOnFreshInstall } = await import('@/api/auth');
-      await clearStaleTokensOnFreshInstall();
-
-      // 1. Check health first
+      // Clear stale tokens and probe backend health in parallel so startup doesn't
+      // serialize SecureStore/AsyncStorage work ahead of the first network check.
       if (__DEV__) console.log('[AuthProvider] Checking backend health...');
-      const healthy = await checkHealth();
+      const [healthy] = await Promise.all([
+        checkHealth(),
+        import('@/api/auth').then(({ clearStaleTokensOnFreshInstall }) =>
+          clearStaleTokensOnFreshInstall()
+        ),
+      ]);
       if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
 
       if (!mounted) return;
