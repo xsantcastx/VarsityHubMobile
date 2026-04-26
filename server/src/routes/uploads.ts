@@ -561,7 +561,7 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
   
   // Capture in Sentry for non-client errors
   const isClientError = err.code === 'LIMIT_FILE_SIZE'
-    || err.message === 'Only image or video files are allowed'
+    || err.message?.startsWith('Only image')
     || err.message?.startsWith('File type not allowed');
   if (!isClientError) {
     captureException(err, { context: 'upload_middleware_error', path: req.path });
@@ -572,7 +572,7 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
     return res.status(413).json({ error: 'File too large. Maximum size is 100MB.' });
   }
   
-  if (err.message === 'Only image or video files are allowed' || err.message?.startsWith('File type not allowed')) {
+  if (err.message?.startsWith('Only image') || err.message?.startsWith('File type not allowed')) {
     return res.status(400).json({ error: err.message });
   }
   
