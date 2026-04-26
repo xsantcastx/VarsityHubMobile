@@ -3,8 +3,18 @@ import bcrypt from 'bcrypt';
 
 let prisma: any;
 let runFinalizeFromSession: (session: any) => Promise<void>;
+let finalizeAppleSubscriptionPurchase: (params: {
+  userId: string;
+  userEmail?: string | null;
+  productId: string;
+  originalTransactionId: string;
+  appleTransactionId?: string | null;
+  expiresAtIso?: string | null;
+  source: string;
+}) => Promise<{ ok: true; plan: string; expires: string | null; idempotent: boolean }>;
 let finalizeAppleAdPurchase: (params: {
   userId: string;
+  userEmail?: string | null;
   adId: string;
   dates: string[];
   appleTransactionIds: string[];
@@ -26,6 +36,7 @@ describeDb('Checkout session finalization', () => {
     ({ prisma } = await import('../lib/prisma.js'));
     const paymentsModule = await import('../routes/payments.js');
     runFinalizeFromSession = paymentsModule.__paymentsInternal.runFinalizeFromSession;
+    finalizeAppleSubscriptionPurchase = paymentsModule.__paymentsInternal.finalizeAppleSubscriptionPurchase;
     finalizeAppleAdPurchase = paymentsModule.__paymentsInternal.finalizeAppleAdPurchase;
     try {
       await prisma.$queryRawUnsafe('SELECT 1');
@@ -45,8 +56,27 @@ describeDb('Checkout session finalization', () => {
     }
 
     if (createdAppleTransactionIds.length) {
+      await prisma.transactionLog.deleteMany({
+        where: { apple_transaction_id: { in: createdAppleTransactionIds } },
+      }).catch(() => {});
       await prisma.appleTransactionClaim.deleteMany({
         where: { apple_transaction_id: { in: createdAppleTransactionIds } },
+      }).catch(() => {});
+    }
+
+    if (createdAdIds.length || createdUserIds.length) {
+      await prisma.transactionLog.deleteMany({
+        where: {
+          OR: [
+            createdAdIds.length ? { order_id: { in: createdAdIds } } : undefined,
+            createdUserIds.length
+              ? {
+                  user_id: { in: createdUserIds },
+                  transaction_type: { in: ['SUBSCRIPTION_PURCHASE', 'AD_PURCHASE'] },
+                }
+              : undefined,
+          ].filter(Boolean) as any,
+        },
       }).catch(() => {});
     }
 
@@ -135,6 +165,83 @@ describeDb('Checkout session finalization', () => {
     expect(prefs.payment_pending).toBe(false);
     expect(tx?.status).toBe('COMPLETED');
     expect(tx?.stripe_payment_intent_id).toBe('pi_membership_finalize_test');
+  });
+
+  it('replays a pending Apple subscription purchase into a completed entitlement', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const originalTransactionId = `apple-sub-original-${now}`;
+    const appleTransactionId = `apple-sub-transaction-${now}`;
+    createdAppleTransactionIds.push(appleTransactionId);
+
+    const user = await prisma.user.create({
+      data: {
+        email: `apple-sub-finalize-${now}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Apple Subscription Finalize User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          pending_plan: 'veteran',
+          payment_pending: true,
+          payment_approved: true,
+          onboarding_completed: true,
+        },
+      },
+    });
+    createdUserIds.push(user.id);
+
+    await prisma.transactionLog.create({
+      data: {
+        transaction_type: 'SUBSCRIPTION_PURCHASE',
+        status: 'PENDING',
+        user_id: user.id,
+        user_email: user.email,
+        order_id: originalTransactionId,
+        apple_transaction_id: appleTransactionId,
+        metadata: {
+          source: 'apple_iap_jws',
+          productId: 'MIDTIER',
+          plan: 'veteran',
+        },
+      } as any,
+    });
+
+    const expiresAtIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const result = await finalizeAppleSubscriptionPurchase({
+      userId: user.id,
+      userEmail: user.email,
+      productId: 'MIDTIER',
+      originalTransactionId,
+      appleTransactionId,
+      expiresAtIso,
+      source: 'apple_iap_reconciliation',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.idempotent).toBe(false);
+    expect(result.plan).toBe('veteran');
+
+    const refreshedUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const tx = await prisma.transactionLog.findUnique({
+      where: { apple_transaction_id: appleTransactionId },
+    });
+    const prefs = (refreshedUser?.preferences && typeof refreshedUser.preferences === 'object')
+      ? refreshedUser.preferences as any
+      : {};
+
+    expect(refreshedUser?.subscription_tier).toBe('premium');
+    expect(refreshedUser?.subscription_status).toBe('active');
+    expect(prefs.plan).toBe('veteran');
+    expect(prefs.pending_plan).toBeNull();
+    expect(prefs.payment_pending).toBe(false);
+    expect(prefs.apple_original_transaction_id).toBe(originalTransactionId);
+    expect(prefs.apple_expires_date).toBe(expiresAtIso);
+    expect(tx?.status).toBe('COMPLETED');
+    expect((tx?.metadata as any)?.source).toBe('apple_iap_reconciliation');
   });
 
   it('finalizes ad checkout and marks ad transaction completed', async () => {
@@ -245,6 +352,7 @@ describeDb('Checkout session finalization', () => {
 
     const first = await finalizeAppleAdPurchase({
       userId: user.id,
+      userEmail: user.email,
       adId: ad.id,
       dates: ['2035-02-01', '2035-02-02'],
       appleTransactionIds,
@@ -271,6 +379,7 @@ describeDb('Checkout session finalization', () => {
 
     const second = await finalizeAppleAdPurchase({
       userId: user.id,
+      userEmail: user.email,
       adId: ad.id,
       dates: ['2035-02-01', '2035-02-02'],
       appleTransactionIds,
@@ -343,6 +452,7 @@ describeDb('Checkout session finalization', () => {
 
     await finalizeAppleAdPurchase({
       userId: firstUser.id,
+      userEmail: firstUser.email,
       adId: firstAd.id,
       dates: ['2035-03-01'],
       appleTransactionIds: [sharedAppleTransactionId],
@@ -352,6 +462,7 @@ describeDb('Checkout session finalization', () => {
     await expect(
       finalizeAppleAdPurchase({
         userId: secondUser.id,
+        userEmail: secondUser.email,
         adId: secondAd.id,
         dates: ['2035-03-02'],
         appleTransactionIds: [sharedAppleTransactionId],
@@ -361,6 +472,82 @@ describeDb('Checkout session finalization', () => {
       message: 'APPLE_TRANSACTION_ALREADY_CLAIMED',
       statusCode: 409,
     });
+  });
+
+  it('upgrades a pending Apple ad transaction log to completed instead of duplicating it', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const appleTransactionId = `apple-ad-pending-${now}`;
+    createdAppleTransactionIds.push(appleTransactionId);
+
+    const user = await prisma.user.create({
+      data: {
+        email: `apple-ad-pending-${now}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Apple Ad Pending User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true },
+      },
+    });
+    createdUserIds.push(user.id);
+
+    const ad = await prisma.ad.create({
+      data: {
+        user_id: user.id,
+        business_name: 'Apple Pending Ad',
+        contact_email: user.email,
+        target_zip_code: '10005',
+        status: 'approved',
+        payment_status: 'hold',
+      },
+    });
+    createdAdIds.push(ad.id);
+
+    const pendingTx = await prisma.transactionLog.create({
+      data: {
+        transaction_type: 'AD_PURCHASE',
+        status: 'PENDING',
+        user_id: user.id,
+        user_email: user.email,
+        order_id: ad.id,
+        apple_transaction_id: appleTransactionId,
+        metadata: {
+          source: 'apple_iap',
+          ad_id: ad.id,
+          dates: ['2035-04-01'],
+          receipts_count: 1,
+          apple_transaction_ids: [appleTransactionId],
+        },
+      } as any,
+    });
+
+    const result = await finalizeAppleAdPurchase({
+      userId: user.id,
+      userEmail: user.email,
+      adId: ad.id,
+      dates: ['2035-04-01'],
+      appleTransactionIds: [appleTransactionId],
+      receiptsCount: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.idempotent).toBe(false);
+
+    const tx = await prisma.transactionLog.findUnique({ where: { id: pendingTx.id } });
+    const txCount = await prisma.transactionLog.count({
+      where: { user_id: user.id, order_id: ad.id, transaction_type: 'AD_PURCHASE' },
+    });
+    const reservations = await prisma.adReservation.findMany({ where: { ad_id: ad.id } });
+    const refreshedAd = await prisma.ad.findUnique({ where: { id: ad.id } });
+
+    expect(txCount).toBe(1);
+    expect(tx?.status).toBe('COMPLETED');
+    expect((tx?.metadata as any)?.apple_transaction_ids).toEqual([appleTransactionId]);
+    expect(reservations).toHaveLength(1);
+    expect(refreshedAd?.payment_status).toBe('paid');
+    expect(refreshedAd?.status).toBe('active');
   });
 
   it('rejects Apple ad finalization when the target slot is already full and rolls back claims', async () => {
@@ -450,6 +637,7 @@ describeDb('Checkout session finalization', () => {
     await expect(
       finalizeAppleAdPurchase({
         userId: buyer.id,
+        userEmail: buyer.email,
         adId: targetAd.id,
         dates: [targetDate],
         appleTransactionIds,

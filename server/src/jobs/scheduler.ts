@@ -299,20 +299,24 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
   },
   {
     name: 'apple-iap-reconciliation',
-    // Off-clock minutes, twice an hour. Reads only — no Apple API call,
-    // safe to over-fire. Same probe shape as stripe-webhook-reconciliation
-    // but works against local data because we don't have App Store Server
-    // API credentials provisioned.
+    // Off-clock minutes, twice an hour. Uses only local data because we
+    // still do not have App Store Server API credentials provisioned.
     cron: '23,53 * * * *',
     description:
-      'Detect stuck-PENDING Apple IAP transactions and Apple S2S notification dry-spells; alert via Sentry',
+      'Auto-recover stale local Apple IAP purchases when possible and alert on Apple S2S dry-spells',
     handler: async () => {
       try {
         const { reconcileAppleIapOrphans } = await import('../lib/appleIapReconciliation.js');
         const result = await reconcileAppleIapOrphans();
-        if (result.stuckPending > 0 || result.notificationDrySpell) {
+        if (
+          result.stuckPending > 0 ||
+          result.recovered > 0 ||
+          result.recoveryFailed > 0 ||
+          result.manualReviewNeeded > 0 ||
+          result.notificationDrySpell
+        ) {
           console.error(
-            `[Scheduler] apple-iap-reconciliation: stuck=${result.stuckPending} dryspell=${result.notificationDrySpell}`
+            `[Scheduler] apple-iap-reconciliation: stuck=${result.stuckPending} recovered=${result.recovered} failed=${result.recoveryFailed} manual_review=${result.manualReviewNeeded} dryspell=${result.notificationDrySpell}`
           );
         }
       } catch (error) {

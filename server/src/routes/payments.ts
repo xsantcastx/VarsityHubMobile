@@ -3601,6 +3601,265 @@ function buildAppleTransactionClaimConflictError() {
   return error;
 }
 
+function buildAppleReceiptReuseError() {
+  const error = new Error('APPLE_RECEIPT_ALREADY_USED');
+  (error as any).statusCode = 409;
+  (error as any).body = { error: 'Receipt already used by another account' };
+  return error;
+}
+
+function normalizeAppleTransactionIds(ids: Array<string | null | undefined>) {
+  return Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))).sort();
+}
+
+function mergeTransactionMetadata(
+  existing: unknown,
+  next: Record<string, unknown>,
+) {
+  return {
+    ...(existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {}),
+    ...next,
+  };
+}
+
+async function ensureApplePendingTransactionLog(params: {
+  transactionType: 'SUBSCRIPTION_PURCHASE' | 'AD_PURCHASE';
+  userId: string;
+  userEmail?: string | null;
+  orderId: string;
+  appleTransactionId?: string | null;
+  metadata: Record<string, unknown>;
+}) {
+  const normalizedAppleTransactionId = String(params.appleTransactionId || '').trim() || null;
+  const completed = await prisma.transactionLog.findFirst({
+    where: {
+      transaction_type: params.transactionType,
+      user_id: params.userId,
+      order_id: params.orderId,
+      status: 'COMPLETED',
+    } as any,
+    select: { id: true },
+  });
+  if (completed) {
+    return { id: completed.id, status: 'COMPLETED' as const };
+  }
+
+  const existingPending = await prisma.transactionLog.findFirst({
+    where: {
+      transaction_type: params.transactionType,
+      user_id: params.userId,
+      order_id: params.orderId,
+      status: { in: ['PENDING', 'NEEDS_REVIEW'] },
+    } as any,
+    select: { id: true, apple_transaction_id: true, metadata: true },
+    orderBy: { created_at: 'desc' },
+  });
+
+  if (existingPending) {
+    await prisma.transactionLog.update({
+      where: { id: existingPending.id },
+      data: {
+        status: 'PENDING',
+        user_email: params.userEmail ?? undefined,
+        apple_transaction_id: existingPending.apple_transaction_id || normalizedAppleTransactionId || undefined,
+        metadata: mergeTransactionMetadata(existingPending.metadata, params.metadata),
+      } as any,
+    });
+    return { id: existingPending.id, status: 'PENDING' as const };
+  }
+
+  try {
+    const created = await prisma.transactionLog.create({
+      data: {
+        transaction_type: params.transactionType,
+        status: 'PENDING',
+        user_id: params.userId,
+        user_email: params.userEmail ?? undefined,
+        order_id: params.orderId,
+        apple_transaction_id: normalizedAppleTransactionId,
+        metadata: params.metadata as any,
+      } as any,
+    });
+    return { id: created.id, status: 'PENDING' as const };
+  } catch (error) {
+    if (normalizedAppleTransactionId && isUniqueConstraintError(error, 'apple_transaction_id')) {
+      const existing = await prisma.transactionLog.findUnique({
+        where: { apple_transaction_id: normalizedAppleTransactionId },
+        select: {
+          id: true,
+          transaction_type: true,
+          user_id: true,
+          order_id: true,
+          status: true,
+        },
+      });
+      if (
+        existing &&
+        existing.transaction_type === params.transactionType &&
+        existing.user_id === params.userId &&
+        existing.order_id === params.orderId
+      ) {
+        return { id: existing.id, status: existing.status as 'PENDING' | 'COMPLETED' | 'NEEDS_REVIEW' };
+      }
+      throw params.transactionType === 'SUBSCRIPTION_PURCHASE'
+        ? buildAppleReceiptReuseError()
+        : buildAppleTransactionClaimConflictError();
+    }
+    throw error;
+  }
+}
+
+async function finalizeAppleSubscriptionPurchase(params: {
+  userId: string;
+  userEmail?: string | null;
+  productId: string;
+  originalTransactionId: string;
+  appleTransactionId?: string | null;
+  expiresAtIso?: string | null;
+  source: string;
+}) {
+  const plan = APPLE_PRODUCT_TO_PLAN[params.productId];
+  if (!plan) {
+    const error = new Error(`Unknown Apple product: ${params.productId}`);
+    (error as any).statusCode = 400;
+    throw error;
+  }
+
+  const existingCompleted = await prisma.transactionLog.findFirst({
+    where: {
+      order_id: params.originalTransactionId,
+      transaction_type: 'SUBSCRIPTION_PURCHASE',
+      status: 'COMPLETED',
+    } as any,
+    select: { user_id: true },
+  });
+  if (existingCompleted?.user_id && existingCompleted.user_id !== params.userId) {
+    throw buildAppleReceiptReuseError();
+  }
+  if (existingCompleted?.user_id === params.userId) {
+    return {
+      ok: true,
+      plan,
+      expires: params.expiresAtIso || null,
+      idempotent: true,
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: params.userId },
+    select: { preferences: true },
+  });
+  const currentPrefs = (user?.preferences && typeof user.preferences === 'object')
+    ? user.preferences as any
+    : {};
+  const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
+  void payment_pending;
+  void payment_approved;
+  void pending_plan;
+  void join_request_pending;
+
+  const nextPrefsBase: Record<string, unknown> = {
+    ...restPrefs,
+    apple_product_id: params.productId,
+    apple_original_transaction_id: params.originalTransactionId,
+  };
+  if (params.expiresAtIso) nextPrefsBase.apple_expires_date = params.expiresAtIso;
+  const nextPrefs = mergeBillingStateIntoPreferences(nextPrefsBase, {
+    plan: plan as 'veteran' | 'legend',
+    pending_plan: null,
+    payment_pending: false,
+    payment_approved: false,
+  });
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: params.userId },
+        data: {
+          subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+          subscription_status: 'active',
+          preferences: nextPrefs as any,
+          ...buildBillingStateColumns({
+            plan: plan as 'veteran' | 'legend',
+            pending_plan: null,
+            payment_pending: false,
+            payment_approved: false,
+          }),
+        },
+      });
+
+      const pendingTx = await tx.transactionLog.findFirst({
+        where: {
+          transaction_type: 'SUBSCRIPTION_PURCHASE',
+          user_id: params.userId,
+          order_id: params.originalTransactionId,
+          status: { in: ['PENDING', 'NEEDS_REVIEW'] },
+        } as any,
+        select: { id: true, metadata: true },
+        orderBy: { created_at: 'desc' },
+      });
+
+      const metadata = mergeTransactionMetadata(pendingTx?.metadata, {
+        source: params.source,
+        productId: params.productId,
+        plan,
+        ...(params.expiresAtIso ? { apple_expires_date: params.expiresAtIso } : {}),
+      });
+
+      if (pendingTx) {
+        await tx.transactionLog.update({
+          where: { id: pendingTx.id },
+          data: {
+            status: 'COMPLETED',
+            user_email: params.userEmail ?? undefined,
+            apple_transaction_id: String(params.appleTransactionId || '').trim() || undefined,
+            metadata: metadata as any,
+          } as any,
+        });
+      } else {
+        await tx.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_PURCHASE',
+            status: 'COMPLETED',
+            user_id: params.userId,
+            user_email: params.userEmail ?? undefined,
+            order_id: params.originalTransactionId,
+            apple_transaction_id: String(params.appleTransactionId || '').trim() || null,
+            metadata: metadata as any,
+          } as any,
+        });
+      }
+    });
+  } catch (error) {
+    if (params.appleTransactionId && isUniqueConstraintError(error, 'apple_transaction_id')) {
+      const existing = await prisma.transactionLog.findUnique({
+        where: { apple_transaction_id: params.appleTransactionId },
+        select: { user_id: true },
+      });
+      if (existing?.user_id === params.userId) {
+        return {
+          ok: true,
+          plan,
+          expires: params.expiresAtIso || null,
+          idempotent: true,
+        };
+      }
+      if (existing?.user_id && existing.user_id !== params.userId) {
+        throw buildAppleReceiptReuseError();
+      }
+    }
+    throw error;
+  }
+
+  await invalidateMeCacheForUser(params.userId);
+  return {
+    ok: true,
+    plan,
+    expires: params.expiresAtIso || null,
+    idempotent: false,
+  };
+}
+
 function claimMatchesPurchase(
   claim: {
     transaction_type: string;
@@ -3701,6 +3960,7 @@ async function reserveAppleTransactionClaims(
 
 async function finalizeAppleAdPurchase(params: {
   userId: string;
+  userEmail?: string | null;
   adId: string;
   dates: string[];
   appleTransactionIds: string[];
@@ -3729,6 +3989,16 @@ async function finalizeAppleAdPurchase(params: {
       } as any,
       select: { id: true },
     });
+    const pendingTx = await tx.transactionLog.findFirst({
+      where: {
+        user_id: params.userId,
+        order_id: orderId,
+        transaction_type: 'AD_PURCHASE',
+        status: { in: ['PENDING', 'NEEDS_REVIEW'] },
+      } as any,
+      select: { id: true, metadata: true },
+      orderBy: { created_at: 'desc' },
+    });
 
     const adRecord = await tx.ad.findUnique({
       where: { id: String(params.adId) },
@@ -3744,22 +4014,37 @@ async function finalizeAppleAdPurchase(params: {
     });
 
     if (!existingTx) {
-      await tx.transactionLog.create({
-        data: {
-          transaction_type: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          user_id: params.userId,
-          order_id: orderId,
-          apple_transaction_id: claimResult.appleTransactionIds.length === 1 ? claimResult.appleTransactionIds[0] : null,
-          metadata: {
-            source: 'apple_iap',
-            ad_id: String(params.adId),
-            dates: params.dates,
-            receipts_count: params.receiptsCount,
-            apple_transaction_ids: claimResult.appleTransactionIds,
-          },
-        } as any,
+      const metadata = mergeTransactionMetadata(pendingTx?.metadata, {
+        source: 'apple_iap',
+        ad_id: String(params.adId),
+        dates: params.dates,
+        receipts_count: params.receiptsCount,
+        apple_transaction_ids: claimResult.appleTransactionIds,
       });
+
+      if (pendingTx) {
+        await tx.transactionLog.update({
+          where: { id: pendingTx.id },
+          data: {
+            status: 'COMPLETED',
+            user_email: params.userEmail ?? undefined,
+            apple_transaction_id: claimResult.appleTransactionIds.length === 1 ? claimResult.appleTransactionIds[0] : undefined,
+            metadata: metadata as any,
+          } as any,
+        });
+      } else {
+        await tx.transactionLog.create({
+          data: {
+            transaction_type: 'AD_PURCHASE',
+            status: 'COMPLETED',
+            user_id: params.userId,
+            user_email: params.userEmail ?? undefined,
+            order_id: orderId,
+            apple_transaction_id: claimResult.appleTransactionIds.length === 1 ? claimResult.appleTransactionIds[0] : null,
+            metadata: metadata as any,
+          } as any,
+        });
+      }
     }
 
     return {
@@ -4024,93 +4309,39 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     if (existingApplePurchase?.user_id && existingApplePurchase.user_id !== userId) {
       return res.status(409).json({ error: 'Receipt already used by another account' });
     }
-    if (existingApplePurchase?.user_id === userId) {
-      return res.json({
-        ok: true,
-        plan,
-        expires: new Date(expiresMs).toISOString(),
-        idempotent: true,
-      });
-    }
-
-    // Update user's plan in database
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
-    const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
-
-    // Rule A: Clear pending_plan, payment_pending, payment_approved after successful payment
-    const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
-    const nextPrefs = mergeBillingStateIntoPreferences(
-      {
-        ...restPrefs,
-        apple_product_id: productId,
-        apple_original_transaction_id: originalTransactionId,
-        apple_expires_date: new Date(expiresMs).toISOString(),
+    const expiresAtIso = new Date(expiresMs).toISOString();
+    await ensureApplePendingTransactionLog({
+      transactionType: 'SUBSCRIPTION_PURCHASE',
+      userId,
+      userEmail: user?.email,
+      orderId: originalTransactionId,
+      appleTransactionId: appleTransactionId || null,
+      metadata: {
+        source: jws ? 'apple_iap_jws' : 'apple_iap_receipt',
+        productId,
+        plan,
+        apple_expires_date: expiresAtIso,
       },
-      {
-        plan: plan as 'veteran' | 'legend',
-        pending_plan: null,
-        payment_pending: false,
-        payment_approved: false,
-      }
-    );
+    });
 
-    try {
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: userId },
-          data: {
-            subscription_tier: plan === 'legend' ? 'pro' : 'premium',
-            subscription_status: 'active',
-            preferences: nextPrefs as any,
-            ...buildBillingStateColumns({
-              plan: plan as 'veteran' | 'legend',
-              pending_plan: null,
-              payment_pending: false,
-              payment_approved: false,
-            }),
-          },
-        }),
-        prisma.transactionLog.create({
-          data: {
-            transaction_type: 'SUBSCRIPTION_PURCHASE',
-            status: 'COMPLETED',
-            user_id: userId,
-            order_id: originalTransactionId,
-            apple_transaction_id: appleTransactionId || null,
-            metadata: { source: jws ? 'apple_iap_jws' : 'apple_iap_receipt', productId, plan },
-          } as any,
-        }),
-      ]);
-    } catch (error) {
-      if (appleTransactionId && isUniqueConstraintError(error, 'apple_transaction_id')) {
-        const existing = await prisma.transactionLog.findUnique({
-          where: { apple_transaction_id: appleTransactionId },
-          select: { user_id: true },
-        });
-        if (existing?.user_id === userId) {
-          return res.json({
-            ok: true,
-            plan,
-            expires: new Date(expiresMs).toISOString(),
-            idempotent: true,
-          });
-        }
-        if (existing?.user_id && existing.user_id !== userId) {
-          return res.status(409).json({ error: 'Receipt already used by another account' });
-        }
-      }
-      throw error;
-    }
-    await invalidateMeCacheForUser(userId);
+    const result = await finalizeAppleSubscriptionPurchase({
+      userId,
+      userEmail: user?.email,
+      productId,
+      originalTransactionId,
+      appleTransactionId: appleTransactionId || null,
+      expiresAtIso,
+      source: jws ? 'apple_iap_jws' : 'apple_iap_receipt',
+    });
 
     debugLog('apple-iap', `User ${userId} subscribed to ${plan} via Apple IAP`);
 
-    return res.json({
-      ok: true,
-      plan,
-      expires: new Date(expiresMs).toISOString(),
-    });
+    return res.json(result);
   } catch (err: any) {
+    if (err?.statusCode && err?.body) {
+      return res.status(err.statusCode).json(err.body);
+    }
     console.error('[apple-iap] verify-receipt error:', err);
     captureException(err, { context: 'apple-iap-verify', provider: 'apple_iap' });
     return res.status(500).json({ error: 'Receipt verification failed' });
@@ -4258,8 +4489,24 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
     }
 
     try {
+      await ensureApplePendingTransactionLog({
+        transactionType: 'AD_PURCHASE',
+        userId,
+        userEmail: ad.contact_email || null,
+        orderId: String(ad_id),
+        appleTransactionId: appleTransactionIds.length === 1 ? appleTransactionIds[0] : null,
+        metadata: {
+          source: 'apple_iap',
+          ad_id: String(ad_id),
+          dates,
+          receipts_count: receipts.length,
+          apple_transaction_ids: normalizeAppleTransactionIds(appleTransactionIds),
+        },
+      });
+
       const finalizeResult = await finalizeAppleAdPurchase({
         userId,
+        userEmail: ad.contact_email,
         adId: String(ad_id),
         dates,
         appleTransactionIds,
@@ -4906,6 +5153,7 @@ paymentsRouter.get('/cancel', (_req, res) => {
 export const __paymentsInternal = {
   finalizeFromSession,
   runFinalizeFromSession,
+  finalizeAppleSubscriptionPurchase,
   finalizeAppleAdPurchase,
   getVeteranBillingSnapshot,
 };
