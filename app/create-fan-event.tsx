@@ -2,12 +2,15 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Image,
+    Linking,
     Modal,
     Platform,
     Pressable,
@@ -24,9 +27,14 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
 import { Game, Team as TeamAPI, User } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
-import { httpGet } from '@/api/http';
+import { getApiBaseUrl, httpGet } from '@/api/http';
+import { uploadFile } from '@/api/upload';
 import { sanitizeText } from '@/utils/formUtils';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getCoachAccessState } from '@/utils/roleChecks';
+import MatchBanner from './components/MatchBanner';
+import AppearancePicker, { AppearancePreset } from './components/AppearancePicker';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 
 const EVENT_TYPES = [
   { value: 'game', label: 'Game/Match', emoji: '🏈' },
@@ -117,6 +125,10 @@ function CreateFanEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const bannerCaptureRef = useRef<any>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [appearance, setAppearance] = useState<AppearancePreset>('classic');
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   // Team selection for fan event pitches (must be tied to a team)
   const [pitchTeamId, setPitchTeamId] = useState('');
@@ -142,6 +154,50 @@ function CreateFanEventScreen() {
       venue_address: (team.venue_address || null) as string | null,
     }));
   }, [rawTeams]);
+
+  const eventTypeLabel = useMemo(
+    () => EVENT_TYPES.find((type) => type.value === eventType)?.label || 'Event',
+    [eventType]
+  );
+
+  const selectedTeamLogo = useMemo(
+    () => teams.find((team) => team.id === selectedTeamId || team.name === selectedTeam)?.logo,
+    [selectedTeam, selectedTeamId, teams]
+  );
+
+  const pitchTeamLogo = useMemo(
+    () => teams.find((team) => team.id === pitchTeamId)?.logo,
+    [pitchTeamId, teams]
+  );
+
+  const previewBanner = useMemo(() => {
+    if (isCoach && eventType === 'game') {
+      return {
+        leftName: (gameType === 'home' ? selectedTeam : opponent).trim() || 'Home Team',
+        rightName: (gameType === 'home' ? opponent : selectedTeam).trim() || 'Away Team',
+        leftImage: gameType === 'home' ? selectedTeamLogo || null : null,
+        rightImage: gameType === 'away' ? selectedTeamLogo || null : null,
+      };
+    }
+
+    return {
+      leftName: title.trim() || 'Event',
+      rightName: (!isCoach ? pitchTeamName : eventTypeLabel).trim() || eventTypeLabel,
+      leftImage: !isCoach ? pitchTeamLogo || null : null,
+      rightImage: null,
+    };
+  }, [
+    eventType,
+    eventTypeLabel,
+    gameType,
+    isCoach,
+    opponent,
+    pitchTeamLogo,
+    pitchTeamName,
+    selectedTeam,
+    selectedTeamLogo,
+    title,
+  ]);
 
   // Google Maps location autocomplete
   const requestLocationSuggestions = useCallback((text: string) => {
@@ -254,6 +310,109 @@ function CreateFanEventScreen() {
     return () => { if (opponentTimerRef.current) clearTimeout(opponentTimerRef.current); };
   }, []);
 
+  const uploadBannerFromUri = useCallback(async (uri: string) => {
+    setUploadingBanner(true);
+    try {
+      const localUri = await materializeICloudAssetIfNeeded(uri);
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 1600 } }],
+        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const uploadResult = await uploadFile(
+        getApiBaseUrl(),
+        manipulatedImage.uri,
+        'event-banner.jpg',
+        'image/jpeg'
+      );
+      const nextUrl = uploadResult?.url || uploadResult?.path;
+      if (!nextUrl) {
+        throw new Error('Upload failed - no URL returned');
+      }
+      setBannerUrl(nextUrl);
+    } finally {
+      setUploadingBanner(false);
+    }
+  }, []);
+
+  const pickBannerFromLibrary = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Photo library permission is needed to upload an event photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.9,
+      exif: false,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      try {
+        await uploadBannerFromUri(result.assets[0].uri);
+      } catch (error: any) {
+        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
+      }
+    }
+  }, [uploadBannerFromUri]);
+
+  const takeBannerPhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Camera permission is needed to take an event photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.9,
+      exif: false,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      try {
+        await uploadBannerFromUri(result.assets[0].uri);
+      } catch (error: any) {
+        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
+      }
+    }
+  }, [uploadBannerFromUri]);
+
+  const showBannerOptions = useCallback(() => {
+    Alert.alert(
+      'Event Photo',
+      'Choose how you want to add a custom event photo.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Photo Library', onPress: () => void pickBannerFromLibrary() },
+        { text: 'Take Photo', onPress: () => void takeBannerPhoto() },
+      ]
+    );
+  }, [pickBannerFromLibrary, takeBannerPhoto]);
+
+  const captureGeneratedBanner = useCallback(async () => {
+    if (!bannerCaptureRef.current) return null;
+    setUploadingBanner(true);
+    try {
+      const uri = await captureRef(bannerCaptureRef, { format: 'png', quality: 0.9 });
+      const uploadResult = await uploadFile(getApiBaseUrl(), uri, 'generated-event-banner.png', 'image/png');
+      return uploadResult?.url || uploadResult?.path || null;
+    } finally {
+      setUploadingBanner(false);
+    }
+  }, []);
+
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
 
@@ -292,6 +451,13 @@ function CreateFanEventScreen() {
 
     try {
       const gameDateTime = new Date(date);
+      let finalBannerUrl = bannerUrl;
+      if (!finalBannerUrl) {
+        finalBannerUrl = await captureGeneratedBanner();
+        if (!finalBannerUrl) {
+          throw new Error('Failed to prepare an event banner. Please try again.');
+        }
+      }
 
       if (isCoach && eventType === 'game') {
         // Coach creating a game event — include team IDs
@@ -307,6 +473,9 @@ function CreateFanEventScreen() {
           venue_place_id: selectedPlace?.place_id,
           description: sanitizeText(description) || undefined,
           event_type: 'game',
+          banner_url: finalBannerUrl,
+          cover_image_url: finalBannerUrl,
+          appearance,
         };
 
         gamePayload.home_team = homeTeamName;
@@ -329,6 +498,9 @@ function CreateFanEventScreen() {
           venue_address: selectedPlace?.description || location,
           venue_place_id: selectedPlace?.place_id,
           date: gameDateTime.toISOString(),
+          banner_url: finalBannerUrl,
+          cover_image_url: finalBannerUrl,
+          appearance,
         };
 
         // Tie event to the selected team
@@ -713,6 +885,71 @@ function CreateFanEventScreen() {
           />
         </View>
 
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Photo</Text>
+          <Text style={[styles.bannerHelperText, { color: Colors[colorScheme].mutedText }]}>
+            Upload a custom photo or keep the generated banner so this event never lands with a blank card.
+          </Text>
+
+          {bannerUrl ? (
+            <View style={[styles.bannerCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+              <Image source={{ uri: bannerUrl }} style={styles.customBannerImage} resizeMode="cover" />
+              <View style={styles.bannerActionRow}>
+                <Pressable
+                  style={[styles.bannerPrimaryButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={showBannerOptions}
+                  disabled={uploadingBanner}
+                >
+                  <MaterialIcons name="photo-camera" size={16} color="#FFFFFF" />
+                  <Text style={styles.bannerPrimaryButtonText}>
+                    {uploadingBanner ? 'Uploading...' : 'Change Photo'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.bannerSecondaryButton, { borderColor: Colors[colorScheme].border }]}
+                  onPress={() => setBannerUrl(null)}
+                  disabled={uploadingBanner}
+                >
+                  <MaterialIcons name="delete-outline" size={16} color={Colors[colorScheme].text} />
+                  <Text style={[styles.bannerSecondaryButtonText, { color: Colors[colorScheme].text }]}>
+                    Use Generated
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.bannerCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+              <ViewShot ref={bannerCaptureRef} options={{ format: 'png', quality: 0.9 }}>
+                <MatchBanner
+                  leftImage={previewBanner.leftImage || undefined}
+                  rightImage={previewBanner.rightImage || undefined}
+                  leftName={previewBanner.leftName}
+                  rightName={previewBanner.rightName}
+                  height={160}
+                  variant="compact"
+                  appearance={appearance}
+                />
+              </ViewShot>
+              <View style={styles.bannerActionRow}>
+                <Pressable
+                  style={[styles.bannerPrimaryButton, { backgroundColor: Colors[colorScheme].tint }]}
+                  onPress={showBannerOptions}
+                  disabled={uploadingBanner}
+                >
+                  <MaterialIcons name="cloud-upload" size={16} color="#FFFFFF" />
+                  <Text style={styles.bannerPrimaryButtonText}>
+                    {uploadingBanner ? 'Uploading...' : 'Upload Custom Photo'}
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={[styles.generatedBannerLabel, { color: Colors[colorScheme].mutedText }]}>
+                Generated fallback style
+              </Text>
+              <AppearancePicker value={appearance} onChange={setAppearance} />
+            </View>
+          )}
+        </View>
+
         {/* Date & Time */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Date & Time *</Text>
@@ -847,12 +1084,12 @@ function CreateFanEventScreen() {
           style={[
             styles.submitButton,
             { backgroundColor: Colors[colorScheme].tint },
-            (submitting || eventLimitReached) && styles.submitButtonDisabled,
+            (submitting || eventLimitReached || uploadingBanner) && styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={submitting || eventLimitReached}
+          disabled={submitting || eventLimitReached || uploadingBanner}
         >
-          {submitting ? (
+          {submitting || uploadingBanner ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={styles.submitButtonText}>
@@ -1004,6 +1241,59 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 20,
+  },
+  bannerCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  bannerHelperText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  customBannerImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 10,
+  },
+  bannerActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  bannerPrimaryButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  bannerPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  bannerSecondaryButton: {
+    minHeight: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  bannerSecondaryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  generatedBannerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   label: {
     fontSize: 14,
