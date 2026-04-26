@@ -26,7 +26,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User, Report } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
@@ -65,6 +65,7 @@ export default function PostDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const postCache = usePostCache();
   const { edgeSwipeGesture } = useEdgeSwipeBack();
+  const insets = useSafeAreaInsets();
 
   // Parse params for multi-post navigation
   const postIdsArray = useMemo(() => {
@@ -91,7 +92,11 @@ export default function PostDetailScreen() {
 
   // FlatList ref for programmatic scrolling
   const flatListRef = useRef<FlatList>(null);
+  const activeScrollViewRef = useRef<ScrollView | null>(null);
   const isInitialLoad = useRef(true);
+  const [activeScrollOffsetY, setActiveScrollOffsetY] = useState(0);
+  const [activeScrollViewportHeight, setActiveScrollViewportHeight] = useState(0);
+  const [activeScrollContentHeight, setActiveScrollContentHeight] = useState(0);
 
   // Track previous params to avoid re-scrolling on simple re-focus
   const prevParamsRef = useRef<{ index?: string; postIds?: string }>({});
@@ -171,6 +176,12 @@ export default function PostDetailScreen() {
   const imageAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: imageScale.value }],
   }));
+  const scrollJumpThreshold = 96;
+  const maxActiveScrollY = Math.max(0, activeScrollContentHeight - activeScrollViewportHeight);
+  const hasOverflowingContent = activeScrollContentHeight > activeScrollViewportHeight + 48;
+  const canJumpToTop = hasOverflowingContent && activeScrollOffsetY > scrollJumpThreshold;
+  const canJumpToBottom =
+    hasOverflowingContent && maxActiveScrollY - activeScrollOffsetY > scrollJumpThreshold;
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -434,6 +445,13 @@ export default function PostDetailScreen() {
     void load(undefined, shouldShowLoading);
     setReplyingToComment(null);
   }, [load, params.id, params.postIds, currentPostIndex]);
+
+  useEffect(() => {
+    activeScrollViewRef.current = null;
+    setActiveScrollOffsetY(0);
+    setActiveScrollViewportHeight(0);
+    setActiveScrollContentHeight(0);
+  }, [currentPostId]);
 
   // Handle post change when swiping
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -959,9 +977,15 @@ export default function PostDetailScreen() {
     const hasMedia = isImage || isVideo;
     const category = getSportCategory(postData.title, postData.content);
     const localComments = Array.isArray(commentsData) ? commentsData : [];
+    const isActivePost = String(postData.id) === String(currentPostId);
 
     return (
       <ScrollView
+        ref={node => {
+          if (isActivePost) {
+            activeScrollViewRef.current = node;
+          }
+        }}
         style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -971,6 +995,22 @@ export default function PostDetailScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
+        scrollEventThrottle={16}
+        onLayout={event => {
+          if (isActivePost) {
+            setActiveScrollViewportHeight(event.nativeEvent.layout.height);
+          }
+        }}
+        onContentSizeChange={(_width, height) => {
+          if (isActivePost) {
+            setActiveScrollContentHeight(height);
+          }
+        }}
+        onScroll={event => {
+          if (isActivePost) {
+            setActiveScrollOffsetY(event.nativeEvent.contentOffset.y);
+          }
+        }}
       >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
@@ -1532,6 +1572,52 @@ export default function PostDetailScreen() {
         ) : post ? (
           renderPostContent(post, comments, false)
         ) : null}
+        {hasOverflowingContent && (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.scrollJumpOverlay,
+              { bottom: Math.max(insets.bottom + 20, 28) },
+            ]}
+          >
+            {canJumpToTop && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Scroll to top"
+                style={[
+                  styles.scrollJumpButton,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+                onPress={() => {
+                  activeScrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                }}
+              >
+                <Ionicons name="arrow-up" size={20} color={Colors[colorScheme].text} />
+              </Pressable>
+            )}
+            {canJumpToBottom && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Scroll to bottom"
+                style={[
+                  styles.scrollJumpButton,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+                onPress={() => {
+                  activeScrollViewRef.current?.scrollTo({ y: maxActiveScrollY, animated: true });
+                }}
+              >
+                <Ionicons name="arrow-down" size={20} color={Colors[colorScheme].text} />
+              </Pressable>
+            )}
+          </View>
+        )}
       </KeyboardAvoidingView>
       {/* Edit Comment Modal */}
       <Modal
@@ -1758,6 +1844,31 @@ const styles = StyleSheet.create({
   // Content
   content: {
     flex: 1,
+  },
+  scrollJumpOverlay: {
+    position: 'absolute',
+    right: 16,
+    gap: 10,
+    alignItems: 'flex-end',
+  },
+  scrollJumpButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.14,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
 
   // Hero Section
