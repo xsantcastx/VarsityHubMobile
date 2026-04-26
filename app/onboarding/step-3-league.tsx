@@ -576,8 +576,8 @@ function Step3League() {
           router.replace({
             pathname: '/onboarding/pending-approval',
             params: {
-              leagueName: resolvedOrgName || 'the league',
-              ownerName: 'the league admin',
+              leagueName: resolvedOrgName || 'this organization',
+              ownerName: 'the organization admin',
             },
           } as any);
         } else if (recoveryRoute && recoveryRoute !== '/onboarding/coach-agreement') {

@@ -2729,7 +2729,7 @@ organizationsRouter.post(
               meta: {
                 coach_approved: true,
                 organization_id: orgId,
-                organization_name: org?.name || 'your league',
+                organization_name: org?.name || 'your organization',
               },
             },
           });
@@ -2744,7 +2744,7 @@ organizationsRouter.post(
         sendCoachApprovedEmail({
           to: coach.email,
           coachName: coach.display_name || 'Coach',
-          leagueName: org?.name || 'your league',
+          leagueName: org?.name || 'your organization',
         }).catch(err => {
           console.error('[orgs] coach approval email failed:', (err as any)?.message || err);
         });
@@ -2841,7 +2841,7 @@ organizationsRouter.post(
               rejection_reason: reason || null,
               preferences: buildRejectedCoachPreferences({
                 currentPrefs: coach?.preferences,
-                organization: org ? { id: orgId, name: org.name || 'the league' } : null,
+                organization: org ? { id: orgId, name: org.name || 'this organization' } : null,
               }),
               ...buildAuthStateColumns({
                 role: 'coach',
@@ -2858,7 +2858,7 @@ organizationsRouter.post(
         sendCoachRejectedEmail({
           to: coach.email,
           coachName: coach.display_name || 'Coach',
-          leagueName: org?.name || 'the league',
+          leagueName: org?.name || 'this organization',
           reason,
       }).catch((err) => console.error('[organizations] coach rejection email failed:', (err as any)?.message || err));
       }
@@ -2867,7 +2867,7 @@ organizationsRouter.post(
       sendPushNotification(
         coachId,
         'Application Update',
-        `Your application to join ${org?.name || 'the league'} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
+        `Your application to join ${org?.name || 'this organization'} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
         { type: 'coach_rejected', screen: 'profile', organization_id: orgId }
       ).catch(err => {
         console.warn('[orgs] coach rejection push failed:', (err as any)?.message || err);
@@ -2882,7 +2882,7 @@ organizationsRouter.post(
             type: 'COACH_REJECTED',
             meta: {
               organization_id: orgId,
-              organization_name: org?.name || 'the league',
+              organization_name: org?.name || 'this organization',
               reason: reason || null,
             },
           },

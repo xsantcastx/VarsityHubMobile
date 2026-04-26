@@ -317,7 +317,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
             <>
               <Text style={[styles.rowLabel, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Your subscription</Text>
               <Text style={[styles.rowValue, { color: Colors[colorScheme ?? 'light'].text }]}>
-                Covered by {ownerLeagueName || 'your league'}
+                Covered by {ownerLeagueName || 'your organization'}
               </Text>
               <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
                 Your league owner manages the subscription. You have full access to coach features at no cost.

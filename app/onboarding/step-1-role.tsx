@@ -397,7 +397,7 @@ export default function Step1Role() {
         saving={saving}
         roleType="coach"
         features={[
-          'Free access under your league',
+          'Free access to three teams',
           'Create and manage teams',
           'Host games, fundraisers, watch parties, and other events',
           'Organize seasons, rosters, and schedules',
