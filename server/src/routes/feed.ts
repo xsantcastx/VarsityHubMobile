@@ -12,6 +12,7 @@ import {
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const feedRouter = Router();
@@ -529,30 +530,64 @@ feedRouter.get(
         : null;
       const verifiedViewer = await ensureOAuthUserVerified(viewer as any);
 
-      const [posts, postsFollowedTeams, highlights, ads, unreadNotifications, unreadMessages] =
-        await Promise.all([
-          getFollowedPostsPage(req, 'followed', postsLimit),
-          getFollowedPostsPage(req, 'followed_teams', postsLimit),
-          getHighlightsBundle(req, highlightsLimit),
-          getAdsBundle(viewer, req, adsLimit),
-          prisma.notification.count({
-            where: { user_id: req.user!.id, read_at: null },
-          }),
-          verifiedViewer?.email_verified
-            ? prisma.message.count({
-                where: { recipient_id: req.user!.id, read: false },
-              })
-            : Promise.resolve(0),
-        ]);
+      // Each slice has its own safe fallback so a single failure (e.g. ad
+      // service slowness, notification table lock) does not blank the whole
+      // feed. Failed slices are reported to Sentry but do not propagate as
+      // a 500 — the user gets the slices that succeeded.
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const POSTS_FALLBACK = { items: [], nextCursor: null };
+      const HIGHLIGHTS_FALLBACK = { nationalTop: [], ranked: [] };
+      const ADS_FALLBACK = { date: todayISO, ads: [] };
+
+      const settled = await Promise.allSettled([
+        getFollowedPostsPage(req, 'followed', postsLimit),
+        getFollowedPostsPage(req, 'followed_teams', postsLimit),
+        getHighlightsBundle(req, highlightsLimit),
+        getAdsBundle(viewer, req, adsLimit),
+        prisma.notification.count({
+          where: { user_id: req.user!.id, read_at: null },
+        }),
+        verifiedViewer?.email_verified
+          ? prisma.message.count({
+              where: { recipient_id: req.user!.id, read: false },
+            })
+          : Promise.resolve(0),
+      ]);
+
+      const sliceNames = [
+        'posts',
+        'posts_followed_teams',
+        'highlights',
+        'ads',
+        'unread_notifications',
+        'unread_messages',
+      ] as const;
+      for (let i = 0; i < settled.length; i++) {
+        const r = settled[i];
+        if (r.status === 'rejected') {
+          const err = r.reason instanceof Error ? r.reason : new Error(String(r.reason));
+          console.error(`[feed] /bundle slice "${sliceNames[i]}" failed:`, err.message);
+          captureException(err, {
+            context: 'feed_bundle_slice_failed',
+            slice: sliceNames[i],
+            user_id: req.user?.id,
+          });
+        }
+      }
+
+      const pick = <T,>(idx: number, fallback: T): T =>
+        settled[idx].status === 'fulfilled'
+          ? ((settled[idx] as PromiseFulfilledResult<T>).value as T)
+          : fallback;
 
       res.set('Cache-Control', 'no-store, private');
       return res.json({
-        posts,
-        posts_followed_teams: postsFollowedTeams,
-        highlights,
-        ads,
-        unread_notifications: unreadNotifications,
-        unread_messages: unreadMessages,
+        posts: pick(0, POSTS_FALLBACK),
+        posts_followed_teams: pick(1, POSTS_FALLBACK),
+        highlights: pick(2, HIGHLIGHTS_FALLBACK),
+        ads: pick(3, ADS_FALLBACK),
+        unread_notifications: pick(4, 0),
+        unread_messages: pick(5, 0),
       });
     } catch (error: any) {
       console.error('[feed] GET /bundle error:', error);
