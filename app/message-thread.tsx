@@ -163,7 +163,7 @@ function MessageThreadScreen() {
       } catch {
         // Silently fail - don't disrupt conversation
       }
-    }, 30000);
+    }, 60000);
 
     return () => {
       mounted = false;
