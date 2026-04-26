@@ -177,11 +177,15 @@ export const uploadsRouter = Router();
 
 // Add error logging middleware
 uploadsRouter.use((req, res, next) => {
+  // Log only the request shape — never the full headers map. The headers
+  // include Authorization (Bearer token) and Cookie, which would land in
+  // logs/Sentry if anyone enables ENABLE_SERVER_DEBUG_LOGS=true in
+  // production. content-type alone is enough to debug upload-shape issues.
   debugLog('[uploads] Incoming request:', {
     method: req.method,
     path: req.path,
-    headers: req.headers,
     contentType: req.headers['content-type'],
+    contentLength: req.headers['content-length'],
   });
   addBreadcrumb('Upload route hit', 'uploads.request', 'info', {
     method: req.method,
