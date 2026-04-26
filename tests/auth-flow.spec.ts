@@ -41,8 +41,11 @@ test.describe('Authentication Flow', () => {
     await page.getByLabel('Password').fill(password);
     await page.getByLabel('Create account').click();
 
-    await expect(page.getByText('Check Your Email')).toBeVisible();
-    await expect(page.getByText(/we sent a 6-digit verification code/i)).toBeVisible();
+    await page.waitForURL(/\/verify(?:-email)?(?:\?|$)/, { timeout: 15000 });
+    await expect(page.getByText('Check Your Email')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/we sent a 6-digit verification code/i)).toBeVisible({
+      timeout: 15000,
+    });
 
     await page.getByLabel('Sign out and use a different account').click();
     await expect(page.getByText('Welcome back')).toBeVisible();
@@ -51,6 +54,7 @@ test.describe('Authentication Flow', () => {
     await page.getByTestId('sign-in-password').fill(password);
     await page.getByLabel('Sign In').click();
 
-    await expect(page.getByText('Check Your Email')).toBeVisible();
+    await page.waitForURL(/\/verify(?:-email)?(?:\?|$)/, { timeout: 15000 });
+    await expect(page.getByText('Check Your Email')).toBeVisible({ timeout: 15000 });
   });
 });

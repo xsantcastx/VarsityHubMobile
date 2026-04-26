@@ -111,6 +111,7 @@ function clearLegacyWebToken(key: string) {
 type AuthTokenResponse = {
   access_token?: string;
   refresh_token?: string;
+  needs_verification?: boolean;
   verification_email_sent?: boolean;
   verification_email_error?: string;
 };
@@ -128,6 +129,9 @@ function parseAuthTokenResponse(value: unknown): AuthTokenResponse {
   const parsed: AuthTokenResponse = {};
   if (typeof response.access_token === 'string') parsed.access_token = response.access_token;
   if (typeof response.refresh_token === 'string') parsed.refresh_token = response.refresh_token;
+  if (typeof response.needs_verification === 'boolean') {
+    parsed.needs_verification = response.needs_verification;
+  }
   if (typeof response.verification_email_sent === 'boolean') {
     parsed.verification_email_sent = response.verification_email_sent;
   }

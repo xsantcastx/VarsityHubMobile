@@ -14,6 +14,7 @@ const ROOT = join(process.cwd());
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const authProvider = read('context/AuthProvider.tsx');
+const authApi = read('api/auth.ts');
 const signIn = read('app/sign-in.tsx');
 const signUp = read('app/sign-up.tsx');
 
@@ -43,6 +44,17 @@ describe('account boundary invariants', () => {
   });
 
   describe('Sign-in and sign-up routing', () => {
+    it('auth token parsing preserves needs_verification from /auth/login', () => {
+      expect(authApi).toMatch(/needs_verification\?:\s*boolean/);
+      expect(authApi).toMatch(/typeof response\.needs_verification === 'boolean'/);
+      expect(authApi).toMatch(/parsed\.needs_verification = response\.needs_verification/);
+    });
+
+    it('sign-in branches on needs_verification before normal post-login routing', () => {
+      expect(signIn).toMatch(/if\s*\(res\?\.needs_verification\)/);
+      expect(signIn).toMatch(/checkAuth\(\{\s*email,\s*pendingVerification:\s*true\s*\}\)/);
+    });
+
     it('sign-in uses replaceSession when completing a new login', () => {
       expect(signIn).toMatch(/checkAuth\(\{\s*replaceSession:\s*true\s*\}\)/);
     });
