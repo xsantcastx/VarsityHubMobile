@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Advertisement,
   Event,
+  Feed,
   Game,
   Highlights,
   Message,
@@ -479,32 +480,28 @@ export default function FeedScreen() {
             followed_teams_feed_meta: undefined,
           };
 
-          const [followedPage, followedTeamsPage, highlightsData, forFeedAds] = await Promise.all([
-            user
-              ? PostApi.filterPage({ followed_only: true }, null, 20, '-created_at').catch(err => {
-                  if (__DEV__) console.warn('[feed] Followed posts load failed:', err);
-                  return emptyPage;
-                })
-              : Promise.resolve(emptyPage),
-            user
-              ? PostApi.filterPage({ followed_teams: true }, null, 20, '-created_at').catch(err => {
-                  if (__DEV__) console.warn('[feed] Followed teams load failed:', err);
-                  return emptyPage;
-                })
-              : Promise.resolve(emptyPage),
-            Highlights.fetch(
-              countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }
-            ).catch(err => {
-              if (__DEV__) console.warn('Highlights preview load failed', err);
-              return null;
-            }),
-            Advertisement.forFeed(todayISO, userZip, 2, deviceLat, deviceLng).catch(err => {
-              if (__DEV__) console.warn('[feed] Ads load failed:', err);
-              return null;
-            }),
-          ]);
+          const bundle = user
+            ? await Feed.bundle({
+                country: countryCode,
+                date: todayISO,
+                zip: userZip,
+                lat: deviceLat,
+                lng: deviceLng,
+                posts_limit: 20,
+                highlights_limit: 20,
+                ads_limit: 2,
+              }).catch(err => {
+                if (__DEV__) console.warn('[feed] Bundle load failed:', err);
+                return null;
+              })
+            : null;
 
           if (!isCurrentRequest()) return;
+
+          const followedPage = bundle?.posts ?? emptyPage;
+          const followedTeamsPage = bundle?.posts_followed_teams ?? emptyPage;
+          const highlightsData = bundle?.highlights ?? null;
+          const forFeedAds = bundle?.ads ?? null;
 
           setFollowedPosts(Array.isArray(followedPage?.items) ? followedPage.items : []);
           setFollowedFeedMeta(followedPage?.followed_feed_meta);
@@ -512,6 +509,12 @@ export default function FeedScreen() {
             Array.isArray(followedTeamsPage?.items) ? followedTeamsPage.items : []
           );
           setFollowedTeamsFeedMeta(followedTeamsPage?.followed_teams_feed_meta);
+          setUnreadNotifCount(
+            typeof bundle?.unread_notifications === 'number' ? bundle.unread_notifications : 0
+          );
+          setUnreadMessagesCount(
+            typeof bundle?.unread_messages === 'number' ? bundle.unread_messages : 0
+          );
 
           if (highlightsData) {
             const merged: any[] = [];
@@ -634,8 +637,8 @@ export default function FeedScreen() {
         }
       };
 
-      // Fire immediately on focus, then poll every 120 seconds (reduced from 60s for performance)
-      void tick();
+      // `load()` above now refreshes unread counts via /feed/bundle on focus.
+      // Keep the interval as a lightweight fallback while the screen stays visible.
       const id = setInterval(tick, 120000);
       return () => {
         mounted = false;

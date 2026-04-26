@@ -29,6 +29,7 @@ import { adsRouter } from './routes/ads.js';
 import { authRouter } from './routes/auth.js';
 import { consentRouter } from './routes/consent.js';
 import { eventsRouter } from './routes/events.js';
+import { feedRouter } from './routes/feed.js';
 import { followsRouter } from './routes/follows.js';
 import { gamesRouter } from './routes/games.js';
 import { geocodingRouter } from './routes/geocoding.js';
@@ -311,6 +312,7 @@ function mountApiRoutes(parent: any) {
   parent.use('/posts', postsRouter);
   parent.use('/notifications', noStore, notificationsRouter);
   parent.use('/events', eventsRouter);
+  parent.use('/feed', noStore, feedRouter);
   parent.use('/messages', noStore, messagesRouter);
   parent.use('/group-chats', noStore, groupChatsRouter);
   parent.use('/uploads', uploadsRouter);

@@ -904,3 +904,28 @@ export const Highlights = {
     return httpGet('/highlights' + (q.length ? '?' + q.join('&') : ''));
   },
 };
+
+export const Feed = {
+  bundle: (params: {
+    country?: string;
+    date?: string;
+    zip?: string;
+    lat?: number;
+    lng?: number;
+    posts_limit?: number;
+    highlights_limit?: number;
+    ads_limit?: number;
+  } = {}) => {
+    const q: string[] = [];
+    if (params.country) q.push('country=' + encodeURIComponent(params.country));
+    if (params.date) q.push('date=' + encodeURIComponent(params.date));
+    if (params.zip) q.push('zip=' + encodeURIComponent(params.zip));
+    if (typeof params.lat === 'number') q.push('lat=' + encodeURIComponent(String(params.lat)));
+    if (typeof params.lng === 'number') q.push('lng=' + encodeURIComponent(String(params.lng)));
+    if (params.posts_limit) q.push('posts_limit=' + encodeURIComponent(String(params.posts_limit)));
+    if (params.highlights_limit)
+      q.push('highlights_limit=' + encodeURIComponent(String(params.highlights_limit)));
+    if (params.ads_limit) q.push('ads_limit=' + encodeURIComponent(String(params.ads_limit)));
+    return httpGet('/feed/bundle' + (q.length ? '?' + q.join('&') : ''));
+  },
+};
