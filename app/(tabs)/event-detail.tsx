@@ -3,7 +3,18 @@ import { BackHeader } from '@/components/ui/BackHeader';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
@@ -13,7 +24,17 @@ import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
 import { Colors } from '@/constants/Colors';
 
-type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[]; status?: string; can_cancel?: boolean };
+type EventItem = {
+  id: string | number;
+  title?: string;
+  date?: string;
+  location?: string;
+  description?: string;
+  capacity?: number;
+  attendees?: any[];
+  status?: string;
+  can_cancel?: boolean;
+};
 
 export default function EventDetailScreen() {
   const { user: _user } = useAuth();
@@ -25,6 +46,7 @@ export default function EventDetailScreen() {
   const headerBackground = isDark ? '#030712' : '#FFFFFF';
   const headerText = isDark ? '#F8FAFC' : '#0F172A';
   const headerBorder = isDark ? '#1F2937' : '#D1D5DB';
+  const locationIconBackground = isDark ? '#3F1D1D' : '#FEE2E2';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<EventItem | null>(null);
@@ -36,7 +58,10 @@ export default function EventDetailScreen() {
   const [rsvping, setRsvping] = useState(false);
 
   const load = useCallback(async () => {
-    if (!id) { setLoading(false); return; }
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -51,8 +76,15 @@ export default function EventDetailScreen() {
         }
         data = raw;
       } catch (e: any) {
-        if (__DEV__) console.error('[event-detail] Failed to load event', { id, status: e?.status, message: e?.message });
-        setError(e?.status === 404 ? 'Event not found.' : 'Unable to load event. Please try again.');
+        if (__DEV__)
+          console.error('[event-detail] Failed to load event', {
+            id,
+            status: e?.status,
+            message: e?.message,
+          });
+        setError(
+          e?.status === 404 ? 'Event not found.' : 'Unable to load event. Please try again.'
+        );
         return;
       }
 
@@ -68,7 +100,8 @@ export default function EventDetailScreen() {
         setRsvped(!!(status?.attending ?? status?.going));
         setAttendeesCount(Number(status?.count || data?.attendees_count || data?.rsvp_count || 0));
       } catch (e: any) {
-        if (__DEV__) console.warn('[event-detail] Failed to load user/RSVP status (non-critical)', e);
+        if (__DEV__)
+          console.warn('[event-detail] Failed to load user/RSVP status (non-critical)', e);
         setAttendeesCount(Number(data?.attendees_count || data?.rsvp_count || 0));
       }
     } finally {
@@ -115,7 +148,7 @@ export default function EventDetailScreen() {
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => void router.push('/sign-in') }
+        { text: 'Sign In', onPress: () => void router.push('/sign-in') },
       ]);
       return;
     }
@@ -132,11 +165,14 @@ export default function EventDetailScreen() {
       if (status === 400 && /event has passed/i.test(message)) {
         Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
       } else if (status === 403 && /at capacity|is full/i.test(message)) {
-        Alert.alert('Event Full', 'This event is at capacity. Please check back later for cancellations.');
+        Alert.alert(
+          'Event Full',
+          'This event is at capacity. Please check back later for cancellations.'
+        );
       } else if (status === 401 || message.includes('Unauthorized')) {
         Alert.alert('Session Expired', 'Please sign in again to RSVP.', [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => void router.push('/sign-in') }
+          { text: 'Sign In', onPress: () => void router.push('/sign-in') },
         ]);
       } else {
         Alert.alert('Error', 'Unable to update RSVP. Please try again.');
@@ -154,7 +190,7 @@ export default function EventDetailScreen() {
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => void router.push('/sign-in') }
+        { text: 'Sign In', onPress: () => void router.push('/sign-in') },
       ]);
       return;
     }
@@ -175,8 +211,11 @@ export default function EventDetailScreen() {
             setCancelling(true);
             try {
               await Event.cancel(String(event.id));
-              setEvent((prev) => (prev ? { ...prev, status: 'cancelled' } : null));
-              Alert.alert('Event Cancelled', 'The event has been cancelled. Attendees have been notified.');
+              setEvent(prev => (prev ? { ...prev, status: 'cancelled' } : null));
+              Alert.alert(
+                'Event Cancelled',
+                'The event has been cancelled. Attendees have been notified.'
+              );
             } catch (e: any) {
               const msg = e?.data?.error || e?.message || 'Unable to cancel event.';
               Alert.alert('Error', msg);
@@ -237,18 +276,21 @@ export default function EventDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={['top', 'bottom']}
+    >
       <Stack.Screen options={{ title: 'Event Detail', headerShown: false }} />
-      <BackHeader 
+      <BackHeader
         title={event?.title || 'Event Detail'}
         backgroundColor={headerBackground}
         textColor={headerText}
         borderColor={headerBorder}
       />
-      
-      <ScrollView 
+
+      <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ 
+        contentContainerStyle={{
           paddingBottom: Math.max(insets.bottom, 16),
           padding: 16,
         }}
@@ -312,75 +354,132 @@ export default function EventDetailScreen() {
             />
 
             <Text style={[styles.title, { color: theme.text }]}>{event.title || 'Event'}</Text>
-            
+
             {/* Location with Map Pin */}
             {event.location && (
-              <Pressable 
-                style={[styles.locationCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              <Pressable
+                style={[
+                  styles.locationCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
                 onPress={openInMaps}
               >
-                <View style={styles.locationIconContainer}>
+                <View
+                  style={[
+                    styles.locationIconContainer,
+                    { backgroundColor: locationIconBackground },
+                  ]}
+                >
                   <MaterialIcons name="location-on" size={24} color="#EF4444" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.locationLabel, { color: theme.mutedText }]}>Location</Text>
                   <Text style={[styles.locationText, { color: theme.text }]}>{event.location}</Text>
-                  <Text style={[styles.locationHint, { color: theme.mutedText }]}>Tap to open in Maps</Text>
+                  <Text style={[styles.locationHint, { color: theme.mutedText }]}>
+                    Tap to open in Maps
+                  </Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={20} color={theme.mutedText} />
               </Pressable>
             )}
-            
-            <Text style={[styles.meta, { color: theme.mutedText }]}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
+
+            <Text style={[styles.meta, { color: theme.mutedText }]}>
+              {event.date ? new Date(event.date).toLocaleString() : ''}
+            </Text>
             {(() => {
               const capacity = (event as any)?.capacity ?? (event as any)?.max_attendees;
               const isFull = typeof capacity === 'number' && attendeesCount >= capacity;
-              const capacityText = typeof capacity === 'number' 
-                ? ` / ${capacity}${isFull ? ' (FULL)' : ''}`
-                : '';
+              const capacityText =
+                typeof capacity === 'number' ? ` / ${capacity}${isFull ? ' (FULL)' : ''}` : '';
               return (
-                <Text style={[styles.meta, { color: theme.mutedText }, isFull && { color: '#DC2626', fontWeight: '600' }]}>
-                  Attending: {attendeeCount}{capacityText}
+                <Text
+                  style={[
+                    styles.meta,
+                    { color: theme.mutedText },
+                    isFull && { color: '#DC2626', fontWeight: '600' },
+                  ]}
+                >
+                  Attending: {attendeeCount}
+                  {capacityText}
                 </Text>
               );
             })()}
-            {event.description ? <Text style={{ color: theme.text }}>{event.description}</Text> : null}
+            {event.description ? (
+              <Text style={{ color: theme.text }}>{event.description}</Text>
+            ) : null}
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
               {(event as EventItem).status !== 'cancelled' && (
                 <Pressable
-                  style={[styles.primaryBtn, (eventHasPassed || rsvping) ? styles.primaryBtnDisabled : null]}
+                  style={[
+                    styles.primaryBtn,
+                    eventHasPassed || rsvping ? styles.primaryBtnDisabled : null,
+                  ]}
                   disabled={eventHasPassed || rsvping}
                   onPress={me ? toggleRsvp : handleRsvpPress}
                 >
-                  <Text style={styles.primaryBtnText}>{eventHasPassed ? 'Event Ended' : rsvping ? '...' : (rsvped ? 'Cancel RSVP' : 'RSVP')}</Text>
+                  <Text style={styles.primaryBtnText}>
+                    {eventHasPassed
+                      ? 'Event Ended'
+                      : rsvping
+                        ? '...'
+                        : rsvped
+                          ? 'Cancel RSVP'
+                          : 'RSVP'}
+                  </Text>
                 </Pressable>
               )}
-              <Pressable style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]} onPress={shareEvent}>
-                <Text style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Share</Text>
-              </Pressable>
-              {(event as any).can_cancel && (event as EventItem).status !== 'cancelled' && !eventHasPassed && (
-                <Pressable
-                  style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]}
-                  onPress={() => router.push({ pathname: '/(tabs)/edit-event', params: { id: String(event.id) } })}
+              <Pressable
+                style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]}
+                onPress={shareEvent}
+              >
+                <Text
+                  style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}
                 >
-                  <Text style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Edit</Text>
-                </Pressable>
-              )}
+                  Share
+                </Text>
+              </Pressable>
+              {(event as any).can_cancel &&
+                (event as EventItem).status !== 'cancelled' &&
+                !eventHasPassed && (
+                  <Pressable
+                    style={[
+                      styles.outlineBtn,
+                      { borderColor: Colors[colorScheme ?? 'light'].border },
+                    ]}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/(tabs)/edit-event',
+                        params: { id: String(event.id) },
+                      })
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.outlineBtnText,
+                        { color: Colors[colorScheme ?? 'light'].text },
+                      ]}
+                    >
+                      Edit
+                    </Text>
+                  </Pressable>
+                )}
               {(event as EventItem).can_cancel && (event as EventItem).status !== 'cancelled' && (
                 <Pressable
                   style={[styles.cancelEventBtn, { borderColor: '#DC2626' }]}
                   disabled={cancelling}
                   onPress={handleCancelEvent}
                 >
-                  <Text style={styles.cancelEventBtnText}>{cancelling ? 'Cancelling…' : 'Cancel Event'}</Text>
+                  <Text style={styles.cancelEventBtnText}>
+                    {cancelling ? 'Cancelling…' : 'Cancel Event'}
+                  </Text>
                 </Pressable>
               )}
             </View>
           </View>
         )}
       </ScrollView>
-      
+
       {me && (
         <RsvpSheet
           visible={rsvpSheetVisible}
@@ -396,18 +495,16 @@ export default function EventDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1 },
   title: { fontSize: 22, fontWeight: '800' },
-  meta: { color: Colors.light.mutedText },
+  meta: {},
   error: { color: '#b91c1c' },
   locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
     gap: 12,
     marginVertical: 8,
   },
@@ -422,7 +519,6 @@ const styles = StyleSheet.create({
   locationLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.mutedText,
     textTransform: 'uppercase',
     marginBottom: 2,
   },
@@ -433,12 +529,22 @@ const styles = StyleSheet.create({
   },
   locationHint: {
     fontSize: 12,
-    color: '#9CA3AF',
   },
-  primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  primaryBtn: {
+    backgroundColor: '#111827',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
-  outlineBtn: { borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  outlineBtn: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
   outlineBtnText: { fontWeight: '700' },
   cancelledBadge: {
     paddingHorizontal: 10,
@@ -447,6 +553,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   cancelledBadgeText: { color: '#DC2626', fontWeight: '700', fontSize: 12 },
-  cancelEventBtn: { borderWidth: 1, borderColor: '#DC2626', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  cancelEventBtn: {
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
   cancelEventBtnText: { color: '#DC2626', fontWeight: '700' },
 });

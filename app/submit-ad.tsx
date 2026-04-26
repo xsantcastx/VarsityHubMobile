@@ -7,7 +7,17 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { httpGet } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
@@ -103,7 +113,8 @@ function SubmitAdScreen() {
           normalizedEmail = me.email.trim().toLowerCase();
         }
       } catch (err) {
-        if (__DEV__) console.warn('[submit-ad] /me prefetch failed:', (err as Error)?.message ?? err);
+        if (__DEV__)
+          console.warn('[submit-ad] /me prefetch failed:', (err as Error)?.message ?? err);
       }
 
       // Create ad on server
@@ -153,7 +164,10 @@ function SubmitAdScreen() {
       // If server creation failed, do NOT navigate — the ad doesn't exist on the server
       // so payment will always fail with "Ad not found"
       if (!serverId) {
-        Alert.alert('Error', createError || 'Could not create your ad. Please check your connection and try again.');
+        Alert.alert(
+          'Error',
+          createError || 'Could not create your ad. Please check your connection and try again.'
+        );
         return;
       }
 
@@ -178,17 +192,21 @@ function SubmitAdScreen() {
         const scopedKey = currentUserId ? `${baseKey}_${currentUserId}` : baseKey;
         const arr = await settings.getJson<DraftAd[]>(scopedKey, []);
         // de-dup if server returned same id
-        const next = arr.filter((a) => a.id !== adId).concat([draft]);
+        const next = arr.filter(a => a.id !== adId).concat([draft]);
         await settings.setJson(scopedKey, next);
         if (currentUserId) {
           const legacy = await settings.getJson<DraftAd[]>(baseKey, []);
-          const legacyFiltered = legacy.filter((a) => a.id !== adId);
+          const legacyFiltered = legacy.filter(a => a.id !== adId);
           if (legacyFiltered.length !== legacy.length) {
             await settings.setJson(baseKey, legacyFiltered);
           }
         }
       } catch (err) {
-        if (__DEV__) console.warn('[submit-ad] Failed to cache draft locally:', (err as Error)?.message ?? err);
+        if (__DEV__)
+          console.warn(
+            '[submit-ad] Failed to cache draft locally:',
+            (err as Error)?.message ?? err
+          );
       }
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
@@ -203,173 +221,197 @@ function SubmitAdScreen() {
   const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right']}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Submit Ad', 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={['left', 'right']}
+    >
+      <Stack.Screen
+        options={{
+          title: 'Submit Ad',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ padding: 8 }} accessibilityLabel="Go back">
+            <Pressable
+              onPress={() => safeGoBack(router)}
+              style={{ padding: 8 }}
+              accessibilityLabel="Go back"
+            >
               <MaterialIcons name="arrow-back" size={24} color={theme.text} />
             </Pressable>
           ),
-        }} 
+        }}
       />
-        <ScrollView
-          scrollEnabled={scrollEnabled}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingTop: topPadding, paddingBottom: bottomPadding },
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          automaticallyAdjustKeyboardInsets
-        >
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text }]}>Submit a Local Ad</Text>
-            <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-              Promote your business to local teams and families. Continue to pick your campaign dates.
+      <ScrollView
+        scrollEnabled={scrollEnabled}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: topPadding, paddingBottom: bottomPadding },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text }]}>Submit a Local Ad</Text>
+          <Text style={[styles.subtitle, { color: theme.mutedText }]}>
+            Promote your business to local teams and families. Continue to pick your campaign dates.
+          </Text>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.label, { color: theme.text }]}>Your Name *</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Jane Doe"
+            style={[
+              styles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
+            placeholderTextColor={theme.mutedText}
+            autoCapitalize="words"
+            maxLength={200}
+          />
+
+          <Text style={[styles.label, { color: theme.text }]}>Email Address *</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@business.com"
+            style={[
+              styles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
+            placeholderTextColor={theme.mutedText}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            maxLength={320}
+          />
+
+          <Text style={[styles.label, { color: theme.text }]}>Business Name *</Text>
+          <TextInput
+            value={business}
+            onChangeText={setBusiness}
+            placeholder="Downtown Pizza & Grill"
+            style={[
+              styles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
+            placeholderTextColor={theme.mutedText}
+          />
+
+          <Text style={[styles.label, { color: theme.text }]}>Target Zip Code *</Text>
+          <TextInput
+            value={zip}
+            onChangeText={setZip}
+            placeholder="12345"
+            style={[
+              styles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
+            placeholderTextColor={theme.mutedText}
+            keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
+            maxLength={12}
+          />
+
+          {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}
+          <ReachMapPreview zipCode={zip} radiusKm={9} />
+
+          <Text style={[styles.label, { color: theme.text }]}>Ad Banner *</Text>
+          <BannerUpload
+            value={bannerUrl || ''}
+            onChange={handleBannerChange}
+            aspectRatio={16 / 9}
+            required={true}
+            onScrollLock={locked => setScrollEnabled(!locked)}
+            uploadFormFields={{ purpose: 'ad_banner' }}
+          />
+          {!bannerUrl && (
+            <Text style={[styles.muted, { color: theme.mutedText }]}>
+              Banner image is required for your ad
             </Text>
-          </View>
+          )}
 
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.label, { color: theme.text }]}>Your Name *</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Jane Doe"
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholderTextColor={theme.mutedText}
-              autoCapitalize="words"
-              maxLength={200}
-            />
+          <Text style={[styles.label, { color: theme.text }]}>Website Link *</Text>
+          <TextInput
+            value={targetUrl}
+            onChangeText={setTargetUrl}
+            placeholder="https://yourwebsite.com"
+            style={[
+              styles.input,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
+            placeholderTextColor={theme.mutedText}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {targetUrl.trim() && (
+            <Text style={[styles.helperText, { color: theme.mutedText }]}>
+              🔗 Users can tap your ad to visit this website
+            </Text>
+          )}
 
-            <Text style={[styles.label, { color: theme.text }]}>Email Address *</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@business.com"
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholderTextColor={theme.mutedText}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              maxLength={320}
-            />
+          <Text style={[styles.label, { color: theme.text }]}>Description (Optional)</Text>
+          <TextInput
+            value={desc}
+            onChangeText={setDesc}
+            placeholder="Tell us about your business or message..."
+            style={[
+              styles.input,
+              styles.textArea,
+              { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
+            ]}
+            placeholderTextColor={theme.mutedText}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            maxLength={1000}
+          />
+          {/* Description is optional */}
+        </View>
 
-            <Text style={[styles.label, { color: theme.text }]}>Business Name *</Text>
-            <TextInput 
-              value={business} 
-              onChangeText={setBusiness} 
-              placeholder="Downtown Pizza & Grill" 
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} 
-              placeholderTextColor={theme.mutedText}
-            />
-
-            <Text style={[styles.label, { color: theme.text }]}>Target Zip Code *</Text>
-            <TextInput
-              value={zip}
-              onChangeText={setZip}
-              placeholder="12345"
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholderTextColor={theme.mutedText}
-              keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
-              maxLength={12}
-            />
-
-            {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}
-            <ReachMapPreview zipCode={zip} radiusKm={9} />
-
-            <Text style={[styles.label, { color: theme.text }]}>Ad Banner *</Text>
-            <BannerUpload 
-              value={bannerUrl || ''} 
-              onChange={handleBannerChange}
-              aspectRatio={16 / 9}
-              required={true}
-              onScrollLock={(locked) => setScrollEnabled(!locked)}
-              uploadFormFields={{ purpose: 'ad_banner' }}
-            />
-            {!bannerUrl && (
-              <Text style={[styles.muted, { color: theme.mutedText }]}>Banner image is required for your ad</Text>
-            )}
-
-            <Text style={[styles.label, { color: theme.text }]}>Website Link *</Text>
-            <TextInput
-              value={targetUrl}
-              onChangeText={setTargetUrl}
-              placeholder="https://yourwebsite.com"
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholderTextColor={theme.mutedText}
-              keyboardType="url"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {targetUrl.trim() && (
-              <Text style={[styles.helperText, { color: theme.mutedText }]}>
-                🔗 Users can tap your ad to visit this website
-              </Text>
-            )}
-
-            <Text style={[styles.label, { color: theme.text }]}>Description (Optional)</Text>
-            <TextInput
-              value={desc}
-              onChangeText={setDesc}
-              placeholder="Tell us about your business or message..."
-              style={[styles.input, styles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-              placeholderTextColor={theme.mutedText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              maxLength={1000}
-            />
-            {/* Description is optional */}
-          </View>
-
-          <Pressable 
-            onPress={submit} 
-            disabled={!canSubmit || busy} 
-            style={[styles.cta, (!canSubmit || busy) && styles.ctaDisabled]}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.ctaText}>📅 Continue to Calendar</Text>
-            )}
-          </Pressable>
-        </ScrollView>
+        <Pressable
+          onPress={submit}
+          disabled={!canSubmit || busy}
+          style={[styles.cta, (!canSubmit || busy) && styles.ctaDisabled]}
+        >
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.ctaText}>📅 Continue to Calendar</Text>
+          )}
+        </Pressable>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: 'white' 
+  container: {
+    flex: 1,
   },
-  scrollContent: { 
-    padding: 16, 
-    paddingBottom: 32 
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
   },
   header: {
     marginBottom: 20,
   },
-  title: { 
-    fontSize: 28, 
-    fontWeight: '800', 
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
     marginBottom: 8,
     letterSpacing: -0.5,
   },
   subtitle: {
-    color: Colors.light.mutedText,
     fontSize: 16,
     lineHeight: 24,
   },
-  card: { 
-    padding: 16, 
-    borderRadius: 12, 
-    backgroundColor: '#F9FAFB', 
-    borderWidth: 1, 
-    borderColor: '#D1D5DB', 
+  card: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
     gap: 12,
     marginBottom: 20,
   },
@@ -378,13 +420,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 6,
   },
-  input: { 
-    height: 48, 
-    borderRadius: 8, 
-    borderWidth: 1, 
-    borderColor: '#D1D5DB', 
-    paddingHorizontal: 14, 
-    backgroundColor: 'white',
+  input: {
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 14,
     fontSize: 16,
     letterSpacing: 0,
   },
@@ -393,24 +433,22 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 12,
   },
-  helperText: { 
-    fontSize: 13, 
-    color: '#059669', 
+  helperText: {
+    fontSize: 13,
     marginTop: -4,
     marginBottom: 4,
   },
   muted: {
     fontSize: 13,
-    color: Colors.light.mutedText,
     marginTop: -4,
     marginBottom: 4,
     lineHeight: 18,
   },
-  cta: { 
-    height: 52, 
-    borderRadius: 12, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
+  cta: {
+    height: 52,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#111827',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -418,12 +456,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  ctaDisabled: { 
-    opacity: 0.5 
+  ctaDisabled: {
+    opacity: 0.5,
   },
-  ctaText: { 
-    color: 'white', 
-    fontWeight: '800', 
+  ctaText: {
+    color: 'white',
+    fontWeight: '800',
     fontSize: 17,
     letterSpacing: 0.3,
   },
