@@ -178,7 +178,7 @@ describe('Ad Approval Security', () => {
     });
   }
 
-  it('blocks unauthenticated token-based approval', async () => {
+  it('allows token-based approval without an authenticated admin session', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -187,11 +187,14 @@ describe('Ad Approval Security', () => {
       .query({ token })
       .send({});
 
-    expect(res.status).toBe(401);
-    expect(String(res.body?.error || '')).toMatch(/unauthorized/i);
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/Ad Approved/i);
+
+    const updated = await prisma.ad.findUnique({ where: { id: ad.id } });
+    expect(updated?.status).toBe('approved');
   });
 
-  it('redirects tokenized GET approval links into the admin app flow', async () => {
+  it('renders a browser confirmation page for tokenized GET approval links', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -199,13 +202,13 @@ describe('Ad Approval Security', () => {
       .get(`/ads/${ad.id}/approve`)
       .query({ token });
 
-    expect(res.status).toBe(302);
-    expect(String(res.headers.location || '')).toContain('https://varsityhub.app/admin-ads');
-    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
-    expect(String(res.headers.location || '')).toContain('action=approve');
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toMatch(/Approve this ad\?/i);
+    expect(res.text).toContain('Approve Ad');
   });
 
-  it('redirects tokenized GET rejection links into the admin app flow', async () => {
+  it('renders a browser confirmation page for tokenized GET rejection links', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'reject_ad' }, '7d');
 
@@ -213,10 +216,10 @@ describe('Ad Approval Security', () => {
       .get(`/ads/${ad.id}/reject`)
       .query({ token });
 
-    expect(res.status).toBe(302);
-    expect(String(res.headers.location || '')).toContain('https://varsityhub.app/admin-ads');
-    expect(String(res.headers.location || '')).toContain(`ad_id=${ad.id}`);
-    expect(String(res.headers.location || '')).toContain('action=reject');
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toMatch(/Reject this ad\?/i);
+    expect(res.text).toContain('Reject Ad');
   });
 
   it('serves an HTML app handoff page for unauthenticated email review links', async () => {
@@ -234,7 +237,7 @@ describe('Ad Approval Security', () => {
     expect(res.text).not.toContain('Unauthorized');
   });
 
-  it('blocks verified non-admins from using approval tokens', async () => {
+  it('allows a valid token even when the requester is a verified non-admin', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -244,11 +247,11 @@ describe('Ad Approval Security', () => {
       .set('Authorization', `Bearer ${verifiedNonAdminToken}`)
       .send({});
 
-    expect(res.status).toBe(403);
-    expect(String(res.body?.error || '')).toMatch(/admin only/i);
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/Ad Approved/i);
   });
 
-  it('blocks unverified admins from using approval tokens', async () => {
+  it('allows a valid token even when the requester has an unverified admin session', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -258,8 +261,8 @@ describe('Ad Approval Security', () => {
       .set('Authorization', `Bearer ${unverifiedAdminToken}`)
       .send({});
 
-    expect(res.status).toBe(403);
-    expect(String(res.body?.error || '')).toMatch(/email verification required/i);
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/Ad Approved/i);
   });
 
   it('allows verified admins to approve with a valid token', async () => {
@@ -269,7 +272,6 @@ describe('Ad Approval Security', () => {
     const res = await request(app)
       .post(`/ads/${ad.id}/approve`)
       .query({ token })
-      .set('Authorization', `Bearer ${verifiedAdminToken}`)
       .send({});
 
     expect(res.status).toBe(200);
@@ -522,7 +524,6 @@ describe('Ad Approval Security', () => {
     const res = await request(app)
       .post(`/ads/${ad.id}/approve`)
       .query({ token })
-      .set('Authorization', `Bearer ${verifiedAdminToken}`)
       .send({ override_banner_flag: true, override_reason: reason });
 
     expect(res.status).toBe(200);

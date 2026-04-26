@@ -2231,8 +2231,7 @@ organizationsRouter.post(
 /**
  * POST /organizations/:id/approve
  * Approves a league page.
- * Token links are confirmation scopes only; state changes still require
- * an authenticated platform-admin session.
+ * Token links are bearer-capable browser confirmation pages.
  */
 // GET handler so email links work as simple browser clicks
 organizationsRouter.get('/:id/approve', authMiddleware as any, (req, res, next) => {
@@ -2261,14 +2260,6 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       .catch(() => null);
     if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
 
-    // SECURITY: approval/rejection is a bearer-capable admin action via email link.
-    // Prior to this fix, a valid token alone would authorize the write with
-    // `adminUserId = null` — meaning anyone who obtained the 7-day signed URL
-    // (forwarded email, shared mailbox, printed page) could approve the league
-    // without being an admin. Fix: always require an authenticated admin session
-    // on the POST (the write). Token still binds the action to this specific
-    // orgId. GET + token remains the "show confirmation form" path and does not
-    // mutate state, so it does not require admin auth.
     if (token) {
       const payload = verifyJwt<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'approve_league') {
@@ -2279,8 +2270,6 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         });
         return res.status(401).json({ error: 'Invalid or expired approval token' });
       }
-      // GET: show confirmation form — don't perform write on GET (email scanner safe).
-      // No admin-auth check here because this path is read-only.
       if (req.method === 'GET') {
         addBreadcrumb('League approval confirmation page rendered', 'approval.organization_route', 'info', {
           action: 'approve',
@@ -2290,11 +2279,6 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
           where: { id: orgId },
           select: { name: true, admin_approved: true },
         });
-        if (!adminSession) {
-          return res
-            .status(401)
-            .send(renderAdminLoginRequiredPage('approve', orgInfo?.name || 'Unknown'));
-        }
         if (orgInfo?.admin_approved)
           return res.send(
             `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`
@@ -2302,14 +2286,43 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>Approve this league?</h2><p><strong>${escapeHtml(orgInfo?.name || 'Unknown')}</strong></p>
-<p style="color:#6B7280;font-size:14px;">You must be logged in as an admin to complete this action.</p>
 <form method="POST" action="?token=${encodeURIComponent(token)}">
 <button type="submit" style="background:#16A34A;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Approve League</button>
 </form></body></html>`);
       }
+
+      const adminUserId = adminSession?.id || 'email-token';
+      const adminNote: string | undefined = req.body?.note || undefined;
+      const result = await approveOrganization(orgId, adminUserId, prisma, { note: adminNote });
+      if (result.error) {
+        return res.status((result as any).status || 500).send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`);
+      }
+      if ((result as any).already) {
+        return res.send(
+          `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`
+        );
+      }
+      addBreadcrumb('League approval endpoint completed', 'approval.organization_route', 'info', {
+        action: 'approve',
+        organization_id: orgId,
+        auth_mode: authMode,
+      });
+
+      const org = (result as any).org;
+      const approverEmail = adminSession?.email || 'email-token';
+      await logAdminActivity(
+        adminUserId,
+        approverEmail,
+        'APPROVE_LEAGUE',
+        'organization',
+        orgId,
+        `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
+      );
+      return res.send(
+        `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${escapeHtml(String(org.name || ''))}" is now live on VarsityHub.</p></body></html>`
+      );
     }
 
-    // POST — admin authentication is required regardless of whether a token is present.
     if (!req.user) return res.status(401).json({ error: 'Admin login required. Please log in to the admin dashboard before approving.' });
     const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
     if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
@@ -2340,13 +2353,6 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
     );
 
-    // If accessed via browser link, show a simple HTML confirmation (escape org.name to prevent XSS)
-    if (token) {
-      return res.send(
-        `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${escapeHtml(String(org.name || ''))}" is now live on VarsityHub.</p></body></html>`
-      );
-    }
-
     return res.json({ message: 'League approved', organization_id: orgId });
   } catch (err) {
     console.error('[organizations] POST /:id/approve error:', err);
@@ -2367,8 +2373,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 /**
  * POST /organizations/:id/reject
  * Rejects a league page.
- * Token links are confirmation scopes only; state changes still require
- * an authenticated platform-admin session.
+ * Token links are bearer-capable browser confirmation pages.
  */
 // GET handler so email reject links work as simple browser clicks
 organizationsRouter.get('/:id/reject', authMiddleware as any, (req, res, next) => {
@@ -2399,9 +2404,6 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       .catch(() => null);
     if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
 
-    // SECURITY: same fix pattern as approveLeagueHandler. Always require admin
-    // session on POST (the write); GET + token is the read-only confirmation
-    // form and does not require admin auth.
     if (token) {
       const payload = verifyJwt<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'reject_league') {
@@ -2412,7 +2414,6 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         });
         return res.status(401).json({ error: 'Invalid or expired rejection token' });
       }
-      // GET: show confirmation form — don't perform write on GET
       if (req.method === 'GET') {
         addBreadcrumb('League rejection confirmation page rendered', 'approval.organization_route', 'info', {
           action: 'reject',
@@ -2422,22 +2423,40 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
           where: { id: orgId },
           select: { name: true },
         });
-        if (!adminSession) {
-          return res
-            .status(401)
-            .send(renderAdminLoginRequiredPage('reject', orgInfo?.name || 'Unknown'));
-        }
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reject League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>Reject this league?</h2><p><strong>${escapeHtml(orgInfo?.name || 'Unknown')}</strong></p>
-<p style="color:#6B7280;font-size:14px;">You must be logged in as an admin to complete this action.</p>
 <form method="POST" action="?token=${encodeURIComponent(token)}">
 <button type="submit" style="background:#DC2626;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">Reject League</button>
 </form></body></html>`);
       }
+
+      const adminUserId = adminSession?.id || 'email-token';
+      const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
+      if (result.error) {
+        return res.status((result as any).status || 500).send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`);
+      }
+      addBreadcrumb('League rejection endpoint completed', 'approval.organization_route', 'info', {
+        action: 'reject',
+        organization_id: orgId,
+        auth_mode: authMode,
+      });
+
+      const org = (result as any).org;
+      const rejecterEmail = adminSession?.email || 'email-token';
+      await logAdminActivity(
+        adminUserId,
+        rejecterEmail,
+        'REJECT_LEAGUE',
+        'organization',
+        orgId,
+        `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
+      );
+      return res.send(
+        `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${escapeHtml(String(org.name || ''))}" has been declined.</p></body></html>`
+      );
     }
 
-    // POST — admin authentication is required regardless of whether a token is present.
     if (!req.user) return res.status(401).json({ error: 'Admin login required. Please log in to the admin dashboard before rejecting.' });
     const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
     if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
@@ -2463,12 +2482,6 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       orgId,
       `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
     );
-
-    if (token) {
-      return res.send(
-        `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${escapeHtml(String(org.name || ''))}" has been declined.</p></body></html>`
-      );
-    }
 
     return res.json({ message: 'League rejected', organization_id: orgId });
   } catch (err) {

@@ -75,21 +75,27 @@ describe('Email template helpers', () => {
   it('buildLeagueApprovalReviewUrl points into the admin app flow', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
     const { buildLeagueApprovalReviewUrl } = await import('../lib/email.js');
+    const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
-    expect(url).toContain('https://varsityhub.app/admin-dashboard');
-    expect(url).toContain('review=league_approval');
-    expect(url).toContain('league_id=org_123');
-    expect(url).toContain('action=approve');
+    const parsed = new URL(url);
+    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.pathname).toBe('/organizations/org_123/approve');
+    const token = parsed.searchParams.get('token');
+    expect(token).toBeTruthy();
+    expect(verifyJwt(token!)).toMatchObject({ orgId: 'org_123', action: 'approve_league' });
   });
 
   it('buildCoachApplicationReviewUrl points to a browser-safe admin dashboard URL', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
     const { buildCoachApplicationReviewUrl } = await import('../lib/email.js');
+    const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildCoachApplicationReviewUrl({ coachId: 'user_123', action: 'reject' });
-    expect(url).toContain('https://varsityhub.app/admin-dashboard');
-    expect(url).toContain('review=coach_application');
-    expect(url).toContain('coach_id=user_123');
-    expect(url).toContain('action=reject');
+    const parsed = new URL(url);
+    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.pathname).toBe('/admin/coaches/user_123/reject');
+    const token = parsed.searchParams.get('token');
+    expect(token).toBeTruthy();
+    expect(verifyJwt(token!)).toMatchObject({ coachId: 'user_123', action: 'reject_coach' });
   });
 
   it('buildCoachJoinRequestReviewUrl points into the organization join-request app flow', async () => {
@@ -111,23 +117,34 @@ describe('Email template helpers', () => {
   it('buildEventReviewUrl points into the event approvals app flow', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
     const { buildEventReviewUrl } = await import('../lib/email.js');
+    const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildEventReviewUrl({
       reviewId: 'evt_123',
       reviewKind: 'game',
       action: 'reject',
     });
-    expect(url).toContain('https://varsityhub.app/event-approvals');
-    expect(url).toContain('event_id=evt_123');
-    expect(url).toContain('review_kind=game');
-    expect(url).toContain('action=reject');
+    const parsed = new URL(url);
+    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.pathname).toBe('/games/evt_123/reject');
+    const token = parsed.searchParams.get('token');
+    expect(token).toBeTruthy();
+    expect(verifyJwt(token!)).toMatchObject({
+      reviewId: 'evt_123',
+      reviewKind: 'game',
+      action: 'reject_game',
+    });
   });
 
   it('buildAdReviewUrl points to a browser-safe admin ads URL', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
     const { buildAdReviewUrl } = await import('../lib/email.js');
+    const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildAdReviewUrl({ adId: 'ad_123', action: 'reject' });
-    expect(url).toContain('https://varsityhub.app/admin-ads');
-    expect(url).toContain('ad_id=ad_123');
-    expect(url).toContain('action=reject');
+    const parsed = new URL(url);
+    expect(parsed.origin).toBe('https://varsityhub.app');
+    expect(parsed.pathname).toBe('/ads/ad_123/reject');
+    const token = parsed.searchParams.get('token');
+    expect(token).toBeTruthy();
+    expect(verifyJwt(token!)).toMatchObject({ adId: 'ad_123', action: 'reject_ad' });
   });
 });

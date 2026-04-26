@@ -13,7 +13,6 @@ import {
   alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
-import { buildAdReviewUrl } from '../lib/email.js';
 import { verifyJwt } from '../lib/jwt.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
@@ -1359,22 +1358,31 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
       }
-      return res.redirect(302, buildAdReviewUrl({ adId: id, action: 'approve' }));
+      return res.send(
+        confirmationForm(
+          'approve',
+          id,
+          token,
+          escapeHtml(summary.businessName || 'Unknown'),
+          summary.moderation
+        )
+      );
     }
 
-    // POST path = the actual write. Always require admin auth.
-    const isAdmin = await getIsAdmin(req);
-    if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
-
-    // If a token was supplied (from the email form), validate the binding so a
-    // mismatched or tampered link can't approve a different ad.
-    if (token && !verifyModerationToken(token, id, 'approve_ad')) {
-      addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
-        action: 'approve',
-        ad_id: id,
-        method: req.method,
-      });
-      return res.status(401).json({ error: 'Invalid or expired approval token' });
+    if (token) {
+      if (!verifyModerationToken(token, id, 'approve_ad')) {
+        addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
+          action: 'approve',
+          ad_id: id,
+          method: req.method,
+        });
+        return res
+          .status(401)
+          .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
+      }
+    } else {
+      const isAdmin = await getIsAdmin(req);
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const body = req.body || {};
@@ -1440,9 +1448,6 @@ adsRouter.get(
 );
 adsRouter.post(
   '/:id([a-z0-9]{15,50})/approve',
-  requireAuth as any,
-  requireVerified as any,
-  requireAdmin as any,
   adModerationLimiter as any,
   handleAdApprove as any
 );
@@ -1477,20 +1482,29 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
         action: 'reject',
         ad_id: id,
       });
-      return res.redirect(302, buildAdReviewUrl({ adId: id, action: 'reject' }));
+      const summary = await loadAdModerationSummary(id);
+      if (!summary) {
+        return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
+      }
+      return res.send(
+        confirmationForm('reject', id, token, escapeHtml(summary.businessName || 'Unknown'))
+      );
     }
 
-    // POST path = the actual write. Always require admin auth.
-    const isAdmin = await getIsAdmin(req);
-    if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
-
-    if (token && !verifyModerationToken(token, id, 'reject_ad')) {
-      addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
-        action: 'reject',
-        ad_id: id,
-        method: req.method,
-      });
-      return res.status(401).json({ error: 'Invalid or expired rejection token' });
+    if (token) {
+      if (!verifyModerationToken(token, id, 'reject_ad')) {
+        addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
+          action: 'reject',
+          ad_id: id,
+          method: req.method,
+        });
+        return res
+          .status(401)
+          .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
+      }
+    } else {
+      const isAdmin = await getIsAdmin(req);
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
@@ -1524,9 +1538,6 @@ adsRouter.get(
 );
 adsRouter.post(
   '/:id([a-z0-9]{15,50})/reject',
-  requireAuth as any,
-  requireVerified as any,
-  requireAdmin as any,
   adModerationLimiter as any,
   handleAdReject as any
 );

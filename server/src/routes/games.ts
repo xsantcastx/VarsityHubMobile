@@ -1,3 +1,4 @@
+import escapeHtml from 'escape-html';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
@@ -19,6 +20,7 @@ import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/t
 import { sendError } from '../lib/http/sendError.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 import { sendEventApprovedEmail, sendEventDeniedEmail } from '../lib/email.js';
+import { verifyJwt } from '../lib/jwt.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -27,6 +29,214 @@ const shouldRunStartupBackfills =
 
 async function invalidateGamesListCache(): Promise<void> {
   await cacheDelPattern('games:*');
+}
+
+function renderGameReviewPage(action: 'approve' | 'reject', title: string, token: string) {
+  const headline = action === 'approve' ? 'Approve Game' : 'Reject Game';
+  const button = action === 'approve' ? 'Approve Game' : 'Reject Game';
+  const color = action === 'approve' ? '#16A34A' : '#DC2626';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${headline}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
+<h2>${headline}?</h2>
+<p style="color:#374151;">Game: <strong>${escapeHtml(title || 'Unknown')}</strong></p>
+<form method="POST" action="?token=${encodeURIComponent(token)}">
+<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
+</form>
+</body></html>`;
+}
+
+function renderGameResultPage(title: string, message: string, success: boolean) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
+<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
+<p style="color:#374151;">${escapeHtml(message)}</p>
+</body></html>`;
+}
+
+async function applyGameApprovalDecision(
+  id: string,
+  approvalStatus: 'approved' | 'rejected',
+  actingUserId: string,
+  reason?: string | null
+) {
+  const isApproved = approvalStatus === 'approved';
+  const approvalAppliedAt = isApproved ? new Date() : null;
+  const updatedGame = await prisma.$transaction(async (tx) => {
+    const transition = await (tx.game.updateMany as any)({
+      where: { id, approval_status: 'pending' },
+      data: {
+        approval_status: approvalStatus,
+        approved_by_id: isApproved ? actingUserId : null,
+        approved_at: approvalAppliedAt,
+      },
+    });
+    if (transition.count === 0) return null;
+
+    await tx.event.updateMany({
+      where: { game_id: id },
+      data: {
+        approval_status: approvalStatus,
+        status: isApproved ? 'approved' : 'rejected',
+        ...(isApproved
+          ? { approved_at: approvalAppliedAt, rejected_reason: null }
+          : { approved_at: null, rejected_reason: reason || null }),
+      },
+    });
+
+    return (tx.game.findUnique as any)({
+      where: { id },
+    });
+  });
+
+  if (!updatedGame) {
+    return { error: 'Game approval status changed before this action completed', status: 409 as const };
+  }
+  await invalidateGamesListCache();
+
+  if (updatedGame.created_by_id && updatedGame.created_by_id !== actingUserId) {
+    try {
+      const [linkedEvent, creator] = await Promise.all([
+        prisma.event.findFirst({
+          where: { game_id: id },
+          select: { id: true },
+          orderBy: { date: 'asc' },
+        }),
+        prisma.user.findUnique({
+          where: { id: updatedGame.created_by_id },
+          select: { email: true, display_name: true },
+        }),
+      ]);
+      const eventId = linkedEvent?.id || null;
+      const eventDate = updatedGame.date ? new Date(updatedGame.date) : null;
+
+      const { sendPushNotification } = await import('../lib/notifications.js');
+      if (approvalStatus === 'approved') {
+        await sendPushNotification(
+          updatedGame.created_by_id,
+          'Event Approved!',
+          `Your event "${updatedGame.title}" has been approved and is now live.`,
+          { type: 'event_approved', game_id: id, event_id: eventId }
+        );
+        await prisma.notification.create({
+          data: {
+            user_id: updatedGame.created_by_id,
+            type: 'EVENT_APPROVED' as any,
+            meta: { game_id: id, event_id: eventId, event_title: updatedGame.title },
+          },
+        });
+        if (creator?.email) {
+          await sendEventApprovedEmail({
+            to: creator.email,
+            recipientName: creator.display_name || 'User',
+            eventTitle: updatedGame.title,
+            eventDate: eventDate
+              ? eventDate.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : undefined,
+            eventTime: eventDate
+              ? eventDate.toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })
+              : undefined,
+            eventLocation: updatedGame.location || undefined,
+            eventId: eventId || undefined,
+          });
+        }
+      } else {
+        await sendPushNotification(
+          updatedGame.created_by_id,
+          'Event Not Approved',
+          `Your event "${updatedGame.title}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
+          { type: 'event_rejected', game_id: id, event_id: eventId }
+        );
+        await prisma.notification.create({
+          data: {
+            user_id: updatedGame.created_by_id,
+            type: 'EVENT_REJECTED' as any,
+            meta: {
+              game_id: id,
+              event_id: eventId,
+              event_title: updatedGame.title,
+              reason: reason || undefined,
+            },
+          },
+        });
+        if (creator?.email) {
+          await sendEventDeniedEmail({
+            to: creator.email,
+            recipientName: creator.display_name || 'User',
+            eventTitle: updatedGame.title,
+            eventDate: eventDate
+              ? eventDate.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : undefined,
+            reason: reason || undefined,
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.warn('[games] Failed to notify creator of approval decision:', notifErr);
+    }
+  }
+
+  return { game: updatedGame };
+}
+
+async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 'approve' | 'reject') {
+  const id = String(req.params.id);
+  const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
+  const payload = token
+    ? verifyJwt<{ reviewId: string; reviewKind: string; action: string }>(token)
+    : null;
+  const expectedAction = action === 'approve' ? 'approve_game' : 'reject_game';
+
+  if (!token || !payload || payload.reviewId !== id || payload.reviewKind !== 'game' || payload.action !== expectedAction) {
+    return res
+      .status(401)
+      .send(renderGameResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+  }
+
+  const game = await (prisma.game.findUnique as any)({
+    where: { id },
+    select: { title: true },
+  });
+  if (!game) {
+    return res.status(404).send(renderGameResultPage('Not Found', 'Game not found.', false));
+  }
+
+  if (req.method === 'GET') {
+    return res.send(renderGameReviewPage(action, game.title || 'Unknown', token));
+  }
+
+  const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).trim() : undefined;
+  const result = await applyGameApprovalDecision(
+    id,
+    action === 'approve' ? 'approved' : 'rejected',
+    'email-token',
+    reason
+  );
+  if ('error' in result) {
+    return res
+      .status(result.status!)
+      .send(renderGameResultPage('Error', result.error!, false));
+  }
+
+  return res.send(
+    renderGameResultPage(
+      action === 'approve' ? 'Game Approved' : 'Game Rejected',
+      `${game.title || 'This game'} has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
+      true
+    )
+  );
 }
 
 // One-time startup backfill: geocode games that have a location string but no coordinates.
@@ -1764,6 +1974,14 @@ gamesRouter.put(
 );
 
 // Approve or reject event
+gamesRouter.get(
+  '/:id/approve',
+  asyncHandler(async (req: AuthedRequest, res: Response) => handleGameTokenReview(req, res, 'approve'))
+);
+gamesRouter.post(
+  '/:id/approve',
+  asyncHandler(async (req: AuthedRequest, res: Response) => handleGameTokenReview(req, res, 'approve'))
+);
 gamesRouter.put(
   '/:id/approve',
   requireAuth as any,
@@ -1801,143 +2019,29 @@ gamesRouter.put(
         return res.status(403).json({ error: 'Only coaches, org admins, and platform admins can approve events' });
       }
 
-      const isApproved = parsed.data.approval_status === 'approved';
-      const rejectionReason = (req.body as any)?.reason || null;
-
-      const approvalAppliedAt = isApproved ? new Date() : null;
-      const updatedGame = await prisma.$transaction(async (tx) => {
-        const transition = await (tx.game.updateMany as any)({
-          where: { id, approval_status: 'pending' },
-          data: {
-            approval_status: parsed.data.approval_status,
-            approved_by_id: isApproved ? actingUserId : null,
-            approved_at: approvalAppliedAt,
-          },
-        });
-        if (transition.count === 0) return null;
-
-        await tx.event.updateMany({
-          where: { game_id: id },
-          data: {
-            approval_status: parsed.data.approval_status,
-            status: isApproved ? 'approved' : 'rejected',
-            ...(isApproved
-              ? { approved_at: approvalAppliedAt }
-              : { approved_at: null, rejected_reason: rejectionReason }),
-          },
-        });
-
-        return (tx.game.findUnique as any)({
-          where: { id },
-        });
-      });
-      if (!updatedGame) {
-        return sendError(res, 409, 'Game approval status changed before this action completed');
-      }
-      await invalidateGamesListCache();
-
-      // Notify the game creator of the approval/rejection decision
-      if (updatedGame.created_by_id && updatedGame.created_by_id !== req.user!.id) {
-        try {
-          // Get linked event ID so notification tap navigates correctly (client reads event_id)
-          const [linkedEvent, creator] = await Promise.all([
-            prisma.event.findFirst({
-              where: { game_id: id },
-              select: { id: true },
-              orderBy: { date: 'asc' },
-            }),
-            prisma.user.findUnique({
-              where: { id: updatedGame.created_by_id },
-              select: { email: true, display_name: true },
-            }),
-          ]);
-          const eventId = linkedEvent?.id || null;
-          const eventDate = updatedGame.date ? new Date(updatedGame.date) : null;
-
-          const { sendPushNotification } = await import('../lib/notifications.js');
-          if (parsed.data.approval_status === 'approved') {
-            await sendPushNotification(
-              updatedGame.created_by_id,
-              'Event Approved!',
-              `Your event "${updatedGame.title}" has been approved and is now live.`,
-              { type: 'event_approved', game_id: id, event_id: eventId }
-            );
-            await prisma.notification.create({
-              data: {
-                user_id: updatedGame.created_by_id,
-                type: 'EVENT_APPROVED' as any,
-                meta: { game_id: id, event_id: eventId, event_title: updatedGame.title },
-              },
-            });
-            if (creator?.email) {
-              await sendEventApprovedEmail({
-                to: creator.email,
-                recipientName: creator.display_name || 'User',
-                eventTitle: updatedGame.title,
-                eventDate: eventDate
-                  ? eventDate.toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
-                  : undefined,
-                eventTime: eventDate
-                  ? eventDate.toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })
-                  : undefined,
-                eventLocation: updatedGame.location || undefined,
-                eventId: eventId || undefined,
-              });
-            }
-            // Approved games appear in the feed carousel automatically via GET /games
-          } else {
-            await sendPushNotification(
-              updatedGame.created_by_id,
-              'Event Not Approved',
-              `Your event "${updatedGame.title}" was not approved.${(req.body as any)?.reason ? ` Reason: ${(req.body as any).reason}` : ''}`,
-              { type: 'event_rejected', game_id: id, event_id: eventId }
-            );
-            await prisma.notification.create({
-              data: {
-                user_id: updatedGame.created_by_id,
-                type: 'EVENT_REJECTED' as any,
-                meta: {
-                  game_id: id,
-                  event_id: eventId,
-                  event_title: updatedGame.title,
-                  reason: (req.body as any)?.reason,
-                },
-              },
-            });
-            if (creator?.email) {
-              await sendEventDeniedEmail({
-                to: creator.email,
-                recipientName: creator.display_name || 'User',
-                eventTitle: updatedGame.title,
-                eventDate: eventDate
-                  ? eventDate.toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
-                  : undefined,
-                reason: (req.body as any)?.reason || undefined,
-              });
-            }
-          }
-        } catch (notifErr) {
-          console.warn('[games] Failed to notify creator of approval decision:', notifErr);
-        }
+      const result = await applyGameApprovalDecision(
+        id,
+        parsed.data.approval_status,
+        actingUserId,
+        (req.body as any)?.reason || null
+      );
+      if ('error' in result) {
+        return sendError(res, result.status!, result.error!);
       }
 
-      return res.json(updatedGame);
+      return res.json(result.game);
     } catch (err) {
       console.error('[games] approve error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
   })
+);
+
+gamesRouter.get(
+  '/:id/reject',
+  asyncHandler(async (req: AuthedRequest, res: Response) => handleGameTokenReview(req, res, 'reject'))
+);
+gamesRouter.post(
+  '/:id/reject',
+  asyncHandler(async (req: AuthedRequest, res: Response) => handleGameTokenReview(req, res, 'reject'))
 );

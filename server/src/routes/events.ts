@@ -1,3 +1,4 @@
+import escapeHtml from 'escape-html';
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendEventCanceledEmail } from '../lib/email.js';
@@ -25,6 +26,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import { verifyJwt } from '../lib/jwt.js';
 
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
@@ -72,6 +74,78 @@ async function* iterateEventRsvps(
     if (batch.length < batchSize) return;
     cursor = batch[batch.length - 1].id;
   }
+}
+
+function renderEventReviewPage(action: 'approve' | 'reject', eventTitle: string, token: string) {
+  const title = action === 'approve' ? 'Approve Event' : 'Reject Event';
+  const button = action === 'approve' ? 'Approve Event' : 'Reject Event';
+  const color = action === 'approve' ? '#16A34A' : '#DC2626';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
+<h2>${title}?</h2>
+<p style="color:#374151;">Event: <strong>${escapeHtml(eventTitle || 'Unknown')}</strong></p>
+<form method="POST" action="?token=${encodeURIComponent(token)}">
+<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
+</form>
+</body></html>`;
+}
+
+function renderEventResultPage(title: string, message: string, success: boolean) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
+<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
+<p style="color:#374151;">${escapeHtml(message)}</p>
+</body></html>`;
+}
+
+async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'approve' | 'reject') {
+  const eventId = String(req.params.id);
+  const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
+  const payload = token
+    ? verifyJwt<{ reviewId: string; reviewKind: string; action: string }>(token)
+    : null;
+  const expectedAction = action === 'approve' ? 'approve_event' : 'reject_event';
+
+  if (
+    !token ||
+    !payload ||
+    payload.reviewId !== eventId ||
+    payload.reviewKind !== 'event' ||
+    payload.action !== expectedAction
+  ) {
+    return res
+      .status(401)
+      .send(renderEventResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+  }
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { title: true },
+  });
+  if (!event) {
+    return res.status(404).send(renderEventResultPage('Not Found', 'Event not found.', false));
+  }
+
+  if (req.method === 'GET') {
+    return res.send(renderEventReviewPage(action, event.title || 'Unknown', token));
+  }
+
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : undefined;
+  const result =
+    action === 'approve'
+      ? await approveEventService(eventId, 'email-token', prisma)
+      : await rejectEventService(eventId, 'email-token', prisma, { reason });
+  if (result.error) {
+    return res.status(result.status || 400).send(renderEventResultPage('Error', result.error, false));
+  }
+
+  return res.send(
+    renderEventResultPage(
+      action === 'approve' ? 'Event Approved' : 'Event Rejected',
+      `${event.title || 'This event'} has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
+      true
+    )
+  );
 }
 
 // One-time startup backfill: geocode events/games that have a location string but no lat/lng.
@@ -982,6 +1056,14 @@ eventsRouter.post(
 );
 
 // Approve event
+eventsRouter.get(
+  '/:id/approve',
+  asyncHandler(async (req: AuthedRequest, res) => handleEventTokenReview(req, res, 'approve'))
+);
+eventsRouter.post(
+  '/:id/approve',
+  asyncHandler(async (req: AuthedRequest, res) => handleEventTokenReview(req, res, 'approve'))
+);
 eventsRouter.put(
   '/:id/approve',
   requireVerified as any,
@@ -1032,6 +1114,15 @@ eventsRouter.put(
 const rejectEventSchema = z.object({
   reason: z.string().optional(),
 });
+
+eventsRouter.get(
+  '/:id/reject',
+  asyncHandler(async (req: AuthedRequest, res) => handleEventTokenReview(req, res, 'reject'))
+);
+eventsRouter.post(
+  '/:id/reject',
+  asyncHandler(async (req: AuthedRequest, res) => handleEventTokenReview(req, res, 'reject'))
+);
 
 eventsRouter.put(
   '/:id/reject',

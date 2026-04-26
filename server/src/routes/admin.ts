@@ -1,11 +1,13 @@
 import express from 'express';
+import escapeHtml from 'escape-html';
 import { z } from 'zod';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { checkReportSpike, getUserModerationHistory, issueWarning, suspendUser } from '../lib/moderation.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { approveCoach, rejectCoach } from '../lib/approvalService.js';
-import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
+import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
   getAllTransactions,
@@ -14,6 +16,7 @@ import {
 } from '../lib/transactionLogger.js';
 import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
+import { verifyJwt } from '../lib/jwt.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -23,6 +26,103 @@ import { captureException } from '../lib/sentry.js';
 const adminRouter = express.Router();
 registerIdValidation(adminRouter);
 adminRouter.use(adminLimiter);
+
+function renderCoachReviewPage(action: 'approve' | 'reject', coachName: string, token: string) {
+  const title = action === 'approve' ? 'Approve Coach' : 'Reject Coach';
+  const button = action === 'approve' ? 'Approve Coach' : 'Reject Coach';
+  const color = action === 'approve' ? '#16A34A' : '#DC2626';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
+<h2>${title}?</h2>
+<p style="color:#374151;">Coach: <strong>${escapeHtml(coachName || 'Unknown')}</strong></p>
+<form method="POST" action="?token=${encodeURIComponent(token)}">
+<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
+</form>
+</body></html>`;
+}
+
+function renderCoachResultPage(title: string, message: string, success: boolean) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
+<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
+<p style="color:#374151;">${escapeHtml(message)}</p>
+</body></html>`;
+}
+
+async function handleCoachReview(req: AuthedRequest, res: express.Response, action: 'approve' | 'reject') {
+  const { id } = req.params;
+  const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
+  const payload = token
+    ? verifyJwt<{ coachId: string; action: string }>(token)
+    : null;
+  const expectedAction = action === 'approve' ? 'approve_coach' : 'reject_coach';
+
+  if (!token || !payload || payload.coachId !== id || payload.action !== expectedAction) {
+    return res
+      .status(401)
+      .send(renderCoachResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+  }
+
+  const coach = await prisma.user.findUnique({
+    where: { id },
+    select: { display_name: true, username: true, email: true },
+  });
+  if (!coach) {
+    return res.status(404).send(renderCoachResultPage('Not Found', 'Coach not found.', false));
+  }
+
+  const coachName = coach.display_name || coach.username || coach.email || 'Unknown Coach';
+  if (req.method === 'GET') {
+    return res.send(renderCoachReviewPage(action, coachName, token));
+  }
+
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;
+  const result =
+    action === 'approve'
+      ? await approveCoach(id, 'email-token', prisma, { note })
+      : await rejectCoach(id, 'email-token', prisma, { reason: note });
+  if (result.error) {
+    return res.status(result.status || 500).send(renderCoachResultPage('Error', result.error, false));
+  }
+
+  await logAdminActivity(
+    'email-token',
+    'email-token',
+    action === 'approve' ? 'APPROVE_COACH' : 'REJECT_COACH',
+    'user',
+    id,
+    `${action === 'approve' ? 'Approved' : 'Rejected'} coach: ${coachName}${note ? ` — ${note}` : ''}`
+  );
+
+  return res.send(
+    renderCoachResultPage(
+      action === 'approve' ? 'Coach Approved' : 'Coach Rejected',
+      `${coachName} has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
+      true
+    )
+  );
+}
+
+adminRouter.get(
+  '/coaches/:id/approve',
+  authMiddleware as any,
+  asyncHandler(async (req: AuthedRequest, res) => handleCoachReview(req, res, 'approve'))
+);
+adminRouter.post(
+  '/coaches/:id/approve',
+  authMiddleware as any,
+  asyncHandler(async (req: AuthedRequest, res) => handleCoachReview(req, res, 'approve'))
+);
+adminRouter.get(
+  '/coaches/:id/reject',
+  authMiddleware as any,
+  asyncHandler(async (req: AuthedRequest, res) => handleCoachReview(req, res, 'reject'))
+);
+adminRouter.post(
+  '/coaches/:id/reject',
+  authMiddleware as any,
+  asyncHandler(async (req: AuthedRequest, res) => handleCoachReview(req, res, 'reject'))
+);
 
 /**
  * POST /admin/wipe-database

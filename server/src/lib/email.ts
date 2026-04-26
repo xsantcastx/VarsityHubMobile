@@ -3,6 +3,7 @@ import type { EmailResult } from '../services/email/types.js';
 import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
 import escapeHtml from 'escape-html';
+import { signJwt } from './jwt.js';
 import { prisma } from './prisma.js';
 import { redactEmail, sanitizeEmailLogMessage, sanitizeEmailSubject } from './emailRedaction.js';
 import { captureException, captureMessage } from './sentry.js';
@@ -70,6 +71,7 @@ const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@va
 const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
 const TERMS_URL = `${APP_BASE_URL}/terms`;
 const SUPPORT_URL = `${APP_BASE_URL}/support`;
+const REVIEW_LINK_TTL = '48h';
 
 // Common template data (social links, privacy policy, etc.) added to all emails
 const getCommonTemplateData = () => ({
@@ -1374,22 +1376,49 @@ async function sendJoinRequestAdminTemplate(params: {
 export function buildAdReviewUrl(params: {
   adId: string;
   action?: 'approve' | 'reject';
+  token?: string;
 }): string {
-  return buildAppReviewUrl('/admin-ads', {
-    ad_id: params.adId,
-    action: params.action,
-  });
+  const action = params.action === 'reject' ? 'reject' : 'approve';
+  const token =
+    params.token ||
+    signJwt(
+      {
+        adId: params.adId,
+        action: action === 'reject' ? 'reject_ad' : 'approve_ad',
+      },
+      REVIEW_LINK_TTL
+    );
+  return buildWebScreenUrl(`/ads/${encodeURIComponent(params.adId)}/${action}`, { token });
 }
 
 export function buildEventReviewUrl(params: {
   reviewId: string;
   reviewKind?: 'event' | 'game';
   action?: 'approve' | 'reject';
+  token?: string;
 }): string {
-  return buildAppReviewUrl('/event-approvals', {
-    event_id: params.reviewId,
-    review_kind: params.reviewKind || 'event',
-    action: params.action,
+  const reviewKind = params.reviewKind || 'event';
+  const action = params.action === 'reject' ? 'reject' : 'approve';
+  const token =
+    params.token ||
+    signJwt(
+      {
+        reviewId: params.reviewId,
+        reviewKind,
+        action:
+          reviewKind === 'game'
+            ? action === 'reject'
+              ? 'reject_game'
+              : 'approve_game'
+            : action === 'reject'
+              ? 'reject_event'
+              : 'approve_event',
+      },
+      REVIEW_LINK_TTL
+    );
+  const basePath = reviewKind === 'game' ? 'games' : 'events';
+  return buildWebScreenUrl(`/${basePath}/${encodeURIComponent(params.reviewId)}/${action}`, {
+    token,
   });
 }
 
@@ -1417,22 +1446,40 @@ export function buildCoachJoinRequestReviewUrl(params: {
 export function buildCoachApplicationReviewUrl(params: {
   coachId: string;
   action?: 'approve' | 'reject';
+  token?: string;
 }): string {
-  return buildAppReviewUrl('/admin-dashboard', {
-    coach_id: params.coachId,
-    action: params.action,
-    review: 'coach_application',
+  const action = params.action === 'reject' ? 'reject' : 'approve';
+  const token =
+    params.token ||
+    signJwt(
+      {
+        coachId: params.coachId,
+        action: action === 'reject' ? 'reject_coach' : 'approve_coach',
+      },
+      REVIEW_LINK_TTL
+    );
+  return buildWebScreenUrl(`/admin/coaches/${encodeURIComponent(params.coachId)}/${action}`, {
+    token,
   });
 }
 
 export function buildLeagueApprovalReviewUrl(params: {
   leagueId: string;
   action?: 'approve' | 'reject';
+  token?: string;
 }): string {
-  return buildAppReviewUrl('/admin-dashboard', {
-    league_id: params.leagueId,
-    action: params.action,
-    review: 'league_approval',
+  const action = params.action === 'reject' ? 'reject' : 'approve';
+  const token =
+    params.token ||
+    signJwt(
+      {
+        orgId: params.leagueId,
+        action: action === 'reject' ? 'reject_league' : 'approve_league',
+      },
+      REVIEW_LINK_TTL
+    );
+  return buildWebScreenUrl(`/organizations/${encodeURIComponent(params.leagueId)}/${action}`, {
+    token,
   });
 }
 
@@ -1456,10 +1503,12 @@ export async function sendLeagueApprovalRequestEmail(params: {
   const approveUrl = buildLeagueApprovalReviewUrl({
     leagueId: params.leagueId,
     action: 'approve',
+    token: params.approveToken,
   });
   const rejectUrl = buildLeagueApprovalReviewUrl({
     leagueId: params.leagueId,
     action: 'reject',
+    token: params.rejectToken,
   });
 
   // v1.0.2 audit fix: send to ALL admin emails, not just the first
