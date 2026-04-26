@@ -298,6 +298,7 @@ describeDb('Minors Foundation Integration', () => {
     expect(adultRes.status).toBe(200);
     expect(Array.isArray(adultRes.body?.ads)).toBe(true);
     expect(adultRes.body.ads.length).toBeGreaterThan(0);
+    expect(adultRes.body.ads[0]).not.toHaveProperty('reservations');
 
     const minorRes = await request(app)
       .get('/ads/for-feed')
