@@ -1008,6 +1008,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Unless they chose "Continue as Fan" to use the app while waiting.
       // isPendingCoach is derived from user state, not route string — avoids fragile path matching
       const isPendingCoach =
+        user?.is_admin !== true &&
         (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) &&
         !coachAccess.isProceedingAsFan;
       // Don't yank pending coaches off onboarding routes (e.g. step-3 during upgrade flow)

@@ -23,6 +23,18 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'email_verification_required',
     },
     {
+      label: 'routes onboarded admins with dirty rejected coach state to app home',
+      user: {
+        email_verified: true,
+        is_admin: true,
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        preferences: { onboarding_completed: true, role: 'coach' },
+      },
+      expected: '/(tabs)',
+      kind: 'app_home',
+    },
+    {
       label: 'routes server-directed rejected applicants to waiting screen',
       user: {
         email_verified: true,

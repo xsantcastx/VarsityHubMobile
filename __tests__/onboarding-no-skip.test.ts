@@ -213,6 +213,12 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(authProvider).toMatch(/approval_status|isPendingCoach|isRejectedCoach/);
     });
 
+    it('AuthProvider exempts admins from the pending-coach block', () => {
+      // Admins with dirty coach state should not get trapped on pending
+      // recovery routes during bootstrap or while sitting on onboarding paths.
+      expect(authProvider).toMatch(/user\?\.is_admin !== true/);
+    });
+
     it('AuthProvider has a payment-required redirect for paid-plan coaches', () => {
       // Approved coach with a paid plan selected must go through checkout
       // before accessing coach tools — not into tabs with payment_pending.
