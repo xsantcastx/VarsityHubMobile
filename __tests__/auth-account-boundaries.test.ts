@@ -80,5 +80,14 @@ describe('account boundary invariants', () => {
     it('sign-up does not route off a stale catch(() => user) fallback', () => {
       expect(signUp).not.toMatch(/User\.me\(\{\s*force:\s*true\s*\}\)\.catch\(\(\)\s*=>\s*user\)/);
     });
+
+    it('sign-up preserves host-specific transport errors from api/http', () => {
+      expect(signUp).toMatch(/e\?\.isNetworkError === true \|\| errMsg\.startsWith\('Cannot connect to server'\)/);
+    });
+
+    it('sign-up retries registration on the current transport-error contract', () => {
+      expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}e\?\.isNetworkError === true/);
+      expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}errMsg\.startsWith\('Cannot connect to server'\)/);
+    });
   });
 });

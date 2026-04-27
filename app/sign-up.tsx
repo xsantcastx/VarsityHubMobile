@@ -97,6 +97,7 @@ export default function SignUpScreen() {
       const sanitizedEmail = sanitizeEmail(email);
       return await User.register(sanitizedEmail, password);
     } catch (e: any) {
+      const errMsg = e?.message || '';
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-attempt' },
         extra: { attempt },
@@ -119,9 +120,12 @@ export default function SignUpScreen() {
       }
       
       // Only retry on timeout or network errors, not validation errors
-      const isRetryableError = e?.message?.includes('Request timeout') || 
-                              e?.message?.includes('Network request failed') ||
-                              e?.message?.includes('fetch');
+      const isRetryableError =
+        e?.isNetworkError === true ||
+        errMsg.startsWith('Cannot connect to server') ||
+        errMsg.includes('Request timeout') ||
+        errMsg.includes('Network request failed') ||
+        errMsg.includes('fetch');
       
       if (isRetryableError && attempt < 3) {
         setRetryCount(attempt);
@@ -181,6 +185,7 @@ export default function SignUpScreen() {
       }
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Registration failed after all attempts:', e);
+      const errMsg = e?.message || 'Sign up failed';
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-final' },
       });
@@ -197,6 +202,11 @@ export default function SignUpScreen() {
         promptSignIn = true;
         setEmail('');
         setPassword('');
+      } else if (e?.isNetworkError === true || errMsg.startsWith('Cannot connect to server')) {
+        // Preserve the host-specific transport error from api/http.ts so
+        // signup exposes the failing API origin instead of collapsing it
+        // into a generic network banner.
+        errorMessage = errMsg;
       } else if (e?.message?.includes('Request timeout')) {
         errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
       } else if (e?.message?.includes('Network request failed')) {
