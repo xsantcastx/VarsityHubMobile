@@ -36,12 +36,17 @@ jest.mock('expo-constants', () => ({
 // resolves (via the `@/` alias) to the same module we mock here.
 const mockRefreshToken = jest.fn<(...args: any[]) => any>();
 const mockClearTokensOnly = jest.fn<(...args: any[]) => any>();
+const mockEmitSessionExpired = jest.fn<(...args: any[]) => any>();
 
 jest.mock('@/api/auth', () => ({
   auth: {
     refreshToken: (...args: any[]) => mockRefreshToken(...args),
     clearTokensOnly: (...args: any[]) => mockClearTokensOnly(...args),
   },
+}));
+
+jest.mock('@/utils/sessionEvents', () => ({
+  emitSessionExpired: (...args: any[]) => mockEmitSessionExpired(...args),
 }));
 
 // Silence __DEV__-gated logging.
@@ -96,6 +101,7 @@ beforeEach(() => {
   mockRefreshToken.mockReset();
   mockClearTokensOnly.mockReset();
   mockClearTokensOnly.mockResolvedValue(undefined as any);
+  mockEmitSessionExpired.mockReset();
 });
 
 describe('api/http — auth refresh', () => {
@@ -163,34 +169,49 @@ describe('api/http — auth refresh', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it('refresh failure with reason "auth" clears session and throws SESSION_EXPIRED', async () => {
+  // Per fix 4a6a694e: when the refresh result is a clean auth failure, http
+  // intentionally does NOT throw. It clears tokens, emits sessionExpired so
+  // AuthProvider can route to /sign-in, and returns a never-resolving Promise
+  // so per-screen catch blocks don't stack a native Error modal on top of
+  // the redirect. These tests assert exactly that contract.
+  it('refresh failure with reason "auth" clears session, emits session-expired, never resolves', async () => {
     const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockResolvedValue(mkJsonResponse(401, { error: 'expired' }));
     mockRefreshToken.mockResolvedValue({ accessToken: null, reason: 'auth' } as any);
 
     const http = freshHttp(fetchMock);
     http.setAuthToken('stale-token');
 
-    await expect(http.httpGet('/me', {}, undefined, 0)).rejects.toMatchObject({
-      status: 401,
-      data: { code: 'SESSION_EXPIRED' },
-    });
+    const settled = jest.fn();
+    void http.httpGet('/me', {}, undefined, 0).then(settled, settled);
+
+    // Let the microtask queue drain — refresh runs, clearTokensOnly runs,
+    // emitSessionExpired fires, then the never-resolving Promise is returned.
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
 
     expect(mockClearTokensOnly).toHaveBeenCalledTimes(1);
+    expect(mockEmitSessionExpired).toHaveBeenCalledTimes(1);
+    expect(mockEmitSessionExpired).toHaveBeenCalledWith('refresh_failed');
+    expect(settled).not.toHaveBeenCalled();
   });
 
-  it('refresh failure with reason "missing" also clears session cleanly', async () => {
+  it('refresh failure with reason "missing" clears session, emits refresh_missing, never resolves', async () => {
     const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockResolvedValue(mkJsonResponse(401, { error: 'expired' }));
     mockRefreshToken.mockResolvedValue({ accessToken: null, reason: 'missing' } as any);
 
     const http = freshHttp(fetchMock);
     http.setAuthToken('stale-token');
 
-    await expect(http.httpGet('/me', {}, undefined, 0)).rejects.toMatchObject({
-      status: 401,
-      data: { code: 'SESSION_EXPIRED' },
-    });
+    const settled = jest.fn();
+    void http.httpGet('/me', {}, undefined, 0).then(settled, settled);
+
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
 
     expect(mockClearTokensOnly).toHaveBeenCalledTimes(1);
+    expect(mockEmitSessionExpired).toHaveBeenCalledTimes(1);
+    expect(mockEmitSessionExpired).toHaveBeenCalledWith('refresh_missing');
+    expect(settled).not.toHaveBeenCalled();
   });
 });
 
