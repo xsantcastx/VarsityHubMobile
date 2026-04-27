@@ -71,6 +71,7 @@ supportRouter.post(
         reportedContentId: report.id,
         reportReason: subject,
         reportDetails: message,
+        reportId: report.id,
       }).catch(err => {
         console.error('Failed to send abuse report email:', err);
       });

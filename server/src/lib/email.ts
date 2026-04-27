@@ -415,10 +415,67 @@ export async function sendAbuseReportEmail(params: {
   contentContext?: Record<string, any>;
   reportId?: string;
 }): Promise<boolean> {
-  return blockUnapprovedEmail('ABUSE_REPORT', {
+  const reportId = String(params.reportId || params.reportedContentId || '').trim();
+  if (!reportId) {
+    console.error('[email] Missing abuse report ID — admin review email not sent');
+    return false;
+  }
+
+  const safeReporterName = escapeHtml(params.reporterName || 'Unknown reporter');
+  const safeReporterEmail = escapeHtml(params.reporterEmail || 'unknown@email.com');
+  const safeContentType = escapeHtml(params.reportedContentType || 'content');
+  const safeContentId = escapeHtml(params.reportedContentId || 'unknown');
+  const safeReason = escapeHtml(params.reportReason || 'No reason provided');
+  const safeDetails = escapeHtml(params.reportDetails || 'No additional details provided.');
+  const safeContext = escapeHtml(
+    params.contentContext ? JSON.stringify(params.contentContext, null, 2) : 'No context provided.'
+  );
+  const resolveUrl = buildAbuseReportReviewUrl({ reportId, action: 'resolve' });
+  const dismissUrl = buildAbuseReportReviewUrl({ reportId, action: 'dismiss' });
+  const dashboardUrl = buildWebScreenUrl('/admin-reports', { report_id: reportId });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Abuse Report Submitted</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F9FAFB;color:#111827;padding:24px;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:16px;padding:24px;">
+<h2 style="margin:0 0 12px;color:#1B3A6B;">New abuse report requires review</h2>
+<p style="margin:0 0 16px;color:#374151;line-height:1.5;">A new ${safeContentType} report was submitted. Use one of the signed actions below or open the admin dashboard for a full review.</p>
+<div style="margin:0 0 20px;padding:16px;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;">
+<p style="margin:0 0 8px;"><strong>Report ID:</strong> ${escapeHtml(reportId)}</p>
+<p style="margin:0 0 8px;"><strong>Reporter:</strong> ${safeReporterName} (${safeReporterEmail})</p>
+<p style="margin:0 0 8px;"><strong>Target:</strong> ${safeContentType} (${safeContentId})</p>
+<p style="margin:0 0 8px;"><strong>Reason:</strong> ${safeReason}</p>
+<p style="margin:0 0 8px;"><strong>Details:</strong><br>${safeDetails.replace(/\n/g, '<br>')}</p>
+<p style="margin:0;"><strong>Context:</strong><br><pre style="white-space:pre-wrap;word-break:break-word;background:#111827;color:#F9FAFB;padding:12px;border-radius:10px;font-size:12px;overflow:auto;">${safeContext}</pre></p>
+</div>
+<p style="margin:0 0 16px;">
+<a href="${escapeHtml(resolveUrl)}" style="display:inline-block;background:#16A34A;color:#FFFFFF;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;margin-right:12px;">Resolve Report</a>
+<a href="${escapeHtml(dismissUrl)}" style="display:inline-block;background:#DC2626;color:#FFFFFF;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;">Dismiss Report</a>
+</p>
+<p style="margin:0;color:#4B5563;line-height:1.5;">Need more context first? <a href="${escapeHtml(dashboardUrl)}" style="color:#1B3A6B;">Open this report in the admin dashboard</a>.</p>
+</div>
+</body></html>`;
+
+  const text = [
+    'New abuse report requires review.',
+    `Report ID: ${reportId}`,
+    `Reporter: ${params.reporterName || 'Unknown reporter'} (${params.reporterEmail || 'unknown@email.com'})`,
+    `Target: ${params.reportedContentType || 'content'} (${params.reportedContentId || 'unknown'})`,
+    `Reason: ${params.reportReason || 'No reason provided'}`,
+    `Details: ${params.reportDetails || 'No additional details provided.'}`,
+    `Context: ${params.contentContext ? JSON.stringify(params.contentContext, null, 2) : 'No context provided.'}`,
+    `Resolve: ${resolveUrl}`,
+    `Dismiss: ${dismissUrl}`,
+    `Dashboard: ${dashboardUrl}`,
+  ].join('\n');
+
+  return sendHtmlFallbackEmail({
     to: params.to,
-    reportId: params.reportId,
-    reportedContentId: params.reportedContentId,
+    subject: `Abuse Report: ${params.reportedContentType} requires review`,
+    html,
+    text,
+    logMessage: `Abuse report review email sent to ${params.to} for report ${reportId}`,
+    fallbackKey: 'abuse_report_review',
+    metadata: reportId ? { report_id: reportId } : undefined,
   });
 }
 
@@ -1591,6 +1648,26 @@ export function buildLeagueApprovalReviewUrl(params: {
       REVIEW_LINK_TTL
     );
   return buildWebScreenUrl(`/organizations/${encodeURIComponent(params.leagueId)}/${action}`, {
+    token,
+  });
+}
+
+export function buildAbuseReportReviewUrl(params: {
+  reportId: string;
+  action?: 'resolve' | 'dismiss';
+  token?: string;
+}): string {
+  const action = params.action === 'dismiss' ? 'dismiss' : 'resolve';
+  const token =
+    params.token ||
+    signReviewToken(
+      {
+        reportId: params.reportId,
+        action: action === 'dismiss' ? 'dismiss_abuse_report' : 'resolve_abuse_report',
+      },
+      REVIEW_LINK_TTL
+    );
+  return buildWebScreenUrl(`/admin/reports/${encodeURIComponent(params.reportId)}/${action}`, {
     token,
   });
 }

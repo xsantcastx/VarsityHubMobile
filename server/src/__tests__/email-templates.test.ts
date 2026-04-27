@@ -185,4 +185,18 @@ describe('Email template helpers', () => {
     expect(token).toBeTruthy();
     expect(verifyJwt(token!)).toMatchObject({ adId: 'ad_123', action: 'reject_ad' });
   });
+
+  it('buildAbuseReportReviewUrl points to a signed abuse-report action URL', async () => {
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
+    const { buildAbuseReportReviewUrl } = await import('../lib/email.js');
+    const { verifyJwt } = await import('../lib/jwt.js');
+    const url = buildAbuseReportReviewUrl({ reportId: 'rep_123', action: 'dismiss' });
+    const parsed = new URL(url);
+    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.pathname).toBe('/admin/reports/rep_123/dismiss');
+    const token = parsed.searchParams.get('token');
+    expect(token).toBeTruthy();
+    expect(verifyJwt(token!)).toMatchObject({ reportId: 'rep_123', action: 'dismiss_abuse_report' });
+  });
 });
