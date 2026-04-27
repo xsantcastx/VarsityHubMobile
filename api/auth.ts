@@ -224,8 +224,9 @@ export const auth = {
   },
   async register(email: string, password: string, display_name?: string) {
     invalidateMeCache();
+    // skipAuthRetry: auth-establishing endpoint — see login() for rationale.
     const res = parseAuthTokenResponse(
-      await httpPostLongTimeout('/auth/register', { email, password, display_name })
+      await httpPostLongTimeout('/auth/register', { email, password, display_name }, { skipAuthRetry: true })
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);
@@ -239,8 +240,12 @@ export const auth = {
     // future API contract drift) silently no-ops the token save and
     // returns whatever the response was, leaving the caller in a half-
     // signed-in state.
+    // skipAuthRetry: a stale access token in memory must NOT trigger the
+    // global 401-refresh path on a sign-in request. A wrong-password 401
+    // has to surface as itself, not get swallowed into refresh-token
+    // rotation when the device happens to be carrying a leftover token.
     const res = parseAuthTokenResponse(
-      await httpPost('/auth/login', { email, password })
+      await httpPost('/auth/login', { email, password }, { skipAuthRetry: true })
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);
@@ -248,9 +253,11 @@ export const auth = {
   },
   async loginWithGoogle(idToken: string) {
     invalidateMeCache();
-    // Google auth involves server-side token verification with Google — allow longer timeout
+    // Google auth involves server-side token verification with Google — allow longer timeout.
+    // skipAuthRetry: same reason as login — auth-establishing endpoints must
+    // not be re-tried through the refresh machinery.
     const res = parseAuthTokenResponse(
-      await httpPostLongTimeout('/auth/google', { id_token: idToken })
+      await httpPostLongTimeout('/auth/google', { id_token: idToken }, { skipAuthRetry: true })
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);
@@ -258,9 +265,11 @@ export const auth = {
   },
   async loginWithApple(identityToken: string) {
     invalidateMeCache();
-    // Apple auth can be slow on real devices; allow longer timeout
+    // Apple auth can be slow on real devices; allow longer timeout.
+    // skipAuthRetry: same reason as login — auth-establishing endpoints must
+    // not be re-tried through the refresh machinery.
     const res = parseAuthTokenResponse(
-      await httpPostLongTimeout('/auth/apple', { identity_token: identityToken })
+      await httpPostLongTimeout('/auth/apple', { identity_token: identityToken }, { skipAuthRetry: true })
     );
     if (res.access_token) await saveToken(res.access_token);
     if (res.refresh_token) await saveRefreshToken(res.refresh_token);

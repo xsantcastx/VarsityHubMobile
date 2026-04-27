@@ -277,7 +277,11 @@ export default function SignInScreen() {
       }, 'warning');
       
       // Show user-friendly error
-      if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
+      if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
+        // Preserve host-specific transport error so the banner names the
+        // host that failed — same fix as the email/password path in 012030df.
+        setError(message);
+      } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
         setError('Unable to connect to server. Please check your internet connection.');
       } else if (message.includes('not configured')) {
         setError('Google sign-in is not configured. Please use email/password login.');
@@ -359,6 +363,11 @@ export default function SignInScreen() {
       // Show user-friendly error
       if (message.includes('not available in the simulator') || message.includes('simulator')) {
         setError('Apple Sign-In requires a real device. Use email/password in the simulator.');
+      } else if (message.includes('not available on this device')) {
+        setError('Apple Sign-In is not available on this device. Try email/password instead.');
+      } else if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
+        // Preserve host-specific transport error — same fix as 012030df.
+        setError(message);
       } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
         setError('Unable to connect to server. Please check your internet connection.');
       } else if (message.toLowerCase().includes('internal server') || e?.status === 500) {

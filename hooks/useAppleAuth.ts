@@ -49,17 +49,25 @@ export function useAppleAuth() {
         // eslint-disable-next-line no-console
         if (__DEV__) console.log('[Apple Auth] signInWithApple called, available:', available);
 
-        const isSimulator = Platform.OS === 'ios' && !available;
-        if (isSimulator) {
-          const apiBase = getApiBaseUrl();
-          const isProduction = !apiBase.includes('localhost') && !apiBase.includes('127.0.0.1');
-          if (isProduction) {
-            throw new Error('Apple Sign-In is not available in the simulator. Please test on a real device or use email/password.');
-          }
+        // `available === false` from AppleAuthentication.isAvailableAsync()
+        // covers more than just simulators on iOS hardware: a real device
+        // can also report unavailable when the user isn't signed into iCloud,
+        // Screen Time / parental controls block Sign in with Apple, the
+        // iCloud account is in a restricted region, or the iOS version is
+        // too old. Treating every false-available state as "simulator" mis-
+        // labels real-device failures. Keep the mock-credential branch only
+        // for local-dev use and surface a device-accurate message for prod.
+        const appleNotAvailable = Platform.OS === 'ios' && !available;
+        const apiBase = getApiBaseUrl();
+        const isLocalDev = apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
+        if (appleNotAvailable && !isLocalDev) {
+          throw new Error('Apple Sign-In is not available on this device. Make sure you are signed into iCloud and Sign in with Apple is enabled, or use email/password.');
         }
 
         let credential;
-        if (isSimulator) {
+        if (appleNotAvailable) {
+          // Local dev only: use a mock credential so simulator dev can iterate
+          // on the post-auth UI without needing a real Apple sign-in flow.
           // eslint-disable-next-line no-console
           if (__DEV__) console.log('[Apple Auth] Using simulator mock credential (local dev server)');
           credential = {
