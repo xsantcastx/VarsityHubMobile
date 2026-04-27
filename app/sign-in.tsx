@@ -53,6 +53,7 @@ export default function SignInScreen() {
   const { user, hasSession, checkAuth, registerPushToken, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const sessionGuardActive = hasSession;
+  const authBusy = loading || googleLoading || appleLoading || signingOut;
 
   const routeCurrentUser = async (resolvedUser?: any) => {
     const effectiveUser = resolvedUser || user;
@@ -89,6 +90,7 @@ export default function SignInScreen() {
   };
 
   const handleSignOutToContinue = async () => {
+    if (authBusy) return;
     setSigningOut(true);
     try {
       await signOut();
@@ -98,6 +100,7 @@ export default function SignInScreen() {
   };
 
   const handleContinueExistingSession = async () => {
+    if (authBusy) return;
     setError(null);
     try {
       const authUser = user || (await checkAuth());
@@ -105,19 +108,23 @@ export default function SignInScreen() {
         await routeCurrentUser(authUser);
         return;
       }
-      setError('This device still has a saved session. Sign out before using a different login on this device.');
+      setError('Your saved session expired. Please sign in again.');
     } catch (e: any) {
       const message = e?.message || '';
       if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
         setError(message);
         return;
       }
-      setError('This device still has a saved session. Sign out before using a different login on this device.');
+      if (e?.status === 401) {
+        setError('Your saved session expired. Please sign in again.');
+        return;
+      }
+      setError('We could not restore your saved session. Please sign in again.');
     }
   };
 
   const onSubmit = async () => {
-    if (loading) return;
+    if (authBusy) return;
     // Same boundary as Google + Apple OAuth (handleGoogleLogin / handleAppleLogin).
     // Without this, a signed-in user could submit credentials for a different
     // account and effectively switch silently — local state would replace
@@ -237,6 +244,7 @@ export default function SignInScreen() {
   };
 
   const handleGoogleLogin = async () => {
+    if (authBusy) return;
     if (sessionGuardActive) {
       setError('Sign out before using a different Google account on this device.');
       return;
@@ -319,11 +327,11 @@ export default function SignInScreen() {
   };
 
   const handleAppleLogin = async () => {
+    if (authBusy) return;
     if (sessionGuardActive) {
       setError('Sign out before using a different Apple account on this device.');
       return;
     }
-    if (appleLoading) return;
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
       return;
@@ -464,21 +472,23 @@ export default function SignInScreen() {
             ) : null}
 
             {!sessionGuardActive && Platform.OS === 'ios' ? (
-              <AppleAuthenticationButton
-                onPress={handleAppleLogin}
-                buttonType={AppleAuthenticationButtonType.SIGN_IN}
-                buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={8}
-                style={{ width: '100%', height: 50, marginBottom: 0, borderWidth: 2, borderColor: palette.border }}
-                accessibilityLabel="Sign in with Apple"
-              />
+              <View pointerEvents={authBusy ? 'none' : 'auto'} style={authBusy ? styles.buttonDisabled : undefined}>
+                <AppleAuthenticationButton
+                  onPress={handleAppleLogin}
+                  buttonType={AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={8}
+                  style={{ width: '100%', height: 50, marginBottom: 0, borderWidth: 2, borderColor: palette.border }}
+                  accessibilityLabel="Sign in with Apple"
+                />
+              </View>
             ) : null}
 
             {!sessionGuardActive && googleReady ? (
               <Pressable
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
+                style={[styles.googleButton, authBusy && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
                 onPress={handleGoogleLogin}
-                disabled={googleLoading}
+                disabled={authBusy}
                 accessibilityRole="button"
                 accessibilityLabel="Continue with Google"
                 accessibilityHint="Double tap to sign in with your Google account"
@@ -532,6 +542,7 @@ export default function SignInScreen() {
                     placeholder="name@school.edu"
                     value={email}
                     onChangeText={setEmail}
+                    editable={!authBusy}
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoComplete="email"
@@ -561,11 +572,12 @@ export default function SignInScreen() {
                     placeholder="Enter your password"
                     value={password}
                     onChangeText={setPassword}
+                    editable={!authBusy}
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="go"
-                    onSubmitEditing={onSubmit}
+                    onSubmitEditing={() => void onSubmit()}
                     placeholderTextColor={palette.mutedText}
                     accessibilityLabel="Password"
                     accessibilityHint="Enter your password"
@@ -584,6 +596,7 @@ export default function SignInScreen() {
                 <Pressable
                   style={styles.forgotLink}
                   onPress={() => void router.push('/forgot-password')}
+                  disabled={authBusy}
                   accessibilityRole="button"
                   accessibilityLabel="Forgot password?"
                   accessibilityHint="Double tap to reset your password"
@@ -593,8 +606,8 @@ export default function SignInScreen() {
 
                 <Button
                   onPress={onSubmit}
-                  disabled={loading}
-                  accessibilityLabel={loading ? 'Signing in' : 'Sign In'}
+                  disabled={authBusy}
+                  accessibilityLabel={authBusy ? 'Signing in' : 'Sign In'}
                   accessibilityHint="Double tap to sign in with email and password"
                 >
                   {loading ? <ActivityIndicator color="white" /> : 'Sign In'}
@@ -607,6 +620,7 @@ export default function SignInScreen() {
             <Pressable
               style={styles.footer}
               onPress={() => void router.replace('/sign-up')}
+              disabled={authBusy}
               accessibilityRole="button"
               accessibilityLabel="Need an account? Create one"
               accessibilityHint="Double tap to go to sign up"

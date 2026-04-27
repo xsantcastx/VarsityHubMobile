@@ -39,6 +39,7 @@ export default function SignUpScreen() {
   const { trackTap } = useAnalytics();
   const { user, hasSession, checkAuth, signOut } = useAuth();
   const sessionGuardActive = hasSession;
+  const authBusy = loading || googleLoading || appleLoading || signingOut;
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -74,6 +75,7 @@ export default function SignUpScreen() {
   };
 
   const handleSignOutToContinue = async () => {
+    if (authBusy) return;
     setSigningOut(true);
     try {
       await signOut();
@@ -83,6 +85,7 @@ export default function SignUpScreen() {
   };
 
   const handleContinueExistingSession = async () => {
+    if (authBusy) return;
     setError(null);
     try {
       const authUser = user || (await checkAuth());
@@ -90,14 +93,18 @@ export default function SignUpScreen() {
         await routeCurrentUser(authUser);
         return;
       }
-      setError('This device still has a saved session. Sign out before creating a different account on this device.');
+      setError('Your saved session expired. You can create or sign in to an account now.');
     } catch (e: any) {
       const message = e?.message || '';
       if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
         setError(message);
         return;
       }
-      setError('This device still has a saved session. Sign out before creating a different account on this device.');
+      if (e?.status === 401) {
+        setError('Your saved session expired. You can create or sign in to an account now.');
+        return;
+      }
+      setError('We could not restore your saved session. You can create or sign in to an account now.');
     }
   };
 
@@ -173,7 +180,7 @@ export default function SignUpScreen() {
       setError('Sign out before creating a different account on this device.');
       return;
     }
-    if (loading) { submitting.current = false; return; }
+    if (authBusy) { submitting.current = false; return; }
     if (!email || !password) { submitting.current = false; setError('Please enter email and password'); return; }
 
     // Use form validation utilities
@@ -245,6 +252,7 @@ export default function SignUpScreen() {
   };
 
   const handleGoogleSignUp = async () => {
+    if (authBusy) return;
     if (sessionGuardActive) {
       setError('Sign out before using a different Google account on this device.');
       return;
@@ -271,6 +279,7 @@ export default function SignUpScreen() {
   };
 
   const handleAppleSignUp = async () => {
+    if (authBusy) return;
     if (sessionGuardActive) {
       setError('Sign out before using a different Apple account on this device.');
       return;
@@ -281,9 +290,6 @@ export default function SignUpScreen() {
     }
     if (!appleReady) {
       setError('Apple sign in is still initializing. Please try again in a moment.');
-      return;
-    }
-    if (appleLoading) {
       return;
     }
     setError(null);
@@ -398,7 +404,7 @@ export default function SignUpScreen() {
 
           {/* Apple Sign Up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
-            <View pointerEvents={(!agreedToTerms || !confirmedAge) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge) ? styles.buttonDisabled : undefined} accessibilityLabel="Sign up with Apple" accessibilityRole="button" accessibilityHint="Double tap to create an account with your Apple ID">
+            <View pointerEvents={(!agreedToTerms || !confirmedAge || authBusy) ? 'none' : 'auto'} style={(!agreedToTerms || !confirmedAge || authBusy) ? styles.buttonDisabled : undefined} accessibilityLabel="Sign up with Apple" accessibilityRole="button" accessibilityHint="Double tap to create an account with your Apple ID">
               <AppleAuthenticationButton
                 onPress={handleAppleSignUp}
                 buttonType={AppleAuthenticationButtonType.SIGN_UP}
@@ -412,9 +418,9 @@ export default function SignUpScreen() {
           {/* Google Sign Up Option */}
           {googleReady ? (
             <Pressable
-              style={[styles.googleButton, (googleLoading || !agreedToTerms || !confirmedAge) && styles.buttonDisabled, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+              style={[styles.googleButton, (authBusy || !agreedToTerms || !confirmedAge) && styles.buttonDisabled, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={handleGoogleSignUp}
-              disabled={googleLoading || !agreedToTerms || !confirmedAge}
+              disabled={authBusy || !agreedToTerms || !confirmedAge}
               accessibilityRole="button"
               accessibilityLabel="Continue with Google"
               accessibilityHint="Double tap to create an account with your Google account"
@@ -458,7 +464,7 @@ export default function SignUpScreen() {
           </View>
 
           {/* Email Sign Up Option */}
-          <Button onPress={() => setShowEmailForm(true)} variant="outline" disabled={!agreedToTerms || !confirmedAge} accessibilityLabel="Sign up with Email" accessibilityRole="button" accessibilityHint="Double tap to enter your email and password">
+          <Button onPress={() => setShowEmailForm(true)} variant="outline" disabled={authBusy || !agreedToTerms || !confirmedAge} accessibilityLabel="Sign up with Email" accessibilityRole="button" accessibilityHint="Double tap to enter your email and password">
             <MaterialIcons name="mail" size={16} color={Colors[colorScheme].mutedText} style={{ marginRight: 8 }} />
             <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
@@ -466,14 +472,14 @@ export default function SignUpScreen() {
         ) : !sessionGuardActive ? (
           <>
           {/* Back Button */}
-          <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)} accessibilityRole="button" accessibilityLabel="Back to sign up options" accessibilityHint="Double tap to return to Apple and Google options">
+          <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)} disabled={authBusy} accessibilityRole="button" accessibilityLabel="Back to sign up options" accessibilityHint="Double tap to return to Apple and Google options">
             <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>Back to options</Text>
           </Pressable>
 
           {/* Email Form */}
-          <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} accessibilityLabel="Email" accessibilityHint="Enter your email address" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
-          <Input ref={passwordRef} placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry accessibilityLabel="Password" accessibilityHint="Enter at least 8 characters with one letter and one number" returnKeyType="go" onSubmitEditing={onSubmit} />
+          <Input placeholder="Email" value={email} onChangeText={setEmail} editable={!authBusy} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} accessibilityLabel="Email" accessibilityHint="Enter your email address" returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
+          <Input ref={passwordRef} placeholder="Password" value={password} onChangeText={handlePasswordChange} editable={!authBusy} secureTextEntry accessibilityLabel="Password" accessibilityHint="Enter at least 8 characters with one letter and one number" returnKeyType="go" onSubmitEditing={() => void onSubmit()} />
           <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
             Password must be at least 8 characters
           </Text>
@@ -562,7 +568,7 @@ export default function SignUpScreen() {
             </Text>
           </TouchableOpacity>
 
-          <Button onPress={onSubmit} disabled={loading || !agreedToTerms || !confirmedAge} accessibilityLabel={loading ? 'Creating account' : 'Create account'} accessibilityRole="button" accessibilityHint="Double tap to sign up with email and password">
+          <Button onPress={onSubmit} disabled={authBusy || !agreedToTerms || !confirmedAge} accessibilityLabel={loading ? 'Creating account' : 'Create account'} accessibilityRole="button" accessibilityHint="Double tap to sign up with email and password">
             {loading ? (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <ActivityIndicator size="small" color="white" />
@@ -576,7 +582,7 @@ export default function SignUpScreen() {
         ) : null}
 
         {!user ? (
-          <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')} accessibilityRole="button" accessibilityLabel="Already have an account? Sign in" accessibilityHint="Double tap to go to sign in">
+          <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')} disabled={authBusy} accessibilityRole="button" accessibilityLabel="Already have an account? Sign in" accessibilityHint="Double tap to go to sign in">
             <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
           </Pressable>
         ) : null}
