@@ -15,6 +15,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const authProvider = read('context/AuthProvider.tsx');
 const authApi = read('api/auth.ts');
+const serverAuthRoutes = read('server/src/routes/auth.ts');
 const signIn = read('app/sign-in.tsx');
 const signUp = read('app/sign-up.tsx');
 const appleAuth = read('hooks/useAppleAuth.ts');
@@ -25,6 +26,8 @@ const forgotPasswordScreen = read('app/forgot-password.tsx');
 const resetPasswordScreen = read('app/reset-password.tsx');
 const legacyResetScreen = read('app/reset.tsx');
 const manageSubscriptionScreen = read('app/settings/manage-subscription.tsx');
+const dmRestrictions = read('utils/dmRestrictions.ts');
+const settingsScreen = read('app/settings/index.tsx');
 
 describe('account boundary invariants', () => {
   describe('AuthProvider session replacement', () => {
@@ -69,6 +72,20 @@ describe('account boundary invariants', () => {
       expect(signIn).toMatch(/checkAuth\(\{\s*email,\s*pendingVerification:\s*true\s*\}\)/);
     });
 
+    it('server auth responses keep platform admin in is_admin instead of rewriting role to admin', () => {
+      expect(serverAuthRoutes).toMatch(/user:\s*\{\s*\.\.\.sanitized,\s*is_admin:\s*isLoginAdmin\s*\}/);
+      expect(serverAuthRoutes).toMatch(/is_admin:\s*isOAuthAdmin/);
+      expect(serverAuthRoutes).toMatch(/is_admin:\s*isAppleOAuthAdmin/);
+      expect(serverAuthRoutes).not.toMatch(/\.\.\.\(isLoginAdmin \? \{ role: 'admin' } : \{\}\)/);
+      expect(serverAuthRoutes).not.toMatch(/\.\.\.\(isOAuthAdmin \? \{ role: 'admin' } : \{\}\)/);
+      expect(serverAuthRoutes).not.toMatch(/\.\.\.\(isAppleOAuthAdmin \? \{ role: 'admin' } : \{\}\)/);
+    });
+
+    it('AuthProvider derives dashboard admin from is_admin, not the role=admin string', () => {
+      expect(authProvider).toMatch(/normalizedRole === 'super_admin' \|\| user\?\.is_admin === true/);
+      expect(authProvider).not.toMatch(/normalizedRole === 'admin'/);
+    });
+
     it('sign-in uses replaceSession when completing a new login', () => {
       expect(signIn).toMatch(/checkAuth\(\{\s*replaceSession:\s*true\s*\}\)/);
     });
@@ -111,6 +128,12 @@ describe('account boundary invariants', () => {
     it('sign-up retries registration on the current transport-error contract', () => {
       expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}e\?\.isNetworkError === true/);
       expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}errMsg\.startsWith\('Cannot connect to server'\)/);
+    });
+
+    it('settings and safety helpers do not treat role=admin as equivalent to email-admin', () => {
+      expect(settingsScreen).not.toMatch(/me\?\.role === 'admin'/);
+      expect(dmRestrictions).toMatch(/user\?\.is_admin === true \|\| user\?\.role === 'super_admin'/);
+      expect(dmRestrictions).not.toMatch(/user\?\.role === 'admin'/);
     });
 
     it('apple auth preserves or reconstructs host-specific transport errors', () => {

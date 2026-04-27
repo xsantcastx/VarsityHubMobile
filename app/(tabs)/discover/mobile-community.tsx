@@ -2256,7 +2256,7 @@ function CommunityDiscoverScreen() {
           onSave={handleQuickGameSave}
           currentTeamName={me?.team?.name}
           currentTeamId={me?.team?.id}
-          userRole={coachAccess.isApprovedCoach || me?.role === 'admin' ? 'coach' : 'fan'}
+          userRole={coachAccess.isApprovedCoach || me?.is_admin === true ? 'coach' : 'fan'}
         />
       </View>
     </SwipeBackContainer>

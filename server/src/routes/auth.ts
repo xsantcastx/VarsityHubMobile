@@ -730,7 +730,7 @@ authRouter.post(
     const body: any = {
       access_token,
       refresh_token: rawRefresh,
-      user: { ...sanitized, is_admin: isLoginAdmin, ...(isLoginAdmin ? { role: 'admin' } : {}) },
+      user: { ...sanitized, is_admin: isLoginAdmin },
       needs_onboarding: needsOnboarding,
     };
     if (!user.email_verified) body.needs_verification = true;
@@ -1254,7 +1254,6 @@ authRouter.post(
           email_verified: true,
           is_admin: isOAuthAdmin,
           linked_providers: getLinkedProviders(user as any),
-          ...(isOAuthAdmin ? { role: 'admin' } : {}),
         },
         needs_onboarding: needsOnboarding,
         created,
@@ -1394,7 +1393,6 @@ authRouter.post(
           email_verified: true,
           is_admin: isAppleOAuthAdmin,
           linked_providers: getLinkedProviders(user as any),
-          ...(isAppleOAuthAdmin ? { role: 'admin' } : {}),
         },
         needs_onboarding: needsOnboarding,
         created,
@@ -2262,7 +2260,7 @@ authRouter.get(
     const safe = sanitizeUser(user);
     const userPrefs = ((safe as any).preferences || {}) as Record<string, unknown>;
     const prefs = mergePreferences(userPrefs, defaults);
-    const normalizedRole = is_admin ? 'admin' : getCanonicalUserRole(user as any);
+    const normalizedRole = getCanonicalUserRole(user as any);
     const requiredCoachAgreementVersion = Number(
       process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
     );

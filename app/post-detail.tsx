@@ -1515,7 +1515,6 @@ export default function PostDetailScreen() {
             {currentUser &&
               (post.author_id === currentUser.id ||
                 currentUser.is_admin ||
-                currentUser.role === 'admin' ||
                 currentUser.role === 'super_admin') && (
                 <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
                   <Ionicons name="trash-outline" size={22} color="#DC2626" />

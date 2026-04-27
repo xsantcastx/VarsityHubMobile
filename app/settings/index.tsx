@@ -310,7 +310,7 @@ export default function SettingsScreen() {
           : 'everyone',
     });
     setPlan(serverPrefs?.plan ?? null);
-    const effectiveRole = (serverPrefs?.role || (me?.role === 'admin' ? 'admin' : null)) as
+    const effectiveRole = (serverPrefs?.role || me?.role || null) as
       | string
       | null;
     setRole(effectiveRole);
@@ -371,7 +371,7 @@ export default function SettingsScreen() {
       const me = (await User.me()) as UserMeResponse;
       const prefsFromServer = (me?.preferences || {}) as Record<string, unknown>;
       const preload: Record<string, unknown> = {
-        role: prefsFromServer.role || (me?.role === 'admin' ? 'admin' : null) || 'fan',
+        role: prefsFromServer.role || me?.role || 'fan',
         display_name: prefsFromServer.display_name ?? me?.display_name ?? '',
         affiliation: prefsFromServer.affiliation ?? me?.affiliation ?? '',
         dob: prefsFromServer.dob ?? me?.dob ?? null,
@@ -479,7 +479,7 @@ export default function SettingsScreen() {
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
         const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
-        const effectiveRole = (serverPrefs?.role || (me?.role === 'admin' ? 'admin' : null)) as
+        const effectiveRole = (serverPrefs?.role || me?.role || null) as
           | string
           | null;
 

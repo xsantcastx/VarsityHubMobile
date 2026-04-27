@@ -54,7 +54,7 @@ export function isVerifiedCoach(user: any): boolean {
  * Check if user is admin
  */
 export function isAdmin(user: any): boolean {
-  return user?.is_admin === true || user?.role === 'admin';
+  return user?.is_admin === true || user?.role === 'super_admin';
 }
 
 /**
