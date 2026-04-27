@@ -1592,7 +1592,7 @@ export default function PostDetailScreen() {
                   activeScrollViewRef.current?.scrollTo({ y: 0, animated: true });
                 }}
               >
-                <Ionicons name="arrow-up" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>⬆️</Text>
               </Pressable>
             )}
             {canJumpToBottom && (
@@ -1610,7 +1610,7 @@ export default function PostDetailScreen() {
                   activeScrollViewRef.current?.scrollTo({ y: maxActiveScrollY, animated: true });
                 }}
               >
-                <Ionicons name="arrow-down" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.scrollJumpEmoji, { color: Colors[colorScheme].text }]}>⬇️</Text>
               </Pressable>
             )}
           </View>
@@ -1866,6 +1866,10 @@ const styles = StyleSheet.create({
         elevation: 6,
       },
     }),
+  },
+  scrollJumpEmoji: {
+    fontSize: 18,
+    lineHeight: 20,
   },
 
   // Hero Section
