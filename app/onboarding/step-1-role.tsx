@@ -358,8 +358,8 @@ export default function Step1Role() {
           );
         } else {
           Alert.alert(
-            'Could not save your role',
-            "We couldn't save your selection. Please check your connection and try again."
+            'Connection issue',
+            "We couldn't reach the server. Check your connection and tap Continue to try again. Your selection is still saved on this screen."
           );
         }
         dispatch({ type: 'SAVE_FAIL', error: error as Error });

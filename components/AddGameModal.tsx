@@ -717,7 +717,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
             <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
             <TextInput
               style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-              placeholder="Search teams..."
+              placeholder="Search or type a team name..."
               placeholderTextColor={Colors[colorScheme].mutedText}
               value={opponentSearchQuery}
               onChangeText={handleOpponentSearch}
@@ -780,7 +780,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
                   {opponentSearchQuery.length < 2
                     ? 'Start typing to search all teams'
-                    : 'No teams found'}
+                    : 'No matches. Tap below to add this name manually.'}
                 </Text>
               </View>
             )}

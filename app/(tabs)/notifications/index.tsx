@@ -160,7 +160,7 @@ function NotificationsScreen() {
             <MaterialIcons name="person" size={20} color={theme.mutedText} />
           </View>
           {/* System notifications (no sender) show VarsityHub logo */}
-          {(!item.actor || isSystemNotification(item)) && isSystemNotification(item) ? (
+          {(isSystemNotification(item) || !item.actor) ? (
             <Image source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_ai2j8k.png' }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel="VarsityHub" />
           ) : item.actor?.avatar_url ? (
             <Image source={{ uri: item.actor.avatar_url }} style={[S.avatar, S.avatarOverlay]} contentFit="cover" accessibilityLabel={`${actorName} avatar`} />
