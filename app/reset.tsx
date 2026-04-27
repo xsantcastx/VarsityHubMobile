@@ -19,8 +19,10 @@ export default function ResetScreen() {
         legacyCode = match[1];
       }
     }
-    const query = legacyCode ? `?code=${encodeURIComponent(legacyCode)}` : '';
-    router.replace(`/reset-password${query}`);
+    router.replace({
+      pathname: '/reset-password',
+      params: legacyCode ? { code: legacyCode } : undefined,
+    });
   }, [params.code, router]);
 
   return (

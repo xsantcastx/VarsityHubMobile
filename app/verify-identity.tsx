@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { safeGoBack } from '@/utils/navigation';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 
@@ -29,117 +30,78 @@ function VerifyScreen() {
   const { checkAuth } = useAuth();
   const params = useLocalSearchParams<{ devCode?: ParamValue }>();
   
-  const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [screenInfo, setScreenInfo] = useState<string | null>(null);
+  const [screenError, setScreenError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const verifyInFlightRef = useRef(false);
-  const resendInFlightRef = useRef(false);
 
   // Clear any errors from previous screens on mount
   useEffect(() => {
-    setError(null);
-    setInfo(null);
+    setScreenError(null);
+    setScreenInfo(null);
     return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
   }, []);
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const id = setTimeout(() => setResendCooldown(current => Math.max(0, current - 1)), 1000);
-    return () => clearTimeout(id);
-  }, [resendCooldown]);
+  const gate = useVerificationGate({
+    requestCode: () => User.requestVerification(),
+    confirmCode: (code: string) => User.verifyEmail(code),
+    autoFinishOnVerified: false,
+    resendCooldownSeconds: 60,
+    getRequestSuccessState: (res: any) => ({
+      info: __DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent',
+      cooldownSeconds: 60,
+    }),
+    getConfirmErrorMessage: (e: any) => e?.message || e?.data?.error || 'Verification failed',
+    getRequestErrorMessage: (e: any) => e?.message || e?.data?.error || 'Resend failed',
+    onVerified: async () => {
+      await checkAuth().catch(() => {});
+      setScreenInfo('✅ Email verified successfully!');
+      setScreenError(null);
+      setIsVerified(true);
+
+      try {
+        const userInfo = await User.me();
+        const targetRoute = getPostAuthLandingRoute(userInfo);
+        redirectTimerRef.current = setTimeout(() => {
+          router.replace(targetRoute as any);
+        }, 3000);
+      } catch (meErr: any) {
+        const status = meErr?.status ?? meErr?.response?.status ?? null;
+        if (status === 401 || status === 403) {
+          setScreenError('Your session expired. Please sign in again.');
+          redirectTimerRef.current = setTimeout(() => router.replace('/sign-in'), 2000);
+        } else {
+          setScreenError('Could not load your profile. Tap Continue to retry.');
+        }
+      }
+    },
+  });
 
   // Require exactly 6-digit code for email verification
-  const codeValid = code.trim().length === 6;
-  const canVerify = !loading && codeValid;
-  const isResendDisabled = loading || resendCooldown > 0;
+  const codeValid = gate.code.trim().length === 6;
+  const canVerify = !gate.loading && codeValid;
+  const isResendDisabled = gate.loading || gate.resendCooldown > 0;
 
   // Load dev code from params if available
   useEffect(() => {
     const fromParams = toSingleValue(params.devCode);
     if (fromParams) {
       setDevCode(fromParams);
-      setCode(fromParams);
+      gate.setCode(fromParams);
     }
-  }, [params.devCode]);
+  }, [gate.setCode, params.devCode]);
 
   const onVerify = async () => {
-    if (!code.trim() || verifyInFlightRef.current) return;
-    verifyInFlightRef.current = true;
-    setLoading(true); setError(null); setInfo(null);
-    try {
-      await User.verifyEmail(code.trim());
-      await checkAuth().catch(() => {});
-      setInfo('✅ Email verified successfully!');
-
-      setCode(''); // Clear the code input
-      setIsVerified(true);
-
-      // After successful verification, check if user needs onboarding.
-      // v1.0.2 pass 12: do NOT silently route to onboarding when User.me() fails —
-      // that masked auth errors (e.g. stale token) as a "success" path, dropping
-      // already-onboarded users back into step-1-role on every flaky network. Show
-      // the error and let the user tap Continue to retry instead.
-      try {
-        const userInfo = await User.me();
-        const targetRoute = getPostAuthLandingRoute(userInfo);
-
-        // Auto-redirect after 3 seconds
-        redirectTimerRef.current = setTimeout(() => {
-          router.replace(targetRoute as any);
-        }, 3000);
-
-      } catch (meErr: any) {
-        const status = meErr?.status ?? meErr?.response?.status ?? null;
-        if (status === 401 || status === 403) {
-          // Auth is actually broken — send them back to sign in cleanly.
-          setError('Your session expired. Please sign in again.');
-          redirectTimerRef.current = setTimeout(() => router.replace('/sign-in'), 2000);
-        } else {
-          // Transient: keep the verified banner and surface a retry CTA.
-          setError('Could not load your profile. Tap Continue to retry.');
-        }
-      }
-    } catch (e: any) {
-      const errorMsg = e?.message || e?.data?.error || 'Verification failed';
-      setError(errorMsg);
-    } finally {
-      verifyInFlightRef.current = false;
-      setLoading(false);
-    }
+    setScreenError(null);
+    setScreenInfo(null);
+    await gate.verify();
   };
 
   const onResend = async () => {
-    if (resendInFlightRef.current || resendCooldown > 0) return;
-    resendInFlightRef.current = true;
-    setLoading(true); setError(null); setInfo(null);
-    try {
-      const res: any = await User.requestVerification();
-      if (res?.verification_email_sent === false) {
-        const deliveryError = String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED');
-        setError(
-          deliveryError === 'EMAIL_DELIVERY_TIMEOUT'
-            ? 'A new verification code was created, but email delivery timed out. Please try again shortly.'
-            : 'A new verification code was created, but the email could not be sent. Please try again later.'
-        );
-      } else {
-        setInfo(__DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
-      }
-      setResendCooldown(60);
-    } catch (e: any) {
-      const errorMsg = e?.message || e?.data?.error || 'Resend failed';
-      if (e?.status === 429) {
-        setResendCooldown(60);
-      }
-      setError(errorMsg);
-    } finally {
-      resendInFlightRef.current = false;
-      setLoading(false);
-    }
+    setScreenError(null);
+    setScreenInfo(null);
+    await gate.resend();
   };
 
   const onContinue = async () => {
@@ -152,10 +114,10 @@ function VerifyScreen() {
       // when onboarding was already complete — see the onVerify handler above.
       const status = err?.status ?? err?.response?.status ?? null;
       if (status === 401 || status === 403) {
-        setError('Your session expired. Please sign in again.');
+        setScreenError('Your session expired. Please sign in again.');
         router.replace('/sign-in');
       } else {
-        setError('Could not load your profile. Please try again.');
+        setScreenError('Could not load your profile. Please try again.');
       }
     }
   };
@@ -195,8 +157,8 @@ function VerifyScreen() {
           We sent a 6-digit verification code to your email address.
         </Text>
         
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {info ? <Text style={styles.info}>{info}</Text> : null}
+        {screenError || gate.error ? <Text style={styles.error}>{screenError || gate.error}</Text> : null}
+        {screenInfo || gate.info ? <Text style={styles.info}>{screenInfo || gate.info}</Text> : null}
         
         {devCode ? (
           <View style={styles.devCodeContainer}>
@@ -209,15 +171,15 @@ function VerifyScreen() {
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
           <Input
             placeholder="Enter 6-digit code"
-            value={code}
+            value={gate.code}
             onChangeText={(t: string) => {
               const cleaned = t.replace(/[^0-9]/g, '');
-              setCode(cleaned);
+              gate.setCode(cleaned);
               // v1.0.2: auto-submit at 6 digits so users aren't stuck (parity with verify.tsx)
               if (cleaned.length === 6) {
                 setTimeout(() => {
                   Keyboard.dismiss();
-                  if (!verifyInFlightRef.current && !isVerified) {
+                  if (!gate.loading && !isVerified) {
                     void onVerify();
                   }
                 }, 150);
@@ -225,7 +187,7 @@ function VerifyScreen() {
             }}
             returnKeyType="done"
             onSubmitEditing={() => {
-              if (code.trim().length >= 6 && !verifyInFlightRef.current && !isVerified) void onVerify();
+              if (gate.code.trim().length >= 6 && !gate.loading && !isVerified) void onVerify();
             }}
             keyboardType="number-pad"
             maxLength={6}
@@ -239,7 +201,7 @@ function VerifyScreen() {
           </Button>
         ) : (
           <Button onPress={onVerify} disabled={!canVerify} style={styles.verifyButton}>
-            {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
+            {gate.loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
           </Button>
         )}
         
@@ -254,7 +216,7 @@ function VerifyScreen() {
                   isResendDisabled && styles.linkTextDisabled
                 ]}
               >
-                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                {gate.resendCooldown > 0 ? `Resend in ${gate.resendCooldown}s` : 'Resend Code'}
               </Text>
             </Pressable>
           </View>

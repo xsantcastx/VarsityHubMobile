@@ -103,18 +103,16 @@ describe('account boundary invariants', () => {
       expect(appleAuth).toMatch(/Cannot connect to server at \$\{getApiBaseUrl\(\)\}\./);
     });
 
-    it('verification screens synchronously guard against duplicate verify submissions', () => {
-      expect(verifyScreen).toMatch(/verifyInFlightRef/);
-      expect(verifyScreen).toMatch(/if \(!code\.trim\(\) \|\| verifyInFlightRef\.current\) return;/);
-      expect(verifyIdentityScreen).toMatch(/verifyInFlightRef/);
-      expect(verifyIdentityScreen).toMatch(/if \(!code\.trim\(\) \|\| verifyInFlightRef\.current\) return;/);
+    it('verification screens delegate resend and confirm flow to useVerificationGate', () => {
+      expect(verifyScreen).toMatch(/useVerificationGate\(/);
+      expect(verifyIdentityScreen).toMatch(/useVerificationGate\(/);
     });
 
-    it('verification flows synchronously guard against duplicate resend requests', () => {
-      expect(verifyScreen).toMatch(/resendInFlightRef/);
-      expect(verifyIdentityScreen).toMatch(/resendInFlightRef/);
+    it('verification hook retains the synchronous resend\/confirm guards', () => {
       expect(verificationGate).toMatch(/resendInFlightRef/);
       expect(verificationGate).toMatch(/if \(loading \|\| resendInFlightRef\.current \|\| resendCooldown > 0\) return;/);
+      expect(verificationGate).toMatch(/verifyInFlightRef/);
+      expect(verificationGate).toMatch(/if \(loading \|\| verifyInFlightRef\.current \|\| code\.trim\(\)\.length !== 6\) return;/);
     });
 
     it('forgot-password synchronously guards duplicate send/reset submissions', () => {
@@ -130,7 +128,7 @@ describe('account boundary invariants', () => {
     });
 
     it('legacy /reset route hands off to /reset-password instead of maintaining a second reset UI', () => {
-      expect(legacyResetScreen).toMatch(/router\.replace\(`\/reset-password/);
+      expect(legacyResetScreen).toMatch(/pathname:\s*'\/reset-password'/);
       expect(legacyResetScreen).not.toMatch(/User\.resetPassword/);
     });
 

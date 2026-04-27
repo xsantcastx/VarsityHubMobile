@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { safeGoBack } from '@/utils/navigation';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
@@ -18,20 +19,10 @@ export default function VerifyScreen() {
   const params = useLocalSearchParams<{ delivery?: string; devCode?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const { pendingVerificationEmail, checkAuth, user, signOut, markOnboardingCompleteLocally: _markOnboardingCompleteLocally } = useAuth();
-  const [code, setCode] = useState(() =>
-    // In dev, prefill the verification code when it's returned from signup so
-    // testers aren't forced to re-type a code that just came back in the API
-    // response. Never used in production builds (__DEV__ is stripped).
-    __DEV__ && typeof params.devCode === 'string' ? String(params.devCode).slice(0, 6) : ''
-  );
-  const [loading, setLoading] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [screenInfo, setScreenInfo] = useState<string | null>(null);
+  const [screenError, setScreenError] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const verifyInFlightRef = useRef(false);
-  const resendInFlightRef = useRef(false);
 
   // If a user somehow lands here with email_verified already true (stale
   // route, manual deep link, backgrounded mid-flow), don't make them stare at
@@ -57,75 +48,41 @@ export default function VerifyScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const id = setTimeout(() => setResendCooldown(c => Math.max(0, c - 1)), 1000);
-    return () => clearTimeout(id);
-  }, [resendCooldown]);
-
-  useEffect(() => {
-    const deliveryStatus = typeof params.delivery === 'string' ? params.delivery : '';
-    if (!deliveryStatus) return;
-
-    if (deliveryStatus === 'EMAIL_DELIVERY_TIMEOUT') {
-      setError(
-        'Your account was created, but the first verification email is delayed. Check spam, then tap Resend Code if nothing arrives.'
-      );
-      return;
-    }
-
-    setError(
-      'Your account was created, but the first verification email may not have been delivered. Tap Resend Code to send a fresh code.'
-    );
-  }, [params.delivery]);
-
-  const onVerify = async () => {
-    if (!code.trim() || verifyInFlightRef.current) return;
-    verifyInFlightRef.current = true;
-    setLoading(true); setError(null); setInfo(null);
-
-    const startTime = Date.now();
-    const _email = pendingVerificationEmail || user?.email;
-
-    try {
-      await User.verifyEmail(code.trim());
-      const verifyDuration = Date.now() - startTime;
-
-      captureBreadcrumb('Email verified', 'auth', {
-        context: 'verify-email-success',
-        duration_ms: String(verifyDuration),
-        has_email: _email ? 'true' : 'false',
-      });
-
-      setInfo('Email verified successfully!');
-      setCode('');
-      setIsVerified(true);
-
-      // After successful verification, let AuthProvider be the single source of truth for routing.
-      try {
-        await checkAuth();
-      } catch (userError) {
-        captureException(
-          typeof userError === 'string' ? new Error(userError) : (userError as Error),
-          { tags: { context: 'verify-email-refresh' } }
-        );
-        setError('Verification successful but failed to load profile. Please sign in again.');
-        redirectTimerRef.current = setTimeout(() => {
-          if (!isMountedRef.current) return;
-          router.replace('/sign-in');
-        }, 2000);
+  const gate = useVerificationGate({
+    requestCode: () => User.requestVerification(),
+    confirmCode: (code: string) => User.verifyEmail(code),
+    autoFinishOnVerified: false,
+    resendCooldownSeconds: 60,
+    getRequestSuccessState: (res: any) => {
+      if (res?.verification_email_sent === false) {
+        const deliveryError = String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED');
+        return {
+          error:
+            deliveryError === 'EMAIL_DELIVERY_TIMEOUT'
+              ? 'We created a new verification code, but email delivery timed out. Try again shortly or contact support if this keeps happening.'
+              : 'We created a new verification code, but the verification email could not be sent. Please try again later or contact support.',
+          cooldownSeconds: 60,
+        };
       }
-    } catch (e: any) {
-      const errorDuration = Date.now() - startTime;
-      captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
-        extra: { code_length: String(code).length },
-      });
-      
-      // Provide more helpful error messages
+      return {
+        info: 'Verification code sent! Please check your email (and spam folder).',
+        cooldownSeconds: 60,
+      };
+    },
+    getRequestErrorMessage: (e: any) => {
+      const status = e?.status;
+      if (status === 429) {
+        return 'Please wait a moment and try again.';
+      }
+      if (status === 401) {
+        return 'Please sign in again to request a verification code.';
+      }
+      return e?.message || e?.data?.error || 'Resend failed';
+    },
+    getConfirmErrorMessage: (e: any) => {
       let errorMsg = e?.message || e?.data?.error || 'Verification failed';
       const status = e?.status;
-      
+
       if (status === 429) {
         errorMsg = 'Too many attempts. Please wait a moment and try again.';
       } else if (status === 400) {
@@ -141,65 +98,83 @@ export default function VerifyScreen() {
       } else if (status === 404) {
         errorMsg = 'Account not found. Please contact support.';
       }
-      
-      setError(errorMsg);
-    } finally {
-      verifyInFlightRef.current = false;
-      setLoading(false);
+      return errorMsg;
+    },
+    onRequestSuccess: (res: any) => {
+      captureBreadcrumb('Verification resend requested', 'auth', {
+        context: 'verify-email-resend-success',
+        sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production',
+      });
+    },
+    onRequestError: (e: any) => {
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'verify-email-resend' },
+        extra: { error_code: e?.data?.error },
+      });
+    },
+    onConfirmError: (e: any) => {
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'verify-email-verify' },
+        extra: { code_length: String(gate.code).length },
+      });
+    },
+    onVerified: async () => {
+      const _email = pendingVerificationEmail || user?.email;
+      captureBreadcrumb('Email verified', 'auth', {
+        context: 'verify-email-success',
+        has_email: _email ? 'true' : 'false',
+      });
+      setScreenInfo('Email verified successfully!');
+      setScreenError(null);
+      setIsVerified(true);
+      try {
+        await checkAuth();
+      } catch (userError) {
+        captureException(
+          typeof userError === 'string' ? new Error(userError) : (userError as Error),
+          { tags: { context: 'verify-email-refresh' } }
+        );
+        setScreenError('Verification successful but failed to load profile. Please sign in again.');
+        redirectTimerRef.current = setTimeout(() => {
+          if (!isMountedRef.current) return;
+          router.replace('/sign-in');
+        }, 2000);
+      }
+    },
+  });
+
+  useEffect(() => {
+    const deliveryStatus = typeof params.delivery === 'string' ? params.delivery : '';
+    if (!deliveryStatus) return;
+
+    if (deliveryStatus === 'EMAIL_DELIVERY_TIMEOUT') {
+      setScreenError(
+        'Your account was created, but the first verification email is delayed. Check spam, then tap Resend Code if nothing arrives.'
+      );
+      return;
     }
+
+    setScreenError(
+      'Your account was created, but the first verification email may not have been delivered. Tap Resend Code to send a fresh code.'
+    );
+  }, [params.delivery]);
+
+  useEffect(() => {
+    if (__DEV__ && typeof params.devCode === 'string') {
+      gate.setCode(String(params.devCode).slice(0, 6));
+    }
+  }, [gate.setCode, params.devCode]);
+
+  const onVerify = async () => {
+    setScreenError(null);
+    setScreenInfo(null);
+    await gate.verify();
   };
 
   const onResend = async () => {
-    if (resendInFlightRef.current || resendCooldown > 0) return;
-    resendInFlightRef.current = true;
-    setLoading(true); setError(null); setInfo(null);
-
-    const startTime = Date.now();
-    const _email = pendingVerificationEmail || user?.email;
-
-    try {
-      const res: any = await User.requestVerification();
-      const resendDuration = Date.now() - startTime;
-
-      captureBreadcrumb('Verification resend requested', 'auth', {
-        context: 'verify-email-resend-success',
-        duration_ms: String(resendDuration),
-        sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production',
-      });
-      if (res?.verification_email_sent === false) {
-        const deliveryError = String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED');
-        setError(
-          deliveryError === 'EMAIL_DELIVERY_TIMEOUT'
-            ? 'We created a new verification code, but email delivery timed out. Try again shortly or contact support if this keeps happening.'
-            : 'We created a new verification code, but the verification email could not be sent. Please try again later or contact support.'
-        );
-      } else {
-        setInfo('Verification code sent! Please check your email (and spam folder).');
-      }
-      setResendCooldown(60);
-    } catch (e: any) {
-      const resendDuration = Date.now() - startTime;
-      captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
-        extra: { error_code: e?.data?.error },
-      });
-      
-      let errorMsg = e?.message || e?.data?.error || 'Resend failed';
-      const status = e?.status;
-      
-      // Provide helpful error messages
-      if (status === 429) {
-        errorMsg = 'Please wait a moment and try again.';
-        setResendCooldown(60);
-      } else if (status === 401) {
-        errorMsg = 'Please sign in again to request a verification code.';
-      }
-      
-      setError(errorMsg);
-    } finally {
-      resendInFlightRef.current = false;
-      setLoading(false);
-    }
+    setScreenError(null);
+    setScreenInfo(null);
+    await gate.resend();
   };
 
   const onContinue = async () => {
@@ -226,22 +201,22 @@ export default function VerifyScreen() {
         Enter the code below to complete your registration.
       </Text>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {info ? <Text style={styles.info}>{info}</Text> : null}
+      {screenError || gate.error ? <Text style={styles.error}>{screenError || gate.error}</Text> : null}
+      {screenInfo || gate.info ? <Text style={styles.info}>{screenInfo || gate.info}</Text> : null}
 
       <View style={styles.codeSection}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
         <Input
           placeholder="Enter 6-digit code"
-          value={code}
+          value={gate.code}
           onChangeText={(t: string) => {
             const cleaned = t.replace(/[^0-9]/g, '');
-            setCode(cleaned);
+            gate.setCode(cleaned);
             if (cleaned.length === 6) {
               // v1.0.2 audit fix: auto-submit at 6 digits so users aren't stuck hunting for a button.
               setTimeout(() => {
                 Keyboard.dismiss();
-                if (!verifyInFlightRef.current && !isVerified) {
+                if (!gate.loading && !isVerified) {
                   void onVerify();
                 }
               }, 150);
@@ -249,7 +224,7 @@ export default function VerifyScreen() {
           }}
           returnKeyType="done"
           onSubmitEditing={() => {
-            if (code.trim().length >= 6 && !verifyInFlightRef.current && !isVerified) void onVerify();
+            if (gate.code.trim().length >= 6 && !gate.loading && !isVerified) void onVerify();
           }}
           keyboardType="number-pad"
           maxLength={6}
@@ -264,19 +239,19 @@ export default function VerifyScreen() {
       ) : (
         <Button
           onPress={onVerify}
-          disabled={loading || code.trim().length < 6}
+          disabled={gate.loading || gate.code.trim().length < 6}
           style={styles.verifyButton}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
+          {gate.loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
         </Button>
       )}
 
       {!isVerified && (
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
-          <Pressable onPress={onResend} disabled={loading || resendCooldown > 0}>
-            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, (loading || resendCooldown > 0) && styles.linkTextDisabled]}>
-              {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+          <Pressable onPress={onResend} disabled={gate.loading || gate.resendCooldown > 0}>
+            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, (gate.loading || gate.resendCooldown > 0) && styles.linkTextDisabled]}>
+              {gate.resendCooldown > 0 ? `Resend in ${gate.resendCooldown}s` : 'Resend Code'}
             </Text>
           </Pressable>
           {/* Escape hatch: a user who can't verify (wrong email typed at signup,
@@ -285,7 +260,7 @@ export default function VerifyScreen() {
               back to /verify as long as the account exists and is unverified. */}
           <Pressable
             onPress={() => { void signOut(); }}
-            disabled={loading}
+            disabled={gate.loading}
             style={{ marginTop: 16 }}
             accessibilityRole="button"
             accessibilityLabel="Sign out and use a different account"

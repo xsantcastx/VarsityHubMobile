@@ -9,6 +9,16 @@ export interface VerificationGateHookOptions {
   requestCode: () => Promise<any>;
   confirmCode: (code: string) => Promise<any>;
   onVerified?: () => Promise<void> | void;
+  autoFinishOnVerified?: boolean;
+  resendCooldownSeconds?: number;
+  getRequestSuccessState?: (
+    response: any
+  ) => { info?: string | null; error?: string | null; cooldownSeconds?: number } | void;
+  getRequestErrorMessage?: (error: any) => string;
+  getConfirmErrorMessage?: (error: any) => string;
+  onRequestSuccess?: (response: any) => void;
+  onRequestError?: (error: any) => void;
+  onConfirmError?: (error: any) => void;
 }
 
 export interface VerificationGateState {
@@ -47,7 +57,7 @@ export function isEmailVerificationRequiredError(status?: number, payload?: any)
   return raw.trim().toLowerCase() === 'email verification required';
 }
 
-function getRequestErrorMessage(error: any): string {
+function defaultRequestErrorMessage(error: any): string {
   const status = error?.status;
   const raw = String(error?.data?.error || error?.message || '');
 
@@ -62,7 +72,7 @@ function getRequestErrorMessage(error: any): string {
   return raw || 'Unable to send a verification code right now.';
 }
 
-function getConfirmErrorMessage(error: any): string {
+function defaultConfirmErrorMessage(error: any): string {
   const status = error?.status;
   const raw = String(error?.data?.error || error?.message || '');
 
@@ -83,6 +93,14 @@ export function useVerificationGate({
   requestCode,
   confirmCode,
   onVerified,
+  autoFinishOnVerified = true,
+  resendCooldownSeconds = 30,
+  getRequestSuccessState,
+  getRequestErrorMessage,
+  getConfirmErrorMessage,
+  onRequestSuccess,
+  onRequestError,
+  onConfirmError,
 }: VerificationGateHookOptions): VerificationGateState {
   const [visible, setVisible] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
@@ -124,8 +142,12 @@ export function useVerificationGate({
     } catch {
       // Best-effort local refresh only; the original request retry is the source of truth.
     }
+    if (!autoFinishOnVerified) {
+      setCodeState('');
+      return;
+    }
     finish(true);
-  }, [finish, onVerified]);
+  }, [autoFinishOnVerified, finish, onVerified]);
 
   const resend = useCallback(async () => {
     if (loading || resendInFlightRef.current || resendCooldown > 0) return;
@@ -135,22 +157,43 @@ export function useVerificationGate({
     setInfo(null);
     try {
       const response = await requestCode();
+      onRequestSuccess?.(response);
       if (response?.already_verified) {
         await handleVerified();
         return;
       }
-      setInfo('We sent a 6-digit code to your email.');
-      setResendCooldown(30);
+      const requestState = getRequestSuccessState?.(response);
+      if (typeof requestState?.error === 'string' && requestState.error.length > 0) {
+        setError(requestState.error);
+      } else if (typeof requestState?.info === 'string') {
+        setInfo(requestState.info);
+      } else {
+        setInfo('We sent a 6-digit code to your email.');
+      }
+      setResendCooldown(requestState?.cooldownSeconds ?? resendCooldownSeconds);
     } catch (requestError: any) {
-      setError(getRequestErrorMessage(requestError));
+      onRequestError?.(requestError);
+      setError(
+        getRequestErrorMessage?.(requestError) ?? defaultRequestErrorMessage(requestError)
+      );
       if (requestError?.status === 429) {
-        setResendCooldown(30);
+        setResendCooldown(resendCooldownSeconds);
       }
     } finally {
       resendInFlightRef.current = false;
       setLoading(false);
     }
-  }, [handleVerified, loading, requestCode, resendCooldown]);
+  }, [
+    getRequestErrorMessage,
+    getRequestSuccessState,
+    handleVerified,
+    loading,
+    onRequestError,
+    onRequestSuccess,
+    requestCode,
+    resendCooldown,
+    resendCooldownSeconds,
+  ]);
 
   const verify = useCallback(async () => {
     if (loading || verifyInFlightRef.current || code.trim().length !== 6) return;
@@ -166,12 +209,22 @@ export function useVerificationGate({
       }
       await handleVerified();
     } catch (confirmError: any) {
-      setError(getConfirmErrorMessage(confirmError));
+      onConfirmError?.(confirmError);
+      setError(
+        getConfirmErrorMessage?.(confirmError) ?? defaultConfirmErrorMessage(confirmError)
+      );
     } finally {
       verifyInFlightRef.current = false;
       setLoading(false);
     }
-  }, [code, confirmCode, handleVerified, loading]);
+  }, [
+    code,
+    confirmCode,
+    getConfirmErrorMessage,
+    handleVerified,
+    loading,
+    onConfirmError,
+  ]);
 
   const cancel = useCallback(() => {
     finish(false);
