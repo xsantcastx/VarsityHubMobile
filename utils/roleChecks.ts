@@ -181,6 +181,10 @@ export function getPendingCoachRoute(user: CoachUserLike | null | undefined): st
 }
 
 export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): string | null {
+  if (user?.is_admin === true) {
+    return null;
+  }
+
   const explicitNextStep =
     typeof user?.next_step === 'string' && user.next_step.trim().startsWith('/')
       ? user.next_step.trim()

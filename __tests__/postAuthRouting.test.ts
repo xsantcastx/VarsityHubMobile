@@ -101,4 +101,36 @@ describe('getPostAuthLandingRoute', () => {
       })
     ).toBe('/(tabs)');
   });
+
+  it('keeps onboarded admins out of coach pending traps', () => {
+    expect(
+      getPostAuthLandingRoute({
+        email_verified: true,
+        is_admin: true,
+        approval_status: 'REJECTED',
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+        },
+      })
+    ).toBe('/(tabs)');
+  });
+
+  it('still sends admins without onboarding through generic onboarding', () => {
+    expect(
+      getPostAuthLandingRoute({
+        email_verified: true,
+        is_admin: true,
+        approval_status: 'PENDING',
+        account_state: 'coach_application_submitted',
+        next_step: '/onboarding/pending-approval',
+        preferences: {
+          role: 'coach',
+          onboarding_completed: false,
+        },
+      })
+    ).toBe('/onboarding/step-1-role');
+  });
 });

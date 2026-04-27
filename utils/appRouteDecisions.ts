@@ -192,6 +192,19 @@ export function getPostAuthRouteDecision(
     };
   }
 
+  // Platform admins should not be trapped behind coach recovery states if
+  // their account was temporarily marked coach/pending/rejected during testing.
+  // They still follow the normal auth rules above plus generic onboarding below.
+  if (user.is_admin === true) {
+    const needsOnboarding = user.preferences?.onboarding_completed !== true;
+    return needsOnboarding
+      ? {
+          kind: 'generic_onboarding_required',
+          route: POST_AUTH_ROUTE_BY_KIND.generic_onboarding_required,
+        }
+      : { kind: 'app_home', route: POST_AUTH_ROUTE_BY_KIND.app_home };
+  }
+
   const serverDirectedKind = resolveServerDirectedPostAuthKind(user);
   if (serverDirectedKind) {
     return { kind: serverDirectedKind, route: POST_AUTH_ROUTE_BY_KIND[serverDirectedKind] };

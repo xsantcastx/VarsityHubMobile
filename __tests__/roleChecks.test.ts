@@ -214,6 +214,18 @@ describe('getPendingCoachRoute', () => {
 });
 
 describe('getCoachRecoveryRoute', () => {
+  it('does not trap admins in coach recovery routes', () => {
+    expect(
+      getCoachRecoveryRoute({
+        is_admin: true,
+        approval_status: 'REJECTED',
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        preferences: { role: 'coach', onboarding_completed: true },
+      })
+    ).toBeNull();
+  });
+
   it('uses server next_step for rejected application recovery', () => {
     expect(
       getCoachRecoveryRoute({
