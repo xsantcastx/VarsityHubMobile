@@ -174,6 +174,52 @@ describe('api/http — auth refresh', () => {
   // AuthProvider can route to /sign-in, and returns a never-resolving Promise
   // so per-screen catch blocks don't stack a native Error modal on top of
   // the redirect. These tests assert exactly that contract.
+  // Regression: cross-account leak. The refresh result is cached for 5s so
+  // sibling 401s on the same identity reuse it (see prior test). But the
+  // cache MUST NOT survive a sign-in / sign-out — otherwise user B's first
+  // 401 after switching accounts would reuse user A's cached refresh and
+  // execute the retry under user A's token. clearAuthToken is the single
+  // entry point used by sign-in (replaceSession), sign-out, and session-
+  // expiry, so clearing the cache there covers every account-switch path.
+  it('clearAuthToken invalidates the cached refresh promise so the next 401 forces a new refresh', async () => {
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>()
+      .mockResolvedValueOnce(mkJsonResponse(401, { error: 'expired' })) // user A: original
+      .mockResolvedValueOnce(mkJsonResponse(200, { who: 'a' }))         // user A: retry
+      .mockResolvedValueOnce(mkJsonResponse(401, { error: 'expired' })) // user B: original
+      .mockResolvedValueOnce(mkJsonResponse(200, { who: 'b' }));        // user B: retry
+
+    mockRefreshToken
+      .mockResolvedValueOnce({ accessToken: 'token-a', reason: 'success' } as any)
+      .mockResolvedValueOnce({ accessToken: 'token-b', reason: 'success' } as any);
+
+    const http = freshHttp(fetchMock);
+
+    // User A flow.
+    http.setAuthToken('stale-a');
+    const a = await http.httpGet('/me', {}, undefined, 0);
+    expect(a).toEqual({ who: 'a' });
+    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+
+    // Account switch happens here — clearLocalAuthState() / sign-in calls
+    // clearAuthToken under the hood. This MUST drop the refresh cache.
+    http.clearAuthToken();
+    http.setAuthToken('stale-b');
+
+    // User B's request triggers another 401. Without the fix, the handler
+    // would reuse user A's cached refresh promise (returning token-a) and
+    // never call mockRefreshToken a second time. With the fix, refresh is
+    // called again and returns token-b.
+    const b = await http.httpGet('/me', {}, undefined, 0);
+    expect(b).toEqual({ who: 'b' });
+    expect(mockRefreshToken).toHaveBeenCalledTimes(2);
+
+    // And the user B retry must carry user B's freshly refreshed token, not
+    // user A's leaked one — this is the actual security assertion.
+    const userBRetry = fetchMock.mock.calls[3] as any[];
+    const userBHeaders = (userBRetry[1] as RequestInit).headers as Record<string, string>;
+    expect(userBHeaders.Authorization).toBe('Bearer token-b');
+  });
+
   it('refresh failure with reason "auth" clears session, emits session-expired, never resolves', async () => {
     const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>().mockResolvedValue(mkJsonResponse(401, { error: 'expired' }));
     mockRefreshToken.mockResolvedValue({ accessToken: null, reason: 'auth' } as any);

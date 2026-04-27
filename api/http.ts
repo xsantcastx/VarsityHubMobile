@@ -31,6 +31,15 @@ export function setAuthToken(token: string | null) {
 }
 export function clearAuthToken() {
   tokenCache = null;
+  // The cached refresh result belongs to the previous identity — if user A's
+  // refresh is still cached when user B signs in, user B's first 401 would
+  // reuse it and execute requests under user A's token. Drop both the promise
+  // and its expiry timer so the next 401 starts a fresh refresh.
+  refreshPromise = null;
+  if (refreshCacheTimer) {
+    clearTimeout(refreshCacheTimer);
+    refreshCacheTimer = null;
+  }
 }
 export function getAuthToken(): string | null {
   return tokenCache;
