@@ -54,8 +54,28 @@ export default function ForgotPasswordScreen() {
       await User.requestPasswordReset(trimmed);
       setCodeSent(true);
     } catch (e: any) {
-      // Never reveal whether the email exists — treat server errors as success
-      setCodeSent(true);
+      // Privacy: don't reveal whether the email is registered — treat any
+      // server-reached response (404, 500, etc.) as a successful "code sent"
+      // so the user can't probe for valid accounts.
+      // Reliability: but if the request never reached the server at all
+      // (transport-level failure), surface that so the user isn't stranded
+      // waiting for a code that was never even attempted to be sent.
+      const errMsg = String(e?.message || '');
+      const isTransportFailure =
+        e?.isNetworkError === true ||
+        errMsg.startsWith('Cannot connect to server') ||
+        errMsg.includes('Network request failed') ||
+        errMsg.includes('Request timeout') ||
+        errMsg.includes('fetch');
+      if (isTransportFailure) {
+        setSendError(
+          errMsg.startsWith('Cannot connect to server')
+            ? errMsg
+            : 'Could not reach the server to send your reset code. Please check your connection and try again.'
+        );
+      } else {
+        setCodeSent(true);
+      }
     } finally {
       setSendLoading(false);
     }
