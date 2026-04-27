@@ -46,7 +46,7 @@ async function main() {
     const meWithOldToken = await request(app)
       .get('/auth/me')
       .set('Authorization', `Bearer ${tokenA}`);
-    assertStatus(meWithOldToken.status, 401, 'stale token after relogin');
+    assertStatus(meWithOldToken.status, 200, 'prior token remains valid after relogin');
 
     const meWithNewToken = await request(app)
       .get('/auth/me')
@@ -66,6 +66,15 @@ async function main() {
       .get('/auth/me')
       .set('Authorization', `Bearer ${tokenB}`);
     assertStatus(meAfterPasswordChange.status, 401, 'stale token after password change');
+
+    const meWithFirstTokenAfterPasswordChange = await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${tokenA}`);
+    assertStatus(
+      meWithFirstTokenAfterPasswordChange.status,
+      401,
+      'all prior tokens invalidated after password change'
+    );
 
     const loginC = await request(app).post('/auth/login').send({ email, password: NEW_PASSWORD });
     assertStatus(loginC.status, 200, 'login C');

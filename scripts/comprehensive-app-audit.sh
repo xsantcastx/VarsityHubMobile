@@ -20,11 +20,12 @@ echo ""
 
 # 1. Check app version
 echo -e "${BLUE}Step 1: App Version Check...${NC}"
-VERSION=$(grep '"version"' app.json | head -1 | cut -d'"' -f4)
-RUNTIME_VERSION=$(grep '"runtimeVersion"' app.json | head -1 | cut -d'"' -f4)
+EXPO_CONFIG_JSON=$(npx expo config --json 2>/dev/null || true)
+VERSION=$(printf '%s' "$EXPO_CONFIG_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const c=JSON.parse(s);process.stdout.write(String(c.version||''));}catch{process.stdout.write('');}})")
+RUNTIME_VERSION=$(printf '%s' "$EXPO_CONFIG_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const c=JSON.parse(s);process.stdout.write(String(c.runtimeVersion||''));}catch{process.stdout.write('');}})")
 echo -e "  App Version: ${VERSION}"
 echo -e "  Runtime Version: ${RUNTIME_VERSION}"
-if [ "$VERSION" = "$RUNTIME_VERSION" ]; then
+if [ -n "$VERSION" ] && [ "$VERSION" = "$RUNTIME_VERSION" ]; then
     echo -e "${GREEN}✅ Version numbers match${NC}"
 else
     echo -e "${RED}❌ Version mismatch!${NC}"
@@ -78,7 +79,7 @@ echo ""
 echo -e "${BLUE}Step 4: Coach Onboarding Implementation...${NC}"
 if [ -f "app/onboarding/index.tsx" ] && [ -f "app/onboarding/step-1-role.tsx" ]; then
     echo -e "${GREEN}✅ Onboarding screens present${NC}"
-    if grep -q "role.*coach" "app/onboarding/index.tsx"; then
+    if grep -q "role.*coach" "app/onboarding/step-1-role.tsx" || grep -q "upgradeToCoach" "app/role-onboarding.tsx"; then
         echo -e "${GREEN}✅ Coach role handling present${NC}"
     else
         echo -e "${YELLOW}⚠️  Coach role handling check${NC}"

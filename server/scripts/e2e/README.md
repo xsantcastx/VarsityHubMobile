@@ -26,12 +26,12 @@ Walks the complete coach approval flow:
 
 ### `test-single-session.sh`
 
-Verifies the single-active-session enforcement:
+Verifies the current access-token invalidation policy:
 
-1. Register → token A (se=0)
-2. Login → token B (se=1), token A invalidated
-3. Login → token C (se=2), token B invalidated
-4. Confirms `session_epoch` increments and old tokens return 401
+1. Register → token A
+2. Login → token B, token A still remains valid
+3. Change password → token A and token B both return 401
+4. Login with new password → token C works
 
 ### `test-integration-crossmatrix.sh`
 

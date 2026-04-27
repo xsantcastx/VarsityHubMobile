@@ -1,10 +1,12 @@
 #!/bin/bash
-# Verify single-session enforcement in production.
+# Verify the current session policy in production.
 # 1. Register a user → get access_token_A
 # 2. /auth/me with token_A → 200
-# 3. Login same user → get access_token_B (new session)
-# 4. /auth/me with token_A → should be 401 (session invalidated)
-# 5. /auth/me with token_B → 200
+# 3. Login same user → get access_token_B
+# 4. /auth/me with BOTH token_A and token_B → 200 (relogin does not kill prior sessions)
+# 5. Change password with token_B
+# 6. /auth/me with token_A and token_B → 401
+# 7. Login again with new password → token_C works
 
 set -u
 API="${API_URL:-https://api-production-8ac3.up.railway.app}"
@@ -20,51 +22,52 @@ fail() { echo "  ❌ $1"; FAILED=1; }
 hdr()  { echo ""; echo "=== $1 ==="; }
 FAILED=0
 
-hdr "1. Register user (gets session A with se=0)"
+hdr "1. Register user (gets session A)"
 REG=$(curl -sS -X POST "$API/auth/register" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\",\"display_name\":\"Session Test\",\"role\":\"fan\",\"dob\":\"1995-06-15\"}")
 TOKEN_A=$(echo "$REG" | jq -r '.access_token // empty')
 USER_ID=$(echo "$REG" | jq -r '.user.id // empty')
 [ -n "$TOKEN_A" ] && pass "registered, got token_A" || { fail "register: $REG"; exit 1; }
 
-# Inspect the JWT payload
-SE_A=$(echo "$TOKEN_A" | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq -r '.se // "MISSING"')
-[ "$SE_A" = "0" ] && pass "token_A carries se=0 claim" || fail "token_A.se=$SE_A (expected 0)"
-
 hdr "2. Use token_A — should work"
 ME_A=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_A")
 [ "$ME_A" = "200" ] && pass "/me with token_A → 200" || fail "/me token_A → $ME_A"
 
-hdr "3. Login again as same user (bumps epoch, gets session B with se=1)"
+hdr "3. Login again as same user (token_B should coexist with token_A)"
 LOGIN=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
 TOKEN_B=$(echo "$LOGIN" | jq -r '.access_token // empty')
 [ -n "$TOKEN_B" ] && pass "logged in, got token_B" || { fail "login: $LOGIN"; exit 1; }
 
-SE_B=$(echo "$TOKEN_B" | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq -r '.se // "MISSING"')
-[ "$SE_B" = "1" ] && pass "token_B carries se=1 claim (epoch bumped)" || fail "token_B.se=$SE_B (expected 1)"
-
-# Verify DB
-EPOCH_DB=$(psql "$DB" -tA -c "SELECT session_epoch FROM \"User\" WHERE id='$USER_ID';")
-[ "$EPOCH_DB" = "1" ] && pass "DB: User.session_epoch=1" || fail "DB epoch=$EPOCH_DB"
-
-hdr "4. Use token_A — should now be rejected (single-session enforced)"
+hdr "4. Use token_A — should still work after relogin"
 ME_A2=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_A")
-[ "$ME_A2" = "401" ] && pass "/me with stale token_A → 401 (KICKED)" || fail "/me token_A → $ME_A2 (expected 401)"
+[ "$ME_A2" = "200" ] && pass "/me with prior token_A → 200" || fail "/me token_A → $ME_A2 (expected 200)"
 
 hdr "5. Use token_B — should still work"
 ME_B=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_B")
 [ "$ME_B" = "200" ] && pass "/me with token_B → 200" || fail "/me token_B → $ME_B"
 
-hdr "6. Third login (session C, se=2) should kick B too"
-LOGIN2=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}")
-TOKEN_C=$(echo "$LOGIN2" | jq -r '.access_token // empty')
-SE_C=$(echo "$TOKEN_C" | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq -r '.se // "MISSING"')
-[ "$SE_C" = "2" ] && pass "token_C.se=2 (epoch incremented again)" || fail "token_C.se=$SE_C"
+hdr "6. Change password — should invalidate all prior tokens"
+PW=$(curl -sS -X POST "$API/auth/password/change" -H "$(
+  printf 'Authorization: Bearer %s' "$TOKEN_B"
+)" -H 'Content-Type: application/json' \
+  -d "{\"current_password\":\"$PASSWORD\",\"new_password\":\"${PASSWORD}X\"}")
+PW_OK=$(echo "$PW" | jq -r '.ok // .message // empty')
+[ -n "$PW_OK" ] && pass "password changed" || fail "password change: $PW"
+
+ME_A3=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_A")
+[ "$ME_A3" = "401" ] && pass "token_A invalid after password change" || fail "token_A after password change → $ME_A3"
 
 ME_B2=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_B")
-[ "$ME_B2" = "401" ] && pass "/me with now-stale token_B → 401" || fail "/me token_B → $ME_B2"
+[ "$ME_B2" = "401" ] && pass "token_B invalid after password change" || fail "token_B after password change → $ME_B2"
+
+hdr "7. Login with new password — token_C should work"
+LOGIN2=$(curl -sS -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"${PASSWORD}X\"}")
+TOKEN_C=$(echo "$LOGIN2" | jq -r '.access_token // empty')
+[ -n "$TOKEN_C" ] && pass "logged in with new password, got token_C" || fail "relogin: $LOGIN2"
+ME_C=$(curl -sS -o /dev/null -w "%{http_code}" "$API/auth/me" -H "Authorization: Bearer $TOKEN_C")
+[ "$ME_C" = "200" ] && pass "/me with token_C → 200" || fail "/me token_C → $ME_C"
 
 hdr "CLEANUP"
 psql "$DB" -c "DELETE FROM \"RefreshToken\" WHERE user_id='$USER_ID'; DELETE FROM \"User\" WHERE id='$USER_ID';" >/dev/null 2>&1
@@ -72,10 +75,10 @@ pass "test user deleted"
 
 if [ "$FAILED" = "0" ]; then
   echo ""
-  echo "🎉 SINGLE-SESSION ENFORCEMENT VERIFIED"
+  echo "🎉 SESSION INVALIDATION POLICY VERIFIED"
   exit 0
 else
   echo ""
-  echo "❌ enforcement failed — review above"
+  echo "❌ session policy check failed — review above"
   exit 1
 fi
