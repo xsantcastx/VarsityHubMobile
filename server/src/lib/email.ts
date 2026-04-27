@@ -150,6 +150,11 @@ const TEMPLATE_IDS = {
   AD_PENDING_REVIEW: tmpl('SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID'),
   AD_APPROVED: tmpl('SENDGRID_AD_APPROVED_TEMPLATE_ID'),
   AD_REJECTED: tmpl('SENDGRID_AD_REJECTED_TEMPLATE_ID'),
+  // Restored after 87aeafa0 removed it as part of "email cleanup". PDF Note 8
+  // explicitly requires receipts for ad payments. Env var name kept identical
+  // to the pre-removal value so the existing SendGrid template (if still
+  // present) works without re-creation.
+  AD_PAYMENT_CONFIRMED: tmpl('SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID'),
   AD_TAKEN_DOWN_PENDING_REVIEW: tmpl('SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID'),
 
   // Organization approval/rejection (sent to org owner after admin action)
@@ -469,6 +474,51 @@ export async function sendAdRejectedEmail(params: {
       app_url: APP_BASE_URL,
     },
     `Ad rejected email sent to ${params.to}`
+  );
+}
+
+/**
+ * Restored from 87aeafa0 (email cleanup commit). PDF Note 8 explicitly
+ * requires payment receipts for ad bookings. Signature kept identical to
+ * the pre-removal version so the existing SendGrid template (matching the
+ * SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID env var) works as-is.
+ */
+export async function sendAdPaymentConfirmedEmail(params: {
+  to: string;
+  businessName?: string;
+  zipCode?: string;
+  amount?: string;
+  hoursLabel?: string;
+  totalHoursBooked?: number;
+  hoursRemaining?: number;
+  dates?: string[];
+  adId?: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.AD_PAYMENT_CONFIRMED;
+  if (!templateId) {
+    console.warn(
+      '[email] Missing SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID — advertiser will not receive payment receipt'
+    );
+    return false;
+  }
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    'Ad Reservation Confirmed — VarsityHub',
+    {
+      ...getCommonTemplateData(),
+      business_name: params.businessName || '',
+      zip_code: params.zipCode || '',
+      amount: params.amount || '',
+      hours_label: params.hoursLabel || '',
+      total_hours_booked: params.totalHoursBooked ?? 0,
+      hours_remaining: params.hoursRemaining ?? 0,
+      dates: params.dates || [],
+      dates_count: params.dates?.length || 0,
+      ad_id: params.adId || '',
+      app_url: APP_BASE_URL,
+    },
+    `Ad payment confirmed email sent to ${params.to}`
   );
 }
 

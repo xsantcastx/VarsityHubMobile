@@ -7,7 +7,7 @@ import type Stripe from 'stripe';
 import { AdStatus, Prisma } from '@prisma/client';
 import { debugLog as baseDebugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
-import { sendBillingNoticeEmail } from '../lib/email.js';
+import { sendAdPaymentConfirmedEmail, sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
@@ -593,8 +593,18 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
             });
           }, { isolationLevel: 'Serializable' });
 
-          // Update transaction (ad payment confirmation email removed — non-mandatory)
+          // Update transaction
           await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+          // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
+          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+          sendAdPaymentEmail({
+            userId: meta.user_id || null,
+            adId,
+            dates: piDates,
+            totalCents: pi.amount,
+            businessName: adForEmail?.business_name,
+            zipCode: adForEmail?.target_zip_code,
+          }).catch((err) => console.warn('[webhook] ad payment receipt failed:', (err as any)?.message || err));
           // Ad was already approved before payment — no admin review needed
 
           // Redeem promo code if one was used — retry up to 3 times to prevent reuse
@@ -902,7 +912,65 @@ async function getUserEmail(userId?: string | null, fallbackEmail?: string | nul
   return user?.email || null;
 }
 
-// Ad payment email notification removed — non-mandatory transactional email
+// Restored after PDF Note 8 audit. The wrapper resolves the recipient from
+// userId (with optional fallbackEmail), formats currency + date + hours, then
+// delegates to sendAdPaymentConfirmedEmail. Pre-removal shape recovered from
+// 87aeafa0^ — fire-and-forget at every payment-completion site.
+async function sendAdPaymentEmail({
+  userId,
+  fallbackEmail,
+  adId,
+  dates,
+  totalCents,
+  businessName,
+  zipCode,
+}: {
+  userId?: string | null;
+  fallbackEmail?: string | null;
+  adId: string;
+  dates: string[];
+  totalCents?: number | null;
+  businessName?: string | null;
+  zipCode?: string | null;
+}) {
+  const email = await getUserEmail(userId, fallbackEmail);
+  if (!email) return;
+  const amount = formatUsd(totalCents);
+
+  let hoursLabel = '';
+  let hoursRemaining = 0;
+  const totalHoursBooked = dates.length * 24;
+  if (dates.length) {
+    const sorted = [...dates].sort();
+    const lastEnd = new Date(sorted[sorted.length - 1] + 'T23:59:59Z');
+    hoursRemaining = Math.max(0, Math.round((lastEnd.getTime() - Date.now()) / 3600000));
+    hoursLabel = `${hoursRemaining} hrs (${dates.length} day${dates.length !== 1 ? 's' : ''})`;
+  }
+
+  const formattedDates = [...dates].sort().map((d) => {
+    try {
+      return new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+      });
+    } catch { return d; }
+  });
+
+  try {
+    await sendAdPaymentConfirmedEmail({
+      to: email,
+      businessName: businessName || undefined,
+      zipCode: zipCode || undefined,
+      amount: amount || undefined,
+      hoursLabel: hoursLabel || undefined,
+      totalHoursBooked,
+      hoursRemaining,
+      dates: formattedDates,
+      adId,
+    });
+  } catch (err) {
+    console.warn('[payments] Unable to send ad payment receipt:', (err as any)?.message || err);
+  }
+}
 
 async function sendSubscriptionEmail({
   userId,
@@ -1330,7 +1398,15 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log', adId: String(ad_id) });
     }
-    // Ad payment confirmation email removed — non-mandatory
+    // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
+    sendAdPaymentEmail({
+      userId: req.user!.id,
+      adId: String(ad_id),
+      dates: isoDates,
+      totalCents: 0,
+      businessName: ad.business_name,
+      zipCode: ad.target_zip_code,
+    }).catch((err) => console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err));
     return res.json({ free: true });
   }
 
@@ -1794,7 +1870,15 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
       console.error('[payments] Failed to log free promo transaction:', err);
       captureException(err as Error, { context: 'free_promo_transaction_log_pi', adId: String(ad_id) });
     }
-    // Ad payment confirmation email removed — non-mandatory
+    // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
+    sendAdPaymentEmail({
+      userId,
+      adId: String(ad_id),
+      dates: isoDates,
+      totalCents: 0,
+      businessName: ad.business_name,
+      zipCode: ad.target_zip_code,
+    }).catch((err) => console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err));
     return res.json({ free: true });
   }
 
@@ -2416,8 +2500,18 @@ paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) =>
             });
           }, { isolationLevel: 'Serializable' });
 
-          // Update transaction (ad payment confirmation email removed — non-mandatory)
+          // Update transaction
           await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+          // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
+          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+          sendAdPaymentEmail({
+            userId: meta.user_id || null,
+            adId,
+            dates: piDates,
+            totalCents: pi.amount,
+            businessName: adForEmail?.business_name,
+            zipCode: adForEmail?.target_zip_code,
+          }).catch((err) => console.warn('[webhook] ad payment receipt failed:', (err as any)?.message || err));
           // Ad was already approved before payment — no admin review needed
 
           // Redeem promo code if one was used — retry up to 3 times to prevent reuse
@@ -3331,12 +3425,20 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       await updateTransactionStatus(session.id, 'COMPLETED', {
         stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
       });
-      // Fetch ad details for the email
+      // Fetch ad details for the receipt email
       const adForEmail = await prisma.ad.findUnique({
         where: { id: ad_id },
-        select: { business_name: true, target_zip_code: true },
+        select: { business_name: true, target_zip_code: true, user_id: true },
       });
-      // Ad payment confirmation email removed — non-mandatory
+      // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
+      sendAdPaymentEmail({
+        userId: adForEmail?.user_id || null,
+        adId: String(ad_id),
+        dates: Array.isArray(meta?.dates) ? meta.dates : (() => { try { return JSON.parse(String(session.metadata?.dates || '[]')); } catch { return []; } })(),
+        totalCents: session.amount_total ?? null,
+        businessName: adForEmail?.business_name,
+        zipCode: adForEmail?.target_zip_code,
+      }).catch((err) => console.warn('[payments] Stripe webhook ad payment receipt failed:', (err as any)?.message || err));
       // Ad was already approved before payment — no admin review needed
     } catch (e: any) {
       if (e?.slotFull) {
