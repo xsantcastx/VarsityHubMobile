@@ -194,6 +194,7 @@ export function useAppleAuth() {
         throw new Error('Invalid login response from server');
       } catch (err: any) {
         const message = err?.message || 'Apple sign-in failed';
+        const normalizedMessage = String(message).toLowerCase();
         const code = String(err?.code || '').toLowerCase();
         
         const isCanceled = 
@@ -222,16 +223,25 @@ export function useAppleAuth() {
           throw err;
         }
         
-        if (message.includes('timeout') || message.includes('server did not respond')) {
-          const friendlyMessage = 'Unable to connect to server. Please check your internet connection and try again.';
-          setError(friendlyMessage);
-          throw new Error(friendlyMessage);
+        if (err?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
+          setError(message);
+          throw err;
         }
-        
+
+        if (normalizedMessage.includes('timeout') || normalizedMessage.includes('server did not respond')) {
+          const friendlyMessage = `Cannot connect to server at ${getApiBaseUrl()}. Please check your internet connection and try again.`;
+          const networkErr: any = new Error(friendlyMessage);
+          networkErr.isNetworkError = true;
+          networkErr.status = err?.status ?? 0;
+          networkErr.code = err?.code;
+          setError(friendlyMessage);
+          throw networkErr;
+        }
+
         const friendlyHints =
           '\nTips: Ensure you are signed into iCloud on this device, Two‑Factor Authentication is enabled for your Apple ID (Settings > [your name] > Password & Security), and you have a working network connection.';
 
-        if (message.toLowerCase().includes('authorization') || message.toLowerCase().includes('unknown')) {
+        if (normalizedMessage.includes('authorization') || normalizedMessage.includes('unknown')) {
           const friendly = 'Apple authorization failed.' + friendlyHints;
           setError(friendly);
           throw new Error(friendly);

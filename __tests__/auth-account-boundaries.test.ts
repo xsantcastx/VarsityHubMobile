@@ -17,6 +17,7 @@ const authProvider = read('context/AuthProvider.tsx');
 const authApi = read('api/auth.ts');
 const signIn = read('app/sign-in.tsx');
 const signUp = read('app/sign-up.tsx');
+const appleAuth = read('hooks/useAppleAuth.ts');
 
 describe('account boundary invariants', () => {
   describe('AuthProvider session replacement', () => {
@@ -88,6 +89,11 @@ describe('account boundary invariants', () => {
     it('sign-up retries registration on the current transport-error contract', () => {
       expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}e\?\.isNetworkError === true/);
       expect(signUp).toMatch(/const isRetryableError =[\s\S]{0,300}errMsg\.startsWith\('Cannot connect to server'\)/);
+    });
+
+    it('apple auth preserves or reconstructs host-specific transport errors', () => {
+      expect(appleAuth).toMatch(/err\?\.isNetworkError === true \|\| message\.startsWith\('Cannot connect to server'\)/);
+      expect(appleAuth).toMatch(/Cannot connect to server at \$\{getApiBaseUrl\(\)\}\./);
     });
   });
 });

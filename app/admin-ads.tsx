@@ -118,7 +118,6 @@ function AdminAdsScreen() {
                 (r) => r.status === 'rejected' && isSessionExpiryError(r.reason)
               );
               if (sessionExpiry) {
-                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
                 return;
               }
               const failed = results.filter((r) => r.status === 'rejected').length;
@@ -132,7 +131,6 @@ function AdminAdsScreen() {
               await load();
             } catch (e: any) {
               if (isSessionExpiryError(e)) {
-                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
                 return;
               }
               Alert.alert('Error', e?.message || 'Failed to approve ads');
@@ -167,7 +165,6 @@ function AdminAdsScreen() {
                 (r) => r.status === 'rejected' && isSessionExpiryError(r.reason)
               );
               if (sessionExpiry) {
-                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
                 return;
               }
               const failed = results.filter((r) => r.status === 'rejected').length;
@@ -181,7 +178,6 @@ function AdminAdsScreen() {
               await load();
             } catch (e: any) {
               if (isSessionExpiryError(e)) {
-                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
                 return;
               }
               Alert.alert('Error', e?.message || 'Failed to reject ads');
@@ -216,7 +212,6 @@ function AdminAdsScreen() {
                 (r) => r.status === 'rejected' && isSessionExpiryError(r.reason)
               );
               if (sessionExpiry) {
-                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
                 return;
               }
               const failed = results.filter((r) => r.status === 'rejected').length;
@@ -230,7 +225,6 @@ function AdminAdsScreen() {
               await load();
             } catch (e: any) {
               if (isSessionExpiryError(e)) {
-                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
                 return;
               }
               Alert.alert('Error', e?.message || 'Failed to delete ads');
@@ -599,7 +593,6 @@ function AdminAdsScreen() {
                     await load();
                   } catch (e: any) {
                     if (isSessionExpiryError(e)) {
-                      Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
                       return;
                     }
                     Alert.alert('Error', e?.message || `Failed to ${action}`);

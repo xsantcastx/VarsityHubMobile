@@ -33,6 +33,11 @@ const httpLayer = read('api/http.ts');
 const uploadLayer = read('api/upload.ts');
 const authProvider = read('context/AuthProvider.tsx');
 const uploadErrorAlert = read('utils/uploadErrorAlert.ts');
+const adminDashboard = read('app/admin-dashboard.tsx');
+const adminAds = read('app/admin-ads.tsx');
+const approvals = read('app/(tabs)/approvals.tsx');
+const organizationJoinRequests = read('app/organization-join-requests.tsx');
+const eventApprovals = read('app/(tabs)/event-approvals.tsx');
 
 describe('session-expired event bus — client wiring invariants', () => {
   describe('utils/sessionEvents.ts — bus implementation', () => {
@@ -189,6 +194,14 @@ describe('session-expired event bus — client wiring invariants', () => {
       // Must NOT do: await signOut() OR await logout-that-hits-server.
       // Acceptable: local state clear + redirect.
       expect(block).not.toMatch(/await\s+signOut\(\s*\)/);
+    });
+
+    it('approval/admin surfaces do not stack a second session-expired alert on top of AuthProvider redirect', () => {
+      expect(adminDashboard).not.toContain("Alert.alert('Session expired'");
+      expect(adminAds).not.toContain("Alert.alert('Session expired'");
+      expect(approvals).not.toContain("Alert.alert('Session expired'");
+      expect(organizationJoinRequests).not.toContain("Alert.alert('Session expired'");
+      expect(eventApprovals).not.toContain("Alert.alert('Session expired'");
     });
   });
 });

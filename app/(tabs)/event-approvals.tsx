@@ -266,7 +266,6 @@ export default function EventApprovalsScreen() {
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
       if (isSessionExpiryError(e)) {
-        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
         return;
       }
       captureBreadcrumb('Event approval failed', 'admin.approval', {
@@ -320,7 +319,6 @@ export default function EventApprovalsScreen() {
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
       if (isSessionExpiryError(e)) {
-        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
         return;
       }
       captureBreadcrumb('Event rejection failed', 'admin.approval', {

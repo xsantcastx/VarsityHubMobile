@@ -168,7 +168,6 @@ function OrganizationJoinRequestsScreen() {
                 await loadRequests();
               } catch (err: any) {
                 if (isSessionExpiryError(err)) {
-                  Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
                   return;
                 }
                 if (__DEV__) console.error('[OrganizationJoinRequests] Error approving request:', err);
@@ -206,7 +205,6 @@ function OrganizationJoinRequestsScreen() {
         await loadRequests();
       } catch (err: any) {
         if (isSessionExpiryError(err)) {
-          Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
           return;
         }
         if (__DEV__) console.error('[OrganizationJoinRequests] Error rejecting request:', err);

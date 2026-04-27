@@ -118,12 +118,10 @@ export default function ApprovalsScreen() {
     } catch (err: any) {
       if (__DEV__) console.error('[Approvals] Load error:', err);
       if (mountedRef.current) {
-        Alert.alert(
-          isSessionExpiryError(err) ? 'Session expired' : 'Error',
-          isSessionExpiryError(err)
-            ? 'Your approval session expired. Please sign in again, then retry.'
-            : err?.message || 'Failed to load approvals. Please try again.'
-        );
+        if (isSessionExpiryError(err)) {
+          return;
+        }
+        Alert.alert('Error', err?.message || 'Failed to load approvals. Please try again.');
       }
     } finally {
       if (mountedRef.current) {
@@ -183,7 +181,6 @@ export default function ApprovalsScreen() {
       }, 1200);
     } catch (err: any) {
       if (isSessionExpiryError(err)) {
-        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
         return;
       }
       captureBreadcrumb('League owner coach approval failed', 'admin.approval', {
@@ -231,7 +228,6 @@ export default function ApprovalsScreen() {
       setDeclineReason('');
     } catch (err: any) {
       if (isSessionExpiryError(err)) {
-        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
         return;
       }
       captureBreadcrumb('League owner coach rejection failed', 'admin.approval', {

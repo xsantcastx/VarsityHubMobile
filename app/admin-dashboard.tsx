@@ -164,7 +164,6 @@ function AdminDashboardScreen() {
       void loadStats(true);
     } catch (e: any) {
       if (isSessionExpiryError(e)) {
-        Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry this approval.');
         return;
       }
       captureBreadcrumb('Admin coach approval action failed', 'admin.approval', {
@@ -217,7 +216,6 @@ function AdminDashboardScreen() {
       void loadStats(true);
     } catch (e: any) {
       if (isSessionExpiryError(e)) {
-        Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry this approval.');
         return;
       }
       captureBreadcrumb('Admin league approval action failed', 'admin.approval', {
