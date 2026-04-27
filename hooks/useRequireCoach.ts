@@ -23,6 +23,18 @@ export function useRequireCoach() {
 
   useEffect(() => {
     if (loading) return;
+
+    // Admin escape: an admin who happens to have dirty coach state (test
+    // residue, manual DB edit, etc.) must never be trapped in the
+    // pending-approval recovery route. Mirror of the admin overrides in
+    // utils/appRouteDecisions.ts and utils/roleChecks.ts:getCoachRecoveryRoute
+    // shipped in commit 7c875eb6 — this hook is the third routing path
+    // and was missed in that pass. Send them back to /(tabs) instead.
+    if ((user as any)?.is_admin === true && (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)) {
+      router.replace('/(tabs)');
+      return;
+    }
+
     if (!user || !isCoach) {
       router.replace('/(tabs)');
       return;
