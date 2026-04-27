@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -255,13 +256,20 @@ function AdminAdsScreen() {
     ? items
     : items.filter(ad => ad.status === filterStatus);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return '#22c55e';
-      case 'approved': return '#3b82f6';
-      case 'pending': return '#f59e0b';
-      case 'paused': return '#dc2626';
-      default: return '#6b7280';
+  const getCompositeBadgeColors = (tone: ReturnType<typeof getCompositeAdBadge>['tone']) => {
+    switch (tone) {
+      case 'live':
+        return { bg: '#DCFCE7', border: '#22C55E', text: '#166534' };
+      case 'approved':
+        return { bg: '#DBEAFE', border: '#3B82F6', text: '#1D4ED8' };
+      case 'pending':
+        return { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' };
+      case 'rejected':
+        return { bg: '#FEE2E2', border: '#DC2626', text: '#991B1B' };
+      case 'archived':
+        return { bg: theme.surface, border: theme.border, text: theme.mutedText };
+      default:
+        return { bg: theme.surface, border: theme.border, text: theme.text };
     }
   };
 
@@ -339,6 +347,11 @@ function AdminAdsScreen() {
           )}
           
           <View style={{ flex: 1 }}>
+            {(() => {
+              const badge = getCompositeAdBadge(item.status, item.payment_status);
+              const badgeColors = getCompositeBadgeColors(badge.tone);
+              return (
+                <>
             <Text style={[styles.title, { color: theme.text }]}>{item.business_name || '(no name)'}</Text>
             <Text style={[styles.meta, { color: theme.mutedText }]} numberOfLines={1}>
               {item.contact_name || ''} {item.contact_email ? `· ${item.contact_email}` : ''}
@@ -348,21 +361,16 @@ function AdminAdsScreen() {
             </Text>
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
               <View style={[
-                styles.badgeSmall, 
-                { 
-                  backgroundColor: getStatusColor(item.status) + '20',
-                  borderColor: getStatusColor(item.status)
+                styles.badgeSmall,
+                {
+                  backgroundColor: badgeColors.bg,
+                  borderColor: badgeColors.border,
                 }
               ]}>
-                <Text style={[styles.badgeSmallText, { color: getStatusColor(item.status) }]}>
-                  {String(item.status || 'draft').toUpperCase()}
+                <Text style={[styles.badgeSmallText, { color: badgeColors.text }]}>
+                  {badge.label.toUpperCase()}
                 </Text>
               </View>
-              {item.payment_status && (
-                <View style={[styles.badgeSmall, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                  <Text style={[styles.badgeSmallText, { color: theme.text }]}>{String(item.payment_status).toUpperCase()}</Text>
-                </View>
-              )}
               {getModerationColors(item.banner_moderation_status) && (
                 <View
                   style={[
@@ -384,11 +392,19 @@ function AdminAdsScreen() {
                 </View>
               )}
             </View>
+            {item.payment_status ? (
+              <Text style={[styles.meta, { color: theme.mutedText, marginTop: 6 }]}>
+                Payment state: {String(item.payment_status).toUpperCase()}
+              </Text>
+            ) : null}
             {item.banner_moderation_status === 'flagged' && summarizeModerationLabels(item.banner_moderation_labels) ? (
               <Text style={[styles.meta, { color: '#B91C1C', marginTop: 6 }]}>
                 {summarizeModerationLabels(item.banner_moderation_labels)}
               </Text>
             ) : null}
+                </>
+              );
+            })()}
           </View>
         </View>
         
@@ -396,11 +412,6 @@ function AdminAdsScreen() {
           <>
             <View style={{ height: 12 }} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {item.status === 'approved' && (
-                <View style={[styles.badgeSmall, { backgroundColor: '#3b82f620', borderColor: '#3b82f6', paddingHorizontal: 12, paddingVertical: 6 }]}>
-                  <Text style={{ color: '#3b82f6', fontWeight: '600', fontSize: 13 }}>Awaiting payment</Text>
-                </View>
-              )}
               {item.status === 'pending' && (
                 <>
                   <Pressable
