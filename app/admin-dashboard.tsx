@@ -124,6 +124,13 @@ function AdminDashboardScreen() {
     return fallback;
   };
 
+  const isSessionExpiryError = (err: any) => {
+    const status = err?.status || err?.response?.status;
+    const serverData = err?.data || err?.response?.data;
+    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
+    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
+  };
+
   const handleApproveCoach = (coach: PendingCoach) => {
     setCoachNote('');
     setCoachModal({ coach, action: 'approve' });
@@ -156,6 +163,10 @@ function AdminDashboardScreen() {
       Alert.alert('Success', `Coach "${coach.display_name || coach.username || coach.email}" has been ${action === 'approve' ? 'approved' : 'rejected'}.`);
       void loadStats(true);
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry this approval.');
+        return;
+      }
       captureBreadcrumb('Admin coach approval action failed', 'admin.approval', {
         action,
         actor: 'admin_dashboard',
@@ -205,6 +216,10 @@ function AdminDashboardScreen() {
       });
       void loadStats(true);
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry this approval.');
+        return;
+      }
       captureBreadcrumb('Admin league approval action failed', 'admin.approval', {
         action,
         actor: 'admin_dashboard',
@@ -237,7 +252,11 @@ function AdminDashboardScreen() {
       setStats(data);
       setReportSpike(spike);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load dashboard');
+      setError(
+        isSessionExpiryError(e)
+          ? 'Your admin session expired. Please sign in again.'
+          : e?.message || 'Failed to load dashboard'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);

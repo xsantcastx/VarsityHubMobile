@@ -81,6 +81,13 @@ export default function ApprovalsScreen() {
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
 
+  const isSessionExpiryError = (err: any) => {
+    const status = err?.status || err?.response?.status;
+    const serverData = err?.data || err?.response?.data;
+    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
+    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
+  };
+
   // Load owned orgs, then pending coaches for each
   const loadData = useCallback(async () => {
     try {
@@ -111,7 +118,12 @@ export default function ApprovalsScreen() {
     } catch (err: any) {
       if (__DEV__) console.error('[Approvals] Load error:', err);
       if (mountedRef.current) {
-        Alert.alert('Error', err?.message || 'Failed to load approvals. Please try again.');
+        Alert.alert(
+          isSessionExpiryError(err) ? 'Session expired' : 'Error',
+          isSessionExpiryError(err)
+            ? 'Your approval session expired. Please sign in again, then retry.'
+            : err?.message || 'Failed to load approvals. Please try again.'
+        );
       }
     } finally {
       if (mountedRef.current) {
@@ -170,6 +182,10 @@ export default function ApprovalsScreen() {
         }
       }, 1200);
     } catch (err: any) {
+      if (isSessionExpiryError(err)) {
+        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
+        return;
+      }
       captureBreadcrumb('League owner coach approval failed', 'admin.approval', {
         action: 'approve',
         actor: 'league_owner',
@@ -214,6 +230,10 @@ export default function ApprovalsScreen() {
       setDeclineTarget(null);
       setDeclineReason('');
     } catch (err: any) {
+      if (isSessionExpiryError(err)) {
+        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
+        return;
+      }
       captureBreadcrumb('League owner coach rejection failed', 'admin.approval', {
         action: 'reject',
         actor: 'league_owner',
