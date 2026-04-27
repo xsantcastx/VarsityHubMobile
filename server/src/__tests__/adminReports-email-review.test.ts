@@ -161,4 +161,51 @@ describe('Admin abuse-report email review routes', () => {
     expect(audit?.admin_id).toBe(adminId);
     expect(audit?.admin_email).toBe(adminEmail);
   });
+
+  it('resolves a report when a signed-in admin POSTs without ?token= (dashboard path)', async () => {
+    const report = await createReport('[post:post_dashboard] spam');
+
+    const res = await request(app)
+      .post(`/admin/reports/${report.id}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'cleaned up' });
+
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'] || '')).toContain('application/json');
+    expect(res.body?.ok).toBe(true);
+
+    const updated = await prisma.abuseReport.findUnique({ where: { id: report.id } });
+    expect(updated?.status).toBe('resolved');
+    expect(updated?.reviewed_by).toBe(adminId);
+  });
+
+  it('returns JSON 401 when a non-admin POSTs without ?token=', async () => {
+    const fanHash = await bcrypt.hash(PASSWORD, 10);
+    const fan = await prisma.user.create({
+      data: {
+        email: `report-fan-${ts}@example.com`,
+        password_hash: fanHash,
+        display_name: 'Report Fan',
+        email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'fan', onboarding_completed: true },
+      },
+    });
+    const fanToken = signJwt({ id: fan.id });
+    const report = await createReport('[post:post_fan] noise');
+
+    try {
+      const res = await request(app)
+        .post(`/admin/reports/${report.id}/dismiss`)
+        .set('Authorization', `Bearer ${fanToken}`)
+        .send({});
+
+      expect(res.status).toBe(401);
+      expect(String(res.headers['content-type'] || '')).toContain('application/json');
+    } finally {
+      await prisma.user.delete({ where: { id: fan.id } }).catch(() => {});
+    }
+  });
 });

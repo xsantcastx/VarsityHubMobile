@@ -10,7 +10,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { adModerationLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireAdmin } from '../middleware/requireAdmin.js';
+import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -91,11 +91,26 @@ async function handleEmailReportReview(
     ? verifyReviewToken<{ reportId: string; action: string }>(token)
     : null;
   const expectedAction = action === 'dismiss' ? 'dismiss_abuse_report' : 'resolve_abuse_report';
+  const tokenValid = !!(token && payload && payload.reportId === id && payload.action === expectedAction);
 
-  if (!token || !payload || payload.reportId !== id || payload.action !== expectedAction) {
-    return res
-      .status(401)
-      .send(renderReportResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+  // Two callers: (1) email-link clicks render HTML; (2) admin dashboard sends JSON.
+  // Allow signed-in admins through without a token; keep email-link semantics otherwise.
+  let signedInAdmin = false;
+  if (!tokenValid && !token && req.user) {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true, email_verified: true },
+    });
+    signedInAdmin = !!(me?.email_verified && isEmailAdmin(me.email));
+  }
+
+  if (!tokenValid && !signedInAdmin) {
+    if (token) {
+      return res
+        .status(401)
+        .send(renderReportResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+    }
+    return res.status(401).json({ error: 'Admin login required.' });
   }
 
   const report = await prisma.abuseReport.findUnique({
@@ -110,23 +125,27 @@ async function handleEmailReportReview(
     },
   });
   if (!report) {
+    if (signedInAdmin) return res.status(404).json({ error: 'Abuse report not found' });
     return res.status(404).send(renderReportResultPage('Not Found', 'Abuse report not found.', false));
   }
 
   if (req.method === 'GET') {
-    return res.send(renderReportReviewPage(action, report, token));
+    if (!tokenValid) return res.status(405).json({ error: 'Method not allowed' });
+    return res.send(renderReportReviewPage(action, report, token!));
   }
 
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult === 'already_used') {
-    return res
-      .status(409)
-      .send(renderReportResultPage('Link Already Used', `This ${action} link has already been used.`, false));
-  }
-  if (consumeResult === 'store_unavailable') {
-    return res
-      .status(503)
-      .send(renderReportResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
+  if (tokenValid) {
+    const consumeResult = await consumeReviewToken(token!, payload!);
+    if (consumeResult === 'already_used') {
+      return res
+        .status(409)
+        .send(renderReportResultPage('Link Already Used', `This ${action} link has already been used.`, false));
+    }
+    if (consumeResult === 'store_unavailable') {
+      return res
+        .status(503)
+        .send(renderReportResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
+    }
   }
 
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
@@ -159,12 +178,18 @@ async function handleEmailReportReview(
     id,
     `${action === 'dismiss' ? 'Dismissed' : 'Resolved'} abuse report: ${report.subject}${note ? ` — ${note}` : ''}`,
     {
-      via: 'email_token',
+      via: signedInAdmin ? 'admin_dashboard' : 'email_token',
       status: nextStatus,
       resolution_note: note || null,
     }
   );
 
+  if (signedInAdmin) {
+    return res.json({
+      ok: true,
+      message: `Report ${report.id} ${action === 'dismiss' ? 'dismissed' : 'resolved'}`,
+    });
+  }
   return res.send(
     renderReportResultPage(
       action === 'dismiss' ? 'Report Dismissed' : 'Report Resolved',
