@@ -113,21 +113,41 @@ describe('Email template helpers', () => {
     expect(verifyJwt(token!)).toMatchObject({ coachId: 'user_123', action: 'reject_coach' });
   });
 
-  it('buildCoachJoinRequestReviewUrl points into the organization join-request app flow', async () => {
+  it('buildCoachJoinRequestReviewUrl issues a signed-token direct-action URL on the API host', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
     process.env.API_BASE_URL = 'https://api.varsityhub.app';
     const { buildCoachJoinRequestReviewUrl } = await import('../lib/email.js');
+    const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildCoachJoinRequestReviewUrl({
       organizationId: 'org_123',
       organizationName: 'Example League',
       requestId: 'req_456',
       action: 'approve',
     });
+    const parsed = new URL(url);
+    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.pathname).toBe('/organizations/join-requests/req_456/email/approve');
+    const token = parsed.searchParams.get('token');
+    expect(token).toBeTruthy();
+    expect(verifyJwt(token!)).toMatchObject({
+      requestId: 'req_456',
+      orgId: 'org_123',
+      action: 'approve_join_request',
+    });
+  });
+
+  it('buildCoachJoinRequestReviewUrl falls back to the app deep-link when no requestId is provided', async () => {
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
+    const { buildCoachJoinRequestReviewUrl } = await import('../lib/email.js');
+    const url = buildCoachJoinRequestReviewUrl({
+      organizationId: 'org_123',
+      organizationName: 'Example League',
+      action: 'reject',
+    });
     expect(url).toContain(`${railwayApiOrigin}/organization-join-requests`);
     expect(url).toContain('organization_id=org_123');
-    expect(url).toContain('organization_name=Example+League');
-    expect(url).toContain('request_id=req_456');
-    expect(url).toContain('action=approve');
+    expect(url).toContain('action=reject');
   });
 
   it('buildEventReviewUrl points into the event approvals app flow', async () => {

@@ -1473,13 +1473,36 @@ export function buildCoachJoinRequestReviewUrl(params: {
   organizationName?: string | null;
   requestId?: string | null;
   action?: 'approve' | 'reject';
+  token?: string;
 }): string {
-  return buildAppReviewUrl('/organization-join-requests', {
-    organization_id: params.organizationId,
-    organization_name: params.organizationName || undefined,
-    request_id: params.requestId || undefined,
-    action: params.action,
-  });
+  const action = params.action === 'reject' ? 'reject' : 'approve';
+  const requestId = String(params.requestId || '').trim();
+  // Without a requestId we can't sign a meaningful token — fall back to the
+  // app-handoff page (deep-link into the app for manual review).
+  if (!requestId) {
+    return buildAppReviewUrl('/organization-join-requests', {
+      organization_id: params.organizationId,
+      organization_name: params.organizationName || undefined,
+      action,
+    });
+  }
+  const token =
+    params.token ||
+    signReviewToken(
+      {
+        requestId,
+        orgId: params.organizationId,
+        action: action === 'reject' ? 'reject_join_request' : 'approve_join_request',
+      },
+      REVIEW_LINK_TTL
+    );
+  // Direct one-click review hosted on the API server. Mirrors the league
+  // approval pattern: signed token IS the authorization, owner does not
+  // need to sign in to the app to approve.
+  return buildWebScreenUrl(
+    `/organizations/join-requests/${encodeURIComponent(requestId)}/email/${action}`,
+    { token }
+  );
 }
 
 export function buildCoachApplicationReviewUrl(params: {

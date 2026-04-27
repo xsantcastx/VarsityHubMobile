@@ -2165,6 +2165,435 @@ organizationsRouter.post(
   })
 );
 
+// =====================================================
+// EMAIL-TOKEN COACH JOIN REQUEST REVIEW (no app login)
+// =====================================================
+//
+// Mirrors the league-approval pattern: signed review token in the email link
+// IS the authorization. Lets the league owner approve/reject a coach join
+// request directly from their inbox without needing the app to be reachable
+// or to be signed in. The reviewer of record is the org's active owner.
+//
+// Email URL builder: buildCoachJoinRequestReviewUrl in server/src/lib/email.ts
+
+function joinReviewHtml(title: string, body: string, color = '#111827'): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:520px;margin:60px auto;padding:24px;text-align:center;color:${color};">
+${body}
+</body></html>`;
+}
+
+async function _executeJoinRequestApprovalByToken(
+  requestId: string,
+  reviewerUserId: string
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const joinRequest = await prisma.organizationJoinRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      organization: true,
+      user: { select: { id: true, email: true, display_name: true, preferences: true } },
+    },
+  });
+  if (!joinRequest) return { ok: false, status: 404, error: 'Join request not found' };
+  if (joinRequest.status !== 'pending')
+    return { ok: false, status: 400, error: 'This request has already been reviewed' };
+  if (!joinRequest.organization.admin_approved)
+    return {
+      ok: false,
+      status: 403,
+      error: 'Organization must be approved by VarsityHub before accepting members.',
+    };
+
+  try {
+    await prisma.$transaction(
+      async tx => {
+        const fresh = await tx.organizationJoinRequest.findUnique({ where: { id: requestId } });
+        if (!fresh || fresh.status !== 'pending') {
+          throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
+        }
+        await tx.organizationJoinRequest.update({
+          where: { id: requestId },
+          data: { status: 'approved', reviewed_at: new Date(), reviewed_by: reviewerUserId },
+        });
+        await tx.organizationMembership.upsert({
+          where: {
+            organization_id_user_id: {
+              organization_id: joinRequest.organization_id,
+              user_id: joinRequest.user_id,
+            } as any,
+          },
+          update: { role: 'coach', status: 'active' },
+          create: {
+            organization_id: joinRequest.organization_id,
+            user_id: joinRequest.user_id,
+            role: 'coach',
+            status: 'active',
+          },
+        });
+        await tx.user.update({
+          where: { id: joinRequest.user_id },
+          data: {
+            approval_status: 'APPROVED',
+            paid_by_owner: true,
+            rejected_at: null,
+            rejection_reason: null,
+            preferences: buildApprovedCoachPreferences({
+              currentPrefs: joinRequest.user.preferences,
+              organization: {
+                id: joinRequest.organization_id,
+                name: joinRequest.organization.name,
+              },
+            }),
+            ...buildAuthStateColumns({
+              role: 'coach',
+              organization_id: joinRequest.organization_id,
+              proceeding_as_fan: false,
+            }),
+            ...buildBillingStateColumns({
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
+          },
+        });
+      },
+      { isolationLevel: 'Serializable' }
+    );
+  } catch (err: any) {
+    if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
+      return { ok: false, status: 400, error: 'This request has already been reviewed' };
+    }
+    throw err;
+  }
+
+  await invalidateMeCacheForUser(joinRequest.user_id);
+
+  if (joinRequest.user.email) {
+    sendCoachApprovedEmail({
+      to: joinRequest.user.email,
+      coachName: joinRequest.user.display_name || 'Coach',
+      leagueName: joinRequest.organization.name,
+    }).catch(err =>
+      console.error('[orgs] Failed to send coach approved email:', (err as any)?.message)
+    );
+  }
+  try {
+    await sendPushNotification(
+      joinRequest.user_id,
+      'Join Request Approved',
+      `Your request to join ${joinRequest.organization.name} was approved!`,
+      { type: 'join_request_approved', organization_id: joinRequest.organization_id }
+    );
+  } catch (err) {
+    console.error(
+      '[notif] Failed to send push for JOIN_REQUEST_APPROVED:',
+      (err as any)?.message || err
+    );
+  }
+  try {
+    await prisma.notification.create({
+      data: {
+        user_id: joinRequest.user_id,
+        actor_id: reviewerUserId,
+        type: 'JOIN_REQUEST_APPROVED',
+        meta: {
+          organization_id: joinRequest.organization_id,
+          organization_name: joinRequest.organization.name,
+        },
+      },
+    });
+  } catch (err) {
+    console.error(
+      '[notif] Failed to create JOIN_REQUEST_APPROVED notification:',
+      (err as any)?.message || err
+    );
+    captureException(err as Error, {
+      context: 'join_request_approval_notification_failed',
+      organizationId: joinRequest.organization_id,
+      userId: joinRequest.user_id,
+      actorId: reviewerUserId,
+    });
+  }
+
+  return { ok: true };
+}
+
+async function _executeJoinRequestDenialByToken(
+  requestId: string,
+  reviewerUserId: string,
+  reason?: string
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const joinRequest = await prisma.organizationJoinRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      organization: true,
+      user: { select: { id: true, email: true, display_name: true, preferences: true } },
+    },
+  });
+  if (!joinRequest) return { ok: false, status: 404, error: 'Join request not found' };
+  if (joinRequest.status !== 'pending')
+    return { ok: false, status: 400, error: 'This request has already been reviewed' };
+
+  try {
+    await prisma.$transaction(
+      async tx => {
+        const fresh = await tx.organizationJoinRequest.findUnique({ where: { id: requestId } });
+        if (!fresh || fresh.status !== 'pending') {
+          throw new Error('JOIN_REQUEST_ALREADY_REVIEWED');
+        }
+        await tx.organizationJoinRequest.update({
+          where: { id: requestId },
+          data: {
+            status: 'denied',
+            reviewed_at: new Date(),
+            reviewed_by: reviewerUserId,
+            rejection_reason: reason || null,
+          },
+        });
+        await tx.user.update({
+          where: { id: joinRequest.user.id },
+          data: {
+            approval_status: 'REJECTED',
+            paid_by_owner: false,
+            rejected_at: new Date(),
+            rejection_reason: reason || null,
+            preferences: buildRejectedCoachPreferences({
+              currentPrefs: joinRequest.user.preferences,
+              organization: {
+                id: joinRequest.organization_id,
+                name: joinRequest.organization.name,
+              },
+            }),
+            ...buildAuthStateColumns({
+              role: 'coach',
+              organization_id: joinRequest.organization_id,
+            }),
+          },
+        });
+      },
+      { isolationLevel: 'Serializable' }
+    );
+  } catch (err: any) {
+    if (err?.message === 'JOIN_REQUEST_ALREADY_REVIEWED') {
+      return { ok: false, status: 400, error: 'This request has already been reviewed' };
+    }
+    throw err;
+  }
+
+  await invalidateMeCacheForUser(joinRequest.user.id);
+
+  if (joinRequest.user.email) {
+    sendCoachRejectedEmail({
+      to: joinRequest.user.email,
+      coachName: joinRequest.user.display_name || 'Coach',
+      leagueName: joinRequest.organization.name,
+      reason: reason || undefined,
+    }).catch(err =>
+      console.error('[orgs] Failed to send coach rejected email:', (err as any)?.message)
+    );
+  }
+  try {
+    await sendPushNotification(
+      joinRequest.user.id,
+      'Join Request Declined',
+      `Your request to join ${joinRequest.organization.name} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
+      { type: 'join_request_denied', organization_id: joinRequest.organization_id }
+    );
+  } catch (err) {
+    console.error(
+      '[notif] Failed to send push for JOIN_REQUEST_DENIED:',
+      (err as any)?.message || err
+    );
+  }
+  try {
+    await prisma.notification.create({
+      data: {
+        user_id: joinRequest.user.id,
+        actor_id: reviewerUserId,
+        type: 'JOIN_REQUEST_DENIED',
+        meta: {
+          organization_id: joinRequest.organization_id,
+          organization_name: joinRequest.organization.name,
+          reason: reason || undefined,
+        },
+      },
+    });
+  } catch (err) {
+    console.warn('[organizations] Failed to create denial notification:', err);
+    captureException(err as Error, {
+      context: 'join_request_denial_notification_failed',
+      organizationId: joinRequest.organization_id,
+      userId: joinRequest.user.id,
+      actorId: reviewerUserId,
+      reason: reason || null,
+    });
+  }
+
+  return { ok: true };
+}
+
+async function joinRequestEmailReviewHandler(
+  req: AuthedRequest,
+  res: any,
+  action: 'approve' | 'reject'
+) {
+  const requestId = String(req.params.requestId);
+  const token = String((req.query.token as string) || '');
+  if (!token) {
+    return res
+      .status(401)
+      .send(
+        joinReviewHtml(
+          'Link Expired',
+          '<h1 style="color:#DC2626">Link Expired</h1><p>This approval link is missing or invalid.</p>',
+          '#DC2626'
+        )
+      );
+  }
+
+  const expectedAction = action === 'approve' ? 'approve_join_request' : 'reject_join_request';
+  const payload = verifyReviewToken<{ requestId: string; orgId: string; action: string }>(token);
+  if (!payload || payload.requestId !== requestId || payload.action !== expectedAction) {
+    return res
+      .status(401)
+      .send(
+        joinReviewHtml(
+          'Link Expired',
+          '<h1 style="color:#DC2626">Link Expired</h1><p>This approval link is no longer valid.</p>',
+          '#DC2626'
+        )
+      );
+  }
+
+  const joinRequest = await prisma.organizationJoinRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      organization: { select: { id: true, name: true, admin_approved: true } },
+      user: { select: { id: true, display_name: true, email: true } },
+    },
+  });
+  if (!joinRequest) {
+    return res
+      .status(404)
+      .send(
+        joinReviewHtml(
+          'Request Not Found',
+          '<h1>Request Not Found</h1><p>This coach join request no longer exists.</p>'
+        )
+      );
+  }
+
+  if (joinRequest.status !== 'pending') {
+    return res.send(
+      joinReviewHtml(
+        'Already Reviewed',
+        `<h1>Already ${joinRequest.status === 'approved' ? 'Approved' : 'Reviewed'}</h1><p>This request was already ${joinRequest.status}.</p>`
+      )
+    );
+  }
+
+  if (req.method === 'GET') {
+    const verb = action === 'approve' ? 'Approve' : 'Reject';
+    const color = action === 'approve' ? '#16A34A' : '#DC2626';
+    const form = `<h2>${verb} this coach request?</h2>
+<p style="margin:16px 0"><strong>${escapeHtml(joinRequest.user.display_name || 'Unknown coach')}</strong> wants to join <strong>${escapeHtml(joinRequest.organization.name)}</strong>.</p>
+<form method="POST" action="?token=${encodeURIComponent(token)}" style="margin-top:24px">
+  <button type="submit" style="background:${color};color:#fff;border:none;padding:14px 36px;border-radius:8px;font-size:16px;cursor:pointer;font-weight:600;">${verb}</button>
+</form>`;
+    return res.send(joinReviewHtml(`${verb} Coach Request`, form));
+  }
+
+  // POST: consume token, perform action
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(
+        joinReviewHtml(
+          'Link Already Used',
+          '<h1 style="color:#DC2626">Link Already Used</h1><p>This approval link has already been used.</p>',
+          '#DC2626'
+        )
+      );
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(
+        joinReviewHtml(
+          'Temporarily Unavailable',
+          '<h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This approval link cannot be completed right now. Please use the admin dashboard instead.</p>',
+          '#DC2626'
+        )
+      );
+  }
+
+  const ownerMembership = await prisma.organizationMembership.findFirst({
+    where: {
+      organization_id: joinRequest.organization_id,
+      role: 'owner',
+      status: 'active',
+    },
+    select: { user_id: true },
+  });
+  if (!ownerMembership) {
+    return res
+      .status(500)
+      .send(
+        joinReviewHtml(
+          'Owner Not Found',
+          '<h1 style="color:#DC2626">Error</h1><p>Could not identify the league owner. Please contact support.</p>',
+          '#DC2626'
+        )
+      );
+  }
+
+  const result =
+    action === 'approve'
+      ? await _executeJoinRequestApprovalByToken(requestId, ownerMembership.user_id)
+      : await _executeJoinRequestDenialByToken(requestId, ownerMembership.user_id);
+
+  if (!result.ok) {
+    return res
+      .status(result.status)
+      .send(
+        joinReviewHtml(
+          'Error',
+          `<h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p>`,
+          '#DC2626'
+        )
+      );
+  }
+
+  if (action === 'approve') {
+    return res.send(
+      joinReviewHtml(
+        'Coach Approved',
+        `<h1 style="color:#16A34A">Coach Approved</h1><p><strong>${escapeHtml(joinRequest.user.display_name || 'Coach')}</strong> has been added to <strong>${escapeHtml(joinRequest.organization.name)}</strong>.</p>`
+      )
+    );
+  }
+  return res.send(
+    joinReviewHtml(
+      'Request Declined',
+      `<h1>Request Declined</h1><p>${escapeHtml(joinRequest.user.display_name || 'Coach')}'s request to join <strong>${escapeHtml(joinRequest.organization.name)}</strong> was declined.</p>`
+    )
+  );
+}
+
+organizationsRouter.get('/join-requests/:requestId/email/approve', (req, res, next) => {
+  joinRequestEmailReviewHandler(req as AuthedRequest, res, 'approve').catch(next);
+});
+organizationsRouter.post('/join-requests/:requestId/email/approve', (req, res, next) => {
+  joinRequestEmailReviewHandler(req as AuthedRequest, res, 'approve').catch(next);
+});
+organizationsRouter.get('/join-requests/:requestId/email/reject', (req, res, next) => {
+  joinRequestEmailReviewHandler(req as AuthedRequest, res, 'reject').catch(next);
+});
+organizationsRouter.post('/join-requests/:requestId/email/reject', (req, res, next) => {
+  joinRequestEmailReviewHandler(req as AuthedRequest, res, 'reject').catch(next);
+});
+
 // -----------------------------------------------
 // POST /organizations/:id/transfer-ownership
 // -----------------------------------------------
