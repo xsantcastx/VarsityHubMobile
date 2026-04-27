@@ -37,6 +37,13 @@ function AdminAdsScreen() {
   // approval email opened in the same app session still works.
   const lastHandledLinkRef = useRef<string | null>(null);
 
+  const isSessionExpiryError = (err: any) => {
+    const status = err?.status || err?.response?.status;
+    const serverData = err?.data || err?.response?.data;
+    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
+    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
+  };
+
   const load = useCallback(async () => {
     if (!isAdmin) return;
     setLoading(true); setError(null);
@@ -106,6 +113,13 @@ function AdminAdsScreen() {
               const results = await Promise.allSettled(
                 pendingIds.map((adId) => AdsApi.review(adId, 'approve'))
               );
+              const sessionExpiry = results.find(
+                (r) => r.status === 'rejected' && isSessionExpiryError(r.reason)
+              );
+              if (sessionExpiry) {
+                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
+                return;
+              }
               const failed = results.filter((r) => r.status === 'rejected').length;
               if (failed > 0) {
                 Alert.alert('Partial Success', `Approved ${pendingIds.length - failed} ad(s), ${failed} failed`);
@@ -116,6 +130,10 @@ function AdminAdsScreen() {
               setBulkMode(false);
               await load();
             } catch (e: any) {
+              if (isSessionExpiryError(e)) {
+                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
+                return;
+              }
               Alert.alert('Error', e?.message || 'Failed to approve ads');
             } finally {
               setUpdating(false);
@@ -144,6 +162,13 @@ function AdminAdsScreen() {
               const results = await Promise.allSettled(
                 pendingIds.map((adId) => AdsApi.review(adId, 'reject'))
               );
+              const sessionExpiry = results.find(
+                (r) => r.status === 'rejected' && isSessionExpiryError(r.reason)
+              );
+              if (sessionExpiry) {
+                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
+                return;
+              }
               const failed = results.filter((r) => r.status === 'rejected').length;
               if (failed > 0) {
                 Alert.alert('Partial Success', `Rejected ${pendingIds.length - failed} ad(s), ${failed} failed`);
@@ -154,6 +179,10 @@ function AdminAdsScreen() {
               setBulkMode(false);
               await load();
             } catch (e: any) {
+              if (isSessionExpiryError(e)) {
+                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
+                return;
+              }
               Alert.alert('Error', e?.message || 'Failed to reject ads');
             } finally {
               setUpdating(false);
@@ -182,6 +211,13 @@ function AdminAdsScreen() {
               const results = await Promise.allSettled(
                 adIds.map((adId) => AdsApi.delete(adId))
               );
+              const sessionExpiry = results.find(
+                (r) => r.status === 'rejected' && isSessionExpiryError(r.reason)
+              );
+              if (sessionExpiry) {
+                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
+                return;
+              }
               const failed = results.filter((r) => r.status === 'rejected').length;
               if (failed > 0) {
                 Alert.alert('Partial Success', `Deleted ${adIds.length - failed} ad(s), ${failed} failed`);
@@ -192,6 +228,10 @@ function AdminAdsScreen() {
               setBulkMode(false);
               await load();
             } catch (e: any) {
+              if (isSessionExpiryError(e)) {
+                Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
+                return;
+              }
               Alert.alert('Error', e?.message || 'Failed to delete ads');
             } finally {
               setUpdating(false);
@@ -547,6 +587,10 @@ function AdminAdsScreen() {
                     Alert.alert('Success', `Ad ${action === 'approve' ? 'approved' : 'rejected'}`);
                     await load();
                   } catch (e: any) {
+                    if (isSessionExpiryError(e)) {
+                      Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry.');
+                      return;
+                    }
                     Alert.alert('Error', e?.message || `Failed to ${action}`);
                   } finally {
                     setReviewingAdId(null);

@@ -61,6 +61,13 @@ function OrganizationJoinRequestsScreen() {
   // approve button didn't work" on the second join-request email.
   const lastHandledLinkRef = useRef<string | null>(null);
 
+  const isSessionExpiryError = (err: any) => {
+    const status = err?.status || err?.response?.status;
+    const serverData = err?.data || err?.response?.data;
+    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
+    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
+  };
+
   const loadRequests = useCallback(async () => {
     // Guard: require organization_id
     if (!params.organization_id) {
@@ -160,6 +167,10 @@ function OrganizationJoinRequestsScreen() {
                 Alert.alert('Success', `${request.requester_name} has been added to your organization!`);
                 await loadRequests();
               } catch (err: any) {
+                if (isSessionExpiryError(err)) {
+                  Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
+                  return;
+                }
                 if (__DEV__) console.error('[OrganizationJoinRequests] Error approving request:', err);
                 captureException(err, { tags: { screen: 'organization-join-requests', action: 'approve' } });
                 Alert.alert('Error', err?.message || 'Failed to approve request');
@@ -194,6 +205,10 @@ function OrganizationJoinRequestsScreen() {
         Alert.alert('Request Rejected', `${rejectModal.request.requester_name} has been notified.`);
         await loadRequests();
       } catch (err: any) {
+        if (isSessionExpiryError(err)) {
+          Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
+          return;
+        }
         if (__DEV__) console.error('[OrganizationJoinRequests] Error rejecting request:', err);
         captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
         Alert.alert('Error', err?.message || 'Failed to reject request');

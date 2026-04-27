@@ -103,6 +103,13 @@ export default function EventApprovalsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const lastHandledLinkRef = useRef<string | null>(null);
 
+  const isSessionExpiryError = (err: any) => {
+    const status = err?.status || err?.response?.status;
+    const serverData = err?.data || err?.response?.data;
+    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
+    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
+  };
+
   // ── Loaders ──────────────────────────────────────────────────────────────
 
   const loadEventsFailedRef = useRef(false);
@@ -258,6 +265,10 @@ export default function EventApprovalsScreen() {
       Alert.alert('Approved', 'The event has been published.');
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
+        return;
+      }
       captureBreadcrumb('Event approval failed', 'admin.approval', {
         action: 'approve',
         actor: 'coach_tools',
@@ -308,6 +319,10 @@ export default function EventApprovalsScreen() {
       Alert.alert('Rejected', 'The event has been rejected.');
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.');
+        return;
+      }
       captureBreadcrumb('Event rejection failed', 'admin.approval', {
         action: 'reject',
         actor: 'coach_tools',
