@@ -6,6 +6,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { safeGoBack } from '@/utils/navigation';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -1648,10 +1649,11 @@ const GameDetailsScreen = () => {
       const serverMsg = err?.data?.message || '';
       const message = String(err?.message || code || '');
       if (status === 401 || /unauthorized/i.test(message)) {
-        Alert.alert('Session expired', 'Please sign in again to upload stories.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => void router.push('/sign-in') },
-        ]);
+        showUploadErrorAlert(err, {
+          fallbackTitle: 'Unable to add story',
+          fallbackMessage: 'Please sign in again to upload stories.',
+          logTag: 'story.upload.photo',
+        });
       } else if (code === 'POSTING_WINDOW_CLOSED') {
         Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
       } else if (code === 'TOO_FAR_FROM_VENUE') {
@@ -1752,10 +1754,11 @@ const GameDetailsScreen = () => {
       const serverMsg = err?.data?.message || '';
       const message = String(err?.message || code || '');
       if (status === 401 || /unauthorized/i.test(message)) {
-        Alert.alert('Session expired', 'Please sign in again to upload stories.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => void router.push('/sign-in') },
-        ]);
+        showUploadErrorAlert(err, {
+          fallbackTitle: 'Unable to add story',
+          fallbackMessage: 'Please sign in again to upload stories.',
+          logTag: 'story.upload.video',
+        });
       } else if (code === 'POSTING_WINDOW_CLOSED') {
         Alert.alert('Not Yet', serverMsg || 'The story posting window is not open for this event.');
       } else if (code === 'TOO_FAR_FROM_VENUE') {

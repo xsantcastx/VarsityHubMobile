@@ -623,6 +623,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const handleSessionExpired = useCallback(
     async (reason: SessionExpiredReason) => {
       const userBeforeExpiry = user;
+      const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
+      const isAuthEntryScreen =
+        currentPath === 'sign-in' ||
+        currentPath.startsWith('sign-in/') ||
+        currentPath === 'sign-up' ||
+        currentPath.startsWith('sign-up/');
       if (pushTokenTimeoutRef.current) {
         clearTimeout(pushTokenTimeoutRef.current);
         pushTokenTimeoutRef.current = null;
@@ -644,7 +650,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Only surface a message if the user was actually signed in — a
       // missing refresh token during a background bootstrap doesn't need
       // a toast ("you were never really signed in").
-      if (userBeforeExpiry) {
+      if (userBeforeExpiry && !isAuthEntryScreen) {
         try {
           showWarningToast('Your session expired. Please sign in again.');
         } catch {}
