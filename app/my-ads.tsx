@@ -39,6 +39,7 @@ function MyAdsScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const successOpacity = useRef(new Animated.Value(0)).current;
+  const hasLoadedOnceRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -64,9 +65,10 @@ function MyAdsScreen() {
     return userId ? `${base}_${userId}` : base;
   }, [userId]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const shouldBlock = !silent && !hasLoadedOnceRef.current;
+    if (shouldBlock) setLoading(true);
+    if (!silent) setLoadError(null);
     try {
       let serverAds: any[] | null = null;
       try {
@@ -108,10 +110,16 @@ function MyAdsScreen() {
       const map: Record<string, string[]> = {};
       for (const [id, dates] of entries) map[id] = dates;
       setDatesByAd(map);
+      hasLoadedOnceRef.current = true;
+      setLoadError(null);
     } catch (e: any) {
       if (__DEV__) console.error('[my-ads] Error loading ads:', e);
-      setLoadError('Unable to load your ads. Please try again.');
-    } finally { setLoading(false); }
+      if (!silent || !hasLoadedOnceRef.current) {
+        setLoadError('Unable to load your ads. Please try again.');
+      }
+    } finally {
+      if (shouldBlock) setLoading(false);
+    }
   }, [getLocalAdsKey]);
 
   useEffect(() => {
@@ -123,7 +131,7 @@ function MyAdsScreen() {
   // Auto-refresh when screen regains focus (e.g. after payment)
   useFocusEffect(
     useCallback(() => {
-      if (userLoaded) void load();
+      if (userLoaded && hasLoadedOnceRef.current) void load({ silent: true });
     }, [userLoaded, load])
   );
 
@@ -168,7 +176,7 @@ function MyAdsScreen() {
                 }
                 
                 // Reload the list
-                await load();
+                await load({ silent: true });
                 
                 Alert.alert('Success', 'Ad deleted successfully');
               } catch (error) {

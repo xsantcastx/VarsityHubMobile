@@ -493,8 +493,9 @@ async function request(
         throw error;
       }
 
-      // For retryable requests: Railway infrastructure can be temporarily unstable
-      // For critical endpoints (auth), allow more retries
+      // For retryable requests: Railway infrastructure can be temporarily unstable.
+      // Critical endpoints still have a higher 502 ceiling here, but the caller's
+      // retry budget remains the real cap on total attempts.
       const isCriticalEndpoint =
         path.includes('/auth/') ||
         path.includes('/me') ||
@@ -608,14 +609,15 @@ export function httpGet(
   retriesOverride?: number,
   behavior?: HttpBehaviorOptions
 ) {
-  // Allow more retries for critical endpoints (helps with Railway infrastructure errors)
-  // Critical endpoints get additional retries automatically in 502 handler
+  // Keep critical GETs on a short leash. These routes are called from many
+  // screens during startup/focus, so large retry budgets turn a transient
+  // outage into minutes of blocking spinners across the app.
   const isCriticalEndpoint =
     path.includes('/payments/') ||
     path.includes('/auth/') ||
     path.includes('/me') ||
     path.includes('/notifications');
-  const defaultRetries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
+  const defaultRetries = isCriticalEndpoint ? 1 : 3;
   const retries =
     typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
 

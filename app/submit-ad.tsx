@@ -105,7 +105,8 @@ function SubmitAdScreen() {
       let currentUserId: string | null = null;
       let normalizedEmail = email.trim().toLowerCase();
       // Quick-fail /me call (3s timeout, 0 retries) — only needed for local cache scoping.
-      // The default User.me() uses 5 retries × 30s timeout = up to 3 min blocking.
+      // Shared transport is now much less aggressive, but this path should still fail fast
+      // rather than delaying ad submission on a best-effort cache-prefill.
       try {
         const me: any = await httpGet('/me', {}, 3000, 0);
         currentUserId = me?.id ? String(me.id) : null;
