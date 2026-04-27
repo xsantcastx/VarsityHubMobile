@@ -102,7 +102,10 @@ function AdConfirmationScreen() {
   }, [params.ad_id, retryCount]);
 
   const businessName = adDetails?.business_name || params.businessName || 'Your Business';
-  const selectedDates = params.selectedDates || 'your selected dates';
+  const selectedDates =
+    Array.isArray(adDetails?.dates) && adDetails.dates.length > 0
+      ? adDetails.dates.join(', ')
+      : params.selectedDates || 'your selected dates';
   const totalAmount = params.totalAmount || '$0.00';
   const _parsedHours = parseInt(params.purchasedHours ?? '', 10);
   const purchasedHours = Number.isFinite(_parsedHours) ? _parsedHours : null;
