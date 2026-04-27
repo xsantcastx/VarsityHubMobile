@@ -30,6 +30,8 @@ export default function VerifyScreen() {
   const [isVerified, setIsVerified] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const verifyInFlightRef = useRef(false);
+  const resendInFlightRef = useRef(false);
 
   // If a user somehow lands here with email_verified already true (stale
   // route, manual deep link, backgrounded mid-flow), don't make them stare at
@@ -78,7 +80,8 @@ export default function VerifyScreen() {
   }, [params.delivery]);
 
   const onVerify = async () => {
-    if (!code.trim()) return;
+    if (!code.trim() || verifyInFlightRef.current) return;
+    verifyInFlightRef.current = true;
     setLoading(true); setError(null); setInfo(null);
 
     const startTime = Date.now();
@@ -141,11 +144,14 @@ export default function VerifyScreen() {
       
       setError(errorMsg);
     } finally {
+      verifyInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const onResend = async () => {
+    if (resendInFlightRef.current || resendCooldown > 0) return;
+    resendInFlightRef.current = true;
     setLoading(true); setError(null); setInfo(null);
 
     const startTime = Date.now();
@@ -191,6 +197,7 @@ export default function VerifyScreen() {
       
       setError(errorMsg);
     } finally {
+      resendInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -234,7 +241,7 @@ export default function VerifyScreen() {
               // v1.0.2 audit fix: auto-submit at 6 digits so users aren't stuck hunting for a button.
               setTimeout(() => {
                 Keyboard.dismiss();
-                if (!loading && !isVerified) {
+                if (!verifyInFlightRef.current && !isVerified) {
                   void onVerify();
                 }
               }, 150);
@@ -242,7 +249,7 @@ export default function VerifyScreen() {
           }}
           returnKeyType="done"
           onSubmitEditing={() => {
-            if (code.trim().length >= 6 && !loading && !isVerified) void onVerify();
+            if (code.trim().length >= 6 && !verifyInFlightRef.current && !isVerified) void onVerify();
           }}
           keyboardType="number-pad"
           maxLength={6}

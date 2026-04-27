@@ -18,6 +18,13 @@ const authApi = read('api/auth.ts');
 const signIn = read('app/sign-in.tsx');
 const signUp = read('app/sign-up.tsx');
 const appleAuth = read('hooks/useAppleAuth.ts');
+const verifyScreen = read('app/verify.tsx');
+const verifyIdentityScreen = read('app/verify-identity.tsx');
+const verificationGate = read('hooks/useVerificationGate.ts');
+const forgotPasswordScreen = read('app/forgot-password.tsx');
+const resetPasswordScreen = read('app/reset-password.tsx');
+const legacyResetScreen = read('app/reset.tsx');
+const manageSubscriptionScreen = read('app/settings/manage-subscription.tsx');
 
 describe('account boundary invariants', () => {
   describe('AuthProvider session replacement', () => {
@@ -94,6 +101,42 @@ describe('account boundary invariants', () => {
     it('apple auth preserves or reconstructs host-specific transport errors', () => {
       expect(appleAuth).toMatch(/err\?\.isNetworkError === true \|\| message\.startsWith\('Cannot connect to server'\)/);
       expect(appleAuth).toMatch(/Cannot connect to server at \$\{getApiBaseUrl\(\)\}\./);
+    });
+
+    it('verification screens synchronously guard against duplicate verify submissions', () => {
+      expect(verifyScreen).toMatch(/verifyInFlightRef/);
+      expect(verifyScreen).toMatch(/if \(!code\.trim\(\) \|\| verifyInFlightRef\.current\) return;/);
+      expect(verifyIdentityScreen).toMatch(/verifyInFlightRef/);
+      expect(verifyIdentityScreen).toMatch(/if \(!code\.trim\(\) \|\| verifyInFlightRef\.current\) return;/);
+    });
+
+    it('verification flows synchronously guard against duplicate resend requests', () => {
+      expect(verifyScreen).toMatch(/resendInFlightRef/);
+      expect(verifyIdentityScreen).toMatch(/resendInFlightRef/);
+      expect(verificationGate).toMatch(/resendInFlightRef/);
+      expect(verificationGate).toMatch(/if \(loading \|\| resendInFlightRef\.current \|\| resendCooldown > 0\) return;/);
+    });
+
+    it('forgot-password synchronously guards duplicate send/reset submissions', () => {
+      expect(forgotPasswordScreen).toMatch(/sendInFlightRef/);
+      expect(forgotPasswordScreen).toMatch(/resetInFlightRef/);
+      expect(forgotPasswordScreen).toMatch(/if \(sendInFlightRef\.current\) return;/);
+      expect(forgotPasswordScreen).toMatch(/if \(resetInFlightRef\.current\) return;/);
+    });
+
+    it('reset-password synchronously guards duplicate reset submissions', () => {
+      expect(resetPasswordScreen).toMatch(/submitInFlightRef/);
+      expect(resetPasswordScreen).toMatch(/if \(submitInFlightRef\.current\) return;/);
+    });
+
+    it('legacy /reset route hands off to /reset-password instead of maintaining a second reset UI', () => {
+      expect(legacyResetScreen).toMatch(/router\.replace\(`\/reset-password/);
+      expect(legacyResetScreen).not.toMatch(/User\.resetPassword/);
+    });
+
+    it('manage subscription routes unverified users into the guarded verify flow', () => {
+      expect(manageSubscriptionScreen).toMatch(/\{\s*text:\s*'Verify now', onPress: \(\) => void router\.push\('\/verify'\)\s*\}/);
+      expect(manageSubscriptionScreen).not.toMatch(/User\.requestVerification\(\)/);
     });
   });
 });

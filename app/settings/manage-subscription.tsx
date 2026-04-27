@@ -246,7 +246,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           'Email verification required',
           'You must verify your email before purchasing a plan.',
           [
-            { text: 'Resend verification', onPress: async () => { try { await User.requestVerification(); Alert.alert('Verification sent', 'Check your email for a verification link.'); } catch (error) { if (__DEV__) console.error('[manage-subscription] Failed to resend verification:', error); Alert.alert('Error', 'Unable to resend verification.'); } } },
+            { text: 'Verify now', onPress: () => void router.push('/verify') },
             { text: 'OK', style: 'cancel' },
           ]
         );

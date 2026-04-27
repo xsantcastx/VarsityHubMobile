@@ -94,6 +94,8 @@ export function useVerificationGate({
 
   const resolveRef = useRef<((value: boolean) => void) | null>(null);
   const pendingPromiseRef = useRef<Promise<boolean> | null>(null);
+  const verifyInFlightRef = useRef(false);
+  const resendInFlightRef = useRef(false);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -108,6 +110,8 @@ export function useVerificationGate({
     setError(null);
     setInfo(null);
     setResendCooldown(0);
+    verifyInFlightRef.current = false;
+    resendInFlightRef.current = false;
     const resolve = resolveRef.current;
     resolveRef.current = null;
     pendingPromiseRef.current = null;
@@ -124,7 +128,8 @@ export function useVerificationGate({
   }, [finish, onVerified]);
 
   const resend = useCallback(async () => {
-    if (loading) return;
+    if (loading || resendInFlightRef.current || resendCooldown > 0) return;
+    resendInFlightRef.current = true;
     setLoading(true);
     setError(null);
     setInfo(null);
@@ -142,12 +147,14 @@ export function useVerificationGate({
         setResendCooldown(30);
       }
     } finally {
+      resendInFlightRef.current = false;
       setLoading(false);
     }
-  }, [handleVerified, loading, requestCode]);
+  }, [handleVerified, loading, requestCode, resendCooldown]);
 
   const verify = useCallback(async () => {
-    if (loading || code.trim().length !== 6) return;
+    if (loading || verifyInFlightRef.current || code.trim().length !== 6) return;
+    verifyInFlightRef.current = true;
     setLoading(true);
     setError(null);
     setInfo(null);
@@ -161,6 +168,7 @@ export function useVerificationGate({
     } catch (confirmError: any) {
       setError(getConfirmErrorMessage(confirmError));
     } finally {
+      verifyInFlightRef.current = false;
       setLoading(false);
     }
   }, [code, confirmCode, handleVerified, loading]);

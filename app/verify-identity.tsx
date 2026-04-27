@@ -35,7 +35,10 @@ function VerifyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const verifyInFlightRef = useRef(false);
+  const resendInFlightRef = useRef(false);
 
   // Clear any errors from previous screens on mount
   useEffect(() => {
@@ -44,10 +47,16 @@ function VerifyScreen() {
     return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current); };
   }, []);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setTimeout(() => setResendCooldown(current => Math.max(0, current - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [resendCooldown]);
+
   // Require exactly 6-digit code for email verification
   const codeValid = code.trim().length === 6;
   const canVerify = !loading && codeValid;
-  const isResendDisabled = loading;
+  const isResendDisabled = loading || resendCooldown > 0;
 
   // Load dev code from params if available
   useEffect(() => {
@@ -59,7 +68,8 @@ function VerifyScreen() {
   }, [params.devCode]);
 
   const onVerify = async () => {
-    if (!code.trim()) return;
+    if (!code.trim() || verifyInFlightRef.current) return;
+    verifyInFlightRef.current = true;
     setLoading(true); setError(null); setInfo(null);
     try {
       await User.verifyEmail(code.trim());
@@ -98,11 +108,14 @@ function VerifyScreen() {
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
       setError(errorMsg);
     } finally {
+      verifyInFlightRef.current = false;
       setLoading(false);
     }
   };
 
   const onResend = async () => {
+    if (resendInFlightRef.current || resendCooldown > 0) return;
+    resendInFlightRef.current = true;
     setLoading(true); setError(null); setInfo(null);
     try {
       const res: any = await User.requestVerification();
@@ -116,10 +129,15 @@ function VerifyScreen() {
       } else {
         setInfo(__DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
       }
+      setResendCooldown(60);
     } catch (e: any) {
       const errorMsg = e?.message || e?.data?.error || 'Resend failed';
+      if (e?.status === 429) {
+        setResendCooldown(60);
+      }
       setError(errorMsg);
     } finally {
+      resendInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -199,7 +217,7 @@ function VerifyScreen() {
               if (cleaned.length === 6) {
                 setTimeout(() => {
                   Keyboard.dismiss();
-                  if (!loading && !isVerified) {
+                  if (!verifyInFlightRef.current && !isVerified) {
                     void onVerify();
                   }
                 }, 150);
@@ -207,7 +225,7 @@ function VerifyScreen() {
             }}
             returnKeyType="done"
             onSubmitEditing={() => {
-              if (code.trim().length >= 6 && !loading && !isVerified) void onVerify();
+              if (code.trim().length >= 6 && !verifyInFlightRef.current && !isVerified) void onVerify();
             }}
             keyboardType="number-pad"
             maxLength={6}
@@ -236,7 +254,7 @@ function VerifyScreen() {
                   isResendDisabled && styles.linkTextDisabled
                 ]}
               >
-                Resend Code
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
               </Text>
             </Pressable>
           </View>
