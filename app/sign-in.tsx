@@ -49,7 +49,7 @@ export default function SignInScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
-  const { signInWithApple, loading: appleLoading } = useAppleAuth();
+  const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
   const { user, checkAuth, registerPushToken, signOut } = useAuth();
   const insets = useSafeAreaInsets();
 
@@ -306,6 +306,15 @@ export default function SignInScreen() {
     if (appleLoading) return;
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
+      return;
+    }
+    // Race guard: useAppleAuth seeds `available` as false and resolves it
+    // asynchronously via AppleAuthentication.isAvailableAsync(). Without
+    // this gate, a fast tap on first paint can hit the "not available on
+    // this device" path even when the device would have been fine a moment
+    // later. Mirrors the existing guard in sign-up.tsx.
+    if (!appleReady) {
+      setError('Apple sign in is still initializing. Please try again in a moment.');
       return;
     }
     setError(null);
