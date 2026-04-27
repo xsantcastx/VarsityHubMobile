@@ -6,7 +6,7 @@ import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Pressable,
@@ -31,28 +31,28 @@ export default function ResetPasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const submitInFlightRef = useRef(false);
 
   const onSubmit = async () => {
+    if (submitInFlightRef.current) return;
     const trimmedEmail = email.trim();
     const trimmedCode = code.trim();
     if (!trimmedEmail || !trimmedCode) {
       setError('Enter your email and reset code.');
       return;
     }
-    
-    // Validate email format
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       setError('Please enter a valid email address.');
       return;
     }
-    
-    // Validate reset code — must be exactly 6 digits
+
     if (trimmedCode.length !== 6 || !/^\d{6}$/.test(trimmedCode)) {
       setError('Enter the 6-digit code from your email.');
       return;
     }
-    
+
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
@@ -61,6 +61,7 @@ export default function ResetPasswordScreen() {
       setError('Passwords do not match.');
       return;
     }
+    submitInFlightRef.current = true;
     setLoading(true);
     setError(null);
     setInfo(null);
@@ -71,6 +72,7 @@ export default function ResetPasswordScreen() {
     } catch (e: any) {
       setError(e?.message || 'Unable to reset password.');
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
     }
   };

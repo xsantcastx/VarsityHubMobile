@@ -7,7 +7,7 @@ import { validateEmail } from '@/utils/formUtils';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Pressable,
@@ -37,7 +37,15 @@ export default function ForgotPasswordScreen() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
+  // Synchronous in-flight guards. setLoading(true) is async (state batched),
+  // so a fast double-tap can fire two requests before React disables the
+  // button. These refs flip synchronously on the first invocation. Same
+  // pattern as sign-up and verify.
+  const sendInFlightRef = useRef(false);
+  const resetInFlightRef = useRef(false);
+
   const onSendCode = async () => {
+    if (sendInFlightRef.current) return;
     const trimmed = email.trim();
     if (!trimmed) {
       setSendError('Enter the email you use to sign in.');
@@ -48,6 +56,7 @@ export default function ForgotPasswordScreen() {
       setSendError(emailCheck.error || 'Please enter a valid email address.');
       return;
     }
+    sendInFlightRef.current = true;
     setSendLoading(true);
     setSendError(null);
     try {
@@ -78,10 +87,12 @@ export default function ForgotPasswordScreen() {
       }
     } finally {
       setSendLoading(false);
+      sendInFlightRef.current = false;
     }
   };
 
   const onResetPassword = async () => {
+    if (resetInFlightRef.current) return;
     const trimmedCode = code.trim();
     if (trimmedCode.length !== 6 || !/^\d{6}$/.test(trimmedCode)) {
       setResetError('Enter the 6-digit code from your email.');
@@ -95,6 +106,7 @@ export default function ForgotPasswordScreen() {
       setResetError('Passwords do not match.');
       return;
     }
+    resetInFlightRef.current = true;
     setResetLoading(true);
     setResetError(null);
     try {
@@ -104,6 +116,7 @@ export default function ForgotPasswordScreen() {
       setResetError(e?.message || 'Invalid or expired code. Please try again.');
     } finally {
       setResetLoading(false);
+      resetInFlightRef.current = false;
     }
   };
 
