@@ -223,7 +223,11 @@ export default function SignInScreen() {
         // stale binary" and "actually offline".
         setError(errMsg);
       } else if (errMsg.includes('Network') || errMsg.includes('timeout') || errMsg.includes('fetch')) {
-        setError('Unable to connect to server. Please check your internet connection.');
+        // Don't tell the user to "check your internet" — OfflineBanner owns
+        // that message and has real NetInfo evidence. If we hit this fallback,
+        // the device is online (banner would be up otherwise) and the request
+        // hiccupped without the http.ts rich-error tagging.
+        setError('Connection hiccup. Please try again.');
       } else if (status === 500 || errMsg.toLowerCase().includes('internal server')) {
         setError('Server is temporarily unavailable. Please try again in a moment.');
       } else {
@@ -310,7 +314,9 @@ export default function SignInScreen() {
         // host that failed — same fix as the email/password path in 012030df.
         setError(message);
       } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
-        setError('Unable to connect to server. Please check your internet connection.');
+        // OfflineBanner owns the "check your internet" message. See
+        // email-login fallback above for the full reasoning.
+        setError('Connection hiccup. Please try again.');
       } else if (message.includes('not configured')) {
         setError('Google sign-in is not configured. Please use email/password login.');
       } else if (oauthConflictMessage) {
@@ -406,7 +412,9 @@ export default function SignInScreen() {
         // Preserve host-specific transport error — same fix as 012030df.
         setError(message);
       } else if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
-        setError('Unable to connect to server. Please check your internet connection.');
+        // OfflineBanner owns the "check your internet" message. See
+        // email-login fallback above for the full reasoning.
+        setError('Connection hiccup. Please try again.');
       } else if (message.toLowerCase().includes('internal server') || e?.status === 500) {
         setError('Server is temporarily unavailable. Please try again in a moment.');
       } else if (oauthConflictMessage) {
