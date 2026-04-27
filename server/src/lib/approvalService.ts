@@ -407,7 +407,7 @@ export async function rejectOrganization(
  */
 export async function approveCoach(
   userId: string,
-  adminId: string,
+  adminId: string | null,
   prisma: PrismaClient,
   opts?: { note?: string },
 ) {
@@ -554,7 +554,7 @@ export async function approveCoach(
  */
 export async function rejectCoach(
   userId: string,
-  adminId: string,
+  adminId: string | null,
   prisma: PrismaClient,
   opts?: { reason?: string },
 ) {

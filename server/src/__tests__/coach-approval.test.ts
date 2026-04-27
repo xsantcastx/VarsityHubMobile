@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
+import { app as fullApp } from '../app.js';
 
 let prisma: any;
 let signJwt: any;
@@ -730,6 +731,129 @@ describe('Coach Approval Workflow', () => {
         await prisma.organizationMembership.deleteMany({ where: { organization_id: org.id } });
         await prisma.organization.delete({ where: { id: org.id } });
         await prisma.user.delete({ where: { id: owner.id } });
+      }
+    });
+  });
+
+  describe('Coach email-token reviewer attribution', () => {
+    it('leaves reviewed_by null when a token-only approval has no authenticated actor', async () => {
+      const coachHash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `token-only-coach-${ts}@example.com`,
+          password_hash: coachHash,
+          display_name: 'Token Only Coach',
+          email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+
+      const application = await prisma.coachApplication.create({
+        data: {
+          user_id: coach.id,
+          status: 'submitted',
+          organization_name: `Token Only League ${ts}`,
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+        },
+      });
+
+      const reviewToken = signJwt({ coachId: coach.id, action: 'approve_coach' }, '48h');
+
+      try {
+        const res = await request(fullApp)
+          .post(`/admin/coaches/${coach.id}/approve?token=${reviewToken}`)
+          .send();
+
+        expect(res.status).toBe(200);
+        expect(res.text).toMatch(/Coach Approved/i);
+
+        const applicationAfter = await prisma.coachApplication.findUnique({
+          where: { id: application.id },
+          select: { status: true, reviewed_by: true },
+        });
+        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.reviewed_by).toBeNull();
+      } finally {
+        await prisma.adminActivityLog.deleteMany({ where: { target_id: coach.id } }).catch(() => {});
+        await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
+        await prisma.user.delete({ where: { id: coach.id } }).catch(() => {});
+      }
+    });
+
+    it('uses the authenticated actor id when a token approval is opened from a signed-in session', async () => {
+      const coachHash = await bcrypt.hash(PASSWORD, 10);
+      const actorHash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `token-actor-coach-${ts}@example.com`,
+          password_hash: coachHash,
+          display_name: 'Token Actor Coach',
+          email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+      const actor = await prisma.user.create({
+        data: {
+          email: `token-actor-${ts}@example.com`,
+          password_hash: actorHash,
+          display_name: 'Token Actor',
+          email_verified: true,
+          role: 'fan',
+          onboarding_completed: true,
+          preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
+      });
+
+      const application = await prisma.coachApplication.create({
+        data: {
+          user_id: coach.id,
+          status: 'submitted',
+          organization_name: `Token Actor League ${ts}`,
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+        },
+      });
+
+      const reviewToken = signJwt({ coachId: coach.id, action: 'approve_coach' }, '48h');
+      const sessionToken = signJwt({ id: actor.id });
+
+      try {
+        const res = await request(fullApp)
+          .post(`/admin/coaches/${coach.id}/approve?token=${reviewToken}`)
+          .set('Authorization', `Bearer ${sessionToken}`)
+          .send();
+
+        expect(res.status).toBe(200);
+        expect(res.text).toMatch(/Coach Approved/i);
+
+        const applicationAfter = await prisma.coachApplication.findUnique({
+          where: { id: application.id },
+          select: { status: true, reviewed_by: true },
+        });
+        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.reviewed_by).toBe(actor.id);
+
+        const auditLog = await prisma.adminActivityLog.findFirst({
+          where: { target_id: coach.id, action: 'APPROVE_COACH' },
+          orderBy: { timestamp: 'desc' },
+          select: { admin_id: true, admin_email: true },
+        });
+        expect(auditLog?.admin_id).toBe(actor.id);
+        expect(auditLog?.admin_email).toBe(actor.email);
+      } finally {
+        await prisma.adminActivityLog.deleteMany({
+          where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
+        }).catch(() => {});
+        await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: { in: [coach.id, actor.id] } } }).catch(() => {});
       }
     });
   });

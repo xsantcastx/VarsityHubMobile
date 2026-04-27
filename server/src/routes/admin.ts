@@ -89,17 +89,26 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
   }
 
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;
+  const reviewerUserId = req.user?.id ?? null;
+  let reviewerEmail = 'email-token';
+  if (reviewerUserId) {
+    const reviewer = await prisma.user.findUnique({
+      where: { id: reviewerUserId },
+      select: { email: true },
+    });
+    reviewerEmail = reviewer?.email || reviewerEmail;
+  }
   const result =
     action === 'approve'
-      ? await approveCoach(id, 'email-token', prisma, { note })
-      : await rejectCoach(id, 'email-token', prisma, { reason: note });
+      ? await approveCoach(id, reviewerUserId, prisma, { note })
+      : await rejectCoach(id, reviewerUserId, prisma, { reason: note });
   if (result.error) {
     return res.status(result.status || 500).send(renderCoachResultPage('Error', result.error, false));
   }
 
   await logAdminActivity(
-    'email-token',
-    'email-token',
+    reviewerUserId || 'email-token',
+    reviewerEmail,
     action === 'approve' ? 'APPROVE_COACH' : 'REJECT_COACH',
     'user',
     id,
