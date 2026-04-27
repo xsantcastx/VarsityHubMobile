@@ -428,12 +428,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           await AsyncStorage.removeItem(ONBOARDING_COMPLETE_USER_KEY);
         }
 
-        // Clear stale onboarding context data when a DIFFERENT user needs onboarding
-        if (!serverComplete && me?.id) {
+        // Clear stale onboarding context data whenever the authed identity does
+        // not match the last identity that touched onboarding storage. Runs
+        // regardless of serverComplete because the keys are user-scoped — a
+        // returning fan should never inherit a previous coach's draft, even if
+        // the new account is already onboarded and never opens /onboarding.
+        if (me?.id) {
           const lastUserId = await AsyncStorage.getItem(LAST_ONBOARDING_USER_KEY);
           if (lastUserId && lastUserId !== me.id) {
             if (__DEV__)
-              console.log('[AuthProvider] Different user needs onboarding — clearing stale data');
+              console.log('[AuthProvider] Account changed — clearing stale onboarding data');
             await AsyncStorage.multiRemove([
               'onboarding_state',
               'onboarding_progress',

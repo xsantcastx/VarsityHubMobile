@@ -51,9 +51,14 @@ export default function OnboardingLayout() {
     );
   }
 
+  // Key OBProvider on user.id so React drops the entire onboarding state tree
+  // (provider state, reducer state, every screen's refs) the moment the auth
+  // identity changes. Belt-and-suspenders with the AsyncStorage clear in
+  // AuthProvider — even if the storage clear is missed for any reason, the
+  // in-memory state cannot bleed across accounts.
   return (
     <SafeAreaProvider>
-      <OBProvider>
+      <OBProvider key={user.id}>
         <Slot />
       </OBProvider>
     </SafeAreaProvider>
