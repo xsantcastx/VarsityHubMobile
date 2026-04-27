@@ -10,6 +10,14 @@ const organizations = readFileSync(
   join(process.cwd(), 'src', 'routes', 'organizations.ts'),
   'utf8'
 );
+const events = readFileSync(
+  join(process.cwd(), 'src', 'routes', 'events.ts'),
+  'utf8'
+);
+const games = readFileSync(
+  join(process.cwd(), 'src', 'routes', 'games.ts'),
+  'utf8'
+);
 
 const extractFunctionBody = (source: string, name: string): string => {
   const match = source.match(new RegExp(`export async function ${name}[\\s\\S]*?^\\}`, 'm'));
@@ -30,21 +38,38 @@ describe('approval notification guards', () => {
     'rejectCoach',
     'approveAd',
     'rejectAd',
+    'approveEvent',
+    'rejectEvent',
   ])('%s awaits the in-app notification helper instead of fire-and-forget create', (fnName) => {
     const body = extractFunctionBody(approvalService, fnName);
     expect(body).toMatch(/await createApprovalNotification\(prisma,\s*\{/);
   });
 
-  it('join-request approval captures in-app notification failures to Sentry', () => {
-    expect(organizations).toMatch(
-      /JOIN_REQUEST_APPROVED[\s\S]*?captureException\(err as Error,\s*\{[\s\S]*?context:\s*'join_request_approval_notification_failed'/
-    );
+  it('approvalService centralizes push failure capture', () => {
+    expect(approvalService).toMatch(/function reportPushFailure/);
+    expect(approvalService).toMatch(/context:\s*'approval_service_push_failed'/);
+  });
+
+  it('join-request approval routes notification failures through the shared reporter', () => {
+    expect(organizations).toMatch(/function reportApprovalNotificationFailure/);
+    expect(organizations).toMatch(/coach_join_request_approved_email_failed/);
+    expect(organizations).toMatch(/join_request_approval_push_failed/);
+    expect(organizations).toMatch(/join_request_approval_notification_failed/);
   });
 
   it('join-request denial captures in-app notification failures to Sentry', () => {
     expect(organizations).toMatch(
       /JOIN_REQUEST_DENIED[\s\S]*?captureException\(notifErr as Error,\s*\{[\s\S]*?context:\s*'join_request_denial_notification_failed'/
     );
+  });
+
+  it('email-token event and game review routes pass reviewer identity through instead of the sentinel string', () => {
+    expect(events).toMatch(/const reviewerUserId = req\.user\?\.id \?\? null;/);
+    expect(events).not.toMatch(/approveEventService\(eventId,\s*'email-token'/);
+    expect(events).not.toMatch(/rejectEventService\(eventId,\s*'email-token'/);
+
+    expect(games).toMatch(/const reviewerUserId = req\.user\?\.id \?\? null;/);
+    expect(games).not.toMatch(/action === 'approve' \? 'approved' : 'rejected',\s*'email-token'/);
   });
 
   it('ad approval and rejection fan out admin confirmation emails', () => {

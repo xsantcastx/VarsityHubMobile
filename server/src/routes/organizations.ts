@@ -44,6 +44,20 @@ import {
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
 
+function reportApprovalNotificationFailure(
+  channel: 'email' | 'push' | 'in_app',
+  context: string,
+  err: unknown,
+  extra: Record<string, unknown>,
+): void {
+  console.error(`[organizations] ${context} ${channel} failed:`, (err as any)?.message || err);
+  captureException(err instanceof Error ? err : new Error(String(err)), {
+    context,
+    notification_channel: channel,
+    ...extra,
+  });
+}
+
 // ---------------------------------------------
 // Duplicate Detection & Admin Helpers
 // ---------------------------------------------
@@ -2273,8 +2287,12 @@ async function _executeJoinRequestApprovalByToken(
       to: joinRequest.user.email,
       coachName: joinRequest.user.display_name || 'Coach',
       leagueName: joinRequest.organization.name,
-    }).catch(err =>
-      console.error('[orgs] Failed to send coach approved email:', (err as any)?.message)
+    }).catch((err) =>
+      reportApprovalNotificationFailure('email', 'coach_join_request_approved_email_failed', err, {
+        organizationId: joinRequest.organization_id,
+        userId: joinRequest.user_id,
+        actorId: reviewerUserId,
+      })
     );
   }
   try {
@@ -2285,10 +2303,11 @@ async function _executeJoinRequestApprovalByToken(
       { type: 'join_request_approved', organization_id: joinRequest.organization_id }
     );
   } catch (err) {
-    console.error(
-      '[notif] Failed to send push for JOIN_REQUEST_APPROVED:',
-      (err as any)?.message || err
-    );
+    reportApprovalNotificationFailure('push', 'join_request_approval_push_failed', err, {
+      organizationId: joinRequest.organization_id,
+      userId: joinRequest.user_id,
+      actorId: reviewerUserId,
+    });
   }
   try {
     await prisma.notification.create({
@@ -2303,12 +2322,7 @@ async function _executeJoinRequestApprovalByToken(
       },
     });
   } catch (err) {
-    console.error(
-      '[notif] Failed to create JOIN_REQUEST_APPROVED notification:',
-      (err as any)?.message || err
-    );
-    captureException(err as Error, {
-      context: 'join_request_approval_notification_failed',
+    reportApprovalNotificationFailure('in_app', 'join_request_approval_notification_failed', err, {
       organizationId: joinRequest.organization_id,
       userId: joinRequest.user_id,
       actorId: reviewerUserId,

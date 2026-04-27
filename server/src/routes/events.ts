@@ -143,10 +143,11 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
   }
 
   const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : undefined;
+  const reviewerUserId = req.user?.id ?? null;
   const result =
     action === 'approve'
-      ? await approveEventService(eventId, 'email-token', prisma)
-      : await rejectEventService(eventId, 'email-token', prisma, { reason });
+      ? await approveEventService(eventId, reviewerUserId, prisma)
+      : await rejectEventService(eventId, reviewerUserId, prisma, { reason });
   if (result.error) {
     return res.status(result.status || 400).send(renderEventResultPage('Error', result.error, false));
   }

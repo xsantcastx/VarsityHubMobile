@@ -56,7 +56,7 @@ function renderGameResultPage(title: string, message: string, success: boolean) 
 async function applyGameApprovalDecision(
   id: string,
   approvalStatus: 'approved' | 'rejected',
-  actingUserId: string,
+  actingUserId: string | null,
   reason?: string | null
 ) {
   const isApproved = approvalStatus === 'approved';
@@ -230,10 +230,11 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
   }
 
   const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).trim() : undefined;
+  const reviewerUserId = req.user?.id ?? null;
   const result = await applyGameApprovalDecision(
     id,
     action === 'approve' ? 'approved' : 'rejected',
-    'email-token',
+    reviewerUserId,
     reason
   );
   if ('error' in result) {

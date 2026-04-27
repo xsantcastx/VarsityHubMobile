@@ -58,6 +58,25 @@ function reportEmailFailure(
 }
 
 /**
+ * Standard error reporter for best-effort approval push notifications.
+ * Push failures must never block the approval write, but they do need
+ * Sentry visibility so delivery regressions are visible before users report
+ * them manually.
+ */
+function reportPushFailure(
+  notificationType: string,
+  err: unknown,
+  extra?: Record<string, unknown>,
+): void {
+  console.warn(`[approvalService] ${notificationType} push failed:`, (err as any)?.message || err);
+  captureException(err instanceof Error ? err : new Error(String(err)), {
+    context: 'approval_service_push_failed',
+    notification_type: notificationType,
+    ...(extra || {}),
+  });
+}
+
+/**
  * Check whether an organization is admin-approved.
  * Use this before team creation, coach approval, etc.
  */
@@ -284,7 +303,9 @@ export async function approveOrganization(
       'Organization Approved!',
       `Your organization "${org.name}" has been approved on VarsityHub.`,
       { type: 'org_approved', organization_id: orgId },
-    ).catch((err) => console.warn('[approvalService] org approved push failed:', (err as any)?.message || err));
+    ).catch((err) =>
+      reportPushFailure('org_approved', err, { user_id: org.leagueOwner?.id, org_id: orgId })
+    );
   }
 
   await notifyAllAdminsOfLeagueAction({
@@ -373,7 +394,13 @@ export async function rejectOrganization(
       'League Not Approved',
       `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
       { type: 'org_rejected', organization_id: orgId },
-    ).catch((err) => console.warn('[approvalService] org rejected push failed:', (err as any)?.message || err));
+    ).catch((err) =>
+      reportPushFailure('org_rejected', err, {
+        user_id: org.leagueOwner?.id,
+        org_id: orgId,
+        reason: reason || null,
+      })
+    );
   }
 
   if (org.leagueOwner?.email) {
@@ -544,7 +571,7 @@ export async function approveCoach(
     'Congratulations!',
     `Congratulations on being accepted as a coach! Tap to complete your setup.${note ? ` Note: ${note}` : ''}`,
     { type: 'coach_approved', screen: 'onboarding' },
-  ).catch((err) => console.warn('[approvalService] coach approved push failed:', (err as any)?.message || err));
+  ).catch((err) => reportPushFailure('coach_approved', err, { user_id: userId, admin_id: adminId }));
 
   return { ok: true, user };
 }
@@ -634,7 +661,13 @@ export async function rejectCoach(
     'Application Update',
     `Your coach application was not approved.${reason ? ` Reason: ${reason}` : ''}`,
     { type: 'coach_rejected', screen: 'onboarding' },
-  ).catch((err) => console.warn('[approvalService] coach rejected push failed:', (err as any)?.message || err));
+  ).catch((err) =>
+    reportPushFailure('coach_rejected', err, {
+      user_id: userId,
+      admin_id: adminId,
+      reason: reason || null,
+    })
+  );
 
   return { ok: true, user };
 }
@@ -748,7 +781,9 @@ export async function approveAd(
       'Ad Approved!',
       `Your ad for "${ad.business_name || 'your business'}" has been approved. Tap to complete payment.`,
       { type: 'ad_approved', ad_id: adId },
-    ).catch((err) => console.warn('[approvalService] ad approved push failed:', (err as any)?.message || err));
+    ).catch((err) =>
+      reportPushFailure('ad_approved', err, { ad_id: adId, user_id: ad.user_id, admin_id: adminId })
+    );
   }
 
   await notifyAllAdminsOfAdAction({
@@ -882,7 +917,14 @@ export async function rejectAd(
       'Ad Needs Changes',
       `Your ad for "${ad.business_name || 'your business'}" was not approved.${reason ? ` Reason: ${reason}` : ' Please review and resubmit.'}`,
       { type: 'ad_rejected', ad_id: adId },
-    ).catch((err) => console.warn('[approvalService] ad reject push failed:', (err as any)?.message || err));
+    ).catch((err) =>
+      reportPushFailure('ad_rejected', err, {
+        ad_id: adId,
+        user_id: ad.user_id,
+        admin_id: adminId,
+        reason: reason || null,
+      })
+    );
   }
 
   await notifyAllAdminsOfAdAction({
@@ -901,7 +943,7 @@ export async function rejectAd(
 
 export async function approveEvent(
   eventId: string,
-  adminId: string,
+  adminId: string | null,
   prisma: PrismaClient,
 ) {
   const event = await prisma.event.findUnique({ where: { id: eventId } });
@@ -948,11 +990,24 @@ export async function approveEvent(
       'Event Approved',
       `Your event "${updated.title}" has been approved and is now visible to everyone!`,
       { type: 'event_approved', event_id: eventId, screen: 'event-detail', event_id_param: eventId },
-    ).catch((err) => console.warn('[approvalService] event approved push failed:', err));
+    ).catch((err) =>
+      reportPushFailure('event_approved', err, {
+        event_id: eventId,
+        user_id: updated.creator_id,
+        admin_id: adminId,
+      })
+    );
 
-    prisma.notification.create({
-      data: { user_id: updated.creator_id, type: 'EVENT_APPROVED', meta: { event_id: eventId, event_title: updated.title } },
-    }).catch((err) => console.error('[approvalService] event approved in-app notification failed:', (err as any)?.message || err));
+    await createApprovalNotification(prisma, {
+      data: {
+        user_id: updated.creator_id,
+        type: 'EVENT_APPROVED',
+        meta: { event_id: eventId, event_title: updated.title },
+      },
+      errorMessage: 'event approved in-app notification failed',
+      sentryContext: 'event_approval_notification_failed',
+      extra: { eventId, userId: updated.creator_id, adminId },
+    });
 
     // Email
     const creator = (updated as any).creator;
@@ -975,7 +1030,7 @@ export async function approveEvent(
 
 export async function rejectEvent(
   eventId: string,
-  adminId: string,
+  adminId: string | null,
   prisma: PrismaClient,
   opts?: { reason?: string },
 ) {
@@ -1027,11 +1082,25 @@ export async function rejectEvent(
       'Event Not Approved',
       `Your event "${updated.title}" was not approved.${reasonText}`,
       { type: 'event_rejected', event_id: eventId, reason: reason || null, screen: 'event-detail', event_id_param: eventId },
-    ).catch((err) => console.warn('[approvalService] event rejected push failed:', err));
+    ).catch((err) =>
+      reportPushFailure('event_rejected', err, {
+        event_id: eventId,
+        user_id: updated.creator_id,
+        admin_id: adminId,
+        reason: reason || null,
+      })
+    );
 
-    prisma.notification.create({
-      data: { user_id: updated.creator_id, type: 'EVENT_REJECTED', meta: { event_id: eventId, event_title: updated.title, reason: reason || null } },
-    }).catch((err) => console.error('[approvalService] event rejected in-app notification failed:', (err as any)?.message || err));
+    await createApprovalNotification(prisma, {
+      data: {
+        user_id: updated.creator_id,
+        type: 'EVENT_REJECTED',
+        meta: { event_id: eventId, event_title: updated.title, reason: reason || null },
+      },
+      errorMessage: 'event rejected in-app notification failed',
+      sentryContext: 'event_rejection_notification_failed',
+      extra: { eventId, userId: updated.creator_id, adminId, reason: reason || null },
+    });
 
     const creator = (updated as any).creator;
     if (creator?.email) {
