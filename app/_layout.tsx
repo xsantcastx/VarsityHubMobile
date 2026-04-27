@@ -192,7 +192,6 @@ function RootLayout() {
                     <Stack.Screen name="sign-up" options={{ headerShown: false }} />
                     <Stack.Screen name="verify" options={{ headerShown: false }} />
                     <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                    <Stack.Screen name="reset" options={{ headerShown: false }} />
                     <Stack.Screen name="reset-password" options={{ headerShown: false }} />
                     {/* Payment screens - lazy loaded */}
                     <Stack.Screen name="payment-success" options={{ headerShown: false }} />
