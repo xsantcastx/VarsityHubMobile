@@ -22,6 +22,7 @@ import { useShareLink } from '@/hooks/useShareLink';
 import { safeGoBack } from '@/utils/navigation';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
+import { Image } from 'expo-image';
 import { Colors } from '@/constants/Colors';
 
 type EventItem = {
@@ -338,20 +339,32 @@ export default function EventDetailScreen() {
         )}
         {event && !loading && (
           <View style={{ gap: 8 }}>
-            {/* Match banner with persistent RSVP badge */}
-            <MatchBanner
-              leftImage={(event as any)?.homeLogo ?? null}
-              rightImage={(event as any)?.awayLogo ?? null}
-              leftName={(event as any)?.homeName ?? ''}
-              rightName={(event as any)?.awayName ?? ''}
-              leftScore={(event as any)?.game?.home_score ?? null}
-              rightScore={(event as any)?.game?.away_score ?? null}
-              height={220}
-              appearance="classic"
-              hero={false}
-              goingCount={attendeeCount}
-              onGoingPress={eventHasPassed ? undefined : () => setRsvpSheetVisible(true)}
-            />
+            {/* Use the event's uploaded/generated banner if present; fall back to
+                the team-logo MatchBanner for legacy events without a stored image. */}
+            {(event as any).banner_url || (event as any).cover_image_url ? (
+              <Image
+                source={{
+                  uri: (event as any).banner_url || (event as any).cover_image_url,
+                }}
+                style={{ width: '100%', height: 220, borderRadius: 12 }}
+                contentFit="cover"
+                accessibilityLabel={`Banner for ${event.title || 'event'}`}
+              />
+            ) : (
+              <MatchBanner
+                leftImage={(event as any)?.homeLogo ?? null}
+                rightImage={(event as any)?.awayLogo ?? null}
+                leftName={(event as any)?.homeName ?? ''}
+                rightName={(event as any)?.awayName ?? ''}
+                leftScore={(event as any)?.game?.home_score ?? null}
+                rightScore={(event as any)?.game?.away_score ?? null}
+                height={220}
+                appearance="classic"
+                hero={false}
+                goingCount={attendeeCount}
+                onGoingPress={eventHasPassed ? undefined : () => setRsvpSheetVisible(true)}
+              />
+            )}
 
             <Text style={[styles.title, { color: theme.text }]}>{event.title || 'Event'}</Text>
 
