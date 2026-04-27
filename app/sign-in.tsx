@@ -189,6 +189,12 @@ export default function SignInScreen() {
         } else {
           setError(banReason || 'This account has been banned. Please contact support@varsityhub.app.');
         }
+      } else if (e?.isNetworkError === true || errMsg.startsWith('Cannot connect to server')) {
+        // Preserve the host-specific transport error from api/http.ts so the
+        // banner reveals which API host failed to reach. Generic "check your
+        // internet" hides the difference between "wrong baked-in host on a
+        // stale binary" and "actually offline".
+        setError(errMsg);
       } else if (errMsg.includes('Network') || errMsg.includes('timeout') || errMsg.includes('fetch')) {
         setError('Unable to connect to server. Please check your internet connection.');
       } else if (status === 500 || errMsg.toLowerCase().includes('internal server')) {
