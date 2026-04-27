@@ -326,64 +326,6 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
 }));
 
 /**
- * POST /admin/coaches/:id/approve
- * Approve a pending coach application
- */
-adminRouter.post('/coaches/:id/approve', requireVerified as any, requireAdminMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    const { id } = req.params;
-    const { note } = req.body || {};
-
-    const result = await approveCoach(id, req.user?.id || 'unknown', prisma, { note });
-    if (result.error) return res.status(result.status || 500).json({ error: result.error });
-
-    // Log admin action via centralized logger (AUTH-3 — auto-resolves admin email)
-    const user = result.user!;
-    await logAdminActivityFromReq(req, 'APPROVE_COACH', 'user', id,
-      `Approved coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`);
-
-    return res.json({ ok: true, message: `Coach ${user.display_name || user.username} approved` });
-  } catch (error) {
-    console.error('[admin] Error approving coach:', error);
-    captureException(error instanceof Error ? error : new Error(String(error)), {
-      context: 'admin_approve_coach_failed',
-      coachId: req.params.id,
-      adminId: req.user?.id || null,
-    });
-    return res.status(500).json({ error: 'Failed to approve coach' });
-  }
-}));
-
-/**
- * POST /admin/coaches/:id/reject
- * Reject a pending coach application
- */
-adminRouter.post('/coaches/:id/reject', requireVerified as any, requireAdminMiddleware as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    const { id } = req.params;
-    const { note } = req.body || {};
-
-    const result = await rejectCoach(id, req.user?.id || 'unknown', prisma, { reason: note });
-    if (result.error) return res.status(result.status || 500).json({ error: result.error });
-
-    // Log admin action via centralized logger (AUTH-3 — auto-resolves admin email)
-    const user = result.user!;
-    await logAdminActivityFromReq(req, 'REJECT_COACH', 'user', id,
-      `Rejected coach: ${user.display_name || user.username || user.email}${note ? ` — ${note}` : ''}`);
-
-    return res.json({ ok: true, message: `Coach ${user.display_name || user.username} rejected` });
-  } catch (error) {
-    console.error('[admin] Error rejecting coach:', error);
-    captureException(error instanceof Error ? error : new Error(String(error)), {
-      context: 'admin_reject_coach_failed',
-      coachId: req.params.id,
-      adminId: req.user?.id || null,
-    });
-    return res.status(500).json({ error: 'Failed to reject coach' });
-  }
-}));
-
-/**
  * PATCH /admin/users/:id/parental-consent
  * Admin override for parental consent state. Lets support correct mistakes —
  * e.g., a parent accidentally clicked Deny, or a legitimate minor's guardian

@@ -120,6 +120,13 @@ describe('gateway audit invariants', () => {
       // account is still a liability.
       expect(admin).toMatch(/requireVerified/);
     });
+
+    it('coach review POST routes are registered exactly once', () => {
+      const approveMatches = admin.match(/adminRouter\.post\(\s*'\/coaches\/:id\/approve'/g) || [];
+      const rejectMatches = admin.match(/adminRouter\.post\(\s*'\/coaches\/:id\/reject'/g) || [];
+      expect(approveMatches).toHaveLength(1);
+      expect(rejectMatches).toHaveLength(1);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────
