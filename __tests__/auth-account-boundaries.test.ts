@@ -32,9 +32,15 @@ describe('account boundary invariants', () => {
       expect(authProvider).toMatch(/replaceSession\?:\s*boolean/);
     });
 
+    it('auth context exposes hasSession for persisted-token boundary checks', () => {
+      expect(authProvider).toMatch(/hasSession:\s*boolean/);
+      expect(authProvider).toMatch(/const\s*\[\s*hasSession,\s*setHasSession\s*\]\s*=\s*useState\(false\)/);
+    });
+
     it('replaceSession clears old local auth state before refreshing /me', () => {
       const block = authProvider.match(/const checkAuth = useCallback\([\s\S]{0,5000}/)?.[0] || '';
       expect(block).toMatch(/if\s*\(options\?\.replaceSession\)\s*\{[\s\S]{0,400}clearLocalAuthState\(\)/);
+      expect(block).toMatch(/setHasSession\(true\)/);
       expect(block).toMatch(/User\.me\(\{\s*force:\s*options\?\.replaceSession\s*===\s*true\s*\}\)/);
     });
 
@@ -72,13 +78,22 @@ describe('account boundary invariants', () => {
     });
 
     it('sign-in blocks Google OAuth when a user session already exists', () => {
-      expect(signIn).toMatch(/handleGoogleLogin[\s\S]{0,200}if\s*\(user\?\.id\)/);
+      expect(signIn).toMatch(/const\s+sessionGuardActive\s*=\s*hasSession/);
+      expect(signIn).toMatch(/handleGoogleLogin[\s\S]{0,200}if\s*\(sessionGuardActive\)/);
       expect(signIn).toMatch(/Sign out before using a different Google account on this device\./);
     });
 
     it('sign-up blocks Google OAuth when a user session already exists', () => {
-      expect(signUp).toMatch(/handleGoogleSignUp[\s\S]{0,200}if\s*\(user\?\.id\)/);
+      expect(signUp).toMatch(/const\s+sessionGuardActive\s*=\s*hasSession/);
+      expect(signUp).toMatch(/handleGoogleSignUp[\s\S]{0,200}if\s*\(sessionGuardActive\)/);
       expect(signUp).toMatch(/Sign out before using a different Google account on this device\./);
+    });
+
+    it('auth entry screens hide login controls when any persisted session exists', () => {
+      expect(signIn).toMatch(/\{sessionGuardActive \? \(/);
+      expect(signIn).toMatch(/\{!sessionGuardActive && Platform\.OS === 'ios' \? \(/);
+      expect(signUp).toMatch(/\{sessionGuardActive \? \(/);
+      expect(signUp).toMatch(/\{!sessionGuardActive && !showEmailForm \? \(/);
     });
 
     it('sign-in does not route off a stale catch(() => user) fallback', () => {

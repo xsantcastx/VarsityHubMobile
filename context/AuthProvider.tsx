@@ -23,7 +23,7 @@ import { httpGet, abortAllInflight } from '@/api/http';
 import { clearPostCacheOnLogout } from '@/context/PostCacheContext';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
-import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { analytics } from '@/utils/analytics';
 import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
 import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
 import { showWarningToast } from '@/components/ErrorToast';
@@ -87,6 +87,7 @@ interface AuthUser {
 
 export interface AuthContextType {
   user: AuthUser | null;
+  hasSession: boolean;
   pendingVerificationEmail: string | null;
   loading: boolean;
   healthOk: boolean;
@@ -122,6 +123,7 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [hasSession, setHasSession] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [healthOk, setHealthOk] = useState(true);
@@ -317,6 +319,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     abortAllInflight('sign_out_or_session_expiry');
     clearPostCacheOnLogout();
     setUser(null);
+    setHasSession(false);
     setSentryUser(null);
     analytics.reset();
     setPendingVerificationEmail(null);
@@ -366,6 +369,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       try {
         // If pending verification flag is set, store email and don't try to fetch user
         if (options?.pendingVerification && options?.email) {
+          setHasSession(true);
           setPendingVerificationEmail(options.email);
           setUser(null); // Don't set user until verification succeeds
           return;
@@ -393,6 +397,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           // subsequent /me refresh fails or resolves slowly.
           clearLocalAuthState();
         }
+        setHasSession(true);
 
         const me: any = await User.me({ force: options?.replaceSession === true });
         setHealthOk(true);
@@ -639,6 +644,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
       clearPostCacheOnLogout();
       setUser(null);
+      setHasSession(false);
       setSentryUser(null);
       analytics.reset();
       setPendingVerificationEmail(null);
@@ -1171,6 +1177,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const value = useMemo<AuthContextType>(
     () => ({
       user,
+      hasSession,
       pendingVerificationEmail,
       loading,
       healthOk,
@@ -1186,6 +1193,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }),
     [
       user,
+      hasSession,
       pendingVerificationEmail,
       loading,
       healthOk,

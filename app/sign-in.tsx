@@ -50,8 +50,9 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
-  const { user, checkAuth, registerPushToken, signOut } = useAuth();
+  const { user, hasSession, checkAuth, registerPushToken, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const sessionGuardActive = hasSession;
 
   const routeCurrentUser = async (resolvedUser?: any) => {
     const effectiveUser = resolvedUser || user;
@@ -96,6 +97,25 @@ export default function SignInScreen() {
     }
   };
 
+  const handleContinueExistingSession = async () => {
+    setError(null);
+    try {
+      const authUser = user || (await checkAuth());
+      if (authUser) {
+        await routeCurrentUser(authUser);
+        return;
+      }
+      setError('This device still has a saved session. Sign out before using a different login on this device.');
+    } catch (e: any) {
+      const message = e?.message || '';
+      if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
+        setError(message);
+        return;
+      }
+      setError('This device still has a saved session. Sign out before using a different login on this device.');
+    }
+  };
+
   const onSubmit = async () => {
     if (loading) return;
     // Same boundary as Google + Apple OAuth (handleGoogleLogin / handleAppleLogin).
@@ -105,7 +125,7 @@ export default function SignInScreen() {
     // registered server-side, causing pushes for both accounts to land on this
     // device. Force explicit sign-out so /auth/logout properly clears the
     // server-side push_token of the outgoing account.
-    if (user?.id) {
+    if (sessionGuardActive) {
       setError('Sign out before signing in to a different account on this device.');
       return;
     }
@@ -217,7 +237,7 @@ export default function SignInScreen() {
   };
 
   const handleGoogleLogin = async () => {
-    if (user?.id) {
+    if (sessionGuardActive) {
       setError('Sign out before using a different Google account on this device.');
       return;
     }
@@ -299,7 +319,7 @@ export default function SignInScreen() {
   };
 
   const handleAppleLogin = async () => {
-    if (user?.id) {
+    if (sessionGuardActive) {
       setError('Sign out before using a different Apple account on this device.');
       return;
     }
@@ -431,10 +451,10 @@ export default function SignInScreen() {
           </View>
 
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border, borderWidth: 2 }]}>
-            {user ? (
+            {sessionGuardActive ? (
               <AuthenticatedEntryGuard
-                email={user.email}
-                onContinue={() => void routeCurrentUser(user)}
+                email={user?.email}
+                onContinue={() => void handleContinueExistingSession()}
                 onSignOut={() => void handleSignOutToContinue()}
                 signingOut={signingOut}
               />
@@ -443,7 +463,7 @@ export default function SignInScreen() {
               <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
             ) : null}
 
-            {!user && Platform.OS === 'ios' ? (
+            {!sessionGuardActive && Platform.OS === 'ios' ? (
               <AppleAuthenticationButton
                 onPress={handleAppleLogin}
                 buttonType={AppleAuthenticationButtonType.SIGN_IN}
@@ -454,7 +474,7 @@ export default function SignInScreen() {
               />
             ) : null}
 
-            {!user && googleReady ? (
+            {!sessionGuardActive && googleReady ? (
               <Pressable
                 style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border, borderWidth: 2 }]}
                 onPress={handleGoogleLogin}
@@ -497,7 +517,7 @@ export default function SignInScreen() {
               </View>
             )}
 
-            {!user ? (
+            {!sessionGuardActive ? (
               <>
                 <View style={styles.divider}>
                   <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
@@ -583,7 +603,7 @@ export default function SignInScreen() {
             ) : null}
           </View>
 
-          {!user ? (
+          {!sessionGuardActive ? (
             <Pressable
               style={styles.footer}
               onPress={() => void router.replace('/sign-up')}

@@ -25,6 +25,7 @@ const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 
 const createAuthMock = (overrides: Partial<AuthContextType> = {}): AuthContextType => ({
   user: null,
+  hasSession: false,
   pendingVerificationEmail: null,
   loading: false,
   isAdmin: false,

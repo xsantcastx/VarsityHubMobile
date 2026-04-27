@@ -16,7 +16,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { useAuth } from '@/context/AuthProvider';
-import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { captureException } from '@/utils/sentry';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
@@ -37,7 +37,8 @@ export default function SignUpScreen() {
   const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
   const { trackTap } = useAnalytics();
-  const { user, checkAuth, signOut } = useAuth();
+  const { user, hasSession, checkAuth, signOut } = useAuth();
+  const sessionGuardActive = hasSession;
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -78,6 +79,25 @@ export default function SignUpScreen() {
       await signOut();
     } finally {
       setSigningOut(false);
+    }
+  };
+
+  const handleContinueExistingSession = async () => {
+    setError(null);
+    try {
+      const authUser = user || (await checkAuth());
+      if (authUser) {
+        await routeCurrentUser(authUser);
+        return;
+      }
+      setError('This device still has a saved session. Sign out before creating a different account on this device.');
+    } catch (e: any) {
+      const message = e?.message || '';
+      if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
+        setError(message);
+        return;
+      }
+      setError('This device still has a saved session. Sign out before creating a different account on this device.');
     }
   };
 
@@ -148,7 +168,7 @@ export default function SignUpScreen() {
     // A signed-in user creating a new account would silently switch
     // sessions; the prior account's push_token would remain registered
     // server-side, mixing notifications across accounts on this device.
-    if (user?.id) {
+    if (sessionGuardActive) {
       submitting.current = false;
       setError('Sign out before creating a different account on this device.');
       return;
@@ -225,7 +245,7 @@ export default function SignUpScreen() {
   };
 
   const handleGoogleSignUp = async () => {
-    if (user?.id) {
+    if (sessionGuardActive) {
       setError('Sign out before using a different Google account on this device.');
       return;
     }
@@ -251,7 +271,7 @@ export default function SignUpScreen() {
   };
 
   const handleAppleSignUp = async () => {
-    if (user?.id) {
+    if (sessionGuardActive) {
       setError('Sign out before using a different Apple account on this device.');
       return;
     }
@@ -296,10 +316,10 @@ export default function SignUpScreen() {
       <KeyboardAwareScreen contentContainerStyle={styles.content}>
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
-        {user ? (
+        {sessionGuardActive ? (
           <AuthenticatedEntryGuard
-            email={user.email}
-            onContinue={() => void routeCurrentUser()}
+            email={user?.email}
+            onContinue={() => void handleContinueExistingSession()}
             onSignOut={() => void handleSignOutToContinue()}
             signingOut={signingOut}
           />
@@ -321,7 +341,7 @@ export default function SignUpScreen() {
           </View>
         ) : null}
 
-        {!user && !showEmailForm ? (
+        {!sessionGuardActive && !showEmailForm ? (
           <>
           {/* TOS Agreement Checkbox */}
           <TouchableOpacity
@@ -443,7 +463,7 @@ export default function SignUpScreen() {
             <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
         </>
-        ) : !user ? (
+        ) : !sessionGuardActive ? (
           <>
           {/* Back Button */}
           <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)} accessibilityRole="button" accessibilityLabel="Back to sign up options" accessibilityHint="Double tap to return to Apple and Google options">
