@@ -26,6 +26,7 @@ import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { getLinkedProvidersSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
 import { getOAuthLinkErrorMessage } from '@/utils/oauthErrors';
+import { getCoachAccessState } from '@/utils/roleChecks';
 
 interface PendingHostRequest {
   id: string;
@@ -37,6 +38,9 @@ interface PendingHostRequest {
 interface UserMeResponse {
   email?: string;
   role?: string;
+  approval_status?: string | null;
+  required_coach_agreement_version?: number | null;
+  paid_by_owner?: boolean;
   display_name?: string;
   affiliation?: string;
   dob?: string | null;
@@ -212,6 +216,7 @@ export default function SettingsScreen() {
   });
   const [plan, setPlan] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [showCoachBilling, setShowCoachBilling] = useState(false);
   const [_pendingHostRequests, setPendingHostRequests] = useState<PendingHostRequest[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
   const [_pendingError, setPendingError] = useState<string | null>(null);
@@ -314,6 +319,12 @@ export default function SettingsScreen() {
       | string
       | null;
     setRole(effectiveRole);
+    const coachAccess = getCoachAccessState({
+      ...me,
+      role: effectiveRole,
+      preferences: serverPrefs,
+    });
+    setShowCoachBilling(coachAccess.isApprovedCoach);
     const linkedProviders = getLinkedProvidersSnapshot(me);
     setDeleteRequiresPassword(linkedProviders.password);
     setLinkedProviders(linkedProviders);
@@ -757,7 +768,7 @@ export default function SettingsScreen() {
           </SectionCard>
 
           {/* Billing (coaches only) */}
-          {role === 'coach' && (
+          {showCoachBilling && (
             <SectionCard title="Billing">
               <NavRow
                 title="Manage Subscription"

@@ -19,6 +19,7 @@ function PublicEventScreen() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [event, setEvent] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadEventData = useCallback(async () => {
     if (!params.id) return;
@@ -26,6 +27,7 @@ function PublicEventScreen() {
     try {
       const eventId = params.id;
       const isSampleEvent = /^sample-/i.test(eventId);
+      setLoadError(null);
       if (__DEV__)
         console.warn(
           '[public-event] loadEventData called | eventId:',
@@ -113,6 +115,11 @@ function PublicEventScreen() {
 
       const eventData = await Event.get?.(eventId).catch(() => null);
       setEvent(eventData);
+      if (!eventData && !isSampleEvent) {
+        setPosts([]);
+        setLoadError('This event is unavailable or has been removed.');
+        return;
+      }
 
       if (eventPosts && Array.isArray(eventPosts) && eventPosts.length > 0) {
         setPosts(eventPosts);
@@ -125,8 +132,9 @@ function PublicEventScreen() {
       }
     } catch (error) {
       if (__DEV__) console.error('Failed to load event', error);
-      const isSampleEvent = params.id && /^sample-/i.test(String(params.id));
-      setPosts(isSampleEvent ? [] : generateSamplePosts());
+      setEvent(null);
+      setPosts([]);
+      setLoadError('We could not load this event right now.');
     } finally {
       setLoading(false);
     }
@@ -147,47 +155,6 @@ function PublicEventScreen() {
       }
     }, [params?.id, loadEventData])
   );
-
-  const generateSamplePosts = () => {
-    const mediaUrls = [
-      'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400',
-      'https://images.unsplash.com/photo-1519861531473-9200262188bf?w=400',
-      'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
-      'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=400',
-    ];
-
-    return Array.from({ length: 8 }, (_, i) => ({
-      id: `public-sample-${i}`,
-      content:
-        i % 3 === 0
-          ? `Check out this amazing moment from our public event! Share the excitement with everyone. #PublicEvent #${i + 1}`
-          : `Great time at the event! #${i + 1}`,
-      media_url: i % 2 === 0 ? mediaUrls[i % mediaUrls.length] : null,
-      upvotes_count: Math.floor(Math.random() * 80),
-      comments_count: Math.floor(Math.random() * 40),
-      has_bookmarked: false,
-      author: {
-        id: `author-${i}`,
-        display_name: ['Chris Taylor', 'Morgan Davis', 'Casey Wilson'][i % 3],
-        avatar_url: `https://i.pravatar.cc/150?img=${i + 10}`,
-      },
-      poll:
-        i % 6 === 0
-          ? {
-              id: `poll-${i}`,
-              question: 'What was the best part?',
-              options: [
-                { id: `opt-${i}-1`, text: 'The atmosphere', votes: 45 },
-                { id: `opt-${i}-2`, text: 'The performance', votes: 67 },
-                { id: `opt-${i}-3`, text: 'Meeting fans', votes: 38 },
-              ],
-              totalVotes: 150,
-              endsAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-              userVote: null,
-            }
-          : null,
-    }));
-  };
 
   return (
     <SafeAreaView
@@ -265,6 +232,20 @@ function PublicEventScreen() {
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator />
+            </View>
+          ) : loadError ? (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>{loadError}</Text>
+              <Pressable
+                style={[styles.retryButton, { borderColor: Colors[colorScheme].border }]}
+                onPress={() => {
+                  void loadEventData();
+                }}
+              >
+                <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>
+                  Retry
+                </Text>
+              </Pressable>
             </View>
           ) : posts.length > 0 ? (
             <MasonryGrid
@@ -347,10 +328,25 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     alignItems: 'center',
   },
+  emptyState: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    gap: 12,
+  },
   emptyText: {
     textAlign: 'center',
     fontSize: 14,
-    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+  retryButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

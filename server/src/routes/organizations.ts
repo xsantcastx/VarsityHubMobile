@@ -1984,7 +1984,7 @@ organizationsRouter.post(
         const notif = await prisma.notification.create({
           data: {
             user_id: joinRequest.user_id,
-            actor_id: req.user?.id || null,
+            actor_id: null,
             type: 'JOIN_REQUEST_APPROVED',
             meta: {
               organization_id: joinRequest.organization_id,
@@ -2313,7 +2313,7 @@ async function _executeJoinRequestApprovalByToken(
     await prisma.notification.create({
       data: {
         user_id: joinRequest.user_id,
-        actor_id: reviewerUserId,
+        actor_id: null,
         type: 'JOIN_REQUEST_APPROVED',
         meta: {
           organization_id: joinRequest.organization_id,

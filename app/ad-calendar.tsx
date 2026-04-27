@@ -273,15 +273,7 @@ function AdCalendarScreen() {
   };
 
   const localSubtotal = useMemo(() => calculatePrice(selected), [selected]);
-  const subtotalCents = quote?.subtotal_cents ?? Math.round(localSubtotal * 100);
-  const taxCents = quote?.tax_cents ?? 0;
-  const discountCents = quote?.discount_cents ?? (preview?.valid ? (preview.discount_cents || 0) : 0);
-  const totalCents = quote?.total_cents ?? Math.max(0, subtotalCents - discountCents);
-  const effective = useMemo(() => totalCents / 100, [totalCents]);
-  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
-  const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
-  const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
-  const submitForApprovalDisabled = submitting || selected.size === 0;
+  const estimatedSubtotalCents = Math.round(localSubtotal * 100);
   const isPending = adStatus === 'pending';
   const isApproved = adStatus === 'approved';
   const isDraft = adStatus === 'draft' || adStatus === null;
@@ -289,6 +281,33 @@ function AdCalendarScreen() {
   const isRejected = adStatus === 'rejected';
   const isArchived = adStatus === 'archived';
   const canPay = isApproved || isActive; // Once approved, no re-approval for future runs
+  const requiresAuthoritativeQuote = !!adId && !adId.startsWith('local-') && selected.size > 0;
+  const subtotalCents = quote?.subtotal_cents ?? (requiresAuthoritativeQuote ? null : estimatedSubtotalCents);
+  const taxCents = quote?.tax_cents ?? null;
+  const discountCents =
+    quote?.discount_cents ??
+    (preview?.valid && !requiresAuthoritativeQuote ? (preview.discount_cents || 0) : null);
+  const totalCents =
+    quote?.total_cents ??
+    (requiresAuthoritativeQuote ? null : Math.max(0, estimatedSubtotalCents - (discountCents || 0)));
+  const effective = useMemo(() => (totalCents == null ? null : totalCents / 100), [totalCents]);
+  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
+  const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
+  const quoteUnavailable = requiresAuthoritativeQuote && !quoteLoading && quote == null;
+  const checkoutPricePending = canPay && (quoteLoading || quoteUnavailable);
+  const payButtonLabel = paymentsTemporarilyDisabled
+    ? 'Checkout unavailable'
+    : quoteLoading
+      ? 'Confirming final total...'
+      : quoteUnavailable
+        ? 'Final total unavailable'
+        : `Pay $${(effective ?? 0).toFixed(2)}`;
+  const payButtonDisabled =
+    submitting ||
+    selected.size === 0 ||
+    paymentsTemporarilyDisabled ||
+    checkoutPricePending;
+  const submitForApprovalDisabled = submitting || selected.size === 0;
 
   const theme = Colors[colorScheme];
   React.useEffect(() => {
@@ -301,6 +320,7 @@ function AdCalendarScreen() {
 
     const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
     setQuoteLoading(true);
+    setQuote(null);
     void (async () => {
       try {
         const data: any = await httpPost('/payments/ad-quote', {
@@ -525,6 +545,14 @@ function AdCalendarScreen() {
       return;
     }
 
+    if (requiresAuthoritativeQuote && (quoteLoading || !quote || totalCents == null)) {
+      Alert.alert(
+        'Final Total Pending',
+        'We are still confirming the final checkout total with the server. Please wait a moment and try again.'
+      );
+      return;
+    }
+
     // Guard against local-only ad IDs that were never persisted to the server
     if (adId.startsWith('local-')) {
       Alert.alert('Ad Not Saved', 'This ad was not saved to the server. Please go back and re-submit your ad.');
@@ -624,7 +652,7 @@ function AdCalendarScreen() {
           if (result.error) Alert.alert('Payment Error', result.error);
           return;
         }
-        const paidAmount = `$${(totalCents / 100).toFixed(2)}`;
+        const paidAmount = `$${((totalCents ?? 0) / 100).toFixed(2)}`;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), totalAmount: paidAmount } });
         return;
       }
@@ -1111,13 +1139,23 @@ function AdCalendarScreen() {
           <View style={[styles.sep, { backgroundColor: Colors[colorScheme].border }]} />
 
           <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Subtotal:</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: Colors[colorScheme].text }}>${(subtotalCents / 100).toFixed(2)}</Text>
+            <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Estimated Block Total:</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>
+              ${((estimatedSubtotalCents || 0) / 100).toFixed(2)}
+            </Text>
           </View>
-          {quoteLoading ? (
+          <View style={styles.rowBetween}>
+            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Subtotal:</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: subtotalCents == null ? Colors[colorScheme].mutedText : Colors[colorScheme].text }}>
+              {subtotalCents == null ? (quoteLoading ? 'Calculating...' : 'Unavailable') : `$${(subtotalCents / 100).toFixed(2)}`}
+            </Text>
+          </View>
+          {quoteLoading || taxCents == null ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Tax:</Text>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].mutedText }}>Calculating...</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].mutedText }}>
+                {quoteLoading ? 'Calculating...' : 'Unavailable'}
+              </Text>
             </View>
           ) : taxCents > 0 ? (
             <View style={styles.rowBetween}>
@@ -1125,7 +1163,7 @@ function AdCalendarScreen() {
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           ) : null}
-          {preview?.valid ? (
+          {(discountCents || 0) > 0 ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Promo Discount:</Text>
               <Text style={{ fontSize: 16, color: '#10B981', fontWeight: '700' }}>- ${((discountCents || 0) / 100).toFixed(2)}</Text>
@@ -1133,12 +1171,16 @@ function AdCalendarScreen() {
           ) : null}
           <View style={styles.rowBetween}>
             <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>
-              {quoteLoading ? 'Calculating...' : `$${effective.toFixed(2)}`}
+            <Text style={{ fontSize: 22, fontWeight: '800', color: totalCents == null ? Colors[colorScheme].mutedText : Colors[colorScheme].text }}>
+              {totalCents == null ? (quoteLoading ? 'Calculating...' : 'Unavailable') : `$${effective?.toFixed(2)}`}
             </Text>
           </View>
-          {!quoteLoading && quote == null && (
-            <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 2 }}>Tax is confirmed at checkout.</Text>
+          {canPay && (
+            <Text style={{ fontSize: 11, color: quoteUnavailable ? '#B91C1C' : Colors[colorScheme].mutedText, marginTop: 2 }}>
+              {quoteUnavailable
+                ? 'We could not confirm the final checkout total. Refresh this screen or reselect dates before paying.'
+                : 'Checkout uses the server-confirmed total shown here.'}
+            </Text>
           )}
 
           {isPending && (
@@ -1196,7 +1238,7 @@ function AdCalendarScreen() {
                 disabled={payButtonDisabled}
                 onPress={handlePayment}
                 accessibilityRole="button"
-                accessibilityLabel={paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
+                accessibilityLabel={payButtonLabel}
                 style={[
                   styles.payBtn,
                   { backgroundColor: Colors[colorScheme].tint },
@@ -1206,9 +1248,7 @@ function AdCalendarScreen() {
                 {submitting ? (
                   <ActivityIndicator />
                 ) : (
-                  <Text style={styles.payBtnText}>
-                    {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
-                  </Text>
+                  <Text style={styles.payBtnText}>{payButtonLabel}</Text>
                 )}
               </Pressable>
               {paymentsTemporarilyDisabled && (

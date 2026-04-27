@@ -40,8 +40,10 @@ import * as Location from 'expo-location';
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { getNotificationHref, getNotificationTitle } from '@/utils/notificationPresentation';
+import { getNotificationHref, getNotificationTitle, isSystemNotification } from '@/utils/notificationPresentation';
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
+
+const VARSITYHUB_LOGO = require('../assets/images/logo.png');
 
 type GameItem = {
   id: string;
@@ -2148,7 +2150,14 @@ export default function FeedScreen() {
                           />
                         </View>
                         {/* Overlay actual image — if it fails, fallback stays visible */}
-                        {item.actor?.avatar_url ? (
+                        {(isSystemNotification(item) || !item.actor) ? (
+                          <Image
+                            source={VARSITYHUB_LOGO}
+                            style={[styles.listAvatar, { position: 'absolute', top: 0, left: 0 }]}
+                            contentFit="cover"
+                            accessibilityLabel="VarsityHub"
+                          />
+                        ) : item.actor?.avatar_url ? (
                           <Image
                             source={{ uri: item.actor.avatar_url }}
                             style={[styles.listAvatar, { position: 'absolute', top: 0, left: 0 }]}

@@ -1225,6 +1225,7 @@ const COACH_EDITABLE_FIELDS = [
   'latitude',
   'longitude',
   'description',
+  'banner_url',
   'opponent',
   'away_team_id',
   'away_team_name',
@@ -1300,7 +1301,7 @@ eventsRouter.patch(
           return res.status(403).json({
             error: 'Limited edit scope',
             message:
-              'Coaches and team owners can only edit time, location, description, and opponent for approved events.',
+              'Coaches and team owners can only edit time, location, description, photo, and opponent for approved events.',
             disallowed,
           });
         }

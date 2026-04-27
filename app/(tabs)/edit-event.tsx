@@ -1,10 +1,15 @@
 import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { getApiBaseUrl } from '@/api/http';
+import { uploadFile } from '@/api/upload';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore
@@ -22,6 +27,8 @@ export default function EditEventScreen() {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [dateStr, setDateStr] = useState('');
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [event, setEvent] = useState<any>(null);
 
   const loadEvent = useCallback(async () => {
@@ -43,6 +50,7 @@ export default function EditEventScreen() {
       setTitle(data.title || '');
       setDescription(data.description || '');
       setLocation(data.location || '');
+      setBannerUrl(data.banner_url || data.cover_image_url || null);
       // Format date for editing — show ISO local datetime string
       if (data.date) {
         const d = new Date(data.date);
@@ -68,6 +76,97 @@ export default function EditEventScreen() {
     void loadEvent();
   }, [loadEvent]);
 
+  const uploadBannerFromUri = useCallback(async (uri: string) => {
+    setUploadingBanner(true);
+    try {
+      const localUri = await materializeICloudAssetIfNeeded(uri);
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 1600 } }],
+        { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const uploadResult = await uploadFile(
+        getApiBaseUrl(),
+        manipulatedImage.uri,
+        'event-banner.jpg',
+        'image/jpeg'
+      );
+      const nextUrl = uploadResult?.url || uploadResult?.path;
+      if (!nextUrl) {
+        throw new Error('Upload failed - no URL returned');
+      }
+      setBannerUrl(nextUrl);
+    } finally {
+      setUploadingBanner(false);
+    }
+  }, []);
+
+  const pickBannerFromLibrary = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Photo library permission is needed to upload an event photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.9,
+      exif: false,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      try {
+        await uploadBannerFromUri(result.assets[0].uri);
+      } catch (error: any) {
+        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
+      }
+    }
+  }, [uploadBannerFromUri]);
+
+  const takeBannerPhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Camera permission is needed to take an event photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.9,
+      exif: false,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      try {
+        await uploadBannerFromUri(result.assets[0].uri);
+      } catch (error: any) {
+        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
+      }
+    }
+  }, [uploadBannerFromUri]);
+
+  const showBannerOptions = useCallback(() => {
+    Alert.alert(
+      'Event Photo',
+      'Choose how you want to update the event photo.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Photo Library', onPress: () => void pickBannerFromLibrary() },
+        { text: 'Take Photo', onPress: () => void takeBannerPhoto() },
+      ]
+    );
+  }, [pickBannerFromLibrary, takeBannerPhoto]);
+
   const onSubmit = async () => {
     if (!title.trim()) {
       Alert.alert('Title required', 'Please enter an event title.');
@@ -91,6 +190,7 @@ export default function EditEventScreen() {
         title: title.trim(),
         description: description.trim() || undefined,
         location: location.trim() || undefined,
+        banner_url: bannerUrl ?? null,
       };
       if (parsedDate) {
         updateData.date = parsedDate;
@@ -175,6 +275,61 @@ export default function EditEventScreen() {
             </View>
 
             <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Event Photo</Text>
+              <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+                Update the image used on the event card and background so edited events do not stay blank.
+              </Text>
+              <View
+                style={[
+                  styles.bannerCard,
+                  {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
+                {bannerUrl ? (
+                  <Image source={{ uri: bannerUrl }} style={styles.bannerPreview} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.bannerEmptyState, { backgroundColor: Colors[colorScheme].background }]}>
+                    <MaterialIcons
+                      name="image"
+                      size={28}
+                      color={Colors[colorScheme].mutedText}
+                    />
+                    <Text style={[styles.bannerEmptyText, { color: Colors[colorScheme].mutedText }]}>
+                      No event photo uploaded yet
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.bannerActionRow}>
+                  <Pressable
+                    style={[styles.bannerPrimaryButton, { backgroundColor: Colors[colorScheme].tint }]}
+                    onPress={showBannerOptions}
+                    disabled={uploadingBanner}
+                  >
+                    <MaterialIcons name="photo-camera" size={16} color="#FFFFFF" />
+                    <Text style={styles.bannerPrimaryButtonText}>
+                      {uploadingBanner ? 'Uploading...' : bannerUrl ? 'Change Photo' : 'Upload Photo'}
+                    </Text>
+                  </Pressable>
+                  {bannerUrl ? (
+                    <Pressable
+                      style={[styles.bannerSecondaryButton, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => setBannerUrl(null)}
+                      disabled={uploadingBanner}
+                    >
+                      <MaterialIcons name="delete-outline" size={16} color={Colors[colorScheme].text} />
+                      <Text style={[styles.bannerSecondaryButtonText, { color: Colors[colorScheme].text }]}>
+                        Remove
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Location</Text>
               <TextInput
                 style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
@@ -205,11 +360,15 @@ export default function EditEventScreen() {
           {/* Submit Button */}
           <View style={styles.submitSection}>
             <Pressable
-              style={[styles.submitButton, { backgroundColor: Colors[colorScheme].tint }, submitting && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                { backgroundColor: Colors[colorScheme].tint },
+                (submitting || uploadingBanner) && styles.submitButtonDisabled,
+              ]}
               onPress={onSubmit}
-              disabled={submitting}
+              disabled={submitting || uploadingBanner}
             >
-              {submitting ? (
+              {submitting || uploadingBanner ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
@@ -297,6 +456,62 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  bannerCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    gap: 12,
+  },
+  bannerPreview: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+  },
+  bannerEmptyState: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  bannerEmptyText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  bannerActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  bannerPrimaryButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  bannerPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  bannerSecondaryButton: {
+    minHeight: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  bannerSecondaryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   submitSection: {
     paddingHorizontal: 20,
