@@ -17,7 +17,7 @@ import {
 import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
-import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
+import { requireAdmin as requireAdminMiddleware, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { adminLimiter } from '../middleware/rateLimiters.js';
@@ -56,11 +56,26 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
     ? verifyReviewToken<{ coachId: string; action: string }>(token)
     : null;
   const expectedAction = action === 'approve' ? 'approve_coach' : 'reject_coach';
+  const tokenValid = !!(token && payload && payload.coachId === id && payload.action === expectedAction);
 
-  if (!token || !payload || payload.coachId !== id || payload.action !== expectedAction) {
-    return res
-      .status(401)
-      .send(renderCoachResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+  // Two callers: (1) email-link clicks render HTML; (2) admin dashboard sends JSON.
+  // Allow signed-in admins through without a token; keep email-link semantics otherwise.
+  let signedInAdmin = false;
+  if (!tokenValid && !token && req.user) {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true, email_verified: true },
+    });
+    signedInAdmin = !!(me?.email_verified && isEmailAdmin(me.email));
+  }
+
+  if (!tokenValid && !signedInAdmin) {
+    if (token) {
+      return res
+        .status(401)
+        .send(renderCoachResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+    }
+    return res.status(401).json({ error: 'Admin login required.' });
   }
 
   const coach = await prisma.user.findUnique({
@@ -68,24 +83,28 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
     select: { display_name: true, username: true, email: true },
   });
   if (!coach) {
+    if (signedInAdmin) return res.status(404).json({ error: 'Coach not found' });
     return res.status(404).send(renderCoachResultPage('Not Found', 'Coach not found.', false));
   }
 
   const coachName = coach.display_name || coach.username || coach.email || 'Unknown Coach';
   if (req.method === 'GET') {
-    return res.send(renderCoachReviewPage(action, coachName, token));
+    if (!tokenValid) return res.status(405).json({ error: 'Method not allowed' });
+    return res.send(renderCoachReviewPage(action, coachName, token!));
   }
 
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult === 'already_used') {
-    return res
-      .status(409)
-      .send(renderCoachResultPage('Link Already Used', `This ${action} link has already been used.`, false));
-  }
-  if (consumeResult === 'store_unavailable') {
-    return res
-      .status(503)
-      .send(renderCoachResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
+  if (tokenValid) {
+    const consumeResult = await consumeReviewToken(token!, payload!);
+    if (consumeResult === 'already_used') {
+      return res
+        .status(409)
+        .send(renderCoachResultPage('Link Already Used', `This ${action} link has already been used.`, false));
+    }
+    if (consumeResult === 'store_unavailable') {
+      return res
+        .status(503)
+        .send(renderCoachResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
+    }
   }
 
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;
@@ -103,6 +122,7 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
       ? await approveCoach(id, reviewerUserId, prisma, { note })
       : await rejectCoach(id, reviewerUserId, prisma, { reason: note });
   if (result.error) {
+    if (signedInAdmin) return res.status(result.status || 500).json({ error: result.error });
     return res.status(result.status || 500).send(renderCoachResultPage('Error', result.error, false));
   }
 
@@ -115,6 +135,12 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
     `${action === 'approve' ? 'Approved' : 'Rejected'} coach: ${coachName}${note ? ` — ${note}` : ''}`
   );
 
+  if (signedInAdmin) {
+    return res.json({
+      ok: true,
+      message: `Coach ${coachName} ${action === 'approve' ? 'approved' : 'rejected'}`,
+    });
+  }
   return res.send(
     renderCoachResultPage(
       action === 'approve' ? 'Coach Approved' : 'Coach Rejected',

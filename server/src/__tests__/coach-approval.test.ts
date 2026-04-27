@@ -858,6 +858,104 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
+  describe('Admin dashboard coach review (no email token)', () => {
+    it('approves a pending coach when a signed-in admin POSTs without ?token=', async () => {
+      const coachHash = await bcrypt.hash(PASSWORD, 10);
+      const adminHash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `dashboard-coach-${ts}@example.com`,
+          password_hash: coachHash,
+          display_name: 'Dashboard Coach',
+          email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+      const admin = await prisma.user.create({
+        data: {
+          email: `dashboard-admin-${ts}@example.com`,
+          password_hash: adminHash,
+          display_name: 'Dashboard Admin',
+          email_verified: true,
+          role: 'fan',
+          onboarding_completed: true,
+          preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
+      });
+      const application = await prisma.coachApplication.create({
+        data: {
+          user_id: coach.id,
+          status: 'submitted',
+          organization_name: `Dashboard League ${ts}`,
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+        },
+      });
+
+      const savedAdminEmails = process.env.ADMIN_EMAILS || '';
+      process.env.ADMIN_EMAILS = [admin.email, savedAdminEmails].filter(Boolean).join(',');
+      const sessionToken = signJwt({ id: admin.id });
+
+      try {
+        const res = await request(fullApp)
+          .post(`/admin/coaches/${coach.id}/approve`)
+          .set('Authorization', `Bearer ${sessionToken}`)
+          .send({ note: 'looks good' });
+
+        expect(res.status).toBe(200);
+        expect(res.headers['content-type']).toMatch(/application\/json/);
+        expect(res.body?.ok).toBe(true);
+
+        const applicationAfter = await prisma.coachApplication.findUnique({
+          where: { id: application.id },
+          select: { status: true, reviewed_by: true },
+        });
+        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.reviewed_by).toBe(admin.id);
+      } finally {
+        process.env.ADMIN_EMAILS = savedAdminEmails;
+        await prisma.adminActivityLog.deleteMany({
+          where: { OR: [{ target_id: coach.id }, { admin_id: admin.id }] },
+        }).catch(() => {});
+        await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: { in: [coach.id, admin.id] } } }).catch(() => {});
+      }
+    });
+
+    it('returns JSON 401 when a non-admin POSTs without ?token=', async () => {
+      const fanHash = await bcrypt.hash(PASSWORD, 10);
+      const fan = await prisma.user.create({
+        data: {
+          email: `dashboard-fan-${ts}@example.com`,
+          password_hash: fanHash,
+          display_name: 'Dashboard Fan',
+          email_verified: true,
+          role: 'fan',
+          onboarding_completed: true,
+          preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
+      });
+      const sessionToken = signJwt({ id: fan.id });
+
+      try {
+        const res = await request(fullApp)
+          .post(`/admin/coaches/${approvedCoachId}/approve`)
+          .set('Authorization', `Bearer ${sessionToken}`)
+          .send({});
+
+        expect(res.status).toBe(401);
+        expect(res.headers['content-type']).toMatch(/application\/json/);
+      } finally {
+        await prisma.user.delete({ where: { id: fan.id } }).catch(() => {});
+      }
+    });
+  });
+
   describe('Coach join request sets coach to PENDING', () => {
     it('coach requesting to join gets PENDING', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
