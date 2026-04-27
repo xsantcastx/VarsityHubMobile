@@ -39,7 +39,7 @@ describe('Session enforcement', () => {
     await prisma.user.deleteMany({ where: { id: userId } }).catch(() => {});
   });
 
-  it('invalidates the prior token after relogin and password change', async () => {
+  it('keeps prior tokens valid after relogin but invalidates all tokens after password change', async () => {
     const loginA = await request(app).post('/auth/login').send({ email, password: PASSWORD });
     expect(loginA.status).toBe(200);
     const tokenA = loginA.body?.access_token as string | undefined;
@@ -53,7 +53,7 @@ describe('Session enforcement', () => {
     const meWithOldToken = await request(app)
       .get('/auth/me')
       .set('Authorization', `Bearer ${tokenA}`);
-    expect(meWithOldToken.status).toBe(401);
+    expect(meWithOldToken.status).toBe(200);
 
     const meWithNewToken = await request(app)
       .get('/auth/me')
@@ -73,6 +73,11 @@ describe('Session enforcement', () => {
       .get('/auth/me')
       .set('Authorization', `Bearer ${tokenB}`);
     expect(meAfterPasswordChange.status).toBe(401);
+
+    const meWithFirstTokenAfterPasswordChange = await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${tokenA}`);
+    expect(meWithFirstTokenAfterPasswordChange.status).toBe(401);
 
     const loginC = await request(app).post('/auth/login').send({ email, password: NEW_PASSWORD });
     expect(loginC.status).toBe(200);

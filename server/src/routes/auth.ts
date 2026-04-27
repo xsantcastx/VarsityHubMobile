@@ -717,11 +717,9 @@ authRouter.post(
     // Success — clear the failure counter so this account isn't half-locked.
     await clearLoginFailures(sanitizedEmail);
 
-    // Enforce single-active-session: bump session_epoch, drop all prior
-    // refresh tokens for this user, and mint a fresh token pair bound to
-    // the new epoch. Every access token issued to any other device dies
-    // instantly — the auth middleware rejects tokens whose `se` claim no
-    // longer matches the user's current epoch.
+    // Mint a fresh token pair for this login without invalidating the user's
+    // other active devices. Forced security events (password change, bans,
+    // account deletion) still revoke all sessions centrally.
     const deviceInfo = req.headers['user-agent'] || null;
     const { access_token, refresh_token: rawRefresh } = await startNewSession(user.id, deviceInfo);
 
@@ -1236,9 +1234,8 @@ authRouter.post(
         await invalidateMeCacheForUser(user.id);
       }
 
-      // Stage 5: Generate JWT + refresh token via the single-session helper.
-      // Bumps session_epoch, purges prior refresh tokens, and mints the new
-      // pair — same enforcement as /auth/login.
+      // Stage 5: Generate JWT + refresh token for this login without tearing
+      // down the user's other active devices.
       stage = 'jwt';
       const sanitized = sanitizeUser(user);
       const { access_token, refresh_token: rawRefresh } = await startNewSession(
@@ -1382,7 +1379,7 @@ authRouter.post(
       user = await ensureOAuthUserVerified(user);
 
       const sanitized = sanitizeUser(user);
-      // Single-session: bump epoch, purge prior refresh tokens, mint fresh pair.
+      // Mint a fresh pair for this login without invalidating other devices.
       const { access_token, refresh_token: appleRawRefresh } = await startNewSession(
         sanitized.id,
         req.headers['user-agent'] || null,

@@ -25,8 +25,7 @@ export function signJwt(payload: Record<string, unknown>, expiresIn: string = DE
 /**
  * Sign an access token bound to a specific user's current session epoch.
  * The `se` claim lets the auth middleware reject every token issued before
- * the user's most recent login, which is what enforces the "only one active
- * session per user" rule.
+ * a forced revocation event (password change, ban, account deletion).
  */
 export function signAccessTokenForSession(userId: string, sessionEpoch: number): string {
   return signJwt({ id: userId, se: sessionEpoch });
@@ -134,4 +133,3 @@ export async function verifyRefreshTokenHash(
 }
 
 export { DEFAULT_ACCESS_TOKEN_EXPIRY };
-
