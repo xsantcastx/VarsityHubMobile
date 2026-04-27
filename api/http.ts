@@ -342,29 +342,33 @@ async function request(
           retryErr.status = retryRes.status;
           retryErr.data = retryData;
           // A 401 after a successful refresh means the session is no longer usable.
-          // Clear persisted auth state and emit a session-expired event so
-          // AuthProvider can route the user to /sign-in. Callers see the
-          // `isSessionExpired` flag and suppress the misleading "please sign
-          // out and sign back in" modal.
+          // Clear persisted auth state, emit a session-expired event so
+          // AuthProvider routes the user to /sign-in, and DO NOT throw to
+          // the caller. Throwing causes per-screen catch blocks (admin-ads,
+          // admin-dashboard, et al.) to render Alert.alert('Error', e.message)
+          // which stacks a native modal on top of the AuthProvider redirect
+          // — the duplicate-session-expired UX the user has hit repeatedly.
+          // The pending Promise resolves never; the screen unmounts during
+          // redirect, releasing React refs. Memory impact is the orphaned
+          // microtask reference, which is negligible.
           if (retryRes.status === 401) {
             await auth.clearTokensOnly();
-            retryErr.isSessionExpired = true;
             emitSessionExpired('token_rejected_after_refresh');
+            return new Promise(() => {}); // intentional never-resolves
           }
           throw retryErr;
         }
 
         // Refresh failed. Only clear auth state on explicit auth failures.
+        // Same contract as the retry-401 branch above: emit the event and
+        // hang the Promise so per-screen catches don't stack a native Alert
+        // on top of AuthProvider's redirect.
         if (refreshResult?.reason === 'auth' || refreshResult?.reason === 'missing') {
           await auth.clearTokensOnly();
-          const authErr: any = new Error('Session expired');
-          authErr.status = 401;
-          authErr.data = { error: 'Session expired', code: 'SESSION_EXPIRED' };
-          authErr.isSessionExpired = true;
           emitSessionExpired(
             refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
           );
-          throw authErr;
+          return new Promise(() => {}); // intentional never-resolves
         }
 
         const refreshError = refreshResult && 'error' in refreshResult ? refreshResult.error : err;

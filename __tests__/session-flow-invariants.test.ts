@@ -67,8 +67,14 @@ describe('session-expired event bus — client wiring invariants', () => {
       expect(httpLayer).toMatch(/emitSessionExpired/);
     });
 
-    it('sets err.isSessionExpired = true on unrecoverable 401 paths', () => {
-      expect(httpLayer).toMatch(/isSessionExpired\s*=\s*true/);
+    it('hangs the caller Promise on unrecoverable 401 instead of throwing', () => {
+      // After the duplicate-Alert fix: http.ts no longer throws on
+      // session-expired (which made per-screen catches stack a native
+      // modal on top of the AuthProvider redirect). It emits the event,
+      // returns a never-resolving Promise, and lets AuthProvider own the
+      // redirect. The screen unmounts before any catch can fire.
+      expect(httpLayer).toMatch(/return\s+new\s+Promise\(\(\)\s*=>\s*\{\}\)/);
+      expect(httpLayer).toMatch(/intentional never-resolves/);
     });
 
     it('still calls refreshToken BEFORE giving up (not a one-strike-you-out)', () => {
