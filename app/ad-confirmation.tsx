@@ -183,17 +183,28 @@ function AdConfirmationScreen() {
             </View>
           </View>
 
-          {/* Success Message */}
-          <View style={styles.messageContainer}>
-            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-              🎉 Your Ad is Live!
-            </Text>
-            <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-              {paymentVerified
-                ? 'Your payment was successful and your ad campaign is now active.'
-                : 'Your payment is being processed. Your ad will be active shortly.'}
-            </Text>
-          </View>
+          {/* Success Message — title only claims "live" once the server has both
+              confirmed payment AND transitioned the ad's status to active. While
+              payment is still processing or the ad is sitting in approved-but-not-yet-active,
+              the title hedges to match the subtitle so the screen doesn't overstate. */}
+          {(() => {
+            const isTrulyLive =
+              paymentVerified && (adDetails as any)?.status === 'active';
+            return (
+              <View style={styles.messageContainer}>
+                <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+                  {isTrulyLive ? '🎉 Your Ad is Live!' : 'Payment Received — Ad Going Live Shortly'}
+                </Text>
+                <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+                  {isTrulyLive
+                    ? 'Your payment was successful and your ad campaign is now active.'
+                    : paymentVerified
+                      ? 'Your payment is confirmed. Your ad will be active shortly — typically within a few minutes.'
+                      : 'Your payment is being processed. Your ad will be active shortly.'}
+                </Text>
+              </View>
+            );
+          })()}
 
           {/* Ad Preview Section */}
           {bannerUrl && (
