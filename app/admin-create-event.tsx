@@ -24,6 +24,7 @@ import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
 import { sanitizeText } from '@/utils/formUtils';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
 const EVENT_TYPES = [
   { value: 'game', label: 'Game/Match', emoji: '🏈' },
@@ -167,6 +168,9 @@ function CreateEventScreen() {
         { text: 'OK', onPress: () => { safeGoBack(router); } },
       ]);
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       let errorMsg = e?.data?.error || e?.message || 'Failed to create event.';
       // Surface Zod validation details if available
       const issues = e?.data?.issues;

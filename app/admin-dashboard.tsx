@@ -7,10 +7,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
-import { getApiBaseUrl } from '../api/http';
 // @ts-ignore
 import { Organization } from '@/api/entities';
 import { captureBreadcrumb } from '@/utils/sentry';
+import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
 interface PendingLeague {
   id: string;
@@ -124,13 +124,6 @@ function AdminDashboardScreen() {
     return fallback;
   };
 
-  const isSessionExpiryError = (err: any) => {
-    const status = err?.status || err?.response?.status;
-    const serverData = err?.data || err?.response?.data;
-    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
-    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
-  };
-
   const handleApproveCoach = (coach: PendingCoach) => {
     setCoachNote('');
     setCoachModal({ coach, action: 'approve' });
@@ -238,9 +231,6 @@ function AdminDashboardScreen() {
     setError(null);
     
     try {
-      const _token = await (await import('@/api/auth')).loadToken();
-      const _apiUrl = getApiBaseUrl();
-      
       // Use API client instead of direct fetch
       const { httpGet } = await import('@/api/http');
       const [data, spike] = await Promise.all([

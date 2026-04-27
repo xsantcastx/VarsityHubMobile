@@ -15,8 +15,8 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getApiBaseUrl } from '../api/http';
 import { safeGoBack } from '@/utils/navigation';
+import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
 interface AbuseReport {
   id: string;
@@ -96,7 +96,11 @@ function AdminReportsScreen() {
       setReports(reportsData.reports || []);
       setStats(statsData);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load reports');
+      setError(
+        isSessionExpiryError(e)
+          ? 'Your admin session expired. Please sign in again.'
+          : e?.message || 'Failed to load reports'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -138,6 +142,9 @@ function AdminReportsScreen() {
       await loadReports(true);
       Alert.alert('Success', 'Report updated successfully');
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to update report');
     }
   };
@@ -149,6 +156,9 @@ function AdminReportsScreen() {
       await loadReports(true);
       Alert.alert('Success', 'The ad was taken down and the advertiser was notified.');
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to take down ad');
     }
   };
@@ -170,6 +180,9 @@ function AdminReportsScreen() {
       await loadReports(true);
       Alert.alert('Success', `Updated ${data.updated} reports`);
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to update reports');
     }
   };
@@ -190,9 +203,6 @@ function AdminReportsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const _token = await (await import('@/api/auth')).loadToken();
-              const _apiUrl = getApiBaseUrl();
-              
               // Use API client instead of direct fetch
               const { httpPost } = await import('@/api/http');
               const data: any = await httpPost('/admin/reports/bulk-delete', {
@@ -202,6 +212,9 @@ function AdminReportsScreen() {
               await loadReports(true);
               Alert.alert('Success', `Deleted ${data?.deleted ?? selectedReports.size} reports`);
             } catch (e: any) {
+              if (isSessionExpiryError(e)) {
+                return;
+              }
               Alert.alert('Error', e?.message || 'Failed to delete reports');
             }
           }

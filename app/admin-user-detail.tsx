@@ -11,6 +11,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { getApiBaseUrl, httpGet, httpPost } from '../api/http';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
 type Severity = 'warning' | 'strike' | 'final_warning';
 
@@ -41,7 +42,13 @@ function AdminUserDetailScreen() {
       const d = await User.getFull(String(id));
       setDetail(d);
     } catch (e: any) {
-      setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load user'));
+      setError(
+        isSessionExpiryError(e)
+          ? 'Your admin session expired. Please sign in again.'
+          : e?.status === 403
+            ? 'Access denied (admin only).'
+            : (e?.message || 'Failed to load user')
+      );
     } finally { setLoading(false); }
   }, [id, isAdmin]);
 
@@ -51,7 +58,11 @@ function AdminUserDetailScreen() {
     try {
       const data = await httpGet(`/admin/users/${encodeURIComponent(String(id))}/moderation`);
       setModeration(data);
-    } catch { /* moderation may not exist yet */ }
+    } catch (e: any) {
+      if (!isSessionExpiryError(e)) {
+        /* moderation may not exist yet */
+      }
+    }
     finally { setModLoading(false); }
   }, [id, isAdmin]);
 
@@ -77,6 +88,9 @@ function AdminUserDetailScreen() {
       setWarnSeverity('warning');
       void loadModeration();
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to issue warning');
     } finally { setActionLoading(false); }
   };
@@ -97,6 +111,9 @@ function AdminUserDetailScreen() {
       void load();
       void loadModeration();
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to suspend user');
     } finally { setActionLoading(false); }
   };
@@ -120,6 +137,9 @@ function AdminUserDetailScreen() {
       void load();
       void loadModeration();
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to ban user');
     } finally {
       setActionLoading(false);
@@ -133,6 +153,9 @@ function AdminUserDetailScreen() {
       Alert.alert('User Unbanned');
       void load();
     } catch (e: any) {
+      if (isSessionExpiryError(e)) {
+        return;
+      }
       Alert.alert('Error', e?.message || 'Failed to unban user');
     }
   };

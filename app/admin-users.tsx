@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
+import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
 function AdminUsersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -26,10 +27,16 @@ function AdminUsersScreen() {
     
     setLoading(true); setError(null);
     try {
-      const list = await User.listAll(q, 200, showBanned);
+      const list = await User.listAllAdmin(q, 200, showBanned);
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
-      setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load users'));
+      setError(
+        isSessionExpiryError(e)
+          ? 'Your admin session expired. Please sign in again.'
+          : e?.status === 403
+            ? 'Access denied (admin only).'
+            : (e?.message || 'Failed to load users')
+      );
     } finally { setLoading(false); }
   }, [q, showBanned, isAdmin]);
 
@@ -54,6 +61,9 @@ function AdminUsersScreen() {
               }
               await load();
             } catch (e: any) {
+              if (isSessionExpiryError(e)) {
+                return;
+              }
               Alert.alert('Error', e?.message || `Failed to ${action} user`);
             }
           },

@@ -7,8 +7,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team as TeamApi, User } from '@/api/entities';
+import { Team as TeamApi } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
+import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
 function AdminTeamsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -22,14 +23,19 @@ function AdminTeamsScreen() {
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
-      if (!isAdmin) return;
+    if (!isAdmin) return;
     setLoading(true); setError(null);
     try {
-      await User.me();
-      const list = await TeamApi.list('', false); // Explicitly pass false for mine parameter to get all teams
+      const list = await TeamApi.listAllAdmin('', 100);
       setTeams(Array.isArray(list) ? list : []);
     } catch (e: any) {
-      setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load teams'));
+      setError(
+        isSessionExpiryError(e)
+          ? 'Your admin session expired. Please sign in again.'
+          : e?.status === 403
+            ? 'Access denied (admin only).'
+            : (e?.message || 'Failed to load teams')
+      );
     } finally { setLoading(false); }
   }, [isAdmin]);
 
@@ -67,19 +73,27 @@ function AdminTeamsScreen() {
           onPress: async () => {
             setDeleting(true);
             try {
-              // Delete each selected team
-              for (const teamId of Array.from(selectedTeams)) {
-                try {
-                  await TeamApi.delete(teamId);
-                } catch (e) {
-                  if (__DEV__) console.error('Failed to delete team:', teamId, e);
-                }
+              const teamIds = Array.from(selectedTeams);
+              const results = await Promise.allSettled(teamIds.map((teamId) => TeamApi.delete(teamId)));
+              const sessionExpiry = results.find(
+                (result) => result.status === 'rejected' && isSessionExpiryError(result.reason)
+              );
+              if (sessionExpiry) {
+                return;
               }
-              Alert.alert('Success', `Deleted ${selectedTeams.size} team${selectedTeams.size > 1 ? 's' : ''}`);
+              const failed = results.filter((result) => result.status === 'rejected').length;
+              if (failed > 0) {
+                Alert.alert('Partial Success', `Deleted ${teamIds.length - failed} team(s), ${failed} failed`);
+              } else {
+                Alert.alert('Success', `Deleted ${teamIds.length} team${teamIds.length > 1 ? 's' : ''}`);
+              }
               setSelectedTeams(new Set());
               setBulkMode(false);
               await load();
             } catch (e: any) {
+              if (isSessionExpiryError(e)) {
+                return;
+              }
               Alert.alert('Error', e?.message || 'Failed to delete teams');
             } finally {
               setDeleting(false);

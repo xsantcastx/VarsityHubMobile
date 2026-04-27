@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureBreadcrumb } from '@/utils/sentry';
+import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,13 +81,6 @@ export default function ApprovalsScreen() {
 
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
-
-  const isSessionExpiryError = (err: any) => {
-    const status = err?.status || err?.response?.status;
-    const serverData = err?.data || err?.response?.data;
-    const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
-    return err?.isSessionExpired === true || (status === 401 && message.includes('session expired'));
-  };
 
   // Load owned orgs, then pending coaches for each
   const loadData = useCallback(async () => {

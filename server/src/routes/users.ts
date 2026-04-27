@@ -38,6 +38,7 @@ usersRouter.get('/', requireAdmin as any, asyncHandler(async (req, res) => {
     const where: any = {};
     if (q) where.OR = [
       { email: { contains: q, mode: 'insensitive' } },
+      { display_name: { contains: q, mode: 'insensitive' } },
       { username: { contains: q, mode: 'insensitive' } }, // Search by username only
     ];
     if (banned) where.banned = true;
@@ -45,7 +46,7 @@ usersRouter.get('/', requireAdmin as any, asyncHandler(async (req, res) => {
       where,
       take: limit,
       orderBy: { created_at: 'desc' },
-      select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true },
+      select: { id: true, email: true, display_name: true, username: true, email_verified: true, banned: true, created_at: true },
     });
     return res.json(rows);
   } catch (err) {
@@ -156,7 +157,7 @@ usersRouter.patch('/:id/date-of-birth', requireAdmin as any, asyncHandler(async 
 usersRouter.get('/:id/full', requireAdmin as any, asyncHandler(async (req, res) => {
   try {
     const id = String(req.params.id);
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, username: true, email_verified: true, banned: true, created_at: true } });
     if (!user) return res.status(404).json({ error: 'Not found' });
     const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' }, take: 100 });
     const adIds = ads.map(a => a.id);

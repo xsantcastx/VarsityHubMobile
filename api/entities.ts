@@ -59,20 +59,18 @@ export const User = {
     httpGet('/users/username-available?username=' + encodeURIComponent(username)),
   lookupByEmail: (email: string) => httpGet('/users/lookup?email=' + encodeURIComponent(email)),
   listAll: async (q?: string, limit: number = 100, banned?: boolean) => {
-    try {
-      const qq: string[] = [];
-      if (q) qq.push('q=' + encodeURIComponent(q));
-      if (banned) qq.push('banned=1');
-      qq.push('limit=' + String(limit));
-      return await httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
-    } catch (error: any) {
-      // If admin-only, return empty array instead of throwing
-      if (error?.message?.includes('Admin only') || error?.status === 403) {
-        console.log('[User.listAll] Admin-only endpoint, returning empty results');
-        return [];
-      }
-      throw error;
-    }
+    const qq: string[] = [];
+    if (q) qq.push('q=' + encodeURIComponent(q));
+    if (banned) qq.push('banned=1');
+    qq.push('limit=' + String(limit));
+    return httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
+  },
+  listAllAdmin: (q?: string, limit: number = 100, banned?: boolean) => {
+    const qq: string[] = [];
+    if (q) qq.push('q=' + encodeURIComponent(q));
+    if (banned) qq.push('banned=1');
+    qq.push('limit=' + String(limit));
+    return httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
   },
   ban: (id: string, reason?: string) => {
     if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID');
@@ -635,6 +633,13 @@ export const Team = {
     if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs).then(data => validateTeamArray('teams.list', data));
+  },
+  listAllAdmin: (q?: string, limit: number = 100): Promise<any> => {
+    const params: string[] = ['all=1', 'limit=' + String(limit)];
+    if (q) params.push('q=' + encodeURIComponent(q));
+    return httpGet('/teams?' + params.join('&')).then(data =>
+      validateTeamArray('teams.listAllAdmin', data)
+    );
   },
   managed: (q?: string): Promise<any> => {
     const params: string[] = [];

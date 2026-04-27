@@ -12,20 +12,18 @@ const approvalsSource = readFileSync(
 );
 
 describe('admin session-expiry UI guards', () => {
-  it('admin dashboard surfaces explicit expired-session messaging for approval actions and dashboard load', () => {
-    expect(adminDashboardSource).toMatch(/const isSessionExpiryError =/);
-    expect(adminDashboardSource).toContain(
-      "Alert.alert('Session expired', 'Your admin session expired. Please sign in again, then retry this approval.')"
-    );
+  it('admin dashboard defers expired-session approvals to the global auth handler and still surfaces load-state copy', () => {
+    expect(adminDashboardSource).toMatch(/from ['"]@\/utils\/sessionExpiryError['"]/);
+    expect(adminDashboardSource).toContain('if (isSessionExpiryError(e)) {');
     expect(adminDashboardSource).toContain(
       "'Your admin session expired. Please sign in again.'"
     );
+    expect(adminDashboardSource).not.toContain("Alert.alert('Session expired'");
   });
 
-  it('league-owner approvals screen surfaces explicit expired-session messaging', () => {
-    expect(approvalsSource).toMatch(/const isSessionExpiryError =/);
-    expect(approvalsSource).toContain(
-      "Alert.alert('Session expired', 'Your approval session expired. Please sign in again, then retry.')"
-    );
+  it('league-owner approvals screen defers expired-session errors to the global auth handler', () => {
+    expect(approvalsSource).toMatch(/isSessionExpiryError/);
+    expect(approvalsSource).toContain('if (isSessionExpiryError(err)) {');
+    expect(approvalsSource).not.toContain("Alert.alert('Session expired'");
   });
 });
