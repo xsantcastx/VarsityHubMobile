@@ -6,6 +6,7 @@ import { describe, expect, it, beforeEach, afterEach, jest } from '@jest/globals
 describe('Email template helpers', () => {
   const originalEnv = process.env;
   const validTemplateId = 'd-0123456789abcdef0123456789abcdef';
+  const railwayApiOrigin = 'https://api-production-8ac3.up.railway.app';
 
   beforeEach(() => {
     jest.resetModules();
@@ -80,12 +81,22 @@ describe('Email template helpers', () => {
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://api.varsityhub.app');
+    expect(parsed.origin).toBe(railwayApiOrigin);
     expect(parsed.pathname).toBe('/organizations/org_123/approve');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
     expect(verifyJwt(token!)).toMatchObject({ orgId: 'org_123', action: 'approve_league' });
     expect((verifyJwt(token!) as any)?.jti).toEqual(expect.any(String));
+  });
+
+  it('falls back to the Railway API host when vanity domains are misconfigured', async () => {
+    process.env.APP_BASE_URL = 'https://varsityhub.app';
+    process.env.API_BASE_URL = 'https://api.varsityhub.app';
+    const { buildLeagueApprovalReviewUrl } = await import('../lib/email.js');
+    const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
+    const parsed = new URL(url);
+    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.pathname).toBe('/organizations/org_123/approve');
   });
 
   it('buildCoachApplicationReviewUrl points to a browser-safe admin dashboard URL', async () => {
@@ -95,7 +106,7 @@ describe('Email template helpers', () => {
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildCoachApplicationReviewUrl({ coachId: 'user_123', action: 'reject' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://api.varsityhub.app');
+    expect(parsed.origin).toBe(railwayApiOrigin);
     expect(parsed.pathname).toBe('/admin/coaches/user_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -112,7 +123,7 @@ describe('Email template helpers', () => {
       requestId: 'req_456',
       action: 'approve',
     });
-    expect(url).toContain('https://api.varsityhub.app/organization-join-requests');
+    expect(url).toContain(`${railwayApiOrigin}/organization-join-requests`);
     expect(url).toContain('organization_id=org_123');
     expect(url).toContain('organization_name=Example+League');
     expect(url).toContain('request_id=req_456');
@@ -130,7 +141,7 @@ describe('Email template helpers', () => {
       action: 'reject',
     });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://api.varsityhub.app');
+    expect(parsed.origin).toBe(railwayApiOrigin);
     expect(parsed.pathname).toBe('/games/evt_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -148,7 +159,7 @@ describe('Email template helpers', () => {
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildAdReviewUrl({ adId: 'ad_123', action: 'reject' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe('https://api.varsityhub.app');
+    expect(parsed.origin).toBe(railwayApiOrigin);
     expect(parsed.pathname).toBe('/ads/ad_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();

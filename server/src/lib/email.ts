@@ -63,10 +63,25 @@ const getEmailService = async (): Promise<EmailService | null> => {
 
 // Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-const API_BASE_URL = (
-  process.env.API_BASE_URL || 'https://api-production-8ac3.up.railway.app'
-).replace(/\/$/, '');
+const CANONICAL_API_FALLBACK = 'https://api-production-8ac3.up.railway.app';
+const BROKEN_VANITY_HOSTS = new Set(['varsityhub.app', 'www.varsityhub.app', 'api.varsityhub.app']);
+
+function resolveEmailBaseUrl(rawValue: string | undefined, fallback: string): string {
+  const candidate = String(rawValue || '').trim();
+  if (!candidate) return fallback.replace(/\/$/, '');
+  try {
+    const parsed = new URL(candidate);
+    if (BROKEN_VANITY_HOSTS.has(parsed.hostname)) {
+      return fallback.replace(/\/$/, '');
+    }
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return fallback.replace(/\/$/, '');
+  }
+}
+
+const API_BASE_URL = resolveEmailBaseUrl(process.env.API_BASE_URL, CANONICAL_API_FALLBACK);
+const APP_BASE_URL = resolveEmailBaseUrl(process.env.APP_BASE_URL, API_BASE_URL);
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
 const TERMS_URL = `${APP_BASE_URL}/terms`;
@@ -231,6 +246,26 @@ function buildEventDetailUrl(eventId?: string, fallbackUrl?: string): string {
 // recognizes (see utils/deepLinks.ts ROUTE_MAP['settings/manage-subscription']).
 function buildManageSubscriptionUrl(): string {
   return buildWebScreenUrl('/settings/manage-subscription');
+}
+
+function deriveSupportingDocumentPreviewUrl(
+  supportingDocumentUrl?: string | null
+): string | null {
+  const candidate = String(supportingDocumentUrl || '').trim();
+  if (!candidate) return null;
+  try {
+    const parsed = new URL(candidate);
+    const pathname = parsed.pathname.toLowerCase();
+    if (/\.(png|jpe?g|webp|gif|heic|heif)$/i.test(pathname)) {
+      return parsed.toString();
+    }
+    if (pathname.includes('/image/upload/')) {
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -1357,7 +1392,8 @@ async function sendJoinRequestAdminTemplate(params: {
       approve_url: params.approveUrl || '',
       deny_url: params.rejectUrl || '',
       coach_notes: params.coachNotes || '',
-      org_logo_url: params.orgLogoUrl || '',
+      org_logo_url:
+        params.orgLogoUrl || deriveSupportingDocumentPreviewUrl(params.supportingDocumentUrl) || '',
       // Legacy keys (preserved for backward compatibility with any other
       // template revisions that may reference them)
       league_name: params.leagueName,

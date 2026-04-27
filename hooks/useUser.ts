@@ -16,7 +16,7 @@ export function useUser(autoLoad: boolean = true) {
     setLoading(true);
     setError(null);
     try {
-      const me = await User.me();
+      const me = await User.me({ force: true });
       setUser(me);
       return me;
     } catch (err) {

@@ -121,7 +121,7 @@ export default function EditProfileScreen() {
     setLoading(true);
     setError(null);
     try {
-      const me: any = await User.me();
+      const me: any = await User.me({ force: true });
       setMe(me);
       const prefs = me?.preferences || {};
 

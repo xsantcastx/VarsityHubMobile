@@ -103,12 +103,13 @@ function RoleOnboardingScreenInner() {
   };
 
   const handleSaveZipCode = async () => {
-    if (!zipCode.trim()) {
+    const trimmedZip = zipCode.trim();
+    if (!trimmedZip) {
       Alert.alert('ZIP Code Required', 'Please enter your ZIP code to continue.');
       return;
     }
 
-    if (!validateZipCode(zipCode)) {
+    if (!validateZipCode(trimmedZip)) {
       Alert.alert(
         'Invalid ZIP Code',
         'Please enter a valid US ZIP code (e.g., 12345 or 12345-6789).'
@@ -119,9 +120,15 @@ function RoleOnboardingScreenInner() {
     setSaving(true);
     try {
       logTelemetry('zip-save-attempt');
-      await User.updatePreferences({ zip_code: zipCode.trim() });
+      await User.updatePreferences({ zip_code: trimmedZip });
+      const fresh = await User.refresh();
+      const savedZip = String(fresh?.preferences?.zip_code || fresh?.zip_code || '').trim();
+      if (savedZip !== trimmedZip) {
+        throw new Error('Saved ZIP code did not round-trip from the server.');
+      }
+      setZipCode(savedZip);
       setZipCodeProvided(true);
-      logTelemetry('zip-save-success');
+      logTelemetry('zip-save-success', { zip: savedZip });
       Alert.alert('Success', 'Your ZIP code has been saved!');
     } catch (e: any) {
       if (__DEV__) console.error('Failed to save ZIP code', e);

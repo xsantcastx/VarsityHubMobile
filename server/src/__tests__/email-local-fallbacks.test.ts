@@ -4,6 +4,7 @@ const savedNodeEnv = process.env.NODE_ENV;
 const savedJestWorker = process.env.JEST_WORKER_ID;
 const savedAppBaseUrl = process.env.APP_BASE_URL;
 const savedApiBaseUrl = process.env.API_BASE_URL;
+const railwayApiOrigin = 'https://api-production-8ac3.up.railway.app';
 
 process.env.NODE_ENV = 'development';
 delete process.env.JEST_WORKER_ID;
@@ -60,8 +61,8 @@ describe('Local email fallbacks', () => {
     expect(payload.templateId).toBeUndefined();
     expect(payload.subject).toBe("Approve Jordan Smith's VarsityHub account");
     expect(payload.html).toContain('Jordan Smith');
-    expect(payload.html).toContain('https://api.varsityhub.app/consent/consent-token-123');
-    expect(payload.text).toContain('Approve: https://api.varsityhub.app/consent/consent-token-123');
+    expect(payload.html).toContain(`${railwayApiOrigin}/consent/consent-token-123`);
+    expect(payload.text).toContain(`Approve: ${railwayApiOrigin}/consent/consent-token-123`);
     expect(payload.metadata).toEqual({ audit_privacy: 'minor' });
     expect(mockCaptureMessage).toHaveBeenCalledWith(
       expect.stringContaining('Hosted SendGrid template missing; using local HTML fallback'),
