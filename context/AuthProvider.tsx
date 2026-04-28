@@ -706,81 +706,60 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, []);
 
-  // Initial auth check
+  // Initial auth/bootstrap check. This must not depend on router readiness:
+  // auth state and API health can be resolved before Expo Router publishes a
+  // stable nav tree, and coupling them creates a cold-start race.
   useEffect(() => {
     let mounted = true;
-    let startTimeout: ReturnType<typeof setTimeout> | null = null;
+    if (bootstrapStartedRef.current) return;
+    bootstrapStartedRef.current = true;
+    if (__DEV__) console.log('[AuthProvider] Starting auth bootstrap');
 
-    const startInitialization = () => {
-      if (bootstrapStartedRef.current) return;
-      bootstrapStartedRef.current = true;
-      if (__DEV__) console.log('[AuthProvider] Navigation ready, starting auth check');
+    (async () => {
+      // Clear stale tokens and probe backend health in parallel so startup doesn't
+      // serialize SecureStore/AsyncStorage work ahead of the first network check.
+      if (__DEV__) console.log('[AuthProvider] Checking backend health...');
+      const [healthy] = await Promise.all([
+        checkHealth(),
+        import('@/api/auth').then(({ clearStaleTokensOnFreshInstall }) =>
+          clearStaleTokensOnFreshInstall()
+        ),
+      ]);
+      if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
 
-      (async () => {
-        // Clear stale tokens and probe backend health in parallel so startup doesn't
-        // serialize SecureStore/AsyncStorage work ahead of the first network check.
-        if (__DEV__) console.log('[AuthProvider] Checking backend health...');
-        const [healthy] = await Promise.all([
-          checkHealth(),
-          import('@/api/auth').then(({ clearStaleTokensOnFreshInstall }) =>
-            clearStaleTokensOnFreshInstall()
-          ),
-        ]);
-        if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
+      if (!mounted) return;
 
-        if (!mounted) return;
+      // If backend is down, we can't authenticate.
+      if (!healthy) {
+        if (__DEV__) console.log('[AuthProvider] Backend unhealthy, stopping initialization');
+        setLoading(false);
+        setInitializing(false);
+        // Don't redirect - let user see offline banner
+        return;
+      }
 
-        // 2. If backend is down, we can't authenticate
-        if (!healthy) {
-          if (__DEV__) console.log('[AuthProvider] Backend unhealthy, stopping initialization');
+      if (__DEV__) console.log('[AuthProvider] Checking authentication...');
+      try {
+        await checkAuthRef.current();
+        if (__DEV__) console.log('[AuthProvider] Auth check successful');
+      } catch (err: any) {
+        if (__DEV__)
+          console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
+        // Auth failed - user not logged in
+        // Don't redirect here - let the routing logic below handle it
+      } finally {
+        if (mounted) {
+          if (__DEV__) console.log('[AuthProvider] Initialization complete');
           setLoading(false);
           setInitializing(false);
-          // Don't redirect - let user see offline banner
-          return;
         }
-
-        // 3. Check auth status
-        if (__DEV__) console.log('[AuthProvider] Checking authentication...');
-        try {
-          await checkAuthRef.current();
-          if (__DEV__) console.log('[AuthProvider] Auth check successful');
-        } catch (err: any) {
-          if (__DEV__)
-            console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
-          // Auth failed - user not logged in
-          // Don't redirect here - let the routing logic below handle it
-        } finally {
-          if (mounted) {
-            if (__DEV__) console.log('[AuthProvider] Initialization complete');
-            setLoading(false);
-            setInitializing(false);
-          }
-        }
-      })();
-    };
-
-    if (!navReady) {
-      if (__DEV__) console.log('[AuthProvider] Waiting for navigation state...');
-      // Expo Router can render the root route before `useRootNavigationState()`
-      // exposes a stable readiness flag. Do not let that race pin the app on
-      // the passive index spinner forever.
-      startTimeout = setTimeout(() => {
-        if (!mounted) return;
-        if (__DEV__)
-          console.warn(
-            '[AuthProvider] Navigation readiness timeout - continuing auth bootstrap'
-          );
-        startInitialization();
-      }, 1500);
-    } else {
-      startInitialization();
-    }
+      }
+    })();
 
     return () => {
       mounted = false;
-      if (startTimeout) clearTimeout(startTimeout);
     };
-  }, [navReady, checkHealth]);
+  }, [checkHealth]);
 
   // Re-check auth when app comes to foreground (debounced to prevent rapid-fire)
   const lastForegroundCheckRef = React.useRef<number>(0);
@@ -859,6 +838,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   useEffect(() => {
     if (initializing) {
       if (__DEV__) console.log('[AuthProvider] Still initializing, skipping routing');
+      return;
+    }
+
+    // Startup race fix: auth bootstrap can finish before Expo Router reports a
+    // stable navigation state. If we fire router.replace(...) before nav is
+    // actually ready, the redirect can be dropped and the passive root spinner
+    // never gets another chance to reroute. Wait explicitly for navReady and
+    // re-run this effect when it flips true.
+    if (!navReady) {
+      if (__DEV__) console.log('[AuthProvider] Navigation not ready, deferring routing');
       return;
     }
 
@@ -1193,6 +1182,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     user,
     pendingVerificationEmail,
     initializing,
+    navReady,
     healthOk,
     router,
     hasCompletedOnboarding,
