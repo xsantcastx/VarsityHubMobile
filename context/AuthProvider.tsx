@@ -490,10 +490,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         setSentryUser({ id: me.id, email: me.email, username: me.username });
         analytics.identify(me.id, {
           email: me.email,
+          username: me.username,
           role: me.role,
           plan: me.preferences?.plan,
           organization_id: me.organization_id || me.preferences?.organization_id,
           is_admin: me.is_admin,
+          is_verified: Boolean(me.email_verified || me.verified || me.is_verified),
+          has_completed_onboarding: serverComplete,
           onboarding_completed: me.onboarding_completed,
         });
         setPendingVerificationEmail(null);

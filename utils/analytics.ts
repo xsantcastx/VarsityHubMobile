@@ -9,31 +9,16 @@
 
 import PostHog from 'posthog-react-native';
 import { getEnvValue } from '@/config/env';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 const POSTHOG_API_KEY = getEnvValue('EXPO_PUBLIC_POSTHOG_API_KEY');
 const POSTHOG_HOST = getEnvValue('EXPO_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com');
+const APP_VERSION = Constants.expoConfig?.version || 'unknown';
+const APP_RUNTIME = String(Constants.expoConfig?.runtimeVersion || APP_VERSION);
 
 let posthog: PostHog | null = null;
 let analyticsInitialized = false;
-
-export function initAnalytics() {
-  if (analyticsInitialized) return;
-  if (!POSTHOG_API_KEY) {
-    if (__DEV__) console.log('[analytics] PostHog API key not set — analytics disabled');
-    return;
-  }
-  posthog = new PostHog(POSTHOG_API_KEY, {
-    host: POSTHOG_HOST,
-    enableSessionReplay: false,
-    errorTracking: {
-      autocapture: {
-        uncaughtExceptions: true,
-        unhandledRejections: true,
-      },
-    },
-  });
-  analyticsInitialized = true;
-}
 
 function normalizeAnalyticsValue(value: unknown): string | number | boolean | string[] {
   if (value == null) return 'null';
@@ -60,21 +45,50 @@ function normalizeAnalyticsValue(value: unknown): string | number | boolean | st
   }
 }
 
-export function captureAnalyticsException(
-  error: Error | unknown,
+function normalizeAnalyticsProperties(
   properties?: Record<string, unknown>
-) {
-  if (!posthog) return;
-
-  const safeProperties = properties
+): Record<string, string | number | boolean | string[]> | undefined {
+  return properties
     ? Object.fromEntries(
         Object.entries(properties)
           .filter(([, value]) => typeof value !== 'undefined')
           .map(([key, value]) => [key, normalizeAnalyticsValue(value)])
       )
     : undefined;
+}
 
-  posthog.captureException(error, safeProperties);
+export function initAnalytics() {
+  if (analyticsInitialized) return;
+  if (!POSTHOG_API_KEY) {
+    if (__DEV__) console.log('[analytics] PostHog API key not set — analytics disabled');
+    return;
+  }
+  posthog = new PostHog(POSTHOG_API_KEY, {
+    host: POSTHOG_HOST,
+    enableSessionReplay: false,
+    errorTracking: {
+      autocapture: {
+        uncaughtExceptions: true,
+        unhandledRejections: true,
+      },
+    },
+  });
+  posthog.register({
+    service: 'mobile',
+    platform: Platform.OS,
+    app_version: APP_VERSION,
+    app_runtime: APP_RUNTIME,
+  });
+  analyticsInitialized = true;
+}
+
+export function captureAnalyticsException(
+  error: Error | unknown,
+  properties?: Record<string, unknown>
+) {
+  if (!posthog) return;
+
+  posthog.captureException(error, normalizeAnalyticsProperties(properties));
 }
 
 export const analytics = {
@@ -83,7 +97,13 @@ export const analytics = {
   },
 
   identify: (userId: string, properties?: Record<string, any>) => {
-    posthog?.identify(userId, properties);
+    if (!posthog) return;
+    const safeProperties = normalizeAnalyticsProperties(properties);
+    posthog.identify(userId, safeProperties);
+    posthog.createPersonProfile();
+    if (safeProperties && Object.keys(safeProperties).length > 0) {
+      posthog.setPersonProperties(safeProperties, { first_seen_app_version: APP_VERSION }, false);
+    }
   },
 
   reset: () => {
