@@ -164,12 +164,14 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
           },
         });
 
-        await sendPushNotification(
+        void sendPushNotification(
           membership.user_id,
           `Role updated on ${teamName}`,
           `Your role has been changed to ${data.role}`,
           { type: 'team_role_changed', team_id: membership.team_id, screen: 'team-page' }
-        );
+        ).catch((pushErr) => {
+          console.error('[team-memberships] Failed to send role change push:', pushErr);
+        });
       } catch (notifErr) {
         console.error('[team-memberships] Failed to send role change notification:', notifErr);
       }
@@ -231,12 +233,14 @@ teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any
           },
         });
 
-        await sendPushNotification(
+        void sendPushNotification(
           membership.user_id,
           `Removed from ${teamName}`,
           `You have been removed from ${teamName}`,
           { type: 'team_member_removed', team_id: membership.team_id, screen: 'teams' }
-        );
+        ).catch((pushErr) => {
+          console.error('[team-memberships] Failed to send removal push:', pushErr);
+        });
       } catch (notifErr) {
         console.error('[team-memberships] Failed to send removal notification:', notifErr);
       }

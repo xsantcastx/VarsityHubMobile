@@ -348,12 +348,14 @@ export const makeCreateStoryHandler =
         });
 
         const { sendPushNotification } = await import('../lib/notifications.js');
-        await sendPushNotification(
+        void sendPushNotification(
           game.created_by_id,
           `New story on ${game.title}`,
           `${posterName} added a story to your game`,
           { type: 'game_story_added', game_id: id, screen: 'game-detail' }
-        );
+        ).catch((pushErr) => {
+          console.warn('[stories] Failed to send game story push:', pushErr);
+        });
       }
     } catch (notifErr) {
       console.error('[stories] Failed to send game story notification:', notifErr);

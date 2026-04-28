@@ -124,6 +124,48 @@ const EXPECTATIONS: Expectation[] = [
     registrationPattern: /organizationsRouter\.post\(\s*['"]\/invites\/:inviteId\/decline['"]/,
     mustInclude: ['requireAuth', 'requireVerified'],
   },
+  {
+    file: 'team-memberships.ts',
+    description: 'POST /team-memberships/',
+    registrationPattern: /teamMembershipsRouter\.post\(\s*['"]\/['"]/,
+    mustInclude: ['requireAuth', 'requireOnboarded', 'requirePlan'],
+  },
+  {
+    file: 'team-memberships.ts',
+    description: 'PATCH /team-memberships/:id',
+    registrationPattern: /teamMembershipsRouter\.patch\(\s*['"]\/:id['"]/,
+    mustInclude: ['requireAuth', 'requireOnboarded'],
+  },
+  {
+    file: 'team-memberships.ts',
+    description: 'DELETE /team-memberships/:id',
+    registrationPattern: /teamMembershipsRouter\.delete\(\s*['"]\/:id['"]/,
+    mustInclude: ['requireAuth', 'requireOnboarded'],
+  },
+  {
+    file: 'tournaments.ts',
+    description: 'POST /tournaments/',
+    registrationPattern: /tournamentsRouter\.post\(\s*['"]\/['"]/,
+    mustInclude: ['requireAuth', 'requireOnboarded'],
+  },
+  {
+    file: 'tournaments.ts',
+    description: 'PATCH /tournaments/:id',
+    registrationPattern: /tournamentsRouter\.patch\(\s*['"]\/:id['"]/,
+    mustInclude: ['requireAuth', 'requireOnboarded'],
+  },
+  {
+    file: 'tournaments.ts',
+    description: 'POST /tournaments/:id/teams',
+    registrationPattern: /tournamentsRouter\.post\(\s*['"]\/:id\/teams['"]/,
+    mustInclude: ['requireAuth', 'requireOnboarded'],
+  },
+  {
+    file: 'tournaments.ts',
+    description: 'POST /tournaments/:id/games',
+    registrationPattern: /tournamentsRouter\.post\(\s*['"]\/:id\/games['"]/,
+    mustInclude: ['requireAuth', 'requireOnboarded'],
+  },
 ];
 
 describe('Middleware coverage on critical mutation routes', () => {
