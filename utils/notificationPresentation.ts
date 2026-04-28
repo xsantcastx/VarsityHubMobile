@@ -8,11 +8,22 @@ type NotificationActor = {
 type NotificationItem = {
   type?: string | null;
   actor?: NotificationActor | null;
-  post?: { id?: string | null } | null;
-  comment?: { id?: string | null } | null;
-  message?: { conversation_id?: string | null } | null;
+  post?: { id?: string | null; content?: string | null } | null;
+  comment?: { id?: string | null; content?: string | null } | null;
+  message?: { conversation_id?: string | null; content?: string | null } | null;
   event?: { id?: string | null; title?: string | null } | null;
   meta?: Record<string, any> | null;
+};
+
+const nonEmpty = (value?: string | null) => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const normalizePreview = (value?: string | null, limit: number = 120) => {
+  const trimmed = nonEmpty(value);
+  if (!trimmed) return null;
+  return trimmed.replace(/\s+/g, ' ').slice(0, limit);
 };
 
 const SYSTEM_NOTIFICATION_TYPES = new Set([
@@ -28,15 +39,22 @@ const SYSTEM_NOTIFICATION_TYPES = new Set([
   'JOIN_REQUEST_DENIED',
 ]);
 
-const actorName = (item: NotificationItem) =>
-  item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone';
+export const getNotificationActorLabel = (item: NotificationItem, fallback = 'Someone') => {
+  const username = nonEmpty(item.actor?.username);
+  if (username) return `@${username}`;
+
+  const displayName = nonEmpty(item.actor?.display_name);
+  if (displayName) return displayName;
+
+  return fallback;
+};
 
 export function isSystemNotification(item: NotificationItem) {
   return SYSTEM_NOTIFICATION_TYPES.has(String(item.type || ''));
 }
 
 export function getNotificationTitle(item: NotificationItem) {
-  const name = actorName(item);
+  const name = getNotificationActorLabel(item);
   const type = String(item.type || '');
 
   if (type === 'FOLLOW' && item.meta?.follow_rejected) return `${name} declined your follow request`;
@@ -96,6 +114,34 @@ export function getNotificationTitle(item: NotificationItem) {
     return `${name} sent you a notification`;
   }
   return 'New notification';
+}
+
+export function getNotificationSubtitle(item: NotificationItem) {
+  const type = String(item.type || '');
+  const meta = item.meta || {};
+
+  return (
+    normalizePreview(item.post?.content) ||
+    normalizePreview(item.comment?.content) ||
+    normalizePreview((item.message as any)?.content) ||
+    ((type === 'GAME_REMINDER' || type === 'EVENT_APPROVED' || type === 'EVENT_REJECTED')
+      ? normalizePreview(item.event?.title || (meta.event_title as string | null | undefined))
+      : null) ||
+    ((type === 'AD_APPROVED' || type === 'AD_REJECTED')
+      ? normalizePreview(meta.business_name as string | null | undefined)
+      : null) ||
+    ((type === 'ORG_APPROVED' ||
+      type === 'ORG_REJECTED' ||
+      type === 'JOIN_REQUEST_APPROVED' ||
+      type === 'JOIN_REQUEST_DENIED' ||
+      type === 'COACH_REJECTED')
+      ? normalizePreview(
+          (meta.organization_name as string | null | undefined) ||
+            (meta.reason as string | null | undefined)
+        )
+      : null) ||
+    null
+  );
 }
 
 export function getNotificationHref(item: NotificationItem): any | null {

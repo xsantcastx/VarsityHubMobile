@@ -232,7 +232,7 @@ module.exports = ({ config }) => {
       [
         'expo-notifications',
         {
-          icon: './assets/images/icon.png',
+          icon: './assets/images/logo.png',
           color: '#3B82F6',
         },
       ],

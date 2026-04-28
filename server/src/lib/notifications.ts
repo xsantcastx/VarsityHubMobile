@@ -117,7 +117,7 @@ export async function notifyPostInteraction(
   return sendPushNotification(
     postAuthorId,
     titles[interactionType],
-    `Tap to view`,
+    'Open the post to see the latest activity.',
     {
       type: 'post_interaction',
       interaction_type: interactionType,
@@ -169,7 +169,7 @@ export async function notifyCommentReply(
   return sendPushNotification(
     parentCommentAuthorId,
     `${replierName} replied to your comment`,
-    'Tap to view',
+    'Open the comment thread to view the reply.',
     {
       type: 'comment_reply',
       actor_id: replierId,
@@ -202,7 +202,7 @@ export async function notifyNewFollower(
   return sendPushNotification(
     userId,
     `${followerName} started following you`,
-    `Tap to view their profile`,
+    'Open their profile to follow back.',
     {
       type: 'new_follower',
       follower_id: followerId,

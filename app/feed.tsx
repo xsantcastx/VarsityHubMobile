@@ -40,7 +40,12 @@ import * as Location from 'expo-location';
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { getNotificationHref, getNotificationTitle, isSystemNotification } from '@/utils/notificationPresentation';
+import {
+  getNotificationHref,
+  getNotificationSubtitle,
+  getNotificationTitle,
+  isSystemNotification,
+} from '@/utils/notificationPresentation';
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 const VARSITYHUB_LOGO = require('../assets/images/logo.png');
@@ -2095,10 +2100,11 @@ export default function FeedScreen() {
                 maxToRenderPerBatch={10}
                 windowSize={10}
                 removeClippedSubviews={true}
-                renderItem={({ item }) => {
-                  const title = getNotificationTitle(item);
+	                renderItem={({ item }) => {
+	                  const title = getNotificationTitle(item);
+                    const subtitle = getNotificationSubtitle(item);
 
-                  return (
+	                  return (
                     <Pressable
                       style={[
                         styles.listRow,
@@ -2165,19 +2171,19 @@ export default function FeedScreen() {
                           />
                         ) : null}
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
-                          {title}
-                        </Text>
-                        {item.post?.content && (
-                          <Text
-                            numberOfLines={1}
-                            style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}
-                          >
-                            {item.post.content}
-                          </Text>
-                        )}
-                      </View>
+	                      <View style={{ flex: 1 }}>
+	                        <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
+	                          {title}
+	                        </Text>
+	                        {subtitle && (
+	                          <Text
+	                            numberOfLines={1}
+	                            style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}
+	                          >
+	                            {subtitle}
+	                          </Text>
+	                        )}
+	                      </View>
                       {!item.read_at && <View style={styles.unreadDot} />}
                     </Pressable>
                   );

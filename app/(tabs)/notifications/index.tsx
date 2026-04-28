@@ -12,7 +12,9 @@ import { Notification, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
+  getNotificationActorLabel,
   getNotificationHref,
+  getNotificationSubtitle,
   getNotificationTitle,
   isSystemNotification,
 } from '@/utils/notificationPresentation';
@@ -123,8 +125,9 @@ function NotificationsScreen() {
   };
 
   const renderItem = ({ item }: { item: Notif }) => {
-    const actorName = item.actor?.username ? `@${item.actor.username}` : (item.actor?.display_name || 'Someone');
+    const actorName = getNotificationActorLabel(item);
     const title = getNotificationTitle(item);
+    const subtitle = getNotificationSubtitle(item);
     const onPress = () => {
       const href = getNotificationHref(item);
       if (href) {
@@ -179,12 +182,8 @@ function NotificationsScreen() {
                 <Text style={[S.followBtnText, { color: Colors[colorScheme].text }]}>Decline</Text>
               </Pressable>
             </View>
-          ) : item.post?.content ? (
-            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.post.content}</Text>
-          ) : item.message?.content ? (
-            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.message.content}</Text>
-          ) : item.type === 'GAME_REMINDER' && (item.event?.title || item.meta?.event_title) ? (
-            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.event?.title || item.meta?.event_title}</Text>
+          ) : subtitle ? (
+            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text>
           ) : null}
         </View>
       </Pressable>

@@ -146,7 +146,9 @@ export async function notifyMentions(params: {
       await sendPushNotification(
         recipientId,
         title,
-        'Tap to view',
+        context === 'post'
+          ? 'Open the post to view the mention.'
+          : 'Open the comment thread to view the mention.',
         {
           type: 'mention',
           actor_id: actorId,

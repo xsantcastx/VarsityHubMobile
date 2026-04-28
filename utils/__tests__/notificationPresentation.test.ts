@@ -17,7 +17,9 @@
 
 import { describe, it, expect } from '@jest/globals';
 import {
+  getNotificationActorLabel,
   getNotificationHref,
+  getNotificationSubtitle,
   getNotificationTitle,
   isSystemNotification,
 } from '../notificationPresentation';
@@ -267,6 +269,44 @@ describe('getNotificationTitle — per type', () => {
       actor: { username: 'jane' },
     });
     expect(title).toBe('@jane sent you a notification');
+  });
+});
+
+describe('notification presentation helpers', () => {
+  it('prefers @username for actor labels', () => {
+    expect(getNotificationActorLabel({ actor: makeActor({ username: 'varsity' }) })).toBe('@varsity');
+  });
+
+  it('falls back to display_name for actor labels', () => {
+    expect(getNotificationActorLabel({ actor: { display_name: 'Varsity Coach' } })).toBe('Varsity Coach');
+  });
+
+  it('returns post content as the shared subtitle when present', () => {
+    expect(getNotificationSubtitle({
+      type: 'COMMENT',
+      post: { id: 'post-1', content: 'Big win tonight at home.' },
+    })).toBe('Big win tonight at home.');
+  });
+
+  it('falls back to message preview when post content is unavailable', () => {
+    expect(getNotificationSubtitle({
+      type: 'MESSAGE',
+      message: { conversation_id: 'conv-1', content: 'Meet by the gym at 6:30.' } as any,
+    })).toBe('Meet by the gym at 6:30.');
+  });
+
+  it('uses event title for reminder-style notifications', () => {
+    expect(getNotificationSubtitle({
+      type: 'GAME_REMINDER',
+      event: { id: 'event-1', title: 'Varsity vs Central' },
+    })).toBe('Varsity vs Central');
+  });
+
+  it('uses organization metadata for approval notifications', () => {
+    expect(getNotificationSubtitle({
+      type: 'ORG_APPROVED',
+      meta: { organization_name: 'North Ridge League' },
+    })).toBe('North Ridge League');
   });
 });
 

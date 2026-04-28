@@ -35,7 +35,7 @@ describe('Notifications helpers', () => {
     const payload = buildPostInteractionNotificationPayload('comment', 'user-3', 'Jamie', 'post-42');
     expect(payload).toMatchObject({
       title: 'Jamie commented on your post',
-      body: 'Tap to view',
+      body: 'Open the post to see the latest activity.',
       data: {
         type: 'post_interaction',
         interaction_type: 'comment',

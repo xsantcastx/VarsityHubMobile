@@ -34,7 +34,7 @@ export function buildPostInteractionNotificationPayload(
 
   return {
     title: titles[interactionType],
-    body: 'Tap to view',
+    body: 'Open the post to see the latest activity.',
     data: {
       type: 'post_interaction',
       interaction_type: interactionType,

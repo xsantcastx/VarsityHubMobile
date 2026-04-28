@@ -986,12 +986,15 @@ usersRouter.post('/:id/accept-follow', requireAuth as any, requireVerified as an
       // Send push notification that follow request was accepted
       const currentUser = await prisma.user.findUnique({
         where: { id: currentUserId },
-        select: { display_name: true },
+        select: { display_name: true, username: true },
       });
+      const actorLabel =
+        currentUser?.display_name ||
+        (currentUser?.username ? `@${currentUser.username}` : 'Someone');
       sendPushNotification(
         followerId,
         'Follow Request Accepted',
-        `${currentUser?.display_name || 'Someone'} accepted your follow request`,
+        `${actorLabel} accepted your follow request`,
         { type: 'new_follower', screen: 'user-profile', user_id: currentUserId }
       ).catch((err) => console.warn('Failed to send follow accept push:', err));
     } catch (e) {
