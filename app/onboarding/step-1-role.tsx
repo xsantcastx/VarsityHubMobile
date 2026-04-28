@@ -2,6 +2,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getCanonicalCoachRole } from '@/utils/roleChecks';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
@@ -188,12 +189,10 @@ export default function Step1Role() {
       try {
         const me: any = await User.me();
         if (cancelled) return;
-        if (
-          me?.preferences?.role &&
-          (me.preferences.role === 'fan' || me.preferences.role === 'coach')
-        ) {
-          setRole(me.preferences.role);
-          setOB(prev => ({ ...prev, role: me.preferences.role }));
+        const canonicalRole = getCanonicalCoachRole(me);
+        if (canonicalRole === 'fan' || canonicalRole === 'coach') {
+          setRole(canonicalRole);
+          setOB(prev => ({ ...prev, role: canonicalRole }));
         }
       } catch {
         // ignore - user will select role
@@ -289,9 +288,7 @@ export default function Step1Role() {
           if (!freshServerUser) {
             freshServerUser = await User.refresh().catch(() => User.me().catch(() => null));
           }
-          const serverRole = String(
-            freshServerUser?.preferences?.role || freshServerUser?.role || ''
-          ).toLowerCase();
+          const serverRole = String(getCanonicalCoachRole(freshServerUser) || '').toLowerCase();
           const onboardingCompleted =
             freshServerUser?.preferences?.onboarding_completed === true ||
             freshServerUser?.onboarding_completed === true;
@@ -343,7 +340,7 @@ export default function Step1Role() {
             freshServerUser ?? (await User.refresh().catch(() => User.me().catch(() => null)));
           const recoveryRoute = getPostAuthRouteDecision(freshUser).route;
           if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
-            const canonicalRole = freshUser?.preferences?.role || freshUser?.role;
+            const canonicalRole = getCanonicalCoachRole(freshUser);
             if (canonicalRole === 'coach') {
               setOB(prev => ({ ...prev, role: 'coach' }));
             }

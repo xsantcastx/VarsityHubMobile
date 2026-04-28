@@ -80,10 +80,12 @@ describe('getPostAuthRouteDecision', () => {
       user: {
         email_verified: true,
         approval_status: 'APPROVED',
+        onboarding_completed: false,
+        organization_id: 'org_123',
         preferences: {
-          onboarding_completed: false,
+          onboarding_completed: true,
           role: 'coach',
-          organization_id: 'org_123',
+          organization_id: '',
         },
       },
       expected: '/onboarding/league-pending-approval',
@@ -203,6 +205,20 @@ describe('getCoachAgreementRouteDecision', () => {
 
     expect(decision.kind).toBe('create_team');
     expect(decision.route).toBe('/(tabs)/create-team');
+    expect(decision.params).toEqual({ organization_id: 'org_123' });
+  });
+
+  it('preserves top-level organization_id when preferences are stale', () => {
+    const decision = getCoachAgreementRouteDecision(
+      {
+        role: 'coach',
+        organization_id: 'org_123',
+        preferences: { role: 'coach', organization_id: '' },
+      } as any,
+      'create-team'
+    );
+
+    expect(decision.kind).toBe('create_team');
     expect(decision.params).toEqual({ organization_id: 'org_123' });
   });
 });

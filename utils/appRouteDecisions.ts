@@ -1,6 +1,12 @@
 import type { OnboardingState } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
-import { getCoachAccessState, getPendingCoachRoute, type CoachUserLike } from './roleChecks';
+import {
+  getCoachAccessState,
+  getCoachOrganizationId,
+  getPendingCoachRoute,
+  isCoachOnboardingComplete,
+  type CoachUserLike,
+} from './roleChecks';
 
 export type AppRoute =
   | '/sign-in'
@@ -196,7 +202,7 @@ export function getPostAuthRouteDecision(
   // their account was temporarily marked coach/pending/rejected during testing.
   // They still follow the normal auth rules above plus generic onboarding below.
   if (user.is_admin === true) {
-    const needsOnboarding = user.preferences?.onboarding_completed !== true;
+    const needsOnboarding = !isCoachOnboardingComplete(user);
     return needsOnboarding
       ? {
           kind: 'generic_onboarding_required',
@@ -211,7 +217,7 @@ export function getPostAuthRouteDecision(
   }
 
   const coachAccess = getCoachAccessState(user);
-  const needsOnboarding = user.preferences?.onboarding_completed !== true;
+  const needsOnboarding = !isCoachOnboardingComplete(user);
 
   if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && !coachAccess.isProceedingAsFan) {
     const route = getPendingCoachRoute(user) as AppRoute;
@@ -264,7 +270,7 @@ function summarizeOnboardingDraft(user: RoutingUserLike, state: OnboardingState)
   const role = state?.role as 'fan' | 'coach' | undefined;
   const calculatedStepIndex = nextIncompleteStep(state, role);
   const serverComplete =
-    user.onboarding_completed === true || user.preferences?.onboarding_completed === true;
+    isCoachOnboardingComplete(user);
   const allComplete =
     role === 'coach'
       ? !!state?.role && !!state?.step_2_visited && !!(state?.join_request_pending || state?.organization_id)
@@ -349,7 +355,7 @@ export function getCoachAgreementRouteDecision(
   redirect?: string | null
 ): CoachAgreementRouteDecision {
   const organizationId = String(
-    user.preferences?.organization_id || (user as { organization_id?: string | null }).organization_id || ''
+    getCoachOrganizationId(user) || ''
   ).trim();
 
   if (!organizationId) {

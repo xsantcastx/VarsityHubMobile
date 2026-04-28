@@ -19,6 +19,7 @@ import {
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
+import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import {
   LEGEND_YEARLY_PRICE_LABEL,
   ROOKIE_TEAM_LIMIT,
@@ -58,7 +59,7 @@ function RoleOnboardingScreenInner() {
     void (async () => {
       try {
         const me: any = await User.me();
-        const userRole = me?.preferences?.role;
+        const userRole = getCanonicalCoachRole(me);
         const storedPlan = me?.preferences?.plan;
         const subscriptionTier = me?.subscription_tier;
         const resolvedCoachTier: CoachTier =

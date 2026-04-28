@@ -19,6 +19,8 @@ export type CoachUserLike = {
   next_step?: string | null;
   paid_by_owner?: boolean;
   is_admin?: boolean;
+  onboarding_completed?: boolean | null;
+  organization_id?: string | null;
   required_coach_agreement_version?: number | string | null;
   preferences?: CoachPreferencesLike | null;
 };
@@ -51,9 +53,27 @@ function normalizeNumber(value: unknown, fallback: number): number {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+export function getCanonicalCoachRole(user: CoachUserLike | null | undefined): string | null {
+  const preferences = user?.preferences ?? null;
+  return normalizeString(user?.role) ?? normalizeString(preferences?.role);
+}
+
+export function isCoachOnboardingComplete(user: CoachUserLike | null | undefined): boolean {
+  if (typeof user?.onboarding_completed === 'boolean') {
+    return user.onboarding_completed;
+  }
+  return user?.preferences?.onboarding_completed === true;
+}
+
+export function getCoachOrganizationId(user: CoachUserLike | null | undefined): string | null {
+  const topLevel = normalizeString((user as { organization_id?: string | null } | null | undefined)?.organization_id);
+  if (topLevel) return topLevel;
+  return normalizeString(user?.preferences?.organization_id);
+}
+
 export function getCoachAccessState(user: CoachUserLike | null | undefined): CoachAccessState {
   const preferences = user?.preferences ?? null;
-  const role = normalizeString(preferences?.role) ?? normalizeString(user?.role);
+  const role = getCanonicalCoachRole(user);
   const approvalStatus = normalizeString(user?.approval_status);
   const acceptedCoachAgreementVersion = normalizeNumber(
     preferences?.coach_agreement_version,
@@ -69,7 +89,7 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
   const isPendingCoach = isCoach && approvalStatus === 'PENDING';
   const isRejectedCoach = isCoach && approvalStatus === 'REJECTED';
   const isProceedingAsFan = preferences?.proceeding_as_fan === true && approvalStatus !== 'APPROVED';
-  const onboardingCompleted = preferences?.onboarding_completed === true;
+  const onboardingCompleted = isCoachOnboardingComplete(user);
   const hasAcceptedCoachAgreement = !!preferences?.coach_agreement_accepted_at;
   const hasCurrentCoachAgreement =
     isApprovedCoach &&
@@ -174,7 +194,7 @@ export function getPendingCoachRoute(user: CoachUserLike | null | undefined): st
   if (preferences?.join_request_pending === true) {
     return '/onboarding/pending-approval';
   }
-  if (preferences?.organization_id) {
+  if (getCoachOrganizationId(user)) {
     return '/onboarding/league-pending-approval';
   }
   return '/onboarding/pending-approval';

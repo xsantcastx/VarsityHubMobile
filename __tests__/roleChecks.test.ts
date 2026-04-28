@@ -13,7 +13,14 @@
  * relevant case below fails.
  */
 import { describe, expect, it } from '@jest/globals';
-import { getCoachAccessState, getCoachRecoveryRoute, getPendingCoachRoute } from '../utils/roleChecks';
+import {
+  getCoachAccessState,
+  getCoachRecoveryRoute,
+  getPendingCoachRoute,
+  getCanonicalCoachRole,
+  getCoachOrganizationId,
+  isCoachOnboardingComplete,
+} from '../utils/roleChecks';
 
 describe('getCoachAccessState — identity', () => {
   it('null / undefined user produces a safe default (no access)', () => {
@@ -35,13 +42,17 @@ describe('getCoachAccessState — identity', () => {
     expect(s.canAccessCoachTools).toBe(false);
   });
 
-  it('reads role from preferences.role over user.role', () => {
+  it('prefers top-level role over stale preferences.role', () => {
     const s = getCoachAccessState({
-      role: 'fan',
-      preferences: { role: 'coach' },
+      role: 'coach',
+      preferences: { role: 'fan' },
     });
     expect(s.isCoach).toBe(true);
     expect(s.role).toBe('coach');
+  });
+
+  it('falls back to preferences.role when top-level role is missing', () => {
+    expect(getCanonicalCoachRole({ preferences: { role: 'coach' } } as any)).toBe('coach');
   });
 });
 
@@ -207,9 +218,47 @@ describe('getPendingCoachRoute', () => {
     ).toBe('/onboarding/league-pending-approval');
   });
 
+  it('uses top-level organization_id when preferences are stale', () => {
+    expect(
+      getPendingCoachRoute({
+        organization_id: 'org_top_level',
+        preferences: { organization_id: '' },
+      } as any)
+    ).toBe('/onboarding/league-pending-approval');
+  });
+
   it('defaults to /onboarding/pending-approval for missing preferences', () => {
     expect(getPendingCoachRoute({} as any)).toBe('/onboarding/pending-approval');
     expect(getPendingCoachRoute(null)).toBe('/onboarding/pending-approval');
+  });
+});
+
+describe('canonical onboarding helpers', () => {
+  it('prefers top-level onboarding_completed over stale preferences', () => {
+    expect(
+      isCoachOnboardingComplete({
+        onboarding_completed: true,
+        preferences: { onboarding_completed: false },
+      } as any)
+    ).toBe(true);
+  });
+
+  it('treats top-level onboarding_completed=false as authoritative', () => {
+    expect(
+      isCoachOnboardingComplete({
+        onboarding_completed: false,
+        preferences: { onboarding_completed: true },
+      } as any)
+    ).toBe(false);
+  });
+
+  it('prefers top-level organization_id over stale preferences', () => {
+    expect(
+      getCoachOrganizationId({
+        organization_id: 'org_123',
+        preferences: { organization_id: '' },
+      } as any)
+    ).toBe('org_123');
   });
 });
 
