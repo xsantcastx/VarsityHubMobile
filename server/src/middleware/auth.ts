@@ -8,8 +8,11 @@ export interface AuthedRequest extends Request {
   file?: Express.Multer.File;
 }
 
-// Routes that never need auth — skip DB lookup entirely
-const PUBLIC_PREFIXES = ['/health', '/.well-known', '/privacy-policy', '/terms', '/support'];
+// Routes that never need auth — skip DB lookup entirely.
+// Keep exact-match pages separate from prefixes so `/support/contact` and
+// `/support/feedback` still hydrate req.user for the authenticated API.
+const PUBLIC_EXACT_PATHS = new Set(['/privacy-policy', '/terms', '/support']);
+const PUBLIC_PREFIXES = ['/health', '/.well-known'];
 
 export async function authMiddleware(req: AuthedRequest, _res: Response, next: NextFunction) {
   const header = req.header('Authorization');
@@ -20,7 +23,7 @@ export async function authMiddleware(req: AuthedRequest, _res: Response, next: N
   }
 
   // Skip DB lookup for public endpoints — even if a token is present
-  if (PUBLIC_PREFIXES.some((p) => req.path.startsWith(p))) {
+  if (PUBLIC_EXACT_PATHS.has(req.path) || PUBLIC_PREFIXES.some((p) => req.path.startsWith(p))) {
     clearUserContext();
     return next();
   }
