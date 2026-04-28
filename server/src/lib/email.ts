@@ -63,7 +63,11 @@ const getEmailService = async (): Promise<EmailService | null> => {
 
 // Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
-const CANONICAL_API_FALLBACK = 'https://api-production-8ac3.up.railway.app';
+const CANONICAL_API_FALLBACK = 'https://varsityhub.app';
+// Consent URLs need a real Express handler; the vanity domain may not proxy
+// /consent/:token. Pin to the raw API origin so parental-consent emails keep
+// working even when API_BASE_URL is missing or set to a broken host.
+const CANONICAL_CONSENT_API_FALLBACK = 'https://api-production-8ac3.up.railway.app';
 const CANONICAL_APP_FALLBACK = 'https://varsityhub.app';
 const BROKEN_API_HOSTS = new Set(['api.varsityhub.app']);
 const BROKEN_APP_HOSTS = new Set(['api.varsityhub.app']);
@@ -130,6 +134,11 @@ const APP_BASE_URL_RESOLUTION = resolveEmailBaseUrlWithDiagnostics(
 );
 const API_BASE_URL = API_BASE_URL_RESOLUTION.value;
 const APP_BASE_URL = APP_BASE_URL_RESOLUTION.value;
+const CONSENT_API_BASE_URL = resolveEmailBaseUrlWithDiagnostics(
+  process.env.API_BASE_URL,
+  CANONICAL_CONSENT_API_FALLBACK,
+  BROKEN_API_HOSTS
+).value;
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
 const TERMS_URL = `${APP_BASE_URL}/terms`;
@@ -846,7 +855,7 @@ export async function sendParentalConsentRequestEmail(params: {
   // Parent lands on GET /consent/:token which renders an HTML form with both
   // Approve and Deny buttons. Both URLs point at the same landing page; the
   // older /auth/parental-consent/:token format is not wired up and would 404.
-  const consentUrl = `${API_BASE_URL}/consent/${encodeURIComponent(params.consentToken)}`;
+  const consentUrl = `${CONSENT_API_BASE_URL}/consent/${encodeURIComponent(params.consentToken)}`;
   const approveUrl = consentUrl;
   const denyUrl = consentUrl;
   const subject = `Approve ${params.minorDisplayName || 'your child'}'s VarsityHub account`;
