@@ -143,6 +143,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const lastRedirectRef = React.useRef<string | null>(null);
   const recentRedirectsRef = React.useRef<Array<{ family: string; to: string; ts: number }>>([]);
   const segmentsRef = React.useRef(segments);
+  const bootstrapStartedRef = React.useRef(false);
   // Guard against multiple in-flight coach-role restores triggered by repeated
   // effect runs. Cleared in the async block's finally.
   const restoringCoachRef = React.useRef(false);
@@ -707,58 +708,77 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   // Initial auth check
   useEffect(() => {
-    if (!navReady) {
-      if (__DEV__) console.log('[AuthProvider] Waiting for navigation state...');
-      return;
-    }
-
-    if (__DEV__) console.log('[AuthProvider] Navigation ready, starting auth check');
     let mounted = true;
+    let startTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    (async () => {
-      // Clear stale tokens and probe backend health in parallel so startup doesn't
-      // serialize SecureStore/AsyncStorage work ahead of the first network check.
-      if (__DEV__) console.log('[AuthProvider] Checking backend health...');
-      const [healthy] = await Promise.all([
-        checkHealth(),
-        import('@/api/auth').then(({ clearStaleTokensOnFreshInstall }) =>
-          clearStaleTokensOnFreshInstall()
-        ),
-      ]);
-      if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
+    const startInitialization = () => {
+      if (bootstrapStartedRef.current) return;
+      bootstrapStartedRef.current = true;
+      if (__DEV__) console.log('[AuthProvider] Navigation ready, starting auth check');
 
-      if (!mounted) return;
+      (async () => {
+        // Clear stale tokens and probe backend health in parallel so startup doesn't
+        // serialize SecureStore/AsyncStorage work ahead of the first network check.
+        if (__DEV__) console.log('[AuthProvider] Checking backend health...');
+        const [healthy] = await Promise.all([
+          checkHealth(),
+          import('@/api/auth').then(({ clearStaleTokensOnFreshInstall }) =>
+            clearStaleTokensOnFreshInstall()
+          ),
+        ]);
+        if (__DEV__) console.log('[AuthProvider] Health check result:', healthy);
 
-      // 2. If backend is down, we can't authenticate
-      if (!healthy) {
-        if (__DEV__) console.log('[AuthProvider] Backend unhealthy, stopping initialization');
-        setLoading(false);
-        setInitializing(false);
-        // Don't redirect - let user see offline banner
-        return;
-      }
+        if (!mounted) return;
 
-      // 3. Check auth status
-      if (__DEV__) console.log('[AuthProvider] Checking authentication...');
-      try {
-        await checkAuthRef.current();
-        if (__DEV__) console.log('[AuthProvider] Auth check successful');
-      } catch (err: any) {
-        if (__DEV__)
-          console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
-        // Auth failed - user not logged in
-        // Don't redirect here - let the routing logic below handle it
-      } finally {
-        if (mounted) {
-          if (__DEV__) console.log('[AuthProvider] Initialization complete');
+        // 2. If backend is down, we can't authenticate
+        if (!healthy) {
+          if (__DEV__) console.log('[AuthProvider] Backend unhealthy, stopping initialization');
           setLoading(false);
           setInitializing(false);
+          // Don't redirect - let user see offline banner
+          return;
         }
-      }
-    })();
+
+        // 3. Check auth status
+        if (__DEV__) console.log('[AuthProvider] Checking authentication...');
+        try {
+          await checkAuthRef.current();
+          if (__DEV__) console.log('[AuthProvider] Auth check successful');
+        } catch (err: any) {
+          if (__DEV__)
+            console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
+          // Auth failed - user not logged in
+          // Don't redirect here - let the routing logic below handle it
+        } finally {
+          if (mounted) {
+            if (__DEV__) console.log('[AuthProvider] Initialization complete');
+            setLoading(false);
+            setInitializing(false);
+          }
+        }
+      })();
+    };
+
+    if (!navReady) {
+      if (__DEV__) console.log('[AuthProvider] Waiting for navigation state...');
+      // Expo Router can render the root route before `useRootNavigationState()`
+      // exposes a stable readiness flag. Do not let that race pin the app on
+      // the passive index spinner forever.
+      startTimeout = setTimeout(() => {
+        if (!mounted) return;
+        if (__DEV__)
+          console.warn(
+            '[AuthProvider] Navigation readiness timeout - continuing auth bootstrap'
+          );
+        startInitialization();
+      }, 1500);
+    } else {
+      startInitialization();
+    }
 
     return () => {
       mounted = false;
+      if (startTimeout) clearTimeout(startTimeout);
     };
   }, [navReady, checkHealth]);
 

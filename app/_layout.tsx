@@ -173,7 +173,7 @@ function RootLayout() {
           <ThemeProvider>
             <PostCacheProvider>
               <NavigationHistoryProvider>
-              <AuthProvider navReady={!!navState?.key}>
+              <AuthProvider navReady={!!navState}>
                 <NotificationTapHandler />
                 <VerificationGateHost />
                 <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

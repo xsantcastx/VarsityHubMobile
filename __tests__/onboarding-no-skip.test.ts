@@ -25,6 +25,7 @@ const leaguePendingApproval = read('app/onboarding/league-pending-approval.tsx')
 const onboardingLayout = read('app/onboarding/_layout.tsx');
 const onboardingIndex = read('app/onboarding/index.tsx');
 const rootIndex = read('app/index.tsx');
+const rootLayout = read('app/_layout.tsx');
 const authProvider = read('context/AuthProvider.tsx');
 
 describe('onboarding flow — no screens can be skipped', () => {
@@ -205,6 +206,21 @@ describe('onboarding flow — no screens can be skipped', () => {
       // Lock in the architecture: index must NOT contain its own routing
       // logic (would re-introduce the race AuthProvider was built to fix).
       expect(rootIndex).toMatch(/AuthProvider handles all routing|navigation is handled centrally/);
+    });
+
+    it('root layout does not hard-block auth bootstrap on navState.key', () => {
+      expect(rootLayout).not.toMatch(/navState\?\.key/);
+      expect(rootLayout).toMatch(/navReady=\{!!navState\}/);
+    });
+
+    it('AuthProvider has a navigation-readiness timeout fallback', () => {
+      expect(authProvider).toMatch(/Navigation readiness timeout - continuing auth bootstrap/);
+      expect(authProvider).toMatch(/setTimeout\(\(\)\s*=>\s*\{/);
+    });
+
+    it('AuthProvider bootstraps auth at most once even if nav readiness flips later', () => {
+      expect(authProvider).toMatch(/bootstrapStartedRef/);
+      expect(authProvider).toMatch(/if \(bootstrapStartedRef\.current\) return;/);
     });
 
     it('AuthProvider has a pending-coach redirect path (not just implicit)', () => {
