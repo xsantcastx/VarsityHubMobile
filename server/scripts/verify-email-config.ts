@@ -15,19 +15,29 @@ import {
   isCanonicalEmailFrom,
   resolveEmailFrom,
 } from '../src/lib/emailSender.js';
+import {
+  getEmailBaseUrlDiagnostics,
+  getMissingEmailTemplates,
+  getMissingRecommendedTemplates,
+  REQUIRED_TEMPLATE_KEYS,
+} from '../src/lib/email.js';
 
 console.log('🔍 Verifying Email Configuration...\n');
 
 const service = getEmailService();
 const validation = service.validateConfig();
+const resolvedFrom = resolveEmailFrom();
+const missingCriticalTemplates = getMissingEmailTemplates();
+const missingRecommendedTemplates = getMissingRecommendedTemplates();
+const baseUrlDiagnostics = getEmailBaseUrlDiagnostics();
+const hasCriticalTemplateFailures = missingCriticalTemplates.length > 0;
+const hasSenderDrift = !isCanonicalEmailFrom(resolvedFrom);
 
 console.log('📧 Email Service Status:');
 console.log(`   Provider: ${service['config'].provider}`);
 console.log(`   Default From: ${service['config'].defaultFrom}`);
 console.log(`   Configured: ${service.isConfigured() ? '✅ Yes' : '❌ No'}`);
 console.log(`   Valid: ${validation.valid ? '✅ Yes' : '❌ No'}\n`);
-
-const resolvedFrom = resolveEmailFrom();
 console.log(`   Canonical Sender: ${isCanonicalEmailFrom(resolvedFrom) ? '✅ Yes' : '❌ No'} (${resolvedFrom})\n`);
 
 if (!validation.valid) {
@@ -40,10 +50,7 @@ if (!validation.valid) {
 
 // Check environment variables
 console.log('🔐 Environment Variables:');
-const requiredVars = [
-  'SENDGRID_API_KEY',
-  'APP_BASE_URL',
-];
+const requiredVars = ['SENDGRID_API_KEY'];
 
 requiredVars.forEach((varName) => {
   const value = process.env[varName];
@@ -68,26 +75,41 @@ if (!isCanonicalEmailFrom(resolvedFrom)) {
   console.log(`   ⚠️ Sender should resolve to ${CANONICAL_EMAIL_FROM}`);
 }
 
-// Check template IDs
-console.log('\n📋 Template IDs:');
-const templateVars = [
-  'SENDGRID_VERIFICATION_TEMPLATE_ID',
-  'SENDGRID_PASSWORD_RESET_TEMPLATE_ID',
-  'SENDGRID_TEAM_INVITE_TEMPLATE_ID',
-  'SENDGRID_ORG_INVITE_TEMPLATE_ID',
-];
+console.log('\n🌐 Email Link URLs:');
+for (const [label, diag] of Object.entries(baseUrlDiagnostics)) {
+  const prefix = diag.usedFallback ? '⚠️' : '✅';
+  const reason =
+    diag.reason === 'configured'
+      ? 'using configured value'
+      : `using fallback (${diag.reason.replace(/_/g, ' ')})`;
+  console.log(`   ${prefix} ${diag.envKey}: ${diag.resolvedValue}`);
+  console.log(`      Raw: ${diag.rawValue || '(unset)'}`);
+  console.log(`      Status: ${reason}`);
+}
 
-templateVars.forEach((varName) => {
-  const value = process.env[varName];
-  if (value) {
-    console.log(`   ✅ ${varName}: Set`);
-  } else {
-    console.log(`   ⚠️  ${varName}: Not set (optional)`);
-  }
-});
+console.log('\n📋 Template Coverage:');
+console.log(
+  `   Critical Templates: ${REQUIRED_TEMPLATE_KEYS.length - missingCriticalTemplates.length}/${REQUIRED_TEMPLATE_KEYS.length} configured`
+);
+if (missingCriticalTemplates.length > 0) {
+  console.log(`   ❌ Missing critical: ${missingCriticalTemplates.join(', ')}`);
+} else {
+  console.log('   ✅ All critical transactional templates are configured');
+}
+
+if (missingRecommendedTemplates.length > 0) {
+  console.log(`   ⚠️  Missing recommended: ${missingRecommendedTemplates.join(', ')}`);
+} else {
+  console.log('   ✅ Recommended templates configured');
+}
 
 console.log('\n✨ Verification complete!');
-if (validation.valid && service.isConfigured() && isCanonicalEmailFrom(resolvedFrom)) {
+if (
+  validation.valid &&
+  service.isConfigured() &&
+  !hasCriticalTemplateFailures &&
+  !hasSenderDrift
+) {
   console.log('✅ Email service is ready to use!');
 } else {
   console.log('⚠️  Please fix configuration issues above.');

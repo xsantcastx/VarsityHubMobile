@@ -1,7 +1,13 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { CloudinaryUpstreamError, getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
-import { getMissingEmailTemplates, getMissingRecommendedTemplates, isSendGridConfigured, sendVerificationEmail } from '../lib/email.js';
+import {
+  getEmailBaseUrlDiagnostics,
+  getMissingEmailTemplates,
+  getMissingRecommendedTemplates,
+  isSendGridConfigured,
+  sendVerificationEmail,
+} from '../lib/email.js';
 import { getAllPlanDefinitions } from '../lib/planLimits.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
@@ -39,6 +45,7 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
 
   const missingEmailTemplates = getMissingEmailTemplates();
   const missingRecommendedTemplates = getMissingRecommendedTemplates();
+  const emailBaseUrlDiagnostics = getEmailBaseUrlDiagnostics();
   const emailService = getEmailService();
   const emailServiceReady = emailService.isConfigured() && emailService.validateConfig().valid;
   const sendgridReady = isSendGridConfigured() && missingEmailTemplates.length === 0 && emailServiceReady;
@@ -117,6 +124,7 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
     metadata: {
       missingEmailTemplates,
       missingRecommendedTemplates,
+      emailBaseUrlDiagnostics,
     },
   };
   if (includePayments) {
@@ -145,6 +153,7 @@ healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
   }
   const missingEmailTemplates = getMissingEmailTemplates();
   const missingRecommended = getMissingRecommendedTemplates();
+  const emailBaseUrlDiagnostics = getEmailBaseUrlDiagnostics();
   const emailService = getEmailService();
   const serviceReady = emailService.isConfigured() && emailService.validateConfig().valid;
   const sendgridOk = isSendGridConfigured();
@@ -198,6 +207,7 @@ healthRouter.get('/email', asyncHandler(async (req: AuthedRequest, res) => {
     service_ready: serviceReady,
     missing_critical_templates: missingEmailTemplates,
     missing_recommended_templates: missingRecommended,
+    email_base_urls: emailBaseUrlDiagnostics,
     timestamp: new Date().toISOString(),
   });
 }));

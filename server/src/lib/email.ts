@@ -72,34 +72,68 @@ const BROKEN_API_HOSTS = new Set([
 ]);
 const BROKEN_APP_HOSTS = new Set(['api.varsityhub.app']);
 
-function resolveEmailBaseUrl(
+type EmailBaseUrlResolutionReason = 'configured' | 'missing' | 'invalid_url' | 'blocked_host';
+
+interface EmailBaseUrlResolution {
+  value: string;
+  rawValue: string;
+  usedFallback: boolean;
+  reason: EmailBaseUrlResolutionReason;
+}
+
+function resolveEmailBaseUrlWithDiagnostics(
   rawValue: string | undefined,
   fallback: string,
   blockedHosts: Set<string>
-): string {
+): EmailBaseUrlResolution {
+  const fallbackValue = fallback.replace(/\/$/, '');
   const candidate = String(rawValue || '').trim();
-  if (!candidate) return fallback.replace(/\/$/, '');
+  if (!candidate) {
+    return {
+      value: fallbackValue,
+      rawValue: candidate,
+      usedFallback: true,
+      reason: 'missing',
+    };
+  }
   try {
     const parsed = new URL(candidate);
     if (blockedHosts.has(parsed.hostname)) {
-      return fallback.replace(/\/$/, '');
+      return {
+        value: fallbackValue,
+        rawValue: candidate,
+        usedFallback: true,
+        reason: 'blocked_host',
+      };
     }
-    return parsed.toString().replace(/\/$/, '');
+    return {
+      value: parsed.toString().replace(/\/$/, ''),
+      rawValue: candidate,
+      usedFallback: false,
+      reason: 'configured',
+    };
   } catch {
-    return fallback.replace(/\/$/, '');
+    return {
+      value: fallbackValue,
+      rawValue: candidate,
+      usedFallback: true,
+      reason: 'invalid_url',
+    };
   }
 }
 
-const API_BASE_URL = resolveEmailBaseUrl(
+const API_BASE_URL_RESOLUTION = resolveEmailBaseUrlWithDiagnostics(
   process.env.API_BASE_URL,
   CANONICAL_API_FALLBACK,
   BROKEN_API_HOSTS
 );
-const APP_BASE_URL = resolveEmailBaseUrl(
+const APP_BASE_URL_RESOLUTION = resolveEmailBaseUrlWithDiagnostics(
   process.env.APP_BASE_URL,
   CANONICAL_APP_FALLBACK,
   BROKEN_APP_HOSTS
 );
+const API_BASE_URL = API_BASE_URL_RESOLUTION.value;
+const APP_BASE_URL = APP_BASE_URL_RESOLUTION.value;
 const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
 const PRIVACY_POLICY_URL = `${APP_BASE_URL}/privacy-policy`;
 const TERMS_URL = `${APP_BASE_URL}/terms`;
@@ -191,7 +225,7 @@ const SENDGRID_TEMPLATE_ID_REGEX = /^d-[a-f0-9]{32}$/i;
 
 // Critical for launch — server exits if missing in production.
 // These keys back every transactional template currently exercised by production flows.
-const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
+export const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'VERIFICATION',
   'PASSWORD_RESET',
   'TEAM_INVITE',
@@ -215,7 +249,7 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
 // Non-launch-blocking templates still warn when missing, but do not prevent
 // the server from booting. Parental consent is operationally important, but a
 // missing SendGrid template ID should not take down the whole API.
-const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = ['PARENTAL_CONSENT_REQUEST'];
+export const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = ['PARENTAL_CONSENT_REQUEST'];
 
 export function isSendGridConfigured(): boolean {
   return Boolean(SENDGRID_API_KEY);
@@ -233,6 +267,27 @@ export function getMissingRecommendedTemplates(): string[] {
 
 export function isValidSendGridTemplateId(templateId: string | undefined | null): boolean {
   return typeof templateId === 'string' && SENDGRID_TEMPLATE_ID_REGEX.test(templateId.trim());
+}
+
+export function getEmailBaseUrlDiagnostics() {
+  return {
+    api: {
+      envKey: 'API_BASE_URL',
+      rawValue: API_BASE_URL_RESOLUTION.rawValue,
+      resolvedValue: API_BASE_URL_RESOLUTION.value,
+      fallbackValue: CANONICAL_API_FALLBACK,
+      usedFallback: API_BASE_URL_RESOLUTION.usedFallback,
+      reason: API_BASE_URL_RESOLUTION.reason,
+    },
+    app: {
+      envKey: 'APP_BASE_URL',
+      rawValue: APP_BASE_URL_RESOLUTION.rawValue,
+      resolvedValue: APP_BASE_URL_RESOLUTION.value,
+      fallbackValue: CANONICAL_APP_FALLBACK,
+      usedFallback: APP_BASE_URL_RESOLUTION.usedFallback,
+      reason: APP_BASE_URL_RESOLUTION.reason,
+    },
+  };
 }
 
 function buildWebScreenUrl(

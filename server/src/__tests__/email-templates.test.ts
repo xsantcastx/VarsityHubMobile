@@ -74,6 +74,46 @@ describe('Email template helpers', () => {
     expect(getMissingEmailTemplates(['TEAM_INVITE'])).toEqual(['team_invite']);
   });
 
+  it('reports when API and app email links are falling back to canonical hosts', async () => {
+    process.env.APP_BASE_URL = 'https://api.varsityhub.app';
+    process.env.API_BASE_URL = 'https://varsityhub.app';
+    const { getEmailBaseUrlDiagnostics } = await import('../lib/email.js');
+    expect(getEmailBaseUrlDiagnostics()).toEqual({
+      api: expect.objectContaining({
+        envKey: 'API_BASE_URL',
+        resolvedValue: railwayApiOrigin,
+        usedFallback: true,
+        reason: 'blocked_host',
+      }),
+      app: expect.objectContaining({
+        envKey: 'APP_BASE_URL',
+        resolvedValue: 'https://varsityhub.app',
+        usedFallback: true,
+        reason: 'blocked_host',
+      }),
+    });
+  });
+
+  it('reports configured email link base URLs when env values are valid', async () => {
+    process.env.APP_BASE_URL = 'https://lime.varsityhub.app';
+    process.env.API_BASE_URL = 'https://api-production-8ac3.up.railway.app';
+    const { getEmailBaseUrlDiagnostics } = await import('../lib/email.js');
+    expect(getEmailBaseUrlDiagnostics()).toEqual({
+      api: expect.objectContaining({
+        envKey: 'API_BASE_URL',
+        resolvedValue: 'https://api-production-8ac3.up.railway.app',
+        usedFallback: false,
+        reason: 'configured',
+      }),
+      app: expect.objectContaining({
+        envKey: 'APP_BASE_URL',
+        resolvedValue: 'https://lime.varsityhub.app',
+        usedFallback: false,
+        reason: 'configured',
+      }),
+    });
+  });
+
   it('buildLeagueApprovalReviewUrl points into the admin app flow', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
     process.env.API_BASE_URL = 'https://api.varsityhub.app';
