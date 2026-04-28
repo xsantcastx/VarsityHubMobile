@@ -4,6 +4,54 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const IOS_APP_ID = 'B5H8F69RW5.com.varsithub.varsityhub-ios';
+const IOS_PATHS = [
+  '/posts/*',
+  '/games/*',
+  '/teams/*',
+  '/users/*',
+  '/events/*',
+  '/join/*',
+  '/share',
+  '/verify',
+  '/reset-password',
+  '/settings/manage-subscription',
+  '/admin-dashboard',
+  '/admin-ads',
+  '/event-approvals',
+  '/organization-join-requests',
+  '/team-hub',
+  '/create-fan-event',
+  '/event-detail',
+  '/payment-success',
+  '/payment-cancel',
+] as const;
+const FALLBACK_AASA = JSON.stringify({
+  applinks: {
+    apps: [],
+    details: [
+      {
+        appID: IOS_APP_ID,
+        paths: [...IOS_PATHS],
+      },
+    ],
+  },
+  webcredentials: {
+    apps: [IOS_APP_ID],
+  },
+});
+const FALLBACK_ASSET_LINKS = JSON.stringify([
+  {
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: 'com.varsityhub.varsityhub',
+      sha256_cert_fingerprints: [
+        '3bdce8b7d434451b39ff032e9ae938fb1a213cae69e76e0aac1186ccf5194ab4',
+      ],
+    },
+  },
+]);
 
 export function resolveWellKnownDir(baseCwd = process.cwd()): string | null {
   const candidates = [
@@ -23,15 +71,20 @@ export function resolveWellKnownDir(baseCwd = process.cwd()): string | null {
   return null;
 }
 
-function readWellKnownFile(filename: 'apple-app-site-association' | 'assetlinks.json'): string | null {
-  const dir = resolveWellKnownDir();
-  if (!dir) return null;
+export function getWellKnownPayload(
+  filename: 'apple-app-site-association' | 'assetlinks.json',
+  baseCwd = process.cwd()
+): string {
+  const dir = resolveWellKnownDir(baseCwd);
+  if (!dir) {
+    return filename === 'apple-app-site-association' ? FALLBACK_AASA : FALLBACK_ASSET_LINKS;
+  }
 
   const filePath = path.join(dir, filename);
   try {
     return fs.readFileSync(filePath, 'utf-8');
   } catch {
-    return null;
+    return filename === 'apple-app-site-association' ? FALLBACK_AASA : FALLBACK_ASSET_LINKS;
   }
 }
 
@@ -43,15 +96,12 @@ export const wellKnownRouter = Router();
  * Must be application/json, no .json extension in URL.
  */
 wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
-  const content = readWellKnownFile('apple-app-site-association');
-  if (content) {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(content);
-    return;
+  const content = getWellKnownPayload('apple-app-site-association');
+  res.setHeader('Content-Type', 'application/json');
+  if (content === FALLBACK_AASA) {
+    console.warn('[well-known] AASA file not found in any known deployment path, serving built-in fallback');
   }
-
-  console.warn('[well-known] AASA file not found in any known deployment path');
-  res.status(404).json({ error: 'Not found' });
+  res.send(content);
 });
 
 /**
@@ -59,13 +109,10 @@ wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
  * Serves the asset links file for Android App Links.
  */
 wellKnownRouter.get('/assetlinks.json', (_req, res) => {
-  const content = readWellKnownFile('assetlinks.json');
-  if (content) {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(content);
-    return;
+  const content = getWellKnownPayload('assetlinks.json');
+  res.setHeader('Content-Type', 'application/json');
+  if (content === FALLBACK_ASSET_LINKS) {
+    console.warn('[well-known] assetlinks.json not found in any known deployment path, serving built-in fallback');
   }
-
-  console.warn('[well-known] assetlinks.json not found in any known deployment path');
-  res.status(404).json({ error: 'Not found' });
+  res.send(content);
 });
