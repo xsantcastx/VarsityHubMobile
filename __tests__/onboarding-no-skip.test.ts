@@ -209,18 +209,24 @@ describe('onboarding flow — no screens can be skipped', () => {
     });
 
     it('root layout does not hard-block auth bootstrap on navState.key', () => {
-      expect(rootLayout).not.toMatch(/navState\?\.key/);
-      expect(rootLayout).toMatch(/navReady=\{!!navState\}/);
+      expect(rootLayout).toMatch(/const navReady = Boolean\(navState\?\.key\)/);
+      expect(rootLayout).toMatch(/<AuthProvider navReady=\{navReady\}>/);
     });
 
-    it('AuthProvider has a navigation-readiness timeout fallback', () => {
-      expect(authProvider).toMatch(/Navigation readiness timeout - continuing auth bootstrap/);
-      expect(authProvider).toMatch(/setTimeout\(\(\)\s*=>\s*\{/);
+    it('AuthProvider bootstraps auth independently of nav readiness', () => {
+      expect(authProvider).toMatch(/Starting auth bootstrap/);
+      expect(authProvider).not.toMatch(/Navigation readiness timeout - continuing auth bootstrap/);
     });
 
     it('AuthProvider bootstraps auth at most once even if nav readiness flips later', () => {
       expect(authProvider).toMatch(/bootstrapStartedRef/);
       expect(authProvider).toMatch(/if \(bootstrapStartedRef\.current\) return;/);
+    });
+
+    it('AuthProvider resets redirect suppression when the current path changes', () => {
+      expect(authProvider).toMatch(/lastRedirectRef\.current = null/);
+      expect(authProvider).toMatch(/currentPath === normalizedTarget/);
+      expect(authProvider).toMatch(/currentPath,\s*segments/);
     });
 
     it('AuthProvider has a pending-coach redirect path (not just implicit)', () => {

@@ -99,6 +99,7 @@ function RootLayout() {
     ...Ionicons.font,
   });
   const navState = useRootNavigationState();
+  const navReady = Boolean(navState?.key);
 
   React.useEffect(() => {
     if (__DEV__) {
@@ -173,7 +174,7 @@ function RootLayout() {
           <ThemeProvider>
             <PostCacheProvider>
               <NavigationHistoryProvider>
-              <AuthProvider navReady={!!navState}>
+              <AuthProvider navReady={navReady}>
                 <NotificationTapHandler />
                 <VerificationGateHost />
                 <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

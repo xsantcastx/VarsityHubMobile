@@ -139,6 +139,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   const router = useRouter();
   const segments = useSegments();
+  const currentPath =
+    Array.isArray(segments) && segments.length ? segments.map(segment => String(segment)).join('/') : '';
 
   const lastRedirectRef = React.useRef<string | null>(null);
   const recentRedirectsRef = React.useRef<Array<{ family: string; to: string; ts: number }>>([]);
@@ -154,10 +156,18 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // component cycle resets refs).
   const restoreCoachFailedThisSessionRef = React.useRef(false);
 
-  // Update segments ref on every render
+  // Track the concrete route path. Redirect suppression must reset when the
+  // router actually moves; otherwise one dropped replace() can suppress every
+  // future retry and strand the user on the passive root spinner.
   React.useEffect(() => {
     segmentsRef.current = segments;
-  }, [segments]);
+    if (!lastRedirectRef.current) return;
+
+    const normalizedTarget = lastRedirectRef.current.replace(/^\//, '');
+    if (currentPath === normalizedTarget || (currentPath !== '' && currentPath !== normalizedTarget)) {
+      lastRedirectRef.current = null;
+    }
+  }, [currentPath, segments]);
 
   // Derived state
   const normalizedRole = String(user?.role || '').toLowerCase();
@@ -926,7 +936,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       const postAuthDecision = getPostAuthRouteDecision(user, {
         pendingVerification: !!pendingVerificationEmail,
       });
-      const currentPath = Array.isArray(segmentsRef.current) ? segmentsRef.current.join('/') : '';
       const accountState = String(user.account_state || '').trim();
       const explicitNextStep =
         typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
@@ -1175,10 +1184,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         redirectWithTelemetry('/sign-in', 'unauthenticated');
       }
     }
-    // NOTE: `segments` is intentionally excluded — we read segmentsRef.current inside.
-    // Including segments causes an infinite loop: route change -> segments update -> effect re-runs -> route change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    currentPath,
     user,
     pendingVerificationEmail,
     initializing,
