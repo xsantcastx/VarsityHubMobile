@@ -26,6 +26,7 @@ RUN npx prisma generate
 COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./start.sh
+COPY ./server/well-known ./well-known
 # Copy shared directory (needed for plan-definitions.json)
 COPY ./shared ./shared
 
