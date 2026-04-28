@@ -96,12 +96,8 @@ export const wellKnownRouter = Router();
  * Must be application/json, no .json extension in URL.
  */
 wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
-  const content = getWellKnownPayload('apple-app-site-association');
   res.setHeader('Content-Type', 'application/json');
-  if (content === FALLBACK_AASA) {
-    console.warn('[well-known] AASA file not found in any known deployment path, serving built-in fallback');
-  }
-  res.send(content);
+  res.send(FALLBACK_AASA);
 });
 
 /**
@@ -109,10 +105,6 @@ wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
  * Serves the asset links file for Android App Links.
  */
 wellKnownRouter.get('/assetlinks.json', (_req, res) => {
-  const content = getWellKnownPayload('assetlinks.json');
   res.setHeader('Content-Type', 'application/json');
-  if (content === FALLBACK_ASSET_LINKS) {
-    console.warn('[well-known] assetlinks.json not found in any known deployment path, serving built-in fallback');
-  }
-  res.send(content);
+  res.send(FALLBACK_ASSET_LINKS);
 });
