@@ -1,12 +1,39 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// well-known files in server/well-known/ (deployed with server); fallback to docs/well-known/
-const cwd = process.cwd();
-const WELL_KNOWN_DIR = fs.existsSync(path.join(cwd, 'well-known'))
-  ? path.join(cwd, 'well-known')
-  : path.join(cwd, '..', 'docs', 'well-known');
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+
+export function resolveWellKnownDir(baseCwd = process.cwd()): string | null {
+  const candidates = [
+    path.join(baseCwd, 'well-known'),
+    path.join(baseCwd, 'server', 'well-known'),
+    path.join(baseCwd, 'docs', 'well-known'),
+    path.resolve(moduleDir, '..', '..', 'well-known'),
+    path.resolve(moduleDir, '..', '..', '..', 'docs', 'well-known'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'apple-app-site-association'))) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function readWellKnownFile(filename: 'apple-app-site-association' | 'assetlinks.json'): string | null {
+  const dir = resolveWellKnownDir();
+  if (!dir) return null;
+
+  const filePath = path.join(dir, filename);
+  try {
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
 
 export const wellKnownRouter = Router();
 
@@ -16,15 +43,15 @@ export const wellKnownRouter = Router();
  * Must be application/json, no .json extension in URL.
  */
 wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
-  const filePath = path.join(WELL_KNOWN_DIR, 'apple-app-site-association');
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+  const content = readWellKnownFile('apple-app-site-association');
+  if (content) {
     res.setHeader('Content-Type', 'application/json');
     res.send(content);
-  } catch (err) {
-    console.warn('[well-known] AASA file not found:', filePath);
-    res.status(404).json({ error: 'Not found' });
+    return;
   }
+
+  console.warn('[well-known] AASA file not found in any known deployment path');
+  res.status(404).json({ error: 'Not found' });
 });
 
 /**
@@ -32,13 +59,13 @@ wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
  * Serves the asset links file for Android App Links.
  */
 wellKnownRouter.get('/assetlinks.json', (_req, res) => {
-  const filePath = path.join(WELL_KNOWN_DIR, 'assetlinks.json');
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+  const content = readWellKnownFile('assetlinks.json');
+  if (content) {
     res.setHeader('Content-Type', 'application/json');
     res.send(content);
-  } catch (err) {
-    console.warn('[well-known] assetlinks.json not found:', filePath);
-    res.status(404).json({ error: 'Not found' });
+    return;
   }
+
+  console.warn('[well-known] assetlinks.json not found in any known deployment path');
+  res.status(404).json({ error: 'Not found' });
 });

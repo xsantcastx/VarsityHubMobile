@@ -7,7 +7,10 @@ import { getConfig } from '@/config/env';
 
 const appConfig = getConfig();
 const WEB_BASE_URL: string =
-  (Constants?.expoConfig as any)?.extra?.appBaseUrl || appConfig.webBaseUrl || 'https://varsityhub.app';
+  appConfig.webBaseUrl ||
+  (Constants?.expoConfig as any)?.extra?.appBaseUrl ||
+  appConfig.apiUrl ||
+  'https://api-production-8ac3.up.railway.app';
 const APP_SCHEME = appConfig.appScheme || 'varsityhubmobile';
 
 export interface ShareableLink {

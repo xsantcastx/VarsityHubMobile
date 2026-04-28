@@ -6,7 +6,7 @@ import { describe, expect, it, beforeEach, afterEach, jest } from '@jest/globals
 describe('Email template helpers', () => {
   const originalEnv = process.env;
   const validTemplateId = 'd-0123456789abcdef0123456789abcdef';
-  const railwayApiOrigin = 'https://api-production-8ac3.up.railway.app';
+  const vanityOrigin = 'https://varsityhub.app';
 
   beforeEach(() => {
     jest.resetModules();
@@ -74,16 +74,16 @@ describe('Email template helpers', () => {
     expect(getMissingEmailTemplates(['TEAM_INVITE'])).toEqual(['team_invite']);
   });
 
-  it('reports when API and app email links are falling back to canonical hosts', async () => {
+  it('reports when API and app email links are falling back to canonical vanity hosts', async () => {
     process.env.APP_BASE_URL = 'https://api.varsityhub.app';
     process.env.API_BASE_URL = 'https://varsityhub.app';
     const { getEmailBaseUrlDiagnostics } = await import('../lib/email.js');
     expect(getEmailBaseUrlDiagnostics()).toEqual({
       api: expect.objectContaining({
         envKey: 'API_BASE_URL',
-        resolvedValue: railwayApiOrigin,
-        usedFallback: true,
-        reason: 'blocked_host',
+        resolvedValue: 'https://varsityhub.app',
+        usedFallback: false,
+        reason: 'configured',
       }),
       app: expect.objectContaining({
         envKey: 'APP_BASE_URL',
@@ -121,7 +121,7 @@ describe('Email template helpers', () => {
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.origin).toBe(vanityOrigin);
     expect(parsed.pathname).toBe('/organizations/org_123/approve');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -129,13 +129,13 @@ describe('Email template helpers', () => {
     expect((verifyJwt(token!) as any)?.jti).toEqual(expect.any(String));
   });
 
-  it('falls back to the Railway API host when vanity domains are misconfigured', async () => {
+  it('falls back to the vanity domain when the deprecated api subdomain is configured', async () => {
     process.env.APP_BASE_URL = 'https://varsityhub.app';
     process.env.API_BASE_URL = 'https://api.varsityhub.app';
     const { buildLeagueApprovalReviewUrl } = await import('../lib/email.js');
     const url = buildLeagueApprovalReviewUrl({ leagueId: 'org_123', action: 'approve' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.origin).toBe(vanityOrigin);
     expect(parsed.pathname).toBe('/organizations/org_123/approve');
   });
 
@@ -146,7 +146,7 @@ describe('Email template helpers', () => {
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildCoachApplicationReviewUrl({ coachId: 'user_123', action: 'reject' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.origin).toBe(vanityOrigin);
     expect(parsed.pathname).toBe('/admin/coaches/user_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -165,7 +165,7 @@ describe('Email template helpers', () => {
       action: 'approve',
     });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.origin).toBe(vanityOrigin);
     expect(parsed.pathname).toBe('/organizations/join-requests/req_456/email/approve');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -185,7 +185,7 @@ describe('Email template helpers', () => {
       organizationName: 'Example League',
       action: 'reject',
     });
-    expect(url).toContain(`${railwayApiOrigin}/organization-join-requests`);
+    expect(url).toContain(`${vanityOrigin}/organization-join-requests`);
     expect(url).toContain('organization_id=org_123');
     expect(url).toContain('action=reject');
   });
@@ -201,7 +201,7 @@ describe('Email template helpers', () => {
       action: 'reject',
     });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.origin).toBe(vanityOrigin);
     expect(parsed.pathname).toBe('/games/evt_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -219,7 +219,7 @@ describe('Email template helpers', () => {
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildAdReviewUrl({ adId: 'ad_123', action: 'reject' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.origin).toBe(vanityOrigin);
     expect(parsed.pathname).toBe('/ads/ad_123/reject');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
@@ -233,7 +233,7 @@ describe('Email template helpers', () => {
     const { verifyJwt } = await import('../lib/jwt.js');
     const url = buildAbuseReportReviewUrl({ reportId: 'rep_123', action: 'dismiss' });
     const parsed = new URL(url);
-    expect(parsed.origin).toBe(railwayApiOrigin);
+    expect(parsed.origin).toBe(vanityOrigin);
     expect(parsed.pathname).toBe('/admin/reports/rep_123/dismiss');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();

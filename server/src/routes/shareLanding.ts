@@ -80,13 +80,14 @@ interface LandingMeta {
   url: string;
 }
 
-function renderLanding(meta: LandingMeta): string {
+function renderLanding(meta: LandingMeta, legalBaseUrl: string): string {
   const title = escapeHtml(meta.title);
   const description = escapeHtml(
     meta.description || 'Join VarsityHub to follow your team, your players, and your community.'
   );
   const imageUrl = meta.imageUrl ? escapeHtml(meta.imageUrl) : '';
   const url = escapeHtml(meta.url);
+  const safeLegalBaseUrl = escapeHtml(legalBaseUrl.replace(/\/$/, ''));
   const cardType = imageUrl ? 'summary_large_image' : 'summary';
 
   return `<!DOCTYPE html>
@@ -167,9 +168,9 @@ function renderLanding(meta: LandingMeta): string {
   </div>
 
   <div class="footer">
-    <a href="https://varsityhub.app/privacy-policy">Privacy</a>
+    <a href="${safeLegalBaseUrl}/privacy-policy">Privacy</a>
     &nbsp;·&nbsp;
-    <a href="https://varsityhub.app/terms">Terms</a>
+    <a href="${safeLegalBaseUrl}/terms">Terms</a>
   </div>
 </body>
 </html>`;
@@ -179,6 +180,12 @@ function fullUrl(req: Request): string {
   const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol;
   const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
   return `${proto}://${host}${req.originalUrl}`;
+}
+
+function requestOrigin(req: Request): string {
+  const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol;
+  const host = (req.headers['x-forwarded-host'] as string) || req.headers.host;
+  return `${proto}://${host}`;
 }
 
 function genericLanding(req: Request): LandingMeta {
@@ -219,7 +226,7 @@ async function postLanding(req: Request, res: Response, next: NextFunction) {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');
-  return res.send(renderLanding(meta));
+  return res.send(renderLanding(meta, requestOrigin(req)));
 }
 
 async function gameLanding(req: Request, res: Response, next: NextFunction) {
@@ -246,7 +253,7 @@ async function gameLanding(req: Request, res: Response, next: NextFunction) {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');
-  return res.send(renderLanding(meta));
+  return res.send(renderLanding(meta, requestOrigin(req)));
 }
 
 async function teamLanding(req: Request, res: Response, next: NextFunction) {
@@ -272,7 +279,7 @@ async function teamLanding(req: Request, res: Response, next: NextFunction) {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');
-  return res.send(renderLanding(meta));
+  return res.send(renderLanding(meta, requestOrigin(req)));
 }
 
 async function userLanding(req: Request, res: Response, next: NextFunction) {
@@ -299,7 +306,7 @@ async function userLanding(req: Request, res: Response, next: NextFunction) {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');
-  return res.send(renderLanding(meta));
+  return res.send(renderLanding(meta, requestOrigin(req)));
 }
 
 async function eventLanding(req: Request, res: Response, next: NextFunction) {
@@ -333,14 +340,14 @@ async function eventLanding(req: Request, res: Response, next: NextFunction) {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');
-  return res.send(renderLanding(meta));
+  return res.send(renderLanding(meta, requestOrigin(req)));
 }
 
 function genericLandingHandler(req: Request, res: Response, next: NextFunction) {
   if (!wantsHtml(req)) return next();
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=300');
-  return res.send(renderLanding(genericLanding(req)));
+  return res.send(renderLanding(genericLanding(req), requestOrigin(req)));
 }
 
 export const shareLandingRouter = Router();

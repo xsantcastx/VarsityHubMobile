@@ -63,11 +63,9 @@ const getEmailService = async (): Promise<EmailService | null> => {
 
 // Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
-const CANONICAL_API_FALLBACK = 'https://api-production-8ac3.up.railway.app';
+const CANONICAL_API_FALLBACK = 'https://varsityhub.app';
 const CANONICAL_APP_FALLBACK = 'https://varsityhub.app';
 const BROKEN_API_HOSTS = new Set([
-  'varsityhub.app',
-  'www.varsityhub.app',
   'api.varsityhub.app',
 ]);
 const BROKEN_APP_HOSTS = new Set(['api.varsityhub.app']);

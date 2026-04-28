@@ -11,12 +11,13 @@
  */
 
 import { Alert, Platform, Share } from 'react-native';
+import { getConfig } from '@/config/env';
 
 type ShareOptions = Parameters<typeof Share.share>[1];
 
 // Base URL for share links (update for production)
-const SHARE_BASE_URL = 'https://varsityhub.app/share';
-const APP_SCHEME = 'varsityhub';
+const SHARE_BASE_URL = `${getConfig().webBaseUrl}/share`;
+const APP_SCHEME = getConfig().appScheme || 'varsityhubmobile';
 
 /**
  * Content types that can be shared
