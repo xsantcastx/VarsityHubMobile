@@ -121,4 +121,5 @@ When reviewing, prioritize in this order:
    "known debt, will fix in follow-up" as an answer **with a linked ticket.**
 
 When in doubt about a rule, consult `AUDIT_STANDARD.md` or the
-`source-of-truth table` in that doc.
+`source-of-truth table` in that doc. Use `AUDIT_SCORECARD.md` when the PR is
+part of a broader audit or release-readiness review.

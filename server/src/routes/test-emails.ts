@@ -12,6 +12,7 @@ import {
 } from '../lib/email.js';
 import { getEndOfDayReport } from '../lib/transactionLogger.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 
 const router = Router();
 
@@ -34,12 +35,14 @@ router.use((req: AuthedRequest, res, next) => {
 router.post('/verification', asyncHandler(async (req, res) => {
   const { to = 'test@example.com', token = '123456', name = 'Test User' } = req.body || {};
   const ok = await sendVerificationEmail(to, token, name);
+  await logAdminActivityFromReq(req, 'TEST_EMAIL_VERIFICATION', 'email', String(to), 'Sent verification test email', { to });
   return res.json({ ok });
 }));
 
 router.post('/password-reset', asyncHandler(async (req, res) => {
   const { to = 'test@example.com', code = '654321' } = req.body || {};
   const ok = await sendPasswordResetEmail(to, code);
+  await logAdminActivityFromReq(req, 'TEST_EMAIL_PASSWORD_RESET', 'email', String(to), 'Sent password reset test email', { to });
   return res.json({ ok });
 }));
 
@@ -64,6 +67,7 @@ router.post('/team-invite', asyncHandler(async (req, res) => {
     teamLogoUrl,
     primaryColor,
   });
+  await logAdminActivityFromReq(req, 'TEST_EMAIL_TEAM_INVITE', 'email', String(to), 'Sent team invite test email', { to, role, teamName, organizationName });
   return res.json({ ok });
 }));
 
@@ -84,6 +88,7 @@ router.post('/org-invite', asyncHandler(async (req, res) => {
     orgLogoUrl,
     primaryColor,
   });
+  await logAdminActivityFromReq(req, 'TEST_EMAIL_ORG_INVITE', 'email', String(to), 'Sent organization invite test email', { to, role, organizationName });
   return res.json({ ok });
 }));
 
@@ -113,6 +118,7 @@ router.post('/billing', asyncHandler(async (req, res) => {
     orgName,
     perks,
   });
+  await logAdminActivityFromReq(req, 'TEST_EMAIL_BILLING', 'email', String(to), 'Sent billing notice test email', { to, type, planName, amount });
   return res.json({ ok });
 }));
 

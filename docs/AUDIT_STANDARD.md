@@ -144,9 +144,12 @@ the single reference for "where does X live?"
 | ----------------------- | ----------------------------------------------------------------------------- |
 | Authentication          | JWT validated in `server/src/middleware/auth.ts`                              |
 | Email verification      | `User.email_verified`, enforced by `server/src/middleware/requireVerified.ts` |
-| Onboarding status       | `preferences.onboarding_completed`, enforced by `requireOnboarded.ts`         |
+| Onboarding status       | Canonical top-level `onboarding_completed`, mirrored into                     |
+|                         | `preferences.onboarding_completed` for compatibility; enforced by             |
+|                         | `requireOnboarded.ts`                                                         |
 | Onboarding bypass       | Shared route list in both middlewares — must stay in lockstep                 |
-| User role               | `preferences.role` on server User row                                         |
+| User role               | Canonical top-level `role`, with `preferences.role` accepted only as          |
+|                         | compatibility fallback in shared helpers                                      |
 | Subscription plan       | `subscription_*` columns, written only by Stripe/Apple webhook handlers       |
 | Organization membership | `OrganizationMembership.status === 'active'` (not just row existence)         |
 | Team membership         | `TeamMembership.status === 'active'` (not just row existence)                 |
@@ -194,5 +197,6 @@ re-audit without new information.
 ## Related docs
 
 - `PR_CHECKLIST.md` — mechanical checklist run on every PR.
+- `AUDIT_SCORECARD.md` — reusable pass/fail sheet for each audit run.
 - `AUDIT_I18N_*.md`, `AUDIT_VERSION_DRIFT_*.md` — accepted-assumption
   registers. Add a new one when you accept a new assumption.

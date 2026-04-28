@@ -11,6 +11,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 
 export const testNotificationsRouter = Router();
 
@@ -22,6 +23,15 @@ testNotificationsRouter.post('/test/push', requireAdmin as any, asyncHandler(asy
       'Test Notification 🎉',
       'If you see this, push notifications are working!',
       { type: 'test', timestamp: new Date().toISOString() }
+    );
+
+    await logAdminActivityFromReq(
+      req,
+      'TEST_PUSH_NOTIFICATION',
+      'notification',
+      req.user!.id,
+      'Sent admin-triggered test push notification',
+      { target_user_id: req.user!.id }
     );
 
     res.json({
@@ -90,6 +100,15 @@ testNotificationsRouter.post('/test/simulate/:type', requireAdmin as any, asyncH
         return res.status(400).json({ error: 'Invalid type. Use: message, like, comment, or follow' });
     }
 
+    await logAdminActivityFromReq(
+      req,
+      'TEST_SIMULATED_NOTIFICATION',
+      'notification',
+      userId,
+      `Sent simulated ${type} notification`,
+      { type, target_user_id: userId }
+    );
+
     res.json({
       success: true,
       message: `Sent ${type} notification! Check your device.`
@@ -122,6 +141,15 @@ testNotificationsRouter.post('/test/geofence', requireAdmin as any, asyncHandler
       where: { id: event_id },
       select: { title: true, location: true, latitude: true, longitude: true, date: true }
     });
+
+    await logAdminActivityFromReq(
+      req,
+      'TEST_GEOFENCE_CHECK',
+      'event',
+      String(event_id),
+      'Ran admin geofence test',
+      { event_id, lat, lng, allowed: result.allowed, reason: result.reason }
+    );
 
     res.json({
       allowed: result.allowed,
@@ -160,6 +188,15 @@ testNotificationsRouter.post('/test/distance', requireAdmin as any, (req, res) =
   const distanceMiles = calculateDistance(lat1, lng1, lat2, lng2, 'miles');
   const distanceKm = calculateDistance(lat1, lng1, lat2, lng2, 'km');
   const withinHalfMile = isWithinGeofence(lat1, lng1, lat2, lng2, 0.5);
+
+  void logAdminActivityFromReq(
+    req,
+    'TEST_DISTANCE_CHECK',
+    'geofence',
+    'distance',
+    'Ran admin distance calculation test',
+    { lat1, lng1, lat2, lng2, withinHalfMile }
+  );
 
   res.json({
     distance_miles: distanceMiles.toFixed(2),
@@ -220,6 +257,15 @@ testNotificationsRouter.get('/test/upcoming-games', requireAdmin as any, asyncHa
         }
       })
     ]);
+
+    await logAdminActivityFromReq(
+      req,
+      'TEST_UPCOMING_GAMES_CHECK',
+      'notification',
+      req.user!.id,
+      'Checked upcoming reminder-eligible games',
+      { games_in_12_hours: games12h.length, games_in_1_hour: games1h.length }
+    );
 
     res.json({
       current_time: now.toISOString(),
