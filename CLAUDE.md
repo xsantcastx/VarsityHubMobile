@@ -1,6 +1,7 @@
 # VarsityHub Mobile — Claude Instructions
 
 ## Stack
+
 - React Native / Expo SDK 54 with Expo Router (file-based routing)
 - Backend: Express + Prisma + PostgreSQL on Railway (project: `capable-trust`, service: `api`)
 - State: React Context — `AuthProvider`, `PostCacheContext`, `OnboardingContext`, `NavigationHistoryContext`
@@ -12,6 +13,7 @@
 - Error tracking: Sentry with source maps
 
 ## Quick Start
+
 ```bash
 npm run dev         # app (Expo dev client on :8081) + server concurrently
 npm run dev:expo    # Expo dev client only
@@ -40,12 +42,14 @@ Check contract mismatches between client TypeScript types and server Zod schemas
 Check env vars, Railway logs, and build configs — not just source code.
 
 ## Production Must-Not-Break
+
 - iOS bundle ID is `com.varsithub.varsityhub-ios` (typo, permanently registered in App Store Connect — cannot change)
 - Apple Sign-In must stay visible whenever Google Sign-In is shown (Apple guideline)
 - iOS payments must use Apple IAP only — no Stripe links/redirects on iOS
 - Console logs are stripped in production (`babel-plugin-transform-remove-console` keeps error/warn)
 
 ## Security Constraints (Already Enforced Server-Side)
+
 - Role escalation: owner role blocked on all generic membership/invite endpoints
 - Ad booking horizon: 56-day max from today
 - Checkout holds: fatal on failure — no partial bookings
@@ -55,6 +59,7 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Don't introduce client-trusted flags for things already enforced server-side
 
 ## Navigation Architecture
+
 - Root `_layout.tsx` uses Stack — ALL sub-screens registered there
 - `safeGoBack` is the standard back helper (~199 uses across 75 files)
 - All three goBack implementations (`safeGoBack`, `NavigationHistoryContext.safeGoBack`, `useEdgeSwipeBack`) now use `getNavigationFallback()` from context — no more hardcoded `/(tabs)/feed` fallbacks
@@ -62,11 +67,13 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Every screen implements its own back button (`headerShown: false` globally)
 
 ## Plans (Billing)
+
 - Rookie: free, 3 teams, 50 roster, 6 authorized users/team
 - Veteran: $0.99/mo/team (teams over 3), 100 roster, 5 authorized users/team
 - Legend: $19.99/yr, unlimited teams + clubs + authorized users
 
 ## OTA Updates
+
 - `runtimeVersion` uses `{ "policy": "appVersion" }` — auto-derived from `version` field, never hardcode a string
 - OTA only delivers JS bundle changes. New native modules (ios/android native code) require a new binary via `eas build` + App Store submission
 - Any native module added after the current App Store binary MUST be dynamically imported with try-catch (see `OfflineBanner.tsx` pattern for `@react-native-community/netinfo`)
@@ -74,6 +81,7 @@ Check env vars, Railway logs, and build configs — not just source code.
 - Always verify the App Store binary's runtime version matches what `eas update` is publishing
 
 ## Quick Checks
+
 ```bash
 # TypeScript errors (server)
 npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -20
@@ -84,14 +92,15 @@ grep -rn "'#000\|'#333\|'#374151\|'#111\|black" app/ --include="*.tsx" | grep -v
 # Unbounded queries
 grep -rn "findMany" server/src/ --include="*.ts" | grep -v "take"
 
-# Direct sgMail usage (should only be in email.ts)
-grep -rn "sgMail.send" server/src/ --include="*.ts"
+# Direct sgMail usage outside provider implementations
+rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
 
 # Missing requireAuth on routes using req.user
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 ```
 
 ## Known Quirks
+
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
 - Sub-screens appear in both root Stack AND as `hiddenTab` in `(tabs)/_layout.tsx` — this is intentional Expo Router behavior
 - Email templates: `TEMPLATE_IDS` has 20 keys and `REQUIRED_TEMPLATE_KEYS` has 18 in `server/src/lib/email.ts`
@@ -102,9 +111,10 @@ grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 - Signup email send is fire-and-forget — `POST /register` does not await SendGrid before responding.
 
 ## Code Rules
+
 - Text colors MUST use `useColorScheme()` or theme constants — never hardcode `#000`, `#111827`, `#374151`, `black`
 - Back navigation: use `safeGoBack` — never hardcoded routes
-- Emails MUST go through `EmailService`/`sendTemplateEmail` — never `sgMail.send()` directly
+- Emails MUST go through `EmailService`/`sendTemplateEmail`; only provider implementations may call `sgMail.send()` directly
 - Database: ALL `findMany` MUST have a `take` limit — no unbounded queries
 - Auth: ALL routes accessing `req.user` MUST have `requireAuth` middleware
 - Posts: users must pass `requireOnboarded` middleware to create posts
@@ -113,6 +123,7 @@ grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 - Test scripts go in `server/scripts/` — never in `src/`
 
 ## Working Style
+
 - Be surgical — only change what's needed for the task
 - Don't add abstractions, helpers, or error handling for scenarios that can't happen
 - Don't refactor or clean up code beyond what was asked
