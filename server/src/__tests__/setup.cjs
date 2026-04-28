@@ -32,3 +32,16 @@ if (!process.env.VERBOSE) {
     error: noop,
   };
 }
+
+// Each Jest test file loads its own environment and may import ../lib/prisma.js.
+// Relying only on globalTeardown leaves those Prisma clients open until the very
+// end of the full run, which can exhaust Postgres connections before later specs
+// start. Disconnect after every file so connection usage stays bounded.
+afterAll(async () => {
+  try {
+    const mod = await import('../lib/prisma.js');
+    await mod.prisma.$disconnect();
+  } catch (_error) {
+    // Ignore cleanup failures for specs that never touched Prisma.
+  }
+});

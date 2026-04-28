@@ -118,9 +118,7 @@ describe('coach approval UI guards', () => {
 
   it('onboarding index trusts canonical onboarding completion before falling back to preferences', () => {
     expect(onboardingIndexScreen).toContain('getOnboardingIndexRouteDecision');
-    expect(appRouteDecisions).toMatch(
-      /const serverComplete =\s*user\.onboarding_completed === true \|\| user\.preferences\?\.onboarding_completed === true;/
-    );
+    expect(appRouteDecisions).toContain('isCoachOnboardingComplete(user)');
   });
 
   it('step-3 league allows server-directed coach setup without bouncing back to earlier onboarding steps', () => {

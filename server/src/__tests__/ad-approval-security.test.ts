@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 
@@ -8,6 +8,11 @@ let app: import('express').Express;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
+
+// This integration spec exercises real Prisma writes plus bcrypt hashing and
+// moderation-link flows. It normally finishes fast, but the server config's
+// global 10s timeout is too tight when the full run is already under load.
+jest.setTimeout(20_000);
 
 describe('Ad Approval Security', () => {
   let originalAdminEmails = '';

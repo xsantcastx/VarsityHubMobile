@@ -165,6 +165,24 @@ describe('getOnboardingIndexRouteDecision', () => {
     expect(decision.route).toBe('/onboarding/league-pending-approval');
   });
 
+  it('treats top-level onboarding_completed=false as authoritative even when preferences are stale', () => {
+    const decision = getOnboardingIndexRouteDecision(
+      {
+        email_verified: true,
+        onboarding_completed: false,
+        preferences: { onboarding_completed: true, role: 'coach' },
+      } as any,
+      {
+        role: 'coach',
+        step_2_visited: true,
+        organization_id: 'org_123',
+      }
+    );
+
+    expect(decision.kind).toBe('draft_pending_waiting');
+    expect(decision.route).toBe('/onboarding/league-pending-approval');
+  });
+
   it('routes ordinary incomplete users to the next draft step', () => {
     const decision = getOnboardingIndexRouteDecision(
       {

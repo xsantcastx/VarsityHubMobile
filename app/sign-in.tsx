@@ -48,12 +48,22 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady, isConfigured: googleConfigured } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
   const { user, hasSession, checkAuth, registerPushToken, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const sessionGuardActive = hasSession;
   const authBusy = loading || googleLoading || appleLoading || signingOut;
+  const emailInvalid = !!error && (!email || !validateEmail(email).valid);
+  const passwordInvalid = !!error && !password;
+
+  const getInputBorderColor = (focused: boolean, invalid: boolean) => {
+    if (invalid) return palette.destructive;
+    if (focused) return palette.tint;
+    return palette.border;
+  };
 
   const routeCurrentUser = async (resolvedUser?: any) => {
     const effectiveUser = resolvedUser || user;
@@ -466,7 +476,16 @@ export default function SignInScreen() {
             <Text style={[styles.subtitle, { color: palette.mutedText }]}>Sign in to keep your community in sync.</Text>
           </View>
 
-          <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border, borderWidth: 2 }]}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: palette.elevated,
+                borderColor: error ? palette.destructive : palette.border,
+                borderWidth: error ? 3 : 2,
+              },
+            ]}
+          >
             {sessionGuardActive ? (
               <AuthenticatedEntryGuard
                 email={user?.email}
@@ -554,8 +573,11 @@ export default function SignInScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoComplete="email"
+                    textContentType="emailAddress"
                     keyboardType="email-address"
                     returnKeyType="next"
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
                     onSubmitEditing={() => passwordRef.current?.focus()}
                     placeholderTextColor={palette.mutedText}
                     accessibilityLabel="Email"
@@ -564,9 +586,13 @@ export default function SignInScreen() {
                       styles.input,
                       {
                         backgroundColor: palette.surface,
-                        borderColor: palette.border,
-                        borderWidth: 2,
+                        borderColor: getInputBorderColor(emailFocused, emailInvalid),
+                        borderWidth: emailFocused || emailInvalid ? 3 : 2,
                         color: palette.text,
+                        shadowColor: emailFocused ? palette.tint : 'transparent',
+                        shadowOpacity: emailFocused ? 0.18 : 0,
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowRadius: 8,
                       },
                     ]}
                   />
@@ -584,7 +610,11 @@ export default function SignInScreen() {
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
+                    autoComplete="current-password"
+                    textContentType="password"
                     returnKeyType="go"
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
                     onSubmitEditing={() => void onSubmit()}
                     placeholderTextColor={palette.mutedText}
                     accessibilityLabel="Password"
@@ -593,9 +623,13 @@ export default function SignInScreen() {
                       styles.input,
                       {
                         backgroundColor: palette.surface,
-                        borderColor: palette.border,
-                        borderWidth: 2,
+                        borderColor: getInputBorderColor(passwordFocused, passwordInvalid),
+                        borderWidth: passwordFocused || passwordInvalid ? 3 : 2,
                         color: palette.text,
+                        shadowColor: passwordFocused ? palette.tint : 'transparent',
+                        shadowOpacity: passwordFocused ? 0.18 : 0,
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowRadius: 8,
                       },
                     ]}
                   />
