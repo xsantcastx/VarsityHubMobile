@@ -129,6 +129,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [healthOk, setHealthOk] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [routingReady, setRoutingReady] = useState(navReady);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string>('rookie');
   const [hasActiveSubscription, setHasActiveSubscription] = useState<boolean>(false);
@@ -168,6 +169,24 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       lastRedirectRef.current = null;
     }
   }, [currentPath, segments]);
+
+  // Expo Router readiness can lag or fail to surface a stable key on some cold
+  // iOS starts. Do not let that pin the app on the root spinner forever.
+  React.useEffect(() => {
+    if (navReady) {
+      setRoutingReady(true);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      if (__DEV__) {
+        console.warn('[AuthProvider] Navigation readiness timeout - allowing routing fallback');
+      }
+      setRoutingReady(true);
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [navReady]);
 
   // Derived state
   const normalizedRole = String(user?.role || '').toLowerCase();
@@ -856,8 +875,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // actually ready, the redirect can be dropped and the passive root spinner
     // never gets another chance to reroute. Wait explicitly for navReady and
     // re-run this effect when it flips true.
-    if (!navReady) {
-      if (__DEV__) console.log('[AuthProvider] Navigation not ready, deferring routing');
+    if (!routingReady) {
+      if (__DEV__) console.log('[AuthProvider] Routing gate not ready, deferring routing');
       return;
     }
 
@@ -1196,7 +1215,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     user,
     pendingVerificationEmail,
     initializing,
-    navReady,
+    routingReady,
     healthOk,
     router,
     hasCompletedOnboarding,

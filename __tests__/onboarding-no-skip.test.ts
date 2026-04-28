@@ -178,9 +178,9 @@ describe('onboarding flow — no screens can be skipped', () => {
   // ──────────────────────────────────────────────────────────────────────
 
   describe('root index + AuthProvider cover every state', () => {
-    // Note: app/index.tsx is now a passive splash screen — all routing
-    // moved to AuthProvider to eliminate the index/_layout race. These
-    // assertions follow the routing logic to its new home.
+    // app/index.tsx now acts as a root-screen failsafe: AuthProvider remains
+    // the primary router, but index must be able to escape the startup wheel
+    // if centralized routing misses on a cold start.
 
     it('AuthProvider routes unauthenticated users → /sign-in', () => {
       expect(authProvider).toMatch(/\/sign-in/);
@@ -207,10 +207,10 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(authProvider).toMatch(/Do not strand unauthenticated users on the passive root spinner/);
     });
 
-    it('app/index.tsx is a passive splash that delegates to AuthProvider', () => {
-      // Lock in the architecture: index must NOT contain its own routing
-      // logic (would re-introduce the race AuthProvider was built to fix).
-      expect(rootIndex).toMatch(/AuthProvider handles all routing|navigation is handled centrally/);
+    it('app/index.tsx has a root-screen failsafe redirect', () => {
+      expect(rootIndex).toMatch(/Root-screen failsafe/);
+      expect(rootIndex).toMatch(/router\.replace\('/);
+      expect(rootIndex).toMatch(/getPostAuthRouteDecision/);
     });
 
     it('root layout does not hard-block auth bootstrap on navState.key', () => {
@@ -226,6 +226,11 @@ describe('onboarding flow — no screens can be skipped', () => {
     it('AuthProvider bootstraps auth at most once even if nav readiness flips later', () => {
       expect(authProvider).toMatch(/bootstrapStartedRef/);
       expect(authProvider).toMatch(/if \(bootstrapStartedRef\.current\) return;/);
+    });
+
+    it('AuthProvider has a routing-readiness timeout fallback', () => {
+      expect(authProvider).toMatch(/Navigation readiness timeout - allowing routing fallback/);
+      expect(authProvider).toMatch(/const \[routingReady, setRoutingReady\]/);
     });
 
     it('AuthProvider resets redirect suppression when the current path changes', () => {
