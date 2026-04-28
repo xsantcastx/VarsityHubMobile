@@ -13,6 +13,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +28,18 @@ jobs:
       - name: Install dependencies
         run: npm ci && cd server && npm ci
 
+      - name: Check Snyk token
+        id: snyk-check
+        run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "SNYK_TOKEN not configured — skipping weekly Snyk auto-remediate run"
+            echo "has-token=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-token=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Snyk SAST scan
+        if: steps.snyk-check.outputs.has-token == 'true'
         id: snyk-sast
         run: |
           npx snyk code test --json > snyk-sast-report.json 2>&1 || true
@@ -34,6 +47,7 @@ jobs:
           echo "sast_issues=$ISSUE_COUNT" >> $GITHUB_OUTPUT
 
       - name: Run Snyk SCA scan (root)
+        if: steps.snyk-check.outputs.has-token == 'true'
         id: snyk-sca-root
         run: |
           npx snyk test --json > snyk-sca-root.json 2>&1 || true
@@ -41,6 +55,7 @@ jobs:
           echo "root_vulns=$VULNS" >> $GITHUB_OUTPUT
 
       - name: Run Snyk SCA scan (server)
+        if: steps.snyk-check.outputs.has-token == 'true'
         id: snyk-sca-server
         run: |
           cd server && npx snyk test --json > ../snyk-sca-server.json 2>&1 || true
@@ -48,6 +63,7 @@ jobs:
           echo "server_vulns=$VULNS" >> $GITHUB_OUTPUT
 
       - name: Attempt auto-fix (npm audit fix)
+        if: steps.snyk-check.outputs.has-token == 'true'
         id: autofix
         run: |
           echo "Attempting root fixes..."
@@ -65,7 +81,7 @@ jobs:
           fi
 
       - name: Create PR for auto-fixes
-        if: steps.autofix.outputs.changes_made == 'true'
+        if: steps.snyk-check.outputs.has-token == 'true' && steps.autofix.outputs.changes_made == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           commit-message: 'chore: snyk auto-remediate security vulnerabilities'
@@ -101,12 +117,13 @@ jobs:
           **Date:** $(date)
           
           ## Scan Results
-          - **Root Vulnerabilities:** ${{ steps.snyk-sca-root.outputs.root_vulns }}
-          - **Server Vulnerabilities:** ${{ steps.snyk-sca-server.outputs.server_vulns }}
-          - **SAST Issues:** ${{ steps.snyk-sast.outputs.sast_issues }}
+          - **Token Present:** ${{ steps.snyk-check.outputs.has-token }}
+          - **Root Vulnerabilities:** ${{ steps.snyk-sca-root.outputs.root_vulns || 'skipped' }}
+          - **Server Vulnerabilities:** ${{ steps.snyk-sca-server.outputs.server_vulns || 'skipped' }}
+          - **SAST Issues:** ${{ steps.snyk-sast.outputs.sast_issues || 'skipped' }}
           
           ## Actions Taken
-          - ✅ Dependency audit completed
+          - ${{ steps.snyk-check.outputs.has-token == 'true' && '✅ Snyk scan completed' || '⚠️ SNYK_TOKEN missing — workflow skipped' }}
           - ${{ steps.autofix.outputs.changes_made == 'true' && '✅ Auto-remediation PR created' || '✅ No remediations needed' }}
           
           ## Artifacts
@@ -132,7 +149,7 @@ jobs:
           retention-days: 30
 
       - name: Alert on critical issues
-        if: steps.snyk-sca-root.outputs.root_vulns > 0 || steps.snyk-sca-server.outputs.server_vulns > 0
+        if: steps.snyk-check.outputs.has-token == 'true' && (steps.snyk-sca-root.outputs.root_vulns > 0 || steps.snyk-sca-server.outputs.server_vulns > 0)
         run: |
           echo "⚠️  Vulnerabilities detected - check Snyk reports"
           exit 0  # Don't fail workflow, just alert

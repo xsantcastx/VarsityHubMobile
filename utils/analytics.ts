@@ -8,9 +8,10 @@
  */
 
 import PostHog from 'posthog-react-native';
+import { getEnvValue } from '@/config/env';
 
-const POSTHOG_API_KEY = process.env.EXPO_PUBLIC_POSTHOG_API_KEY || '';
-const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
+const POSTHOG_API_KEY = getEnvValue('EXPO_PUBLIC_POSTHOG_API_KEY');
+const POSTHOG_HOST = getEnvValue('EXPO_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com');
 
 let posthog: PostHog | null = null;
 let analyticsInitialized = false;

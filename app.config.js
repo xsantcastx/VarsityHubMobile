@@ -17,6 +17,7 @@ module.exports = ({ config }) => {
   const packageVersion = require('./package.json').version;
   const appVersion = process.env.APP_VERSION_OVERRIDE || packageVersion;
   const runtimeVersion = process.env.RUNTIME_VERSION_OVERRIDE || appVersion;
+  const sentryAutoUploadEnabled = process.env.SENTRY_DISABLE_AUTO_UPLOAD !== 'true';
 
   // Client IDs are NOT secrets — they're embedded in the app bundle.
   // Hardcoded fallbacks ensure the URL scheme is always registered even
@@ -56,7 +57,7 @@ module.exports = ({ config }) => {
       },
     },
     ios: {
-      buildNumber: '50',
+      buildNumber: '51',
       supportsTablet: true,
       appleTeamId: 'B5H8F69RW5',
       bundleIdentifier: 'com.varsithub.varsityhub-ios',
@@ -97,7 +98,7 @@ module.exports = ({ config }) => {
       },
       softwareKeyboardLayoutMode: 'pan',
       edgeToEdgeEnabled: true,
-      versionCode: 2,
+      versionCode: 3,
       package: 'com.varsityhub.varsityhub',
       intentFilters: [
         {
@@ -248,7 +249,7 @@ module.exports = ({ config }) => {
           url: 'https://sentry.io/',
           organization: 'lime-productions',
           project: 'varsityhub',
-          uploadSourcemaps: true,
+          uploadSourcemaps: sentryAutoUploadEnabled,
         },
       ],
       [
@@ -285,6 +286,8 @@ module.exports = ({ config }) => {
 
       // Sensitive values — loaded from environment variables
       EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
+      EXPO_PUBLIC_POSTHOG_API_KEY: process.env.EXPO_PUBLIC_POSTHOG_API_KEY || '',
+      EXPO_PUBLIC_POSTHOG_HOST: process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
       EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
       EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
       EXPO_PUBLIC_ADMIN_EMAILS: process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'emancero@varsityhub.app',
