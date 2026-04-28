@@ -8,12 +8,15 @@
  */
 
 import PostHog from 'posthog-react-native';
-import { getEnvValue } from '@/config/env';
+import * as env from '@/config/env';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const POSTHOG_API_KEY = getEnvValue('EXPO_PUBLIC_POSTHOG_API_KEY');
-const POSTHOG_HOST = getEnvValue('EXPO_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com');
+const readAnalyticsEnv = (key: 'EXPO_PUBLIC_POSTHOG_API_KEY' | 'EXPO_PUBLIC_POSTHOG_HOST', fallback = '') =>
+  typeof env.getEnvValue === 'function' ? env.getEnvValue(key, fallback) : fallback;
+
+const POSTHOG_API_KEY = readAnalyticsEnv('EXPO_PUBLIC_POSTHOG_API_KEY');
+const POSTHOG_HOST = readAnalyticsEnv('EXPO_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com');
 const APP_VERSION = Constants.expoConfig?.version || 'unknown';
 const APP_RUNTIME = String(Constants.expoConfig?.runtimeVersion || APP_VERSION);
 
