@@ -36,10 +36,7 @@ import {
   getPreferencesObject,
   mergeAuthStateIntoPreferences,
 } from '../lib/userAuthState.js';
-import {
-  buildBillingStateColumns,
-  getEffectiveEntitledPlan,
-} from '../lib/userBillingState.js';
+import { buildBillingStateColumns, getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -48,7 +45,7 @@ function reportApprovalNotificationFailure(
   channel: 'email' | 'push' | 'in_app',
   context: string,
   err: unknown,
-  extra: Record<string, unknown>,
+  extra: Record<string, unknown>
 ): void {
   console.error(`[organizations] ${context} ${channel} failed:`, (err as any)?.message || err);
   captureException(err instanceof Error ? err : new Error(String(err)), {
@@ -1063,26 +1060,26 @@ organizationsRouter.post(
               })
                 .then(sent => {
                   if (!sent) {
-              console.warn(
-                '[organizations] Invite email reported unsent for',
-                redactEmail(inv.email)
-              );
+                    console.warn(
+                      '[organizations] Invite email reported unsent for',
+                      redactEmail(inv.email)
+                    );
                   }
                   return sent;
                 })
                 .catch(err => {
-            console.warn(
-              '[organizations] Failed sending invite email to',
-              redactEmail(inv.email),
-              err
-            );
-            // Org owners can't see why X never got their invite — surface
-            // failures to Sentry so it's triagable. Return false to keep
-            // the bulk-invite flow going.
-            captureException(err instanceof Error ? err : new Error(String(err)), {
-              context: 'org_invite_email_send_failed',
-              provider: 'sendgrid',
-            });
+                  console.warn(
+                    '[organizations] Failed sending invite email to',
+                    redactEmail(inv.email),
+                    err
+                  );
+                  // Org owners can't see why X never got their invite — surface
+                  // failures to Sentry so it's triagable. Return false to keep
+                  // the bulk-invite flow going.
+                  captureException(err instanceof Error ? err : new Error(String(err)), {
+                    context: 'org_invite_email_send_failed',
+                    provider: 'sendgrid',
+                  });
                   return false;
                 })
             )
@@ -1217,7 +1214,12 @@ organizationsRouter.post(
             });
           }
           return tx.organizationInvite.create({
-            data: { organization_id: id, email: inviteEmail, role: role || 'member', status: 'pending' },
+            data: {
+              organization_id: id,
+              email: inviteEmail,
+              role: role || 'member',
+              status: 'pending',
+            },
           });
         },
         { isolationLevel: 'Serializable' }
@@ -1583,11 +1585,9 @@ organizationsRouter.post(
         const timeSinceRejection = Date.now() - new Date(existingRequest.reviewed_at).getTime();
         if (timeSinceRejection < cooldownMs) {
           const daysLeft = Math.ceil((cooldownMs - timeSinceRejection) / (24 * 60 * 60 * 1000));
-          return res
-            .status(429)
-            .json({
-              error: `Your previous request was denied. You can re-apply in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`,
-            });
+          return res.status(429).json({
+            error: `Your previous request was denied. You can re-apply in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`,
+          });
         }
       }
 
@@ -1717,7 +1717,9 @@ organizationsRouter.post(
             'New coach request',
             `${joinRequest.user.display_name || 'A coach'} wants to join ${organization.name}`,
             { type: 'coach_request', screen: 'approvals', organization_id: organization.id }
-        ).catch((err) => console.warn('[orgs] Failed to send join request push:', (err as any)?.message || err));
+          ).catch(err =>
+            console.warn('[orgs] Failed to send join request push:', (err as any)?.message || err)
+          );
 
           // In-app notification record for league owner
           await prisma.notification
@@ -1975,7 +1977,7 @@ organizationsRouter.post(
           .then(() => {
             console.log(`[notif] push sent JOIN_REQUEST_APPROVED to user=${joinRequest.user_id}`);
           })
-          .catch((err) => {
+          .catch(err => {
             console.error(
               '[notif] Failed to send push for JOIN_REQUEST_APPROVED:',
               (err as any)?.message || err
@@ -2147,7 +2149,7 @@ organizationsRouter.post(
           .then(() => {
             console.log(`[notif] push sent JOIN_REQUEST_DENIED to user=${joinRequest.user.id}`);
           })
-          .catch((err) => {
+          .catch(err => {
             console.error(
               '[notif] Failed to send push for JOIN_REQUEST_DENIED:',
               (err as any)?.message || err
@@ -2304,7 +2306,7 @@ async function _executeJoinRequestApprovalByToken(
       to: joinRequest.user.email,
       coachName: joinRequest.user.display_name || 'Coach',
       leagueName: joinRequest.organization.name,
-    }).catch((err) =>
+    }).catch(err =>
       reportApprovalNotificationFailure('email', 'coach_join_request_approved_email_failed', err, {
         organizationId: joinRequest.organization_id,
         userId: joinRequest.user_id,
@@ -2318,7 +2320,7 @@ async function _executeJoinRequestApprovalByToken(
       'Join Request Approved',
       `Your request to join ${joinRequest.organization.name} was approved!`,
       { type: 'join_request_approved', organization_id: joinRequest.organization_id }
-    ).catch((err) => {
+    ).catch(err => {
       reportApprovalNotificationFailure('push', 'join_request_approval_push_failed', err, {
         organizationId: joinRequest.organization_id,
         userId: joinRequest.user_id,
@@ -2435,7 +2437,7 @@ async function _executeJoinRequestDenialByToken(
       'Join Request Declined',
       `Your request to join ${joinRequest.organization.name} was not approved.${reason ? ` Reason: ${reason}` : ''}`,
       { type: 'join_request_denied', organization_id: joinRequest.organization_id }
-    ).catch((err) => {
+    ).catch(err => {
       console.error(
         '[notif] Failed to send push for JOIN_REQUEST_DENIED:',
         (err as any)?.message || err
@@ -2734,18 +2736,28 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     if (token) {
       const payload = verifyReviewToken<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'approve_league') {
-        addBreadcrumb('League approval token validation failed', 'approval.organization_route', 'warning', {
-          action: 'approve',
-          organization_id: orgId,
-          method: req.method,
-        });
+        addBreadcrumb(
+          'League approval token validation failed',
+          'approval.organization_route',
+          'warning',
+          {
+            action: 'approve',
+            organization_id: orgId,
+            method: req.method,
+          }
+        );
         return res.status(401).json({ error: 'Invalid or expired approval token' });
       }
       if (req.method === 'GET') {
-        addBreadcrumb('League approval confirmation page rendered', 'approval.organization_route', 'info', {
-          action: 'approve',
-          organization_id: orgId,
-        });
+        addBreadcrumb(
+          'League approval confirmation page rendered',
+          'approval.organization_route',
+          'info',
+          {
+            action: 'approve',
+            organization_id: orgId,
+          }
+        );
         const orgInfo = await prisma.organization.findUnique({
           where: { id: orgId },
           select: { name: true, admin_approved: true },
@@ -2766,19 +2778,27 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       if (consumeResult === 'already_used') {
         return res
           .status(409)
-          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This approval link has already been used.</p></body></html>`);
+          .send(
+            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This approval link has already been used.</p></body></html>`
+          );
       }
       if (consumeResult === 'store_unavailable') {
         return res
           .status(503)
-          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This approval link cannot be completed right now. Please use the admin dashboard instead.</p></body></html>`);
+          .send(
+            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This approval link cannot be completed right now. Please use the admin dashboard instead.</p></body></html>`
+          );
       }
 
       const adminUserId = adminSession?.id || 'email-token';
       const adminNote: string | undefined = req.body?.note || undefined;
       const result = await approveOrganization(orgId, adminUserId, prisma, { note: adminNote });
       if (result.error) {
-        return res.status((result as any).status || 500).send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`);
+        return res
+          .status((result as any).status || 500)
+          .send(
+            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`
+          );
       }
       if ((result as any).already) {
         return res.send(
@@ -2806,8 +2826,16 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       );
     }
 
-    if (!req.user) return res.status(401).json({ error: 'Admin login required. Please log in to the admin dashboard before approving.' });
-    const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+    if (!req.user)
+      return res
+        .status(401)
+        .json({
+          error: 'Admin login required. Please log in to the admin dashboard before approving.',
+        });
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true },
+    });
     if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
     const adminUserId: string = req.user.id;
 
@@ -2890,18 +2918,28 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     if (token) {
       const payload = verifyReviewToken<{ orgId: string; action: string }>(token);
       if (!payload || payload.orgId !== orgId || payload.action !== 'reject_league') {
-        addBreadcrumb('League rejection token validation failed', 'approval.organization_route', 'warning', {
-          action: 'reject',
-          organization_id: orgId,
-          method: req.method,
-        });
+        addBreadcrumb(
+          'League rejection token validation failed',
+          'approval.organization_route',
+          'warning',
+          {
+            action: 'reject',
+            organization_id: orgId,
+            method: req.method,
+          }
+        );
         return res.status(401).json({ error: 'Invalid or expired rejection token' });
       }
       if (req.method === 'GET') {
-        addBreadcrumb('League rejection confirmation page rendered', 'approval.organization_route', 'info', {
-          action: 'reject',
-          organization_id: orgId,
-        });
+        addBreadcrumb(
+          'League rejection confirmation page rendered',
+          'approval.organization_route',
+          'info',
+          {
+            action: 'reject',
+            organization_id: orgId,
+          }
+        );
         const orgInfo = await prisma.organization.findUnique({
           where: { id: orgId },
           select: { name: true },
@@ -2918,18 +2956,26 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       if (consumeResult === 'already_used') {
         return res
           .status(409)
-          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This rejection link has already been used.</p></body></html>`);
+          .send(
+            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This rejection link has already been used.</p></body></html>`
+          );
       }
       if (consumeResult === 'store_unavailable') {
         return res
           .status(503)
-          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This rejection link cannot be completed right now. Please use the admin dashboard instead.</p></body></html>`);
+          .send(
+            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This rejection link cannot be completed right now. Please use the admin dashboard instead.</p></body></html>`
+          );
       }
 
       const adminUserId = adminSession?.id || 'email-token';
       const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
       if (result.error) {
-        return res.status((result as any).status || 500).send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`);
+        return res
+          .status((result as any).status || 500)
+          .send(
+            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`
+          );
       }
       addBreadcrumb('League rejection endpoint completed', 'approval.organization_route', 'info', {
         action: 'reject',
@@ -2952,8 +2998,16 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       );
     }
 
-    if (!req.user) return res.status(401).json({ error: 'Admin login required. Please log in to the admin dashboard before rejecting.' });
-    const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+    if (!req.user)
+      return res
+        .status(401)
+        .json({
+          error: 'Admin login required. Please log in to the admin dashboard before rejecting.',
+        });
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true },
+    });
     if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
     const adminUserId: string = req.user.id;
     const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
@@ -3022,9 +3076,7 @@ organizationsRouter.get(
         },
       });
       if (!membership)
-        return res
-          .status(403)
-          .json({ error: 'Only the league owner can view pending coaches' });
+        return res.status(403).json({ error: 'Only the league owner can view pending coaches' });
 
       const pendingRequests = await prisma.organizationJoinRequest.findMany({
         where: { organization_id: orgId, status: 'pending' },
@@ -3331,7 +3383,12 @@ organizationsRouter.post(
           coachName: coach.display_name || 'Coach',
           leagueName: org?.name || 'this organization',
           reason,
-      }).catch((err) => console.error('[organizations] coach rejection email failed:', (err as any)?.message || err));
+        }).catch(err =>
+          console.error(
+            '[organizations] coach rejection email failed:',
+            (err as any)?.message || err
+          )
+        );
       }
 
       // Push notification to rejected coach (non-blocking)

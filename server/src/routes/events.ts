@@ -24,7 +24,10 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { mustSucceed } from '../lib/sideEffect.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import {
+  canManageAnyTeam,
+  canManageTeam as canManageTeamScoped,
+} from '../lib/teamAuthorization.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 
@@ -54,7 +57,7 @@ const RSVP_FANOUT_BATCH = 200;
 async function* iterateEventRsvps(
   eventId: string,
   userSelect: { id?: true; email?: true; display_name?: true; preferences?: true },
-  options: { batchSize?: number; cap?: number } = {},
+  options: { batchSize?: number; cap?: number } = {}
 ): AsyncGenerator<Array<any>> {
   const batchSize = options.batchSize ?? RSVP_FANOUT_BATCH;
   const cap = options.cap ?? RSVP_FANOUT_LIMIT;
@@ -115,7 +118,13 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
   ) {
     return res
       .status(401)
-      .send(renderEventResultPage('Invalid Link', `This ${action} link is invalid or has expired.`, false));
+      .send(
+        renderEventResultPage(
+          'Invalid Link',
+          `This ${action} link is invalid or has expired.`,
+          false
+        )
+      );
   }
 
   const event = await prisma.event.findUnique({
@@ -134,12 +143,24 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
   if (consumeResult === 'already_used') {
     return res
       .status(409)
-      .send(renderEventResultPage('Link Already Used', `This ${action} link has already been used.`, false));
+      .send(
+        renderEventResultPage(
+          'Link Already Used',
+          `This ${action} link has already been used.`,
+          false
+        )
+      );
   }
   if (consumeResult === 'store_unavailable') {
     return res
       .status(503)
-      .send(renderEventResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
+      .send(
+        renderEventResultPage(
+          'Temporarily Unavailable',
+          `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`,
+          false
+        )
+      );
   }
 
   const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : undefined;
@@ -149,7 +170,9 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
       ? await approveEventService(eventId, reviewerUserId, prisma)
       : await rejectEventService(eventId, reviewerUserId, prisma, { reason });
   if (result.error) {
-    return res.status(result.status || 400).send(renderEventResultPage('Error', result.error, false));
+    return res
+      .status(result.status || 400)
+      .send(renderEventResultPage('Error', result.error, false));
   }
 
   return res.send(
@@ -290,178 +313,187 @@ const serializeEvent = (
   return base;
 };
 
-eventsRouter.get('/', asyncHandler(async (req, res) => {
-  try {
-    const status = String(req.query.status || '').trim();
-    const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
-    const approvalStatus = String(req.query.approval_status || '').trim();
-    const eventType = String(req.query.event_type || '').trim();
-    const search = String(req.query.q || '').trim();
-    const sort = String(req.query.sort || '').trim();
-    const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-    // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
-    // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
-    const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
+eventsRouter.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    try {
+      const status = String(req.query.status || '').trim();
+      const includeCancelled = String(req.query.include_cancelled || '').toLowerCase() === 'true';
+      const approvalStatus = String(req.query.approval_status || '').trim();
+      const eventType = String(req.query.event_type || '').trim();
+      const search = String(req.query.q || '').trim();
+      const sort = String(req.query.sort || '').trim();
+      const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
+      // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
+      // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
+      const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 100;
 
-    const where: any = {};
-    if (status) where.status = status;
-    else if (!includeCancelled) where.status = { not: 'cancelled' }; // Exclude cancelled by default; ?include_cancelled=true for admin views
-    // Only admins can filter by approval_status — public users always see approved only
-    const isAdminUser = (req as any).user?.id ? await getIsAdmin(req as any) : false;
-    if (approvalStatus && isAdminUser) where.approval_status = approvalStatus;
-    else where.approval_status = 'approved';
-    if (eventType) where.event_type = eventType;
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { location: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+      const where: any = {};
+      if (status) where.status = status;
+      else if (!includeCancelled) where.status = { not: 'cancelled' }; // Exclude cancelled by default; ?include_cancelled=true for admin views
+      // Only admins can filter by approval_status — public users always see approved only
+      const isAdminUser = (req as any).user?.id ? await getIsAdmin(req as any) : false;
+      if (approvalStatus && isAdminUser) where.approval_status = approvalStatus;
+      else where.approval_status = 'approved';
+      if (eventType) where.event_type = eventType;
+      if (search) {
+        where.OR = [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { location: { contains: search, mode: 'insensitive' } },
+        ];
+      }
 
-    // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
-    // Events remain visible in listings for 72h after they happen (post-game photos, recap)
-    // and drop off after. `include_past=true` still returns everything for admin/team views.
-    if (!req.query.include_past && !approvalStatus) {
-      const EVENT_ARCHIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
-      const archiveCutoff = new Date(Date.now() - EVENT_ARCHIVE_WINDOW_MS);
-      where.date = { gte: archiveCutoff };
-    }
+      // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").
+      // Events remain visible in listings for 72h after they happen (post-game photos, recap)
+      // and drop off after. `include_past=true` still returns everything for admin/team views.
+      if (!req.query.include_past && !approvalStatus) {
+        const EVENT_ARCHIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+        const archiveCutoff = new Date(Date.now() - EVENT_ARCHIVE_WINDOW_MS);
+        where.date = { gte: archiveCutoff };
+      }
 
-    const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };
+      const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };
 
-    // Location filtering: resolve user coordinates from zip or lat/lng params
-    const showAll = String(req.query.show_all || '').toLowerCase() === 'true';
-    const eventRadius = Math.min(Number(req.query.radius) || 30, 500); // default 30mi
-    let userCoords: { lat: number; lon: number } | null = null;
-    if (!showAll) {
-      if (req.query.zip && typeof req.query.zip === 'string') {
-        userCoords = getZipCoordinates(req.query.zip as string);
-        if (!userCoords) {
-          const geo = await geocodeLocation(req.query.zip as string);
-          if (geo) userCoords = { lat: geo.latitude, lon: geo.longitude };
-        }
-      } else if (req.query.lat && req.query.lng) {
-        const pLat = Number(req.query.lat);
-        const pLng = Number(req.query.lng);
-        if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
-          userCoords = { lat: pLat, lon: pLng };
+      // Location filtering: resolve user coordinates from zip or lat/lng params
+      const showAll = String(req.query.show_all || '').toLowerCase() === 'true';
+      const eventRadius = Math.min(Number(req.query.radius) || 30, 500); // default 30mi
+      let userCoords: { lat: number; lon: number } | null = null;
+      if (!showAll) {
+        if (req.query.zip && typeof req.query.zip === 'string') {
+          userCoords = getZipCoordinates(req.query.zip as string);
+          if (!userCoords) {
+            const geo = await geocodeLocation(req.query.zip as string);
+            if (geo) userCoords = { lat: geo.latitude, lon: geo.longitude };
+          }
+        } else if (req.query.lat && req.query.lng) {
+          const pLat = Number(req.query.lat);
+          const pLng = Number(req.query.lng);
+          if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
+            userCoords = { lat: pLat, lon: pLng };
+          }
         }
       }
-    }
 
-    // Over-fetch when location filtering to compensate for filtered-out events
-    const fetchLimit = userCoords ? Math.min((take ?? 100) * 3, 300) : take;
-    let events = await prisma.event.findMany({
-      where,
-      orderBy,
-      take: fetchLimit,
-      include: {
-        game: {
-          select: {
-            id: true,
-            title: true,
-            cover_image_url: true,
-            date: true,
-            location: true,
-            latitude: true,
-            longitude: true,
-            venue_lat: true,
-            venue_lng: true,
+      // Over-fetch when location filtering to compensate for filtered-out events
+      const fetchLimit = userCoords ? Math.min((take ?? 100) * 3, 300) : take;
+      let events = await prisma.event.findMany({
+        where,
+        orderBy,
+        take: fetchLimit,
+        include: {
+          game: {
+            select: {
+              id: true,
+              title: true,
+              cover_image_url: true,
+              date: true,
+              location: true,
+              latitude: true,
+              longitude: true,
+              venue_lat: true,
+              venue_lng: true,
+            },
           },
         },
-      },
-    });
-
-    // Apply location filter: keep events without coords + events within radius
-    // Use game-derived coordinates as fallback when event itself has no lat/lng
-    if (userCoords) {
-      events = events.filter((e: any) => {
-        const lat = e.latitude ?? e.game?.latitude ?? e.game?.venue_lat ?? null;
-        const lng = e.longitude ?? e.game?.longitude ?? e.game?.venue_lng ?? null;
-        if (lat == null || lng == null) return true; // no location → always show
-        return haversineDistance(userCoords!.lat, userCoords!.lon, lat, lng) <= eventRadius;
       });
-      if (take) events = events.slice(0, take);
-    }
 
-    res.json(
-      events.map(event => serializeEvent(event, { includeGame: true }))
-    );
-  } catch (err) {
-    console.error('[events] GET / error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
+      // Apply location filter: keep events without coords + events within radius
+      // Use game-derived coordinates as fallback when event itself has no lat/lng
+      if (userCoords) {
+        events = events.filter((e: any) => {
+          const lat = e.latitude ?? e.game?.latitude ?? e.game?.venue_lat ?? null;
+          const lng = e.longitude ?? e.game?.longitude ?? e.game?.venue_lng ?? null;
+          if (lat == null || lng == null) return true; // no location → always show
+          return haversineDistance(userCoords!.lat, userCoords!.lon, lat, lng) <= eventRadius;
+        });
+        if (take) events = events.slice(0, take);
+      }
+
+      res.json(events.map(event => serializeEvent(event, { includeGame: true })));
+    } catch (err) {
+      console.error('[events] GET / error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
 
 // List current user's RSVPs with event basics
-eventsRouter.get('/my-rsvps', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const rows = await prisma.eventRsvp.findMany({
-      where: { user_id: req.user.id },
-      orderBy: { created_at: 'desc' },
-      include: {
-        event: {
-          include: {
-            game: {
-              select: {
-                id: true,
-                title: true,
-                cover_image_url: true,
-                date: true,
-                location: true,
-                latitude: true,
-                longitude: true,
-                venue_lat: true,
-                venue_lng: true,
+eventsRouter.get(
+  '/my-rsvps',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const rows = await prisma.eventRsvp.findMany({
+        where: { user_id: req.user.id },
+        orderBy: { created_at: 'desc' },
+        include: {
+          event: {
+            include: {
+              game: {
+                select: {
+                  id: true,
+                  title: true,
+                  cover_image_url: true,
+                  date: true,
+                  location: true,
+                  latitude: true,
+                  longitude: true,
+                  venue_lat: true,
+                  venue_lng: true,
+                },
               },
             },
           },
         },
-      },
-      take: 100,
-    });
-    const list = rows.map(r => ({
-      id: r.id,
-      created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
-      event: r.event ? serializeEvent(r.event, { includeGame: true }) : null,
-    }));
-    return res.json(list);
-  } catch (err) {
-    console.error('[events] GET /my-rsvps error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
+        take: 100,
+      });
+      const list = rows.map(r => ({
+        id: r.id,
+        created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at,
+        event: r.event ? serializeEvent(r.event, { includeGame: true }) : null,
+      }));
+      return res.json(list);
+    } catch (err) {
+      console.error('[events] GET /my-rsvps error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
 
 // List current user's created events (for fans to track their submissions)
-eventsRouter.get('/my-events', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    // req.user is guaranteed by requireAuth middleware
-    const events = await prisma.event.findMany({
-      where: { creator_id: req.user!.id },
-      orderBy: { created_at: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        title: true,
-        date: true,
-        location: true,
-        event_type: true,
-        approval_status: true,
-        status: true,
-        rejected_reason: true,
-        created_at: true,
-        approved_at: true,
-        description: true,
-      },
-    });
-    return res.json(events);
-  } catch (err) {
-    console.error('[events] GET /my-events error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
+eventsRouter.get(
+  '/my-events',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      // req.user is guaranteed by requireAuth middleware
+      const events = await prisma.event.findMany({
+        where: { creator_id: req.user!.id },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          title: true,
+          date: true,
+          location: true,
+          event_type: true,
+          approval_status: true,
+          status: true,
+          rejected_reason: true,
+          created_at: true,
+          approved_at: true,
+          description: true,
+        },
+      });
+      return res.json(events);
+    } catch (err) {
+      console.error('[events] GET /my-events error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
 
 // Get pending events for approval (admins & coaches only) - MUST be before /:id to avoid "pending" matching as id
 eventsRouter.get(
@@ -691,29 +723,27 @@ eventsRouter.post(
     ].filter((tid): tid is string => Boolean(tid));
 
     if (linkedTeamIds.length > 0 && event.creator_id !== req.user.id) {
-      const [teamMembership, teamFollow, orgAdminCheck, isAdminUser] =
-        await Promise.all([
-          prisma.teamMembership.findFirst({
-            where: {
-              team_id: { in: linkedTeamIds },
-              user_id: req.user.id,
-              status: 'active',
-            },
-            select: { id: true },
-          }),
-          prisma.teamFollow.findFirst({
-            where: { team_id: { in: linkedTeamIds }, user_id: req.user.id },
-            select: { team_id: true },
-          }),
-          canManageAnyTeam(req.user.id, linkedTeamIds),
-          getIsAdmin(req as any),
-        ]);
+      const [teamMembership, teamFollow, orgAdminCheck, isAdminUser] = await Promise.all([
+        prisma.teamMembership.findFirst({
+          where: {
+            team_id: { in: linkedTeamIds },
+            user_id: req.user.id,
+            status: 'active',
+          },
+          select: { id: true },
+        }),
+        prisma.teamFollow.findFirst({
+          where: { team_id: { in: linkedTeamIds }, user_id: req.user.id },
+          select: { team_id: true },
+        }),
+        canManageAnyTeam(req.user.id, linkedTeamIds),
+        getIsAdmin(req as any),
+      ]);
 
       if (!teamMembership && !teamFollow && !orgAdminCheck && !isAdminUser) {
         return res.status(403).json({
           error: 'EVENT_AFFILIATION_REQUIRED',
-          message:
-            'You must be a member or follower of this team to RSVP to this event.',
+          message: 'You must be a member or follower of this team to RSVP to this event.',
         });
       }
     }
@@ -1034,7 +1064,7 @@ eventsRouter.post(
           eventLocation: event.location || undefined,
           teamName: team?.name || data.linked_league || undefined,
           notes: event.description || undefined,
-        }).catch((err) => {
+        }).catch(err => {
           console.warn('[events] pending review email failed:', (err as any)?.message || err);
         });
       }
@@ -1096,9 +1126,7 @@ eventsRouter.put(
 
     // Scope approval: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
-      const canApprove = event.team_id
-        ? await canManageTeamScoped(userId, event.team_id)
-        : false;
+      const canApprove = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
       if (!canApprove) {
         return res
           .status(403)
@@ -1156,9 +1184,7 @@ eventsRouter.put(
 
     // Scope rejection: must be admin, or coach/admin of the event's team/org
     if (!isAdmin) {
-      const canReject = event.team_id
-        ? await canManageTeamScoped(userId, event.team_id)
-        : false;
+      const canReject = event.team_id ? await canManageTeamScoped(userId, event.team_id) : false;
       if (!canReject) {
         return res
           .status(403)
@@ -1481,8 +1507,7 @@ eventsRouter.patch(
       if (!isCreator && !canManageLinkedTeam && !isAdmin) {
         return res.status(403).json({
           error: 'Permission denied',
-          message:
-            'Only the event creator, team staff, or a league admin can cancel this event.',
+          message: 'Only the event creator, team staff, or a league admin can cancel this event.',
         });
       }
 
