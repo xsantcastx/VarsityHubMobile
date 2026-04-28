@@ -1,4 +1,5 @@
 import { Post } from '@/api/entities';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { REPORT_REASONS, usePostInteractions } from '@/hooks/usePostInteractions';
@@ -61,6 +62,10 @@ function MasonryPostCard({
   const handleVotePoll = async (_pollId: string, optionId: string) => {
     // voteOnPoll takes the POST id, not the poll id
     const result = await Post.voteOnPoll(post.id, optionId);
+    analytics.track(ANALYTICS_EVENTS.POLL_VOTED, {
+      post_id: post.id,
+      option_id: optionId,
+    });
     // Server now returns serialized poll with { options: [{ id, text, votes }], totalVotes }
     if (result?.options) {
       return { options: result.options, totalVotes: result.totalVotes || 0 };

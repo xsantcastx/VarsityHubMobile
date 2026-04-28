@@ -488,7 +488,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // NOW set user — routing effect will fire with correct hasCompletedOnboarding
         setUser(me);
         setSentryUser({ id: me.id, email: me.email, username: me.username });
-        analytics.identify(me.id, { email: me.email, role: me.role });
+        analytics.identify(me.id, {
+          email: me.email,
+          role: me.role,
+          plan: me.preferences?.plan,
+          organization_id: me.organization_id || me.preferences?.organization_id,
+          is_admin: me.is_admin,
+          onboarding_completed: me.onboarding_completed,
+        });
         setPendingVerificationEmail(null);
 
         // Stagger non-critical subscription refresh so auth/bootstrap requests do not fan out at once.

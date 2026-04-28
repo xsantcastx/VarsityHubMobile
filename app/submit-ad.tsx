@@ -23,6 +23,7 @@ import { httpGet } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 type BannerFitValue = 'rotate' | 'fill' | 'stretch' | `rotate:${number}`;
 type ServerBannerFitMode = 'cover' | 'contain' | 'fill';
@@ -173,6 +174,7 @@ function SubmitAdScreen() {
       }
 
       const adId = serverId;
+      analytics.track(ANALYTICS_EVENTS.AD_SUBMITTED, { ad_id: adId });
       // Keep a local copy so My Ads can show offline
       try {
         const draft: DraftAd = {

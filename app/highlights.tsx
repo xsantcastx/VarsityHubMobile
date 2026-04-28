@@ -29,6 +29,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
 import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
@@ -617,6 +618,10 @@ function HighlightsScreen() {
     );
     try {
       const r: any = await Post.toggleUpvote(item.id);
+      const upvotedNow = typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted);
+      if (upvotedNow) {
+        analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, { post_id: item.id, source: 'highlights' });
+      }
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       // Reconcile with server values
       setHighlights((prev) =>

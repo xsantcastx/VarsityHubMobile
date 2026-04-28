@@ -26,6 +26,7 @@ import { APP_ROUTES } from '@/utils/appRoutes';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
 import { Game, Team as TeamAPI, User } from '@/api/entities';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { getApiBaseUrl, httpGet } from '@/api/http';
 import { uploadFile } from '@/api/upload';
@@ -509,6 +510,13 @@ function CreateFanEventScreen() {
         }
 
         await Game.create(eventData);
+      }
+
+      if (!isCoach) {
+        analytics.track(ANALYTICS_EVENTS.COACH_APPROVAL_REQUESTED, {
+          event_type: eventType,
+          team_id: pitchTeamId || undefined,
+        });
       }
 
       Alert.alert(

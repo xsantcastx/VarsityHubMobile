@@ -23,6 +23,7 @@ import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
 import { httpGet, httpPost, httpPut } from '@/api/http';
 import { captureBreadcrumb } from '@/utils/sentry';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -260,6 +261,11 @@ export default function EventApprovalsScreen() {
       captureBreadcrumb('Event approval succeeded', 'admin.approval', {
         action: 'approve',
         actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+      });
+      analytics.track(ANALYTICS_EVENTS.COACH_APPROVED, {
+        approval_type: 'event',
         event_id: eventId,
         is_game: !!evt?._isGame,
       });

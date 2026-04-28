@@ -1631,6 +1631,7 @@ const GameDetailsScreen = () => {
           };
         }
         await Game.addStory(gameId, storyPayload);
+        analytics.track(ANALYTICS_EVENTS.STORY_ADDED, { game_id: gameId });
         try {
           await loadGameById(gameId);
           Alert.alert(
@@ -1741,6 +1742,7 @@ const GameDetailsScreen = () => {
           };
         }
         await Game.addStory(gameId, storyPayload);
+        analytics.track(ANALYTICS_EVENTS.STORY_ADDED, { game_id: gameId });
         try {
           await loadGameById(gameId);
           Alert.alert('Added', 'Story added to this game.');

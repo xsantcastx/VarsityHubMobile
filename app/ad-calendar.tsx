@@ -15,6 +15,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { usePaymentSheet } from '@/utils/stripe';
@@ -667,6 +668,12 @@ function AdCalendarScreen() {
           if (result.error) Alert.alert('Payment Error', result.error);
           return;
         }
+        analytics.track(ANALYTICS_EVENTS.AD_PAYMENT_COMPLETED, {
+          ad_id: String(adId),
+          amount_cents: totalCents ?? 0,
+          num_dates: dates.length,
+          method: 'apple_iap',
+        });
         const paidAmount = `$${((totalCents ?? 0) / 100).toFixed(2)}`;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), totalAmount: paidAmount } });
         return;
@@ -754,6 +761,12 @@ function AdCalendarScreen() {
         captureBreadcrumb('Ad payment sheet completed', 'payments.ad', {
           ad_id: String(adId),
           amount_cents: data.amount_cents,
+        });
+        analytics.track(ANALYTICS_EVENTS.AD_PAYMENT_COMPLETED, {
+          ad_id: String(adId),
+          amount_cents: data.amount_cents,
+          num_dates: dates.length,
+          method: 'stripe',
         });
         const paidAmount = data.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : undefined;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });

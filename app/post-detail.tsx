@@ -29,6 +29,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User, Report } from '@/api/entities';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { useShareLink } from '@/hooks/useShareLink';
 import { usePostCache } from '@/context/PostCacheContext';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
@@ -482,6 +483,10 @@ export default function PostDetailScreen() {
     });
     try {
       const r: any = await PostApi.toggleUpvote(currentPostId);
+      const upvotedNow = typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted);
+      if (upvotedNow) {
+        analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, { post_id: currentPostId, source: 'post_detail' });
+      }
       // Reconcile with server values
       setPost((p: any) => {
         const next = {
@@ -534,6 +539,11 @@ export default function PostDetailScreen() {
 
     try {
       const created = await PostApi.addComment(currentPostId, commentText, parentId);
+      analytics.track(ANALYTICS_EVENTS.COMMENT_CREATED, {
+        post_id: currentPostId,
+        is_reply: !!parentId,
+        source: 'post_detail',
+      });
       // Replace optimistic comment with real server response
       const nextReal = [created, ...prevComments];
       setComments(nextReal);

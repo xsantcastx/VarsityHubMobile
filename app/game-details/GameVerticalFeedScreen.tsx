@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
 import { Game, Highlights, Post, Report, User } from '@/api/entities';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { httpGet } from '@/api/http';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
@@ -1085,6 +1086,10 @@ function GameVerticalFeedScreen({
       }));
       try {
         const res: any = await Post.toggleUpvote(post.id);
+        const upvotedNow = Boolean(res?.has_upvoted ?? res?.upvoted);
+        if (upvotedNow) {
+          analytics.track(ANALYTICS_EVENTS.POST_UPVOTED, { post_id: post.id, source: 'game_vertical_feed' });
+        }
         updatePost(post.id, p => ({
           ...p,
           has_upvoted: Boolean(res?.has_upvoted ?? res?.upvoted),
@@ -1301,6 +1306,10 @@ function GameVerticalFeedScreen({
     setCommentSending(true);
     try {
       const res: any = await Post.addComment(commentTarget.id, optimistic.content);
+      analytics.track(ANALYTICS_EVENTS.COMMENT_CREATED, {
+        post_id: commentTarget.id,
+        source: 'game_vertical_feed',
+      });
       const withAuthor =
         res && typeof res === 'object'
           ? { ...res, author: { username: res?.author?.username ?? (meInfo?.username || 'you') } }
