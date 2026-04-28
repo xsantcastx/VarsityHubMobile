@@ -202,6 +202,11 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(authProvider).toMatch(/\(tabs\)/);
     });
 
+    it('AuthProvider still routes unauthenticated users to sign-in when backend health is down', () => {
+      expect(authProvider).toMatch(/unauthenticated_backend_unhealthy/);
+      expect(authProvider).toMatch(/Do not strand unauthenticated users on the passive root spinner/);
+    });
+
     it('app/index.tsx is a passive splash that delegates to AuthProvider', () => {
       // Lock in the architecture: index must NOT contain its own routing
       // logic (would re-introduce the race AuthProvider was built to fix).

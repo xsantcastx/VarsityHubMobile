@@ -888,12 +888,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         !!pendingVerificationEmail
       );
 
-    // If backend is unhealthy, don't do any redirects
-    if (!healthOk) {
-      if (__DEV__) console.log('[AuthProvider] Backend unhealthy, skipping routing');
-      return;
-    }
-
     // If user is awaiting email verification, navigate to verify-email
     if (pendingVerificationEmail && firstSegment !== 'verify-email') {
       // Belt-and-suspenders: if we have a pending email but no user, check the
@@ -1175,6 +1169,19 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           return;
         }
       }
+    }
+
+    // Do not strand unauthenticated users on the passive root spinner when a
+    // single startup health check fails. Let them reach /sign-in and surface
+    // connectivity problems via OfflineBanner there instead.
+    if (!healthOk) {
+      if (__DEV__) console.log('[AuthProvider] Backend unhealthy, limiting routing');
+      if (!user && !pendingVerificationEmail && !isPublic) {
+        if (lastRedirectRef.current !== '/sign-in') {
+          redirectWithTelemetry('/sign-in', 'unauthenticated_backend_unhealthy');
+        }
+      }
+      return;
     }
 
     // Unauthenticated routing
