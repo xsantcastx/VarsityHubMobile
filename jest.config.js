@@ -8,6 +8,7 @@ module.exports = {
     '^@/ui/(.*)$': '<rootDir>/components/ui/$1',
     '^@/components/ui/(.*)$': '<rootDir>/components/ui/$1',
     '^@/components/(.*)$': '<rootDir>/components/$1',
+    '^@/features/(.*)$': '<rootDir>/app/features/$1',
     '^@/(.*)$': '<rootDir>/$1',
     '^@mocks$': '<rootDir>/__tests__/__mocks__',
     UTFSequence$: '<rootDir>/shims/UTFSequenceMock.js',

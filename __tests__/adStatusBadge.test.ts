@@ -1,6 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 
+const NOW = new Date('2026-04-28T12:00:00');
+const LIVE_DATES = ['2026-04-28'];
+
 describe('getCompositeAdBadge', () => {
   it('maps the primary user-facing tuples to one badge', () => {
     expect(getCompositeAdBadge('draft', 'unpaid')).toEqual({ label: 'Draft', tone: 'draft' });
@@ -16,7 +19,10 @@ describe('getCompositeAdBadge', () => {
       label: 'Approved - Awaiting Payment',
       tone: 'approved',
     });
-    expect(getCompositeAdBadge('approved', 'paid')).toEqual({ label: 'Live', tone: 'live' });
+    expect(getCompositeAdBadge('approved', 'paid', LIVE_DATES, NOW)).toEqual({
+      label: 'Live',
+      tone: 'live',
+    });
     expect(getCompositeAdBadge('rejected', 'paid')).toEqual({
       label: 'Rejected',
       tone: 'rejected',
@@ -36,7 +42,10 @@ describe('getCompositeAdBadge', () => {
       label: 'Approved - Awaiting Payment',
       tone: 'approved',
     });
-    expect(getCompositeAdBadge('active', 'paid')).toEqual({ label: 'Live', tone: 'live' });
+    expect(getCompositeAdBadge('active', 'paid', LIVE_DATES, NOW)).toEqual({
+      label: 'Live',
+      tone: 'live',
+    });
     expect(getCompositeAdBadge('active', 'hold')).toEqual({
       label: 'Approved - Awaiting Payment',
       tone: 'approved',
