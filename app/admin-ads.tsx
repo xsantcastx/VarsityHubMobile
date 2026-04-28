@@ -254,6 +254,10 @@ function AdminAdsScreen() {
     switch (tone) {
       case 'live':
         return { bg: '#DCFCE7', border: '#22C55E', text: '#166534' };
+      case 'scheduled':
+        return { bg: '#DBEAFE', border: '#60A5FA', text: '#1D4ED8' };
+      case 'completed':
+        return { bg: theme.surface, border: theme.border, text: theme.mutedText };
       case 'approved':
         return { bg: '#DBEAFE', border: '#3B82F6', text: '#1D4ED8' };
       case 'pending':

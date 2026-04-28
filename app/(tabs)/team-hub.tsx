@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthProvider';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
@@ -136,8 +137,19 @@ function TeamHubScreen() {
     }
   };
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return <SafeAreaView style={S.page} edges={['top']}><ActivityIndicator style={{ marginTop: 40 }} /></SafeAreaView>;
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={palette.background}
+        spinnerColor={palette.primary}
+        textColor={palette.placeholder}
+        edges={['top']}
+      />
+    );
   }
 
   return (

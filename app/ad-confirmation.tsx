@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '@/components/ui/BackHeader';
+import { getAdScheduleBucket } from '@/utils/adStatusBadge';
 import { safeGoBack } from '@/utils/navigation';
 
 function AdConfirmationScreen() {
@@ -192,7 +193,9 @@ function AdConfirmationScreen() {
               the title hedges to match the subtitle so the screen doesn't overstate. */}
           {(() => {
             const isTrulyLive =
-              paymentVerified && (adDetails as any)?.status === 'active';
+              paymentVerified &&
+              (adDetails as any)?.status === 'active' &&
+              getAdScheduleBucket(Array.isArray((adDetails as any)?.dates) ? (adDetails as any).dates : []) === 'live';
             return (
               <View style={styles.messageContainer}>
                 <Text style={[styles.title, { color: Colors[colorScheme].text }]}>

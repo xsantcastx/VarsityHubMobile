@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -43,11 +44,21 @@ function ManageUsersScreen() {
     return rows.filter((u: any) => (u.user?.display_name || '').toLowerCase().includes(s) || (u.user?.email || '').toLowerCase().includes(s) || (u.team?.name || '').toLowerCase().includes(s));
   }, [q, rows]);
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <ActivityIndicator style={{ marginTop: 40 }} />
       </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+      />
     );
   }
 

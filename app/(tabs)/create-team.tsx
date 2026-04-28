@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -627,12 +628,23 @@ function CreateTeamScreen() {
     }
   };
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
         <Stack.Screen options={{ title: 'Create Team', headerShown: false }} />
         <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+        edges={['bottom']}
+      />
     );
   }
 

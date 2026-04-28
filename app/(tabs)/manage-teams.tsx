@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthProvider';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -263,11 +264,21 @@ function ManageTeamsSimpleScreen() {
     }
   };
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <ActivityIndicator style={{ marginTop: 40 }} />
       </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+      />
     );
   }
 

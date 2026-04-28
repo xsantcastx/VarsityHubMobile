@@ -1,4 +1,5 @@
 import CustomActionModal from '@/components/CustomActionModal';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -1501,7 +1502,31 @@ export default function TeamChatScreen() {
     </Pressable>
   );
 
-  if (coachLoading || !canAccessCoachTools || loading) {
+  if (coachLoading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
+              <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+            </Pressable>
+          ) }} />
+        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading team chat...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+      />
+    );
+  }
+
+  if (loading) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (

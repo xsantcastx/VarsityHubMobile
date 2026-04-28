@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
@@ -572,11 +573,22 @@ export default function EventApprovalsScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
         <ActivityIndicator style={{ marginTop: 40 }} />
       </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={C.background}
+        spinnerColor={C.tint}
+        textColor={C.mutedText}
+        edges={['bottom']}
+      />
     );
   }
 

@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -306,7 +307,27 @@ function EditTeamScreen() {
     }
   };
 
-  if (coachLoading || !canAccessCoachTools || loading) {
+  if (coachLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ title: 'Edit Team', headerShown: false }} />
+        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading team...</Text>
+      </View>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+      />
+    );
+  }
+
+  if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}>
         <Stack.Screen options={{ title: 'Edit Team', headerShown: false }} />

@@ -1,4 +1,5 @@
 import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -1158,7 +1159,7 @@ function ManageSeasonScreen() {
     }
   }, [promptModal.visible, promptModal.defaultValue]);
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
@@ -1166,6 +1167,16 @@ function ManageSeasonScreen() {
       >
         <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+      />
     );
   }
 

@@ -1,4 +1,5 @@
 import { Organization } from '@/api/entities';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -381,11 +382,21 @@ export default function ApprovalsScreen() {
   );
 
   // Gate: must be a coach
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
         <ActivityIndicator style={{ marginTop: 40 }} />
       </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={isDark ? '#0B1120' : '#F8FAFC'}
+        spinnerColor={C.tint}
+        textColor={isDark ? '#6B7280' : '#64748B'}
+      />
     );
   }
 

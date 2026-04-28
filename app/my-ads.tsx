@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 import settings from '@/api/settings';
-import { getCompositeAdBadge } from '@/utils/adStatusBadge';
+import { getAdScheduleBucket, getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { safeGoBack } from '@/utils/navigation';
 
 type ManagedAd = {
@@ -233,17 +233,25 @@ function MyAdsScreen() {
     const hasUpcoming = future.length > 0;
     const hasDates = dates.length > 0;
     const isPaid = item.payment_status === 'paid';
-    const badge = getCompositeAdBadge(item.status, item.payment_status);
+    const scheduleBucket = getAdScheduleBucket(dates);
+    const badge = getCompositeAdBadge(item.status, item.payment_status, dates);
     const requiresEditBeforeScheduling = item.status === 'rejected' || item.status === 'archived';
+    const isAwaitingPayment = (item.status === 'approved' || item.status === 'active') && !isPaid;
     const primaryActionLabel = item.status === 'rejected'
       ? 'Edit to Resubmit'
       : item.status === 'archived'
         ? 'Edit to Run Again'
-        : isPaid && hasDates
-          ? '✓ Paid - Schedule More'
-          : hasDates
-            ? 'Schedule More'
-            : 'Schedule Dates';
+        : item.status === 'pending'
+          ? 'View Review Status'
+          : isAwaitingPayment
+            ? 'Complete Checkout'
+            : scheduleBucket === 'live'
+              ? 'Schedule More'
+              : scheduleBucket === 'scheduled'
+                ? 'View Schedule'
+                : scheduleBucket === 'completed'
+                  ? 'Run Again'
+                  : 'Schedule Dates';
     
     return (
       <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
@@ -504,6 +512,8 @@ function MyAdsScreen() {
 
 function badgeStyleForTone(tone: string, colorScheme: 'light' | 'dark' = 'light') {
   if (tone === 'live') return { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC' };
+  if (tone === 'scheduled') return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#DBEAFE', borderColor: colorScheme === 'dark' ? '#60A5FA' : '#93C5FD' };
+  if (tone === 'completed') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#D1D5DB' };
   if (tone === 'approved') return { backgroundColor: colorScheme === 'dark' ? '#064E3B' : '#D1FAE5', borderColor: colorScheme === 'dark' ? '#34D399' : '#6EE7B7' };
   if (tone === 'pending') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3', borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A' };
   if (tone === 'rejected') return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5' };
@@ -512,6 +522,8 @@ function badgeStyleForTone(tone: string, colorScheme: 'light' | 'dark' = 'light'
 }
 function badgeTextStyleForTone(tone: string) {
   if (tone === 'live') return { color: '#10B981' };
+  if (tone === 'scheduled') return { color: '#2563EB' };
+  if (tone === 'completed') return { color: '#6B7280' };
   if (tone === 'approved') return { color: '#059669' };
   if (tone === 'pending') return { color: '#F59E0B' };
   if (tone === 'rejected') return { color: '#EF4444' };

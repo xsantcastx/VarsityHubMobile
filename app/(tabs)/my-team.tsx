@@ -1,4 +1,5 @@
 import CustomActionModal from '@/components/CustomActionModal';
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -415,8 +416,18 @@ function MyTeamScreen() {
     );
   };
 
-  if (coachLoading || !canAccessCoachTools) {
+  if (coachLoading) {
     return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}><ActivityIndicator style={{ marginTop: 40 }} /></View>;
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+      />
+    );
   }
 
   return (

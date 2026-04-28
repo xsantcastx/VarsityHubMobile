@@ -11,6 +11,7 @@ import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAdScheduleBucket } from '@/utils/adStatusBadge';
 import { setPendingDeepLink } from '@/utils/deepLinks';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -233,6 +234,29 @@ function PaymentSuccessScreen() {
     } catch { return iso; }
   };
 
+  const adScheduleBucket = getAdScheduleBucket(adDetails?.dates ?? []);
+  const isAdCurrentlyLive = isAdPayment && adDetails?.status === 'active' && adScheduleBucket === 'live';
+  const adSuccessTitle = !isAdPayment
+    ? 'Payment Confirmed!'
+    : isAdCurrentlyLive
+      ? 'Your Ad is Live!'
+      : adScheduleBucket === 'scheduled'
+        ? 'Payment Confirmed! Your Ad Is Scheduled'
+        : 'Payment Confirmed!';
+  const adSuccessSubtitle = isAdCurrentlyLive
+    ? 'Your campaign is active now.'
+    : adScheduleBucket === 'scheduled'
+      ? 'Your dates are reserved. The ad will go live automatically on the scheduled dates.'
+      : 'Your payment is confirmed. Your ad will go live shortly.';
+  const adDeliveryBadgeStyle =
+    isAdCurrentlyLive
+      ? { backgroundColor: '#DCFCE7', borderColor: '#86EFAC', textColor: '#166534', label: 'LIVE' }
+      : adScheduleBucket === 'scheduled'
+        ? { backgroundColor: '#DBEAFE', borderColor: '#93C5FD', textColor: '#1D4ED8', label: 'SCHEDULED' }
+        : adScheduleBucket === 'completed'
+          ? { backgroundColor: '#F3F4F6', borderColor: '#D1D5DB', textColor: '#4B5563', label: 'COMPLETED' }
+          : { backgroundColor: '#FEF3C7', borderColor: '#FCD34D', textColor: '#92400E', label: 'GOING LIVE' };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false, gestureEnabled: true }} />
@@ -304,7 +328,10 @@ function PaymentSuccessScreen() {
               <View style={styles.checkCircle}>
                 <MaterialIcons name="check" size={48} color="#fff" />
               </View>
-              <Text style={[styles.successTitle, { color: theme.text }]}>{isAdPayment ? 'Your Ad is Live!' : 'Payment Confirmed!'}</Text>
+              <Text style={[styles.successTitle, { color: theme.text }]}>{adSuccessTitle}</Text>
+              {isAdPayment ? (
+                <Text style={[styles.successSubtitle, { color: theme.mutedText }]}>{adSuccessSubtitle}</Text>
+              ) : null}
             </Animated.View>
 
             <Animated.View style={{ opacity: contentOpacity, width: '100%' }}>
@@ -329,8 +356,8 @@ function PaymentSuccessScreen() {
                     <View style={styles.statusBadge}>
                       <Text style={styles.statusBadgeText}>PAID</Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}>
-                      <Text style={[styles.statusBadgeText, { color: '#166534' }]}>ACTIVE</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: adDeliveryBadgeStyle.backgroundColor, borderColor: adDeliveryBadgeStyle.borderColor }]}>
+                      <Text style={[styles.statusBadgeText, { color: adDeliveryBadgeStyle.textColor }]}>{adDeliveryBadgeStyle.label}</Text>
                     </View>
                   </View>
 
@@ -358,7 +385,7 @@ function PaymentSuccessScreen() {
                   <View style={[styles.infoBox, { backgroundColor: colorScheme === 'dark' ? '#052e16' : '#F0FDF4' }]}>
                     <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Ad reservation confirmed</Text>
                     <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Dates are now reserved</Text>
-                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Your ad is live</Text>
+                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Your ad will go live on the scheduled dates</Text>
                   </View>
                 </View>
               )}
@@ -417,6 +444,7 @@ const styles = StyleSheet.create({
   errorTitle: { fontSize: 22, fontWeight: '700', marginTop: 16, marginBottom: 8 },
   errorBody: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   checkWrap: { alignItems: 'center', marginBottom: 24, marginTop: 32 },
+  successSubtitle: { marginTop: 8, fontSize: 15, textAlign: 'center', lineHeight: 22 },
   checkCircle: {
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: '#16A34A',
