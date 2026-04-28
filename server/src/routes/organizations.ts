@@ -2827,11 +2827,9 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user)
-      return res
-        .status(401)
-        .json({
-          error: 'Admin login required. Please log in to the admin dashboard before approving.',
-        });
+      return res.status(401).json({
+        error: 'Admin login required. Please log in to the admin dashboard before approving.',
+      });
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { email: true },
@@ -2999,11 +2997,9 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user)
-      return res
-        .status(401)
-        .json({
-          error: 'Admin login required. Please log in to the admin dashboard before rejecting.',
-        });
+      return res.status(401).json({
+        error: 'Admin login required. Please log in to the admin dashboard before rejecting.',
+      });
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { email: true },

@@ -14,6 +14,7 @@ module.exports = {
 
     return [
       `eslint --cache --fix --no-warn-ignored ${serverFiles.map((file) => shellQuote(`server/${file}`)).join(' ')}`,
+      `prettier --write ${serverFiles.map((file) => shellQuote(`server/${file}`)).join(' ')}`,
       `bash -lc "cd server && npx tsc-files --noEmit -p tsconfig.json ${serverFiles.map(shellQuote).join(' ')}"`,
     ];
   },
