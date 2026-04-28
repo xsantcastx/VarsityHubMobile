@@ -107,6 +107,19 @@ describe('parseDeepLink', () => {
     });
   });
 
+  it('parses universal verification links with token and email params', () => {
+    expect(
+      parseDeepLink('https://varsityhub.app/verify?token=123456&email=user%40example.com')
+    ).toEqual({
+      screen: '/verify',
+      params: {
+        token: '123456',
+        email: 'user@example.com',
+      },
+      source: 'universal',
+    });
+  });
+
   it('parses universal admin dashboard review links used by approval emails', () => {
     expect(
       parseDeepLink(

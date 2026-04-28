@@ -16,13 +16,31 @@ import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ delivery?: string; devCode?: string }>();
+  const params = useLocalSearchParams<{
+    delivery?: string;
+    devCode?: string;
+    token?: string;
+    email?: string;
+  }>();
   const colorScheme = useColorScheme() ?? 'light';
   const { pendingVerificationEmail, checkAuth, user, signOut, markOnboardingCompleteLocally: _markOnboardingCompleteLocally } = useAuth();
   const [screenInfo, setScreenInfo] = useState<string | null>(null);
   const [screenError, setScreenError] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoVerifyAttemptRef = useRef<string | null>(null);
+  const deepLinkToken =
+    typeof params.token === 'string' ? params.token.replace(/[^0-9]/g, '').slice(0, 6) : '';
+  const deepLinkEmail =
+    typeof params.email === 'string' && params.email.trim().length > 0
+      ? params.email.trim().toLowerCase()
+      : '';
+  const activeEmail =
+    (pendingVerificationEmail || user?.email || '').trim().toLowerCase();
+  const displayEmail =
+    pendingVerificationEmail || user?.email || deepLinkEmail || 'your email address';
+  const signedIntoMatchingAccount =
+    !!activeEmail && (!deepLinkEmail || activeEmail === deepLinkEmail);
 
   // If a user somehow lands here with email_verified already true (stale
   // route, manual deep link, backgrounded mid-flow), don't make them stare at
@@ -165,6 +183,49 @@ export default function VerifyScreen() {
     }
   }, [gate.setCode, params.devCode]);
 
+  useEffect(() => {
+    if (!deepLinkToken) return;
+    gate.setCode(deepLinkToken);
+
+    if (!activeEmail) {
+      setScreenInfo(
+        deepLinkEmail
+          ? `Sign in as ${deepLinkEmail} to finish verifying this email address.`
+          : 'Sign in to finish verifying your email address.'
+      );
+      return;
+    }
+
+    if (!signedIntoMatchingAccount) {
+      setScreenError(
+        `This verification link is for ${deepLinkEmail}, but you're signed in as ${activeEmail}. Sign out and use the matching account.`
+      );
+      return;
+    }
+
+    setScreenInfo('Verification link received. Finishing confirmation...');
+  }, [activeEmail, deepLinkEmail, deepLinkToken, gate.setCode, signedIntoMatchingAccount]);
+
+  useEffect(() => {
+    if (!deepLinkToken) return;
+    if (!signedIntoMatchingAccount) return;
+    if (gate.loading || isVerified) return;
+    if (gate.code !== deepLinkToken) return;
+    if (autoVerifyAttemptRef.current === deepLinkToken) return;
+
+    autoVerifyAttemptRef.current = deepLinkToken;
+    setScreenError(null);
+    setScreenInfo(null);
+    void gate.verify();
+  }, [
+    deepLinkToken,
+    gate.code,
+    gate.loading,
+    gate.verify,
+    isVerified,
+    signedIntoMatchingAccount,
+  ]);
+
   const onVerify = async () => {
     setScreenError(null);
     setScreenInfo(null);
@@ -197,7 +258,7 @@ export default function VerifyScreen() {
 
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-        We sent a 6-digit verification code to {pendingVerificationEmail || user?.email || 'your email address'}.
+        We sent a 6-digit verification code to {displayEmail}.
         Enter the code below to complete your registration.
       </Text>
 
