@@ -3,6 +3,8 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
@@ -65,11 +67,28 @@ export default function ResetPasswordScreen() {
     setLoading(true);
     setError(null);
     setInfo(null);
+    captureBreadcrumb('Password reset submitted', 'auth.password_reset', {
+      code_length: trimmedCode.length,
+      source: 'reset-screen',
+    });
     try {
       await User.resetPassword(trimmedEmail, trimmedCode, password);
+      captureBreadcrumb('Password reset succeeded', 'auth.password_reset', {
+        source: 'reset-screen',
+      });
+      analytics.track(ANALYTICS_EVENTS.PASSWORD_RESET_COMPLETED, {
+        source: 'reset-screen',
+      });
       setInfo('Password updated! You can sign in with your new password.');
       setResetSuccess(true);
     } catch (e: any) {
+      captureBreadcrumb('Password reset failed', 'auth.password_reset', {
+        code_length: trimmedCode.length,
+        source: 'reset-screen',
+      }, 'warning');
+      captureException(e instanceof Error ? e : new Error(String(e)), {
+        tags: { context: 'reset_password_screen_submit' },
+      });
       setError(e?.message || 'Unable to reset password.');
     } finally {
       submitInFlightRef.current = false;

@@ -50,6 +50,8 @@ export const analytics = {
 export const ANALYTICS_EVENTS = {
   USER_SIGNED_UP: 'user_signed_up',
   USER_SIGNED_IN: 'user_signed_in',
+  PASSWORD_RESET_CODE_REQUESTED: 'password_reset_code_requested',
+  PASSWORD_RESET_COMPLETED: 'password_reset_completed',
   POST_CREATED: 'post_created',
   POST_UPVOTED: 'post_upvoted',
   COMMENT_CREATED: 'comment_created',

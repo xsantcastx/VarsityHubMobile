@@ -180,9 +180,16 @@ export function captureBreadcrumb(
   data?: Record<string, any>,
   level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info'
 ) {
+  const normalizedData = normalizeBreadcrumbData(data);
+
   if (!sentryReady) {
-    if (!__DEV__) {
-      if (__DEV__) console.warn('[sentry] captureBreadcrumb skipped; Sentry not ready');
+    if (__DEV__) {
+      console.debug('[sentry] breadcrumb (dev-only, not sent):', {
+        message,
+        category,
+        level,
+        data: normalizedData,
+      });
     }
     return;
   }
@@ -191,7 +198,7 @@ export function captureBreadcrumb(
     message,
     category,
     level,
-    data: normalizeBreadcrumbData(data),
+    data: normalizedData,
   });
 }
 

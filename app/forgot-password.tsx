@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { validateEmail } from '@/utils/formUtils';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
@@ -59,8 +61,17 @@ export default function ForgotPasswordScreen() {
     sendInFlightRef.current = true;
     setSendLoading(true);
     setSendError(null);
+    captureBreadcrumb('Password reset code request started', 'auth.password_reset', {
+      has_email: true,
+    });
     try {
       await User.requestPasswordReset(trimmed);
+      captureBreadcrumb('Password reset code request completed', 'auth.password_reset', {
+        result: 'code-sent',
+      });
+      analytics.track(ANALYTICS_EVENTS.PASSWORD_RESET_CODE_REQUESTED, {
+        result: 'code-sent',
+      });
       setCodeSent(true);
     } catch (e: any) {
       // Privacy: don't reveal whether the email is registered — treat any
@@ -77,12 +88,24 @@ export default function ForgotPasswordScreen() {
         errMsg.includes('Request timeout') ||
         errMsg.includes('fetch');
       if (isTransportFailure) {
+        captureBreadcrumb('Password reset code request failed', 'auth.password_reset', {
+          result: 'transport-failure',
+        }, 'warning');
+        captureException(e instanceof Error ? e : new Error(String(e)), {
+          tags: { context: 'password_reset_code_request' },
+        });
         setSendError(
           errMsg.startsWith('Cannot connect to server')
             ? errMsg
             : 'Could not reach the server to send your reset code. Please check your connection and try again.'
         );
       } else {
+        captureBreadcrumb('Password reset code request completed', 'auth.password_reset', {
+          result: 'privacy-preserved',
+        });
+        analytics.track(ANALYTICS_EVENTS.PASSWORD_RESET_CODE_REQUESTED, {
+          result: 'privacy-preserved',
+        });
         setCodeSent(true);
       }
     } finally {
@@ -109,10 +132,23 @@ export default function ForgotPasswordScreen() {
     resetInFlightRef.current = true;
     setResetLoading(true);
     setResetError(null);
+    captureBreadcrumb('Password reset submitted', 'auth.password_reset', {
+      code_length: trimmedCode.length,
+    });
     try {
       await User.resetPassword(email.trim(), trimmedCode, password);
+      captureBreadcrumb('Password reset succeeded', 'auth.password_reset');
+      analytics.track(ANALYTICS_EVENTS.PASSWORD_RESET_COMPLETED, {
+        source: 'forgot-password',
+      });
       setDone(true);
     } catch (e: any) {
+      captureBreadcrumb('Password reset failed', 'auth.password_reset', {
+        code_length: trimmedCode.length,
+      }, 'warning');
+      captureException(e instanceof Error ? e : new Error(String(e)), {
+        tags: { context: 'password_reset_submit' },
+      });
       setResetError(e?.message || 'Invalid or expired code. Please try again.');
     } finally {
       setResetLoading(false);

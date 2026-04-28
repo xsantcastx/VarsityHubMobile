@@ -274,6 +274,7 @@ function AdCalendarScreen() {
 
   const localSubtotal = useMemo(() => calculatePrice(selected), [selected]);
   const estimatedSubtotalCents = Math.round(localSubtotal * 100);
+  const isAppleAdCheckout = Platform.OS === 'ios';
   const isPending = adStatus === 'pending';
   const isApproved = adStatus === 'approved';
   const isDraft = adStatus === 'draft' || adStatus === null;
@@ -281,15 +282,20 @@ function AdCalendarScreen() {
   const isRejected = adStatus === 'rejected';
   const isArchived = adStatus === 'archived';
   const canPay = isApproved || isActive; // Once approved, no re-approval for future runs
-  const requiresAuthoritativeQuote = !!adId && !adId.startsWith('local-') && selected.size > 0;
+  const requiresAuthoritativeQuote =
+    !isAppleAdCheckout && !!adId && !adId.startsWith('local-') && selected.size > 0;
   const subtotalCents = quote?.subtotal_cents ?? (requiresAuthoritativeQuote ? null : estimatedSubtotalCents);
-  const taxCents = quote?.tax_cents ?? null;
+  const taxCents = isAppleAdCheckout ? null : (quote?.tax_cents ?? null);
   const discountCents =
-    quote?.discount_cents ??
-    (preview?.valid && !requiresAuthoritativeQuote ? (preview.discount_cents || 0) : null);
+    isAppleAdCheckout
+      ? null
+      : quote?.discount_cents ??
+        (preview?.valid && !requiresAuthoritativeQuote ? (preview.discount_cents || 0) : null);
   const totalCents =
-    quote?.total_cents ??
-    (requiresAuthoritativeQuote ? null : Math.max(0, estimatedSubtotalCents - (discountCents || 0)));
+    isAppleAdCheckout
+      ? estimatedSubtotalCents
+      : quote?.total_cents ??
+        (requiresAuthoritativeQuote ? null : Math.max(0, estimatedSubtotalCents - (discountCents || 0)));
   const effective = useMemo(() => (totalCents == null ? null : totalCents / 100), [totalCents]);
   const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
   const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
@@ -297,6 +303,8 @@ function AdCalendarScreen() {
   const checkoutPricePending = canPay && (quoteLoading || quoteUnavailable);
   const payButtonLabel = paymentsTemporarilyDisabled
     ? 'Checkout unavailable'
+    : isAppleAdCheckout
+      ? `Buy $${(effective ?? 0).toFixed(2)} in App Store`
     : quoteLoading
       ? 'Confirming final total...'
       : quoteUnavailable
@@ -312,7 +320,7 @@ function AdCalendarScreen() {
   const theme = Colors[colorScheme];
   React.useEffect(() => {
     let cancelled = false;
-    if (!adId || adId.startsWith('local-') || selected.size === 0) {
+    if (isAppleAdCheckout || !adId || adId.startsWith('local-') || selected.size === 0) {
       setQuote(null);
       setQuoteLoading(false);
       return;
@@ -342,7 +350,7 @@ function AdCalendarScreen() {
     return () => {
       cancelled = true;
     };
-  }, [adId, selected, preview?.valid, preview?.code]);
+  }, [adId, isAppleAdCheckout, selected, preview?.valid, preview?.code]);
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
     
@@ -466,6 +474,13 @@ function AdCalendarScreen() {
   };
 
   const applyPromo = async () => {
+    if (isAppleAdCheckout) {
+      Alert.alert(
+        'Promo Codes Unavailable',
+        'iPhone ad purchases use fixed App Store slot pricing, so promo codes are not available on this checkout path.'
+      );
+      return;
+    }
     setPromoError(null);
     setPromoBusy(true);
     try {
@@ -991,46 +1006,52 @@ function AdCalendarScreen() {
             <Text style={{ color: Colors[colorScheme].text, fontSize: 15 }}>Weekend Slot (Fri-Sun):</Text>
             <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekendRate.toFixed(2)}</Text>
           </View>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Select dates to see your total.</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>
+            {isAppleAdCheckout
+              ? 'Select dates to see the fixed App Store slot total for this purchase.'
+              : 'Select dates to see your final server-confirmed total.'}
+          </Text>
           
         </View>
 
-        <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
-          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Promo Code</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TextInput
-              placeholder="Enter code"
-              placeholderTextColor={Colors[colorScheme].mutedText}
-              autoCapitalize="characters"
-              value={promo}
-              onChangeText={setPromo}
-              accessibilityLabel="Promo code"
-              style={{
-                flex: 1, 
-                height: 44, 
-                borderRadius: 10, 
-                borderWidth: 1, 
-                borderColor: Colors[colorScheme].border, 
-                paddingHorizontal: 12,
-                backgroundColor: Colors[colorScheme].surface,
-                color: Colors[colorScheme].text
-              }}
-            />
-            <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint, width: 120, height: 44 }]} disabled={promoBusy} accessibilityRole="button" accessibilityLabel="Apply promo code">
-              {promoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Apply</Text>}
-            </Pressable>
-          </View>
-          {promoError ? <Text style={{ color: '#EF4444' }}>Not valid: {promoError}</Text> : null}
-          {preview?.valid ? (
-            <View style={{ marginTop: 8, gap: 4 }}>
-              <Text style={{ fontWeight: '600', color: Colors[colorScheme].text }}>✅ Promo Applied: {preview.code}</Text>
-              <Text style={{ color: Colors[colorScheme].text }}>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
-              <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
-                ⚠️ Limited offer: First 8 users only
-              </Text>
+        {!isAppleAdCheckout && (
+          <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
+            <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Promo Code</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TextInput
+                placeholder="Enter code"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                autoCapitalize="characters"
+                value={promo}
+                onChangeText={setPromo}
+                accessibilityLabel="Promo code"
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: Colors[colorScheme].border,
+                  paddingHorizontal: 12,
+                  backgroundColor: Colors[colorScheme].surface,
+                  color: Colors[colorScheme].text
+                }}
+              />
+              <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint, width: 120, height: 44 }]} disabled={promoBusy} accessibilityRole="button" accessibilityLabel="Apply promo code">
+                {promoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Apply</Text>}
+              </Pressable>
             </View>
-          ) : null}
-        </View>
+            {promoError ? <Text style={{ color: '#EF4444' }}>Not valid: {promoError}</Text> : null}
+            {preview?.valid ? (
+              <View style={{ marginTop: 8, gap: 4 }}>
+                <Text style={{ fontWeight: '600', color: Colors[colorScheme].text }}>✅ Promo Applied: {preview.code}</Text>
+                <Text style={{ color: Colors[colorScheme].text }}>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+                <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
+                  ⚠️ Limited offer: First 8 users only
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        )}
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -1139,47 +1160,47 @@ function AdCalendarScreen() {
           <View style={[styles.sep, { backgroundColor: Colors[colorScheme].border }]} />
 
           <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Estimated Block Total:</Text>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>
-              ${((estimatedSubtotalCents || 0) / 100).toFixed(2)}
+            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>
+              {isAppleAdCheckout ? 'App Store Block Total:' : 'Subtotal:'}
             </Text>
-          </View>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Subtotal:</Text>
             <Text style={{ fontSize: 18, fontWeight: '700', color: subtotalCents == null ? Colors[colorScheme].mutedText : Colors[colorScheme].text }}>
               {subtotalCents == null ? (quoteLoading ? 'Calculating...' : 'Unavailable') : `$${(subtotalCents / 100).toFixed(2)}`}
             </Text>
           </View>
-          {quoteLoading || taxCents == null ? (
+          {!isAppleAdCheckout && (quoteLoading || taxCents == null) ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Tax:</Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].mutedText }}>
                 {quoteLoading ? 'Calculating...' : 'Unavailable'}
               </Text>
             </View>
-          ) : taxCents > 0 ? (
+          ) : !isAppleAdCheckout && typeof taxCents === 'number' && taxCents > 0 ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Tax:</Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           ) : null}
-          {(discountCents || 0) > 0 ? (
+          {!isAppleAdCheckout && (discountCents || 0) > 0 ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Promo Discount:</Text>
               <Text style={{ fontSize: 16, color: '#10B981', fontWeight: '700' }}>- ${((discountCents || 0) / 100).toFixed(2)}</Text>
             </View>
           ) : null}
-          <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: totalCents == null ? Colors[colorScheme].mutedText : Colors[colorScheme].text }}>
-              {totalCents == null ? (quoteLoading ? 'Calculating...' : 'Unavailable') : `$${effective?.toFixed(2)}`}
-            </Text>
-          </View>
-          {canPay && (
+          {!isAppleAdCheckout && (
+            <View style={styles.rowBetween}>
+              <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: totalCents == null ? Colors[colorScheme].mutedText : Colors[colorScheme].text }}>
+                {totalCents == null ? (quoteLoading ? 'Calculating...' : 'Unavailable') : `$${effective?.toFixed(2)}`}
+              </Text>
+            </View>
+          )}
+          {sortedDates.length > 0 && (
             <Text style={{ fontSize: 11, color: quoteUnavailable ? '#B91C1C' : Colors[colorScheme].mutedText, marginTop: 2 }}>
-              {quoteUnavailable
-                ? 'We could not confirm the final checkout total. Refresh this screen or reselect dates before paying.'
-                : 'Checkout uses the server-confirmed total shown here.'}
+              {isAppleAdCheckout
+                ? 'iPhone purchases use fixed App Store block pricing for the selected slots shown above.'
+                : quoteUnavailable
+                  ? 'We could not confirm the final checkout total. Refresh this screen or reselect dates before paying.'
+                  : 'Checkout uses the server-confirmed total shown here.'}
             </Text>
           )}
 

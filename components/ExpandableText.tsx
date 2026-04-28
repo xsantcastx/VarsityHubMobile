@@ -30,8 +30,8 @@ export function ExpandableText({
   style,
   containerStyle,
   expandStyle,
-  moreLabel = 'more',
-  lessLabel = 'less',
+  moreLabel = '⬇️ Read more',
+  lessLabel = '⬆️ Show less',
 }: ExpandableTextProps) {
   const [expanded, setExpanded] = React.useState(false);
   const [canExpand, setCanExpand] = React.useState(false);
@@ -80,6 +80,8 @@ export function ExpandableText({
           accessibilityRole="button"
           accessibilityLabel={expanded ? 'Collapse text' : 'Expand text'}
           hitSlop={8}
+          android_ripple={{ color: 'rgba(37, 99, 235, 0.12)' }}
+          style={({ pressed }) => [styles.toggleButton, pressed && styles.toggleButtonPressed]}
         >
           <Text style={[styles.toggle, expandStyle]}>{expanded ? lessLabel : moreLabel}</Text>
         </Pressable>
@@ -89,8 +91,17 @@ export function ExpandableText({
 }
 
 const styles = StyleSheet.create({
-  toggle: {
+  toggleButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
     marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  toggleButtonPressed: {
+    opacity: 0.85,
+  },
+  toggle: {
     fontSize: 13,
     fontWeight: '700',
   },

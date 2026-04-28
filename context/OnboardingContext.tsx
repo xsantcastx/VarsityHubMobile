@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import {
   createInitialState,
   nextIncompleteStep,
@@ -151,7 +152,13 @@ export function OBProvider({ children }: PropsWithChildren) {
   const persistAsync = useCallback((key: string, value: string) => {
     AsyncStorage.setItem(key, value).catch((err) => {
       if (__DEV__) console.warn(`[OnboardingContext] AsyncStorage.setItem failed for ${key}:`, err?.message || err);
-      // In prod, Sentry breadcrumb would be added here if OnboardingContext has access to it.
+      captureBreadcrumb('Onboarding state persistence failed', 'onboarding.storage', {
+        key,
+      }, 'warning');
+      captureException(err instanceof Error ? err : new Error(String(err)), {
+        tags: { context: 'onboarding_storage_persist_failed' },
+        key,
+      });
     });
   }, []);
 

@@ -16,7 +16,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { useAuth } from '@/context/AuthProvider';
-import { captureException } from '@/utils/sentry';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
@@ -67,8 +67,14 @@ export default function SignUpScreen() {
     }
 
     const pendingUrl = consumePendingDeepLink();
-    if (pendingUrl && handleDeepLink(pendingUrl)) {
-      return;
+    if (pendingUrl) {
+      if (handleDeepLink(pendingUrl)) {
+        return;
+      }
+      captureException(new Error('Pending deep link consumed but handleDeepLink returned false'), {
+        tags: { context: 'sign_up_pending_deeplink_unhandled' },
+        extra: { pendingUrl },
+      });
     }
 
     router.replace(landingRoute as any);
@@ -121,6 +127,12 @@ export default function SignUpScreen() {
     setRetryCount(attempt > 1 ? attempt : 0);
     
     try {
+      if (attempt > 1) {
+        captureBreadcrumb('Sign-up retry started', 'auth.sign_up', {
+          method: 'email',
+          attempt,
+        });
+      }
       const sanitizedEmail = sanitizeEmail(email);
       return await User.register(sanitizedEmail, password);
     } catch (e: any) {
@@ -134,12 +146,24 @@ export default function SignUpScreen() {
       // it likely means the first attempt actually succeeded but we didn't get the response
       if (attempt > 1 && e?.message?.includes('Email already registered')) {
         try {
+          captureBreadcrumb('Sign-up recovery login started', 'auth.sign_up', {
+            method: 'email',
+            attempt,
+          });
           // Try to sign in with the same credentials
           const loginResult = await User.loginViaEmailPassword(email, password);
+          captureBreadcrumb('Sign-up recovery login succeeded', 'auth.sign_up', {
+            method: 'email',
+            attempt,
+          });
           // Return the login result as if it was a successful registration
           return loginResult;
         } catch (loginError: any) {
           if (__DEV__) console.error(`[sign-up] Recovery login failed:`, loginError?.message);
+          captureBreadcrumb('Sign-up recovery login failed', 'auth.sign_up', {
+            method: 'email',
+            attempt,
+          }, 'warning');
           // If login fails, the user might not have been created after all
           // Or there might be a password issue - throw a helpful error
           throw new Error('Registration may have partially succeeded but login failed. Please try signing in directly or contact support.');
@@ -192,11 +216,19 @@ export default function SignUpScreen() {
 
     trackTap('auth_email_submit', { screen: 'sign_up' });
     setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
+    captureBreadcrumb('Sign-up started', 'auth.sign_up', {
+      method: 'email',
+      has_email: !!email.trim(),
+    });
 
     try {
       const res: any = await attemptRegistration();
       // Registration response already saved tokens — AuthProvider will pick them up.
       // Don't call checkAuth() here to avoid a navigation race with router.replace below.
+      captureBreadcrumb('Sign-up succeeded', 'auth.sign_up', {
+        method: 'email',
+        verification_email_sent: res?.verification_email_sent === false ? 'false' : 'true',
+      });
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'email', role: 'fan' });
       const verifyParams = new URLSearchParams();
       if (res?.verification_email_sent === false) {
@@ -213,6 +245,10 @@ export default function SignUpScreen() {
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Registration failed after all attempts:', e);
       const errMsg = e?.message || 'Sign up failed';
+      captureBreadcrumb('Sign-up failed', 'auth.sign_up', {
+        method: 'email',
+        status: e?.status ?? 'unknown',
+      }, 'warning');
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-final' },
       });
@@ -264,15 +300,27 @@ export default function SignUpScreen() {
     setError(null);
     try {
       trackTap('auth_google_tap', { screen: 'sign_up' });
+      captureBreadcrumb('Sign-up started', 'auth.sign_up', {
+        method: 'google',
+      });
       await signInWithGoogle();
+      captureBreadcrumb('Sign-up succeeded', 'auth.sign_up', {
+        method: 'google',
+      });
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'google' });
       const authUser = await checkAuth({ replaceSession: true });
       await routeCurrentUser(authUser);
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        captureBreadcrumb('Sign-up cancelled', 'auth.sign_up', {
+          method: 'google',
+        });
         return;
       }
+      captureBreadcrumb('Sign-up failed', 'auth.sign_up', {
+        method: 'google',
+      }, 'warning');
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'google-signup' } });
       setError(getOAuthExistingAccountMessage(e, 'Google') || message);
     }
@@ -295,17 +343,29 @@ export default function SignUpScreen() {
     setError(null);
     try {
       trackTap('auth_apple_tap', { screen: 'sign_up' });
+      captureBreadcrumb('Sign-up started', 'auth.sign_up', {
+        method: 'apple',
+      });
       await signInWithApple();
+      captureBreadcrumb('Sign-up succeeded', 'auth.sign_up', {
+        method: 'apple',
+      });
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'apple' });
       const authUser = await checkAuth({ replaceSession: true });
       await routeCurrentUser(authUser);
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Apple sign up error:', e);
-      captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
       const message = e?.message || 'Apple sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        captureBreadcrumb('Sign-up cancelled', 'auth.sign_up', {
+          method: 'apple',
+        });
         return;
       }
+      captureBreadcrumb('Sign-up failed', 'auth.sign_up', {
+        method: 'apple',
+      }, 'warning');
+      captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
       setError(getOAuthExistingAccountMessage(e, 'Apple') || message);
     }
   };
