@@ -12,8 +12,10 @@ import * as env from '@/config/env';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const readAnalyticsEnv = (key: 'EXPO_PUBLIC_POSTHOG_API_KEY' | 'EXPO_PUBLIC_POSTHOG_HOST', fallback = '') =>
-  typeof env.getEnvValue === 'function' ? env.getEnvValue(key, fallback) : fallback;
+const readAnalyticsEnv = (
+  key: 'EXPO_PUBLIC_POSTHOG_API_KEY' | 'EXPO_PUBLIC_POSTHOG_HOST',
+  fallback = ''
+) => (typeof env.getEnvValue === 'function' ? env.getEnvValue(key, fallback) : fallback);
 
 const POSTHOG_API_KEY = readAnalyticsEnv('EXPO_PUBLIC_POSTHOG_API_KEY');
 const POSTHOG_HOST = readAnalyticsEnv('EXPO_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com');
@@ -29,7 +31,7 @@ function normalizeAnalyticsValue(value: unknown): string | number | boolean | st
     return value;
   }
   if (Array.isArray(value)) {
-    return value.slice(0, 5).map((item) => {
+    return value.slice(0, 5).map(item => {
       if (item == null) return 'null';
       if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
         return String(item);

@@ -63,11 +63,9 @@ const getEmailService = async (): Promise<EmailService | null> => {
 
 // Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
-const CANONICAL_API_FALLBACK = 'https://varsityhub.app';
+const CANONICAL_API_FALLBACK = 'https://api-production-8ac3.up.railway.app';
 const CANONICAL_APP_FALLBACK = 'https://varsityhub.app';
-const BROKEN_API_HOSTS = new Set([
-  'api.varsityhub.app',
-]);
+const BROKEN_API_HOSTS = new Set(['api.varsityhub.app']);
 const BROKEN_APP_HOSTS = new Set(['api.varsityhub.app']);
 
 type EmailBaseUrlResolutionReason = 'configured' | 'missing' | 'invalid_url' | 'blocked_host';
@@ -183,14 +181,20 @@ const TEMPLATE_IDS = {
   // Team & Organization
   TEAM_INVITE: tmpl('SENDGRID_TEAM_INVITE_TEMPLATE_ID'),
   ORG_INVITE: tmpl('SENDGRID_ORG_INVITE_TEMPLATE_ID'),
-  JOIN_REQUEST_ADMIN: tmpl('SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID', 'SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID'),
+  JOIN_REQUEST_ADMIN: tmpl(
+    'SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID',
+    'SENDGRID_LEAGUE_PENDING_APPROVAL_TEMPLATE_ID'
+  ),
   JOIN_REQUEST_APPROVED: tmpl('SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID'),
   JOIN_REQUEST_DENIED: tmpl('SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID'),
 
   // Events
   EVENT_APPROVED: tmpl('SENDGRID_EVENT_APPROVED_TEMPLATE_ID'),
   EVENT_DENIED: tmpl('SENDGRID_EVENT_DENIED_TEMPLATE_ID'),
-  EVENT_CANCELED: tmpl('SENDGRID_EVENT_CANCELED_TEMPLATE_ID', 'SENDGRID_EVENT_CANCELLATION_TEMPLATE_ID'),
+  EVENT_CANCELED: tmpl(
+    'SENDGRID_EVENT_CANCELED_TEMPLATE_ID',
+    'SENDGRID_EVENT_CANCELLATION_TEMPLATE_ID'
+  ),
 
   // Billing
   PAYMENT_FAILED: tmpl('SENDGRID_PAYMENT_FAILED_TEMPLATE_ID'),
@@ -256,11 +260,15 @@ export function isSendGridConfigured(): boolean {
 export function getMissingEmailTemplates(
   required: TemplateKey[] = REQUIRED_TEMPLATE_KEYS
 ): string[] {
-  return required.filter(key => !isValidSendGridTemplateId(TEMPLATE_IDS[key])).map(key => key.toLowerCase());
+  return required
+    .filter(key => !isValidSendGridTemplateId(TEMPLATE_IDS[key]))
+    .map(key => key.toLowerCase());
 }
 
 export function getMissingRecommendedTemplates(): string[] {
-  return RECOMMENDED_TEMPLATE_KEYS.filter(key => !isValidSendGridTemplateId(TEMPLATE_IDS[key])).map(key => key.toLowerCase());
+  return RECOMMENDED_TEMPLATE_KEYS.filter(key => !isValidSendGridTemplateId(TEMPLATE_IDS[key])).map(
+    key => key.toLowerCase()
+  );
 }
 
 export function isValidSendGridTemplateId(templateId: string | undefined | null): boolean {
@@ -324,9 +332,7 @@ function buildManageSubscriptionUrl(): string {
   return `${APP_BASE_URL}/settings/manage-subscription`;
 }
 
-function deriveSupportingDocumentPreviewUrl(
-  supportingDocumentUrl?: string | null
-): string | null {
+function deriveSupportingDocumentPreviewUrl(supportingDocumentUrl?: string | null): string | null {
   const candidate = String(supportingDocumentUrl || '').trim();
   if (!candidate) return null;
   try {
@@ -409,7 +415,8 @@ function sanitizeEmailExtras<T extends Record<string, unknown> | undefined>(cont
   if (!context) return context;
   const sanitized = { ...context } as Record<string, unknown>;
   if (typeof sanitized.to === 'string') sanitized.to = redactEmail(sanitized.to);
-  if (typeof sanitized.subject === 'string') sanitized.subject = sanitizeEmailSubject(sanitized.subject);
+  if (typeof sanitized.subject === 'string')
+    sanitized.subject = sanitizeEmailSubject(sanitized.subject);
   for (const [key, value] of Object.entries(sanitized)) {
     if (typeof value === 'string') sanitized[key] = sanitizeEmailLogMessage(value);
   }
@@ -449,12 +456,8 @@ export async function sendAdPendingReviewEmail(params: {
     return false;
   }
 
-  const approveUrl = params.adId
-    ? buildAdReviewUrl({ adId: params.adId, action: 'approve' })
-    : '';
-  const rejectUrl = params.adId
-    ? buildAdReviewUrl({ adId: params.adId, action: 'reject' })
-    : '';
+  const approveUrl = params.adId ? buildAdReviewUrl({ adId: params.adId, action: 'approve' }) : '';
+  const rejectUrl = params.adId ? buildAdReviewUrl({ adId: params.adId, action: 'reject' }) : '';
 
   return sendTemplateEmail(
     templateId,
@@ -1027,7 +1030,10 @@ async function sendTemplateEmail(
       captureMessage(msg, 'error', { context: 'sendgrid_template_missing', provider: 'sendgrid' });
     } else {
       console.warn(msg);
-      captureMessage(msg, 'warning', { context: 'sendgrid_template_missing', provider: 'sendgrid' });
+      captureMessage(msg, 'warning', {
+        context: 'sendgrid_template_missing',
+        provider: 'sendgrid',
+      });
     }
     return false;
   }
@@ -1078,12 +1084,18 @@ async function sendTemplateEmail(
       console.log(`✅ ${sanitizeEmailLogMessage(logMessage)}`);
       return true;
     } else {
-      console.error(`❌ Failed: ${sanitizeEmailLogMessage(logMessage)}`, sanitizeEmailLogMessage(result.error));
-      captureException(result.error ?? new Error(`Email send failed: ${sanitizeEmailLogMessage(logMessage)}`), {
-        context: 'sendgrid_send_failed',
-        provider: 'sendgrid',
-        extra: sanitizeEmailExtras({ to, subject, logMessage, templateId }),
-      });
+      console.error(
+        `❌ Failed: ${sanitizeEmailLogMessage(logMessage)}`,
+        sanitizeEmailLogMessage(result.error)
+      );
+      captureException(
+        result.error ?? new Error(`Email send failed: ${sanitizeEmailLogMessage(logMessage)}`),
+        {
+          context: 'sendgrid_send_failed',
+          provider: 'sendgrid',
+          extra: sanitizeEmailExtras({ to, subject, logMessage, templateId }),
+        }
+      );
       return false;
     }
   } catch (error: any) {
@@ -1159,7 +1171,8 @@ async function sendHtmlFallbackEmail(params: {
       sanitizeEmailLogMessage(result.error)
     );
     captureException(
-      result.error ?? new Error(`Email fallback send failed: ${sanitizeEmailLogMessage(params.logMessage)}`),
+      result.error ??
+        new Error(`Email fallback send failed: ${sanitizeEmailLogMessage(params.logMessage)}`),
       {
         context: 'sendgrid_fallback_send_failed',
         provider: 'sendgrid',
@@ -1172,7 +1185,10 @@ async function sendHtmlFallbackEmail(params: {
     );
     return false;
   } catch (error: any) {
-    console.error(`❌ Failed: ${sanitizeEmailLogMessage(params.logMessage)} (local fallback)`, error);
+    console.error(
+      `❌ Failed: ${sanitizeEmailLogMessage(params.logMessage)} (local fallback)`,
+      error
+    );
     captureException(error, {
       context: 'sendgrid_fallback_send_threw',
       provider: 'sendgrid',
@@ -1254,7 +1270,9 @@ function buildAdTakedownFallbackEmail(params: {
   reason?: string;
 }): { html: string; text: string } {
   const businessName = escapeHtml(params.businessName || 'your business');
-  const reason = escapeHtml(params.reason || 'Your ad was temporarily taken down for moderation review.');
+  const reason = escapeHtml(
+    params.reason || 'Your ad was temporarily taken down for moderation review.'
+  );
   const supportEmail = escapeHtml(CUSTOMER_SERVICE_EMAIL);
   const appUrl = escapeHtml(APP_BASE_URL);
   const html = `<!DOCTYPE html>
@@ -1410,8 +1428,7 @@ export async function sendBillingNoticeEmail(params: {
     const fmt = (d: Date) =>
       d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-    const manageSubscriptionLink =
-      params.manageLink || buildManageSubscriptionUrl();
+    const manageSubscriptionLink = params.manageLink || buildManageSubscriptionUrl();
 
     return sendTemplateEmail(
       templateId,
@@ -1457,8 +1474,7 @@ export async function sendBillingNoticeEmail(params: {
       return false;
     }
 
-    const manageSubscriptionLink =
-      params.manageLink || buildManageSubscriptionUrl();
+    const manageSubscriptionLink = params.manageLink || buildManageSubscriptionUrl();
 
     // Compute a date fallback from daysRemaining when the caller didn't
     // resolve the exact subscription period_end. Templates use these
