@@ -3,7 +3,7 @@
     "name": "VarsityHub",
     "slug": "varsityhub",
     "owner": "varsity-hub",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -26,7 +26,7 @@
       }
     },
     "ios": {
-      "buildNumber": "50",
+      "buildNumber": "51",
       "supportsTablet": true,
       "appleTeamId": "B5H8F69RW5",
       "bundleIdentifier": "com.varsithub.varsityhub-ios",
@@ -56,7 +56,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "edgeToEdgeEnabled": true,
-      "versionCode": 2,
+      "versionCode": 3,
       "package": "com.varsityhub.varsityhub",
       "permissions": [
         "android.permission.CAMERA",

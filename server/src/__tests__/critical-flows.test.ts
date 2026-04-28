@@ -694,9 +694,17 @@ describeDb('Critical Server Flows', () => {
       });
 
       try {
-        const quoteDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10);
+        // Choose a deterministic weekday block. Using "today + 3 days" makes
+        // this assertion depend on the day the suite happens to run and can
+        // accidentally exercise weekend pricing instead.
+        const quoteDate = (() => {
+          const date = new Date();
+          date.setUTCDate(date.getUTCDate() + 1);
+          while (![1, 2, 3, 4].includes(date.getUTCDay())) {
+            date.setUTCDate(date.getUTCDate() + 1);
+          }
+          return date.toISOString().slice(0, 10);
+        })();
         const res = await request(app)
           .post('/payments/ad-quote')
           .set('Authorization', `Bearer ${onboardedToken}`)
