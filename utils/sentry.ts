@@ -2,6 +2,7 @@ import { getConfig } from '@/config/env';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { captureAnalyticsException } from '@/utils/analytics';
 
 const appConfig = getConfig();
 const envDsn = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim() || '';
@@ -108,6 +109,10 @@ export function setUserContext(user: { id: string; email?: string; username?: st
 }
 
 export function captureException(error: Error | unknown, context?: Record<string, any>) {
+  if (!__DEV__) {
+    captureAnalyticsException(error, context);
+  }
+
   if (!sentryReady) {
     if (__DEV__) {
       console.debug('[sentry] captureException skipped in dev:', error);

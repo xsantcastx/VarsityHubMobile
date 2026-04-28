@@ -25,8 +25,56 @@ export function initAnalytics() {
   posthog = new PostHog(POSTHOG_API_KEY, {
     host: POSTHOG_HOST,
     enableSessionReplay: false,
+    errorTracking: {
+      autocapture: {
+        uncaughtExceptions: true,
+        unhandledRejections: true,
+      },
+    },
   });
   analyticsInitialized = true;
+}
+
+function normalizeAnalyticsValue(value: unknown): string | number | boolean | string[] {
+  if (value == null) return 'null';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 5).map((item) => {
+      if (item == null) return 'null';
+      if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+        return String(item);
+      }
+      try {
+        return JSON.stringify(item);
+      } catch {
+        return '[unserializable]';
+      }
+    });
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+export function captureAnalyticsException(
+  error: Error | unknown,
+  properties?: Record<string, unknown>
+) {
+  if (!posthog) return;
+
+  const safeProperties = properties
+    ? Object.fromEntries(
+        Object.entries(properties)
+          .filter(([, value]) => typeof value !== 'undefined')
+          .map(([key, value]) => [key, normalizeAnalyticsValue(value)])
+      )
+    : undefined;
+
+  posthog.captureException(error, safeProperties);
 }
 
 export const analytics = {
