@@ -2827,6 +2827,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user)
+      // error-envelope-exempt
       return res.status(401).json({
         error: 'Admin login required. Please log in to the admin dashboard before approving.',
       });
@@ -2997,6 +2998,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user)
+      // error-envelope-exempt
       return res.status(401).json({
         error: 'Admin login required. Please log in to the admin dashboard before rejecting.',
       });
