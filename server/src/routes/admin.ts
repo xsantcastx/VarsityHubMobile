@@ -61,12 +61,22 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
   // Two callers: (1) email-link clicks render HTML; (2) admin dashboard sends JSON.
   // Allow signed-in admins through without a token; keep email-link semantics otherwise.
   let signedInAdmin = false;
+  let signedInAdminSession: { id: string; email: string | null } | null = null;
   if (!tokenValid && !token && req.user) {
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { email: true, email_verified: true },
+      select: { id: true, email: true, email_verified: true },
     });
     signedInAdmin = !!(me?.email_verified && isEmailAdmin(me.email));
+    signedInAdminSession = signedInAdmin && me ? { id: me.id, email: me.email } : null;
+  } else if (tokenValid && req.user) {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, email: true, email_verified: true },
+    });
+    if (me?.email_verified && isEmailAdmin(me.email)) {
+      signedInAdminSession = { id: me.id, email: me.email };
+    }
   }
 
   if (!tokenValid && !signedInAdmin) {
@@ -108,14 +118,10 @@ async function handleCoachReview(req: AuthedRequest, res: express.Response, acti
   }
 
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;
-  const reviewerUserId = req.user?.id ?? null;
+  const reviewerUserId = signedInAdminSession?.id ?? null;
   let reviewerEmail = 'email-token';
-  if (reviewerUserId) {
-    const reviewer = await prisma.user.findUnique({
-      where: { id: reviewerUserId },
-      select: { email: true },
-    });
-    reviewerEmail = reviewer?.email || reviewerEmail;
+  if (signedInAdminSession?.email) {
+    reviewerEmail = signedInAdminSession.email;
   }
   const result =
     action === 'approve'

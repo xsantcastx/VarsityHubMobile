@@ -784,7 +784,7 @@ describe('Coach Approval Workflow', () => {
       }
     });
 
-    it('uses the authenticated actor id when a token approval is opened from a signed-in session', async () => {
+    it('does not attribute token approval to a non-admin signed-in session', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const actorHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
@@ -839,15 +839,15 @@ describe('Coach Approval Workflow', () => {
           select: { status: true, reviewed_by: true },
         });
         expect(applicationAfter?.status).toBe('approved');
-        expect(applicationAfter?.reviewed_by).toBe(actor.id);
+        expect(applicationAfter?.reviewed_by).toBeNull();
 
         const auditLog = await prisma.adminActivityLog.findFirst({
           where: { target_id: coach.id, action: 'APPROVE_COACH' },
           orderBy: { timestamp: 'desc' },
           select: { admin_id: true, admin_email: true },
         });
-        expect(auditLog?.admin_id).toBe(actor.id);
-        expect(auditLog?.admin_email).toBe(actor.email);
+        expect(auditLog?.admin_id).toBe('email-token');
+        expect(auditLog?.admin_email).toBe('email-token');
       } finally {
         await prisma.adminActivityLog.deleteMany({
           where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
