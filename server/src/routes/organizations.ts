@@ -243,6 +243,14 @@ function renderAdminLoginRequiredPage(action: 'approve' | 'reject', organization
 </body></html>`;
 }
 
+function renderLeagueActionResultPage(title: string, message: string, success: boolean) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:560px;margin:60px auto;padding:20px;text-align:center;">
+<h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
+<p style="color:#374151;">${escapeHtml(message)}</p>
+</body></html>`;
+}
+
 // List organizations (public, with optional search)
 organizationsRouter.get(
   '/',
@@ -2730,6 +2738,10 @@ organizationsRouter.post(
           where: { id: newOwnerMembership.id },
           data: { role: 'owner' },
         }),
+        prisma.organization.update({
+          where: { id: orgId },
+          data: { league_owner_id: new_owner_id },
+        }),
       ]);
 
       return res.json({ message: 'Ownership transferred successfully' });
@@ -2774,7 +2786,14 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     const orgExists = await prisma.organization
       .findUnique({ where: { id: orgId }, select: { id: true } })
       .catch(() => null);
-    if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
+    if (!orgExists) {
+      if (token) {
+        return res
+          .status(404)
+          .send(renderLeagueActionResultPage('Not Found', 'Organization not found.', false));
+      }
+      return res.status(404).json({ error: 'Organization not found' });
+    }
 
     if (token) {
       const payload = verifyReviewToken<{ orgId: string; action: string }>(token);
@@ -2789,7 +2808,15 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
             method: req.method,
           }
         );
-        return res.status(401).json({ error: 'Invalid or expired approval token' });
+        return res
+          .status(401)
+          .send(
+            renderLeagueActionResultPage(
+              'Invalid Link',
+              'This approval link is invalid or has expired.',
+              false
+            )
+          );
       }
       if (req.method === 'GET') {
         addBreadcrumb(
@@ -2807,7 +2834,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         });
         if (orgInfo?.admin_approved)
           return res.send(
-            `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`
+            renderLeagueActionResultPage(
+              'Already Approved',
+              'This league was already approved.',
+              true
+            )
           );
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
@@ -2822,14 +2853,22 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         return res
           .status(409)
           .send(
-            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This approval link has already been used.</p></body></html>`
+            renderLeagueActionResultPage(
+              'Link Already Used',
+              'This approval link has already been used.',
+              false
+            )
           );
       }
       if (consumeResult === 'store_unavailable') {
         return res
           .status(503)
           .send(
-            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This approval link cannot be completed right now. Please use the admin dashboard instead.</p></body></html>`
+            renderLeagueActionResultPage(
+              'Temporarily Unavailable',
+              'This approval link cannot be completed right now. Please use the admin dashboard instead.',
+              false
+            )
           );
       }
 
@@ -2839,13 +2878,15 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       if (result.error) {
         return res
           .status((result as any).status || 500)
-          .send(
-            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`
-          );
+          .send(renderLeagueActionResultPage('Error', result.error, false));
       }
       if ((result as any).already) {
         return res.send(
-          `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1>Already Approved</h1><p>This league was already approved.</p></body></html>`
+          renderLeagueActionResultPage(
+            'Already Approved',
+            'This league was already approved.',
+            true
+          )
         );
       }
       addBreadcrumb('League approval endpoint completed', 'approval.organization_route', 'info', {
@@ -2865,7 +2906,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
       );
       return res.send(
-        `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#16A34A">League Approved</h1><p>"${escapeHtml(String(org.name || ''))}" is now live on VarsityHub.</p></body></html>`
+        renderLeagueActionResultPage(
+          'League Approved',
+          `"${String(org.name || '')}" is now live on VarsityHub.`,
+          true
+        )
       );
     }
 
@@ -2955,7 +3000,14 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     const orgExists = await prisma.organization
       .findUnique({ where: { id: orgId }, select: { id: true } })
       .catch(() => null);
-    if (!orgExists) return res.status(404).json({ error: 'Organization not found' });
+    if (!orgExists) {
+      if (token) {
+        return res
+          .status(404)
+          .send(renderLeagueActionResultPage('Not Found', 'Organization not found.', false));
+      }
+      return res.status(404).json({ error: 'Organization not found' });
+    }
 
     if (token) {
       const payload = verifyReviewToken<{ orgId: string; action: string }>(token);
@@ -2970,7 +3022,15 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
             method: req.method,
           }
         );
-        return res.status(401).json({ error: 'Invalid or expired rejection token' });
+        return res
+          .status(401)
+          .send(
+            renderLeagueActionResultPage(
+              'Invalid Link',
+              'This rejection link is invalid or has expired.',
+              false
+            )
+          );
       }
       if (req.method === 'GET') {
         addBreadcrumb(
@@ -2984,8 +3044,17 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         );
         const orgInfo = await prisma.organization.findUnique({
           where: { id: orgId },
-          select: { name: true },
+          select: { name: true, status: true },
         });
+        if (orgInfo?.status === 'rejected') {
+          return res.send(
+            renderLeagueActionResultPage(
+              'Already Rejected',
+              'This league was already rejected.',
+              true
+            )
+          );
+        }
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reject League</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center;">
 <h2>Reject this league?</h2><p><strong>${escapeHtml(orgInfo?.name || 'Unknown')}</strong></p>
@@ -2999,14 +3068,22 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         return res
           .status(409)
           .send(
-            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This rejection link has already been used.</p></body></html>`
+            renderLeagueActionResultPage(
+              'Link Already Used',
+              'This rejection link has already been used.',
+              false
+            )
           );
       }
       if (consumeResult === 'store_unavailable') {
         return res
           .status(503)
           .send(
-            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This rejection link cannot be completed right now. Please use the admin dashboard instead.</p></body></html>`
+            renderLeagueActionResultPage(
+              'Temporarily Unavailable',
+              'This rejection link cannot be completed right now. Please use the admin dashboard instead.',
+              false
+            )
           );
       }
 
@@ -3015,9 +3092,16 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       if (result.error) {
         return res
           .status((result as any).status || 500)
-          .send(
-            `<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Error</h1><p>${escapeHtml(result.error)}</p></body></html>`
-          );
+          .send(renderLeagueActionResultPage('Error', result.error, false));
+      }
+      if ((result as any).already) {
+        return res.send(
+          renderLeagueActionResultPage(
+            'Already Rejected',
+            'This league was already rejected.',
+            true
+          )
+        );
       }
       addBreadcrumb('League rejection endpoint completed', 'approval.organization_route', 'info', {
         action: 'reject',
@@ -3036,7 +3120,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
       );
       return res.send(
-        `<html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">League Rejected</h1><p>"${escapeHtml(String(org.name || ''))}" has been declined.</p></body></html>`
+        renderLeagueActionResultPage(
+          'League Rejected',
+          `"${String(org.name || '')}" has been declined.`,
+          true
+        )
       );
     }
 
@@ -3054,6 +3142,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
     if (result.error)
       return res.status((result as any).status || 500).json({ error: result.error });
+    if ((result as any).already) return res.json({ message: 'Already rejected' });
     addBreadcrumb('League rejection endpoint completed', 'approval.organization_route', 'info', {
       action: 'reject',
       organization_id: orgId,

@@ -170,6 +170,29 @@ async function createApprovalNotification(
   }
 }
 
+async function resolveOrganizationOwner(
+  prisma: PrismaClient,
+  orgId: string,
+  fallbackOwner?: {
+    id?: string | null;
+    display_name?: string | null;
+    email?: string | null;
+    preferences?: unknown;
+  } | null,
+) {
+  const ownerMembership = await prisma.organizationMembership.findFirst({
+    where: { organization_id: orgId, role: 'owner', status: 'active' },
+    select: { user_id: true },
+  });
+  const ownerId = ownerMembership?.user_id || fallbackOwner?.id || null;
+  if (!ownerId) return null;
+  if (fallbackOwner?.id === ownerId) return fallbackOwner;
+  return prisma.user.findUnique({
+    where: { id: ownerId },
+    select: { id: true, display_name: true, email: true, preferences: true },
+  });
+}
+
 function buildOrganizationOwnerApprovedPreferences(
   currentPrefs: unknown,
   organization: { id: string; name: string }
@@ -225,6 +248,7 @@ export async function approveOrganization(
   });
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.admin_approved) return { already: true };
+  const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   // Atomic approval: org + owner approval_status
   const txOps: any[] = [
@@ -234,19 +258,13 @@ export async function approveOrganization(
         admin_approved: true,
         approved_by: adminId || 'email-token',
         approved_at: new Date(),
+        league_owner_id: owner?.id || org.league_owner_id || null,
       },
     }),
   ];
 
   // Set owner's approval_status
-  let ownerId = org.leagueOwner?.id;
-  if (!ownerId) {
-    const ownerMembership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: orgId, role: 'owner' },
-      select: { user_id: true },
-    });
-    ownerId = ownerMembership?.user_id ?? undefined;
-  }
+  const ownerId = owner?.id ?? undefined;
   if (ownerId) {
     txOps.push(
       prisma.user.update({
@@ -256,7 +274,7 @@ export async function approveOrganization(
           rejected_at: null,
           rejection_reason: null,
           preferences: buildOrganizationOwnerApprovedPreferences(
-            org.leagueOwner?.preferences,
+            owner?.preferences,
             { id: orgId, name: org.name }
           ),
           ...buildAuthStateColumns({
@@ -277,19 +295,19 @@ export async function approveOrganization(
   if (updated.count === 0) return { already: true };
 
   // ── Fire-and-forget notifications ──
-  if (org.leagueOwner?.email) {
+  if (owner?.email) {
     sendLeagueApprovedEmail({
-      to: org.leagueOwner.email,
-      ownerName: org.leagueOwner.display_name || 'League Owner',
+      to: owner.email,
+      ownerName: owner.display_name || 'League Owner',
       leagueName: org.name,
       note: opts?.note,
-    }).catch((err) => reportEmailFailure('league_approved', err, { user_id: org.leagueOwner?.id, org_id: org.id }));
+    }).catch((err) => reportEmailFailure('league_approved', err, { user_id: owner?.id, org_id: org.id }));
   }
 
-  if (org.leagueOwner?.id) {
+  if (owner?.id) {
     await createApprovalNotification(prisma, {
       data: {
-        user_id: org.leagueOwner.id,
+        user_id: owner.id,
         type: 'ORG_APPROVED' as any,
         meta: { organization_id: orgId, organization_name: org.name },
       },
@@ -299,20 +317,20 @@ export async function approveOrganization(
     });
 
     sendPushNotification(
-      org.leagueOwner.id,
+      owner.id,
       'Organization Approved!',
       `Your organization "${org.name}" has been approved on VarsityHub.`,
       { type: 'org_approved', organization_id: orgId },
     ).catch((err) =>
-      reportPushFailure('org_approved', err, { user_id: org.leagueOwner?.id, org_id: orgId })
+      reportPushFailure('org_approved', err, { user_id: owner?.id, org_id: orgId })
     );
   }
 
   await notifyAllAdminsOfLeagueAction({
     action: 'league_approved',
     leagueName: org.name,
-    ownerName: org.leagueOwner?.display_name || undefined,
-    ownerEmail: org.leagueOwner?.email || undefined,
+    ownerName: owner?.display_name || undefined,
+    ownerEmail: owner?.email || undefined,
   });
 
   return { ok: true, org };
@@ -329,21 +347,25 @@ export async function rejectOrganization(
     include: { leagueOwner: { select: { id: true, display_name: true, email: true, preferences: true } } },
   });
   if (!org) return { error: 'Organization not found', status: 404 };
+  if (org.status === 'rejected') return { already: true };
+  const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   const reason = opts?.reason || null;
 
   // Cascade: reject org, unlink teams, revoke memberships, reject owner
-  await prisma.$transaction(async (tx) => {
-    await tx.organization.update({
-      where: { id: orgId },
+  const didReject = await prisma.$transaction(async (tx) => {
+    const updated = await tx.organization.updateMany({
+      where: { id: orgId, status: { not: 'rejected' } },
       data: {
         status: 'rejected',
         admin_approved: false,
         // v1.0.2: track rejection for 48hr cooldown
         rejected_at: new Date(),
         rejection_reason: reason,
+        league_owner_id: owner?.id || org.league_owner_id || null,
       },
     });
+    if (updated.count === 0) return false;
     // organization_id is non-nullable — soft-delete teams by setting status instead
     await tx.team.updateMany({
       where: { organization_id: orgId },
@@ -352,9 +374,9 @@ export async function rejectOrganization(
     await tx.organizationMembership.deleteMany({
       where: { organization_id: orgId },
     });
-    if (org.leagueOwner?.id) {
+    if (owner?.id) {
       await tx.user.update({
-        where: { id: org.leagueOwner.id },
+        where: { id: owner.id },
         data: {
           approval_status: 'REJECTED',
           paid_by_owner: false,
@@ -362,25 +384,27 @@ export async function rejectOrganization(
           rejected_at: new Date(),
           rejection_reason: reason,
           preferences: {
-            ...buildCoachRejectedPreferences(org.leagueOwner.preferences),
+            ...buildCoachRejectedPreferences(owner.preferences),
             organization_id: orgId,
             organization_name: org.name,
           },
         },
       });
     }
+    return true;
   });
-  if (org.leagueOwner?.id) {
-    await invalidateMeCacheForUser(org.leagueOwner.id);
+  if (!didReject) return { already: true };
+  if (owner?.id) {
+    await invalidateMeCacheForUser(owner.id);
   }
 
   // ── Fire-and-forget notifications ──
   // v1.0.2: `reason` is declared above (line 146) as `string | null`. Use || undefined
   // where downstream signatures expect `string | undefined`.
-  if (org.leagueOwner?.id) {
+  if (owner?.id) {
     await createApprovalNotification(prisma, {
       data: {
-        user_id: org.leagueOwner.id,
+        user_id: owner.id,
         type: 'ORG_REJECTED',
         meta: { organization_id: orgId, organization_name: org.name, reason: reason || undefined },
       },
@@ -390,33 +414,33 @@ export async function rejectOrganization(
     });
 
     sendPushNotification(
-      org.leagueOwner.id,
+      owner.id,
       'League Not Approved',
       `Your league "${org.name}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
       { type: 'org_rejected', organization_id: orgId },
     ).catch((err) =>
       reportPushFailure('org_rejected', err, {
-        user_id: org.leagueOwner?.id,
+        user_id: owner?.id,
         org_id: orgId,
         reason: reason || null,
       })
     );
   }
 
-  if (org.leagueOwner?.email) {
+  if (owner?.email) {
     sendLeagueRejectedEmail({
-      to: org.leagueOwner.email,
-      ownerName: org.leagueOwner.display_name || 'League Owner',
+      to: owner.email,
+      ownerName: owner.display_name || 'League Owner',
       leagueName: org.name,
       reason: reason || undefined,
-    }).catch((err) => reportEmailFailure('league_rejected', err, { user_id: org.leagueOwner?.id, org_id: org.id }));
+    }).catch((err) => reportEmailFailure('league_rejected', err, { user_id: owner?.id, org_id: org.id }));
   }
 
   await notifyAllAdminsOfLeagueAction({
     action: 'league_rejected',
     leagueName: org.name,
-    ownerName: org.leagueOwner?.display_name || undefined,
-    ownerEmail: org.leagueOwner?.email || undefined,
+    ownerName: owner?.display_name || undefined,
+    ownerEmail: owner?.email || undefined,
     reason: reason || undefined,
   });
 
