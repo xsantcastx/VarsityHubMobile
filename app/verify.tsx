@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { safeGoBack } from '@/utils/navigation';
+import { extractApiError } from '@/utils/apiErrors';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 export default function VerifyScreen() {
@@ -88,35 +89,46 @@ export default function VerifyScreen() {
       };
     },
     getRequestErrorMessage: (e: any) => {
-      const status = e?.status;
+      const { code, message, status } = extractApiError(e, 'Resend failed');
+      if (code === 'VERIFY_REQUEST_COOLDOWN') {
+        return 'Please wait a moment before requesting another code.';
+      }
+      if (code === 'VERIFY_REQUEST_RATE_LIMITED') {
+        return 'Too many verification requests. Please try again later.';
+      }
       if (status === 429) {
         return 'Please wait a moment and try again.';
       }
       if (status === 401) {
         return 'Please sign in again to request a verification code.';
       }
-      return e?.message || e?.data?.error || 'Resend failed';
+      return message;
     },
     getConfirmErrorMessage: (e: any) => {
-      let errorMsg = e?.message || e?.data?.error || 'Verification failed';
-      const status = e?.status;
+      const { code, message, status } = extractApiError(e, 'Verification failed');
 
-      if (status === 429) {
-        errorMsg = 'Too many attempts. Please wait a moment and try again.';
-      } else if (status === 400) {
-        if (errorMsg.includes('expired')) {
-          errorMsg = 'Verification code has expired. Please request a new code.';
-        } else if (errorMsg.includes('Invalid code')) {
-          errorMsg = 'Invalid verification code. Please check the code and try again.';
-        } else if (errorMsg.includes('No verification in progress')) {
-          errorMsg = 'No verification code found. Please request a new code.';
-        }
-      } else if (status === 401) {
-        errorMsg = 'Please sign in again to verify your email.';
-      } else if (status === 404) {
-        errorMsg = 'Account not found. Please contact support.';
+      if (code === 'VERIFY_CODE_EXPIRED') {
+        return 'Verification code has expired. Please request a new code.';
       }
-      return errorMsg;
+      if (code === 'VERIFY_CODE_INVALID') {
+        return 'Invalid verification code. Please check the code and try again.';
+      }
+      if (code === 'VERIFY_NO_CODE') {
+        return 'No verification code found. Please request a new code.';
+      }
+      if (code === 'VERIFY_NOT_FOUND') {
+        return 'Account not found. Please contact support.';
+      }
+      if (status === 429) {
+        return 'Too many attempts. Please wait a moment and try again.';
+      }
+      if (status === 401) {
+        return 'Please sign in again to verify your email.';
+      }
+      if (status === 404) {
+        return 'Account not found. Please contact support.';
+      }
+      return message;
     },
     onRequestSuccess: (res: any) => {
       captureBreadcrumb('Verification resend requested', 'auth', {
@@ -125,9 +137,10 @@ export default function VerifyScreen() {
       });
     },
     onRequestError: (e: any) => {
+      const apiError = extractApiError(e, 'Resend failed');
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'verify-email-resend' },
-        extra: { error_code: e?.data?.error },
+        extra: { error_code: apiError.code, error_message: apiError.message },
       });
     },
     onConfirmError: (e: any) => {

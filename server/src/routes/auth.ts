@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -183,6 +183,16 @@ async function recordResetFailure(email: string): Promise<void> {
 
 async function clearResetFailures(email: string): Promise<void> {
   await rlDel(`resetfail:${email}`);
+}
+
+function sendAuthError(
+  res: Response,
+  status: number,
+  error: string,
+  code: string,
+  extra: Record<string, unknown> = {}
+) {
+  return res.status(status).json({ error, code, ...extra });
 }
 
 // ── Per-account login lockout ──
@@ -1570,7 +1580,7 @@ authRouter.post(
   passwordResetLimiter as any,
   asyncHandler(async (req, res) => {
     const parsed = passwordResetRequestSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
     const email = parsed.data.email.trim().toLowerCase();
 
     // SECURITY: Rate limiting to prevent password reset abuse / enumeration
@@ -1638,19 +1648,32 @@ authRouter.post(
   '/password/reset',
   asyncHandler(async (req, res) => {
     const parsed = passwordResetSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
     const { email, code, password } = parsed.data;
     const sanitizedEmail = email.trim().toLowerCase();
 
     // SECURITY: Check dedicated failure-based lockout before anything else
     const attemptCheck = await checkResetAttempt(sanitizedEmail);
     if (!attemptCheck.allowed) {
-      return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+      return sendAuthError(
+        res,
+        429,
+        'Too many attempts. Try again in 15 minutes.',
+        'RESET_LOCKED',
+        {
+          retryAfter: Math.max(1, Math.ceil((attemptCheck.retryAfterMs ?? RESET_LOCKOUT_MS) / 1000)),
+        }
+      );
     }
 
     // Also keep the general rate limit as a secondary guard
     if (!(await checkAuthRateLimit(`reset:${sanitizedEmail}`))) {
-      return res.status(429).json({ error: 'Too many reset attempts. Please request a new code.' });
+      return sendAuthError(
+        res,
+        429,
+        'Too many reset attempts. Please request a new code.',
+        'RESET_RATE_LIMITED'
+      );
     }
 
     const user = await prisma.user.findFirst({
@@ -1658,11 +1681,21 @@ authRouter.post(
     });
     if (!user || !user.password_reset_code || !user.password_reset_expires) {
       await recordResetFailure(sanitizedEmail);
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return sendAuthError(
+        res,
+        400,
+        'Invalid or expired reset code',
+        'RESET_CODE_INVALID'
+      );
     }
     if (new Date() > user.password_reset_expires) {
       await recordResetFailure(sanitizedEmail);
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return sendAuthError(
+        res,
+        400,
+        'Invalid or expired reset code',
+        'RESET_CODE_EXPIRED'
+      );
     }
     // AUTH-5: stored value is now a SHA-256 hash (see /password/forgot), so we hash
     // the submitted code with the same function and compare hash-to-hash.
@@ -1678,7 +1711,12 @@ authRouter.post(
     })();
     if (!codesMatch) {
       await recordResetFailure(sanitizedEmail);
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return sendAuthError(
+        res,
+        400,
+        'Invalid or expired reset code',
+        'RESET_CODE_INVALID'
+      );
     }
 
     // Success — clear failure tracking and reset the code
@@ -3416,17 +3454,24 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const rawUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
     const user = await ensureOAuthUserVerified(rawUser);
-    if (!user) return res.status(404).json({ error: 'Not found' });
+    if (!user) return sendAuthError(res, 404, 'Not found', 'VERIFY_NOT_FOUND');
     if (user.email_verified) return res.json({ ok: true, already_verified: true });
     // Redis-backed verification rate limiting: 1 per 30s, 5 per hour
     const verifyLastKey = `verify:last:${user.id}`;
     const verifyHourKey = `verify:hour:${user.id}`;
     const lastSent = await rlGet(verifyLastKey);
     if (lastSent && Date.now() - parseInt(lastSent, 10) < 30_000) {
-      return res.status(429).json({ error: 'Please wait before requesting another code' });
+      return sendAuthError(
+        res,
+        429,
+        'Please wait before requesting another code',
+        'VERIFY_REQUEST_COOLDOWN'
+      );
     }
     const hourCount = await rlIncr(verifyHourKey, 3600_000); // 1 hour TTL
-    if (hourCount > 5) return res.status(429).json({ error: 'Too many requests' });
+    if (hourCount > 5) {
+      return sendAuthError(res, 429, 'Too many requests', 'VERIFY_REQUEST_RATE_LIMITED');
+    }
     const code = String(crypto.randomInt(100000, 999999));
     if (process.env.NODE_ENV === 'development')
       console.log(
@@ -3499,18 +3544,23 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const schema = z.object({ code: z.string().min(4).max(8) });
     const parsed = schema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
     const { code } = parsed.data;
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user) return res.status(404).json({ error: 'Not found' });
+    if (!user) return sendAuthError(res, 404, 'Not found', 'VERIFY_NOT_FOUND');
     if (user.email_verified) return res.json({ ok: true, already_verified: true });
     if (!user.email_verification_code || !user.email_verification_expires)
-      return res.status(400).json({ error: 'No verification in progress' });
+      return sendAuthError(
+        res,
+        400,
+        'No verification in progress',
+        'VERIFY_NO_CODE'
+      );
     if (new Date() > user.email_verification_expires)
-      return res.status(400).json({ error: 'Code expired' });
+      return sendAuthError(res, 400, 'Code expired', 'VERIFY_CODE_EXPIRED');
     // AUTH-5: Compare hash of submitted code against stored hash
     if (hashRefreshToken(String(code)) !== String(user.email_verification_code))
-      return res.status(400).json({ error: 'Invalid code' });
+      return sendAuthError(res, 400, 'Invalid code', 'VERIFY_CODE_INVALID');
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: {

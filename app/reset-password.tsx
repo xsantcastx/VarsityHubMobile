@@ -3,6 +3,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { extractApiError } from '@/utils/apiErrors';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -31,6 +32,7 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [resetSuccess, setResetSuccess] = useState(false);
   const submitInFlightRef = useRef(false);
@@ -66,6 +68,7 @@ export default function ResetPasswordScreen() {
     submitInFlightRef.current = true;
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     setInfo(null);
     captureBreadcrumb('Password reset submitted', 'auth.password_reset', {
       code_length: trimmedCode.length,
@@ -89,7 +92,19 @@ export default function ResetPasswordScreen() {
       captureException(e instanceof Error ? e : new Error(String(e)), {
         tags: { context: 'reset_password_screen_submit' },
       });
-      setError(e?.message || 'Unable to reset password.');
+      const apiError = extractApiError(e, 'Unable to reset password.');
+      setErrorCode(apiError.code);
+      switch (apiError.code) {
+        case 'RESET_CODE_EXPIRED':
+          setError('This reset code expired. Request a new code and try again.');
+          break;
+        case 'RESET_CODE_INVALID':
+          setError('This reset code is invalid. Request a new code and try again.');
+          break;
+        default:
+          setError(apiError.message);
+          break;
+      }
     } finally {
       submitInFlightRef.current = false;
       setLoading(false);
@@ -115,7 +130,7 @@ export default function ResetPasswordScreen() {
           {error ? (
             <>
               <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
-              {(error.toLowerCase().includes('expired') || error.toLowerCase().includes('invalid')) && (
+              {(errorCode === 'RESET_CODE_EXPIRED' || errorCode === 'RESET_CODE_INVALID') && (
                 <Pressable onPress={() => router.replace('/forgot-password')} style={{ marginTop: 4, marginBottom: 8 }}>
                   <Text style={{ color: palette.tint, fontWeight: '600', fontSize: 14 }}>Request a new code</Text>
                 </Pressable>

@@ -14,6 +14,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { safeGoBack } from '@/utils/navigation';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
+import { extractApiError } from '@/utils/apiErrors';
 
 type ParamValue = string | string[] | undefined;
 
@@ -52,8 +53,10 @@ function VerifyScreen() {
       info: __DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent',
       cooldownSeconds: 60,
     }),
-    getConfirmErrorMessage: (e: any) => e?.message || e?.data?.error || 'Verification failed',
-    getRequestErrorMessage: (e: any) => e?.message || e?.data?.error || 'Resend failed',
+    getConfirmErrorMessage: (e: any) =>
+      extractApiError(e, 'Verification failed').message,
+    getRequestErrorMessage: (e: any) =>
+      extractApiError(e, 'Resend failed').message,
     onVerified: async () => {
       await checkAuth().catch(() => {});
       setScreenInfo('✅ Email verified successfully!');

@@ -1,3 +1,4 @@
+import { extractApiError } from '@/utils/apiErrors';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface VerificationGateOpenOptions {
@@ -58,34 +59,45 @@ export function isEmailVerificationRequiredError(status?: number, payload?: any)
 }
 
 function defaultRequestErrorMessage(error: any): string {
-  const status = error?.status;
-  const raw = String(error?.data?.error || error?.message || '');
+  const { code, message, status } = extractApiError(error, 'Unable to send a verification code right now.');
 
+  if (code === 'VERIFY_REQUEST_COOLDOWN') {
+    return 'Please wait a moment before requesting another code.';
+  }
+  if (code === 'VERIFY_REQUEST_RATE_LIMITED') {
+    return 'Too many verification requests. Please try again later.';
+  }
   if (status === 429) {
-    return raw.includes('Too many requests')
+    return message.includes('Too many requests')
       ? 'Too many verification requests. Please try again later.'
       : 'Please wait a moment before requesting another code.';
   }
   if (status === 401) {
     return 'Please sign in again to verify your email.';
   }
-  return raw || 'Unable to send a verification code right now.';
+  return message;
 }
 
 function defaultConfirmErrorMessage(error: any): string {
-  const status = error?.status;
-  const raw = String(error?.data?.error || error?.message || '');
+  const { code, message, status } = extractApiError(error, 'Verification failed. Please try again.');
 
+  if (code === 'VERIFY_CODE_EXPIRED') return 'Verification code expired. Request a new code.';
+  if (code === 'VERIFY_NO_CODE') return 'No verification code is active. Request a new code.';
+  if (code === 'VERIFY_CODE_INVALID') {
+    return 'Invalid verification code. Check the code and try again.';
+  }
   if (status === 429) return 'Too many attempts. Please wait a moment and try again.';
   if (status === 401) return 'Please sign in again to verify your email.';
   if (status === 400) {
-    if (raw.includes('expired')) return 'Verification code expired. Request a new code.';
-    if (raw.includes('No verification in progress')) {
+    if (message.includes('expired')) return 'Verification code expired. Request a new code.';
+    if (message.includes('No verification in progress')) {
       return 'No verification code is active. Request a new code.';
     }
-    if (raw.includes('Invalid code')) return 'Invalid verification code. Check the code and try again.';
+    if (message.includes('Invalid code')) {
+      return 'Invalid verification code. Check the code and try again.';
+    }
   }
-  return raw || 'Verification failed. Please try again.';
+  return message;
 }
 
 export function useVerificationGate({
