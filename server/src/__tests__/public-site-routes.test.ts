@@ -17,6 +17,17 @@ describe('Public site routes', () => {
     expect(res.headers.location).toBe('https://www.varsityhub.app/');
   });
 
+  it('serves a landing page on the www host instead of redirecting to itself', async () => {
+    const res = await request(buildApp())
+      .get('/')
+      .set('Host', 'www.varsityhub.app')
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('VarsityHub');
+    expect(res.text).toContain('Support');
+  });
+
   it('serves the legal and support pages from the shared public router', async () => {
     const app = buildApp();
 

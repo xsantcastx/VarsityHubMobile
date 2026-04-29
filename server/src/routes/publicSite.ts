@@ -5,7 +5,17 @@ const MARKETING_SITE_URL = 'https://www.varsityhub.app/';
 
 const pageStyle = `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:760px;margin:40px auto;padding:0 20px;color:#1F2937;line-height:1.6;background:#F8FAFC}h1{color:#1B3A6B;margin-bottom:8px}h2{color:#2563EB;margin-top:24px}a{color:#2563EB}.card{background:#fff;border:1px solid #E5E7EB;border-radius:18px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,.08)}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}.btn{display:inline-block;background:#1B3A6B;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600}.btn-secondary{background:#EFF6FF;color:#1D4ED8}.meta{font-size:14px;color:#64748B;margin-top:20px}`;
 
-publicSiteRouter.get('/', (_req, res) => {
+function renderLandingPage() {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>VarsityHub</title><style>${pageStyle}</style></head><body><div class="card"><h1>VarsityHub</h1><p>The home for teams, events, and sports communities.</p><p>Use the mobile app for the full experience. This web surface stays intentionally small so deep links, legal pages, and support routes stay reliable.</p><div class="actions"><a class="btn" href="/support">Support</a><a class="btn btn-secondary" href="/privacy-policy">Privacy Policy</a><a class="btn btn-secondary" href="/terms">Terms of Service</a></div><p class="meta">VarsityHub for web is being rolled out separately at <a href="https://www.varsityhub.app/">www.varsityhub.app</a>.</p></div></body></html>`;
+}
+
+publicSiteRouter.get('/', (req, res) => {
+  if (req.hostname === 'www.varsityhub.app') {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(renderLandingPage());
+    return;
+  }
+
   res.redirect(308, MARKETING_SITE_URL);
 });
 
