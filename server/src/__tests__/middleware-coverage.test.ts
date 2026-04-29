@@ -137,6 +137,12 @@ const EXPECTATIONS: Expectation[] = [
     mustInclude: ['requireAuth', 'requireOnboarded'],
   },
   {
+    file: 'auth.ts',
+    description: 'GET /auth/me',
+    registrationPattern: /authRouter\.get\(\s*['"]\/me['"]/,
+    mustInclude: ['requireAuth'],
+  },
+  {
     file: 'team-memberships.ts',
     description: 'DELETE /team-memberships/:id',
     registrationPattern: /teamMembershipsRouter\.delete\(\s*['"]\/:id['"]/,

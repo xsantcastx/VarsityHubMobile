@@ -2267,6 +2267,7 @@ authRouter.post(
 
 authRouter.get(
   '/me',
+  requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 

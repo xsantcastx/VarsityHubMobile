@@ -686,7 +686,14 @@ teamsRouter.post(
       const userId = req.user!.id;
       const me = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, preferences: true },
+        select: {
+          id: true,
+          preferences: true,
+          plan: true,
+          pending_plan: true,
+          payment_pending: true,
+          payment_approved: true,
+        },
       });
       if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -755,7 +762,7 @@ teamsRouter.post(
       // Atomic limit check + create to prevent race condition on concurrent requests
       const userPrefs =
         me.preferences && typeof me.preferences === 'object' ? (me.preferences as any) : {};
-      const userPlan = userPrefs.plan || 'rookie';
+      const userPlan = getEffectiveEntitledPlan(me as any);
       const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
 
       const t = await prisma.$transaction(

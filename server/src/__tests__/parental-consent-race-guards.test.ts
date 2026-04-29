@@ -34,4 +34,17 @@ describe('parental consent race guards', () => {
     expect(consentRoute).toContain('Consent Link Expired');
     expect(consentRoute).toContain('verificationLimiter as any');
   });
+
+  it('requires a signed CSRF token for approve/deny actions', () => {
+    expect(consentRoute).toContain('const CONSENT_CSRF_COOKIE =');
+    expect(consentRoute).toContain('function verifyConsentCsrf(');
+    expect(consentRoute).toContain('name="csrf_token"');
+    expect(consentRoute).toContain("Consent Confirmation Expired");
+  });
+
+  it('rejects cross-site consent submissions unless the origin matches the app origin', () => {
+    expect(consentRoute).toContain('function requestHasTrustedOrigin(');
+    expect(consentRoute).toContain("req.get('origin') || req.get('referer')");
+    expect(consentRoute).toContain('new URL(candidate).origin === APP_BASE_ORIGIN');
+  });
 });

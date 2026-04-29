@@ -90,6 +90,17 @@ describe('payments & subscriptions — structural invariants', () => {
     it('Apple Sign-In credential validation lives in appleAuth.ts', () => {
       expect(appleAuth.length).toBeGreaterThan(100);
     });
+
+    it('Apple signedPayload verification failures return retriable 5xx responses', () => {
+      const block = payments.match(/Failed to verify\/decode signedPayload[\s\S]{0,200}/)?.[0] || '';
+      expect(block).toMatch(/sendStatus\(503\)/);
+    });
+
+    it('inner Apple JWS payloads are verified instead of falling back to unverified decode', () => {
+      const block = payments.match(/const verifyInnerJWS = \(token: string\): any => \{[\s\S]{0,800}\n    \};/)?.[0] || '';
+      expect(block).toMatch(/jwt\.verify\(token, innerKey, \{ algorithms: \['ES256'\] \}\)/);
+      expect(block).not.toMatch(/return jwt\.decode\(token\)/);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────
@@ -143,6 +154,13 @@ describe('payments & subscriptions — structural invariants', () => {
 
     it('Stripe processing fee is computed and stored per transaction', () => {
       expect(payments).toMatch(/calculateStripeFee/);
+    });
+
+    it('success-page fallback only finalizes for an authenticated session owner', () => {
+      const block = payments.match(/paymentsRouter\.get\('\/success'[\s\S]{0,2200}/)?.[0] || '';
+      expect(block).toMatch(/req\.user\?\.id/);
+      expect(block).toMatch(/String\(sessionUserId\) !== String\(req\.user\.id\)/);
+      expect(block).toMatch(/refusing to finalize session for non-owner/);
     });
   });
 

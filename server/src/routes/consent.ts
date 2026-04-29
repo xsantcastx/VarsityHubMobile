@@ -12,6 +12,7 @@
  * so a minor whose parent didn't act can request a fresh email.
  */
 
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import escapeHtml from 'escape-html';
 import { prisma } from '../lib/prisma.js';
@@ -31,6 +32,101 @@ import { invalidateMeCacheForUser } from '../lib/userCache.js';
 export const consentRouter = Router();
 
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const APP_BASE_ORIGIN = (() => {
+  try {
+    return new URL(APP_BASE_URL).origin;
+  } catch {
+    return 'https://varsityhub.app';
+  }
+})();
+const CONSENT_CSRF_COOKIE = 'vh_parental_consent_csrf';
+const CONSENT_CSRF_TTL_MS = 15 * 60 * 1000;
+
+function getConsentCsrfSecret(): string {
+  return process.env.PARENTAL_CONSENT_CSRF_SECRET || process.env.JWT_SECRET || 'dev-consent-csrf-secret';
+}
+
+function signConsentCsrf(rawToken: string, action: 'approve' | 'deny', nonce: string, expiresAt: number) {
+  return crypto
+    .createHmac('sha256', getConsentCsrfSecret())
+    .update(`${rawToken}:${action}:${nonce}:${expiresAt}`)
+    .digest('hex');
+}
+
+function buildConsentCsrfField(
+  rawToken: string,
+  action: 'approve' | 'deny',
+  nonce: string,
+  expiresAt: number
+) {
+  const signature = signConsentCsrf(rawToken, action, nonce, expiresAt);
+  return `${expiresAt}.${nonce}.${signature}`;
+}
+
+function parseCookie(header: string | undefined, name: string): string | null {
+  if (!header) return null;
+  for (const chunk of header.split(';')) {
+    const trimmed = chunk.trim();
+    if (!trimmed) continue;
+    const eq = trimmed.indexOf('=');
+    const key = eq >= 0 ? trimmed.slice(0, eq) : trimmed;
+    if (key !== name) continue;
+    return eq >= 0 ? decodeURIComponent(trimmed.slice(eq + 1)) : '';
+  }
+  return null;
+}
+
+function setConsentCsrfCookie(res: any, rawToken: string, nonce: string) {
+  const secure = APP_BASE_ORIGIN.startsWith('https://');
+  const cookieValue = encodeURIComponent(`${rawToken}:${nonce}`);
+  res.setHeader(
+    'Set-Cookie',
+    `${CONSENT_CSRF_COOKIE}=${cookieValue}; Max-Age=${Math.floor(CONSENT_CSRF_TTL_MS / 1000)}; Path=/consent/${encodeURIComponent(rawToken)}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`
+  );
+}
+
+function clearConsentCsrfCookie(res: any, rawToken: string) {
+  const secure = APP_BASE_ORIGIN.startsWith('https://');
+  res.append(
+    'Set-Cookie',
+    `${CONSENT_CSRF_COOKIE}=; Max-Age=0; Path=/consent/${encodeURIComponent(rawToken)}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`
+  );
+}
+
+function requestHasTrustedOrigin(req: any): boolean {
+  const candidate = req.get('origin') || req.get('referer');
+  if (!candidate) return true;
+  try {
+    return new URL(candidate).origin === APP_BASE_ORIGIN;
+  } catch {
+    return false;
+  }
+}
+
+function verifyConsentCsrf(
+  req: any,
+  rawToken: string,
+  action: 'approve' | 'deny'
+): boolean {
+  if (!requestHasTrustedOrigin(req)) return false;
+
+  const fieldValue = String(req.body?.csrf_token || '').trim();
+  const cookieValue = parseCookie(req.headers.cookie, CONSENT_CSRF_COOKIE);
+  if (!fieldValue || !cookieValue) return false;
+
+  const [expiresRaw, nonce, providedSignature] = fieldValue.split('.');
+  if (!expiresRaw || !nonce || !providedSignature) return false;
+
+  const expiresAt = Number.parseInt(expiresRaw, 10);
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
+  if (cookieValue !== `${rawToken}:${nonce}`) return false;
+
+  const expectedSignature = signConsentCsrf(rawToken, action, nonce, expiresAt);
+  const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+  const providedBuffer = Buffer.from(providedSignature, 'hex');
+  if (expectedBuffer.length !== providedBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+}
 
 function landingPage(safeTitle: string, safeMessage: string, success: boolean): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeTitle}</title></head>
@@ -41,7 +137,12 @@ function landingPage(safeTitle: string, safeMessage: string, success: boolean): 
 </body></html>`;
 }
 
-function consentForm(rawToken: string, safeMinorName: string): string {
+function consentForm(
+  rawToken: string,
+  safeMinorName: string,
+  approveCsrf: string,
+  denyCsrf: string
+): string {
   const safeToken = escapeHtml(rawToken);
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Parental Consent — VarsityHub</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:40px auto;padding:24px;color:#111827;">
@@ -49,9 +150,11 @@ function consentForm(rawToken: string, safeMinorName: string): string {
 <p style="line-height:1.5;">Your child <strong>${safeMinorName}</strong> has signed up for VarsityHub. As a youth-sports platform serving users 13–17, we require a parent or guardian to confirm consent before their account becomes active.</p>
 <p style="line-height:1.5;color:#374151;">By approving, you confirm you are the parent or guardian and consent to your child's use of VarsityHub under our <a href="${APP_BASE_URL}/privacy" style="color:#1B3A6B;">Privacy Policy</a>.</p>
 <form method="POST" action="/consent/${safeToken}/approve" style="margin-top:24px;display:inline-block;">
+  <input type="hidden" name="csrf_token" value="${escapeHtml(approveCsrf)}" />
   <button type="submit" style="background:#16A34A;color:#fff;border:none;padding:12px 28px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;">Approve</button>
 </form>
 <form method="POST" action="/consent/${safeToken}/deny" style="margin-top:12px;display:inline-block;margin-left:8px;">
+  <input type="hidden" name="csrf_token" value="${escapeHtml(denyCsrf)}" />
   <button type="submit" style="background:#fff;color:#DC2626;border:1px solid #DC2626;padding:12px 28px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;">Deny</button>
 </form>
 <p style="margin-top:32px;font-size:12px;color:#6B7280;">Questions? Contact ${escapeHtml(process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app')}.</p>
@@ -119,7 +222,17 @@ consentRouter.get(
       select: { display_name: true, username: true },
     });
     const minorName = minor?.display_name || minor?.username || 'your child';
-    return res.type('html').send(consentForm(token, escapeHtml(minorName)));
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const expiresAt = Date.now() + CONSENT_CSRF_TTL_MS;
+    setConsentCsrfCookie(res, token, nonce);
+    return res.type('html').send(
+      consentForm(
+        token,
+        escapeHtml(minorName),
+        buildConsentCsrfField(token, 'approve', nonce, expiresAt),
+        buildConsentCsrfField(token, 'deny', nonce, expiresAt)
+      )
+    );
   })
 );
 
@@ -128,6 +241,18 @@ consentRouter.post(
   '/:token/approve',
   asyncHandler(async (req, res) => {
     const token = String(req.params.token || '').trim();
+    if (!verifyConsentCsrf(req, token, 'approve')) {
+      return res
+        .status(403)
+        .type('html')
+        .send(
+          landingPage(
+            'Consent Confirmation Expired',
+            'For security, please reopen the consent email link and submit the form again.',
+            false
+          )
+        );
+    }
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
       const resolved = consentResolutionPage(lookup.reason);
@@ -142,6 +267,7 @@ consentRouter.post(
       return res.status(resolved.status).type('html').send(resolved.html);
     }
     await invalidateMeCacheForUser(lookup.userId);
+    clearConsentCsrfCookie(res, token);
     return res
       .type('html')
       .send(
@@ -159,6 +285,18 @@ consentRouter.post(
   '/:token/deny',
   asyncHandler(async (req, res) => {
     const token = String(req.params.token || '').trim();
+    if (!verifyConsentCsrf(req, token, 'deny')) {
+      return res
+        .status(403)
+        .type('html')
+        .send(
+          landingPage(
+            'Consent Confirmation Expired',
+            'For security, please reopen the consent email link and submit the form again.',
+            false
+          )
+        );
+    }
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
       const resolved = consentResolutionPage(lookup.reason);
@@ -173,6 +311,7 @@ consentRouter.post(
       return res.status(resolved.status).type('html').send(resolved.html);
     }
     await invalidateMeCacheForUser(lookup.userId);
+    clearConsentCsrfCookie(res, token);
     return res
       .type('html')
       .send(

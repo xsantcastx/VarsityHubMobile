@@ -3754,13 +3754,18 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 // v1.0.2 pass 11: /success is a PUBLIC GET that triggers Stripe + DB writes via finalizeFromSession.
 // Without a rate limit, an attacker spamming arbitrary session_id values forces real Stripe API
 // calls per request. paymentLimiter caps abuse without breaking legitimate post-checkout redirects.
-paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req, res) => {
+paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';
   const appReturnPath = process.env.APP_RETURN_PATH || '';
   const returnUrl = `${appScheme}://${appReturnPath}`;
   const sessionId = typeof req.query.session_id === 'string' ? req.query.session_id : undefined;
   // PAY-3: Validate session_id format before hitting Stripe API (prevent enumeration)
-  if (sessionId && process.env.STRIPE_SECRET_KEY && /^cs_(test_|live_)[a-zA-Z0-9]+$/.test(sessionId)) {
+  if (
+    req.user?.id &&
+    sessionId &&
+    process.env.STRIPE_SECRET_KEY &&
+    /^cs_(test_|live_)[a-zA-Z0-9]+$/.test(sessionId)
+  ) {
     try {
       // Dedup: only finalize if not already processed by webhook
       const alreadyProcessed = await prisma.processedStripeEvent.findFirst({
@@ -3772,6 +3777,12 @@ paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req, res) => 
         const sessionUserId = (session.metadata as any)?.user_id;
         if (!sessionUserId) {
           console.warn('[payments] Success page: session has no user_id in metadata', { session_id: sessionId });
+        } else if (String(sessionUserId) !== String(req.user.id)) {
+          console.warn('[payments] Success page: refusing to finalize session for non-owner', {
+            session_id: sessionId,
+            requester_user_id: req.user.id,
+            session_user_id: sessionUserId,
+          });
         } else if (session.payment_status === 'paid') {
           await finalizeFromSession(session);
           await prisma.processedStripeEvent.create({
@@ -4845,12 +4856,12 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
     } catch (decodeErr) {
       console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
-      return res.sendStatus(200);
+      return res.sendStatus(503);
     }
 
     if (!payload) {
       console.error('[apple-s2s] Decoded payload is null');
-      return res.sendStatus(200);
+      return res.sendStatus(503);
     }
 
     // Step 7: Validate payload claims — bundleId and environment
@@ -4873,28 +4884,30 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       return res.sendStatus(200);
     }
 
-    // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
-    // Falls back to jwt.decode if verification fails — the outer payload was already verified.
+    // Verify inner JWS tokens using their own x5c certificate chains.
+    // Reject on verification failure so Apple retries instead of silently dropping state changes.
     const verifyInnerJWS = (token: string): any => {
-      try {
-        const innerHeader = jwt.decode(token, { complete: true })?.header as any;
-        if (innerHeader?.x5c?.length) {
-          const innerCertPem = `-----BEGIN CERTIFICATE-----\n${innerHeader.x5c[0]}\n-----END CERTIFICATE-----`;
-          const innerKey = crypto.createPublicKey(innerCertPem);
-          return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
-        }
-      } catch { /* fall through to decode */ }
-      return jwt.decode(token) || {};
+      const innerHeader = jwt.decode(token, { complete: true })?.header as any;
+      if (!innerHeader?.x5c?.length) {
+        throw new Error('Missing x5c certificate chain on inner JWS');
+      }
+      const innerCertPem = `-----BEGIN CERTIFICATE-----\n${innerHeader.x5c[0]}\n-----END CERTIFICATE-----`;
+      const innerKey = crypto.createPublicKey(innerCertPem);
+      return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
     };
 
     let transactionInfo: any = {};
-    if (data.signedTransactionInfo) {
-      transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
-    }
-
     let renewalInfo: any = {};
-    if (data.signedRenewalInfo) {
-      renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
+    try {
+      if (data.signedTransactionInfo) {
+        transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
+      }
+      if (data.signedRenewalInfo) {
+        renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
+      }
+    } catch (innerErr) {
+      console.error('[apple-s2s] Failed to verify inner JWS payload:', innerErr);
+      return res.sendStatus(503);
     }
 
     const appleTransactionId: string = transactionInfo.transactionId || '';
