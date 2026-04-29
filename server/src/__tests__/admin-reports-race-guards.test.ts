@@ -24,4 +24,11 @@ describe('admin reports race guards', () => {
       /abuseReport\.updateMany\(\{[\s\S]*?id: \{ in: report_ids \},[\s\S]*?status: \{ notIn: \[\.\.\.FINAL_REPORT_STATUSES\] \}/
     );
   });
+
+  it('guards ad takedown report resolution against re-running on final reports', () => {
+    expect(src).toMatch(/FINAL_REPORT_STATUSES\.includes\(report\.status/);
+    expect(src).toMatch(
+      /abuseReport\.updateMany\(\{[\s\S]*?where: \{ id, status: \{ notIn: \[\.\.\.FINAL_REPORT_STATUSES\] \} \}[\s\S]*?status: 'resolved'/
+    );
+  });
 });

@@ -610,6 +610,14 @@ adminReportsRouter.post(
       },
     });
     if (!report) return res.status(404).json({ error: 'Report not found' });
+    if (
+      FINAL_REPORT_STATUSES.includes(report.status as (typeof FINAL_REPORT_STATUSES)[number])
+    ) {
+      return res.status(409).json({
+        error: `Report already ${report.status}`,
+        current_status: report.status,
+      });
+    }
 
     const { target_type, target_id } = parseReportTarget(report.subject);
     if (target_type !== 'ad' || !target_id) {
@@ -637,16 +645,28 @@ adminReportsRouter.post(
     const nextStatus = ad.status === 'draft' ? 'draft' : 'pending';
     const nextAdminNote = `[Report Takedown] ${reason}`;
 
-    const [updatedReport, updatedAd] = await prisma.$transaction([
-      prisma.abuseReport.update({
+    const transition = await prisma.abuseReport.updateMany({
+      where: { id, status: { notIn: [...FINAL_REPORT_STATUSES] } },
+      data: {
+        status: 'resolved',
+        resolution_note: reason,
+        reviewed_by: req.user.id,
+        reviewed_at: new Date(),
+      },
+    });
+    if (transition.count === 0) {
+      const latest = await prisma.abuseReport.findUnique({
         where: { id },
-        data: {
-          status: 'resolved',
-          resolution_note: reason,
-          reviewed_by: req.user.id,
-          reviewed_at: new Date(),
-        },
-      }),
+        select: { status: true },
+      });
+      return res.status(409).json({
+        error: `Report already ${latest?.status || 'reviewed'}`,
+        current_status: latest?.status || 'reviewed',
+      });
+    }
+
+    const [updatedReport, updatedAd] = await prisma.$transaction([
+      prisma.abuseReport.findUniqueOrThrow({ where: { id } }),
       prisma.ad.update({
         where: { id: ad.id },
         data: {
