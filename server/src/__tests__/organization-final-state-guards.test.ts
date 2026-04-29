@@ -26,7 +26,12 @@ describe('organization final-state guards', () => {
   it('league email routes map service-level final states back to explicit pages', () => {
     expect(organizationRoutesSrc).toContain("if (finalState === 'rejected')");
     expect(organizationRoutesSrc).toContain("if (finalState === 'approved')");
-    expect(organizationRoutesSrc).toContain("renderLeagueActionResultPage('Already Rejected', 'This league was already rejected.', false)");
-    expect(organizationRoutesSrc).toContain("renderLeagueActionResultPage('Already Approved', 'This league was already approved.', false)");
+    // Allow prettier to break the call across multiple lines.
+    expect(organizationRoutesSrc).toMatch(
+      /renderLeagueActionResultPage\(\s*'Already Rejected',\s*'This league was already rejected\.',\s*false\s*\)/
+    );
+    expect(organizationRoutesSrc).toMatch(
+      /renderLeagueActionResultPage\(\s*'Already Approved',\s*'This league was already approved\.',\s*false\s*\)/
+    );
   });
 });
