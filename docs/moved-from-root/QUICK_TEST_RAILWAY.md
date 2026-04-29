@@ -1,6 +1,7 @@
 # Quick Test - Railway Production API
 
 ## 🔗 Production URL
+
 ```
 https://api-production-8ac3.up.railway.app
 ```
@@ -10,7 +11,7 @@ https://api-production-8ac3.up.railway.app
 ```bash
 curl -X POST https://api-production-8ac3.up.railway.app/test-emails/transaction-report \
   -H "Content-Type: application/json" \
-  -d '{"to": "emancero@varsityhub.app"}'
+  -d '{"to": "support@varsityhub.app"}'
 ```
 
 ## ✅ Check Health Status
@@ -24,15 +25,17 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.integrations.se
 ## 📋 Expected Results
 
 ### Health Check Response:
+
 ```json
 {
   "integrations": {
-    "sendgrid": true  // ✅ This means SendGrid is configured
+    "sendgrid": true // ✅ This means SendGrid is configured
   }
 }
 ```
 
 ### Transaction Report Response:
+
 ```json
 {
   "ok": true,
@@ -54,7 +57,8 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.integrations.se
 ## ✅ Verification
 
 After running the command:
-1. **Check email** at `emancero@varsityhub.app`
+
+1. **Check email** at `support@varsityhub.app`
 2. **Verify "From"** shows: `noreply@varsityhub.app` ✅
 3. **Subject**: `📊 Daily Transaction Report - YYYY-MM-DD`
 4. **Content**: HTML report with transaction data

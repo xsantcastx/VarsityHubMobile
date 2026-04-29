@@ -2863,7 +2863,7 @@ organizationsRouter.post(
 );
 
 // =====================================================
-// SUPER ADMIN LEAGUE APPROVAL (emancero@varsityhub.app)
+// SUPER ADMIN LEAGUE APPROVAL (support@varsityhub.app)
 // =====================================================
 
 /**

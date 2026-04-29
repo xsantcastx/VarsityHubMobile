@@ -79,7 +79,7 @@ import {
 } from '../src/lib/email.js';
 
 // ── Config ──────────────────────────────────────────────────────────
-const TO = 'emancero@varsityhub.app';
+const TO = 'support@varsityhub.app';
 
 if (!process.env.SENDGRID_API_KEY) {
   console.error('❌  SENDGRID_API_KEY is required. Export it before running.');

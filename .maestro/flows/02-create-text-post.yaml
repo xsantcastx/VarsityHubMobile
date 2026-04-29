@@ -2,7 +2,7 @@
 #
 # Run:
 #   maestro test .maestro/flows/02-create-text-post.yaml \
-#     -e TEST_ACCOUNT_EMAIL=emancero@varsityhub.app \
+#     -e TEST_ACCOUNT_EMAIL=support@varsityhub.app \
 #     -e TEST_ACCOUNT_PASSWORD=YourPassword
 
 appId: com.varsithub.varsityhub-ios

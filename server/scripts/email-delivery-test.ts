@@ -14,7 +14,7 @@
 import 'dotenv/config';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const TEST_EMAIL = 'emancero@varsityhub.app';
+const TEST_EMAIL = 'support@varsityhub.app';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface TestResult {

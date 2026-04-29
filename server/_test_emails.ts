@@ -44,7 +44,7 @@ svc.send = async (params: any) => {
   return { success: true, provider: 'test', messageId: 'test-' + Date.now() };
 };
 
-const TO = 'emancero@varsityhub.app';
+const TO = 'support@varsityhub.app';
 
 // ── Email 1: Verification (every signup hits this) ──
 console.log('\n=== 1. sendVerificationEmail ===');

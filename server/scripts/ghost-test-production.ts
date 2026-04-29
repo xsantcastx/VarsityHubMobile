@@ -6,7 +6,7 @@
  */
 
 const BASE = 'https://api-production-8ac3.up.railway.app';
-const ADMIN_EMAIL = 'emancero@varsityhub.app';
+const ADMIN_EMAIL = 'support@varsityhub.app';
 const ADMIN_PASS = process.env.ADMIN_PASS || '';
 const ts = Date.now();
 

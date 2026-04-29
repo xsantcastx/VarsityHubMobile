@@ -6,7 +6,7 @@
 # Usage:
 #   cd server
 #   API_BASE=http://localhost:4000 \
-#   ADMIN_EMAIL=emancero@varsityhub.app \
+#   ADMIN_EMAIL=support@varsityhub.app \
 #   ADMIN_PASSWORD=secret \
 #   ENABLE_DEV_CODES_CONFIRMED=1 \
 #   bash scripts/smoke-test-approvals.sh

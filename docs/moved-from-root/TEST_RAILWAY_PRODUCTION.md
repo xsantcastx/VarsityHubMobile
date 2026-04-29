@@ -1,6 +1,7 @@
 # Test Transaction Report Email on Railway Production
 
 ## 🔗 Production API URL
+
 ```
 https://api-production-8ac3.up.railway.app
 ```
@@ -14,10 +15,12 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.integrations.se
 ```
 
 **Expected Output:**
+
 - `true` = SendGrid configured and ready ✅
 - `false` = SendGrid not configured ❌
 
 **Full health check:**
+
 ```bash
 curl -s https://api-production-8ac3.up.railway.app/health | jq .
 ```
@@ -29,10 +32,11 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq .
 ```bash
 curl -X POST https://api-production-8ac3.up.railway.app/test-emails/transaction-report \
   -H "Content-Type: application/json" \
-  -d '{"to": "emancero@varsityhub.app"}'
+  -d '{"to": "support@varsityhub.app"}'
 ```
 
 **Expected Response:**
+
 ```json
 {
   "ok": true,
@@ -53,7 +57,7 @@ curl -X POST https://api-production-8ac3.up.railway.app/test-emails/transaction-
 
 ## ✅ Step 3: Verify Email Received
 
-1. **Check inbox** at `emancero@varsityhub.app`
+1. **Check inbox** at `support@varsityhub.app`
 2. **Check "From" field** - Should show: `noreply@varsityhub.app` ✅
 3. **Subject**: `📊 Daily Transaction Report - YYYY-MM-DD`
 4. **Content**: HTML report with transaction summary, breakdowns, etc.
@@ -74,9 +78,10 @@ Since the test endpoint is dev-only, verify the scheduled job is configured:
 ```
 
 The scheduled job will run automatically at **11:59 PM daily** and send to:
+
 - `TRANSACTION_REPORT_EMAIL` env var (if set)
 - OR first email from `ADMIN_EMAILS` env var
-- OR fallback: `emancero@varsityhub.app` ✅
+- OR fallback: `support@varsityhub.app` ✅
 
 ---
 
@@ -90,10 +95,10 @@ SENDGRID_API_KEY=SG.xxxxx...
 EMAIL_FROM=noreply@varsityhub.app
 
 # Optional - override report recipient
-TRANSACTION_REPORT_EMAIL=emancero@varsityhub.app
+TRANSACTION_REPORT_EMAIL=support@varsityhub.app
 
 # Optional - fallback admin emails
-ADMIN_EMAILS=emancero@varsityhub.app,...
+ADMIN_EMAILS=support@varsityhub.app,...
 ```
 
 ---
@@ -110,7 +115,8 @@ ADMIN_EMAILS=emancero@varsityhub.app,...
 ## 🎯 Next Steps
 
 Once verified:
+
 1. ✅ Transaction reports will send daily at 11:59 PM
-2. ✅ Recipient: `emancero@varsityhub.app`
+2. ✅ Recipient: `support@varsityhub.app`
 3. ✅ From: `noreply@varsityhub.app`
 4. ✅ System ready for production use

@@ -13,6 +13,7 @@
 ### Task 1: Scaffold the audit script with helpers and auth
 
 **Files:**
+
 - Create: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Create the script file with all shared infrastructure**
@@ -32,7 +33,10 @@
 import 'dotenv/config';
 
 // ── Config ──────────────────────────────────────────────────
-const BASE = (process.env.BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(/\/$/, '');
+const BASE = (process.env.BASE_URL || 'https://api-production-8ac3.up.railway.app').replace(
+  /\/$/,
+  ''
+);
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const FETCH_TIMEOUT_MS = 15_000;
@@ -100,7 +104,7 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Re
 async function api(
   method: string,
   path: string,
-  opts: { body?: any; token?: string; headers?: Record<string, string> } = {},
+  opts: { body?: any; token?: string; headers?: Record<string, string> } = {}
 ): Promise<{ status: number; data: any }> {
   const url = `${BASE}${path}`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...opts.headers };
@@ -115,7 +119,11 @@ async function api(
   let data: any;
   const ct = res.headers.get('content-type') || '';
   if (ct.includes('json')) {
-    try { data = await res.json(); } catch { data = null; }
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
   } else {
     data = await res.text().catch(() => null);
   }
@@ -141,27 +149,33 @@ async function cleanup(token: string): Promise<void> {
 function printSummary(): void {
   console.log();
   console.log('='.repeat(70));
-  const passed = results.filter((r) => r.passed).length;
-  const failed = results.filter((r) => !r.passed && r.status !== 'WARN').length;
-  const warnings = results.filter((r) => r.status === 'WARN').length;
+  const passed = results.filter(r => r.passed).length;
+  const failed = results.filter(r => !r.passed && r.status !== 'WARN').length;
+  const warnings = results.filter(r => r.status === 'WARN').length;
   const total = results.length;
 
   const color = failed > 0 ? RED : GREEN;
-  console.log(`  ${color}${BOLD}Total: ${total} | Passed: ${passed} | Failed: ${failed} | Warnings: ${warnings}${RESET}`);
+  console.log(
+    `  ${color}${BOLD}Total: ${total} | Passed: ${passed} | Failed: ${failed} | Warnings: ${warnings}${RESET}`
+  );
 
   if (failed > 0) {
     console.log();
     console.log(`  ${RED}${BOLD}FAILURES:${RESET}`);
-    for (const r of results.filter((r) => !r.passed && r.status !== 'WARN')) {
-      console.log(`    ${RED}\u2717${RESET} [${r.phase}] ${r.name}${r.detail ? ` — ${r.detail}` : ''}`);
+    for (const r of results.filter(r => !r.passed && r.status !== 'WARN')) {
+      console.log(
+        `    ${RED}\u2717${RESET} [${r.phase}] ${r.name}${r.detail ? ` — ${r.detail}` : ''}`
+      );
     }
   }
 
   if (warnings > 0) {
     console.log();
     console.log(`  ${YELLOW}${BOLD}WARNINGS (dead states / orphans):${RESET}`);
-    for (const r of results.filter((r) => r.status === 'WARN')) {
-      console.log(`    ${YELLOW}!${RESET} [${r.phase}] ${r.name}${r.detail ? ` — ${r.detail}` : ''}`);
+    for (const r of results.filter(r => r.status === 'WARN')) {
+      console.log(
+        `    ${YELLOW}!${RESET} [${r.phase}] ${r.name}${r.detail ? ` — ${r.detail}` : ''}`
+      );
     }
   }
 
@@ -238,37 +252,53 @@ async function main(): Promise<void> {
   await cleanup(token);
   printSummary();
 
-  const failed = results.filter((r) => !r.passed && r.status !== 'WARN').length;
+  const failed = results.filter(r => !r.passed && r.status !== 'WARN').length;
   process.exit(failed > 0 ? 1 : 0);
 }
 
 // ── Phase implementations (Tasks 2-8 below) ─────────────────
 
 // PHASE_PLACEHOLDER: testAuthAccess
-async function testAuthAccess(_token: string): Promise<void> { phase('Auth & Access Control'); }
+async function testAuthAccess(_token: string): Promise<void> {
+  phase('Auth & Access Control');
+}
 
 // PHASE_PLACEHOLDER: testDashboardMetrics
-async function testDashboardMetrics(_token: string): Promise<void> { phase('Dashboard & Metrics'); }
+async function testDashboardMetrics(_token: string): Promise<void> {
+  phase('Dashboard & Metrics');
+}
 
 // PHASE_PLACEHOLDER: testCoachApprovalFlow
-async function testCoachApprovalFlow(_token: string): Promise<void> { phase('Coach Approval Flow'); }
+async function testCoachApprovalFlow(_token: string): Promise<void> {
+  phase('Coach Approval Flow');
+}
 
 // PHASE_PLACEHOLDER: testUserManagement
-async function testUserManagement(_token: string): Promise<void> { phase('User Management'); }
+async function testUserManagement(_token: string): Promise<void> {
+  phase('User Management');
+}
 
 // PHASE_PLACEHOLDER: testReportsModeration
-async function testReportsModeration(_token: string): Promise<void> { phase('Reports & Moderation'); }
+async function testReportsModeration(_token: string): Promise<void> {
+  phase('Reports & Moderation');
+}
 
 // PHASE_PLACEHOLDER: testTransactions
-async function testTransactions(_token: string): Promise<void> { phase('Transactions'); }
+async function testTransactions(_token: string): Promise<void> {
+  phase('Transactions');
+}
 
 // PHASE_PLACEHOLDER: testActivityLog
-async function testActivityLog(_token: string): Promise<void> { phase('Activity Log'); }
+async function testActivityLog(_token: string): Promise<void> {
+  phase('Activity Log');
+}
 
 // PHASE_PLACEHOLDER: testOrphanDetection
-async function testOrphanDetection(_token: string): Promise<void> { phase('Orphan & Dead State Detection'); }
+async function testOrphanDetection(_token: string): Promise<void> {
+  phase('Orphan & Dead State Detection');
+}
 
-main().catch((err) => {
+main().catch(err => {
   console.error(`${RED}Unhandled error:${RESET}`, err);
   process.exit(1);
 });
@@ -291,6 +321,7 @@ git commit -m "chore: scaffold admin e2e production audit script"
 ### Task 2: Phase 1 — Auth & Access Control
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Replace the testAuthAccess placeholder with full implementation**
@@ -301,11 +332,19 @@ async function testAuthAccess(token: string): Promise<void> {
 
   // Test 1: Admin can access GET /admin/dashboard
   const dash = await api('GET', '/admin/dashboard', { token });
-  record('Admin accesses /admin/dashboard', dash.status === 200 && dash.data?.ok === true, dash.status);
+  record(
+    'Admin accesses /admin/dashboard',
+    dash.status === 200 && dash.data?.ok === true,
+    dash.status
+  );
 
   // Test 2: Admin can access GET /admin/metrics
   const metrics = await api('GET', '/admin/metrics', { token });
-  record('Admin accesses /admin/metrics', metrics.status === 200 && metrics.data?.ok === true, metrics.status);
+  record(
+    'Admin accesses /admin/metrics',
+    metrics.status === 200 && metrics.data?.ok === true,
+    metrics.status
+  );
 
   // Test 3: Admin can access GET /admin/reports
   const reports = await api('GET', '/admin/reports', { token });
@@ -317,15 +356,27 @@ async function testAuthAccess(token: string): Promise<void> {
 
   // Test 5: Admin can access GET /admin/activity-log
   const log = await api('GET', '/admin/activity-log', { token });
-  record('Admin accesses /admin/activity-log', log.status === 200 && log.data?.ok === true, log.status);
+  record(
+    'Admin accesses /admin/activity-log',
+    log.status === 200 && log.data?.ok === true,
+    log.status
+  );
 
   // Test 6: Admin can access GET /admin/transactions
   const txns = await api('GET', '/admin/transactions', { token });
-  record('Admin accesses /admin/transactions', txns.status === 200 && txns.data?.ok === true, txns.status);
+  record(
+    'Admin accesses /admin/transactions',
+    txns.status === 200 && txns.data?.ok === true,
+    txns.status
+  );
 
   // Test 7: Admin can access GET /admin/transactions/summary
   const txnSummary = await api('GET', '/admin/transactions/summary', { token });
-  record('Admin accesses /admin/transactions/summary', txnSummary.status === 200 && txnSummary.data?.ok === true, txnSummary.status);
+  record(
+    'Admin accesses /admin/transactions/summary',
+    txnSummary.status === 200 && txnSummary.data?.ok === true,
+    txnSummary.status
+  );
 
   // Test 8: Unauthenticated request gets 401
   const noAuth = await api('GET', '/admin/dashboard');
@@ -372,6 +423,7 @@ git commit -m "feat(audit): phase 1 — admin auth & access control tests"
 ### Task 3: Phase 2 — Dashboard & Metrics
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Replace the testDashboardMetrics placeholder**
@@ -384,69 +436,101 @@ async function testDashboardMetrics(token: string): Promise<void> {
   const dash = await api('GET', '/admin/dashboard', { token });
   const d = dash.data;
   const requiredFields = [
-    'totalUsers', 'verifiedUsers', 'bannedUsers', 'totalTeams',
-    'totalAds', 'pendingAds', 'totalPosts', 'totalMessages',
-    'recentActivity', 'pendingLeagues', 'pendingCoaches',
+    'totalUsers',
+    'verifiedUsers',
+    'bannedUsers',
+    'totalTeams',
+    'totalAds',
+    'pendingAds',
+    'totalPosts',
+    'totalMessages',
+    'recentActivity',
+    'pendingLeagues',
+    'pendingCoaches',
   ];
-  const missingFields = requiredFields.filter((f) => d?.[f] === undefined);
+  const missingFields = requiredFields.filter(f => d?.[f] === undefined);
   record(
     'Dashboard returns all required fields',
     missingFields.length === 0,
     dash.status,
-    missingFields.length > 0 ? `Missing: ${missingFields.join(', ')}` : undefined,
+    missingFields.length > 0 ? `Missing: ${missingFields.join(', ')}` : undefined
   );
 
   // Test 2: Numeric fields are actually numbers
-  const numericFields = ['totalUsers', 'verifiedUsers', 'bannedUsers', 'totalTeams', 'totalAds', 'pendingAds', 'totalPosts', 'totalMessages'];
-  const nonNumeric = numericFields.filter((f) => typeof d?.[f] !== 'number');
+  const numericFields = [
+    'totalUsers',
+    'verifiedUsers',
+    'bannedUsers',
+    'totalTeams',
+    'totalAds',
+    'pendingAds',
+    'totalPosts',
+    'totalMessages',
+  ];
+  const nonNumeric = numericFields.filter(f => typeof d?.[f] !== 'number');
   record(
     'Dashboard numeric fields are numbers',
     nonNumeric.length === 0,
     dash.status,
-    nonNumeric.length > 0 ? `Not numbers: ${nonNumeric.join(', ')}` : undefined,
+    nonNumeric.length > 0 ? `Not numbers: ${nonNumeric.join(', ')}` : undefined
   );
 
   // Test 3: Array fields are arrays
   const arrayFields = ['recentActivity', 'pendingLeagues', 'pendingCoaches'];
-  const nonArray = arrayFields.filter((f) => !Array.isArray(d?.[f]));
+  const nonArray = arrayFields.filter(f => !Array.isArray(d?.[f]));
   record(
     'Dashboard array fields are arrays',
     nonArray.length === 0,
     dash.status,
-    nonArray.length > 0 ? `Not arrays: ${nonArray.join(', ')}` : undefined,
+    nonArray.length > 0 ? `Not arrays: ${nonArray.join(', ')}` : undefined
   );
 
   // Test 4: totalUsers > 0 (sanity — production should have users)
-  record('Dashboard totalUsers > 0', (d?.totalUsers ?? 0) > 0, dash.status, `totalUsers=${d?.totalUsers}`);
+  record(
+    'Dashboard totalUsers > 0',
+    (d?.totalUsers ?? 0) > 0,
+    dash.status,
+    `totalUsers=${d?.totalUsers}`
+  );
 
   // Test 5: verifiedUsers <= totalUsers
   record(
     'verifiedUsers <= totalUsers',
     (d?.verifiedUsers ?? 0) <= (d?.totalUsers ?? 0),
     dash.status,
-    `${d?.verifiedUsers} verified / ${d?.totalUsers} total`,
+    `${d?.verifiedUsers} verified / ${d?.totalUsers} total`
   );
 
   // Test 6: Metrics endpoint returns report
   const metrics = await api('GET', '/admin/metrics?days=7', { token });
-  record('Metrics returns ok with report', metrics.status === 200 && metrics.data?.ok === true, metrics.status);
+  record(
+    'Metrics returns ok with report',
+    metrics.status === 200 && metrics.data?.ok === true,
+    metrics.status
+  );
   record('Metrics report is not null', metrics.data?.report != null, metrics.status);
 
   // Test 7: Metrics with invalid days clamped (not error)
   const metricsClamped = await api('GET', '/admin/metrics?days=999', { token });
-  record('Metrics with days=999 still succeeds (clamped to 30)', metricsClamped.status === 200, metricsClamped.status);
+  record(
+    'Metrics with days=999 still succeeds (clamped to 30)',
+    metricsClamped.status === 200,
+    metricsClamped.status
+  );
 
   // Test 8: Pending coaches have required fields
   const coaches = d?.pendingCoaches || [];
   if (coaches.length > 0) {
     const c = coaches[0];
     const coachFields = ['id', 'display_name', 'email'];
-    const missingCoach = coachFields.filter((f) => c?.[f] === undefined);
+    const missingCoach = coachFields.filter(f => c?.[f] === undefined);
     record(
       'Pending coaches have required fields',
       missingCoach.length === 0,
       dash.status,
-      missingCoach.length > 0 ? `Missing: ${missingCoach.join(', ')}` : `${coaches.length} pending coach(es)`,
+      missingCoach.length > 0
+        ? `Missing: ${missingCoach.join(', ')}`
+        : `${coaches.length} pending coach(es)`
     );
   } else {
     record('Pending coaches have required fields', true, dash.status, '0 pending coaches (OK)');
@@ -457,12 +541,14 @@ async function testDashboardMetrics(token: string): Promise<void> {
   if (leagues.length > 0) {
     const l = leagues[0];
     const leagueFields = ['id', 'name', 'sport'];
-    const missingLeague = leagueFields.filter((f) => l?.[f] === undefined);
+    const missingLeague = leagueFields.filter(f => l?.[f] === undefined);
     record(
       'Pending leagues have required fields',
       missingLeague.length === 0,
       dash.status,
-      missingLeague.length > 0 ? `Missing: ${missingLeague.join(', ')}` : `${leagues.length} pending league(s)`,
+      missingLeague.length > 0
+        ? `Missing: ${missingLeague.join(', ')}`
+        : `${leagues.length} pending league(s)`
     );
   } else {
     record('Pending leagues have required fields', true, dash.status, '0 pending leagues (OK)');
@@ -482,6 +568,7 @@ git commit -m "feat(audit): phase 2 — dashboard & metrics validation"
 ### Task 4: Phase 3 — Coach Approval Flow (start → end)
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Replace the testCoachApprovalFlow placeholder**
@@ -498,7 +585,7 @@ async function testCoachApprovalFlow(token: string): Promise<void> {
     'Dashboard lists pending coaches',
     dash.status === 200,
     dash.status,
-    `${pendingCoaches.length} pending`,
+    `${pendingCoaches.length} pending`
   );
 
   // Check: every pending coach should have a linked org
@@ -510,7 +597,7 @@ async function testCoachApprovalFlow(token: string): Promise<void> {
       `Pending coach ${truncate(coach.display_name || coach.id, 25)} has role=coach`,
       isCoachRole,
       isCoachRole ? 'OK' : 'BAD',
-      `approval_status should be PENDING, preferences.role=${prefs.role}`,
+      `approval_status should be PENDING, preferences.role=${prefs.role}`
     );
   }
 
@@ -520,7 +607,7 @@ async function testCoachApprovalFlow(token: string): Promise<void> {
     'Dashboard lists pending leagues',
     dash.status === 200,
     dash.status,
-    `${pendingLeagues.length} pending`,
+    `${pendingLeagues.length} pending`
   );
 
   // Check: pending leagues should have an owner
@@ -530,7 +617,7 @@ async function testCoachApprovalFlow(token: string): Promise<void> {
       `Pending league "${truncate(league.name || league.id, 25)}" has an owner`,
       hasOwner,
       hasOwner ? 'OK' : 'BAD',
-      hasOwner ? `Owner: ${league.leagueOwner?.display_name}` : 'NO OWNER — orphaned league',
+      hasOwner ? `Owner: ${league.leagueOwner?.display_name}` : 'NO OWNER — orphaned league'
     );
   }
 
@@ -544,7 +631,7 @@ async function testCoachApprovalFlow(token: string): Promise<void> {
     'Approve with fake coach ID returns error (not 500)',
     fakeApprove.status !== 500,
     fakeApprove.status,
-    `Expected 400/404, got ${fakeApprove.status}`,
+    `Expected 400/404, got ${fakeApprove.status}`
   );
 
   // Verify reject endpoint responds
@@ -556,7 +643,7 @@ async function testCoachApprovalFlow(token: string): Promise<void> {
     'Reject with fake coach ID returns error (not 500)',
     fakeReject.status !== 500,
     fakeReject.status,
-    `Expected 400/404, got ${fakeReject.status}`,
+    `Expected 400/404, got ${fakeReject.status}`
   );
 }
 ```
@@ -573,6 +660,7 @@ git commit -m "feat(audit): phase 3 — coach approval flow verification"
 ### Task 5: Phase 4 — User Management
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Replace the testUserManagement placeholder**
@@ -616,7 +704,11 @@ async function testUserManagement(token: string): Promise<void> {
     token,
     body: { reason: 'Audit test suspension', days: 1 },
   });
-  record('Suspend user succeeds', suspendRes.status === 200 && suspendRes.data?.ok === true, suspendRes.status);
+  record(
+    'Suspend user succeeds',
+    suspendRes.status === 200 && suspendRes.data?.ok === true,
+    suspendRes.status
+  );
 
   // Test 3: Ban user
   const banRes = await api('POST', `/admin/users/${testUserId}/ban`, {
@@ -632,13 +724,17 @@ async function testUserManagement(token: string): Promise<void> {
       'Banned user gets 403 on /auth/me',
       bannedAccess.status === 403,
       bannedAccess.status,
-      bannedAccess.status === 403 ? 'Correctly blocked' : 'BUG: banned user not blocked',
+      bannedAccess.status === 403 ? 'Correctly blocked' : 'BUG: banned user not blocked'
     );
   }
 
   // Test 5: Unban user
   const unbanRes = await api('POST', `/admin/users/${testUserId}/unban`, { token });
-  record('Unban user succeeds', unbanRes.status === 200 && unbanRes.data?.ok === true, unbanRes.status);
+  record(
+    'Unban user succeeds',
+    unbanRes.status === 200 && unbanRes.data?.ok === true,
+    unbanRes.status
+  );
 
   // Test 6: Unbanned user can access again
   if (testToken) {
@@ -647,28 +743,20 @@ async function testUserManagement(token: string): Promise<void> {
       'Unbanned user can access /auth/me again',
       unbannedAccess.status === 200,
       unbannedAccess.status,
-      unbannedAccess.status !== 200 ? 'BUG: unban did not restore access' : undefined,
+      unbannedAccess.status !== 200 ? 'BUG: unban did not restore access' : undefined
     );
   }
 
   // Test 7: Moderation history exists
   const modHistory = await api('GET', `/admin/users/${testUserId}/moderation`, { token });
-  record(
-    'Moderation history returns data',
-    modHistory.status === 200,
-    modHistory.status,
-  );
+  record('Moderation history returns data', modHistory.status === 200, modHistory.status);
 
   // Test 8: Invalid user ID handling
   const badWarn = await api('POST', '/admin/users/NONEXISTENT_USER/warn', {
     token,
     body: { reason: 'test', severity: 'warning' },
   });
-  record(
-    'Warn nonexistent user returns error (not 500)',
-    badWarn.status !== 500,
-    badWarn.status,
-  );
+  record('Warn nonexistent user returns error (not 500)', badWarn.status !== 500, badWarn.status);
 }
 ```
 
@@ -684,6 +772,7 @@ git commit -m "feat(audit): phase 4 — user management (warn/suspend/ban/unban)
 ### Task 6: Phase 5 — Reports & Moderation
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Replace the testReportsModeration placeholder**
@@ -697,7 +786,12 @@ async function testReportsModeration(token: string): Promise<void> {
   record('GET /admin/reports succeeds', list.status === 200, list.status);
 
   const reports: any[] = list.data?.reports || [];
-  record('Reports response has reports array', Array.isArray(reports), list.status, `${reports.length} report(s)`);
+  record(
+    'Reports response has reports array',
+    Array.isArray(reports),
+    list.status,
+    `${reports.length} report(s)`
+  );
 
   // Test 2: Report stats
   const stats = await api('GET', '/admin/reports/stats', { token });
@@ -705,12 +799,14 @@ async function testReportsModeration(token: string): Promise<void> {
 
   const statsData = stats.data;
   const statsFields = ['pending', 'reviewed', 'resolved', 'dismissed', 'total'];
-  const missingStats = statsFields.filter((f) => typeof statsData?.[f] !== 'number');
+  const missingStats = statsFields.filter(f => typeof statsData?.[f] !== 'number');
   record(
     'Report stats has all numeric fields',
     missingStats.length === 0,
     stats.status,
-    missingStats.length > 0 ? `Missing: ${missingStats.join(', ')}` : `pending=${statsData?.pending}, total=${statsData?.total}`,
+    missingStats.length > 0
+      ? `Missing: ${missingStats.join(', ')}`
+      : `pending=${statsData?.pending}, total=${statsData?.total}`
   );
 
   // Test 3: Stats sum check (pending + reviewed + resolved + dismissed should = total)
@@ -720,18 +816,23 @@ async function testReportsModeration(token: string): Promise<void> {
       'Report stats sum matches total',
       sum === statsData.total,
       stats.status,
-      `${sum} (sum) vs ${statsData.total} (total)`,
+      `${sum} (sum) vs ${statsData.total} (total)`
     );
   }
 
   // Test 4: Check for stale pending reports (older than 7 days)
   const pendingReports = reports.filter((r: any) => r.status === 'pending');
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const staleReports = pendingReports.filter((r: any) => new Date(r.created_at).getTime() < sevenDaysAgo);
+  const staleReports = pendingReports.filter(
+    (r: any) => new Date(r.created_at).getTime() < sevenDaysAgo
+  );
   if (staleReports.length > 0) {
     warn(
       'Stale pending reports (>7 days old)',
-      `${staleReports.length} report(s) pending for over a week. IDs: ${staleReports.slice(0, 5).map((r: any) => r.id).join(', ')}`,
+      `${staleReports.length} report(s) pending for over a week. IDs: ${staleReports
+        .slice(0, 5)
+        .map((r: any) => r.id)
+        .join(', ')}`
     );
   } else {
     record('No stale pending reports (>7 days)', true, 'OK');
@@ -741,12 +842,12 @@ async function testReportsModeration(token: string): Promise<void> {
   if (reports.length > 0) {
     const r = reports[0];
     const reportFields = ['id', 'status', 'created_at'];
-    const missingReport = reportFields.filter((f) => r?.[f] === undefined);
+    const missingReport = reportFields.filter(f => r?.[f] === undefined);
     record(
       'Reports have required fields (id, status, created_at)',
       missingReport.length === 0,
       list.status,
-      missingReport.length > 0 ? `Missing: ${missingReport.join(', ')}` : undefined,
+      missingReport.length > 0 ? `Missing: ${missingReport.join(', ')}` : undefined
     );
   }
 
@@ -762,7 +863,7 @@ async function testReportsModeration(token: string): Promise<void> {
     'Reports pagination returns <= limit',
     page1Reports.length <= 2,
     page1.status,
-    `Returned ${page1Reports.length} (limit 2)`,
+    `Returned ${page1Reports.length} (limit 2)`
   );
 }
 ```
@@ -779,6 +880,7 @@ git commit -m "feat(audit): phase 5 — reports & moderation"
 ### Task 7: Phase 6 & 7 — Transactions & Activity Log
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Replace the testTransactions and testActivityLog placeholders**
@@ -789,15 +891,27 @@ async function testTransactions(token: string): Promise<void> {
 
   // Test 1: List transactions
   const list = await api('GET', '/admin/transactions', { token });
-  record('GET /admin/transactions succeeds', list.status === 200 && list.data?.ok === true, list.status);
+  record(
+    'GET /admin/transactions succeeds',
+    list.status === 200 && list.data?.ok === true,
+    list.status
+  );
 
   // Test 2: Transaction summary
   const summary = await api('GET', '/admin/transactions/summary', { token });
-  record('GET /admin/transactions/summary succeeds', summary.status === 200 && summary.data?.ok === true, summary.status);
+  record(
+    'GET /admin/transactions/summary succeeds',
+    summary.status === 200 && summary.data?.ok === true,
+    summary.status
+  );
 
   // Test 3: Transactions with filters
   const filtered = await api('GET', '/admin/transactions?limit=5&status=COMPLETED', { token });
-  record('Filtered transactions (status=COMPLETED) succeeds', filtered.status === 200, filtered.status);
+  record(
+    'Filtered transactions (status=COMPLETED) succeeds',
+    filtered.status === 200,
+    filtered.status
+  );
 
   // Test 4: Transaction with invalid date
   const badDate = await api('GET', '/admin/transactions?startDate=not-a-date', { token });
@@ -805,16 +919,12 @@ async function testTransactions(token: string): Promise<void> {
     'Invalid date returns 400 (not 500)',
     badDate.status === 400,
     badDate.status,
-    badDate.status === 400 ? 'Correctly rejected' : `Got ${badDate.status} instead of 400`,
+    badDate.status === 400 ? 'Correctly rejected' : `Got ${badDate.status} instead of 400`
   );
 
   // Test 5: Transaction by fake session ID
   const fakeTxn = await api('GET', '/admin/transactions/cs_fake_session_12345', { token });
-  record(
-    'Fake session ID returns 404 (not 500)',
-    fakeTxn.status === 404,
-    fakeTxn.status,
-  );
+  record('Fake session ID returns 404 (not 500)', fakeTxn.status === 404, fakeTxn.status);
 }
 
 async function testActivityLog(token: string): Promise<void> {
@@ -822,18 +932,29 @@ async function testActivityLog(token: string): Promise<void> {
 
   // Test 1: List activity log
   const list = await api('GET', '/admin/activity-log', { token });
-  record('GET /admin/activity-log succeeds', list.status === 200 && list.data?.ok === true, list.status);
+  record(
+    'GET /admin/activity-log succeeds',
+    list.status === 200 && list.data?.ok === true,
+    list.status
+  );
 
   const activities: any[] = list.data?.activities || [];
-  record('Activity log returns activities array', Array.isArray(activities), list.status, `${activities.length} activit(ies)`);
+  record(
+    'Activity log returns activities array',
+    Array.isArray(activities),
+    list.status,
+    `${activities.length} activit(ies)`
+  );
 
   // Test 2: Pagination metadata
   const pagination = list.data?.pagination;
   record(
     'Activity log has pagination metadata',
-    pagination != null && typeof pagination.page === 'number' && typeof pagination.total === 'number',
+    pagination != null &&
+      typeof pagination.page === 'number' &&
+      typeof pagination.total === 'number',
     list.status,
-    pagination ? `page=${pagination.page}, total=${pagination.total}` : 'Missing pagination',
+    pagination ? `page=${pagination.page}, total=${pagination.total}` : 'Missing pagination'
   );
 
   // Test 3: Filter by type
@@ -848,15 +969,20 @@ async function testActivityLog(token: string): Promise<void> {
   if (activities.length > 0) {
     const a = activities[0];
     const fields = ['id', 'action', 'timestamp'];
-    const missing = fields.filter((f) => a?.[f] === undefined);
+    const missing = fields.filter(f => a?.[f] === undefined);
     record(
       'Activity entries have required fields',
       missing.length === 0,
       list.status,
-      missing.length > 0 ? `Missing: ${missing.join(', ')}` : undefined,
+      missing.length > 0 ? `Missing: ${missing.join(', ')}` : undefined
     );
   } else {
-    record('Activity entries have required fields', true, list.status, 'No entries to check (OK for fresh system)');
+    record(
+      'Activity entries have required fields',
+      true,
+      list.status,
+      'No entries to check (OK for fresh system)'
+    );
   }
 
   // Test 6: Pagination limit enforcement
@@ -866,7 +992,7 @@ async function testActivityLog(token: string): Promise<void> {
     'Activity log respects limit parameter',
     limitedActivities.length <= 3,
     limited.status,
-    `Returned ${limitedActivities.length} (limit 3)`,
+    `Returned ${limitedActivities.length} (limit 3)`
   );
 }
 ```
@@ -883,6 +1009,7 @@ git commit -m "feat(audit): phase 6 & 7 — transactions & activity log"
 ### Task 8: Phase 8 — Orphan & Dead State Detection
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts`
 
 - [ ] **Step 1: Replace the testOrphanDetection placeholder**
@@ -905,7 +1032,10 @@ async function testOrphanDetection(token: string): Promise<void> {
   if (stuckCoaches.length > 0) {
     warn(
       'Coaches with completed onboarding but PENDING approval',
-      `${stuckCoaches.length} coach(es): ${stuckCoaches.slice(0, 5).map((c: any) => c.display_name || c.email).join(', ')}`,
+      `${stuckCoaches.length} coach(es): ${stuckCoaches
+        .slice(0, 5)
+        .map((c: any) => c.display_name || c.email)
+        .join(', ')}`
     );
   } else {
     record('No coaches stuck in PENDING with completed onboarding', true, 'OK');
@@ -917,7 +1047,10 @@ async function testOrphanDetection(token: string): Promise<void> {
   if (orphanedLeagues.length > 0) {
     warn(
       'Pending leagues with no owner',
-      `${orphanedLeagues.length} league(s): ${orphanedLeagues.slice(0, 5).map((l: any) => l.name).join(', ')}`,
+      `${orphanedLeagues.length} league(s): ${orphanedLeagues
+        .slice(0, 5)
+        .map((l: any) => l.name)
+        .join(', ')}`
     );
   } else {
     record('All pending leagues have an owner', true, 'OK');
@@ -928,7 +1061,10 @@ async function testOrphanDetection(token: string): Promise<void> {
   if (emptyLeagues.length > 0) {
     warn(
       'Pending leagues with zero teams',
-      `${emptyLeagues.length} league(s): ${emptyLeagues.slice(0, 5).map((l: any) => l.name).join(', ')}`,
+      `${emptyLeagues.length} league(s): ${emptyLeagues
+        .slice(0, 5)
+        .map((l: any) => l.name)
+        .join(', ')}`
     );
   } else {
     record('All pending leagues have at least one team', true, 'OK');
@@ -946,7 +1082,10 @@ async function testOrphanDetection(token: string): Promise<void> {
   const bannedCount = d?.bannedUsers ?? 0;
   const totalUsers = d?.totalUsers ?? 0;
   if (totalUsers > 0 && bannedCount / totalUsers > 0.1) {
-    warn('High ban rate', `${bannedCount}/${totalUsers} users banned (${((bannedCount / totalUsers) * 100).toFixed(1)}%)`);
+    warn(
+      'High ban rate',
+      `${bannedCount}/${totalUsers} users banned (${((bannedCount / totalUsers) * 100).toFixed(1)}%)`
+    );
   } else {
     record('Ban rate is reasonable', true, 'OK', `${bannedCount}/${totalUsers} banned`);
   }
@@ -963,11 +1102,13 @@ async function testOrphanDetection(token: string): Promise<void> {
   const reportsRes = await api('GET', '/admin/reports?status=pending&limit=500', { token });
   const pendingReports: any[] = reportsRes.data?.reports || [];
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const ancientReports = pendingReports.filter((r: any) => new Date(r.created_at).getTime() < thirtyDaysAgo);
+  const ancientReports = pendingReports.filter(
+    (r: any) => new Date(r.created_at).getTime() < thirtyDaysAgo
+  );
   if (ancientReports.length > 0) {
     warn(
       'Pending reports older than 30 days',
-      `${ancientReports.length} report(s) — oldest: ${ancientReports[0]?.created_at}`,
+      `${ancientReports.length} report(s) — oldest: ${ancientReports[0]?.created_at}`
     );
   } else {
     record('No ancient pending reports (>30 days)', true, 'OK');
@@ -981,7 +1122,7 @@ async function testOrphanDetection(token: string): Promise<void> {
     'verifiedUsers <= totalUsers',
     verified <= total,
     verified <= total ? 'OK' : 'BAD',
-    `${verified} verified / ${total} total`,
+    `${verified} verified / ${total} total`
   );
 
   // bannedUsers should never exceed totalUsers
@@ -990,7 +1131,7 @@ async function testOrphanDetection(token: string): Promise<void> {
     'bannedUsers <= totalUsers',
     banned <= total,
     banned <= total ? 'OK' : 'BAD',
-    `${banned} banned / ${total} total`,
+    `${banned} banned / ${total} total`
   );
 }
 ```
@@ -1007,6 +1148,7 @@ git commit -m "feat(audit): phase 8 — orphan & dead state detection"
 ### Task 9: Final integration and test run
 
 **Files:**
+
 - Modify: `server/scripts/admin-e2e-audit.ts` (remove placeholder comments)
 
 - [ ] **Step 1: Remove all PHASE_PLACEHOLDER comments**
@@ -1020,7 +1162,7 @@ Expected: No errors (or only non-blocking warnings)
 
 - [ ] **Step 3: Dry run against production**
 
-Run: `ADMIN_EMAIL=emancero@varsityhub.app ADMIN_PASSWORD=<your-password> npx tsx server/scripts/admin-e2e-audit.ts`
+Run: `ADMIN_EMAIL=support@varsityhub.app ADMIN_PASSWORD=<your-password> npx tsx server/scripts/admin-e2e-audit.ts`
 Expected: Full pass/fail report. Review output for any unexpected failures.
 
 - [ ] **Step 4: Final commit**

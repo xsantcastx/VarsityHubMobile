@@ -5,7 +5,7 @@ VarsityHub is a team management and social platform for youth sports communities
 ---
 
 **Demo Account**
-Email: emancero@varsityhub.app
+Email: support@varsityhub.app
 Password: Lime3100$
 
 This is a pre-approved Coach account with a league ("VarsityHub Demo League"), one team ("Stamford Varsity Basketball"), and a post in the feed. You can immediately browse the feed, manage the team, view the admin dashboard, and explore all features.
@@ -14,11 +14,11 @@ This is a pre-approved Coach account with a league ("VarsityHub Demo League"), o
 
 **Testing Key Flows**
 
-1. *Browse Feed:* After login, the home tab displays a feed of posts from followed teams. Scroll to browse; tap a post to view details and comments.
-2. *Follow a Team:* Navigate to the Explore tab, search for a team, and tap "Follow." The team's posts will appear in your feed.
-3. *View Events:* Tap the Events tab to see upcoming events. Tap an event for details including location and time.
-4. *Maps:* The Maps tab shows nearby teams and event locations.
-5. *Messaging:* Tap the Messages tab to view conversations.
+1. _Browse Feed:_ After login, the home tab displays a feed of posts from followed teams. Scroll to browse; tap a post to view details and comments.
+2. _Follow a Team:_ Navigate to the Explore tab, search for a team, and tap "Follow." The team's posts will appear in your feed.
+3. _View Events:_ Tap the Events tab to see upcoming events. Tap an event for details including location and time.
+4. _Maps:_ The Maps tab shows nearby teams and event locations.
+5. _Messaging:_ Tap the Messages tab to view conversations.
 
 ---
 
@@ -48,6 +48,7 @@ All user-generated content (posts, comments, messages) can be reported by any us
 **In-App Purchases (iOS)**
 
 Subscriptions and ad purchases use Apple In-App Purchase exclusively on iOS. Available plans:
+
 - Rookie: Free (2 teams, 50-player roster limit)
 - Veteran: $0.99/month per team (100-player roster limit)
 - Legend: $20/year (unlimited teams and rosters, club features)

@@ -3,7 +3,7 @@
  */
 
 const BASE = 'https://api-production-8ac3.up.railway.app';
-const ADMIN_EMAIL = 'emancero@varsityhub.app';
+const ADMIN_EMAIL = 'support@varsityhub.app';
 const ADMIN_PASS = 'Lime3100$';
 const ts = Date.now();
 

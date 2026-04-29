@@ -4,7 +4,7 @@
  */
 
 const BASE = 'https://api-production-8ac3.up.railway.app';
-const ADMIN_EMAIL = 'emancero@varsityhub.app';
+const ADMIN_EMAIL = 'support@varsityhub.app';
 const ADMIN_PASS = 'Lime3100$';
 const ts = Date.now();
 
@@ -186,7 +186,7 @@ async function main() {
   f5Details.push('Form: org name, type, location, supporting document (required)');
   f5Details.push('Submit creates org with admin_approved=false');
   f5Details.push('Coach set to approval_status=PENDING');
-  f5Details.push('Email sent to emancero@varsityhub.app with Approve/Reject buttons');
+  f5Details.push('Email sent to support@varsityhub.app with Approve/Reject buttons');
   f5Details.push('League pending screen shows: "Usually less than 24 hours"');
 
   // Verify org creation endpoint
@@ -221,7 +221,7 @@ async function main() {
   const f6Details: string[] = [];
   let f6Status: 'PASS' | 'PARTIAL' | 'FAIL' = 'PASS';
 
-  f6Details.push('Admin receives email at emancero@varsityhub.app');
+  f6Details.push('Admin receives email at support@varsityhub.app');
   f6Details.push('Email contains: league name, owner name, sport, Approve/Reject buttons');
   f6Details.push('Click Approve → browser shows HTML form "Approve this league?"');
   f6Details.push('Click confirm → browser shows "League Approved" with league name');

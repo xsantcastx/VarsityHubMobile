@@ -8,7 +8,7 @@
  *   PREVIEW_TO=alice@example.com railway run npx tsx scripts/preview-all-emails.ts
  *
  * Defaults:
- *   PREVIEW_TO = emancero@varsityhub.app
+ *   PREVIEW_TO = support@varsityhub.app
  *
  * Why this exists: gives marketing/leadership a one-shot preview of every
  * SendGrid template firing in real production, with realistic-but-distinct
@@ -52,7 +52,7 @@ import {
   sendStaffMemberJoinedEmail,
 } from '../src/lib/email.js';
 
-const TO = process.env.PREVIEW_TO || 'emancero@varsityhub.app';
+const TO = process.env.PREVIEW_TO || 'support@varsityhub.app';
 
 type Step = { name: string; run: () => Promise<unknown> };
 

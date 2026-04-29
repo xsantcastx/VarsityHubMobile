@@ -1804,7 +1804,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
   }
   const { ad } = quote;
 
-  // No charge until approved by emancero@varsityhub.app. Once approved, no re-approval needed for future runs.
+  // No charge until approved by support@varsityhub.app. Once approved, no re-approval needed for future runs.
   if (ad.status !== 'approved' && ad.status !== 'active') {
     return res.status(403).json({
       error: 'APPROVAL_REQUIRED',

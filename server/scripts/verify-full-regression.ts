@@ -173,7 +173,7 @@ async function main() {
 
   const creatorDb = await prisma.user.findUnique({ where: { id: creator.id }, select: { approval_status: true } });
   check('Creator set to PENDING', creatorDb?.approval_status === 'PENDING');
-  console.log('    (Admin email to emancero@varsityhub.app triggered by server — verify in SendGrid logs)');
+  console.log('    (Admin email to support@varsityhub.app triggered by server — verify in SendGrid logs)');
 
   // ═══════════════════════════════════════════
   // REGRESSION 5: Push token registration flow

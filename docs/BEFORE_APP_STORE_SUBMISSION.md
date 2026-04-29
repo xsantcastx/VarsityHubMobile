@@ -32,14 +32,14 @@ Fix any **errors** from these before building. Warnings are acceptable if you’
 
 ## 2. Confirm production config
 
-| Item | Where to check | Notes |
-|------|----------------|-------|
-| **Production API URL** | EAS production env / `.env` | Should be `https://api-production-8ac3.up.railway.app` (or your live API). |
-| **Stripe publishable key** | `eas.json` production env | Must be `pk_live_...` for real payments. Already in eas.json production profile. |
-| **Sentry DSN** | `eas.json` production env | Optional but recommended; production profile has it. |
-| **App Store Connect App ID** | `eas.json` → submit.production.ios.ascAppId | Must match the app in App Store Connect (`6758405187` in eas.json). |
-| **Apple ID for submit** | `eas.json` → submit.production.ios.appleId | Used for `eas submit`. |
-| **Apple IAP shared secret** | Railway env `APPLE_IAP_SHARED_SECRET` | Required for iOS in-app purchase receipt verification. From App Store Connect → App → App Information → App-Specific Shared Secret. |
+| Item                         | Where to check                              | Notes                                                                                                                               |
+| ---------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Production API URL**       | EAS production env / `.env`                 | Should be `https://api-production-8ac3.up.railway.app` (or your live API).                                                          |
+| **Stripe publishable key**   | `eas.json` production env                   | Must be `pk_live_...` for real payments. Already in eas.json production profile.                                                    |
+| **Sentry DSN**               | `eas.json` production env                   | Optional but recommended; production profile has it.                                                                                |
+| **App Store Connect App ID** | `eas.json` → submit.production.ios.ascAppId | Must match the app in App Store Connect (`6758405187` in eas.json).                                                                 |
+| **Apple ID for submit**      | `eas.json` → submit.production.ios.appleId  | Used for `eas submit`.                                                                                                              |
+| **Apple IAP shared secret**  | Railway env `APPLE_IAP_SHARED_SECRET`       | Required for iOS in-app purchase receipt verification. From App Store Connect → App → App Information → App-Specific Shared Secret. |
 
 ---
 
@@ -93,12 +93,12 @@ Code is ready. The items below are **store/backend config** (not code changes). 
 
 ### Already set in code (verified)
 
-| Item | Where | Notes |
-|------|--------|------|
-| **IAP product IDs** | `hooks/useIAP.ts` (`IAP_PRODUCT_IDS`), `server/src/routes/payments.ts` | App and server use **MIDTIER** and **TOPTIER**; no code change needed. |
-| **ADMIN_EMAILS fallback** | `server` (payments, ads, email, auth, games, etc.) | If `ADMIN_EMAILS` is unset, server uses **emancero@varsityhub.app**. |
-| **Client admin email** | `app.json` → `EXPO_PUBLIC_ADMIN_EMAILS` | Set to **emancero@varsityhub.app** for in-app use (e.g. request-host-event). |
-| **SendGrid template keys** | `server/src/lib/email.ts` | All template IDs read from env (e.g. `SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID`); see `.env.example` for full list. |
+| Item                       | Where                                                                  | Notes                                                                                                             |
+| -------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **IAP product IDs**        | `hooks/useIAP.ts` (`IAP_PRODUCT_IDS`), `server/src/routes/payments.ts` | App and server use **MIDTIER** and **TOPTIER**; no code change needed.                                            |
+| **ADMIN_EMAILS fallback**  | `server` (payments, ads, email, auth, games, etc.)                     | If `ADMIN_EMAILS` is unset, server uses **support@varsityhub.app**.                                               |
+| **Client admin email**     | `app.json` → `EXPO_PUBLIC_ADMIN_EMAILS`                                | Set to **support@varsityhub.app** for in-app use (e.g. request-host-event).                                       |
+| **SendGrid template keys** | `server/src/lib/email.ts`                                              | All template IDs read from env (e.g. `SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID`); see `.env.example` for full list. |
 
 You only need to create products in the stores and set env vars on Railway (below).
 
@@ -118,11 +118,11 @@ You only need to create products in the stores and set env vars on Railway (belo
 
 Add or verify on your Railway production service:
 
-| Variable | Purpose |
-|----------|---------|
-| **ADMIN_EMAILS** | Comma-separated admin emails. Optional: code fallback is emancero@varsityhub.app; set this to override (e.g. production list). |
-| **SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID** | SendGrid dynamic template for ad pending-review. Create in SendGrid, paste ID. |
-| **SENDGRID_*** (others) | All keys in `server/src/lib/email.ts` and `server/.env.example`. Create templates in SendGrid and set IDs on Railway for each flow you use. |
+| Variable                                   | Purpose                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ADMIN_EMAILS**                           | Comma-separated admin emails. Optional: code fallback is support@varsityhub.app; set this to override (e.g. production list).               |
+| **SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID** | SendGrid dynamic template for ad pending-review. Create in SendGrid, paste ID.                                                              |
+| **SENDGRID\_\*** (others)                  | All keys in `server/src/lib/email.ts` and `server/.env.example`. Create templates in SendGrid and set IDs on Railway for each flow you use. |
 
 ### Summary
 

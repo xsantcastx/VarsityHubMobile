@@ -1,4 +1,5 @@
 # VarsityHub iOS - Final Launch Status
+
 **December 11, 2025**
 
 ---
@@ -8,9 +9,11 @@
 ### ✅ **COMPLETED THIS SESSION**
 
 #### 1. Email Verification Flow (PRODUCTION READY)
+
 **Files:** `app/verify-email.tsx`, `server/src/routes/auth.ts`, `server/src/lib/email.ts`
 
 **What's Done:**
+
 - ✅ Frontend: 6-digit code input, resend button, dev mode support
 - ✅ Backend: Code generation (6-digit), validation, 30-min expiration
 - ✅ Rate limiting: 1/30s, 5/hour per user (admin bypass)
@@ -20,6 +23,7 @@
 - ✅ Auto-navigation: Coach → onboarding, Fan → feed
 
 **Telemetry Captures:**
+
 ```
 Frontend:
   - verify_duration_ms (how long code verification took)
@@ -37,15 +41,18 @@ Backend:
 ```
 
 **Documentation:**
+
 - `EMAIL_VERIFICATION_IMPLEMENTATION.md` - Full technical spec
 - `EMAIL_VERIFICATION_STATUS.txt` - Production checklist
 
 ---
 
 #### 2. Coach/Organizer Role Gating (IMPLEMENTED)
+
 **File:** `server/src/routes/teams.ts`
 
 **What's Done:**
+
 - ✅ Rookie plan: Max 2 teams, 1 authorized user per team
 - ✅ Veteran plan: Unlimited teams, 5 authorized users per team
 - ✅ Legend plan: Unlimited teams and authorized users
@@ -57,9 +64,11 @@ Backend:
 ---
 
 #### 3. Dynamic Email Templates (SETUP COMPLETE)
+
 **File:** `server/src/lib/email.ts`, `server/src/routes/auth.ts`
 
 **What's Done:**
+
 - ✅ Coach onboarding email function with plan-specific features
 - ✅ Fan welcome email function
 - ✅ Template ID environment variables configured
@@ -71,6 +80,7 @@ Backend:
 ---
 
 #### 4. Pre-Launch Infrastructure
+
 - ✅ Pre-submission verification script: `PRE_SUBMISSION_CHECKS.sh`
 - ✅ Comprehensive checklists and documentation
 - ✅ Expo Updates configured (OTA deployment ready)
@@ -83,6 +93,7 @@ Backend:
 ## 📦 CURRENT BUILD STATUS
 
 **iOS App:**
+
 - Version: 1.0.1, Build 39
 - Size: 34MB IPA
 - Signed with Apple Team ID: B5H8F69RW5
@@ -90,11 +101,13 @@ Backend:
 - Expires: March 11, 2026
 
 **Backend:**
+
 - Production API: `https://api-production-8ac3.up.railway.app`
 - Status: Running and verified working
 - Database: Migrations up to date
 
 **Frontend:**
+
 - Onboarding flow: 1→2→3→4→6→7→8→9→10→finish (step-5 removed)
 - All screens implemented and tested
 - Telemetry integrated
@@ -108,6 +121,7 @@ Backend:
 Before running `eas submit --platform ios --latest`:
 
 **Environment Variables (Production):**
+
 ```bash
 # Email
 SENDGRID_API_KEY=SG.xxxxxxxxxxxxx
@@ -116,13 +130,14 @@ EMAIL_FROM=noreply@varsityhub.app
 APP_BASE_URL=https://varsityhub.app
 
 # Admin
-ADMIN_EMAILS=emancero@varsityhub.app
+ADMIN_EMAILS=support@varsityhub.app
 
 # Coach Plans
 STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxx (if billing enabled)
 ```
 
 **Verification Steps:**
+
 - [ ] Test email verification with real email (not dev mode)
 - [ ] Verify email delivery (check spam folder)
 - [ ] Test coach role with plan selection
@@ -131,6 +146,7 @@ STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxx (if billing enabled)
 - [ ] Check Sentry for error tags
 
 **Submission Command:**
+
 ```bash
 eas submit --platform ios --latest
 ```
@@ -141,23 +157,24 @@ This submits the current TestFlight build (v1.0.1 build 39) without rebuilding.
 
 ## 📊 FEATURE COMPLETION
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Email Verification | ✅ Complete | Telemetry in place, production ready |
-| Apple Sign-in | ✅ Complete | Dev fallback working, owner email recognized |
-| Coach Role Gating | ✅ Complete | Plan-based limits enforced |
-| Dynamic Email Templates | ✅ Complete | Functions defined, templates need SendGrid IDs |
-| Onboarding Flow | ✅ Complete | Step-5 removed, 9 steps now (1,2,3,4,6,7,8,9,10) |
-| Expo Updates | ✅ Complete | OTA deployment working, 4 updates published |
-| Worldwide Games | ✅ Complete | Location filter removed, all games show |
-| Admin Bypass | ✅ Complete | Owner email bypasses onboarding |
-| Telemetry | ✅ Complete | Sentry integration, debug logging |
+| Feature                 | Status      | Notes                                            |
+| ----------------------- | ----------- | ------------------------------------------------ |
+| Email Verification      | ✅ Complete | Telemetry in place, production ready             |
+| Apple Sign-in           | ✅ Complete | Dev fallback working, owner email recognized     |
+| Coach Role Gating       | ✅ Complete | Plan-based limits enforced                       |
+| Dynamic Email Templates | ✅ Complete | Functions defined, templates need SendGrid IDs   |
+| Onboarding Flow         | ✅ Complete | Step-5 removed, 9 steps now (1,2,3,4,6,7,8,9,10) |
+| Expo Updates            | ✅ Complete | OTA deployment working, 4 updates published      |
+| Worldwide Games         | ✅ Complete | Location filter removed, all games show          |
+| Admin Bypass            | ✅ Complete | Owner email bypasses onboarding                  |
+| Telemetry               | ✅ Complete | Sentry integration, debug logging                |
 
 ---
 
 ## 🎯 NEXT STEPS AFTER SUBMISSION
 
 ### Phase 1: Launch & Monitoring (Week 1)
+
 1. Submit to App Store
 2. Monitor Apple review (3-5 days)
 3. Watch Sentry for verification errors
@@ -165,6 +182,7 @@ This submits the current TestFlight build (v1.0.1 build 39) without rebuilding.
 5. Monitor backend logs for rate limits
 
 ### Phase 2: Post-Launch (Weeks 2-4)
+
 1. Create SendGrid email templates (coach/fan onboarding)
 2. Set SENDGRID_COACH_ONBOARDING_TEMPLATE_ID, SENDGRID_FAN_WELCOME_TEMPLATE_ID
 3. Monitor email delivery rates
@@ -172,6 +190,7 @@ This submits the current TestFlight build (v1.0.1 build 39) without rebuilding.
 5. Address 370 lint warnings (non-blocking)
 
 ### Phase 3: Feature Expansion (Month 2+)
+
 1. Implement team management features
 2. Add subscription/billing flow
 3. Expand game creation and event management
@@ -200,6 +219,7 @@ dda8743 Fix step-9 payload - only send defined fields to avoid validation errors
 ## 🔍 HOW TO VERIFY EVERYTHING IS WORKING
 
 ### Quick Test Flow
+
 ```bash
 1. Sign up with test email
 2. Enter verification code (check inbox or dev code on screen)
@@ -210,6 +230,7 @@ dda8743 Fix step-9 payload - only send defined fields to avoid validation errors
 ```
 
 ### Check Telemetry
+
 ```bash
 # Frontend
 - Open DevTools → Network tab
@@ -223,6 +244,7 @@ dda8743 Fix step-9 payload - only send defined fields to avoid validation errors
 ```
 
 ### Monitor Production
+
 ```bash
 # Sentry
 - Tag: verify-email-verify
@@ -249,6 +271,7 @@ dda8743 Fix step-9 payload - only send defined fields to avoid validation errors
 ## ✨ KEY HIGHLIGHTS
 
 **What Makes This Launch Solid:**
+
 1. **Email verification is bulletproof** - Telemetry tracks every step, rate limiting prevents abuse
 2. **Role-based features enforced** - Can't bypass plan limits on backend
 3. **Production monitoring ready** - Sentry + debug logs catch issues immediately
@@ -257,6 +280,7 @@ dda8743 Fix step-9 payload - only send defined fields to avoid validation errors
 6. **Documentation complete** - Every system documented with examples
 
 **Ready to Launch Because:**
+
 - All critical paths tested and working
 - Error handling comprehensive
 - Telemetry in place for monitoring
@@ -273,7 +297,8 @@ dda8743 Fix step-9 payload - only send defined fields to avoid validation errors
 
 The app is production-ready. The email verification flow is the biggest signup blocker and it's now fully implemented with telemetry. Coach role gating prevents abuse. All critical paths are tested.
 
-**Next action:** 
+**Next action:**
+
 ```bash
 eas submit --platform ios --latest
 ```
