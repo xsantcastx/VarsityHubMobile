@@ -19,16 +19,58 @@ import { isAdminEmail } from '../lib/adminEmails.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 import { sendError } from '../lib/http/sendError.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
-import { sendEventApprovedEmail, sendEventDeniedEmail } from '../lib/email.js';
+import {
+  sendEventApprovedEmail,
+  sendEventCanceledEmail,
+  sendEventDeniedEmail,
+  sendEventUpdatedEmail,
+} from '../lib/email.js';
+import { cancelGameReminders } from '../lib/notifications.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
+const RSVP_FANOUT_LIMIT = 50_000;
+const RSVP_FANOUT_BATCH = 200;
 
 async function invalidateGamesListCache(): Promise<void> {
   await cacheDelPattern('games:*');
+}
+
+async function* iterateLinkedEventRsvps(
+  eventId: string,
+  options: { batchSize?: number; cap?: number } = {}
+): AsyncGenerator<
+  Array<{
+    id: string;
+    user_id: string;
+    user: { id: string; email: string | null; display_name: string | null } | null;
+  }>
+> {
+  const batchSize = options.batchSize ?? RSVP_FANOUT_BATCH;
+  const cap = options.cap ?? RSVP_FANOUT_LIMIT;
+  let cursor: string | undefined;
+  let yielded = 0;
+
+  while (yielded < cap) {
+    const batch = await prisma.eventRsvp.findMany({
+      where: { event_id: eventId },
+      include: {
+        user: {
+          select: { id: true, email: true, display_name: true },
+        },
+      },
+      orderBy: { id: 'asc' },
+      take: Math.min(batchSize, cap - yielded),
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    });
+    if (batch.length === 0) return;
+    yield batch;
+    yielded += batch.length;
+    cursor = batch[batch.length - 1]?.id;
+  }
 }
 
 function renderGameReviewPage(action: 'approve' | 'reject', title: string, token: string) {
@@ -1541,15 +1583,54 @@ gamesRouter.delete(
         });
         const gameTitle = gameForNotif?.title || 'A game';
 
-        // Find events linked to this game and their RSVPs
+        // Find events linked to this game so we can notify attendees and cancel
+        // scheduled reminders before the cascade delete removes the rows.
         const linkedEvents = await prisma.event.findMany({
           where: { game_id: id },
-          select: { id: true, rsvps: { select: { user_id: true } } },
+          select: {
+            id: true,
+            title: true,
+            date: true,
+            location: true,
+          },
         });
         const rsvpUserIds = new Set<string>();
         for (const evt of linkedEvents) {
-          for (const rsvp of evt.rsvps) {
-            if (rsvp.user_id !== req.user!.id) rsvpUserIds.add(rsvp.user_id);
+          const eventDate = evt.date instanceof Date ? evt.date : new Date(evt.date);
+          const eventDateStr = eventDate.toLocaleDateString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+          const eventTimeStr = eventDate.toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          const eventLocation = [evt.location].filter(Boolean).join(', ');
+
+          for await (const batch of iterateLinkedEventRsvps(evt.id)) {
+            for (const rsvp of batch) {
+              if (!rsvp.user_id || rsvp.user_id === req.user!.id) continue;
+              rsvpUserIds.add(rsvp.user_id);
+
+              void cancelGameReminders(evt.id, rsvp.user_id).catch((err) => {
+                console.warn('[games] Failed to cancel game reminders after delete:', err);
+              });
+
+              if (rsvp.user?.email) {
+                void sendEventCanceledEmail({
+                  to: rsvp.user.email,
+                  recipientName: rsvp.user.display_name || 'there',
+                  eventName: evt.title || gameTitle,
+                  eventDate: eventDateStr,
+                  eventTime: eventTimeStr,
+                  eventLocation,
+                }).catch((err: any) =>
+                  console.warn('[games] game delete cancel email failed:', err?.message || err)
+                );
+              }
+            }
           }
         }
 
@@ -1979,6 +2060,56 @@ gamesRouter.put(
         if (d.location !== undefined) eventUpdate.location = d.location;
         if (Object.keys(eventUpdate).length > 0) {
           await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
+        }
+
+        const changes: string[] = [];
+        if (d.date !== undefined) {
+          changes.push(
+            `Time: ${new Date(d.date).toLocaleString(undefined, {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })}`
+          );
+        }
+        if (d.location !== undefined) {
+          changes.push(`Location: ${d.location || updated.location || 'Updated'}`);
+        }
+
+        if (changes.length > 0) {
+          const eventName = updated.title || event.title || 'Event';
+          const pushBody = `Event Updated: ${eventName} — ${changes.join('; ')}`;
+          const { sendPushNotification } = await import('../lib/notifications.js');
+
+          for await (const batch of iterateLinkedEventRsvps(event.id)) {
+            for (const rsvp of batch) {
+              if (rsvp.user?.id && rsvp.user.id !== req.user.id) {
+                void sendPushNotification(rsvp.user.id, 'Event Updated', pushBody, {
+                  type: 'event_updated',
+                  event_id: event.id,
+                  screen: 'event-detail',
+                }).catch((pushErr) => {
+                  console.warn('[games] Failed to send event updated push:', pushErr);
+                });
+              }
+
+              if (rsvp.user?.email && rsvp.user.id !== req.user.id) {
+                void sendEventUpdatedEmail({
+                  to: rsvp.user.email,
+                  attendeeName: rsvp.user.display_name || undefined,
+                  eventTitle: eventName,
+                  changes,
+                  newDate: updated.date,
+                  newLocation: updated.location,
+                }).catch((err: any) =>
+                  console.warn('[games] event update email failed:', err?.message || err)
+                );
+              }
+            }
+          }
         }
       }
 
