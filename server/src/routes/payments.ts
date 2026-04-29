@@ -580,13 +580,29 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                 }
               }
             }
-            // SECURITY: Only activate ads that have been approved by admin
-            const adCheck = await tx.ad.findUnique({ where: { id: adId }, select: { status: true } });
+            // SECURITY: Only activate ads that have been approved by admin.
+            // Use the same lost-race + idempotency guard as the Checkout Session path.
+            const adCheck = await tx.ad.findUnique({
+              where: { id: adId },
+              select: { status: true, payment_status: true },
+            });
+            if (adCheck?.payment_status === 'paid') {
+              console.log(
+                `[payments] Idempotent: ad ${adId} already paid, skipping duplicate PaymentIntent activation`
+              );
+              return;
+            }
             if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
               throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`);
             }
 
-            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
+            const updated = await tx.ad.updateMany({
+              where: { id: adId, status: { in: ['approved', 'active'] } },
+              data: { payment_status: 'paid', status: 'active' },
+            });
+            if (updated.count === 0) {
+              throw new Error(`AD_NOT_APPROVED: Ad ${adId} was no longer approved at activation time`);
+            }
             await tx.adReservation.createMany({
               data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
               skipDuplicates: true,

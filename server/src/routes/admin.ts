@@ -31,6 +31,7 @@ import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { adminLimiter } from '../middleware/rateLimiters.js';
 import { captureException } from '../lib/sentry.js';
+import { invalidateMeCacheForUser } from '../lib/userCache.js';
 
 const adminRouter = express.Router();
 registerIdValidation(adminRouter);
@@ -461,7 +462,13 @@ adminRouter.patch(
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, display_name: true, parental_consent_status: true } as any,
+      select: {
+        id: true,
+        email: true,
+        display_name: true,
+        parent_email: true,
+        parental_consent_status: true,
+      } as any,
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
     const fromState = (user as any).parental_consent_status as
@@ -480,10 +487,18 @@ adminRouter.patch(
     if (status === 'approved') {
       // Unban the user if they were denied and are now approved.
       updateData.banned = false;
+      updateData.banned_until = null;
       updateData.ban_reason = null;
     } else if (status === 'denied') {
       updateData.banned = true;
+      updateData.banned_until = null;
       updateData.ban_reason = reason?.trim() || 'Parental consent denied by admin';
+    } else if (status === 'pending') {
+      // Pending consent should be enforced by the consent firewall rather than
+      // the hard ban flags so the user can reach the resend surface.
+      updateData.banned = false;
+      updateData.banned_until = null;
+      updateData.ban_reason = null;
     }
 
     // Atomically: update user + write COPPA-grade audit row. The dedicated
@@ -509,6 +524,28 @@ adminRouter.patch(
       userId,
       `Set parental_consent_status=${status}${reason ? ` — ${reason}` : ''}`
     );
+
+    await invalidateMeCacheForUser(userId);
+
+    if (status === 'pending' && (user as any).parent_email) {
+      try {
+        const { issueConsentToken } = await import('../lib/parentalConsent.js');
+        const { sendParentalConsentRequestEmail } = await import('../lib/email.js');
+        const rawToken = await issueConsentToken(userId);
+        await sendParentalConsentRequestEmail({
+          to: (user as any).parent_email,
+          minorDisplayName: (user as any).display_name || undefined,
+          minorEmail: (user as any).email || undefined,
+          consentToken: rawToken,
+          expiresInDays: 14,
+        });
+      } catch (err) {
+        console.warn(
+          '[admin] Failed to re-issue parental consent email after pending override:',
+          (err as any)?.message || err
+        );
+      }
+    }
 
     return res.json({ ok: true, status, from_state: fromState });
   })
@@ -991,6 +1028,7 @@ adminRouter.post(
         where: { id: unbannedUserId },
         data: {
           banned: false,
+          banned_until: null,
           ban_reason: null,
         },
       });
