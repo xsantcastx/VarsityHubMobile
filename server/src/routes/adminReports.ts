@@ -188,32 +188,6 @@ async function handleEmailReportReview(
     return res.send(renderReportReviewPage(action, report, token!));
   }
 
-  if (tokenValid) {
-    const consumeResult = await consumeReviewToken(token!, payload!);
-    if (consumeResult === 'already_used') {
-      return res
-        .status(409)
-        .send(
-          renderReportResultPage(
-            'Link Already Used',
-            `This ${action} link has already been used.`,
-            false
-          )
-        );
-    }
-    if (consumeResult === 'store_unavailable') {
-      return res
-        .status(503)
-        .send(
-          renderReportResultPage(
-            'Temporarily Unavailable',
-            `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`,
-            false
-          )
-        );
-    }
-  }
-
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
   const reviewerUserId = req.user?.id ?? 'email-token';
   let reviewerEmail = 'email-token';
@@ -255,6 +229,17 @@ async function handleEmailReportReview(
           false
         )
       );
+  }
+
+  if (tokenValid) {
+    const consumeResult = await consumeReviewToken(token!, payload!);
+    if (consumeResult !== 'consumed') {
+      console.warn('[adminReports] review token could not be marked consumed after success:', {
+        report_id: id,
+        action,
+        consumeResult,
+      });
+    }
   }
 
   await logAdminActivity(

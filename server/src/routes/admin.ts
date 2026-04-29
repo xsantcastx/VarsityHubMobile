@@ -126,32 +126,6 @@ async function handleCoachReview(
     return res.send(renderCoachReviewPage(action, coachName, token!));
   }
 
-  if (tokenValid) {
-    const consumeResult = await consumeReviewToken(token!, payload!);
-    if (consumeResult === 'already_used') {
-      return res
-        .status(409)
-        .send(
-          renderCoachResultPage(
-            'Link Already Used',
-            `This ${action} link has already been used.`,
-            false
-          )
-        );
-    }
-    if (consumeResult === 'store_unavailable') {
-      return res
-        .status(503)
-        .send(
-          renderCoachResultPage(
-            'Temporarily Unavailable',
-            `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`,
-            false
-          )
-        );
-    }
-  }
-
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;
   const reviewerUserId = signedInAdminSession?.id ?? null;
   let reviewerEmail = 'email-token';
@@ -167,6 +141,17 @@ async function handleCoachReview(
     return res
       .status(result.status || 500)
       .send(renderCoachResultPage('Error', result.error, false));
+  }
+
+  if (tokenValid) {
+    const consumeResult = await consumeReviewToken(token!, payload!);
+    if (consumeResult !== 'consumed') {
+      console.warn('[admin] coach review token could not be marked consumed after success:', {
+        coach_id: id,
+        action,
+        consumeResult,
+      });
+    }
   }
 
   await logAdminActivity(
