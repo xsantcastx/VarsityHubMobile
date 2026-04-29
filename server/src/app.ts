@@ -387,6 +387,19 @@ function buildVerifyFallbackHtml(req: Request): string {
   return `<div class="code-card"><p class="code-label">Manual Backup Code</p><p class="code-value">${escapeHtml(token)}</p><p class="meta">If your email app blocks the handoff, open VarsityHub manually and enter this 6-digit code on the verification screen.</p>${emailLine}</div>`;
 }
 
+function buildResetFallbackHtml(req: Request): string {
+  const code = typeof req.query.code === 'string' ? req.query.code.replace(/[^0-9]/g, '').slice(0, 6) : '';
+  if (code.length !== 6) return '';
+  const email =
+    typeof req.query.email === 'string' && req.query.email.trim().length > 0
+      ? req.query.email.trim().toLowerCase()
+      : '';
+  const emailLine = email
+    ? `<p class="meta">This reset code is for <strong>${escapeHtml(email)}</strong>.</p>`
+    : '';
+  return `<div class="code-card"><p class="code-label">Manual Backup Code</p><p class="code-value">${escapeHtml(code)}</p><p class="meta">If your email app blocks the handoff, open VarsityHub manually and enter this 6-digit code on the password reset screen.</p>${emailLine}</div>`;
+}
+
 const publicAppHandoffRoutes: Array<{ path: string; title: string; description: string }> = [
   {
     path: '/verify',
@@ -507,7 +520,11 @@ for (const route of publicAppHandoffRoutes) {
         route.title,
         route.description,
         buildNativeHandoffUrl(route.path, req),
-        route.path === '/verify' ? buildVerifyFallbackHtml(req) : ''
+        route.path === '/verify'
+          ? buildVerifyFallbackHtml(req)
+          : route.path === '/reset-password'
+            ? buildResetFallbackHtml(req)
+            : ''
       )
     );
   });

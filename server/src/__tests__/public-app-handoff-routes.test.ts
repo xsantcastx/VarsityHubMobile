@@ -30,6 +30,22 @@ describe('Public app handoff routes', () => {
     expect(res.text).toContain('varsityhubmobile://settings/manage-subscription');
   });
 
+  it('serves a reset-password handoff page with a manual backup code', async () => {
+    const res = await request(app)
+      .get('/reset-password')
+      .query({ code: '654321', email: 'user@example.com' })
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Reset Your Password');
+    expect(res.text).toContain(
+      'varsityhubmobile://reset-password?code=654321&email=user%40example.com'
+    );
+    expect(res.text).toContain('Manual Backup Code');
+    expect(res.text).toContain('654321');
+    expect(res.text).toContain('user@example.com');
+  });
+
   it('serves an admin dashboard handoff page with preserved review params', async () => {
     const res = await request(app)
       .get('/admin-dashboard')
