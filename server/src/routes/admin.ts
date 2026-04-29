@@ -479,9 +479,12 @@ adminRouter.patch(
     const updateData: Record<string, unknown> = {
       parental_consent_status: status,
       parental_consent_at: status === 'pending' ? null : now,
-      // Any override invalidates outstanding email links.
-      parental_consent_token_hash: null,
     };
+    if (status === 'pending') {
+      // Support is re-opening the flow, so discard any stale resolved token
+      // before issuing a fresh link below.
+      updateData.parental_consent_token_hash = null;
+    }
     if (status === 'approved') {
       // Unban the user if they were denied and are now approved.
       updateData.banned = false;

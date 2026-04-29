@@ -506,7 +506,8 @@ export function startPostUpvoteReconciliation() {
  * industry norm: if a parent hasn't approved within two weeks, treat it as
  * implicit deny. The minor can still contact support to reset.
  *
- * Token hash is cleared so stale email links stop working. Refresh tokens
+ * The hashed token is preserved so old email links can still render an
+ * explicit expired page instead of collapsing to "invalid". Refresh tokens
  * are revoked to match `recordConsentDenial` semantics.
  */
 export function startParentalConsentExpiry() {
@@ -535,7 +536,6 @@ export function startParentalConsentExpiry() {
           data: {
             parental_consent_status: 'denied',
             parental_consent_at: new Date(),
-            parental_consent_token_hash: null,
             banned: true,
             ban_reason: 'Parental consent not received within 14 days',
           } as any,

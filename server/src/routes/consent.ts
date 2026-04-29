@@ -18,6 +18,7 @@ import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { verificationLimiter } from '../middleware/rateLimiters.js';
 import {
   lookupConsentByToken,
   recordConsentApproval,
@@ -57,6 +58,49 @@ function consentForm(rawToken: string, safeMinorName: string): string {
 </body></html>`;
 }
 
+function consentResolutionPage(
+  reason: 'not_found' | 'expired' | 'already_approved' | 'already_denied'
+): { status: number; html: string } {
+  if (reason === 'not_found') {
+    return {
+      status: 404,
+      html: landingPage(
+        'Consent Link Unavailable',
+        'This consent link is invalid. Please check the URL or request a new email.',
+        false
+      ),
+    };
+  }
+  if (reason === 'expired') {
+    return {
+      status: 410,
+      html: landingPage(
+        'Consent Link Expired',
+        'This consent link has expired. Please ask your child to request a new one from the app.',
+        false
+      ),
+    };
+  }
+  if (reason === 'already_approved') {
+    return {
+      status: 200,
+      html: landingPage(
+        'Consent Already Approved',
+        'This consent request was already approved. Your child can use VarsityHub.',
+        true
+      ),
+    };
+  }
+  return {
+    status: 200,
+    html: landingPage(
+      'Consent Already Denied',
+      'This consent request was already denied. Contact support if you need to reverse it.',
+      false
+    ),
+  };
+}
+
 // GET /consent/:token — landing page for the parent
 consentRouter.get(
   '/:token',
@@ -64,15 +108,11 @@ consentRouter.get(
     const token = String(req.params.token || '').trim();
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
-      const messages = {
-        not_found: 'This consent link is invalid. Please check the URL or request a new email.',
-        expired: 'This consent link has expired. Please ask your child to request a new one from the app.',
-        already_resolved: 'This consent request has already been handled. No further action needed.',
-      };
+      const resolved = consentResolutionPage(lookup.reason);
       return res
-        .status(lookup.reason === 'not_found' ? 404 : 410)
+        .status(resolved.status)
         .type('html')
-        .send(landingPage('Consent Link Unavailable', messages[lookup.reason], false));
+        .send(resolved.html);
     }
     const minor = await prisma.user.findUnique({
       where: { id: lookup.userId },
@@ -90,12 +130,17 @@ consentRouter.post(
     const token = String(req.params.token || '').trim();
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
+      const resolved = consentResolutionPage(lookup.reason);
       return res
-        .status(lookup.reason === 'not_found' ? 404 : 410)
+        .status(resolved.status)
         .type('html')
-        .send(landingPage('Consent Link Unavailable', 'This link can no longer be used.', false));
+        .send(resolved.html);
     }
-    await recordConsentApproval(lookup.userId);
+    const result = await recordConsentApproval(lookup.userId);
+    if (!result.ok) {
+      const resolved = consentResolutionPage(result.reason);
+      return res.status(resolved.status).type('html').send(resolved.html);
+    }
     await invalidateMeCacheForUser(lookup.userId);
     return res
       .type('html')
@@ -116,12 +161,17 @@ consentRouter.post(
     const token = String(req.params.token || '').trim();
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
+      const resolved = consentResolutionPage(lookup.reason);
       return res
-        .status(lookup.reason === 'not_found' ? 404 : 410)
+        .status(resolved.status)
         .type('html')
-        .send(landingPage('Consent Link Unavailable', 'This link can no longer be used.', false));
+        .send(resolved.html);
     }
-    await recordConsentDenial(lookup.userId, 'Denied by parent or guardian');
+    const result = await recordConsentDenial(lookup.userId, 'Denied by parent or guardian');
+    if (!result.ok) {
+      const resolved = consentResolutionPage(result.reason);
+      return res.status(resolved.status).type('html').send(resolved.html);
+    }
     await invalidateMeCacheForUser(lookup.userId);
     return res
       .type('html')
@@ -141,6 +191,7 @@ consentRouter.post(
 // Enforces: must be in pending state, must have parent_email on file.
 export const handleConsentResend = [
   requireAuth as any,
+  verificationLimiter as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'UNAUTHORIZED' });
     const user = await prisma.user.findUnique({
