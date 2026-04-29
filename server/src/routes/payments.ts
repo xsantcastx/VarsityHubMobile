@@ -255,6 +255,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         });
         if (failedUser) {
           await prisma.user.update({
+            // cache-invalidation-exempt
             where: { id: failedUser.id },
             data: { subscription_status: 'past_due' },
           });
@@ -306,6 +307,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         // ATOMIC: downgrade + cancellation log must succeed or fail together
         await prisma.$transaction([
           prisma.user.update({
+            // cache-invalidation-exempt
             where: { id: canceledUser.id },
             data: {
               preferences: nextPrefs,
@@ -400,6 +402,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         }
 
         await prisma.user.update({
+          // cache-invalidation-exempt
           where: { id: subUser.id },
           data: updateData,
         });
@@ -503,6 +506,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                 }
               );
               await db.user.update({
+                // cache-invalidation-exempt
                 where: { id: tx.user_id },
                 data: {
                   preferences: nextPrefs,
@@ -2605,6 +2609,7 @@ paymentsRouter.post(
           });
           if (failedUser) {
             await prisma.user.update({
+              // cache-invalidation-exempt
               where: { id: failedUser.id },
               data: { subscription_status: 'past_due' },
             });
@@ -2656,6 +2661,7 @@ paymentsRouter.post(
           // ATOMIC: downgrade + cancellation log must succeed or fail together
           await prisma.$transaction([
             prisma.user.update({
+              // cache-invalidation-exempt
               where: { id: canceledUser.id },
               data: {
                 preferences: nextPrefs,
@@ -2752,6 +2758,7 @@ paymentsRouter.post(
           }
 
           await prisma.user.update({
+            // cache-invalidation-exempt
             where: { id: subUser.id },
             data: updateData,
           });
@@ -2855,6 +2862,7 @@ paymentsRouter.post(
                   }
                 );
                 await db.user.update({
+                  // cache-invalidation-exempt
                   where: { id: tx.user_id },
                   data: {
                     preferences: nextPrefs,
@@ -3911,6 +3919,7 @@ paymentsRouter.post(
       delete (normalizedPrefs as any).payment_approved;
 
       await prisma.user.update({
+        // cache-invalidation-exempt
         where: { id: userId },
         data: {
           preferences: normalizedPrefs,
@@ -4011,6 +4020,7 @@ paymentsRouter.post(
         });
 
         return prisma.user.update({
+          // cache-invalidation-exempt
           where: { id: user.id },
           data: {
             preferences: normalizedPrefs,
@@ -4589,6 +4599,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         // Cancel old subscription AFTER DB commit — if cancel-first fails, user loses access
         await prisma.$transaction([
           prisma.user.update({
+            // cache-invalidation-exempt
             where: { id: userId },
             data: {
               preferences: prefs,
@@ -6119,6 +6130,7 @@ paymentsRouter.post(
 
         await prisma.$transaction([
           prisma.user.update({
+            // cache-invalidation-exempt
             where: { id: userId },
             data: {
               subscription_tier: plan === 'legend' ? 'pro' : 'premium',
@@ -6160,6 +6172,7 @@ paymentsRouter.post(
         const updatedPrefs = { ...prefs, grace_period_expires_at: graceExpiresAt.toISOString() };
         await prisma.$transaction([
           prisma.user.update({
+            // cache-invalidation-exempt
             where: { id: userId },
             data: {
               subscription_status: 'past_due',
@@ -6207,6 +6220,7 @@ paymentsRouter.post(
 
         await prisma.$transaction([
           prisma.user.update({
+            // cache-invalidation-exempt
             where: { id: userId },
             data: {
               subscription_tier: 'free',
@@ -6500,6 +6514,7 @@ paymentsRouter.post(
 
       await prisma.$transaction([
         prisma.user.update({
+          // cache-invalidation-exempt
           where: { id: userId },
           data: {
             subscription_tier: plan === 'legend' ? 'pro' : 'premium',

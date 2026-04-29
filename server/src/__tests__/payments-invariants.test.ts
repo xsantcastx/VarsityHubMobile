@@ -54,8 +54,7 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('webhook events are deduped via the per-event distributed lock (no double-processing)', () => {
-      const block =
-        payments.match(/paymentsRouter\.post\(\s*'\/webhook'[\s\S]{0,3500}/)?.[0] || '';
+      const block = payments.match(/paymentsRouter\.post\(\s*'\/webhook'[\s\S]{0,3500}/)?.[0] || '';
       expect(block).toMatch(/withDistributedLock/);
       expect(block).toMatch(/namespace:\s*['"]payments:webhook-event['"]/);
       expect(block).toMatch(/localLocks:\s*webhookEventLocks/);
@@ -163,8 +162,7 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('success-page fallback only finalizes for an authenticated session owner', () => {
-      const block =
-        payments.match(/paymentsRouter\.get\(\s*'\/success'[\s\S]{0,3500}/)?.[0] || '';
+      const block = payments.match(/paymentsRouter\.get\(\s*'\/success'[\s\S]{0,3500}/)?.[0] || '';
       expect(block).toMatch(/req\.user\?\.id/);
       expect(block).toMatch(/String\(sessionUserId\) !== String\(req\.user\.id\)/);
       expect(block).toMatch(/refusing to finalize session for non-owner/);
