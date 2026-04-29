@@ -254,26 +254,24 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
 
   const game = await (prisma.game.findUnique as any)({
     where: { id },
-    select: { title: true },
+    select: { title: true, approval_status: true },
   });
   if (!game) {
     return res.status(404).send(renderGameResultPage('Not Found', 'Game not found.', false));
   }
+  if (game.approval_status === 'approved') {
+    return res.send(
+      renderGameResultPage('Already Approved', `${game.title || 'This game'} was already approved.`, true)
+    );
+  }
+  if (game.approval_status === 'rejected') {
+    return res.send(
+      renderGameResultPage('Already Rejected', `${game.title || 'This game'} was already rejected.`, true)
+    );
+  }
 
   if (req.method === 'GET') {
     return res.send(renderGameReviewPage(action, game.title || 'Unknown', token));
-  }
-
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult === 'already_used') {
-    return res
-      .status(409)
-      .send(renderGameResultPage('Link Already Used', `This ${action} link has already been used.`, false));
-  }
-  if (consumeResult === 'store_unavailable') {
-    return res
-      .status(503)
-      .send(renderGameResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
   }
 
   const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).trim() : undefined;
@@ -288,6 +286,15 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
     return res
       .status(result.status!)
       .send(renderGameResultPage('Error', result.error!, false));
+  }
+
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult !== 'consumed') {
+    console.warn('[games] review token could not be marked consumed after success:', {
+      game_id: id,
+      action,
+      consumeResult,
+    });
   }
 
   return res.send(
