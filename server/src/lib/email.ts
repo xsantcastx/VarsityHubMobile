@@ -226,7 +226,13 @@ const TEMPLATE_IDS = {
   // to the pre-removal value so the existing SendGrid template (if still
   // present) works without re-creation.
   AD_PAYMENT_CONFIRMED: tmpl('SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID'),
-  AD_TAKEN_DOWN_PENDING_REVIEW: tmpl('SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID'),
+  // Accept the no-suffix env name as a fallback so a Railway typo
+  // (SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW vs the canonical _TEMPLATE_ID)
+  // doesn't silently send the local HTML fallback.
+  AD_TAKEN_DOWN_PENDING_REVIEW: tmpl(
+    'SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW_TEMPLATE_ID',
+    'SENDGRID_AD_TAKEN_DOWN_PENDING_REVIEW'
+  ),
 
   // Organization approval/rejection (sent to org owner after admin action)
   ORG_APPROVED: tmpl('SENDGRID_ORG_APPROVAL_TEMPLATE_ID'),
@@ -236,7 +242,12 @@ const TEMPLATE_IDS = {
   ADMIN_ACTION_CONFIRMATION: tmpl('SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID'),
 
   // Parental consent for 13-17 users (sent to parent_email on complete-onboarding)
-  PARENTAL_CONSENT_REQUEST: tmpl('SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID'),
+  // Accept the no-suffix env name as a fallback so a Railway typo doesn't
+  // force the local HTML fallback path.
+  PARENTAL_CONSENT_REQUEST: tmpl(
+    'SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID',
+    'SENDGRID_PARENTAL_CONSENT_REQUEST'
+  ),
 
   // Roster / membership lifecycle notifications
   ATHLETE_INVITATION: tmpl('SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID'),
@@ -256,6 +267,18 @@ const TEMPLATE_IDS = {
   CONTENT_REMOVED: tmpl('SENDGRID_CONTENT_REMOVED_TEMPLATE_ID'),
   REPORT_DISMISSED: tmpl('SENDGRID_REPORT_DISMISSED_TEMPLATE_ID'),
   REPORT_RESOLVED: tmpl('SENDGRID_REPORT_RESOLVED_TEMPLATE_ID'),
+
+  // Dedicated templates for split flows (replaces shared JOIN_REQUEST_ADMIN
+  // template for two of the four flows that previously reused it). Both accept
+  // the no-suffix env name as a fallback for Railway typos.
+  COACH_JOIN_REQUEST_OWNER: tmpl(
+    'SENDGRID_COACH_JOIN_REQUEST_OWNER_TEMPLATE_ID',
+    'SENDGRID_COACH_JOIN_REQUEST_OWNER'
+  ),
+  EVENT_PENDING_REVIEW_DEDICATED: tmpl(
+    'SENDGRID_EVENT_PENDING_REVIEW_TEMPLATE_ID',
+    'SENDGRID_EVENT_PENDING_REVIEW'
+  ),
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -2192,21 +2215,43 @@ export async function sendCoachJoinRequestEmail(params: {
   rejectUrl?: string;
   coachNotes?: string;
 }): Promise<boolean> {
-  // The email goes TO the league owner; the requester (shown in the
-  // "Coach" row of the template) is the coach who wants to join.
-  return sendJoinRequestAdminTemplate({
-    to: params.ownerEmail,
-    subject: `New Coach Request: ${params.coachName} wants to join ${params.organizationName}`,
-    leagueName: params.organizationName,
-    requesterName: params.coachName,
-    requesterEmail: params.coachEmail,
-    adminName: params.ownerName,
-    sport: 'N/A',
-    orgType: 'Coach join request',
-    approveUrl: params.approveUrl,
-    rejectUrl: params.rejectUrl,
-    coachNotes: params.coachNotes,
-  });
+  const templateId = TEMPLATE_IDS.COACH_JOIN_REQUEST_OWNER;
+  const subject = `New Coach Request: ${params.coachName} wants to join ${params.organizationName}`;
+  if (!templateId) {
+    console.error(
+      '[email] Missing SENDGRID_COACH_JOIN_REQUEST_OWNER_TEMPLATE_ID — falling back to shared admin template'
+    );
+    return sendJoinRequestAdminTemplate({
+      to: params.ownerEmail,
+      subject,
+      leagueName: params.organizationName,
+      requesterName: params.coachName,
+      requesterEmail: params.coachEmail,
+      adminName: params.ownerName,
+      sport: 'N/A',
+      orgType: 'Coach join request',
+      approveUrl: params.approveUrl,
+      rejectUrl: params.rejectUrl,
+      coachNotes: params.coachNotes,
+    });
+  }
+  return sendTemplateEmail(
+    templateId,
+    params.ownerEmail,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      owner_name: params.ownerName,
+      coach_name: params.coachName,
+      coach_email: params.coachEmail,
+      organization_name: params.organizationName,
+      approve_url: params.approveUrl || '',
+      reject_url: params.rejectUrl || '',
+      coach_notes: params.coachNotes || '',
+    },
+    `Coach join request email sent to ${params.ownerEmail}`
+  );
 }
 
 export async function sendCoachApplicationAdminEmail(params: {
@@ -2251,31 +2296,60 @@ export async function sendEventPendingReviewEmail(params: {
   coachNotes?: string;
 }): Promise<boolean> {
   const reviewKind = params.reviewKind || 'event';
-  return sendJoinRequestAdminTemplate({
-    to: params.to,
-    subject: `New ${reviewKind} awaiting approval: ${params.eventTitle}`,
-    leagueName: params.teamName || 'VarsityHub Event Review',
-    requesterName: params.requesterName || 'VarsityHub User',
-    requesterEmail: params.requesterEmail || '',
-    adminName: params.reviewerName || 'Reviewer',
-    sport: params.eventType || 'Event',
-    orgType: reviewKind === 'game' ? 'Pending game review' : 'Pending event review',
-    approveUrl:
-      params.approveUrl ||
-      buildEventReviewUrl({
-        reviewId: params.reviewId,
-        reviewKind,
-        action: 'approve',
-      }),
-    rejectUrl:
-      params.rejectUrl ||
-      buildEventReviewUrl({
-        reviewId: params.reviewId,
-        reviewKind,
-        action: 'reject',
-      }),
-    coachNotes: params.coachNotes,
-  });
+  const subject = `New ${reviewKind} awaiting approval: ${params.eventTitle}`;
+  const approveUrl =
+    params.approveUrl ||
+    buildEventReviewUrl({
+      reviewId: params.reviewId,
+      reviewKind,
+      action: 'approve',
+    });
+  const rejectUrl =
+    params.rejectUrl ||
+    buildEventReviewUrl({
+      reviewId: params.reviewId,
+      reviewKind,
+      action: 'reject',
+    });
+  const templateId = TEMPLATE_IDS.EVENT_PENDING_REVIEW_DEDICATED;
+  if (!templateId) {
+    console.error(
+      '[email] Missing SENDGRID_EVENT_PENDING_REVIEW_TEMPLATE_ID — falling back to shared admin template'
+    );
+    return sendJoinRequestAdminTemplate({
+      to: params.to,
+      subject,
+      leagueName: params.teamName || 'VarsityHub Event Review',
+      requesterName: params.requesterName || 'VarsityHub User',
+      requesterEmail: params.requesterEmail || '',
+      adminName: params.reviewerName || 'Reviewer',
+      sport: params.eventType || 'Event',
+      orgType: reviewKind === 'game' ? 'Pending game review' : 'Pending event review',
+      approveUrl,
+      rejectUrl,
+      coachNotes: params.coachNotes,
+    });
+  }
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      reviewer_name: params.reviewerName || 'Reviewer',
+      requester_name: params.requesterName || 'VarsityHub User',
+      requester_email: params.requesterEmail || '',
+      event_title: params.eventTitle,
+      event_type: params.eventType || 'Event',
+      team_name: params.teamName || 'VarsityHub',
+      review_kind: reviewKind,
+      approve_url: approveUrl,
+      reject_url: rejectUrl,
+      coach_notes: params.coachNotes || '',
+    },
+    `Event pending review email sent to ${params.to}`
+  );
 }
 
 /**
