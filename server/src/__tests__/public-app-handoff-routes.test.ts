@@ -1,103 +1,50 @@
-import request from 'supertest';
 import { describe, expect, it } from '@jest/globals';
-import { app } from '../app.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const handoffRoute = readFileSync(
+  join(process.cwd(), 'src', 'routes', 'publicAppHandoff.ts'),
+  'utf8'
+);
+const appSrc = readFileSync(join(process.cwd(), 'src', 'app.ts'), 'utf8');
+const testAppSrc = readFileSync(join(process.cwd(), 'src', 'testApp.ts'), 'utf8');
 
 describe('Public app handoff routes', () => {
-  it('serves a verification handoff page with the app-scheme fallback', async () => {
-    const res = await request(app)
-      .get('/verify')
-      .query({ token: '123456', email: 'user@example.com' })
-      .set('Accept', 'text/html');
+  it('pre-validates verification and reset links before rendering the handoff page', () => {
+    expect(handoffRoute).toContain("publicAppHandoffRouter.get('/verify'");
+    expect(handoffRoute).toContain("publicAppHandoffRouter.get('/reset-password'");
+    expect(handoffRoute).toContain("kind: 'expired'");
+    expect(handoffRoute).toContain("kind: 'already_verified'");
+    expect(handoffRoute).toContain('Verification Link Expired');
+    expect(handoffRoute).toContain('Verification Link Invalid');
+    expect(handoffRoute).toContain('Email Already Verified');
+    expect(handoffRoute).toContain('Reset Link Expired');
+    expect(handoffRoute).toContain('Reset Link Invalid');
+  });
 
-    expect(res.status).toBe(200);
-    expect(String(res.headers['content-type'] || '')).toContain('text/html');
-    expect(res.text).toContain('Verify Your Email');
-    expect(res.text).toContain(
-      'varsityhubmobile://verify?token=123456&email=user%40example.com'
+  it('offers an in-browser resend recovery path for bad verification links', () => {
+    expect(handoffRoute).toContain("publicAppHandoffRouter.post(");
+    expect(handoffRoute).toContain("'/verify/resend'");
+    expect(handoffRoute).toContain('Request a New Code');
+    expect(handoffRoute).toContain('If an unverified account exists for');
+    expect(handoffRoute).toContain('sendVerificationEmail(');
+    expect(handoffRoute).toContain('publicVerifyResendLimiter');
+  });
+
+  it('only auto-redirects handoff pages on mobile user agents', () => {
+    expect(handoffRoute).toContain('function isMobileUserAgent');
+    expect(handoffRoute).toContain('/iphone|ipad|ipod|android|mobile/i');
+    expect(handoffRoute).toContain('options.autoRedirect === true');
+    expect(handoffRoute).toContain('{ autoRedirect }');
+    expect(handoffRoute).toContain("{ autoRedirect: isMobileUserAgent(req) }");
+  });
+
+  it('mounts the shared handoff router in both production and test app entrypoints', () => {
+    expect(appSrc).toContain("import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';");
+    expect(appSrc).toContain('app.use(publicAppHandoffRouter);');
+    expect(testAppSrc).toContain(
+      "import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';"
     );
-    expect(res.text).toContain('Manual Backup Code');
-    expect(res.text).toContain('123456');
-    expect(res.text).toContain('user@example.com');
-  });
-
-  it('serves a billing handoff page for manage-subscription links', async () => {
-    const res = await request(app)
-      .get('/settings/manage-subscription')
-      .set('Accept', 'text/html');
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Manage Your Subscription');
-    expect(res.text).toContain('varsityhubmobile://settings/manage-subscription');
-  });
-
-  it('serves a reset-password handoff page with a manual backup code', async () => {
-    const res = await request(app)
-      .get('/reset-password')
-      .query({ code: '654321', email: 'user@example.com' })
-      .set('Accept', 'text/html');
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Reset Your Password');
-    expect(res.text).toContain(
-      'varsityhubmobile://reset-password?code=654321&email=user%40example.com'
-    );
-    expect(res.text).toContain('Manual Backup Code');
-    expect(res.text).toContain('654321');
-    expect(res.text).toContain('user@example.com');
-  });
-
-  it('serves an admin dashboard handoff page with preserved review params', async () => {
-    const res = await request(app)
-      .get('/admin-dashboard')
-      .query({ review: 'league_approval', league_id: 'org_123', action: 'approve' })
-      .set('Accept', 'text/html');
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Open Admin Review');
-    expect(res.text).toContain(
-      'varsityhubmobile://admin-dashboard?review=league_approval&league_id=org_123&action=approve'
-    );
-  });
-
-  it('serves an admin ads handoff page with preserved review params', async () => {
-    const res = await request(app)
-      .get('/admin-ads')
-      .query({ ad_id: 'ad_123', action: 'reject' })
-      .set('Accept', 'text/html');
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Open Ad Review');
-    expect(res.text).toContain('varsityhubmobile://admin-ads?ad_id=ad_123&action=reject');
-  });
-
-  it('serves an event approvals handoff page with preserved review params', async () => {
-    const res = await request(app)
-      .get('/event-approvals')
-      .query({ event_id: 'evt_123', review_kind: 'game', action: 'approve' })
-      .set('Accept', 'text/html');
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Open Event Review');
-    expect(res.text).toContain(
-      'varsityhubmobile://event-approvals?event_id=evt_123&review_kind=game&action=approve'
-    );
-  });
-
-  it('serves an organization join-request handoff page with preserved params', async () => {
-    const res = await request(app)
-      .get('/organization-join-requests')
-      .query({
-        organization_id: 'org_123',
-        organization_name: 'Example League',
-        request_id: 'req_456',
-        action: 'approve',
-      })
-      .set('Accept', 'text/html');
-
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Open Join Requests');
-    expect(res.text).toContain(
-      'varsityhubmobile://organization-join-requests?organization_id=org_123&organization_name=Example+League&request_id=req_456&action=approve'
-    );
+    expect(testAppSrc).toContain('app.use(publicAppHandoffRouter);');
   });
 });

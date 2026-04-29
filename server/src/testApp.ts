@@ -30,11 +30,13 @@ import { groupChatsRouter } from './routes/group-chats.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { searchRouter } from './routes/search.js';
 import { dataExportRouter } from './routes/dataExport.js';
+import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
 
 const app = express();
 app.disable('x-powered-by');
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use(authMiddleware);
 // Mirror app.ts: parental consent firewall runs before all API routes so
 // minors with pending/denied consent are blocked from non-allowlisted
@@ -70,6 +72,7 @@ app.use('/group-chats', groupChatsRouter);
 app.use('/admin/reports', adminReportsRouter);
 app.use('/search', searchRouter);
 app.use(dataExportRouter);
+app.use(publicAppHandoffRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;

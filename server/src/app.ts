@@ -54,6 +54,7 @@ import { testNotificationsRouter } from './routes/test-notifications.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
 import { wellKnownRouter } from './routes/well-known.js';
+import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
 import { shareLandingRouter } from './routes/shareLanding.js';
 
 const app = express();
@@ -188,6 +189,7 @@ app.use((req, res, next) => {
   }
   return express.json({ limit: '10mb' })(req, res, next);
 });
+app.use(express.urlencoded({ extended: false }));
 
 // Handle malformed JSON body (returns 400 instead of 500)
 app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -350,118 +352,10 @@ if (process.env.NODE_ENV !== 'production') {
   debugLog('📧 Test email endpoints available at /test-emails/*');
 }
 
+app.use(publicAppHandoffRouter);
+
 // Public legal pages (no auth required — Apple App Store review needs these accessible)
 const legalPageStyle = `body{font-family:-apple-system,Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333;line-height:1.6}h1{color:#1B3A6B}h2{color:#2563eb;margin-top:24px}a{color:#2563eb}`;
-const APP_SCHEME = (process.env.APP_SCHEME || 'varsityhubmobile').replace(/:.*$/, '');
-
-function buildNativeHandoffUrl(pathname: string, req: Request): string {
-  const normalizedPath = pathname.replace(/^\/+/, '');
-  const url = new URL(`${APP_SCHEME}://${normalizedPath}`);
-  for (const [key, value] of Object.entries(req.query || {})) {
-    if (typeof value === 'string' && value.trim().length > 0) {
-      url.searchParams.set(key, value);
-    }
-  }
-  return url.toString();
-}
-
-function renderAppHandoffPage(
-  title: string,
-  description: string,
-  nativeUrl: string,
-  extraHtml = ''
-): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><style>${legalPageStyle}.card{background:#fff;border:1px solid #E5E7EB;border-radius:16px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,.08)}.btn{display:inline-block;background:#1B3A6B;color:#fff;text-decoration:none;padding:14px 20px;border-radius:10px;font-weight:600;margin-top:8px}.code-card{margin-top:20px;padding:18px;border-radius:12px;background:#F8FAFC;border:1px solid #CBD5E1}.code-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:0 0 8px}.code-value{font-size:32px;font-weight:700;letter-spacing:.24em;color:#0F172A;margin:0 0 10px}.meta{font-size:14px;color:#475569;margin:6px 0 0}</style></head><body><div class="card"><h1>${title}</h1><p>${description}</p><p><a class="btn" href="${escapeHtml(nativeUrl)}">Open in VarsityHub</a></p><p>If the app does not open automatically, tap the button again from this page.</p>${extraHtml}</div><script>window.setTimeout(function(){window.location.replace(${JSON.stringify(nativeUrl)});},75);</script></body></html>`;
-}
-
-function buildVerifyFallbackHtml(req: Request): string {
-  const token = typeof req.query.token === 'string' ? req.query.token.replace(/[^0-9]/g, '').slice(0, 6) : '';
-  if (token.length !== 6) return '';
-  const email =
-    typeof req.query.email === 'string' && req.query.email.trim().length > 0
-      ? req.query.email.trim().toLowerCase()
-      : '';
-  const emailLine = email
-    ? `<p class="meta">This code is for <strong>${escapeHtml(email)}</strong>.</p>`
-    : '';
-  return `<div class="code-card"><p class="code-label">Manual Backup Code</p><p class="code-value">${escapeHtml(token)}</p><p class="meta">If your email app blocks the handoff, open VarsityHub manually and enter this 6-digit code on the verification screen.</p>${emailLine}</div>`;
-}
-
-function buildResetFallbackHtml(req: Request): string {
-  const code = typeof req.query.code === 'string' ? req.query.code.replace(/[^0-9]/g, '').slice(0, 6) : '';
-  if (code.length !== 6) return '';
-  const email =
-    typeof req.query.email === 'string' && req.query.email.trim().length > 0
-      ? req.query.email.trim().toLowerCase()
-      : '';
-  const emailLine = email
-    ? `<p class="meta">This reset code is for <strong>${escapeHtml(email)}</strong>.</p>`
-    : '';
-  return `<div class="code-card"><p class="code-label">Manual Backup Code</p><p class="code-value">${escapeHtml(code)}</p><p class="meta">If your email app blocks the handoff, open VarsityHub manually and enter this 6-digit code on the password reset screen.</p>${emailLine}</div>`;
-}
-
-const publicAppHandoffRoutes: Array<{ path: string; title: string; description: string }> = [
-  {
-    path: '/verify',
-    title: 'Verify Your Email',
-    description: 'Open VarsityHub to finish verifying your email address.',
-  },
-  {
-    path: '/reset-password',
-    title: 'Reset Your Password',
-    description: 'Open VarsityHub to continue your password reset.',
-  },
-  {
-    path: '/settings/manage-subscription',
-    title: 'Manage Your Subscription',
-    description: 'Open VarsityHub to view billing details and manage your subscription.',
-  },
-  {
-    path: '/admin-dashboard',
-    title: 'Open Admin Review',
-    description: 'Open VarsityHub with an admin account to review this request.',
-  },
-  {
-    path: '/admin-ads',
-    title: 'Open Ad Review',
-    description: 'Open VarsityHub with an admin account to review this ad.',
-  },
-  {
-    path: '/event-approvals',
-    title: 'Open Event Review',
-    description: 'Open VarsityHub with a coach or admin account to review this event.',
-  },
-  {
-    path: '/organization-join-requests',
-    title: 'Open Join Requests',
-    description: 'Open VarsityHub to review this organization join request.',
-  },
-  {
-    path: '/team-hub',
-    title: 'Open Team Hub',
-    description: 'Open VarsityHub to continue in Team Hub.',
-  },
-  {
-    path: '/create-fan-event',
-    title: 'Open VarsityHub',
-    description: 'Open VarsityHub to continue this event flow.',
-  },
-  {
-    path: '/event-detail',
-    title: 'Open Event Detail',
-    description: 'Open VarsityHub to view this event.',
-  },
-  {
-    path: '/payment-success',
-    title: 'Return to VarsityHub',
-    description: 'Open VarsityHub to finish processing your payment.',
-  },
-  {
-    path: '/payment-cancel',
-    title: 'Return to VarsityHub',
-    description: 'Open VarsityHub to continue after cancelling payment.',
-  },
-];
 
 app.get('/privacy-policy', (_req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -511,24 +405,6 @@ app.get('/support', (_req, res) => {
 <p>We typically respond within 24 hours.</p>
 <p>&copy; 2025 Lime Productions. All rights reserved.</p></body></html>`);
 });
-
-for (const route of publicAppHandoffRoutes) {
-  app.get(route.path, (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
-    res.send(
-      renderAppHandoffPage(
-        route.title,
-        route.description,
-        buildNativeHandoffUrl(route.path, req),
-        route.path === '/verify'
-          ? buildVerifyFallbackHtml(req)
-          : route.path === '/reset-password'
-            ? buildResetFallbackHtml(req)
-            : ''
-      )
-    );
-  });
-}
 
 // Add centralized error handler (must be before Sentry)
 import { errorHandler } from './middleware/errorHandler.js';
