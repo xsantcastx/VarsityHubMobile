@@ -139,8 +139,16 @@ if (isProd) {
   }
   if (!env.APPLE_BUNDLE_ID) warnings.push('APPLE_BUNDLE_ID (Apple Sign-In/IAP)');
   if (!env.APPLE_CLIENT_ID) warnings.push('APPLE_CLIENT_ID (Apple Sign-In)');
-  if (!env.REDIS_URL)
-    warnings.push('REDIS_URL (email queue will not function — queued emails silently dropped)');
+  // REDIS_URL is fatal in production: review-token replay protection,
+  // distributed locks, and the email queue all silently degrade to per-process
+  // in-memory state across Railway replicas without it. Replay tokens that
+  // land on a different replica would succeed twice. Fail at boot, not at
+  // first compromised request.
+  if (!env.REDIS_URL) {
+    throw new Error(
+      'FATAL: REDIS_URL is not set. Review-token replay protection and distributed locks require a shared Redis store across replicas; the in-memory fallback only protects within a single process and is unsafe in production. Set REDIS_URL in Railway env vars immediately.'
+    );
+  }
   if (!env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY)
     warnings.push(
       'GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL/KEY (Android IAP verification will return 503)'

@@ -38,10 +38,17 @@ function buildNativeHandoffUrl(pathname: string, req: Request): string {
   return buildNativeHandoffUrlFromQuery(pathname, req.query || {});
 }
 
+// Strict allowlist for query params forwarded into the native scheme URL.
+// Without this, attacker-controlled params (`?redirect_override=...`,
+// `?next=...`) get piped into the deep-link parser, which may interpret
+// them as routing intent. Verify and reset deep-links only need these.
+const ALLOWED_HANDOFF_QUERY_PARAMS = new Set(['token', 'email', 'code', 'delivery']);
+
 function buildNativeHandoffUrlFromQuery(pathname: string, query: Request['query']): string {
   const normalizedPath = pathname.replace(/^\/+/, '');
   const url = new URL(`${APP_SCHEME}://${normalizedPath}`);
   for (const [key, value] of Object.entries(query || {})) {
+    if (!ALLOWED_HANDOFF_QUERY_PARAMS.has(key)) continue;
     if (typeof value === 'string' && value.trim().length > 0) {
       url.searchParams.set(key, value);
     }
@@ -300,7 +307,9 @@ publicAppHandoffRouter.post(
           user.email,
           code,
           user.display_name || user.email.split('@')[0]
-        ).catch(err => console.warn('[verify-handoff] sendVerificationEmail failed:', err?.message || err));
+        ).catch(err =>
+          console.warn('[verify-handoff] sendVerificationEmail failed:', err?.message || err)
+        );
       }
     }
 

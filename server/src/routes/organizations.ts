@@ -1221,8 +1221,15 @@ organizationsRouter.post(
                 ...(existingInvite ? { id: { not: existingInvite.id } } : {}),
               },
             });
+            // Include 'owner' so the cap counts every authorized seat. Excluding the
+            // owner gave each org one extra slot beyond their plan limit (the owner
+            // role still consumes a seat against the per-org authorized-user cap).
             const memberCount = await tx.organizationMembership.count({
-              where: { organization_id: id, status: 'active', role: { in: ['manager', 'member'] } },
+              where: {
+                organization_id: id,
+                status: 'active',
+                role: { in: ['owner', 'manager', 'member'] },
+              },
             });
             const totalAuthorized = inviteCount + memberCount + 1;
             if (totalAuthorized > limit) {
@@ -2363,7 +2370,9 @@ function renderJoinRequestStatePage(
   },
   action: 'approve' | 'reject'
 ): string {
-  const coachName = escapeHtml(joinRequest.user?.display_name || joinRequest.user?.email || 'This coach');
+  const coachName = escapeHtml(
+    joinRequest.user?.display_name || joinRequest.user?.email || 'This coach'
+  );
   const orgName = escapeHtml(joinRequest.organization?.name || 'this organization');
   if (joinRequest.status === 'approved') {
     return joinReviewHtml(
@@ -2980,7 +2989,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         const finalState = (result as any).finalState as 'approved' | 'rejected' | undefined;
         if (finalState === 'rejected') {
           return res.send(
-            renderLeagueActionResultPage('Already Rejected', 'This league was already rejected.', false)
+            renderLeagueActionResultPage(
+              'Already Rejected',
+              'This league was already rejected.',
+              false
+            )
           );
         }
         return res
@@ -2990,10 +3003,13 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       if ((result as any).already) {
         const consumeResult = await consumeReviewToken(token, payload);
         if (consumeResult !== 'consumed') {
-          console.warn('[orgs] league approval token could not be marked consumed after already-final result:', {
-            organization_id: orgId,
-            consumeResult,
-          });
+          console.warn(
+            '[orgs] league approval token could not be marked consumed after already-final result:',
+            {
+              organization_id: orgId,
+              consumeResult,
+            }
+          );
         }
         return res.send(
           renderLeagueActionResultPage(
@@ -3205,7 +3221,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         const finalState = (result as any).finalState as 'approved' | 'rejected' | undefined;
         if (finalState === 'approved') {
           return res.send(
-            renderLeagueActionResultPage('Already Approved', 'This league was already approved.', false)
+            renderLeagueActionResultPage(
+              'Already Approved',
+              'This league was already approved.',
+              false
+            )
           );
         }
         return res
@@ -3215,10 +3235,13 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       if ((result as any).already) {
         const consumeResult = await consumeReviewToken(token, payload);
         if (consumeResult !== 'consumed') {
-          console.warn('[orgs] league rejection token could not be marked consumed after already-final result:', {
-            organization_id: orgId,
-            consumeResult,
-          });
+          console.warn(
+            '[orgs] league rejection token could not be marked consumed after already-final result:',
+            {
+              organization_id: orgId,
+              consumeResult,
+            }
+          );
         }
         return res.send(
           renderLeagueActionResultPage(

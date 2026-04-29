@@ -877,7 +877,9 @@ const updateSchema = z.object({
   // Previously missing from updateSchema so coaches were stuck with the initial dates.
   season_start: z.string().optional().nullable(),
   season_end: z.string().optional().nullable(),
-  organization_id: z.string().optional().nullable(),
+  // organization_id is non-nullable in the DB; the schema rejects null up front
+  // so it never reaches Prisma as a 500. Reassignment requires a real org id.
+  organization_id: z.string().optional(),
   logo_url: z.string().optional().or(z.literal('')),
   city: z.string().max(100).optional(),
   state: z.string().max(100).optional(),
@@ -946,62 +948,70 @@ teamsRouter.put(
       updateData.season_end = parsed.data.season_end ? new Date(parsed.data.season_end) : null;
     }
     if (parsed.data.organization_id !== undefined) {
-      if (parsed.data.organization_id === null) {
-        updateData.organization_id = null;
-      } else {
-        const targetOrganizationId = parsed.data.organization_id;
-        const targetOrg = await prisma.organization.findUnique({
-          where: { id: targetOrganizationId },
-          select: { id: true, status: true },
-        });
-        if (!targetOrg || targetOrg.status !== 'active') {
-          return res.status(400).json({ error: 'Target organization not found or inactive' }); // error-envelope-exempt
-        }
-
-        // Moving a team across organizations is stronger than ordinary team edits:
-        // the requester must control the team on the source side AND be an org admin
-        // on the destination side. Plain membership in the target org is not enough.
-        if (!isAdmin && targetOrganizationId !== team.organization_id) {
-          const sourceTeamMembership = await prisma.teamMembership.findUnique({
-            where: {
-              team_id_user_id: {
-                team_id: teamId,
-                user_id: req.user.id,
-              },
-            } as any,
-            select: { role: true, status: true },
-          });
-          const canAdminSourceOrg = team.organization_id
-            ? await isOrgAdminScoped(req.user.id, team.organization_id)
-            : false;
-          const canControlSourceTeam =
-            (sourceTeamMembership?.status === 'active' &&
-              (sourceTeamMembership.role === 'owner' || sourceTeamMembership.role === 'manager')) ||
-            canAdminSourceOrg;
-          if (!canControlSourceTeam) {
-            return res.status(403).json({
-              // error-envelope-exempt
-              // error-envelope-exempt
-              error: 'TEAM_TRANSFER_ADMIN_REQUIRED',
-              message:
-                'Only the team owner, a team manager, or a league admin can move a team to another organization.',
-            });
-          }
-
-          const canAdminTargetOrg = await isOrgAdminScoped(req.user.id, targetOrganizationId);
-          if (!canAdminTargetOrg) {
-            return res.status(403).json({
-              // error-envelope-exempt
-              // error-envelope-exempt
-              error: 'ORGANIZATION_ADMIN_REQUIRED',
-              message:
-                'You must be an owner or manager of the target organization to move this team.',
-            });
-          }
-        }
-
-        updateData.organization_id = targetOrganizationId;
+      const targetOrganizationId = parsed.data.organization_id;
+      const targetOrg = await prisma.organization.findUnique({
+        where: { id: targetOrganizationId },
+        select: { id: true, status: true },
+      });
+      if (!targetOrg || targetOrg.status !== 'active') {
+        return res.status(400).json({ error: 'Target organization not found or inactive' }); // error-envelope-exempt
       }
+      // Mirror the create-path approval gate: a team can only land under
+      // an admin-approved organization, even on transfer. Otherwise an
+      // admin in two orgs (one approved, one pending) could move a public
+      // team under an unvetted org.
+      if (!(await isOrganizationApproved(targetOrganizationId, prisma))) {
+        return res.status(403).json({
+          error: 'ORGANIZATION_NOT_APPROVED',
+          message:
+            'Teams can only be moved into organizations that have been approved by VarsityHub.',
+          code: 'ORGANIZATION_NOT_APPROVED',
+        }); // error-envelope-exempt
+      }
+
+      // Moving a team across organizations is stronger than ordinary team edits:
+      // the requester must control the team on the source side AND be an org admin
+      // on the destination side. Plain membership in the target org is not enough.
+      if (!isAdmin && targetOrganizationId !== team.organization_id) {
+        const sourceTeamMembership = await prisma.teamMembership.findUnique({
+          where: {
+            team_id_user_id: {
+              team_id: teamId,
+              user_id: req.user.id,
+            },
+          } as any,
+          select: { role: true, status: true },
+        });
+        const canAdminSourceOrg = team.organization_id
+          ? await isOrgAdminScoped(req.user.id, team.organization_id)
+          : false;
+        const canControlSourceTeam =
+          (sourceTeamMembership?.status === 'active' &&
+            (sourceTeamMembership.role === 'owner' || sourceTeamMembership.role === 'manager')) ||
+          canAdminSourceOrg;
+        if (!canControlSourceTeam) {
+          return res.status(403).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
+            error: 'TEAM_TRANSFER_ADMIN_REQUIRED',
+            message:
+              'Only the team owner, a team manager, or a league admin can move a team to another organization.',
+          });
+        }
+
+        const canAdminTargetOrg = await isOrgAdminScoped(req.user.id, targetOrganizationId);
+        if (!canAdminTargetOrg) {
+          return res.status(403).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
+            error: 'ORGANIZATION_ADMIN_REQUIRED',
+            message:
+              'You must be an owner or manager of the target organization to move this team.',
+          });
+        }
+      }
+
+      updateData.organization_id = targetOrganizationId;
     }
     if (parsed.data.logo_url !== undefined)
       updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;

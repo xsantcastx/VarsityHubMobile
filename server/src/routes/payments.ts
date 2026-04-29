@@ -3430,7 +3430,7 @@ paymentsRouter.post(
       const userId = req.user!.id;
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { preferences: true },
+        select: { preferences: true, stripe_customer_id: true },
       });
       const prefs =
         user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
@@ -3462,6 +3462,34 @@ paymentsRouter.post(
 
       if (!subscriptionId) {
         return res.status(400).json({ error: 'No active subscription found' }); // error-envelope-exempt
+      }
+
+      // Verify the subscription belongs to this user's Stripe customer before
+      // mutating it. preferences.subscription_id is server-owned but lives in a
+      // mutable JSON blob; without the customer check, an attacker who can
+      // poison preferences could cancel another user's subscription.
+      let stripeSub: Stripe.Subscription;
+      try {
+        stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
+      } catch (err) {
+        console.warn(
+          'Failed to retrieve Stripe subscription before cancel:',
+          (err as any)?.message || err
+        );
+        return res.status(404).json({ error: 'Subscription not found in Stripe' }); // error-envelope-exempt
+      }
+      const subCustomerId =
+        typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer?.id || '';
+      if (user?.stripe_customer_id && String(subCustomerId) !== String(user.stripe_customer_id)) {
+        console.warn(
+          '[payments] cancel: refusing to mutate subscription owned by another customer',
+          {
+            user_id: userId,
+            user_customer: user.stripe_customer_id,
+            sub_customer: subCustomerId,
+          }
+        );
+        return res.status(403).json({ error: 'Subscription does not belong to this account' }); // error-envelope-exempt
       }
 
       try {
@@ -3507,7 +3535,7 @@ paymentsRouter.post(
       const userId = req.user!.id;
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { preferences: true },
+        select: { preferences: true, stripe_customer_id: true },
       });
       const prefs =
         user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
@@ -3523,6 +3551,24 @@ paymentsRouter.post(
         return res
           .status(404)
           .json({ error: 'Subscription not found in Stripe', detail: err?.message });
+      }
+      // Same customer-ownership check as /subscription/cancel — refuse to
+      // mutate a subscription that belongs to a different Stripe customer.
+      const resumeSubCustomerId =
+        typeof sub.customer === 'string' ? sub.customer : sub.customer?.id || '';
+      if (
+        user?.stripe_customer_id &&
+        String(resumeSubCustomerId) !== String(user.stripe_customer_id)
+      ) {
+        console.warn(
+          '[payments] resume: refusing to mutate subscription owned by another customer',
+          {
+            user_id: userId,
+            user_customer: user.stripe_customer_id,
+            sub_customer: resumeSubCustomerId,
+          }
+        );
+        return res.status(403).json({ error: 'Subscription does not belong to this account' }); // error-envelope-exempt
       }
       if (!sub.cancel_at_period_end) {
         return res.json({
