@@ -54,7 +54,8 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('webhook events are deduped via the per-event distributed lock (no double-processing)', () => {
-      const block = payments.match(/paymentsRouter\.post\('\/webhook'[\s\S]{0,2500}/)?.[0] || '';
+      const block =
+        payments.match(/paymentsRouter\.post\(\s*'\/webhook'[\s\S]{0,3500}/)?.[0] || '';
       expect(block).toMatch(/withDistributedLock/);
       expect(block).toMatch(/namespace:\s*['"]payments:webhook-event['"]/);
       expect(block).toMatch(/localLocks:\s*webhookEventLocks/);
@@ -92,12 +93,16 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('Apple signedPayload verification failures return retriable 5xx responses', () => {
-      const block = payments.match(/Failed to verify\/decode signedPayload[\s\S]{0,200}/)?.[0] || '';
+      const block =
+        payments.match(/Failed to verify\/decode signedPayload[\s\S]{0,200}/)?.[0] || '';
       expect(block).toMatch(/sendStatus\(503\)/);
     });
 
     it('inner Apple JWS payloads are verified instead of falling back to unverified decode', () => {
-      const block = payments.match(/const verifyInnerJWS = \(token: string\): any => \{[\s\S]{0,800}\n    \};/)?.[0] || '';
+      const block =
+        payments.match(
+          /const verifyInnerJWS = \(token: string\): any => \{[\s\S]{0,1200}?\n\s*\};/
+        )?.[0] || '';
       expect(block).toMatch(/jwt\.verify\(token, innerKey, \{ algorithms: \['ES256'\] \}\)/);
       expect(block).not.toMatch(/return jwt\.decode\(token\)/);
     });
@@ -146,7 +151,8 @@ describe('payments & subscriptions — structural invariants', () => {
 
     it('PaymentIntent ad activation uses a conditional update guard, not an unconditional ad.update', () => {
       const block =
-        payments.match(/if \(event\.type === 'payment_intent\.succeeded'\)[\s\S]{0,5000}/)?.[0] || '';
+        payments.match(/if \(event\.type === 'payment_intent\.succeeded'\)[\s\S]{0,5000}/)?.[0] ||
+        '';
       expect(block).toMatch(/updateMany\(\{/);
       expect(block).toMatch(/status:\s*\{\s*in:\s*\['approved', 'active'\]\s*\}/);
       expect(block).toMatch(/updated\.count === 0/);
@@ -157,7 +163,8 @@ describe('payments & subscriptions — structural invariants', () => {
     });
 
     it('success-page fallback only finalizes for an authenticated session owner', () => {
-      const block = payments.match(/paymentsRouter\.get\('\/success'[\s\S]{0,2200}/)?.[0] || '';
+      const block =
+        payments.match(/paymentsRouter\.get\(\s*'\/success'[\s\S]{0,3500}/)?.[0] || '';
       expect(block).toMatch(/req\.user\?\.id/);
       expect(block).toMatch(/String\(sessionUserId\) !== String\(req\.user\.id\)/);
       expect(block).toMatch(/refusing to finalize session for non-owner/);

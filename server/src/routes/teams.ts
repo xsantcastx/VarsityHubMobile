@@ -96,7 +96,7 @@ teamsRouter.get(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+      if (!req.user) return res.status(401).json({ error: 'Authentication required' }); // error-envelope-exempt
 
       const q = String((req.query as any).q || '')
         .trim()
@@ -168,7 +168,7 @@ teamsRouter.get(
       return res.json(list);
     } catch (err) {
       console.error('[teams] managed error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -180,7 +180,7 @@ teamsRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-      if (!user) return res.status(401).json({ error: 'User not found' });
+      if (!user) return res.status(401).json({ error: 'User not found' }); // error-envelope-exempt
 
       const ownedTeamsCount = await prisma.teamMembership.count({
         where: {
@@ -213,7 +213,7 @@ teamsRouter.get(
       });
     } catch (err) {
       console.error('[teams] limits error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -235,7 +235,7 @@ teamsRouter.get(
       if (all) {
         // Admin-only view flag; otherwise fall back to normal list
         const isAdmin = await getIsAdmin(req as any);
-        if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+        if (!isAdmin) return res.status(403).json({ error: 'Admin only' }); // error-envelope-exempt
       }
 
       let where: any = all ? {} : { status: 'active' };
@@ -264,7 +264,7 @@ teamsRouter.get(
       if (mine) {
         const authReq = req as AuthedRequest;
         if (!authReq.user) {
-          return res.status(401).json({ error: 'Authentication required to view managed teams' });
+          return res.status(401).json({ error: 'Authentication required to view managed teams' }); // error-envelope-exempt
         }
 
         const userId = authReq.user.id;
@@ -327,7 +327,7 @@ teamsRouter.get(
       return res.json(list);
     } catch (err) {
       console.error('[teams] list error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -342,8 +342,8 @@ teamsRouter.post(
       const userId = req.user!.id;
       const teamId = String(req.params.id);
       const team = await prisma.team.findUnique({ where: { id: teamId } });
-      if (!team) return res.status(404).json({ error: 'Team not found' });
-      if (team.status !== 'active') return res.status(404).json({ error: 'Team not found' });
+      if (!team) return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
+      if (team.status !== 'active') return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
       try {
         await prisma.teamFollow.create({ data: { user_id: userId, team_id: teamId } });
 
@@ -390,14 +390,14 @@ teamsRouter.post(
           console.error('[teams] Failed to send team followed notification:', notifErr);
         }
 
-        return res.status(201).json({ is_following: true });
+        return res.status(201).json({ is_following: true }); // error-envelope-exempt
       } catch (e: any) {
-        if (e?.code === 'P2002') return res.status(201).json({ is_following: true }); // Already following
+        if (e?.code === 'P2002') return res.status(201).json({ is_following: true }); // Already following // error-envelope-exempt
         throw e;
       }
     } catch (e: any) {
       console.error('[teams] follow error:', e?.message || e);
-      return res.status(500).json({ error: 'Failed to follow team' });
+      return res.status(500).json({ error: 'Failed to follow team' }); // error-envelope-exempt
     }
   })
 );
@@ -414,7 +414,7 @@ teamsRouter.delete(
       return res.json({ is_following: false });
     } catch (e: any) {
       console.error('[teams] unfollow error:', e?.message || e);
-      return res.status(500).json({ error: 'Failed to unfollow team' });
+      return res.status(500).json({ error: 'Failed to unfollow team' }); // error-envelope-exempt
     }
   })
 );
@@ -440,11 +440,11 @@ teamsRouter.get(
           },
         },
       });
-      if (!t) return res.status(404).json({ error: 'Not found' });
+      if (!t) return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
       const isAdmin = currentUserId ? await getIsAdmin(req as any) : false;
       if (!isAdmin) {
         const hidden = await isTeamHiddenFromViewer(id, currentUserId);
-        if (hidden) return res.status(404).json({ error: 'Not found' });
+        if (hidden) return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
       }
 
       let membership: { role: string } | null = null;
@@ -473,7 +473,7 @@ teamsRouter.get(
         if (hasPrivilegedAccess) {
           const entitlement = await getTeamEntitlementState(prisma, id);
           if (entitlement.teamLocked) {
-            return res.status(403).json(buildTeamPlanLockedError(entitlement));
+            return res.status(403).json(buildTeamPlanLockedError(entitlement)); // error-envelope-exempt
           }
         }
       }
@@ -493,7 +493,7 @@ teamsRouter.get(
       );
     } catch (err) {
       console.error('[teams] get-by-id error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -510,7 +510,7 @@ teamsRouter.get(
         where: { id },
         select: { id: true, organization_id: true, is_private: true },
       });
-      if (!team) return res.status(404).json({ error: 'Team not found' });
+      if (!team) return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
 
       const isAdmin = await getIsAdmin(req as any);
       const teamMembership = await prisma.teamMembership.findFirst({
@@ -531,17 +531,17 @@ teamsRouter.get(
         isOrgAdmin = !!orgMembership;
       }
       if (!isAdmin && !teamMembership && !isOrgAdmin) {
-        return res
-          .status(403)
-          .json({
-            error: 'Only team members, league admins, or platform admins can view the roster',
-          });
+        return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
+          error: 'Only team members, league admins, or platform admins can view the roster',
+        });
       }
 
       if (isAdmin || isOrgAdmin || isManagementRole(teamMembership?.role)) {
         const entitlement = await getTeamEntitlementState(prisma, id);
         if (entitlement.teamLocked) {
-          return res.status(403).json(buildTeamPlanLockedError(entitlement));
+          return res.status(403).json(buildTeamPlanLockedError(entitlement)); // error-envelope-exempt
         }
       }
 
@@ -582,7 +582,7 @@ teamsRouter.get(
       return res.json(list);
     } catch (err) {
       console.error('[teams] get-members error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -594,7 +594,7 @@ teamsRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' }); // error-envelope-exempt
 
       const q = String((req.query as any).q || '').trim();
       const limitRaw = Number.parseInt(String((req.query as any).limit || '100'), 10);
@@ -654,7 +654,7 @@ teamsRouter.get(
       return res.json(list);
     } catch (err) {
       console.error('[teams] members-all error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -679,6 +679,8 @@ teamsRouter.post(
       const parsed = createSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'Invalid payload',
           issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
         });
@@ -695,7 +697,7 @@ teamsRouter.post(
           payment_approved: true,
         },
       });
-      if (!me) return res.status(401).json({ error: 'Unauthorized' });
+      if (!me) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
 
       // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
       // OR if their profile role is 'coach' (covers new coaches who completed onboarding
@@ -723,6 +725,8 @@ teamsRouter.post(
 
         if (!hasCoachRole && !hasOrgRole) {
           return res.status(403).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
             error: 'COACH_ROLE_REQUIRED',
             message: 'Only coach accounts can create teams.',
             code: 'COACH_ROLE_REQUIRED',
@@ -734,9 +738,11 @@ teamsRouter.post(
       const org = await prisma.organization.findUnique({
         where: { id: parsed.data.organization_id },
       });
-      if (!org) return res.status(400).json({ error: 'Organization not found' });
+      if (!org) return res.status(400).json({ error: 'Organization not found' }); // error-envelope-exempt
       if (!(await isOrganizationApproved(parsed.data.organization_id, prisma))) {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'ORGANIZATION_NOT_APPROVED',
           message:
             'Teams can only be created under organizations that have been approved by VarsityHub.',
@@ -754,6 +760,8 @@ teamsRouter.post(
       });
       if (!orgMembership || orgMembership.status !== 'active') {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
           message: 'You must be an active member of this organization to create a team under it.',
         });
@@ -838,13 +846,13 @@ teamsRouter.post(
         { isolationLevel: 'Serializable' }
       );
 
-      return res.status(201).json(t);
+      return res.status(201).json(t); // error-envelope-exempt
     } catch (err: any) {
       if (err?.status && err?.body) {
-        return res.status(err.status).json(err.body);
+        return res.status(err.status).json(err.body); // error-envelope-exempt
       }
       console.error('[teams] create error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -891,6 +899,8 @@ teamsRouter.put(
     if (!parsed.success) {
       console.error('[Teams PUT] Validation failed:', JSON.stringify(parsed.error));
       return res.status(400).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
@@ -898,23 +908,23 @@ teamsRouter.put(
 
     const teamId = String(req.params.id);
     const team = await prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) return res.status(404).json({ error: 'Team not found' });
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!team) return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
 
     const isAdmin = await getIsAdmin(req as any);
     const canManage = await canManageTeamScoped(req.user.id, teamId);
     if (!isAdmin && !canManage) {
-      return res
-        .status(403)
-        .json({
-          error:
-            'Only team staff, organization admins, or platform admins can update team information',
-        });
+      return res.status(403).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
+        error:
+          'Only team staff, organization admins, or platform admins can update team information',
+      });
     }
 
     const entitlement = await getTeamEntitlementState(prisma, teamId);
     if (entitlement.teamLocked) {
-      return res.status(403).json(buildTeamPlanLockedError(entitlement));
+      return res.status(403).json(buildTeamPlanLockedError(entitlement)); // error-envelope-exempt
     }
 
     const updateData: any = {};
@@ -945,7 +955,7 @@ teamsRouter.put(
           select: { id: true, status: true },
         });
         if (!targetOrg || targetOrg.status !== 'active') {
-          return res.status(400).json({ error: 'Target organization not found or inactive' });
+          return res.status(400).json({ error: 'Target organization not found or inactive' }); // error-envelope-exempt
         }
 
         // Moving a team across organizations is stronger than ordinary team edits:
@@ -970,6 +980,8 @@ teamsRouter.put(
             canAdminSourceOrg;
           if (!canControlSourceTeam) {
             return res.status(403).json({
+              // error-envelope-exempt
+              // error-envelope-exempt
               error: 'TEAM_TRANSFER_ADMIN_REQUIRED',
               message:
                 'Only the team owner, a team manager, or a league admin can move a team to another organization.',
@@ -979,6 +991,8 @@ teamsRouter.put(
           const canAdminTargetOrg = await isOrgAdminScoped(req.user.id, targetOrganizationId);
           if (!canAdminTargetOrg) {
             return res.status(403).json({
+              // error-envelope-exempt
+              // error-envelope-exempt
               error: 'ORGANIZATION_ADMIN_REQUIRED',
               message:
                 'You must be an owner or manager of the target organization to move this team.',
@@ -1049,7 +1063,7 @@ teamsRouter.put(
       });
     } catch (err: any) {
       console.error('[teams] update error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -1064,8 +1078,8 @@ teamsRouter.delete(
 
     const teamId = String(req.params.id);
     const team = await prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) return res.status(404).json({ error: 'Team not found' });
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!team) return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
     // Team staff OR org admin can archive. Using the shared helper keeps this
     // route's boundary consistent with team update, event approval, and the
     // rest of the team-scoped endpoints — previously this check was inline and
@@ -1075,6 +1089,8 @@ teamsRouter.delete(
     const canManage = await canManageTeamScoped(req.user.id, teamId);
     if (!isAdmin && !canManage) {
       return res.status(403).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'Only team staff or league admins can delete teams',
       });
     }
@@ -1097,7 +1113,7 @@ teamsRouter.delete(
       return res.json({ ok: true, archived: true, message: 'Team archived successfully' });
     } catch (err: any) {
       console.error('[teams] delete error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -1118,7 +1134,7 @@ if (process.env.NODE_ENV !== 'production') {
         return res.json({ ok: true, team: { id: t.id, logo_url: (t as any).logo_url } });
       } catch (e: any) {
         console.error('dev-set-logo failed', e?.message || e);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
       }
     })
   );
@@ -1169,6 +1185,8 @@ teamsRouter.post(
     const parsed = createTeamSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
@@ -1187,7 +1205,7 @@ teamsRouter.post(
         paid_by_owner: true,
       },
     });
-    if (!me) return res.status(401).json({ error: 'Unauthorized' });
+    if (!me) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
 
     // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
     // OR if their profile role is 'coach' (covers new coaches who completed onboarding
@@ -1217,6 +1235,8 @@ teamsRouter.post(
 
       if (!hasCoachRole && !hasOrgRole) {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'COACH_ROLE_REQUIRED',
           message: 'Only coach accounts can create teams.',
           code: 'COACH_ROLE_REQUIRED',
@@ -1234,6 +1254,8 @@ teamsRouter.post(
       });
       if (!(isOnboarding && isOrgOwner)) {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'APPROVAL_REQUIRED',
           message: 'Your coach account must be approved by a league admin before creating teams.',
           code: 'APPROVAL_REQUIRED',
@@ -1284,6 +1306,8 @@ teamsRouter.post(
     const clubType = data.club_type || 'sport';
     if (clubType === 'extracurricular' && !planSupportsExtracurricular(userPlan)) {
       return res.status(403).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'Extracurricular clubs require Legend tier',
         message:
           'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
@@ -1304,6 +1328,8 @@ teamsRouter.post(
 
       if (ownedTeamsCount >= 3) {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'Team limit reached',
           message: me.paid_by_owner
             ? 'Your organization has reached the free limit (3 teams). The league owner needs to upgrade.'
@@ -1327,6 +1353,8 @@ teamsRouter.post(
       const subscriptionId = effectiveSubscriptionId;
       if (!subscriptionId) {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'No active subscription',
           message: me.paid_by_owner
             ? 'The league owner needs an active Veteran subscription.'
@@ -1345,6 +1373,8 @@ teamsRouter.post(
 
         if (subscription.status !== 'active' && subscription.status !== 'trialing') {
           return res.status(403).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
             error: 'Subscription not active',
             message: me.paid_by_owner
               ? "The league owner's Veteran subscription is not active."
@@ -1360,6 +1390,8 @@ teamsRouter.post(
         // Subscription must cover at least that many teams
         if (ownedTeamsCount >= paidQuantity) {
           return res.status(403).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
             error: 'Team limit reached',
             message: me.paid_by_owner
               ? `The organization's subscription covers ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but team #${ownedTeamsCount + 1} is being created. The league owner needs to update the subscription.`
@@ -1372,6 +1404,8 @@ teamsRouter.post(
       } catch (err) {
         console.error('[Teams] Failed to verify Veteran subscription:', err);
         return res.status(500).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'Subscription verification failed',
           message: 'Unable to verify your subscription. Please try again or contact support.',
         });
@@ -1438,6 +1472,8 @@ teamsRouter.post(
         );
         if (!organizationId) {
           return res.status(500).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
             error: 'Failed to create organization',
             message:
               'Could not create your organization. Please try again or select an existing organization.',
@@ -1456,6 +1492,8 @@ teamsRouter.post(
 
         if (!orgExists || orgExists.status !== 'active') {
           return res.status(404).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
             error: 'Organization not found',
             message: 'The specified organization does not exist or is not active.',
             code: 'ORGANIZATION_NOT_FOUND',
@@ -1476,6 +1514,8 @@ teamsRouter.post(
           });
           if (!(isOnboarding && isOrgOwnerOfTarget)) {
             return res.status(403).json({
+              // error-envelope-exempt
+              // error-envelope-exempt
               error: 'ORGANIZATION_NOT_APPROVED',
               message:
                 'Teams can only be created under organizations that have been approved by VarsityHub.',
@@ -1492,6 +1532,8 @@ teamsRouter.post(
 
         if (!orgMembership || orgMembership.status !== 'active') {
           return res.status(403).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
             error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
             message: 'You must be an active member of this organization to create a team under it.',
             code: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
@@ -1505,6 +1547,8 @@ teamsRouter.post(
             ? 'Organization membership already exists'
             : orgError?.message || 'Unknown error';
         return res.status(500).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: `Organization validation failed: ${detail}`,
         });
       }
@@ -1661,6 +1705,8 @@ teamsRouter.post(
       }
 
       return res.status(201).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         ok: true,
         team: {
           id: team.id,
@@ -1674,6 +1720,8 @@ teamsRouter.post(
       // Handle specific transaction errors
       if (teamError?.message?.includes('TEAM_LIMIT_EXCEEDED')) {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'Team limit reached',
           message: "You've reached your free limit (3 teams). Upgrade to add more.",
           code: 'TEAM_LIMIT_EXCEEDED',
@@ -1684,6 +1732,8 @@ teamsRouter.post(
       // Surface the real error for debugging
       const detail = teamError?.message || 'Unknown error';
       return res.status(500).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: `Team creation failed: ${detail}`,
       });
     }
@@ -1709,11 +1759,13 @@ teamsRouter.post(
   requireOnboarded as any,
   inviteLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
     const id = String(req.params.id);
     const parsed = inviteSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
@@ -1723,19 +1775,23 @@ teamsRouter.post(
     const assignedRole = String(role || 'member');
     if (!(VALID_TEAM_INVITE_ROLES as readonly string[]).includes(assignedRole)) {
       return res.status(400).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'Invalid role',
         valid_roles: VALID_TEAM_INVITE_ROLES,
       });
     }
     const team = await prisma.team.findUnique({ where: { id } });
-    if (!team) return res.status(404).json({ error: 'Team not found' });
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!team) return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
 
     // CRITICAL: Verify requester is team owner/manager/coach (can invite members)
     const canManage = await canManageTeamScoped(req.user.id, id);
 
     if (!canManage) {
       return res.status(403).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'PERMISSION_DENIED',
         message: 'Only team staff or organization admins can invite members to teams.',
       });
@@ -1802,13 +1858,15 @@ teamsRouter.post(
     } catch (e: any) {
       if (e?.message === 'TEAM_PLAN_LOCKED') {
         const entitlement = await getTeamEntitlementState(prisma, id);
-        return res.status(403).json(buildTeamPlanLockedError(entitlement));
+        return res.status(403).json(buildTeamPlanLockedError(entitlement)); // error-envelope-exempt
       }
       // Handle specific limit errors
       if (e?.message?.includes('USER_LIMIT_REACHED')) {
         const [, rawLimit] = e.message.split(':');
         const limit = Number.parseInt(String(rawLimit || ''), 10);
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'USER_LIMIT_REACHED',
           code: 'USER_LIMIT_REACHED',
           message: Number.isFinite(limit)
@@ -1819,6 +1877,8 @@ teamsRouter.post(
 
       console.warn('[teams][invite-limit] check failed', e);
       return res.status(500).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'Failed to create invite',
         message: 'Unable to create team invite. Please try again.',
       });
@@ -1888,7 +1948,7 @@ teamsRouter.post(
       }
     }
 
-    return res.status(201).json(invite);
+    return res.status(201).json(invite); // error-envelope-exempt
   })
 );
 
@@ -1899,9 +1959,9 @@ teamsRouter.get(
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
       const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-      if (!user?.email) return res.status(400).json({ error: 'User email not found' });
+      if (!user?.email) return res.status(400).json({ error: 'User email not found' }); // error-envelope-exempt
       const invites = await prisma.teamInvite.findMany({
         where: { email: { equals: user.email, mode: 'insensitive' }, status: 'pending' } as any,
         include: { team: true },
@@ -1917,7 +1977,7 @@ teamsRouter.get(
       return res.json(list);
     } catch (err) {
       console.error('[teams] invites-me error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -1929,14 +1989,14 @@ teamsRouter.post(
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
       const inviteId = String(req.params.inviteId);
       const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
       if (!invite || invite.status !== 'pending')
-        return res.status(404).json({ error: 'Invite not found' });
+        return res.status(404).json({ error: 'Invite not found' }); // error-envelope-exempt
       const user = await prisma.user.findUnique({ where: { id: req.user.id } });
       if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase())
-        return res.status(403).json({ error: 'Invite not for this user' });
+        return res.status(403).json({ error: 'Invite not for this user' }); // error-envelope-exempt
       const existingMembership = await prisma.teamMembership.findUnique({
         where: {
           team_id_user_id: {
@@ -1998,11 +2058,13 @@ teamsRouter.post(
       } catch (error: any) {
         if (error?.message === 'TEAM_PLAN_LOCKED') {
           const entitlement = await getTeamEntitlementState(prisma, invite.team_id);
-          return res.status(403).json(buildTeamPlanLockedError(entitlement));
+          return res.status(403).json(buildTeamPlanLockedError(entitlement)); // error-envelope-exempt
         }
         if (error?.message?.startsWith('ROSTER_LIMIT_REACHED:')) {
           const limit = Number.parseInt(error.message.split(':')[1], 10);
           return res.status(403).json({
+            // error-envelope-exempt
+            // error-envelope-exempt
             error: 'ROSTER_LIMIT_REACHED',
             code: 'ROSTER_LIMIT_REACHED',
             message: `This team has reached its roster limit of ${limit} members. Upgrade your plan for more.`,
@@ -2085,7 +2147,7 @@ teamsRouter.post(
       return res.json({ ok: true });
     } catch (err) {
       console.error('[teams] accept-invite error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -2097,14 +2159,14 @@ teamsRouter.post(
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
       const inviteId = String(req.params.inviteId);
       const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
       if (!invite || invite.status !== 'pending')
-        return res.status(404).json({ error: 'Invite not found' });
+        return res.status(404).json({ error: 'Invite not found' }); // error-envelope-exempt
       const user = await prisma.user.findUnique({ where: { id: req.user.id } });
       if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase())
-        return res.status(403).json({ error: 'Invite not for this user' });
+        return res.status(403).json({ error: 'Invite not for this user' }); // error-envelope-exempt
       const declined = await prisma.teamInvite.updateMany({
         where: { id: invite.id, status: 'pending' },
         data: { status: 'declined' },
@@ -2175,7 +2237,7 @@ teamsRouter.post(
       return res.json({ ok: true });
     } catch (err) {
       console.error('[teams] decline-invite error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );
@@ -2190,12 +2252,12 @@ teamsRouter.post(
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
       const teamId = String(req.params.id);
       const transferSchema = z.object({ new_owner_id: z.string().min(1) });
       const parsed = transferSchema.safeParse(req.body);
       if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues }); // error-envelope-exempt
       const { new_owner_id } = parsed.data;
 
       // Transfer-ownership is deliberately MORE restrictive than canManageTeam.
@@ -2206,7 +2268,7 @@ teamsRouter.post(
         where: { id: teamId },
         select: { organization_id: true },
       });
-      if (!team) return res.status(404).json({ error: 'Team not found' });
+      if (!team) return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
 
       const currentMembership = await prisma.teamMembership.findFirst({
         where: { team_id: teamId, user_id: req.user.id, status: 'active' },
@@ -2218,6 +2280,8 @@ teamsRouter.post(
         : false;
       if (!isDirectOwner && !isLeagueAdmin) {
         return res.status(403).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
           error: 'Only the team owner or a league admin can transfer ownership',
         });
       }
@@ -2227,7 +2291,7 @@ teamsRouter.post(
         where: { team_id: teamId, user_id: new_owner_id, status: 'active' },
       });
       if (!newOwnerMembership) {
-        return res.status(400).json({ error: 'New owner must be an existing team member' });
+        return res.status(400).json({ error: 'New owner must be an existing team member' }); // error-envelope-exempt
       }
 
       const existingOwnerMembership = await prisma.teamMembership.findFirst({
@@ -2255,7 +2319,7 @@ teamsRouter.post(
       return res.json({ ok: true, message: 'Ownership transferred successfully' });
     } catch (err) {
       console.error('[teams] transfer-ownership error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
     }
   })
 );

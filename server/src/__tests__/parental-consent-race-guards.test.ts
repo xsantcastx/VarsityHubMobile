@@ -5,7 +5,10 @@ import { join } from 'node:path';
 const consentLib = readFileSync(join(process.cwd(), 'src', 'lib', 'parentalConsent.ts'), 'utf8');
 const consentRoute = readFileSync(join(process.cwd(), 'src', 'routes', 'consent.ts'), 'utf8');
 const adminRoute = readFileSync(join(process.cwd(), 'src', 'routes', 'admin.ts'), 'utf8');
-const overnightTasks = readFileSync(join(process.cwd(), 'src', 'cron', 'overnightTasks.ts'), 'utf8');
+const overnightTasks = readFileSync(
+  join(process.cwd(), 'src', 'cron', 'overnightTasks.ts'),
+  'utf8'
+);
 
 describe('parental consent race guards', () => {
   it('tracks explicit approved/denied/expired terminal states for consent links', () => {
@@ -39,7 +42,7 @@ describe('parental consent race guards', () => {
     expect(consentRoute).toContain('const CONSENT_CSRF_COOKIE =');
     expect(consentRoute).toContain('function verifyConsentCsrf(');
     expect(consentRoute).toContain('name="csrf_token"');
-    expect(consentRoute).toContain("Consent Confirmation Expired");
+    expect(consentRoute).toContain('Consent Confirmation Expired');
   });
 
   it('rejects cross-site consent submissions unless the origin matches the app origin', () => {

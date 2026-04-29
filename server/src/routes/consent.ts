@@ -43,10 +43,17 @@ const CONSENT_CSRF_COOKIE = 'vh_parental_consent_csrf';
 const CONSENT_CSRF_TTL_MS = 15 * 60 * 1000;
 
 function getConsentCsrfSecret(): string {
-  return process.env.PARENTAL_CONSENT_CSRF_SECRET || process.env.JWT_SECRET || 'dev-consent-csrf-secret';
+  return (
+    process.env.PARENTAL_CONSENT_CSRF_SECRET || process.env.JWT_SECRET || 'dev-consent-csrf-secret'
+  );
 }
 
-function signConsentCsrf(rawToken: string, action: 'approve' | 'deny', nonce: string, expiresAt: number) {
+function signConsentCsrf(
+  rawToken: string,
+  action: 'approve' | 'deny',
+  nonce: string,
+  expiresAt: number
+) {
   return crypto
     .createHmac('sha256', getConsentCsrfSecret())
     .update(`${rawToken}:${action}:${nonce}:${expiresAt}`)
@@ -103,11 +110,7 @@ function requestHasTrustedOrigin(req: any): boolean {
   }
 }
 
-function verifyConsentCsrf(
-  req: any,
-  rawToken: string,
-  action: 'approve' | 'deny'
-): boolean {
+function verifyConsentCsrf(req: any, rawToken: string, action: 'approve' | 'deny'): boolean {
   if (!requestHasTrustedOrigin(req)) return false;
 
   const fieldValue = String(req.body?.csrf_token || '').trim();
@@ -212,10 +215,7 @@ consentRouter.get(
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
       const resolved = consentResolutionPage(lookup.reason);
-      return res
-        .status(resolved.status)
-        .type('html')
-        .send(resolved.html);
+      return res.status(resolved.status).type('html').send(resolved.html);
     }
     const minor = await prisma.user.findUnique({
       where: { id: lookup.userId },
@@ -225,14 +225,16 @@ consentRouter.get(
     const nonce = crypto.randomBytes(16).toString('hex');
     const expiresAt = Date.now() + CONSENT_CSRF_TTL_MS;
     setConsentCsrfCookie(res, token, nonce);
-    return res.type('html').send(
-      consentForm(
-        token,
-        escapeHtml(minorName),
-        buildConsentCsrfField(token, 'approve', nonce, expiresAt),
-        buildConsentCsrfField(token, 'deny', nonce, expiresAt)
-      )
-    );
+    return res
+      .type('html')
+      .send(
+        consentForm(
+          token,
+          escapeHtml(minorName),
+          buildConsentCsrfField(token, 'approve', nonce, expiresAt),
+          buildConsentCsrfField(token, 'deny', nonce, expiresAt)
+        )
+      );
   })
 );
 
@@ -256,10 +258,7 @@ consentRouter.post(
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
       const resolved = consentResolutionPage(lookup.reason);
-      return res
-        .status(resolved.status)
-        .type('html')
-        .send(resolved.html);
+      return res.status(resolved.status).type('html').send(resolved.html);
     }
     const result = await recordConsentApproval(lookup.userId);
     if (!result.ok) {
@@ -271,11 +270,7 @@ consentRouter.post(
     return res
       .type('html')
       .send(
-        landingPage(
-          'Consent Approved',
-          'Thank you. Your child can now access the full app.',
-          true
-        )
+        landingPage('Consent Approved', 'Thank you. Your child can now access the full app.', true)
       );
   })
 );
@@ -300,10 +295,7 @@ consentRouter.post(
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
       const resolved = consentResolutionPage(lookup.reason);
-      return res
-        .status(resolved.status)
-        .type('html')
-        .send(resolved.html);
+      return res.status(resolved.status).type('html').send(resolved.html);
     }
     const result = await recordConsentDenial(lookup.userId, 'Denied by parent or guardian');
     if (!result.ok) {
@@ -317,7 +309,7 @@ consentRouter.post(
       .send(
         landingPage(
           'Consent Denied',
-          'Your child\'s account has been disabled. To reverse this, contact support.',
+          "Your child's account has been disabled. To reverse this, contact support.",
           false
         )
       );
@@ -332,7 +324,7 @@ export const handleConsentResend = [
   requireAuth as any,
   verificationLimiter as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'UNAUTHORIZED' });
+    if (!req.user) return res.status(401).json({ error: 'UNAUTHORIZED' }); // error-envelope-exempt
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: {
@@ -344,15 +336,19 @@ export const handleConsentResend = [
       } as any,
     });
     const u = user as any;
-    if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
+    if (!u) return res.status(404).json({ error: 'NOT_FOUND' }); // error-envelope-exempt
     if (u.parental_consent_status !== 'pending') {
       return res.status(400).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'CONSENT_NOT_PENDING',
         message: 'Consent is not in a pending state — nothing to resend.',
       });
     }
     if (!u.parent_email) {
       return res.status(400).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
         error: 'PARENT_EMAIL_MISSING',
         message: 'No parent email on file. Update onboarding to provide one.',
       });

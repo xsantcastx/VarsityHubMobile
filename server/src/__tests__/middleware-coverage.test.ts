@@ -185,7 +185,7 @@ describe('Middleware coverage on critical mutation routes', () => {
       for (const middleware of mustInclude) {
         expect(actualLine).toMatch(new RegExp(`\\b${middleware}\\b`));
       }
-    },
+    }
   );
 
   it('requireAuth is imported in every route file that uses req.user', () => {
