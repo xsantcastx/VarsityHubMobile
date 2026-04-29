@@ -16,16 +16,20 @@ Write-Host "`n📝 Connection Details:" -ForegroundColor Cyan
 Write-Host "  - Database: railway" -ForegroundColor White
 Write-Host "  - User: postgres" -ForegroundColor White
 Write-Host "  - Internal Host: postgres.railway.internal:5432" -ForegroundColor White
-Write-Host "  - Public Host: hopper.proxy.rlwy.net:22104" -ForegroundColor White
+Write-Host "  - External Access: create temporary access in Railway only if operationally required" -ForegroundColor White
 
 Write-Host "`n🔗 Access Database:" -ForegroundColor Yellow
-Write-Host "  1. Use Prisma Studio:" -ForegroundColor White
+Write-Host "  1. Preferred: use Railway-run commands from the API service:" -ForegroundColor White
+Write-Host "     railway service api" -ForegroundColor Gray
+Write-Host "     railway run npx prisma migrate status" -ForegroundColor Gray
+Write-Host "     railway run npx prisma db pull" -ForegroundColor Gray
+Write-Host "`n  2. If you need Prisma Studio locally:" -ForegroundColor White
 Write-Host "     cd server" -ForegroundColor Gray
-Write-Host '     $env:DATABASE_URL="postgresql://postgres:AAsjKJWvsRouJdPbWNepiqyhyvYAYJbg@hopper.proxy.rlwy.net:22104/railway"' -ForegroundColor Gray
+Write-Host '     $env:DATABASE_URL="<temporary external admin URL from Railway>"' -ForegroundColor Gray
 Write-Host "     npx prisma studio" -ForegroundColor Gray
-Write-Host "`n  2. Use pgAdmin or DBeaver:" -ForegroundColor White
-Write-Host "     Host: hopper.proxy.rlwy.net" -ForegroundColor Gray
-Write-Host "     Port: 22104" -ForegroundColor Gray
+Write-Host "`n  3. Use pgAdmin or DBeaver only with a temporary admin URL:" -ForegroundColor White
+Write-Host "     Host: [from Railway only when needed]" -ForegroundColor Gray
+Write-Host "     Port: [from Railway only when needed]" -ForegroundColor Gray
 Write-Host "     Database: railway" -ForegroundColor Gray
 Write-Host "     User: postgres" -ForegroundColor Gray
 

@@ -6,10 +6,9 @@
 
 set -u
 API="${API_URL:-https://api-production-8ac3.up.railway.app}"
-# DB URL must be injected at runtime. Never hardcode a production credential
-# here — the repo is public and a leak triggers a GitGuardian / Snyk / etc. alert.
-# Get the current URL via: railway variables --service "Postgres-TnGR" --kv | grep DATABASE_PUBLIC_URL
-DB="${DATABASE_URL:?Set DATABASE_URL env var to the production Postgres public URL before running. See server/scripts/e2e/README.md.}"
+# DB URL must be injected at runtime only when you intentionally create a
+# temporary admin connection. Never hardcode a production credential here.
+DB="${DATABASE_URL:?Set DATABASE_URL to a temporary admin connection string before running. See server/scripts/e2e/README.md.}"
 : "${ADMIN_EMAIL:?Set ADMIN_EMAIL to an existing verified admin account email before running.}"
 : "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to that admin account password before running.}"
 STAMP=$(date +%s)

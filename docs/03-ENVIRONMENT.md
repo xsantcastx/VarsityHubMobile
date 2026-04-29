@@ -23,14 +23,14 @@ Complete guide to API keys, environment variables, and external service configur
 
 VarsityHub requires multiple external services to function:
 
-| Service | Purpose | Required For |
-|---------|---------|--------------|
-| Google OAuth | User authentication | Login/Register |
-| Google Maps API | Location & maps | Event locations, discovery |
-| Stripe | Payment processing | Subscriptions |
-| Cloudinary | Media storage | Photos, videos |
-| Gmail SMTP | Email notifications | Password reset, notifications |
-| PostgreSQL | Database | All data storage |
+| Service         | Purpose             | Required For                  |
+| --------------- | ------------------- | ----------------------------- |
+| Google OAuth    | User authentication | Login/Register                |
+| Google Maps API | Location & maps     | Event locations, discovery    |
+| Stripe          | Payment processing  | Subscriptions                 |
+| Cloudinary      | Media storage       | Photos, videos                |
+| Gmail SMTP      | Email notifications | Password reset, notifications |
+| PostgreSQL      | Database            | All data storage              |
 
 ### Environment Files
 
@@ -73,26 +73,29 @@ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 
 ### Variable Descriptions
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `EXPO_PUBLIC_API_URL` | Backend API base URL | `https://api-production-8ac3.up.railway.app` |
-| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | Google OAuth Android client ID | `123456-abc.apps.googleusercontent.com` |
-| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | Google OAuth iOS client ID | `789012-def.apps.googleusercontent.com` |
-| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Google OAuth web client ID | `345678-ghi.apps.googleusercontent.com` |
+| Variable                               | Description                    | Example                                      |
+| -------------------------------------- | ------------------------------ | -------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`                  | Backend API base URL           | `https://api-production-8ac3.up.railway.app` |
+| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | Google OAuth Android client ID | `123456-abc.apps.googleusercontent.com`      |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`     | Google OAuth iOS client ID     | `789012-def.apps.googleusercontent.com`      |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`     | Google OAuth web client ID     | `345678-ghi.apps.googleusercontent.com`      |
 
 ### Development vs Production
 
 **Development (Local):**
+
 ```properties
 EXPO_PUBLIC_API_URL=http://localhost:4000
 ```
 
 **Development (Android Emulator):**
+
 ```properties
 EXPO_PUBLIC_API_URL=http://10.0.2.2:4000
 ```
 
 **Production:**
+
 ```properties
 EXPO_PUBLIC_API_URL=https://api-production-8ac3.up.railway.app
 ```
@@ -153,54 +156,54 @@ S3_SECRET_ACCESS_KEY=...
 
 #### Database
 
-| Variable | Description | Where to Get |
-|----------|-------------|--------------|
+| Variable       | Description                  | Where to Get                           |
+| -------------- | ---------------------------- | -------------------------------------- |
 | `DATABASE_URL` | PostgreSQL connection string | Railway dashboard → Database → Connect |
 
 Format: `postgresql://USER:PASSWORD@HOST:PORT/DATABASE`
 
 #### Authentication
 
-| Variable | Description | Recommendation |
-|----------|-------------|----------------|
+| Variable     | Description               | Recommendation                           |
+| ------------ | ------------------------- | ---------------------------------------- |
 | `JWT_SECRET` | Secret key for JWT tokens | Generate with: `openssl rand -base64 32` |
 
 #### Server
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `PORT` | Server port | `4000` |
-| `APP_BASE_URL` | Public API URL | `https://api-production-8ac3.up.railway.app` |
-| `APP_SCHEME` | App deep link scheme | `varsityhubmobile` |
+| Variable          | Description          | Example                                         |
+| ----------------- | -------------------- | ----------------------------------------------- |
+| `PORT`            | Server port          | `4000`                                          |
+| `APP_BASE_URL`    | Public API URL       | `https://api-production-8ac3.up.railway.app`    |
+| `APP_SCHEME`      | App deep link scheme | `varsityhubmobile`                              |
 | `ALLOWED_ORIGINS` | CORS allowed origins | `http://localhost:9500,https://app.example.com` |
 
 #### Email
 
-| Variable | Description | Setup Guide |
-|----------|-------------|-------------|
-| `SMTP_HOST` | Email server host | `smtp.gmail.com` for Gmail |
-| `SMTP_PORT` | Email server port | `587` for TLS, `465` for SSL |
-| `SMTP_SECURE` | Use SSL? | `false` for port 587, `true` for 465 |
-| `SMTP_USER` | Email account | Your Gmail address |
-| `SMTP_PASS` | Email password | [App-specific password](#email-configuration) |
-| `FROM_EMAIL` | Sender email | Same as `SMTP_USER` |
-| `ADMIN_EMAILS` | Admin email list | Comma-separated emails |
+| Variable       | Description       | Setup Guide                                   |
+| -------------- | ----------------- | --------------------------------------------- |
+| `SMTP_HOST`    | Email server host | `smtp.gmail.com` for Gmail                    |
+| `SMTP_PORT`    | Email server port | `587` for TLS, `465` for SSL                  |
+| `SMTP_SECURE`  | Use SSL?          | `false` for port 587, `true` for 465          |
+| `SMTP_USER`    | Email account     | Your Gmail address                            |
+| `SMTP_PASS`    | Email password    | [App-specific password](#email-configuration) |
+| `FROM_EMAIL`   | Sender email      | Same as `SMTP_USER`                           |
+| `ADMIN_EMAILS` | Admin email list  | Comma-separated emails                        |
 
 #### Stripe
 
-| Variable | Description | Where to Get |
-|----------|-------------|--------------|
-| `STRIPE_SECRET_KEY` | Stripe API secret key | Stripe Dashboard → Developers → API Keys |
-| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret | Stripe Dashboard → Developers → Webhooks |
-| `STRIPE_PRICE_VETERAN` | Veteran tier price ID | Stripe Dashboard → Products → Veteran → Pricing |
-| `STRIPE_PRICE_LEGEND` | Legend tier price ID | Stripe Dashboard → Products → Legend → Pricing |
+| Variable                | Description            | Where to Get                                    |
+| ----------------------- | ---------------------- | ----------------------------------------------- |
+| `STRIPE_SECRET_KEY`     | Stripe API secret key  | Stripe Dashboard → Developers → API Keys        |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret | Stripe Dashboard → Developers → Webhooks        |
+| `STRIPE_PRICE_VETERAN`  | Veteran tier price ID  | Stripe Dashboard → Products → Veteran → Pricing |
+| `STRIPE_PRICE_LEGEND`   | Legend tier price ID   | Stripe Dashboard → Products → Legend → Pricing  |
 
 #### Google Maps
 
-| Variable | Description | Where to Get |
-|----------|-------------|--------------|
-| `GOOGLE_MAPS_API_KEY` | Google Maps API key | [Google Maps Setup](#google-maps-api) |
-| `GOOGLE_MAPS_DEFAULT_COUNTRY` | Default country code | `US`, `CA`, `UK`, etc. |
+| Variable                      | Description          | Where to Get                          |
+| ----------------------------- | -------------------- | ------------------------------------- |
+| `GOOGLE_MAPS_API_KEY`         | Google Maps API key  | [Google Maps Setup](#google-maps-api) |
+| `GOOGLE_MAPS_DEFAULT_COUNTRY` | Default country code | `US`, `CA`, `UK`, etc.                |
 
 ---
 
@@ -239,6 +242,7 @@ Format: `postgresql://USER:PASSWORD@HOST:PORT/DATABASE`
    - **SHA-1 certificate fingerprint**: Get from:
 
 **Development SHA-1:**
+
 ```bash
 # On Windows (PowerShell)
 cd $env:USERPROFILE\.android
@@ -250,6 +254,7 @@ keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass andr
 ```
 
 **Production SHA-1:**
+
 ```bash
 keytool -list -v -keystore your-release-key.jks -alias your-key-alias
 ```
@@ -277,6 +282,7 @@ keytool -list -v -keystore your-release-key.jks -alias your-key-alias
 ### Step 4: Update Environment Files
 
 **Frontend `.env`:**
+
 ```properties
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=123456789012-abc123.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=123456789012-def456.apps.googleusercontent.com
@@ -357,8 +363,9 @@ Add to `app.json`:
 ### Step 5: Update Backend
 
 **server/.env:**
+
 ```properties
-GOOGLE_MAPS_API_KEY=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY
+GOOGLE_MAPS_API_KEY=<GOOGLE_MAPS_API_KEY>
 GOOGLE_MAPS_DEFAULT_COUNTRY=US
 ```
 
@@ -390,11 +397,13 @@ GOOGLE_MAPS_DEFAULT_COUNTRY=US
    - **Secret key**: `sk_live_...` → Add to Railway environment variables
 
 **server/.env (Development):**
+
 ```properties
 STRIPE_SECRET_KEY=sk_test_YOUR_KEY_HERE
 ```
 
 **Railway (Production):**
+
 ```properties
 STRIPE_SECRET_KEY=sk_live_YOUR_LIVE_SECRET_KEY
 ```
@@ -405,12 +414,14 @@ STRIPE_SECRET_KEY=sk_live_YOUR_LIVE_SECRET_KEY
 2. Click **Add Product**
 
 **Veteran Tier:**
+
 - Name: `Veteran Membership`
 - Description: `Access to advanced features`
 - Pricing: `$0.99/month per team` recurring
 - Copy **Price ID**: `price_...` → `STRIPE_PRICE_VETERAN`
 
 **Legend Tier:**
+
 - Name: `Legend Membership`
 - Description: `Access to all premium features`
 - Pricing: `$20/year` recurring
@@ -423,6 +434,7 @@ Webhooks notify your backend when payments succeed/fail.
 #### Development (Local Testing)
 
 1. Install Stripe CLI:
+
 ```bash
 # Windows (PowerShell as Admin)
 scoop install stripe
@@ -432,11 +444,13 @@ brew install stripe/stripe-cli/stripe
 ```
 
 2. Login:
+
 ```bash
 stripe login
 ```
 
 3. Forward events to local server:
+
 ```bash
 stripe listen --forward-to localhost:4000/api/webhooks/stripe
 ```
@@ -460,6 +474,7 @@ stripe listen --forward-to localhost:4000/api/webhooks/stripe
 ### Step 5: Test Payments
 
 **Test Cards:**
+
 - Success: `4242 4242 4242 4242`
 - Decline: `4000 0000 0000 0002`
 - 3D Secure: `4000 0025 0000 3155`
@@ -482,6 +497,7 @@ Cloudinary stores user-uploaded photos and videos.
 ### Step 2: Get Credentials
 
 Copy from dashboard:
+
 - **Cloud Name**: `your-cloud-name`
 - **API Key**: `123456789012345`
 - **API Secret**: `abcdefghijklmnopqrstuvwxyz`
@@ -489,6 +505,7 @@ Copy from dashboard:
 ### Step 3: Configure Backend
 
 **server/.env:**
+
 ```properties
 CLOUDINARY_CLOUD_NAME=your-cloud-name
 CLOUDINARY_API_KEY=123456789012345
@@ -561,6 +578,7 @@ export async function uploadImage(uri: string) {
 #### Step 3: Configure Backend
 
 **server/.env:**
+
 ```properties
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
@@ -574,12 +592,14 @@ ADMIN_EMAILS=admin@example.com
 #### Step 4: Test Email
 
 Run test script:
+
 ```bash
 cd server
 npm run test:email
 ```
 
 Or manually test:
+
 ```typescript
 import nodemailer from 'nodemailer';
 
@@ -608,21 +628,23 @@ await transporter.sendMail({
 ### 1. Never Commit Secrets
 
 ✅ **Do:**
+
 - Use `.env` files (they're in `.gitignore`)
 - Use environment variables in production
 - Use `.env.example` as template (without actual values)
 
 ❌ **Don't:**
+
 - Commit `.env` files to Git
 - Hardcode API keys in code
 - Share secrets in chat/email (use secure password managers)
 
 ### 2. Use Different Keys for Development vs Production
 
-| Environment | Stripe | Google OAuth | Database |
-|-------------|--------|--------------|----------|
-| Development | `sk_test_...` | Dev credentials | Local PostgreSQL |
-| Production | `sk_live_...` | Prod credentials | Railway PostgreSQL |
+| Environment | Stripe        | Google OAuth     | Database           |
+| ----------- | ------------- | ---------------- | ------------------ |
+| Development | `sk_test_...` | Dev credentials  | Local PostgreSQL   |
+| Production  | `sk_live_...` | Prod credentials | Railway PostgreSQL |
 
 ### 3. Restrict API Keys
 
@@ -639,6 +661,7 @@ await transporter.sendMail({
 ### 5. Use Environment Variables in Production
 
 **Railway Dashboard:**
+
 1. Go to your project → **Variables**
 2. Add all production secrets
 3. Never use `.env` file in production
@@ -687,23 +710,27 @@ Use this checklist before launching:
 ### Google OAuth Issues
 
 **Error: "Sign in with Google failed"**
+
 - Check client IDs match platform (Android/iOS)
 - Verify package name/bundle ID matches `app.json`
 - Ensure OAuth consent screen is published
 - Check SHA-1 fingerprint for Android
 
 **Error: "redirect_uri_mismatch"**
+
 - Add redirect URI to Google Cloud Console
 - Format: `https://your-domain.com/auth/google/callback`
 
 ### Stripe Issues
 
 **Error: "No such price"**
+
 - Price ID doesn't exist in Stripe
 - Check you're using correct mode (test vs live)
 - Verify `STRIPE_PRICE_VETERAN` and `STRIPE_PRICE_LEGEND`
 
 **Webhook not receiving events**
+
 - Check endpoint URL is correct
 - Verify webhook signing secret
 - Ensure server is publicly accessible
@@ -712,11 +739,13 @@ Use this checklist before launching:
 ### Email Issues
 
 **Error: "Invalid login"**
+
 - Use app-specific password, not regular Gmail password
 - Enable 2FA on Google account first
 - Check `SMTP_USER` and `SMTP_PASS` are correct
 
 **Emails not sending**
+
 - Check spam folder
 - Verify `FROM_EMAIL` is valid
 - Test with `npm run test:email`
@@ -725,6 +754,7 @@ Use this checklist before launching:
 ### Maps Issues
 
 **Maps not displaying**
+
 - Enable required APIs in Google Cloud Console
 - Check `GOOGLE_MAPS_API_KEY` is correct
 - Verify API key restrictions (if any)

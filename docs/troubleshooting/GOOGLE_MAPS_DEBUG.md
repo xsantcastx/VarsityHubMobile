@@ -1,6 +1,7 @@
 # 🚨 Google Maps Not Loading - Debug Guide
 
 ## Current Symptoms
+
 - ✅ Map container shows (white/grey area)
 - ✅ Location dot appears (blue dot)
 - ✅ Google logo visible
@@ -13,7 +14,7 @@ This indicates the API key is being read but **rejected by Google**.
 ### Step 1: Check API Key Restrictions (MOST COMMON ISSUE)
 
 1. Go to: https://console.cloud.google.com/apis/credentials
-2. Click on your API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+2. Click on your API key: `<GOOGLE_MAPS_API_KEY>`
 3. Check **"API restrictions"**:
    - Must include: **Maps SDK for iOS** ✅
    - Must include: **Maps SDK for Android** ✅
@@ -35,6 +36,7 @@ Google Maps **requires billing to be enabled** (even with free tier):
 ### Step 3: Check Console Logs
 
 In Xcode:
+
 1. Open Xcode
 2. Run your app
 3. Check console for errors like:
@@ -48,7 +50,7 @@ In Xcode:
 Run this command to test if your API key works:
 
 ```bash
-curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=<GOOGLE_MAPS_API_KEY>"
 ```
 
 **Expected**: JSON response with geocoding data
@@ -59,6 +61,7 @@ curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIz
 Your bundle ID: `com.varsithub.varsityhub`
 
 Check in Google Cloud Console:
+
 - API key restrictions should allow this bundle ID
 - OR set restrictions to "None" for testing
 
@@ -111,6 +114,7 @@ If restrictions are too complex:
 ## 📱 Check Network/Firewall
 
 If you're on a restricted network:
+
 - Try on different WiFi
 - Try on cellular data
 - Check if firewall is blocking `maps.googleapis.com`
@@ -118,7 +122,7 @@ If you're on a restricted network:
 ## ✅ Verification Checklist
 
 - [ ] API key has "Maps SDK for iOS" enabled
-- [ ] API key has "Maps SDK for Android" enabled  
+- [ ] API key has "Maps SDK for Android" enabled
 - [ ] Application restrictions set to "None" OR bundle ID matches
 - [ ] Billing account is enabled
 - [ ] App was rebuilt after changes
@@ -127,13 +131,13 @@ If you're on a restricted network:
 
 ## 🐛 Common Error Messages
 
-| Error | Solution |
-|-------|----------|
+| Error                            | Solution                                            |
+| -------------------------------- | --------------------------------------------------- |
 | "This API key is not authorized" | Enable Maps SDK for iOS/Android in API restrictions |
-| "API key not valid" | Check you copied the key correctly |
-| "Bundle ID mismatch" | Add bundle ID to restrictions or set to "None" |
-| "Billing not enabled" | Enable billing account in Google Cloud Console |
-| "Quota exceeded" | Check usage in Google Cloud Console |
+| "API key not valid"              | Check you copied the key correctly                  |
+| "Bundle ID mismatch"             | Add bundle ID to restrictions or set to "None"      |
+| "Billing not enabled"            | Enable billing account in Google Cloud Console      |
+| "Quota exceeded"                 | Check usage in Google Cloud Console                 |
 
 ## 🎯 Most Likely Fix
 

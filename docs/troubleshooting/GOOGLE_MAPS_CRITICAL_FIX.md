@@ -3,11 +3,13 @@
 ## ❌ THE PROBLEM
 
 You have these enabled (WRONG):
+
 - ❌ Maps 3D SDK for Android
-- ❌ Maps 3D SDK for iOS  
+- ❌ Maps 3D SDK for iOS
 - ❌ Maps Datasets API
 
 You need these (CORRECT):
+
 - ✅ **Maps SDK for Android** (NOT 3D!)
 - ✅ **Maps SDK for iOS** (NOT 3D!)
 - ✅ Geocoding API (for address lookup)
@@ -29,10 +31,10 @@ You need these (CORRECT):
 
 ### Step 2: Verify Your API Key
 
-Your API key in `app.json` is: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+Your API key in `app.json` is: `<GOOGLE_MAPS_API_KEY>`
 
 1. Go to: https://console.cloud.google.com/apis/credentials
-2. Find your API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+2. Find your API key: `<GOOGLE_MAPS_API_KEY>`
 3. Click on it to edit
 4. Under "API restrictions":
    - Select "Restrict key"
@@ -82,6 +84,7 @@ After rebuilding, check:
 ### Check Console Logs
 
 In Xcode:
+
 1. Open Xcode
 2. Run app
 3. Check console for errors like:
@@ -92,8 +95,9 @@ In Xcode:
 ### Test API Key Directly
 
 Test if your API key works:
+
 ```bash
-curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=<GOOGLE_MAPS_API_KEY>"
 ```
 
 If you get an error, the API key or restrictions are wrong.
@@ -119,14 +123,16 @@ If you get an error, the API key or restrictions are wrong.
 
 ## 📝 QUICK REFERENCE
 
-**Your API Key**: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+**Your API Key**: `<GOOGLE_MAPS_API_KEY>`
 
 **Required APIs**:
+
 - Maps SDK for Android ✅
 - Maps SDK for iOS ✅
 - Geocoding API ✅
 
 **Bundle IDs**:
+
 - iOS: `com.varsithub.varsityhub`
 - Android: `com.varsithub.varsityhub`
 

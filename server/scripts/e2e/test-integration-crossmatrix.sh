@@ -7,8 +7,8 @@
 
 set -euo pipefail
 API="${API_URL:-https://api-production-8ac3.up.railway.app}"
-# DB URL must be injected at runtime — never hardcode a production credential.
-# Get via: railway variables --service "Postgres-TnGR" --kv | grep DATABASE_PUBLIC_URL
+# DB URL must be injected at runtime only when you intentionally create a
+# temporary admin connection. Never hardcode a production credential.
 DB="${DATABASE_URL:?Set DATABASE_URL env var before running. See server/scripts/e2e/README.md.}"
 : "${ADMIN_EMAIL:?Set ADMIN_EMAIL to an existing verified admin account email before running.}"
 : "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD to that admin account password before running.}"

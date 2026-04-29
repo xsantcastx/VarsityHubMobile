@@ -47,12 +47,9 @@ Cross-system boundary test:
 ## Requirements
 
 - `curl`, `jq`, `psql` installed locally
-- **`DATABASE_URL` env var must be set** before running — points at the
-  production `Postgres-TnGR` public URL. Never commit this URL; inject it at
-  runtime:
-  ```bash
-  export DATABASE_URL=$(railway variables --service "Postgres-TnGR" --kv | awk -F= '/^DATABASE_PUBLIC_URL=/ {print $2}')
-  ```
+- **`DATABASE_URL` env var is optional**. If you set it, it must be a temporary
+  admin connection string created outside the repo. Do not commit it, store it
+  in scripts, or normalize a public DB URL as the default production path.
 - **`ADMIN_EMAIL` and `ADMIN_PASSWORD` env vars must be set** for
   `test-coach-application-flow.sh` and `test-integration-crossmatrix.sh`.
 - Optional `API_URL` env var to override the API host (defaults to production).
@@ -60,8 +57,8 @@ Cross-system boundary test:
 ## Running after a deploy
 
 ```bash
-# Pull credentials from Railway once per shell session:
-export DATABASE_URL=$(railway variables --service "Postgres-TnGR" --kv | awk -F= '/^DATABASE_PUBLIC_URL=/ {print $2}')
+# Only set DATABASE_URL if you intentionally created a temporary admin URL:
+# export DATABASE_URL='postgresql://postgres:<redacted>@<temporary-host>:<port>/railway'
 export ADMIN_EMAIL='your-admin@example.com'
 export ADMIN_PASSWORD='your-admin-password'
 
@@ -80,7 +77,7 @@ the same production checks without putting admin credentials in a local shell.
 
 Required GitHub Actions secrets:
 
-- `RAILWAY_TOKEN` to read the current production `DATABASE_PUBLIC_URL`
+- `RAILWAY_TOKEN` if the workflow needs Railway CLI access
 - `PROD_ADMIN_EMAIL` for the existing verified admin account
 - `PROD_ADMIN_PASSWORD` for that admin account
 

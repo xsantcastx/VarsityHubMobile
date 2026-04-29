@@ -1,20 +1,25 @@
 # VarsityHub Mobile - App Fixes Log
+
 **Date:** December 5, 2025
 
 ## FIXES APPLIED
 
 ### ✅ FIX #1: Google Maps Not Rendering
+
 **Status:** COMPLETED  
 **File:** `app.json`  
-**Problem:** 
+**Problem:**
+
 - iOS config had placeholder: `"googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_API_KEY_HERE"`
 - Android config had placeholder: `"apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY_HERE"`
 - Maps component couldn't load without valid API key
 
 **Solution:**
-- Set both iOS and Android to real Google Maps API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+
+- Set both iOS and Android to real Google Maps API key: `<GOOGLE_MAPS_API_KEY>`
 
 **Changes:**
+
 ```json
 // BEFORE
 "ios": {
@@ -33,13 +38,13 @@
 // AFTER
 "ios": {
   "config": {
-    "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+    "googleMapsApiKey": "<GOOGLE_MAPS_API_KEY>"
   }
 }
 "android": {
   "config": {
     "googleMaps": {
-      "apiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+      "apiKey": "<GOOGLE_MAPS_API_KEY>"
     }
   }
 }
@@ -53,6 +58,7 @@
 ## APP STATUS
 
 ### Currently Working ✅
+
 - **App Starts:** App is running on simulator
 - **Navigation:** App tabs and screens are accessible
 - **Sentry:** Real DSN configured and crash reporting initialized
@@ -60,17 +66,21 @@
 - **Production API:** Connected to `https://api-production-8ac3.up.railway.app`
 
 ### Current State When Unauthenticated ✅
+
 - **Nearby Games Screen:** Shows "No mapped games yet" (correct - user not signed in yet)
 - **Error `/me` endpoint:** Shows "Unauthorized" (expected - no auth token)
 - **Google Sign-In:** Button visible and ready to test once Google OAuth URIs are configured
 
 ### What You're Seeing ✅
+
 The app is showing the Nearby Games screen with:
+
 - "No mapped games yet" message
 - "Try Discover or follow teams near you" subtitle
 - "Open Discover" button
 
 **This is the correct expected state!** The app works. You just need to:
+
 1. Sign in first (via email or Google OAuth)
 2. Then you'll see games loaded from the API
 
@@ -79,7 +89,9 @@ The app is showing the Nearby Games screen with:
 ## NEXT STEPS
 
 ### 1. Test Google Sign-In (Requires Google Cloud Setup)
+
 To make Google Sign-In work:
+
 1. Go to Google Cloud Console → APIs & Services → Credentials
 2. Add these redirect URIs to your OAuth clients:
    - `varsityhubmobile://oauthredirect` (dev simulator)
@@ -88,15 +100,18 @@ To make Google Sign-In work:
 4. Try signing in with Google
 
 **Debug logs will show:**
+
 ```
 [google-auth] Using custom scheme redirect: varsityhubmobile://oauthredirect
 [google-auth] Response from Google: {...}
 ```
 
 ### 2. Verify Maps Load After Sign-In
+
 Once signed in, navigate to "Nearby Games" and verify the map renders with the real Google Maps API key.
 
 ### 3. Email/Password Sign-In
+
 Can test with email/password sign-in without any Google setup first.
 
 ---
@@ -104,6 +119,7 @@ Can test with email/password sign-in without any Google setup first.
 ## ENVIRONMENT VARIABLES LOADED
 
 From `.env`:
+
 - ✅ `EXPO_PUBLIC_SENTRY_DSN` - Real production key
 - ✅ `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` - 814866365020-d7dk3k9gf49jodhnbraps8p7l9jrfs10.apps.googleusercontent.com
 - ✅ `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` - 814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com
@@ -139,14 +155,17 @@ Metro is watching for changes and will auto-reload when you modify files.
 ## KNOWN ISSUES / BLOCKERS
 
 ### Blocking (Need Fix)
+
 None currently - app is working
 
 ### Google OAuth Needs Manual Config
+
 **Issue:** Google Sign-In redirects will fail until redirect URIs are added to Google Cloud Console  
 **Action:** Add `varsityhubmobile://oauthredirect` to OAuth credentials  
 **Status:** Requires manual Google Cloud Console setup (not in code)
 
 ### Maps Needs Valid API Key (FIXED)
+
 **Issue:** ~~Maps API key was a placeholder~~ (FIXED in commit f3c1a8c)  
 **Status:** ✅ RESOLVED
 
@@ -155,6 +174,7 @@ None currently - app is working
 ## METRO RESTART COMMANDS
 
 If you need to restart Metro later:
+
 ```bash
 pkill -9 expo node metro
 sleep 2
@@ -170,6 +190,7 @@ Then press `Cmd+R` in simulator to reload app.
 ## SUMMARY
 
 ✅ **App is working!** You can now:
+
 - See the app interface
 - Test navigation
 - Test sign-in (email or Google)

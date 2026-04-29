@@ -15,20 +15,22 @@
 ### Current Setup
 
 **iOS** (`app.json`):
+
 ```json
 "ios": {
   "config": {
-    "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+    "googleMapsApiKey": "<GOOGLE_MAPS_API_KEY>"
   }
 }
 ```
 
 **Android** (`app.json`):
+
 ```json
 "android": {
   "config": {
     "googleMaps": {
-      "apiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+      "apiKey": "<GOOGLE_MAPS_API_KEY>"
     }
   }
 }
@@ -37,10 +39,11 @@
 ### If Maps Still Don't Load
 
 1. **Rebuild the app** (required after config changes):
+
    ```bash
    # For iOS
    npx expo run:ios
-   
+
    # For Android
    npx expo run:android
    ```
@@ -58,11 +61,12 @@
      - Android: `com.varsithub.varsityhub`
 
 4. **Clear Build Cache**:
+
    ```bash
    # iOS
    cd ios && pod install && cd ..
    rm -rf ios/build
-   
+
    # Android
    cd android && ./gradlew clean && cd ..
    ```
@@ -77,6 +81,7 @@
 ## 🧪 Testing
 
 After rebuilding:
+
 1. Open the "Nearby Games" screen
 2. You should see Google Maps (not Apple Maps)
 3. The map should load with your current location

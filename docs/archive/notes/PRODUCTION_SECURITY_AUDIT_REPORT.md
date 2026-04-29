@@ -1,4 +1,5 @@
 # Production Security Audit Report
+
 ## VarsityHub Mobile App & Backend
 
 **Date:** December 10, 2025  
@@ -13,12 +14,12 @@ This audit examined the VarsityHub mobile application (React Native/Expo) and ba
 
 ### Risk Summary
 
-| Severity | Count | Status |
-|----------|-------|--------|
-| 🔴 **Critical** | 5 | **Action Required** |
-| 🟠 **High** | 8 | **Review Recommended** |
-| 🟡 **Medium** | 12 | **Monitor & Improve** |
-| 🟢 **Low** | 6 | **Best Practices** |
+| Severity        | Count | Status                 |
+| --------------- | ----- | ---------------------- |
+| 🔴 **Critical** | 5     | **Action Required**    |
+| 🟠 **High**     | 8     | **Review Recommended** |
+| 🟡 **Medium**   | 12    | **Monitor & Improve**  |
+| 🟢 **Low**      | 6     | **Best Practices**     |
 
 ---
 
@@ -31,15 +32,17 @@ This audit examined the VarsityHub mobile application (React Native/Expo) and ba
 **Severity:** CRITICAL
 
 ```138:138:app.json
-"EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY",
+"EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "<GOOGLE_MAPS_API_KEY>",
 ```
 
 **Issue:**
+
 - API key is hardcoded in `app.json`, which may be committed to version control
 - Google Maps API keys can be extracted from client-side apps but should be restricted
 - No IP/bundle ID restrictions visible (check Google Cloud Console)
 
 **Recommendations:**
+
 1. ✅ **Immediate:** Verify Google Cloud Console restrictions:
    - Bundle ID restrictions: `com.varsithub.varsityhub`
    - API restrictions: Only Maps JavaScript API, Places API
@@ -68,11 +71,13 @@ if (!jwtSecretString || jwtSecretString === 'dev-secret-change-me' || jwtSecretS
 ```
 
 **Analysis:**
+
 - ✅ **Good:** Validation prevents deployment with weak secrets in production
 - ⚠️ **Verify:** Ensure `JWT_SECRET` is set in Railway environment variables
 - ⚠️ **Check:** Secret should be at least 32 characters, randomly generated
 
 **Action Items:**
+
 1. Verify Railway environment variable `JWT_SECRET` is set
 2. Confirm secret length ≥ 32 characters
 3. Ensure secret is unique and not reused across environments
@@ -99,10 +104,12 @@ const authLimiter = rateLimit({
 ```
 
 **Issue:**
+
 - If `RATE_LIMIT_DISABLE=1` is accidentally set in production, rate limits are disabled
 - In-memory rate limiting may not work correctly across multiple server instances
 
 **Recommendations:**
+
 1. ✅ **Current:** Environment validation in `env.ts` prevents accidental misconfiguration
 2. ⚠️ **Improve:** Remove `RATE_LIMIT_DISABLE` env var in production (hardcode check)
 3. 🔄 **Future:** Consider Redis-based rate limiting for multi-instance deployments
@@ -118,17 +125,20 @@ const authLimiter = rateLimit({
 **Severity:** MEDIUM (impact depends on log aggregation)
 
 **Analysis:**
+
 - Extensive use of `console.log`, `console.error`, `console.warn` throughout codebase
 - In production, these should use structured logging (Pino is configured but not used consistently)
 - Risk of logging sensitive information (tokens, passwords, PII)
 
 **Recommendations:**
+
 1. ✅ **Immediate:** Audit logs for sensitive data (passwords, tokens, full user objects)
 2. 🔄 **Refactor:** Replace `console.*` with `debugLog()` or Pino logger
 3. 📝 **Policy:** Establish logging guidelines (what to log, log levels)
 4. 🔒 **Sanitize:** Ensure error messages don't expose internal details
 
 **Example Risk Areas:**
+
 - Authentication errors might leak user existence
 - Database errors might expose schema structure
 - Payment errors might expose transaction details
@@ -147,7 +157,7 @@ const authLimiter = rateLimit({
 uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
-  
+
   try {
     const ext = (req.file.mimetype && req.file.mimetype.includes('png')) ? '.png' : '.jpg';
     const name = `${req.user.id}_${Date.now()}${ext}`;
@@ -164,6 +174,7 @@ uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: A
 ```
 
 **Issues:**
+
 1. ⚠️ **MIME type validation is weak:** Only checks if mimetype "includes('png')" - could be spoofed
 2. ✅ **Rate limiting:** 10 uploads/hour per user (good)
 3. ✅ **File size limit:** 5MB limit (reasonable)
@@ -171,6 +182,7 @@ uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: A
 5. ⚠️ **No virus scanning:** Files stored directly to disk
 
 **Recommendations:**
+
 1. ✅ **Add strict MIME type validation:** Only allow `image/jpeg`, `image/png`
 2. 🔄 **Add file signature validation:** Check file magic bytes (not just extension/MIME)
 3. 🔒 **Optional:** Add virus scanning for production
@@ -200,6 +212,7 @@ if (hasWildcardOrigin) {
 ```
 
 **Analysis:**
+
 - ✅ **Good:** Production wildcards are blocked (throws error)
 - ✅ **Good:** Explicit origin validation with regex fallback
 - ⚠️ **Verify:** `ALLOWED_ORIGINS` env var is set correctly in Railway
@@ -228,11 +241,13 @@ export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFun
 ```
 
 **Analysis:**
+
 - ✅ **Design:** Middleware is optional - routes must use `requireAuth` or `requireVerified` explicitly
 - ⚠️ **Risk:** Routes that forget to add auth middleware are publicly accessible
 - ✅ **Mitigation:** Most routes use `requireAuth` or `requireVerified` correctly
 
 **Recommendations:**
+
 1. ✅ **Current:** Verify all sensitive routes use `requireAuth`/`requireVerified`
 2. 🔄 **Future:** Consider default-deny auth policy with explicit public route exceptions
 
@@ -247,6 +262,7 @@ export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFun
 **Severity:** HIGH
 
 **Recommendations:**
+
 1. ✅ **Verify:** Stripe webhook signature verification is implemented
 2. ⚠️ **Check:** `STRIPE_WEBHOOK_SECRET` is set in production
 3. ✅ **Note:** Raw body parser is configured correctly (line 132-135 in `index.ts`)
@@ -258,6 +274,7 @@ export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFun
 ### 9. **Database Query Security**
 
 **Analysis:**
+
 - ✅ **Good:** Uses Prisma ORM (prevents SQL injection)
 - ✅ **Good:** Parameterized queries enforced by ORM
 - ⚠️ **Monitor:** Ensure all user inputs go through Zod validation before Prisma queries
@@ -272,11 +289,13 @@ export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFun
 **Severity:** MEDIUM
 
 **Examples to Review:**
+
 - Database error messages might expose schema
 - Validation errors might expose business logic
 - Stack traces should never reach clients in production
 
 **Recommendations:**
+
 1. ✅ **Verify:** Sentry error handler catches all errors
 2. 🔄 **Improve:** Generic error messages to clients, detailed logs to Sentry
 3. 📝 **Audit:** Review all error responses for information disclosure
@@ -297,28 +316,29 @@ function checkAuthRateLimit(identifier: string): boolean {
   const windowMs = 15 * 60 * 1000; // 15 minutes
   const maxAttempts = 5;
   const key = `auth:${identifier}`;
-  
+
   let record = authRateLimitMap.get(key);
   if (!record) {
     record = { attempts: 0, resetAt: now + windowMs };
     authRateLimitMap.set(key, record);
   }
-  
+
   if (now > record.resetAt) {
     record.attempts = 0;
     record.resetAt = now + windowMs;
   }
-  
+
   if (record.attempts >= maxAttempts) {
     return false;
   }
-  
+
   record.attempts++;
   return true;
 }
 ```
 
 **Recommendations:**
+
 1. 🔄 **Future:** Migrate to Redis-based rate limiting for production
 2. ✅ **Current:** Acceptable for single-instance deployments
 3. ⚠️ **Monitor:** Track rate limit effectiveness
@@ -329,6 +349,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 
 **Status:** ✅ Good validation with Zod schema  
 **Recommendations:**
+
 1. ✅ **Document:** All required env vars are documented
 2. ⚠️ **Verify:** Railway environment variables match schema
 3. 🔄 **Rotate:** Establish secret rotation schedule
@@ -339,11 +360,13 @@ function checkAuthRateLimit(identifier: string): boolean {
 
 **Location:** `server/src/routes/auth.ts`  
 **Analysis:**
+
 - ✅ Uses `bcrypt` with salt rounds (good)
 - ✅ Minimum 8 character requirement (could be higher)
 - ✅ Password hashing on registration
 
 **Recommendations:**
+
 1. ⚠️ **Consider:** Increase minimum password length to 12+ characters
 2. 🔄 **Future:** Add password complexity requirements
 3. ✅ **Current:** Adequate for MVP
@@ -353,36 +376,43 @@ function checkAuthRateLimit(identifier: string): boolean {
 ## ✅ SECURITY STRENGTHS
 
 ### 1. **Input Validation with Zod**
+
 - Comprehensive schema validation throughout API
 - Type-safe validation prevents injection attacks
 - Clear error messages
 
 ### 2. **Authentication Architecture**
+
 - JWT-based authentication with expiration
 - Separate `requireAuth` and `requireVerified` middlewares
 - Apple Sign-In token verification implemented correctly
 
 ### 3. **Rate Limiting Strategy**
+
 - Multiple rate limiters for different endpoints
 - Auth endpoints have stricter limits
 - Configurable via environment
 
 ### 4. **Error Tracking (Sentry)**
+
 - Sentry integration for production error tracking
 - Error handler middleware configured
 - Helps identify security issues in production
 
 ### 5. **Helmet Security Headers**
+
 - Helmet middleware configured
 - CSP disabled in dev (appropriate)
 - Security headers for production
 
 ### 6. **Environment Variable Validation**
+
 - Zod schema validates all env vars on startup
 - Fails fast if configuration is invalid
 - Prevents deployment with missing secrets
 
 ### 7. **Prisma ORM**
+
 - Parameterized queries prevent SQL injection
 - Type-safe database access
 - Schema validation
@@ -392,6 +422,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 ## 📋 PRODUCTION READINESS CHECKLIST
 
 ### Critical (Must Fix)
+
 - [ ] Verify Google Maps API key restrictions in Google Cloud Console
 - [ ] Confirm `JWT_SECRET` is set and secure in Railway
 - [ ] Verify `ALLOWED_ORIGINS` is configured in Railway (no wildcards)
@@ -399,6 +430,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 - [ ] Audit logs for sensitive data exposure
 
 ### High Priority (Should Fix)
+
 - [ ] Review Stripe webhook signature verification
 - [ ] Implement file content validation for uploads
 - [ ] Replace console.log with structured logging
@@ -406,6 +438,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 - [ ] Set up billing alerts for Google Maps API
 
 ### Medium Priority (Monitor)
+
 - [ ] Plan migration to Redis rate limiting
 - [ ] Increase password minimum length
 - [ ] Document secret rotation schedule
@@ -416,6 +449,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 ## 🔍 CODE QUALITY OBSERVATIONS
 
 ### Positive Patterns
+
 1. ✅ Consistent use of TypeScript for type safety
 2. ✅ Zod validation schemas for all inputs
 3. ✅ Middleware-based authentication pattern
@@ -423,6 +457,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 5. ✅ Structured error handling with Sentry
 
 ### Areas for Improvement
+
 1. 🟡 Replace `console.*` with structured logging
 2. 🟡 Add comprehensive unit tests for security-critical code
 3. 🟡 Implement request/response logging middleware
@@ -433,6 +468,7 @@ function checkAuthRateLimit(identifier: string): boolean {
 ## 🚀 RECOMMENDATIONS
 
 ### Immediate Actions (Before Production)
+
 1. **Verify Google Maps API key restrictions** - Check Google Cloud Console
 2. **Confirm environment variables** - Ensure all secrets are set in Railway
 3. **Test file upload security** - Try uploading malicious files
@@ -440,12 +476,14 @@ function checkAuthRateLimit(identifier: string): boolean {
 5. **Set up monitoring** - Billing alerts, rate limit monitoring
 
 ### Short-term (First Month)
+
 1. **Migrate to Redis rate limiting** - For multi-instance deployments
 2. **Implement file content validation** - Check magic bytes, not just MIME types
 3. **Replace console.log** - Use Pino logger consistently
 4. **Add security testing** - Automated security scans in CI/CD
 
 ### Long-term (Ongoing)
+
 1. **Regular security audits** - Quarterly reviews
 2. **Secret rotation** - Annual rotation of JWT_SECRET, API keys
 3. **Penetration testing** - Annual professional security audit
@@ -464,12 +502,14 @@ function checkAuthRateLimit(identifier: string): boolean {
 ## CONCLUSION
 
 The VarsityHub application demonstrates **good security practices** in many areas:
+
 - Strong input validation
 - Proper authentication patterns
 - Rate limiting implementation
 - Environment variable validation
 
 However, **critical issues must be addressed** before production:
+
 1. Google Maps API key exposure (requires verification of restrictions)
 2. File upload security improvements
 3. Logging cleanup (console.log → structured logging)

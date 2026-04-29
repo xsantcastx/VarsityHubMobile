@@ -1,8 +1,9 @@
 # 🚨 FIX GOOGLE MAPS NOW - Blank Map Issue
 
 ## The Problem
+
 - ✅ Map container shows
-- ✅ Location dot appears  
+- ✅ Location dot appears
 - ✅ Google logo visible
 - ❌ **Map tiles NOT loading** = API key is being **REJECTED**
 
@@ -11,7 +12,7 @@
 ### Step 1: Remove API Key Restrictions (Temporary)
 
 1. Go to: https://console.cloud.google.com/apis/credentials
-2. Click your API key: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+2. Click your API key: `<GOOGLE_MAPS_API_KEY>`
 3. Scroll to **"Application restrictions"**
 4. Select **"None"** (removes all restrictions)
 5. Click **"SAVE"**
@@ -20,6 +21,7 @@
 ### Step 2: Verify API Restrictions
 
 Still in the API key settings:
+
 1. Check **"API restrictions"**
 2. Make sure these are checked:
    - ✅ Maps SDK for iOS
@@ -46,7 +48,7 @@ npx expo run:ios
 Run this command to verify your API key works:
 
 ```bash
-curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=<GOOGLE_MAPS_API_KEY>"
 ```
 
 **If you get an error** → API key is blocked/restricted
@@ -58,7 +60,7 @@ curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIz
 2. Run your app
 3. Check console for errors:
    - `"This API key is not authorized"`
-   - `"API key not valid"`  
+   - `"API key not valid"`
    - `"Bundle ID mismatch"`
    - `"Billing not enabled"`
 
@@ -85,7 +87,7 @@ curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIz
 
 ---
 
-**Your API Key**: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`  
+**Your API Key**: `<GOOGLE_MAPS_API_KEY>`  
 **Bundle ID**: `com.varsithub.varsityhub`
 
 **Action Required**: Remove Application restrictions in Google Cloud Console!

@@ -1,7 +1,8 @@
 # ✅ API Key Updated Successfully
 
 ## Updated API Key
-**New Key**: `AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA`
+
+**New Key**: `<GOOGLE_MAPS_API_KEY>`
 
 ## Files Updated
 
@@ -28,6 +29,7 @@ npx expo run:ios
 ## ✅ Verify API Key Configuration
 
 Based on your Google Cloud Console settings:
+
 - ✅ Application restrictions: **None** (good!)
 - ✅ API restrictions: **Restrict key** with:
   - Maps SDK for Android ✅

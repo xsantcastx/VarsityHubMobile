@@ -3,14 +3,16 @@
 ## Current Status
 
 ✅ **API Key Configured** in `app.json`:
-- iOS: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
-- Android: `AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY`
+
+- iOS: `<GOOGLE_MAPS_API_KEY>`
+- Android: `<GOOGLE_MAPS_API_KEY>`
 
 ✅ **Plugin Created** to inject API key into Info.plist
 
 ## Error Message
 
 The error "react-native-maps: AirGoogleMaps dir mus..." suggests:
+
 - Google Maps SDK might not be finding the API key
 - The API key might not be injected into Info.plist properly
 - There might be a path/configuration issue
@@ -29,16 +31,19 @@ The error "react-native-maps: AirGoogleMaps dir mus..." suggests:
 After the build completes, you need to:
 
 1. **Rebuild the app** (the plugin needs to run during build):
+
    ```bash
    npx expo run:ios
    ```
 
 2. **Verify the API key is in Info.plist**:
    After rebuild, check:
+
    ```bash
    cat ios/VarsityHub/Info.plist | grep GMSApiKey
    ```
-   Should show: `<key>GMSApiKey</key><string>AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY</string>`
+
+   Should show: `<key>GMSApiKey</key><string><GOOGLE_MAPS_API_KEY></string>`
 
 3. **Test the map**:
    - Navigate to "Nearby Games" screen
@@ -53,9 +58,10 @@ After the build completes, you need to:
    - Check if restrictions are blocking the simulator
 
 2. **Verify API key is valid**:
+
    ```bash
    # Test the API key (replace with your key)
-   curl "https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&key=AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+   curl "https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&key=<GOOGLE_MAPS_API_KEY>"
    ```
 
 3. **Check simulator/device**:

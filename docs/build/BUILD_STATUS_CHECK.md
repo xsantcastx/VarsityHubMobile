@@ -16,7 +16,7 @@ From your terminal output:
 - GoogleMaps framework imported ✅
 
 ### ✅ API Key Configuration
-- **app.json**: `AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA` ✅
+- **app.json**: `<GOOGLE_MAPS_API_KEY>` ✅
 - **Info.plist**: `GMSApiKey` ✅
 - **AppDelegate.swift**: `GMSServices.provideAPIKey()` ✅
 - **AndroidManifest.xml**: `com.google.android.geo.API_KEY` ✅
@@ -47,7 +47,7 @@ From your terminal output:
 ### Verify API Key Works
 Test the API key directly:
 ```bash
-curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA"
+curl "https://maps.googleapis.com/maps/api/geocode/json?address=New+York&key=<GOOGLE_MAPS_API_KEY>"
 ```
 
 Should return JSON data, not an error.

@@ -44,7 +44,7 @@ async function showBetaTestData() {
   
   console.log();
   console.log('🚀 Ready for Beta Testing!');
-  console.log('   Railway Database: postgresql://postgres:***@hopper.proxy.rlwy.net:22104/railway');
+  console.log('   Railway Database: use the API service internal DATABASE_URL only');
   console.log('   Frontend: Start your Expo app and test with these accounts');
   console.log('   Backend: Your API is ready to serve data to beta testers');
   console.log();
