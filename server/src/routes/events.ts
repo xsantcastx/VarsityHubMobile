@@ -323,6 +323,15 @@ eventsRouter.get(
       const eventType = String(req.query.event_type || '').trim();
       const search = String(req.query.q || '').trim();
       const sort = String(req.query.sort || '').trim();
+      const teamId = typeof req.query.team_id === 'string' ? req.query.team_id.trim() : '';
+      const teamIds =
+        typeof req.query.team_ids === 'string'
+          ? req.query.team_ids
+              .split(',')
+              .map(value => value.trim())
+              .filter(Boolean)
+              .slice(0, 50)
+          : [];
       const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
       // v1.0.2 pass 12: default to 100 when no limit is supplied so the query is always bounded.
       // Previous `undefined` fallback let callers omit `limit` and get an unbounded scan on Event.
@@ -342,6 +351,25 @@ eventsRouter.get(
           { description: { contains: search, mode: 'insensitive' } },
           { location: { contains: search, mode: 'insensitive' } },
         ];
+      }
+      if (teamId || teamIds.length > 0) {
+        const scopedTeamIds = [...new Set([teamId, ...teamIds].filter(Boolean))];
+        where.AND = where.AND || [];
+        where.AND.push({
+          OR: [
+            { team_id: { in: scopedTeamIds } },
+            {
+              game: {
+                is: {
+                  OR: [
+                    { home_team_id: { in: scopedTeamIds } },
+                    { away_team_id: { in: scopedTeamIds } },
+                  ],
+                },
+              },
+            },
+          ],
+        });
       }
 
       // v1.0.2: auto-archive window is 3 days after event date (was "hide anything past").

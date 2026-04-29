@@ -65,17 +65,15 @@ function TeamHubScreen() {
         setTeamsLoading(false);
 
         // Load events filtered to coach's teams
-        const teamIds = new Set(teams.map((t: any) => String(t.id)));
-        const list: any = await Event.filter({ status: 'approved' }, 'date');
+        const teamIds = teams.map((t: any) => String(t.id)).filter(Boolean);
+        if (teamIds.length === 0) {
+          setEvents([]);
+          return;
+        }
+        const list: any = await Event.filter({ status: 'approved', team_ids: teamIds }, 'date', 20);
         if (!mounted) return;
         const allItems = Array.isArray(list) ? list : list?.items || [];
-        const filtered = teamIds.size > 0
-          ? allItems.filter((evt: any) => {
-              const eid = evt.team_id ? String(evt.team_id) : evt.team?.id ? String(evt.team.id) : null;
-              return eid && teamIds.has(eid);
-            })
-          : [];
-        setEvents(filtered);
+        setEvents(Array.isArray(allItems) ? allItems : []);
       } catch (err) {
         if (__DEV__) console.error('Failed to load team hub data', err);
         if (mounted) setEventsError('Unable to load events right now.');

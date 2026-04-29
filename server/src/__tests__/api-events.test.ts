@@ -300,6 +300,85 @@ describe('API Event Endpoints', () => {
       expect(response.body.length).toBeLessThanOrEqual(10);
     });
 
+    it('should filter events by direct team_id and linked game team_ids', async () => {
+      const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      const outsideTeam = await prisma.team.create({
+        data: {
+          name: `Outside Event Team ${Date.now()}`,
+          organization_id: testOrgId,
+        },
+      });
+      const linkedGame = await prisma.game.create({
+        data: {
+          title: `Linked Team Event Game ${Date.now()}`,
+          date: futureDate,
+          location: 'Linked Stadium',
+          approval_status: 'approved',
+          home_team_id: testTeamId,
+        },
+      });
+
+      try {
+        const directEvent = await prisma.event.create({
+          data: {
+            title: `Direct Team Event ${Date.now()}`,
+            date: futureDate,
+            location: 'Direct Stadium',
+            status: 'approved',
+            approval_status: 'approved',
+            creator_id: coachUserId,
+            creator_role: 'coach',
+            team_id: testTeamId,
+          },
+        });
+        const linkedEvent = await prisma.event.create({
+          data: {
+            title: `Linked Team Event ${Date.now()}`,
+            date: futureDate,
+            location: 'Linked Stadium',
+            status: 'approved',
+            approval_status: 'approved',
+            creator_id: coachUserId,
+            creator_role: 'coach',
+            game_id: linkedGame.id,
+          },
+        });
+        const outsideEvent = await prisma.event.create({
+          data: {
+            title: `Outside Team Event ${Date.now()}`,
+            date: futureDate,
+            location: 'Outside Stadium',
+            status: 'approved',
+            approval_status: 'approved',
+            creator_id: coachUserId,
+            creator_role: 'coach',
+            team_id: outsideTeam.id,
+          },
+        });
+
+        const response = await request(app)
+          .get(`/events?team_ids=${encodeURIComponent(testTeamId)}`)
+          .expect(200);
+
+        const ids = response.body.map((item: any) => item.id);
+        expect(ids).toContain(directEvent.id);
+        expect(ids).toContain(linkedEvent.id);
+        expect(ids).not.toContain(outsideEvent.id);
+      } finally {
+        await prisma.event.deleteMany({
+          where: {
+            OR: [
+              { team_id: outsideTeam.id },
+              { game_id: linkedGame.id },
+              { team_id: testTeamId, title: { contains: 'Direct Team Event' } },
+            ],
+          },
+        }).catch(() => {});
+        await prisma.game.delete({ where: { id: linkedGame.id } }).catch(() => {});
+        await prisma.team.delete({ where: { id: outsideTeam.id } }).catch(() => {});
+      }
+    });
+
     it('does not expose creator object on the public event list payload', async () => {
       const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 

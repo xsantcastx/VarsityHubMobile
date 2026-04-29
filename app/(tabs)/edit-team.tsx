@@ -69,52 +69,54 @@ function EditTeamScreen() {
 
       // Check if current user can manage this team. Mirrors the server's
       // canManageTeam: team staff role OR org owner/manager fallback.
-      // Previously only checked team membership, which locked out org admins
-      // even though the backend permits them.
+      // Load membership and org context in parallel so navigation into edit
+      // screens does not wait on serial round-trips.
+      const orgFromResponse = (teamData as any).organization;
       try {
-        const membersList = await Team.members(params.id);
+        const [membersList, orgMembers, orgDetails] = await Promise.all([
+          Team.members(params.id),
+          teamData.organization_id && currentUser?.id
+            ? Organization.members(teamData.organization_id).catch((orgErr) => {
+                if (__DEV__) console.warn('[EditTeam] org membership check failed:', orgErr);
+                return [];
+              })
+            : Promise.resolve([]),
+          !orgFromResponse?.name && teamData.organization_id
+            ? Organization.get(teamData.organization_id).catch((err) => {
+                if (__DEV__) console.error('Failed to load organization:', err);
+                return null;
+              })
+            : Promise.resolve(null),
+        ]);
         const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
         setMembers(arr);
         const STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'];
-        const myMembership = arr.find((m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id);
-        const isTeamStaff = !!myMembership && STAFF_ROLES.includes(String(myMembership.role || '').toLowerCase());
+        const myMembership = arr.find(
+          (m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id
+        );
+        const isTeamStaff =
+          !!myMembership && STAFF_ROLES.includes(String(myMembership.role || '').toLowerCase());
 
-        let isOrgAdmin = false;
-        if (!isTeamStaff && teamData.organization_id && currentUser?.id) {
-          try {
-            const orgMembers = await Organization.members(teamData.organization_id);
-            const orgArr = Array.isArray(orgMembers) ? orgMembers : (orgMembers?.members || []);
-            const myOrgMembership = orgArr.find((m: any) => (m.user_id || m.user?.id) === currentUser.id);
-            const myOrgRole = String(myOrgMembership?.role || '').toLowerCase();
-            isOrgAdmin = ['owner', 'manager'].includes(myOrgRole);
-          } catch (orgErr) {
-            if (__DEV__) console.warn('[EditTeam] org membership check failed:', orgErr);
-          }
-        }
+        const orgArr = Array.isArray(orgMembers) ? orgMembers : (orgMembers?.members || []);
+        const myOrgMembership = orgArr.find(
+          (m: any) => (m.user_id || m.user?.id) === currentUser?.id
+        );
+        const myOrgRole = String(myOrgMembership?.role || '').toLowerCase();
+        const isOrgAdmin = ['owner', 'manager'].includes(myOrgRole);
 
         if (!isTeamStaff && !isOrgAdmin) {
-          Alert.alert('Access Denied', 'You must be team staff or an organization admin to edit this team.');
+          Alert.alert(
+            'Access Denied',
+            'You must be team staff or an organization admin to edit this team.'
+          );
           safeGoBack(router);
           return;
         }
         setIsOwner(myMembership?.role === 'owner');
+        setOrganizationName(orgFromResponse?.name || orgDetails?.name || '');
       } catch (err) {
-        if (__DEV__) console.error('[EditTeam] Failed to load members:', err);
-      }
-
-      const orgFromResponse = (teamData as any).organization;
-      if (orgFromResponse?.name) {
-        setOrganizationName(orgFromResponse.name);
-      } else if (teamData.organization_id) {
-        try {
-          const org = await Organization.get(teamData.organization_id);
-          setOrganizationName(org.name || '');
-        } catch (err) {
-          if (__DEV__) console.error('Failed to load organization:', err);
-          setOrganizationName('');
-        }
-      } else {
-        setOrganizationName('');
+        if (__DEV__) console.error('[EditTeam] Failed to load edit context:', err);
+        setOrganizationName(orgFromResponse?.name || '');
       }
     } catch (error) {
       if (handleCoachAccessError(router, error, 'editing teams')) {

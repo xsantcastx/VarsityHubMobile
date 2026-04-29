@@ -461,6 +461,8 @@ export const Event = {
       event_type?: string;
       q?: string;
       include_cancelled?: boolean;
+      team_id?: string;
+      team_ids?: string[];
     } = {},
     sort?: string,
     limit?: number
@@ -472,6 +474,10 @@ export const Event = {
     if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
     if (where.include_cancelled) q.push('include_cancelled=true');
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
+    if (where.team_id) q.push('team_id=' + encodeURIComponent(where.team_id));
+    if (Array.isArray(where.team_ids) && where.team_ids.length > 0) {
+      q.push('team_ids=' + where.team_ids.map(teamId => encodeURIComponent(teamId)).join(','));
+    }
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (typeof limit === 'number') q.push('limit=' + String(limit));
     return httpGet('/events' + (q.length ? '?' + q.join('&') : '')).then(data =>

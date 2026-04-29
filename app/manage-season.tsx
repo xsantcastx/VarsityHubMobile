@@ -171,23 +171,13 @@ function ManageSeasonScreen() {
         setGames([]);
         return;
       }
-      const response = await GameAPI.list('-date', { showPending: true, limit: 100 });
+      const response = await GameAPI.list('-date', {
+        showPending: true,
+        teamId: currentTeam.id,
+        limit: 100,
+      });
       const backendGames = response?.games ?? (Array.isArray(response) ? response : []);
-      const targetTeamId = String(currentTeam.id);
-      const relevantGames: any[] = Array.isArray(backendGames)
-        ? backendGames.filter((game: any) => {
-            if (!targetTeamId) return true;
-            const candidateIds = [
-              game.home_team_id,
-              game.away_team_id,
-              game.team_id,
-              ...(Array.isArray(game.teams) ? game.teams.map((t: any) => t?.id) : []),
-            ]
-              .filter(Boolean)
-              .map((id: any) => String(id));
-            return candidateIds.includes(targetTeamId);
-          })
-        : [];
+      const relevantGames: any[] = Array.isArray(backendGames) ? backendGames : [];
 
       // Convert backend games to local Game format
       const convertedGames = relevantGames.map((game: any) => {

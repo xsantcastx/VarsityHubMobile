@@ -173,19 +173,11 @@ function TeamScreen() {
     postsRequestInFlight.current = true;
     if (mounted.current) setPostsLoading(true);
     try {
-      // Fetch posts for team games
-      const teamNameLower = (team?.name || '').toLowerCase();
-      const allGamesData = await Game.list('-date');
+      // Fetch only this team's games instead of scanning the global game list.
+      const allGamesData = await Game.list('-date', { teamId: _teamId, limit: 50 });
       if (!mounted.current) return;
       const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
-
-      const teamGames = allGames.filter((g: GameItem) => {
-            const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-            const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-            return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-          });
-      
-      const gameIds = teamGames.map((g: GameItem) => g.id);
+      const gameIds = allGames.map((g: GameItem) => g.id).filter(Boolean);
       if (!mounted.current) return;
       
       if (gameIds.length === 0) {
@@ -401,17 +393,11 @@ function TeamScreen() {
 
       // Fetch games, posts, and members
       const [gamesResult, membersResult] = await Promise.all([
-        Game.list('-date')
+        Game.list('-date', { teamId: teamData.id, limit: 50 })
           .then(allGamesData => {
             if (!mounted.current) return [];
             const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
-            const teamNameLower = (teamData!.name || '').toLowerCase();
             return allGames
-              .filter((g: GameItem) => {
-                  const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-                  const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-                  return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-                })
               .sort((a: GameItem, b: GameItem) => {
                   const dateA = new Date(a.date || a.created_at || 0).getTime();
                   const dateB = new Date(b.date || b.created_at || 0).getTime();
