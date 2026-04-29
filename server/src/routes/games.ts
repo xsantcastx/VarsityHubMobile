@@ -26,8 +26,10 @@ import {
   sendEventSubmissionReceivedEmail,
   sendEventUpdatedEmail,
 } from '../lib/email.js';
-import { cancelGameReminders } from '../lib/notifications.js';
+import * as notifications from '../lib/notifications.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+
+const cancelGameReminders = notifications.cancelGameReminders;
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -1662,9 +1664,12 @@ gamesRouter.delete(
               if (!rsvp.user_id || rsvp.user_id === req.user!.id) continue;
               rsvpUserIds.add(rsvp.user_id);
 
-              void cancelGameReminders(evt.id, rsvp.user_id).catch((err) => {
-                console.warn('[games] Failed to cancel game reminders after delete:', err);
-              });
+              if (cancelGameReminders) {
+                const reminderCancellation = cancelGameReminders(evt.id, rsvp.user_id);
+                reminderCancellation.catch((err) => {
+                  console.warn('[games] Failed to cancel game reminders after delete:', err);
+                });
+              }
 
               if (rsvp.user?.email) {
                 void sendEventCanceledEmail({

@@ -13,7 +13,11 @@ import {
   alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
-import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import {
+  consumeReviewToken,
+  getReviewTokenReplayState,
+  verifyReviewToken,
+} from '../lib/reviewTokens.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
   approveAd as approveAdService,
@@ -1149,6 +1153,11 @@ function confirmationPage(safeTitle: string, safeMessage: string, success: boole
 </body></html>`;
 }
 
+async function isModerationTokenReplay(token: string, payload: { jti?: string; exp?: number; iat?: number }) {
+  const replayState = await getReviewTokenReplayState(token, payload);
+  return replayState === 'already_used';
+}
+
 function buildNativeAdReviewUrl(id: string, action?: 'approve' | 'reject'): string {
   const appScheme = (process.env.APP_SCHEME || 'varsityhubmobile').replace(/:.*$/, '');
   const url = new URL(`${appScheme}://admin-ads`);
@@ -1423,6 +1432,18 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
+    if (token && tokenPayload && (await isModerationTokenReplay(token, tokenPayload))) {
+      return res
+        .status(409)
+        .send(
+          confirmationPage(
+            'Link Already Used',
+            'This approval link was already used. Open the latest email if you need a fresh review link.',
+            false
+          )
+        );
+    }
+
     const body = req.body || {};
     const note = typeof body.note === 'string' ? body.note.trim() : null;
     const overrideRequested = isTruthyFlag(body.override_banner_flag);
@@ -1574,6 +1595,18 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
     } else {
       const isAdmin = await getIsAdmin(req);
       if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+    }
+
+    if (token && tokenPayload && (await isModerationTokenReplay(token, tokenPayload))) {
+      return res
+        .status(409)
+        .send(
+          confirmationPage(
+            'Link Already Used',
+            'This rejection link was already used. Open the latest email if you need a fresh review link.',
+            false
+          )
+        );
     }
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);

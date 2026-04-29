@@ -5,7 +5,11 @@ import { sendAdTakenDownPendingReviewEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
-import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import {
+  consumeReviewToken,
+  getReviewTokenReplayState,
+  verifyReviewToken,
+} from '../lib/reviewTokens.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { adModerationLimiter } from '../middleware/rateLimiters.js';
@@ -88,6 +92,11 @@ function renderReportResultPage(title: string, message: string, success: boolean
 </body></html>`;
 }
 
+async function isReplayTokenAlreadyUsed(token: string, payload: { jti?: string; exp?: number; iat?: number }) {
+  const replayState = await getReviewTokenReplayState(token, payload);
+  return replayState === 'already_used';
+}
+
 async function handleEmailReportReview(
   req: AuthedRequest,
   res: express.Response,
@@ -146,6 +155,18 @@ async function handleEmailReportReview(
     return res
       .status(404)
       .send(renderReportResultPage('Not Found', 'Abuse report not found.', false));
+  }
+
+  if (req.method === 'POST' && tokenValid && (await isReplayTokenAlreadyUsed(token!, payload!))) {
+    return res
+      .status(409)
+      .send(
+        renderReportResultPage(
+          'Link Already Used',
+          `This ${action} link was already used. Open the latest email if you need a fresh review link.`,
+          false
+        )
+      );
   }
 
   const nextStatus = action === 'dismiss' ? 'dismissed' : 'resolved';

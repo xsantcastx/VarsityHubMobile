@@ -19,6 +19,7 @@ export type ReviewTokenPayload = {
 };
 
 export type ConsumeReviewTokenResult = 'consumed' | 'already_used' | 'store_unavailable';
+export type ReviewTokenReplayState = 'unused' | 'already_used' | 'store_unavailable';
 
 function shouldRequireDurableStore(): boolean {
   return process.env.NODE_ENV === 'production' && !isTestEnv;
@@ -58,6 +59,16 @@ function consumeInMemoryReplayKey(key: string, ttlSeconds: number): ConsumeRevie
 
   inMemoryConsumedTokens.set(key, nowMs + ttlSeconds * 1000);
   return 'consumed';
+}
+
+function readInMemoryReplayKey(key: string): ReviewTokenReplayState {
+  const nowMs = Date.now();
+  pruneExpiredInMemoryTokens(nowMs);
+  const existingExpiry = inMemoryConsumedTokens.get(key);
+  if (existingExpiry && existingExpiry > nowMs) {
+    return 'already_used';
+  }
+  return 'unused';
 }
 
 async function getRedisClient(): Promise<RedisClient | null> {
@@ -160,6 +171,30 @@ export async function consumeReviewToken(
     });
   }
   return result;
+}
+
+export async function getReviewTokenReplayState(
+  token: string,
+  payload: ReviewTokenPayload
+): Promise<ReviewTokenReplayState> {
+  const key = buildReplayKey(token, payload);
+  const redis = await getRedisClient();
+
+  if (redis) {
+    try {
+      const existing = await redis.get(key);
+      return existing ? 'already_used' : 'unused';
+    } catch (error) {
+      captureException(error instanceof Error ? error : new Error(String(error)), {
+        context: 'review_token_replay_state_failed',
+      });
+      if (shouldRequireDurableStore()) return 'store_unavailable';
+    }
+  } else if (shouldRequireDurableStore()) {
+    return 'store_unavailable';
+  }
+
+  return readInMemoryReplayKey(key);
 }
 
 export function __resetReviewTokenStateForTests() {

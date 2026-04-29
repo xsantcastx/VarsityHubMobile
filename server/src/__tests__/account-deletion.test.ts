@@ -17,7 +17,7 @@
  *   • Already-deleted user → 200 with already_deleted=true (idempotent)
  */
 
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
@@ -27,6 +27,11 @@ import { app } from '../testApp.js';
 
 const PASSWORD = 'CorrectPassword123!';
 const WRONG_PASSWORD = 'WrongPassword999!';
+
+// This suite performs repeated bcrypt hashing plus end-to-end auth flows
+// against the shared test app, so the default 10s ceiling is too tight when
+// the full server suite is already under load.
+jest.setTimeout(20_000);
 
 // Ids tracked for cleanup across all suites in this file.
 const createdUserIds = new Set<string>();
