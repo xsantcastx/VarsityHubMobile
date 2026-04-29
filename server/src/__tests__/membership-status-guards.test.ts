@@ -21,10 +21,12 @@ const orgsSrc = readFileSync(join(ROUTES_DIR, 'organizations.ts'), 'utf8');
 
 describe('membership status guards', () => {
   it('requires active team membership for team update, delete, and transfer-ownership', () => {
-    expect(teamsSrc).toMatch(/teamsRouter\.put\('\/:id'[\s\S]*?teamMembership\.findFirst\(\{[\s\S]*?status:\s*'active'/);
-    expect(teamsSrc).toMatch(/teamsRouter\.delete\('\/:id'[\s\S]*?teamMembership\.findFirst\(\{[\s\S]*?status:\s*'active'/);
-    expect(teamsSrc).toMatch(/teamsRouter\.post\('\/:id\/transfer-ownership'[\s\S]*?currentMembership[\s\S]*?status:\s*'active'/);
-    expect(teamsSrc).toMatch(/teamsRouter\.post\('\/:id\/transfer-ownership'[\s\S]*?newOwnerMembership[\s\S]*?status:\s*'active'/);
+    // Allow whitespace between router.method( and the path string — prettier
+    // reformats long arg lists across multiple lines.
+    expect(teamsSrc).toMatch(/teamsRouter\.put\(\s*'\/:id'[\s\S]*?teamMembership\.findFirst\(\{[\s\S]*?status:\s*'active'/);
+    expect(teamsSrc).toMatch(/teamsRouter\.delete\(\s*'\/:id'[\s\S]*?teamMembership\.findFirst\(\{[\s\S]*?status:\s*'active'/);
+    expect(teamsSrc).toMatch(/teamsRouter\.post\(\s*'\/:id\/transfer-ownership'[\s\S]*?currentMembership[\s\S]*?status:\s*'active'/);
+    expect(teamsSrc).toMatch(/teamsRouter\.post\(\s*'\/:id\/transfer-ownership'[\s\S]*?newOwnerMembership[\s\S]*?status:\s*'active'/);
   });
 
   it('join-request approve requires active org membership', () => {
