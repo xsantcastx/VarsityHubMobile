@@ -1384,17 +1384,6 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
       }
-      const consumeResult = await consumeReviewToken(token, tokenPayload);
-      if (consumeResult === 'already_used') {
-        return res
-          .status(409)
-          .send(confirmationPage('Link Already Used', 'This approval link has already been used.', false));
-      }
-      if (consumeResult === 'store_unavailable') {
-        return res
-          .status(503)
-          .send(confirmationPage('Temporarily Unavailable', 'This approval link cannot be completed right now. Please use the admin dashboard instead.', false));
-      }
     } else {
       const isAdmin = await getIsAdmin(req);
       if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
@@ -1439,6 +1428,16 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
             error: result.error,
             ...((result as any).moderation ? { moderation: (result as any).moderation } : {}),
           });
+    }
+
+    if (token && tokenPayload) {
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult !== 'consumed') {
+        console.warn('[ads] approve token could not be marked consumed after success:', {
+          ad_id: id,
+          consumeResult,
+        });
+      }
     }
 
     return req.method === 'POST' && token
@@ -1518,17 +1517,6 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
       }
-      const consumeResult = await consumeReviewToken(token, tokenPayload);
-      if (consumeResult === 'already_used') {
-        return res
-          .status(409)
-          .send(confirmationPage('Link Already Used', 'This rejection link has already been used.', false));
-      }
-      if (consumeResult === 'store_unavailable') {
-        return res
-          .status(503)
-          .send(confirmationPage('Temporarily Unavailable', 'This rejection link cannot be completed right now. Please use the admin dashboard instead.', false));
-      }
     } else {
       const isAdmin = await getIsAdmin(req);
       if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
@@ -1541,6 +1529,16 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
             .status(result.status!)
             .send(confirmationPage('Error', escapeHtml(result.error), false))
         : res.status(result.status!).json({ error: result.error });
+    }
+
+    if (token && tokenPayload) {
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult !== 'consumed') {
+        console.warn('[ads] reject token could not be marked consumed after success:', {
+          ad_id: id,
+          consumeResult,
+        });
+      }
     }
 
     return req.method === 'POST' && token
