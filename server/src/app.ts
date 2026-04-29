@@ -365,8 +365,26 @@ function buildNativeHandoffUrl(pathname: string, req: Request): string {
   return url.toString();
 }
 
-function renderAppHandoffPage(title: string, description: string, nativeUrl: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><style>${legalPageStyle}.card{background:#fff;border:1px solid #E5E7EB;border-radius:16px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,.08)}.btn{display:inline-block;background:#1B3A6B;color:#fff;text-decoration:none;padding:14px 20px;border-radius:10px;font-weight:600;margin-top:8px}</style></head><body><div class="card"><h1>${title}</h1><p>${description}</p><p><a class="btn" href="${escapeHtml(nativeUrl)}">Open in VarsityHub</a></p><p>If the app does not open automatically, tap the button again from this page.</p></div><script>window.setTimeout(function(){window.location.replace(${JSON.stringify(nativeUrl)});},75);</script></body></html>`;
+function renderAppHandoffPage(
+  title: string,
+  description: string,
+  nativeUrl: string,
+  extraHtml = ''
+): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><style>${legalPageStyle}.card{background:#fff;border:1px solid #E5E7EB;border-radius:16px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,.08)}.btn{display:inline-block;background:#1B3A6B;color:#fff;text-decoration:none;padding:14px 20px;border-radius:10px;font-weight:600;margin-top:8px}.code-card{margin-top:20px;padding:18px;border-radius:12px;background:#F8FAFC;border:1px solid #CBD5E1}.code-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:0 0 8px}.code-value{font-size:32px;font-weight:700;letter-spacing:.24em;color:#0F172A;margin:0 0 10px}.meta{font-size:14px;color:#475569;margin:6px 0 0}</style></head><body><div class="card"><h1>${title}</h1><p>${description}</p><p><a class="btn" href="${escapeHtml(nativeUrl)}">Open in VarsityHub</a></p><p>If the app does not open automatically, tap the button again from this page.</p>${extraHtml}</div><script>window.setTimeout(function(){window.location.replace(${JSON.stringify(nativeUrl)});},75);</script></body></html>`;
+}
+
+function buildVerifyFallbackHtml(req: Request): string {
+  const token = typeof req.query.token === 'string' ? req.query.token.replace(/[^0-9]/g, '').slice(0, 6) : '';
+  if (token.length !== 6) return '';
+  const email =
+    typeof req.query.email === 'string' && req.query.email.trim().length > 0
+      ? req.query.email.trim().toLowerCase()
+      : '';
+  const emailLine = email
+    ? `<p class="meta">This code is for <strong>${escapeHtml(email)}</strong>.</p>`
+    : '';
+  return `<div class="code-card"><p class="code-label">Manual Backup Code</p><p class="code-value">${escapeHtml(token)}</p><p class="meta">If your email app blocks the handoff, open VarsityHub manually and enter this 6-digit code on the verification screen.</p>${emailLine}</div>`;
 }
 
 const publicAppHandoffRoutes: Array<{ path: string; title: string; description: string }> = [
@@ -488,7 +506,8 @@ for (const route of publicAppHandoffRoutes) {
       renderAppHandoffPage(
         route.title,
         route.description,
-        buildNativeHandoffUrl(route.path, req)
+        buildNativeHandoffUrl(route.path, req),
+        route.path === '/verify' ? buildVerifyFallbackHtml(req) : ''
       )
     );
   });

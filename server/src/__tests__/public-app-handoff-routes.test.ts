@@ -15,6 +15,9 @@ describe('Public app handoff routes', () => {
     expect(res.text).toContain(
       'varsityhubmobile://verify?token=123456&email=user%40example.com'
     );
+    expect(res.text).toContain('Manual Backup Code');
+    expect(res.text).toContain('123456');
+    expect(res.text).toContain('user@example.com');
   });
 
   it('serves a billing handoff page for manage-subscription links', async () => {
