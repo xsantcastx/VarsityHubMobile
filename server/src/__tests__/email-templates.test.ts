@@ -63,6 +63,20 @@ describe('Email template helpers', () => {
     process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID = validTemplateId;
     process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID = validTemplateId;
     process.env.SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_INVITATION_DECLINED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_EVENT_UPDATED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_CONTENT_REMOVED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_REPORT_DISMISSED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_REPORT_RESOLVED_TEMPLATE_ID = validTemplateId;
     const { getMissingEmailTemplates } = await import('../lib/email.js');
     const missing = getMissingEmailTemplates();
     expect(missing).toHaveLength(0);
@@ -237,6 +251,9 @@ describe('Email template helpers', () => {
     expect(parsed.pathname).toBe('/admin/reports/rep_123/dismiss');
     const token = parsed.searchParams.get('token');
     expect(token).toBeTruthy();
-    expect(verifyJwt(token!)).toMatchObject({ reportId: 'rep_123', action: 'dismiss_abuse_report' });
+    expect(verifyJwt(token!)).toMatchObject({
+      reportId: 'rep_123',
+      action: 'dismiss_abuse_report',
+    });
   });
 });

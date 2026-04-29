@@ -1298,9 +1298,7 @@ export async function sendReportStatusEmail(params: {
   const templateId =
     params.status === 'resolved' ? TEMPLATE_IDS.REPORT_RESOLVED : TEMPLATE_IDS.REPORT_DISMISSED;
   if (!templateId) {
-    console.error(
-      `[email] Missing SENDGRID_REPORT_${params.status.toUpperCase()}_TEMPLATE_ID`
-    );
+    console.error(`[email] Missing SENDGRID_REPORT_${params.status.toUpperCase()}_TEMPLATE_ID`);
     return false;
   }
   const subject =

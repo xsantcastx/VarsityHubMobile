@@ -1409,7 +1409,10 @@ organizationsRouter.post(
               scope: 'organization',
               scopeName: orgName,
             }).catch(err =>
-              console.warn('[organizations] sendInvitationDeclinedEmail failed:', err?.message ?? err)
+              console.warn(
+                '[organizations] sendInvitationDeclinedEmail failed:',
+                err?.message ?? err
+              )
             );
           }
         }

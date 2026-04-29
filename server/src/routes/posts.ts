@@ -18,7 +18,10 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import crypto from 'crypto';
-import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import {
+  canManageAnyTeam,
+  canManageTeam as canManageTeamScoped,
+} from '../lib/teamAuthorization.js';
 
 export const postsRouter = Router();
 registerIdValidation(postsRouter);
@@ -147,240 +150,376 @@ const trendingScore = (upvotes: number, createdAt: Date): number => {
   return (upvotes || 0) / Math.pow(ageHours + 2, 1.5);
 };
 
-postsRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
-    const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50));
-    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
-    const followedOnly = String(req.query.followed_only || '').toLowerCase() === 'true';
-    const followedTeams = String(req.query.followed_teams || '').toLowerCase() === 'true';
-    const currentUserId = req.user?.id ?? null;
+postsRouter.get(
+  '/',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
+      const limit = Math.max(1, Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50));
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+      const followedOnly = String(req.query.followed_only || '').toLowerCase() === 'true';
+      const followedTeams = String(req.query.followed_teams || '').toLowerCase() === 'true';
+      const currentUserId = req.user?.id ?? null;
 
-    const hasTeamFilter = !!req.query.team_id;
-    const orderBy =
-      sort === 'trending'
-        ? [{ created_at: 'desc' as const }] // Fetch by recency; we'll re-sort by score
-        : hasTeamFilter
-          ? [{ is_pinned: 'desc' as const }, { created_at: 'desc' as const }] // Pinned first on team feed
-          : [{ created_at: 'desc' as const }];
+      const hasTeamFilter = !!req.query.team_id;
+      const orderBy =
+        sort === 'trending'
+          ? [{ created_at: 'desc' as const }] // Fetch by recency; we'll re-sort by score
+          : hasTeamFilter
+            ? [{ is_pinned: 'desc' as const }, { created_at: 'desc' as const }] // Pinned first on team feed
+            : [{ created_at: 'desc' as const }];
 
-    const where: Record<string, any> = { deleted_at: null };
+      const where: Record<string, any> = { deleted_at: null };
 
-    // Followed feed: only posts from users the current user follows (requires auth)
-    let followedFeedMeta: { following_count: number } | undefined;
-    if (followedOnly) {
-      if (!currentUserId) {
-        return res
-          .status(401)
-          .json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
-      }
-      const following = await prisma.follows.findMany({
-        where: { follower_id: currentUserId, status: 'accepted' },
-        select: { following_id: true },
-        take: 1000,
-      });
-      const followingIds = following.map(f => f.following_id);
-      followedFeedMeta = { following_count: followingIds.length };
-      if (followingIds.length === 0) {
-        return res.json({ items: [], nextCursor: null, followed_feed_meta: followedFeedMeta });
-      }
-      // Show posts from followed users OR admin broadcast posts (visible to everyone)
-      where.OR = [{ author_id: { in: followingIds } }, { type: 'admin_broadcast' }];
-    }
-
-    // Followed teams feed: posts from teams the user follows (team_id or game's teams)
-    let followedTeamsFeedMeta: { followed_teams_count: number } | undefined;
-    if (followedTeams) {
-      if (!currentUserId) {
-        return res.status(401).json({
-          items: [],
-          nextCursor: null,
-          followed_teams_feed_meta: { followed_teams_count: 0 },
+      // Followed feed: only posts from users the current user follows (requires auth)
+      let followedFeedMeta: { following_count: number } | undefined;
+      if (followedOnly) {
+        if (!currentUserId) {
+          return res
+            .status(401)
+            .json({ items: [], nextCursor: null, followed_feed_meta: { following_count: 0 } });
+        }
+        const following = await prisma.follows.findMany({
+          where: { follower_id: currentUserId, status: 'accepted' },
+          select: { following_id: true },
+          take: 1000,
         });
+        const followingIds = following.map(f => f.following_id);
+        followedFeedMeta = { following_count: followingIds.length };
+        if (followingIds.length === 0) {
+          return res.json({ items: [], nextCursor: null, followed_feed_meta: followedFeedMeta });
+        }
+        // Show posts from followed users OR admin broadcast posts (visible to everyone)
+        where.OR = [{ author_id: { in: followingIds } }, { type: 'admin_broadcast' }];
       }
-      const teamFollows = await prisma.teamFollow.findMany({
-        where: { user_id: currentUserId },
-        select: { team_id: true },
-        take: 1000,
-      });
-      const followedTeamIds = teamFollows.map(f => f.team_id);
-      followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
-      if (followedTeamIds.length === 0) {
-        return res.json({
-          items: [],
-          nextCursor: null,
-          followed_teams_feed_meta: followedTeamsFeedMeta,
+
+      // Followed teams feed: posts from teams the user follows (team_id or game's teams)
+      let followedTeamsFeedMeta: { followed_teams_count: number } | undefined;
+      if (followedTeams) {
+        if (!currentUserId) {
+          return res.status(401).json({
+            items: [],
+            nextCursor: null,
+            followed_teams_feed_meta: { followed_teams_count: 0 },
+          });
+        }
+        const teamFollows = await prisma.teamFollow.findMany({
+          where: { user_id: currentUserId },
+          select: { team_id: true },
+          take: 1000,
         });
+        const followedTeamIds = teamFollows.map(f => f.team_id);
+        followedTeamsFeedMeta = { followed_teams_count: followedTeamIds.length };
+        if (followedTeamIds.length === 0) {
+          return res.json({
+            items: [],
+            nextCursor: null,
+            followed_teams_feed_meta: followedTeamsFeedMeta,
+          });
+        }
+        const gamesWithFollowedTeams = await prisma.game.findMany({
+          where: {
+            OR: [
+              { home_team_id: { in: followedTeamIds } },
+              { away_team_id: { in: followedTeamIds } },
+            ],
+          },
+          select: { id: true },
+          take: 500,
+          orderBy: { date: 'desc' },
+        });
+        const gameIds = gamesWithFollowedTeams.map(g => g.id);
+        where.OR = [
+          { team_id: { in: followedTeamIds } },
+          ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
+          { type: 'admin_broadcast' },
+        ];
       }
-      const gamesWithFollowedTeams = await prisma.game.findMany({
-        where: {
-          OR: [
-            { home_team_id: { in: followedTeamIds } },
-            { away_team_id: { in: followedTeamIds } },
-          ],
-        },
-        select: { id: true },
-        take: 500,
-        orderBy: { date: 'desc' },
-      });
-      const gameIds = gamesWithFollowedTeams.map(g => g.id);
-      where.OR = [
-        { team_id: { in: followedTeamIds } },
-        ...(gameIds.length > 0 ? [{ game_id: { in: gameIds } }] : []),
-        { type: 'admin_broadcast' },
-      ];
-    }
 
-    if (req.query.game_id) {
-      const gameId = String(req.query.game_id);
-      // Handle sample game IDs (stored in title field with [SAMPLE_GAME:...] marker)
-      if (/^sample-/i.test(gameId)) {
-        where.title = { startsWith: `[SAMPLE_GAME:${gameId}]` };
-      } else {
-        where.game_id = gameId;
+      if (req.query.game_id) {
+        const gameId = String(req.query.game_id);
+        // Handle sample game IDs (stored in title field with [SAMPLE_GAME:...] marker)
+        if (/^sample-/i.test(gameId)) {
+          where.title = { startsWith: `[SAMPLE_GAME:${gameId}]` };
+        } else {
+          where.game_id = gameId;
+        }
       }
-    }
-    if (req.query.team_id) {
-      where.team_id = String(req.query.team_id);
-    }
-    if (req.query.event_id) {
-      const event = await prisma.event.findUnique({
-        where: { id: String(req.query.event_id) },
-        select: { game_id: true },
-      });
-      if (event?.game_id) {
-        where.game_id = event.game_id;
-      } else {
-        // Event not found or has no linked game — no posts to return
-        return res.json({ items: [], nextCursor: null });
+      if (req.query.team_id) {
+        where.team_id = String(req.query.team_id);
       }
-    }
-    if (req.query.type) where.type = String(req.query.type);
-    if (req.query.user_id) where.author_id = String(req.query.user_id);
+      if (req.query.event_id) {
+        const event = await prisma.event.findUnique({
+          where: { id: String(req.query.event_id) },
+          select: { game_id: true },
+        });
+        if (event?.game_id) {
+          where.game_id = event.game_id;
+        } else {
+          // Event not found or has no linked game — no posts to return
+          return res.json({ items: [], nextCursor: null });
+        }
+      }
+      if (req.query.type) where.type = String(req.query.type);
+      if (req.query.user_id) where.author_id = String(req.query.user_id);
 
-    // Privacy: hide posts from private-profile authors the viewer doesn't follow
-    if (req.query.user_id) {
-      // Specific user requested — block if private and viewer is not a follower
-      const hidden = await isAuthorHiddenFromViewer(String(req.query.user_id), currentUserId);
-      if (hidden) return res.json({ items: [], nextCursor: null });
-    } else {
-      // General feed — exclude all private authors the viewer doesn't follow
-      const excludedIds = await getExcludedPrivateAuthorIds(currentUserId);
-      if (excludedIds.length)
-        where.author_id = {
-          ...(typeof where.author_id === 'object' ? where.author_id : {}),
-          notIn: excludedIds,
+      // Privacy: hide posts from private-profile authors the viewer doesn't follow
+      if (req.query.user_id) {
+        // Specific user requested — block if private and viewer is not a follower
+        const hidden = await isAuthorHiddenFromViewer(String(req.query.user_id), currentUserId);
+        if (hidden) return res.json({ items: [], nextCursor: null });
+      } else {
+        // General feed — exclude all private authors the viewer doesn't follow
+        const excludedIds = await getExcludedPrivateAuthorIds(currentUserId);
+        if (excludedIds.length)
+          where.author_id = {
+            ...(typeof where.author_id === 'object' ? where.author_id : {}),
+            notIn: excludedIds,
+          };
+      }
+
+      // Block filtering: hide posts from users the viewer has blocked or been blocked by
+      const blockedIds = await getBlockedUserIds(currentUserId, getRequestBlockedCache(req));
+      if (blockedIds.length) {
+        const existing = typeof where.author_id === 'object' ? where.author_id : {};
+        const merged = [...(existing.notIn || []), ...blockedIds];
+        where.author_id = { ...existing, notIn: merged };
+      }
+
+      // Location filtering: resolve user coordinates from zip or lat/lng params
+      const feedRadius = Math.min(Number(req.query.radius) || 50, 500); // default 50mi, max 500mi
+      let userCoords: { lat: number; lon: number } | null = null;
+      if (req.query.zip && typeof req.query.zip === 'string') {
+        userCoords = getZipCoordinates(req.query.zip as string);
+        if (!userCoords) {
+          const geo = await geocodeLocation(req.query.zip as string);
+          if (geo) userCoords = { lat: geo.latitude, lon: geo.longitude };
+        }
+      } else if (req.query.lat && req.query.lng) {
+        const pLat = Number(req.query.lat);
+        const pLng = Number(req.query.lng);
+        if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
+          userCoords = { lat: pLat, lon: pLng };
+        }
+      }
+
+      // Trending: fetch pool, compute time-decay score, sort, paginate
+      if (sort === 'trending') {
+        const poolQuery: any = {
+          where,
+          orderBy: [{ created_at: 'desc' as const }],
+          include: {
+            author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
+            team: { select: { id: true, name: true, logo_url: true } },
+            _count: { select: { comments: true, bookmarks: true } },
+            poll: { include: { options: true } },
+          },
+          take: TRENDING_POOL_SIZE,
         };
-    }
+        let pool: any[] = [];
+        try {
+          pool = await prisma.post.findMany(poolQuery);
+        } catch (error: any) {
+          if (!isMissingPollSchemaError(error)) {
+            console.error('[posts] Failed to fetch trending pool:', error);
+            return res.status(500).json({ error: 'Failed to fetch posts' });
+          }
+          logPollSchemaFallback('GET /posts trending', error);
+          const fallback = { ...poolQuery, include: { ...poolQuery.include } };
+          delete fallback.include.poll;
+          pool = await prisma.post.findMany(fallback);
+        }
+        // Apply location filter to trending pool
+        if (userCoords) {
+          pool = pool.filter((post: any) => {
+            if (post.lat == null || post.lng == null) return true;
+            return (
+              haversineDistance(userCoords!.lat, userCoords!.lon, post.lat, post.lng) <= feedRadius
+            );
+          });
+        }
 
-    // Block filtering: hide posts from users the viewer has blocked or been blocked by
-    const blockedIds = await getBlockedUserIds(currentUserId, getRequestBlockedCache(req));
-    if (blockedIds.length) {
-      const existing = typeof where.author_id === 'object' ? where.author_id : {};
-      const merged = [...(existing.notIn || []), ...blockedIds];
-      where.author_id = { ...existing, notIn: merged };
-    }
-
-    // Location filtering: resolve user coordinates from zip or lat/lng params
-    const feedRadius = Math.min(Number(req.query.radius) || 50, 500); // default 50mi, max 500mi
-    let userCoords: { lat: number; lon: number } | null = null;
-    if (req.query.zip && typeof req.query.zip === 'string') {
-      userCoords = getZipCoordinates(req.query.zip as string);
-      if (!userCoords) {
-        const geo = await geocodeLocation(req.query.zip as string);
-        if (geo) userCoords = { lat: geo.latitude, lon: geo.longitude };
+        const ranked = pool
+          .map(p => ({
+            post: p,
+            score: trendingScore(
+              p.upvotes_count ?? 0,
+              p.created_at instanceof Date ? p.created_at : new Date(p.created_at)
+            ),
+            createdAt: p.created_at instanceof Date ? p.created_at : new Date(p.created_at),
+          }))
+          .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return (
+              b.createdAt.getTime() - a.createdAt.getTime() ||
+              String(b.post.id).localeCompare(String(a.post.id))
+            );
+          });
+        let filtered = ranked;
+        if (cursor && cursor.startsWith('t:')) {
+          const parts = cursor.slice(2).split('|');
+          if (parts.length >= 3) {
+            const [scoreStr, createdAtStr, id] = parts;
+            const cursorScore = parseFloat(scoreStr);
+            const cursorTime = new Date(createdAtStr).getTime();
+            filtered = ranked.filter(r => {
+              if (r.score < cursorScore - 1e-9) return true;
+              if (Math.abs(r.score - cursorScore) <= 1e-9) {
+                if (r.createdAt.getTime() < cursorTime) return true;
+                if (r.createdAt.getTime() === cursorTime)
+                  return String(r.post.id).localeCompare(id) < 0;
+              }
+              return false;
+            });
+          }
+        }
+        const items = filtered.slice(0, limit);
+        const nextRow = filtered[limit];
+        const nextCursor = nextRow
+          ? `t:${nextRow.score}|${nextRow.createdAt.toISOString()}|${nextRow.post.id}`
+          : null;
+        const postIds = items.map((p: any) => p.post.id);
+        const authorIds = items.map((p: any) => p.post.author_id).filter(Boolean);
+        let upvotedIds = new Set<string>();
+        let bookmarkedIds = new Set<string>();
+        let followingIds = new Set<string>();
+        // Collect poll IDs for batch vote lookup
+        const pollIds = items.map((p: any) => p.post.poll?.id).filter(Boolean);
+        let pollVoteMap = new Map<string, string>(); // poll_id → voted option_id
+        if (currentUserId && items.length) {
+          const followPromise = authorIds.length
+            ? prisma.follows.findMany({
+                where: { follower_id: currentUserId, following_id: { in: authorIds } },
+                select: { following_id: true },
+              })
+            : Promise.resolve([] as Array<{ following_id: string }>);
+          const pollVotePromise = pollIds.length
+            ? prisma.pollVote.findMany({
+                where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } },
+                select: { poll_option: { select: { poll_id: true } }, poll_option_id: true },
+              })
+            : Promise.resolve([] as any[]);
+          const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
+            prisma.postUpvote.findMany({
+              where: { user_id: currentUserId, post_id: { in: postIds } },
+              select: { post_id: true },
+            }),
+            prisma.postBookmark.findMany({
+              where: { user_id: currentUserId, post_id: { in: postIds } },
+              select: { post_id: true },
+            }),
+            followPromise,
+            pollVotePromise,
+          ]);
+          upvotedIds = new Set(upvotes.map(u => u.post_id));
+          bookmarkedIds = new Set(bookmarks.map(b => b.post_id));
+          followingIds = new Set(
+            (follows as Array<{ following_id: string }>).map(f => f.following_id)
+          );
+          pollVoteMap = new Map(
+            (pollVotes as any[]).map((v: any) => [v.poll_option.poll_id, v.poll_option_id])
+          );
+        }
+        const cleanTitle = (title: string | null): string | null => {
+          if (!title) return null;
+          const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
+          return match ? match[1] || null : title;
+        };
+        const payload = items.map(({ post }: any) => ({
+          id: post.id,
+          author_id: post.author_id,
+          team_id: post.team_id ?? null,
+          is_pinned: post.is_pinned ?? false,
+          title: cleanTitle(post.title),
+          content: post.content ?? null,
+          media_url: post.media_url ?? null,
+          media_type: detectMediaType(post.media_url),
+          preview_url: getVideoPreviewUrl(post.media_url),
+          caption: post.content ?? null,
+          upvotes_count: post.upvotes_count ?? 0,
+          comments_count: post._count?.comments ?? 0,
+          bookmarks_count: post._count?.bookmarks ?? 0,
+          created_at:
+            post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
+          author: post.author
+            ? {
+                id: post.author.id,
+                username: post.author.username,
+                display_name: post.author.display_name,
+                avatar_url: post.author.avatar_url,
+              }
+            : null,
+          team: post.team
+            ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url }
+            : null,
+          has_upvoted: upvotedIds.has(post.id),
+          has_bookmarked: bookmarkedIds.has(post.id),
+          is_following_author: post.author ? followingIds.has(post.author.id) : false,
+          poll: post.poll
+            ? serializePoll(post.poll, post.content, pollVoteMap.get(post.poll.id) || null)
+            : null,
+        }));
+        const response: Record<string, any> = { items: payload, nextCursor };
+        if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
+        if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
+        return res.json(response);
       }
-    } else if (req.query.lat && req.query.lng) {
-      const pLat = Number(req.query.lat);
-      const pLng = Number(req.query.lng);
-      if (Number.isFinite(pLat) && Number.isFinite(pLng)) {
-        userCoords = { lat: pLat, lon: pLng };
-      }
-    }
 
-    // Trending: fetch pool, compute time-decay score, sort, paginate
-    if (sort === 'trending') {
-      const poolQuery: any = {
+      const query: any = {
         where,
-        orderBy: [{ created_at: 'desc' as const }],
+        orderBy,
         include: {
           author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
           team: { select: { id: true, name: true, logo_url: true } },
           _count: { select: { comments: true, bookmarks: true } },
           poll: { include: { options: true } },
         },
-        take: TRENDING_POOL_SIZE,
+        // Over-fetch when location filtering is active to compensate for filtered-out posts
+        take: userCoords ? Math.min((limit + 1) * 3, 150) : limit + 1,
       };
-      let pool: any[] = [];
+      if (cursor) {
+        query.cursor = { id: cursor };
+        query.skip = 1;
+      }
+
+      let rows: any[] = [];
       try {
-        pool = await prisma.post.findMany(poolQuery);
+        rows = await prisma.post.findMany(query);
       } catch (error: any) {
         if (!isMissingPollSchemaError(error)) {
-          console.error('[posts] Failed to fetch trending pool:', error);
+          console.error('[posts] Failed to fetch posts:', error);
           return res.status(500).json({ error: 'Failed to fetch posts' });
         }
-        logPollSchemaFallback('GET /posts trending', error);
-        const fallback = { ...poolQuery, include: { ...poolQuery.include } };
-        delete fallback.include.poll;
-        pool = await prisma.post.findMany(fallback);
+        logPollSchemaFallback('GET /posts', error);
+        const fallbackQuery = { ...query, include: { ...query.include } };
+        delete fallbackQuery.include.poll;
+        rows = await prisma.post.findMany(fallbackQuery);
       }
-      // Apply location filter to trending pool
+
+      // Apply location filter: keep posts without coords + posts within radius
       if (userCoords) {
-        pool = pool.filter((post: any) => {
-          if (post.lat == null || post.lng == null) return true;
+        rows = rows.filter((post: any) => {
+          if (post.lat == null || post.lng == null) return true; // no location → always show
           return (
             haversineDistance(userCoords!.lat, userCoords!.lon, post.lat, post.lng) <= feedRadius
           );
         });
       }
 
-      const ranked = pool
-        .map(p => ({
-          post: p,
-          score: trendingScore(
-            p.upvotes_count ?? 0,
-            p.created_at instanceof Date ? p.created_at : new Date(p.created_at)
-          ),
-          createdAt: p.created_at instanceof Date ? p.created_at : new Date(p.created_at),
-        }))
-        .sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score;
-          return (
-            b.createdAt.getTime() - a.createdAt.getTime() ||
-            String(b.post.id).localeCompare(String(a.post.id))
-          );
-        });
-      let filtered = ranked;
-      if (cursor && cursor.startsWith('t:')) {
-        const parts = cursor.slice(2).split('|');
-        if (parts.length >= 3) {
-          const [scoreStr, createdAtStr, id] = parts;
-          const cursorScore = parseFloat(scoreStr);
-          const cursorTime = new Date(createdAtStr).getTime();
-          filtered = ranked.filter(r => {
-            if (r.score < cursorScore - 1e-9) return true;
-            if (Math.abs(r.score - cursorScore) <= 1e-9) {
-              if (r.createdAt.getTime() < cursorTime) return true;
-              if (r.createdAt.getTime() === cursorTime)
-                return String(r.post.id).localeCompare(id) < 0;
-            }
-            return false;
-          });
-        }
-      }
-      const items = filtered.slice(0, limit);
-      const nextRow = filtered[limit];
-      const nextCursor = nextRow
-        ? `t:${nextRow.score}|${nextRow.createdAt.toISOString()}|${nextRow.post.id}`
-        : null;
-      const postIds = items.map((p: any) => p.post.id);
-      const authorIds = items.map((p: any) => p.post.author_id).filter(Boolean);
+      const items = rows.slice(0, limit);
+      const nextCursor = rows.length > limit ? rows[limit].id : null;
+
+      const postIds: string[] = items.map((p: any) => p.id);
+      const authorIds: string[] = items.map((p: any) => p.author_id).filter(Boolean);
+
       let upvotedIds = new Set<string>();
       let bookmarkedIds = new Set<string>();
       let followingIds = new Set<string>();
+
       // Collect poll IDs for batch vote lookup
-      const pollIds = items.map((p: any) => p.post.poll?.id).filter(Boolean);
+      const pollIds: string[] = items.map((p: any) => p.poll?.id).filter(Boolean);
       let pollVoteMap = new Map<string, string>(); // poll_id → voted option_id
+
       if (currentUserId && items.length) {
         const followPromise = authorIds.length
           ? prisma.follows.findMany({
@@ -414,19 +553,30 @@ postsRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
         pollVoteMap = new Map(
           (pollVotes as any[]).map((v: any) => [v.poll_option.poll_id, v.poll_option_id])
         );
+
+        // Debug logging for follow relationships
+        debugLog('[posts] Follow debug:', {
+          currentUserId,
+          authorIds,
+          followingIds: Array.from(followingIds),
+          followRecords: follows.length,
+        });
       }
+
+      // Helper to clean sample game marker from title
       const cleanTitle = (title: string | null): string | null => {
         if (!title) return null;
         const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
         return match ? match[1] || null : title;
       };
-      const payload = items.map(({ post }: any) => ({
+
+      const payload = items.map((post: any) => ({
         id: post.id,
-        author_id: post.author_id,
+        author_id: post.author_id, // Include author_id for ownership checks
         team_id: post.team_id ?? null,
         is_pinned: post.is_pinned ?? false,
-        title: cleanTitle(post.title),
-        content: post.content ?? null,
+        title: cleanTitle(post.title), // Clean sample game marker from title
+        content: post.content ?? null, // Include content for editing
         media_url: post.media_url ?? null,
         media_type: detectMediaType(post.media_url),
         preview_url: getVideoPreviewUrl(post.media_url),
@@ -454,172 +604,34 @@ postsRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
           ? serializePoll(post.poll, post.content, pollVoteMap.get(post.poll.id) || null)
           : null,
       }));
+
       const response: Record<string, any> = { items: payload, nextCursor };
       if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
       if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
       return res.json(response);
+    } catch (err) {
+      console.error('[posts] GET / error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
     }
+  })
+);
 
-    const query: any = {
-      where,
-      orderBy,
-      include: {
-        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-        team: { select: { id: true, name: true, logo_url: true } },
-        _count: { select: { comments: true, bookmarks: true } },
-        poll: { include: { options: true } },
-      },
-      // Over-fetch when location filtering is active to compensate for filtered-out posts
-      take: userCoords ? Math.min((limit + 1) * 3, 150) : limit + 1,
-    };
-    if (cursor) {
-      query.cursor = { id: cursor };
-      query.skip = 1;
-    }
-
-    let rows: any[] = [];
+postsRouter.get(
+  '/trending',
+  asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      rows = await prisma.post.findMany(query);
-    } catch (error: any) {
-      if (!isMissingPollSchemaError(error)) {
-        console.error('[posts] Failed to fetch posts:', error);
-        return res.status(500).json({ error: 'Failed to fetch posts' });
-      }
-      logPollSchemaFallback('GET /posts', error);
-      const fallbackQuery = { ...query, include: { ...query.include } };
-      delete fallbackQuery.include.poll;
-      rows = await prisma.post.findMany(fallbackQuery);
+      // Set trending sort and reuse the main GET / handler
+      req.query.sort = 'trending';
+      // Re-dispatch through the router by calling the root handler directly
+      // Express next() won't work across different paths, so we emit a synthetic request
+      req.url = '/';
+      (postsRouter as any).handle(req, res, () => res.status(404).json({ error: 'Not found' }));
+    } catch (err) {
+      console.error('[posts] GET /trending error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
     }
-
-    // Apply location filter: keep posts without coords + posts within radius
-    if (userCoords) {
-      rows = rows.filter((post: any) => {
-        if (post.lat == null || post.lng == null) return true; // no location → always show
-        return (
-          haversineDistance(userCoords!.lat, userCoords!.lon, post.lat, post.lng) <= feedRadius
-        );
-      });
-    }
-
-    const items = rows.slice(0, limit);
-    const nextCursor = rows.length > limit ? rows[limit].id : null;
-
-    const postIds: string[] = items.map((p: any) => p.id);
-    const authorIds: string[] = items.map((p: any) => p.author_id).filter(Boolean);
-
-    let upvotedIds = new Set<string>();
-    let bookmarkedIds = new Set<string>();
-    let followingIds = new Set<string>();
-
-    // Collect poll IDs for batch vote lookup
-    const pollIds: string[] = items.map((p: any) => p.poll?.id).filter(Boolean);
-    let pollVoteMap = new Map<string, string>(); // poll_id → voted option_id
-
-    if (currentUserId && items.length) {
-      const followPromise = authorIds.length
-        ? prisma.follows.findMany({
-            where: { follower_id: currentUserId, following_id: { in: authorIds } },
-            select: { following_id: true },
-          })
-        : Promise.resolve([] as Array<{ following_id: string }>);
-      const pollVotePromise = pollIds.length
-        ? prisma.pollVote.findMany({
-            where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } },
-            select: { poll_option: { select: { poll_id: true } }, poll_option_id: true },
-          })
-        : Promise.resolve([] as any[]);
-      const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
-        prisma.postUpvote.findMany({
-          where: { user_id: currentUserId, post_id: { in: postIds } },
-          select: { post_id: true },
-        }),
-        prisma.postBookmark.findMany({
-          where: { user_id: currentUserId, post_id: { in: postIds } },
-          select: { post_id: true },
-        }),
-        followPromise,
-        pollVotePromise,
-      ]);
-      upvotedIds = new Set(upvotes.map(u => u.post_id));
-      bookmarkedIds = new Set(bookmarks.map(b => b.post_id));
-      followingIds = new Set((follows as Array<{ following_id: string }>).map(f => f.following_id));
-      pollVoteMap = new Map(
-        (pollVotes as any[]).map((v: any) => [v.poll_option.poll_id, v.poll_option_id])
-      );
-
-      // Debug logging for follow relationships
-      debugLog('[posts] Follow debug:', {
-        currentUserId,
-        authorIds,
-        followingIds: Array.from(followingIds),
-        followRecords: follows.length,
-      });
-    }
-
-    // Helper to clean sample game marker from title
-    const cleanTitle = (title: string | null): string | null => {
-      if (!title) return null;
-      const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
-      return match ? match[1] || null : title;
-    };
-
-    const payload = items.map((post: any) => ({
-      id: post.id,
-      author_id: post.author_id, // Include author_id for ownership checks
-      team_id: post.team_id ?? null,
-      is_pinned: post.is_pinned ?? false,
-      title: cleanTitle(post.title), // Clean sample game marker from title
-      content: post.content ?? null, // Include content for editing
-      media_url: post.media_url ?? null,
-      media_type: detectMediaType(post.media_url),
-      preview_url: getVideoPreviewUrl(post.media_url),
-      caption: post.content ?? null,
-      upvotes_count: post.upvotes_count ?? 0,
-      comments_count: post._count?.comments ?? 0,
-      bookmarks_count: post._count?.bookmarks ?? 0,
-      created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
-      author: post.author
-        ? {
-            id: post.author.id,
-            username: post.author.username,
-            display_name: post.author.display_name,
-            avatar_url: post.author.avatar_url,
-          }
-        : null,
-      team: post.team
-        ? { id: post.team.id, name: post.team.name, logo_url: post.team.logo_url }
-        : null,
-      has_upvoted: upvotedIds.has(post.id),
-      has_bookmarked: bookmarkedIds.has(post.id),
-      is_following_author: post.author ? followingIds.has(post.author.id) : false,
-      poll: post.poll
-        ? serializePoll(post.poll, post.content, pollVoteMap.get(post.poll.id) || null)
-        : null,
-    }));
-
-    const response: Record<string, any> = { items: payload, nextCursor };
-    if (followedFeedMeta) response.followed_feed_meta = followedFeedMeta;
-    if (followedTeamsFeedMeta) response.followed_teams_feed_meta = followedTeamsFeedMeta;
-    return res.json(response);
-  } catch (err) {
-    console.error('[posts] GET / error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
-
-postsRouter.get('/trending', asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    // Set trending sort and reuse the main GET / handler
-    req.query.sort = 'trending';
-    // Re-dispatch through the router by calling the root handler directly
-    // Express next() won't work across different paths, so we emit a synthetic request
-    req.url = '/';
-    (postsRouter as any).handle(req, res, () => res.status(404).json({ error: 'Not found' }));
-  } catch (err) {
-    console.error('[posts] GET /trending error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
+  })
+);
 
 // Debug endpoint to check follow relationships (admin only)
 postsRouter.get(
@@ -1441,7 +1453,7 @@ postsRouter.post(
     // $transaction keeps the read+write tied together.
     let comment;
     try {
-      comment = await prisma.$transaction(async (tx) => {
+      comment = await prisma.$transaction(async tx => {
         if (parent_id) {
           const parentComment = await tx.comment.findFirst({
             where: { id: parent_id, post_id: id },
@@ -1632,10 +1644,7 @@ postsRouter.post(
       const code = (err as any)?.code;
       // Concurrent toggles can hit Serializable retry errors under load. Surface the
       // settled state instead of leaking a 500 for a user double-tap.
-      if (
-        code === 'P2034' ||
-        /serialize|serialization|write conflict|deadlock/i.test(message)
-      ) {
+      if (code === 'P2034' || /serialize|serialization|write conflict|deadlock/i.test(message)) {
         const [existing, post] = await Promise.all([
           prisma.postUpvote.findUnique({
             where: { post_id_user_id: { post_id: String(req.params.id), user_id: req.user!.id } },
@@ -1788,7 +1797,7 @@ postsRouter.delete(
       }
 
       const deletedAt = new Date();
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async tx => {
         const commentIds = await tx.comment.findMany({
           where: { post_id: postId },
           select: { id: true },
@@ -1797,7 +1806,7 @@ postsRouter.delete(
         if (commentIds.length > 0) {
           notificationWhere.OR = [
             { post_id: postId },
-            { comment_id: { in: commentIds.map((comment) => comment.id) } },
+            { comment_id: { in: commentIds.map(comment => comment.id) } },
           ];
           delete notificationWhere.post_id;
         }
@@ -1814,9 +1823,8 @@ postsRouter.delete(
       if (mediaUrl) {
         void (async () => {
           try {
-            const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
-              '../lib/cloudinary.js'
-            );
+            const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
+              await import('../lib/cloudinary.js');
             const parsed = extractCloudinaryPublicId(mediaUrl);
             if (!parsed) return;
             const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
@@ -1843,7 +1851,7 @@ postsRouter.delete(
             'Post Removed',
             'Your post was removed by a moderator for violating community guidelines.',
             { type: 'post_removed', post_id: postId }
-          ).catch((pushErr) => {
+          ).catch(pushErr => {
             console.warn('[posts] Failed to send post removed push:', pushErr);
           });
           await prisma.notification.create({
@@ -1864,7 +1872,7 @@ postsRouter.delete(
               to: author.email,
               authorName: author.display_name || undefined,
               contentType: 'post',
-            }).catch((err) =>
+            }).catch(err =>
               console.warn('[posts] sendContentRemovedEmail failed:', err?.message ?? err)
             );
           }
