@@ -45,6 +45,14 @@ describe('organization email review token order', () => {
     );
   });
 
+  it('prevents stale league email links from reversing the opposite final state', () => {
+    expect(src).toContain('function describeLeagueEmailReviewState(');
+    expect(src).toContain("const currentState = orgInfo ? describeLeagueEmailReviewState(orgInfo, 'approve') : null;");
+    expect(src).toContain("const currentState = orgInfo ? describeLeagueEmailReviewState(orgInfo, 'reject') : null;");
+    expect(src).toContain("title: 'Already Rejected'");
+    expect(src).toContain("title: 'Already Approved'");
+  });
+
   it('consumes league rejection tokens only after rejectOrganization completes', () => {
     const slice = sliceBetween(
       'async function rejectLeagueHandler',

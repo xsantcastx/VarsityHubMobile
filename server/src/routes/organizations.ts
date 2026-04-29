@@ -252,6 +252,27 @@ function renderLeagueActionResultPage(title: string, message: string, success: b
 </body></html>`;
 }
 
+function describeLeagueEmailReviewState(
+  org: { admin_approved: boolean | null; status: string | null },
+  action: 'approve' | 'reject'
+): { title: string; message: string; success: boolean } | null {
+  if (org.status === 'rejected') {
+    return {
+      title: 'Already Rejected',
+      message: 'This league was already rejected.',
+      success: action === 'reject',
+    };
+  }
+  if (org.admin_approved) {
+    return {
+      title: 'Already Approved',
+      message: 'This league was already approved.',
+      success: action === 'approve',
+    };
+  }
+  return null;
+}
+
 // List organizations (public, with optional search)
 organizationsRouter.get(
   '/',
@@ -2919,14 +2940,15 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         );
         const orgInfo = await prisma.organization.findUnique({
           where: { id: orgId },
-          select: { name: true, admin_approved: true },
+          select: { name: true, admin_approved: true, status: true },
         });
-        if (orgInfo?.admin_approved)
+        const currentState = orgInfo ? describeLeagueEmailReviewState(orgInfo, 'approve') : null;
+        if (currentState)
           return res.send(
             renderLeagueActionResultPage(
-              'Already Approved',
-              'This league was already approved.',
-              true
+              currentState.title,
+              currentState.message,
+              currentState.success
             )
           );
         return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Approve League</title></head>
@@ -2939,6 +2961,20 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 
       const adminUserId = adminSession?.id || 'email-token';
       const adminNote: string | undefined = req.body?.note || undefined;
+      const orgInfo = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { admin_approved: true, status: true },
+      });
+      const currentState = orgInfo ? describeLeagueEmailReviewState(orgInfo, 'approve') : null;
+      if (currentState) {
+        return res.send(
+          renderLeagueActionResultPage(
+            currentState.title,
+            currentState.message,
+            currentState.success
+          )
+        );
+      }
       const result = await approveOrganization(orgId, adminUserId, prisma, { note: adminNote });
       if (result.error) {
         return res
@@ -3123,14 +3159,15 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         );
         const orgInfo = await prisma.organization.findUnique({
           where: { id: orgId },
-          select: { name: true, status: true },
+          select: { name: true, status: true, admin_approved: true },
         });
-        if (orgInfo?.status === 'rejected') {
+        const currentState = orgInfo ? describeLeagueEmailReviewState(orgInfo, 'reject') : null;
+        if (currentState) {
           return res.send(
             renderLeagueActionResultPage(
-              'Already Rejected',
-              'This league was already rejected.',
-              true
+              currentState.title,
+              currentState.message,
+              currentState.success
             )
           );
         }
@@ -3143,6 +3180,20 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       }
 
       const adminUserId = adminSession?.id || 'email-token';
+      const orgInfo = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { admin_approved: true, status: true },
+      });
+      const currentState = orgInfo ? describeLeagueEmailReviewState(orgInfo, 'reject') : null;
+      if (currentState) {
+        return res.send(
+          renderLeagueActionResultPage(
+            currentState.title,
+            currentState.message,
+            currentState.success
+          )
+        );
+      }
       const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
       if (result.error) {
         return res
