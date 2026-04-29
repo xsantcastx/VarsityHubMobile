@@ -98,6 +98,27 @@ function renderEventReviewPage(action: 'approve' | 'reject', eventTitle: string,
 </body></html>`;
 }
 
+function renderEventFinalStatePage(
+  event: { title: string | null; approval_status: string | null },
+  action: 'approve' | 'reject'
+) {
+  if (event.approval_status === 'approved') {
+    return renderEventResultPage(
+      'Already Approved',
+      `${event.title || 'This event'} was already approved.`,
+      action === 'approve'
+    );
+  }
+  if (event.approval_status === 'rejected') {
+    return renderEventResultPage(
+      'Already Rejected',
+      `${event.title || 'This event'} was already rejected.`,
+      action === 'reject'
+    );
+  }
+  return null;
+}
+
 function renderEventResultPage(title: string, message: string, success: boolean) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
@@ -161,6 +182,14 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
       ? await approveEventService(eventId, reviewerUserId, prisma)
       : await rejectEventService(eventId, reviewerUserId, prisma, { reason });
   if (result.error) {
+    const latest = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true, approval_status: true },
+    });
+    const finalStatePage = latest ? renderEventFinalStatePage(latest, action) : null;
+    if (finalStatePage) {
+      return res.send(finalStatePage);
+    }
     return res
       .status(result.status || 400)
       .send(renderEventResultPage('Error', result.error, false));
