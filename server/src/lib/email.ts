@@ -186,6 +186,14 @@ const TEMPLATE_IDS = {
   // Auth & Security
   VERIFICATION: tmpl('SENDGRID_VERIFICATION_TEMPLATE_ID', 'SENDGRID_USER_CONFIRMATION_TEMPLATE_ID'),
   PASSWORD_RESET: tmpl('SENDGRID_PASSWORD_RESET_TEMPLATE_ID'),
+  PASSWORD_CHANGED: tmpl('SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID'),
+
+  // Moderation (sent to user when admin takes action against their account)
+  ACCOUNT_WARNING: tmpl('SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID'),
+  ACCOUNT_SUSPENSION_7_DAYS: tmpl('SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID'),
+  ACCOUNT_SUSPENSION_45_DAYS: tmpl('SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID'),
+  ACCOUNT_PERMANENT_BAN: tmpl('SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID'),
+  ACCOUNT_RECOVERY: tmpl('SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID'),
 
   // Team & Organization
   TEAM_INVITE: tmpl('SENDGRID_TEAM_INVITE_TEMPLATE_ID'),
@@ -239,6 +247,7 @@ const SENDGRID_TEMPLATE_ID_REGEX = /^d-[a-f0-9]{32}$/i;
 export const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'VERIFICATION',
   'PASSWORD_RESET',
+  'PASSWORD_CHANGED',
   'TEAM_INVITE',
   'ORG_INVITE',
   'JOIN_REQUEST_ADMIN',
@@ -255,6 +264,11 @@ export const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'ORG_APPROVED',
   'ORG_DENIED',
   'ADMIN_ACTION_CONFIRMATION',
+  'ACCOUNT_WARNING',
+  'ACCOUNT_SUSPENSION_7_DAYS',
+  'ACCOUNT_SUSPENSION_45_DAYS',
+  'ACCOUNT_PERMANENT_BAN',
+  'ACCOUNT_RECOVERY',
 ];
 
 // Non-launch-blocking templates still warn when missing, but do not prevent
@@ -967,7 +981,86 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
   );
 }
 
-// sendPasswordChangedEmail removed — non-mandatory security notification
+/**
+ * Notify a user that their password was changed (post-change confirmation).
+ * Fires after both /password/reset and /password/change so the account owner
+ * has out-of-band confirmation; useful for account-takeover detection.
+ */
+export async function sendPasswordChangedEmail(email: string, userName?: string): Promise<boolean> {
+  const displayName = userName || 'VarsityHub User';
+  const subject = 'Your VarsityHub password was changed';
+  const templateId = TEMPLATE_IDS.PASSWORD_CHANGED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID');
+    return false;
+  }
+  return sendTemplateEmail(
+    templateId,
+    email,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      user_name: displayName,
+      display_name: displayName,
+      changed_at: new Date().toISOString(),
+    },
+    `Password changed email sent to ${email}`,
+    { metadata: await resolveMinorAuditMetadata(email) }
+  );
+}
+
+/**
+ * Notify a user about a moderation action taken against their account.
+ * Single dispatcher for warning, suspension (7 or 45 days), permanent ban,
+ * and recovery (unban) — keeps the call sites in admin.ts and moderation.ts
+ * one-line.
+ */
+export async function sendAccountModerationEmail(params: {
+  to: string;
+  action: 'warning' | 'suspension_7d' | 'suspension_45d' | 'permanent_ban' | 'recovery';
+  reason?: string;
+  userName?: string;
+  endsAt?: Date | null;
+}): Promise<boolean> {
+  const displayName = params.userName || 'VarsityHub User';
+  const reason = params.reason || '';
+  const subjectByAction: Record<typeof params.action, string> = {
+    warning: 'A moderator issued a warning on your VarsityHub account',
+    suspension_7d: 'Your VarsityHub account is suspended for 7 days',
+    suspension_45d: 'Your VarsityHub account is suspended for 45 days',
+    permanent_ban: 'Your VarsityHub account has been permanently banned',
+    recovery: 'Your VarsityHub account has been restored',
+  };
+  const templateByAction: Record<typeof params.action, string> = {
+    warning: TEMPLATE_IDS.ACCOUNT_WARNING,
+    suspension_7d: TEMPLATE_IDS.ACCOUNT_SUSPENSION_7_DAYS,
+    suspension_45d: TEMPLATE_IDS.ACCOUNT_SUSPENSION_45_DAYS,
+    permanent_ban: TEMPLATE_IDS.ACCOUNT_PERMANENT_BAN,
+    recovery: TEMPLATE_IDS.ACCOUNT_RECOVERY,
+  };
+  const templateId = templateByAction[params.action];
+  if (!templateId) {
+    console.error(`[email] Missing template for moderation action: ${params.action}`);
+    return false;
+  }
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subjectByAction[params.action],
+    {
+      ...getCommonTemplateData(),
+      subject: subjectByAction[params.action],
+      user_name: displayName,
+      display_name: displayName,
+      reason,
+      ends_at: params.endsAt ? params.endsAt.toISOString() : null,
+      support_email: CUSTOMER_SERVICE_EMAIL,
+    },
+    `Moderation email (${params.action}) sent to ${params.to}`,
+    { metadata: await resolveMinorAuditMetadata(params.to) }
+  );
+}
 
 /**
  * Send team invite with personalized team branding

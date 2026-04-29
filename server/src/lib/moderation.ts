@@ -265,7 +265,21 @@ export async function suspendUser(params: {
     { banned_until: suspendUntil.toISOString(), days }
   );
 
-  // Suspension notification emails removed — non-mandatory moderation emails
+  if (suspendedUser?.email) {
+    const { sendAccountModerationEmail } = await import('./email.js');
+    sendAccountModerationEmail({
+      to: suspendedUser.email,
+      action: days >= 30 ? 'suspension_45d' : 'suspension_7d',
+      reason,
+      userName: suspendedUser.display_name || undefined,
+      endsAt: suspendUntil,
+    }).catch(err =>
+      console.warn(
+        '[moderation] sendAccountModerationEmail (suspension) failed:',
+        err?.message ?? err
+      )
+    );
+  }
 }
 
 /**

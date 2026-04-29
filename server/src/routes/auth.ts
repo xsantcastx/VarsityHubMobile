@@ -7,6 +7,7 @@ import { z } from 'zod';
 import {
   buildCoachApplicationReviewUrl,
   sendCoachApplicationAdminEmail,
+  sendPasswordChangedEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '../lib/email.js';
@@ -142,11 +143,7 @@ function parseResetFailureRecord(raw: string | null): ResetFailureRecord | null 
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      typeof parsed.attempts === 'number' &&
-      typeof parsed.lockedUntil === 'number'
-    ) {
+    if (parsed && typeof parsed.attempts === 'number' && typeof parsed.lockedUntil === 'number') {
       return parsed as ResetFailureRecord;
     }
     return null;
@@ -174,8 +171,7 @@ async function checkResetAttempt(
 async function recordResetFailure(email: string): Promise<void> {
   const key = `resetfail:${email}`;
   const raw = await rlGet(key);
-  let record: ResetFailureRecord =
-    parseResetFailureRecord(raw) ?? { attempts: 0, lockedUntil: 0 };
+  let record: ResetFailureRecord = parseResetFailureRecord(raw) ?? { attempts: 0, lockedUntil: 0 };
 
   record.attempts++;
   if (record.attempts >= MAX_RESET_FAILURES) {
@@ -301,7 +297,12 @@ async function verifyGoogleIdentityToken(idToken: string) {
     ticket = await googleOAuthClient.verifyIdToken({
       idToken,
       ...(GOOGLE_ALLOWED_AUDIENCES.length
-        ? { audience: GOOGLE_ALLOWED_AUDIENCES.length === 1 ? GOOGLE_ALLOWED_AUDIENCES[0] : GOOGLE_ALLOWED_AUDIENCES }
+        ? {
+            audience:
+              GOOGLE_ALLOWED_AUDIENCES.length === 1
+                ? GOOGLE_ALLOWED_AUDIENCES[0]
+                : GOOGLE_ALLOWED_AUDIENCES,
+          }
         : {}),
     });
   } catch (err: any) {
@@ -466,7 +467,7 @@ function deriveParentalConsentFields(dob: Date | null) {
 function resolveEffectiveDob(
   currentDob: Date | string | null | undefined,
   currentPrefs: Record<string, any>,
-  incomingDob?: string | null,
+  incomingDob?: string | null
 ): Date | null {
   if (incomingDob) return parseDobLocal(incomingDob);
   return getCanonicalDob({
@@ -778,7 +779,11 @@ authRouter.post(
       if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
 
       // Constant-time verification against the stored hash.
-      const matches = await verifyRefreshTokenHash(refresh_token, stored.token_hash, stored.hash_version);
+      const matches = await verifyRefreshTokenHash(
+        refresh_token,
+        stored.token_hash,
+        stored.hash_version
+      );
       if (!matches) return res.status(401).json({ error: 'Invalid refresh token' });
 
       if (stored.expires_at < new Date()) {
@@ -971,10 +976,7 @@ authRouter.post(
           // user keeps receiving pushes after signing out. Failure here
           // means the token wasn't cleared; surfacing to Sentry so it
           // gets triaged instead of buried in container stdout.
-          console.warn(
-            '[auth] logout push_token clear failed:',
-            (err as any)?.message || err
-          );
+          console.warn('[auth] logout push_token clear failed:', (err as any)?.message || err);
           captureException(err instanceof Error ? err : new Error(String(err)), {
             context: 'logout_push_token_clear_failed',
             userId: row.user_id,
@@ -1065,7 +1067,8 @@ authRouter.post(
     } catch (err) {
       if ((err as any)?.code === 'SOLE_ORG_OWNER') {
         return res.status(400).json({
-          error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
+          error:
+            'You are the sole owner of an organization. Transfer ownership before deleting your account.',
           code: 'SOLE_ORG_OWNER',
           organization_id: (err as any).organization_id,
         });
@@ -1113,10 +1116,7 @@ authRouter.post(
       // signed for a different Google OAuth client (e.g. some random third-party
       // app) would successfully authenticate a user in our app. In dev/test we
       // accept any audience so local sign-in works without client-id config.
-      if (
-        process.env.NODE_ENV === 'production' &&
-        GOOGLE_ALLOWED_AUDIENCES.length === 0
-      ) {
+      if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
         console.error('[auth/google] Rejecting token: GOOGLE_OAUTH_CLIENT_IDS not configured');
         return res.status(503).json({ error: 'Google Sign-In is not configured' });
       }
@@ -1170,15 +1170,13 @@ authRouter.post(
         });
 
         if (existingByEmail) {
-          return res
-            .status(409)
-            .json(
-              buildOAuthExistingAccountConflict({
-                email,
-                user: existingByEmail,
-                providerLabel: 'Google',
-              })
-            );
+          return res.status(409).json(
+            buildOAuthExistingAccountConflict({
+              email,
+              user: existingByEmail,
+              providerLabel: 'Google',
+            })
+          );
         } else {
           stage = 'create-user';
           const randomSecret = crypto.randomBytes(32).toString('hex');
@@ -1192,10 +1190,13 @@ authRouter.post(
                 display_name: displayNameSource,
                 avatar_url: avatarUrl,
                 email_verified: true,
-                preferences: mergeAuthStateIntoPreferences({}, {
-                  role: 'fan',
-                  onboarding_completed: false,
-                }),
+                preferences: mergeAuthStateIntoPreferences(
+                  {},
+                  {
+                    role: 'fan',
+                    onboarding_completed: false,
+                  }
+                ),
                 role: 'fan',
                 onboarding_completed: false,
               },
@@ -1206,15 +1207,13 @@ authRouter.post(
                 where: { email: { equals: email, mode: 'insensitive' } },
               });
               if (existingUser) {
-                return res
-                  .status(409)
-                  .json(
-                    buildOAuthExistingAccountConflict({
-                      email,
-                      user: existingUser,
-                      providerLabel: 'Google',
-                    })
-                  );
+                return res.status(409).json(
+                  buildOAuthExistingAccountConflict({
+                    email,
+                    user: existingUser,
+                    providerLabel: 'Google',
+                  })
+                );
               }
             }
             throw createErr;
@@ -1240,7 +1239,7 @@ authRouter.post(
       const sanitized = sanitizeUser(user);
       const { access_token, refresh_token: rawRefresh } = await startNewSession(
         sanitized.id,
-        req.headers['user-agent'] || null,
+        req.headers['user-agent'] || null
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
 
@@ -1312,15 +1311,13 @@ authRouter.post(
         }
 
         if (existingByEmail) {
-          return res
-            .status(409)
-            .json(
-              buildOAuthExistingAccountConflict({
-                email: email || existingByEmail.email,
-                user: existingByEmail,
-                providerLabel: 'Apple',
-              })
-            );
+          return res.status(409).json(
+            buildOAuthExistingAccountConflict({
+              email: email || existingByEmail.email,
+              user: existingByEmail,
+              providerLabel: 'Apple',
+            })
+          );
         } else {
           // Create new user
           const randomSecret = crypto.randomBytes(32).toString('hex');
@@ -1338,10 +1335,13 @@ authRouter.post(
                 apple_id: appleId,
                 display_name: null,
                 email_verified: true,
-                preferences: mergeAuthStateIntoPreferences({}, {
-                  role: 'fan',
-                  onboarding_completed: false,
-                }),
+                preferences: mergeAuthStateIntoPreferences(
+                  {},
+                  {
+                    role: 'fan',
+                    onboarding_completed: false,
+                  }
+                ),
                 role: 'fan',
                 onboarding_completed: false,
               },
@@ -1356,15 +1356,13 @@ authRouter.post(
                 where: { email: { equals: userEmail, mode: 'insensitive' } },
               });
               if (existingUser) {
-                return res
-                  .status(409)
-                  .json(
-                    buildOAuthExistingAccountConflict({
-                      email: userEmail,
-                      user: existingUser,
-                      providerLabel: 'Apple',
-                    })
-                  );
+                return res.status(409).json(
+                  buildOAuthExistingAccountConflict({
+                    email: userEmail,
+                    user: existingUser,
+                    providerLabel: 'Apple',
+                  })
+                );
               } else {
                 throw createErr; // Re-throw if we still can't find the user
               }
@@ -1381,7 +1379,7 @@ authRouter.post(
       // Mint a fresh pair for this login without invalidating other devices.
       const { access_token, refresh_token: appleRawRefresh } = await startNewSession(
         sanitized.id,
-        req.headers['user-agent'] || null,
+        req.headers['user-agent'] || null
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
       const isAppleOAuthAdmin = isAdminEmail(sanitized.email);
@@ -1432,7 +1430,9 @@ authRouter.post(
     const { googleId, email, displayName, avatarUrl } = await verifyGoogleIdentityToken(
       parsed.data.id_token
     );
-    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+    const normalizedCurrentEmail = String(currentUser.email || '')
+      .trim()
+      .toLowerCase();
     if (normalizedCurrentEmail !== email) {
       return res.status(409).json({
         code: 'OAUTH_EMAIL_MISMATCH',
@@ -1505,15 +1505,21 @@ authRouter.post(
     });
     if (!currentUser) return res.status(404).json({ error: 'Not found' });
 
-    const { appleId, email } = await verifyAppleIdentityToken(parsed.data.identity_token, APPLE_CLIENT_ID);
+    const { appleId, email } = await verifyAppleIdentityToken(
+      parsed.data.identity_token,
+      APPLE_CLIENT_ID
+    );
     if (!email) {
       return res.status(400).json({
         code: 'APPLE_EMAIL_REQUIRED_FOR_LINK',
-        error: 'Apple did not provide an email address for this sign-in. Try again and share your email with Apple Sign-In enabled.',
+        error:
+          'Apple did not provide an email address for this sign-in. Try again and share your email with Apple Sign-In enabled.',
       });
     }
 
-    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+    const normalizedCurrentEmail = String(currentUser.email || '')
+      .trim()
+      .toLowerCase();
     if (normalizedCurrentEmail !== String(email).trim().toLowerCase()) {
       return res.status(409).json({
         code: 'OAUTH_EMAIL_MISMATCH',
@@ -1694,7 +1700,9 @@ authRouter.post(
       prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
     ]);
 
-    // Security alert: password changed notification removed as part of email cleanup
+    sendPasswordChangedEmail(user.email, user.display_name || undefined).catch(err =>
+      console.warn('[auth] sendPasswordChangedEmail (reset) failed:', err?.message ?? err)
+    );
 
     return res.json({ ok: true });
   })
@@ -1742,7 +1750,9 @@ authRouter.post(
       prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
     ]);
 
-    // Password changed notification removed as part of email cleanup
+    sendPasswordChangedEmail(user.email, user.display_name || undefined).catch(err =>
+      console.warn('[auth] sendPasswordChangedEmail (change) failed:', err?.message ?? err)
+    );
 
     return res.json({ ok: true });
   })
@@ -2001,7 +2011,11 @@ authRouter.post(
     // Strip the dead organization pointer so step-3-league starts fresh — otherwise
     // the coach's /me keeps pointing at the rejected org and the onboarding UI
     // shows stale league info.
-    const { organization_id: _oid, organization_name: _oname, ...scrubbedPrefs } = prefs as Record<string, unknown>;
+    const {
+      organization_id: _oid,
+      organization_name: _oname,
+      ...scrubbedPrefs
+    } = prefs as Record<string, unknown>;
     const merged = { ...scrubbedPrefs, onboarding_completed: false, join_request_pending: false };
     const updated = await prisma.user.update({
       where: { id: user.id },
@@ -2162,7 +2176,8 @@ authRouter.post(
     for (const adminEmail of adminEmails) {
       sendCoachApplicationAdminEmail({
         to: adminEmail,
-        applicantName: result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
+        applicantName:
+          result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
         applicantEmail: result.updatedUser.email,
         applicantUserId: result.updatedUser.id,
         organizationName: data.organization_name,
@@ -2261,9 +2276,7 @@ authRouter.get(
     const userPrefs = ((safe as any).preferences || {}) as Record<string, unknown>;
     const prefs = mergePreferences(userPrefs, defaults);
     const normalizedRole = getCanonicalUserRole(user as any);
-    const requiredCoachAgreementVersion = Number(
-      process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
-    );
+    const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
     const serializedApplication = serializeCoachApplication(coachApplication);
     const flowState = getCoachFlowState(
       {
@@ -2665,10 +2678,7 @@ authRouter.patch(
     // write at the endpoint boundary instead of relying on downstream reads
     // to ignore it. Only after passing the gate do we stamp the version.
     if (incoming.coach_agreement_accepted_at !== undefined) {
-      if (
-        currentAuthState.role !== 'coach' ||
-        current?.approval_status !== 'APPROVED'
-      ) {
+      if (currentAuthState.role !== 'coach' || current?.approval_status !== 'APPROVED') {
         return res.status(403).json({
           error: 'You must be an approved coach to accept the coach agreement.',
           code: 'COACH_AGREEMENT_NOT_ELIGIBLE',
@@ -2678,9 +2688,7 @@ authRouter.patch(
       // stamp the CURRENT required version alongside it so the client never
       // has to know the version number. Without this, bumping
       // REQUIRED_COACH_AGREEMENT_VERSION would loop coaches in re-accept.
-      incoming.coach_agreement_version = Number(
-        process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
-      );
+      incoming.coach_agreement_version = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
     }
 
     // Canonical DOB gate: once the column is set and the 24h grace window has
@@ -2824,7 +2832,8 @@ authRouter.patch(
     if (incoming.onboarding_completed !== undefined) {
       authStatePatch.onboarding_completed = incoming.onboarding_completed;
     }
-    if (incoming.organization_id !== undefined) authStatePatch.organization_id = incoming.organization_id;
+    if (incoming.organization_id !== undefined)
+      authStatePatch.organization_id = incoming.organization_id;
     if (incoming.proceeding_as_fan !== undefined) {
       authStatePatch.proceeding_as_fan = incoming.proceeding_as_fan;
     }
@@ -3182,12 +3191,10 @@ authRouter.post(
         // path-specific message instead of a generic 400. Previously users
         // hitting this branch (e.g. via a deep-link that skipped step-3) saw
         // "Failed to complete onboarding" with no direction.
-        return res
-          .status(400)
-          .json({
-            error: 'Team or organization required for coach onboarding',
-            code: 'ORG_TEAM_REQUIRED',
-          });
+        return res.status(400).json({
+          error: 'Team or organization required for coach onboarding',
+          code: 'ORG_TEAM_REQUIRED',
+        });
       }
       // Use DB values as fallback if not in payload
       if (!data.username && effectiveUsername) data.username = effectiveUsername;
@@ -3528,10 +3535,10 @@ function sanitizeUser(u: any) {
     ...rest
   } = u as any;
   const normalizedDob = formatDobYmd(getCanonicalDob(rest));
-    const normalizedPreferences =
-      rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
-        ? { ...(rest.preferences as Record<string, unknown>) }
-        : {};
+  const normalizedPreferences =
+    rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
+      ? { ...(rest.preferences as Record<string, unknown>) }
+      : {};
   const canonicalAuthState = getCanonicalAuthState(rest);
   const canonicalBillingState = getCanonicalBillingState(rest);
   normalizedPreferences.role = canonicalAuthState.role;
