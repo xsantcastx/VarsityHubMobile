@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
+import { withDistributedLock } from './distributedLock.js';
+
+// In-process serialization for the per-user redeem path. Pairs with the
+// shared Redis lock from withDistributedLock; the local map keeps two
+// requests on the same Node process from racing through the lock acquire.
+const promoRedeemLocks = new Map<string, Promise<any>>();
 
 type PromoDb = {
   promoCode: Pick<typeof prisma.promoCode, 'findUnique' | 'update' | 'updateMany'>;
@@ -22,7 +28,8 @@ export async function previewPromo(input: PromoPreviewInput, db: PromoDb = prism
 
   const promo = await db.promoCode.findUnique({ where: { code } });
   if (!promo || !promo.enabled) return { valid: false, reason: 'invalid_or_disabled' } as const;
-  if (promo.start_at && now < promo.start_at) return { valid: false, reason: 'not_started' } as const;
+  if (promo.start_at && now < promo.start_at)
+    return { valid: false, reason: 'not_started' } as const;
   if (promo.end_at && now > promo.end_at) return { valid: false, reason: 'expired' } as const;
   if (promo.applies_to_service && input.service && promo.applies_to_service !== input.service)
     return { valid: false, reason: 'not_applicable' } as const;
@@ -101,24 +108,47 @@ async function redeemPromoWithDb(input: PromoPreviewInput & { orderId?: string }
   return { ok: true, ...preview } as const;
 }
 
-export async function redeemPromo(
-  input: PromoPreviewInput & { orderId?: string },
-  db?: PromoDb
-) {
+export async function redeemPromo(input: PromoPreviewInput & { orderId?: string }, db?: PromoDb) {
   if (db) return redeemPromoWithDb(input, db);
-  return prisma.$transaction((tx) => redeemPromoWithDb(input, tx), { isolationLevel: 'Serializable' });
+
+  // Per-user serialization to close the preview→create TOCTOU window:
+  // without a lock, two parallel checkouts for the same (promo, user)
+  // both see 0 prior redemptions during previewPromo and both create a
+  // fresh PromoRedemption row (the existing @@unique is on
+  // [promo_id, order_id], so different orders both succeed). The lock
+  // forces the second attempt to wait until the first writes its row,
+  // so previewPromo's per_user_limit check then fails closed.
+  //
+  // Schema-level @@unique([promo_id, user_id]) was rejected because it
+  // would break per_user_limit > 1 promos. The lock works for any limit.
+  const upper = (input.code || '').trim().toUpperCase();
+  const promoForLock = await prisma.promoCode.findUnique({
+    where: { code: upper },
+    select: { id: true },
+  });
+  if (!promoForLock) return { ok: false, error: 'invalid_or_disabled' } as const;
+
+  return withDistributedLock(
+    {
+      namespace: 'promos:redeem',
+      key: `${promoForLock.id}:${input.userId}`,
+      ttlMs: 30_000,
+      localLocks: promoRedeemLocks,
+    },
+    () =>
+      prisma.$transaction(tx => redeemPromoWithDb(input, tx), {
+        isolationLevel: 'Serializable',
+      })
+  );
 }
 
 export type ReversePromoRedemptionInput = {
   orderReferences: string[];
 };
 
-async function reversePromoRedemptionWithDb(
-  input: ReversePromoRedemptionInput,
-  db: PromoDb
-) {
+async function reversePromoRedemptionWithDb(input: ReversePromoRedemptionInput, db: PromoDb) {
   const orderReferences = Array.from(
-    new Set((input.orderReferences || []).map((value) => String(value || '').trim()).filter(Boolean))
+    new Set((input.orderReferences || []).map(value => String(value || '').trim()).filter(Boolean))
   );
 
   if (orderReferences.length === 0) {
@@ -149,7 +179,7 @@ async function reversePromoRedemptionWithDb(
   }
 
   await db.promoRedemption.deleteMany({
-    where: { id: { in: redemptions.map((redemption) => redemption.id) } },
+    where: { id: { in: redemptions.map(redemption => redemption.id) } },
   });
 
   const promoCounts = new Map<string, number>();
@@ -179,12 +209,9 @@ async function reversePromoRedemptionWithDb(
   } as const;
 }
 
-export async function reversePromoRedemption(
-  input: ReversePromoRedemptionInput,
-  db?: PromoDb
-) {
+export async function reversePromoRedemption(input: ReversePromoRedemptionInput, db?: PromoDb) {
   if (db) return reversePromoRedemptionWithDb(input, db);
-  return prisma.$transaction((tx) => reversePromoRedemptionWithDb(input, tx), {
+  return prisma.$transaction(tx => reversePromoRedemptionWithDb(input, tx), {
     isolationLevel: 'Serializable',
   });
 }
