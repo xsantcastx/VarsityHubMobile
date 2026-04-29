@@ -22,6 +22,18 @@ describe('organization email review token order', () => {
     );
   });
 
+  it('renders precise join-request state pages and action-specific invalid-link copy', () => {
+    const slice = sliceBetween(
+      'async function joinRequestEmailReviewHandler',
+      "organizationsRouter.get('/join-requests/:requestId/email/approve'"
+    );
+    expect(src).toContain('function renderJoinRequestStatePage(');
+    expect(slice).toContain("const linkLabel = action === 'approve' ? 'approval' : 'rejection'");
+    expect(slice).toContain('This ${linkLabel} link is missing or invalid.');
+    expect(slice).toContain('This ${linkLabel} link is no longer valid.');
+    expect(slice).toContain('return res.send(renderJoinRequestStatePage(joinRequest, action));');
+  });
+
   it('consumes league approval tokens only after approveOrganization completes', () => {
     const slice = sliceBetween(
       'async function approveLeagueHandler',

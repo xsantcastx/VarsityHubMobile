@@ -26,4 +26,11 @@ describe('ad email review token order', () => {
       slice.indexOf('const result = await rejectAd')
     );
   });
+
+  it('renders explicit already-final ad review pages instead of generic errors', () => {
+    expect(src).toContain('function describeAdModerationState(');
+    expect(src).toContain("const currentState = describeAdModerationState(summary.status, 'approve');");
+    expect(src).toContain("const currentState = describeAdModerationState(summary.status, 'reject');");
+    expect(src).toContain('already_final: true,');
+  });
 });

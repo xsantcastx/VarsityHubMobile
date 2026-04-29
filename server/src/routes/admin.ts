@@ -113,7 +113,7 @@ async function handleCoachReview(
 
   const coach = await prisma.user.findUnique({
     where: { id },
-    select: { display_name: true, username: true, email: true },
+    select: { display_name: true, username: true, email: true, approval_status: true },
   });
   if (!coach) {
     if (signedInAdmin) return res.status(404).json({ error: 'Coach not found' });
@@ -121,6 +121,19 @@ async function handleCoachReview(
   }
 
   const coachName = coach.display_name || coach.username || coach.email || 'Unknown Coach';
+  if (coach.approval_status === 'APPROVED') {
+    if (signedInAdmin) {
+      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already approved` });
+    }
+    return res.send(renderCoachResultPage('Already Approved', `${coachName} was already approved.`, true));
+  }
+  if (coach.approval_status === 'REJECTED') {
+    if (signedInAdmin) {
+      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already rejected` });
+    }
+    return res.send(renderCoachResultPage('Already Rejected', `${coachName} was already rejected.`, true));
+  }
+
   if (req.method === 'GET') {
     if (!tokenValid) return res.status(405).json({ error: 'Method not allowed' });
     return res.send(renderCoachReviewPage(action, coachName, token!));

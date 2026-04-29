@@ -16,6 +16,11 @@ describe('admin email review token order', () => {
     );
   });
 
+  it('shows already-final coach pages before trying the review mutation', () => {
+    expect(adminSrc).toMatch(/if \(coach\.approval_status === 'APPROVED'\)/);
+    expect(adminSrc).toMatch(/if \(coach\.approval_status === 'REJECTED'\)/);
+  });
+
   it('consumes abuse report review tokens only after the guarded transition succeeds', () => {
     const start = reportsSrc.indexOf('async function handleEmailReportReview');
     const end = reportsSrc.indexOf("adminReportsRouter.get(\n  '/:id/resolve'", start);

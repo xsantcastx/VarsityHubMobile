@@ -2334,6 +2334,36 @@ ${body}
 </body></html>`;
 }
 
+function renderJoinRequestStatePage(
+  joinRequest: {
+    status: string;
+    user?: { display_name: string | null; email?: string | null } | null;
+    organization?: { name: string | null } | null;
+  },
+  action: 'approve' | 'reject'
+): string {
+  const coachName = escapeHtml(joinRequest.user?.display_name || joinRequest.user?.email || 'This coach');
+  const orgName = escapeHtml(joinRequest.organization?.name || 'this organization');
+  if (joinRequest.status === 'approved') {
+    return joinReviewHtml(
+      'Already Approved',
+      `<h1 style="color:#16A34A">Already Approved</h1><p><strong>${coachName}</strong> was already approved for <strong>${orgName}</strong>.</p>`,
+      action === 'approve' ? '#16A34A' : '#DC2626'
+    );
+  }
+  if (joinRequest.status === 'denied') {
+    return joinReviewHtml(
+      'Already Declined',
+      `<h1 style="color:#DC2626">Already Declined</h1><p><strong>${coachName}</strong>'s request for <strong>${orgName}</strong> was already declined.</p>`,
+      action === 'reject' ? '#16A34A' : '#DC2626'
+    );
+  }
+  return joinReviewHtml(
+    'Already Reviewed',
+    `<h1>Already Reviewed</h1><p>This request was already ${escapeHtml(joinRequest.status)}.</p>`
+  );
+}
+
 async function _executeJoinRequestApprovalByToken(
   requestId: string,
   reviewerUserId: string
@@ -2601,13 +2631,14 @@ async function joinRequestEmailReviewHandler(
 ) {
   const requestId = String(req.params.requestId);
   const token = String((req.query.token as string) || '');
+  const linkLabel = action === 'approve' ? 'approval' : 'rejection';
   if (!token) {
     return res
       .status(401)
       .send(
         joinReviewHtml(
           'Link Expired',
-          '<h1 style="color:#DC2626">Link Expired</h1><p>This approval link is missing or invalid.</p>',
+          `<h1 style="color:#DC2626">Link Expired</h1><p>This ${linkLabel} link is missing or invalid.</p>`,
           '#DC2626'
         )
       );
@@ -2621,7 +2652,7 @@ async function joinRequestEmailReviewHandler(
       .send(
         joinReviewHtml(
           'Link Expired',
-          '<h1 style="color:#DC2626">Link Expired</h1><p>This approval link is no longer valid.</p>',
+          `<h1 style="color:#DC2626">Link Expired</h1><p>This ${linkLabel} link is no longer valid.</p>`,
           '#DC2626'
         )
       );
@@ -2646,12 +2677,7 @@ async function joinRequestEmailReviewHandler(
   }
 
   if (joinRequest.status !== 'pending') {
-    return res.send(
-      joinReviewHtml(
-        'Already Reviewed',
-        `<h1>Already ${joinRequest.status === 'approved' ? 'Approved' : 'Reviewed'}</h1><p>This request was already ${joinRequest.status}.</p>`
-      )
-    );
+    return res.send(renderJoinRequestStatePage(joinRequest, action));
   }
 
   if (req.method === 'GET') {
@@ -2691,6 +2717,18 @@ async function joinRequestEmailReviewHandler(
       : await _executeJoinRequestDenialByToken(requestId, ownerMembership.user_id);
 
   if (!result.ok) {
+    if (result.error === 'This request has already been reviewed') {
+      const latest = await prisma.organizationJoinRequest.findUnique({
+        where: { id: requestId },
+        include: {
+          organization: { select: { name: true } },
+          user: { select: { display_name: true, email: true } },
+        },
+      });
+      if (latest) {
+        return res.send(renderJoinRequestStatePage(latest, action));
+      }
+    }
     return res
       .status(result.status)
       .send(

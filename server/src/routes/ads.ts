@@ -1190,6 +1190,32 @@ window.setTimeout(function () {
 </body></html>`;
 }
 
+function describeAdModerationState(
+  status: string | null | undefined,
+  action: 'approve' | 'reject'
+): { title: string; message: string; success: boolean } | null {
+  if (!status || status === 'pending') return null;
+  if (status === 'approved' || status === 'active' || status === 'archived') {
+    return {
+      title: 'Already Approved',
+      message: 'This ad was already approved and is no longer pending review.',
+      success: action === 'approve',
+    };
+  }
+  if (status === 'draft' || status === 'rejected') {
+    return {
+      title: 'Already Rejected',
+      message: 'This ad was already rejected and returned for edits.',
+      success: action === 'reject',
+    };
+  }
+  return {
+    title: 'Already Reviewed',
+    message: `This ad is no longer pending review (current status: ${escapeHtml(status)}).`,
+    success: false,
+  };
+}
+
 /** HTML confirmation form — safeName must be pre-escaped via escapeHtml() before calling.
  *  When the ad's banner has been flagged by moderation, the form surfaces the flag and
  *  requires a typed override reason before the approval POST is sent. Submission uses
@@ -1304,6 +1330,7 @@ async function loadAdModerationSummary(id: string) {
     where: { id },
     select: {
       business_name: true,
+      status: true,
       banner_moderation_status: true,
       banner_moderation_labels: true,
       banner_moderation_score: true,
@@ -1322,6 +1349,7 @@ async function loadAdModerationSummary(id: string) {
     : [];
   return {
     businessName: ad.business_name || 'Unknown',
+    status: ad.status,
     moderation: {
       status: (ad.banner_moderation_status as 'clean' | 'flagged' | 'error' | null) || null,
       score: ad.banner_moderation_score,
@@ -1361,6 +1389,12 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       const summary = await loadAdModerationSummary(id);
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
+      }
+      const currentState = describeAdModerationState(summary.status, 'approve');
+      if (currentState) {
+        return res.send(
+          confirmationPage(currentState.title, currentState.message, currentState.success)
+        );
       }
       return res.send(
         confirmationForm(
@@ -1419,6 +1453,20 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
             'This banner was flagged. Provide an override reason to approve.'
           )
         );
+      }
+      const currentAd = await prisma.ad.findUnique({
+        where: { id },
+        select: { status: true },
+      });
+      const currentState = describeAdModerationState(currentAd?.status, 'approve');
+      if (currentState) {
+        return req.method === 'POST' && token
+          ? res.send(confirmationPage(currentState.title, currentState.message, currentState.success))
+          : res.status(409).json({
+              error: currentState.message,
+              current_status: currentAd?.status,
+              already_final: true,
+            });
       }
       return req.method === 'POST' && token
         ? res
@@ -1501,6 +1549,12 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
       }
+      const currentState = describeAdModerationState(summary.status, 'reject');
+      if (currentState) {
+        return res.send(
+          confirmationPage(currentState.title, currentState.message, currentState.success)
+        );
+      }
       return res.send(
         confirmationForm('reject', id, token, escapeHtml(summary.businessName || 'Unknown'))
       );
@@ -1524,6 +1578,20 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
     if (result.error) {
+      const currentAd = await prisma.ad.findUnique({
+        where: { id },
+        select: { status: true },
+      });
+      const currentState = describeAdModerationState(currentAd?.status, 'reject');
+      if (currentState) {
+        return req.method === 'POST' && token
+          ? res.send(confirmationPage(currentState.title, currentState.message, currentState.success))
+          : res.status(409).json({
+              error: currentState.message,
+              current_status: currentAd?.status,
+              already_final: true,
+            });
+      }
       return req.method === 'POST' && token
         ? res
             .status(result.status!)
