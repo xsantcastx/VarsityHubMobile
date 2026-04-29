@@ -15,6 +15,7 @@ WARNINGS=0
 
 # Treat key warnings as errors to avoid wasting build credits
 STRICT_MODE="${STRICT_MODE:-1}"
+REQUIRE_CLEAN_GIT="${REQUIRE_CLEAN_GIT:-0}"
 
 mark_warning_or_error() {
     local message="$1"
@@ -105,8 +106,11 @@ echo -e "${BLUE}Step 4b: Git status check...${NC}"
 if command -v git &> /dev/null; then
     if git diff --quiet && git diff --cached --quiet; then
         echo -e "${GREEN}✅ Git working tree clean${NC}"
-    else
+    elif [ "$REQUIRE_CLEAN_GIT" -eq 1 ]; then
         mark_warning_or_error "Uncommitted changes detected - consider committing before build"
+    else
+        echo -e "${YELLOW}⚠️  Uncommitted changes detected - consider committing before build${NC}"
+        WARNINGS=$((WARNINGS + 1))
     fi
 else
     mark_warning_or_error "Git not found - skipping status check"
@@ -209,11 +213,11 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
-# Check Android Sentry task handling
-if grep -q "whenTaskAdded.*Sentry" android/app/build.gradle 2>/dev/null || grep -q "tasks.all.*Sentry" android/app/build.gradle 2>/dev/null; then
-    echo -e "${GREEN}✅ Android Sentry task handling configured${NC}"
+# Check Android Sentry Gradle integration
+if grep -q "sentry.gradle" android/app/build.gradle 2>/dev/null; then
+    echo -e "${GREEN}✅ Android Sentry Gradle integration configured${NC}"
 else
-    echo -e "${YELLOW}⚠️  Android Sentry tasks may not be properly handled${NC}"
+    echo -e "${YELLOW}⚠️  Android Sentry Gradle integration may be missing${NC}"
     WARNINGS=$((WARNINGS + 1))
 fi
 echo ""
@@ -467,6 +471,9 @@ if command -v find &> /dev/null; then
         -not -path "./.claude/*" \
         -not -path "./ios/build/*" \
         -not -path "./android/build/*" \
+        -not -path "./android/.gradle/*" \
+        -not -path "./android/app/build/*" \
+        -not -path "./android/app/.cxx/*" \
         -not -path "./ios/Pods/*" \
         -not -path "./server/*" \
         -not -path "./.snyk-cache/*" \

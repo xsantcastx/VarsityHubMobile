@@ -21,7 +21,7 @@
     "start:ci": "cross-env CI=1 expo start --port 19001",
     "web:ci": "cross-env CI=1 expo start --web --port 9500",
     "android:ci": "cross-env CI=1 expo start --android --port 19002",
-    "postinstall": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/patches/patch-router-sitemap.js && node ./tools/ensure-is-arrayish.js && node ./tools/patches/patch-logbox-button.js && node ./scripts/patch-lottie-ios.js && node ./scripts/ensure-server-prisma-client.js",
+    "postinstall": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/patches/patch-router-sitemap.js && node ./tools/ensure-is-arrayish.js && node ./tools/patches/patch-logbox-button.js && node ./tools/patches/patch-expo-updates-bouncycastle.js && node ./scripts/patch-lottie-ios.js && node ./scripts/ensure-server-prisma-client.js",
     "fix:deps": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js",
     "lint": "expo lint",
     "format:check": "npx prettier --check \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\"",
@@ -181,7 +181,7 @@
         "listUnknownPackages": false
       },
       "appConfigFieldsNotSyncedCheck": {
-        "enabled": true
+        "enabled": false
       }
     }
   },

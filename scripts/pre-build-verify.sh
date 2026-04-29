@@ -148,7 +148,7 @@ else
 fi
 
 # Check Sentry Android config
-if grep -q "SENTRY_AUTH_TOKEN" android/app/build.gradle; then
+if grep -q "sentry.gradle" android/app/build.gradle && grep -q "defaults.org=lime-productions" android/sentry.properties && grep -q "defaults.project=varsityhub" android/sentry.properties; then
     echo -e "${GREEN}✅ Sentry Android configuration present${NC}"
 else
     echo -e "${YELLOW}⚠️  Sentry Android configuration may be missing${NC}"
