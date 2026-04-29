@@ -15,7 +15,15 @@ let emailServiceInstance: EmailService | null = null;
  */
 export function getEmailService(): EmailService {
   if (!emailServiceInstance) {
-    const provider = (process.env.EMAIL_PROVIDER || 'sendgrid') as 'sendgrid' | 'smtp' | 'test';
+    const rawProvider = String(process.env.EMAIL_PROVIDER || 'sendgrid')
+      .trim()
+      .toLowerCase();
+    const provider = rawProvider === 'test' ? 'test' : 'sendgrid';
+    if (rawProvider && rawProvider !== provider) {
+      console.warn(
+        `[email] Unsupported EMAIL_PROVIDER=${rawProvider}; falling back to ${provider}`
+      );
+    }
     const defaultFrom = resolveEmailFrom();
 
     const config: EmailServiceConfig = {

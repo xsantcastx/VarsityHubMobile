@@ -5,7 +5,7 @@ type ServiceKey =
   | 'jwt'
   | 'stripe'
   | 'cloudinary'
-  | 'smtp'
+  | 'email'
   | 'googleOAuth'
   | 'googleMaps'
   | 'twilio'
@@ -52,11 +52,11 @@ const serviceDefinitions: ServiceDefinition[] = [
     check: () => !!(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET),
   },
   {
-    key: 'smtp',
-    label: 'SMTP',
+    key: 'email',
+    label: 'Email (SendGrid)',
     required: true,
-    help: 'Set SMTP_HOST/USER/PASS so transactional email works.',
-    check: () => !!(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS),
+    help: 'Set SENDGRID_API_KEY so transactional email works.',
+    check: () => !!env.SENDGRID_API_KEY,
   },
   {
     key: 'googleOAuth',

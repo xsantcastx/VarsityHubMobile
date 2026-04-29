@@ -301,7 +301,6 @@ export const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'EVENT_DENIED',
   'EVENT_CANCELED',
   'PAYMENT_FAILED',
-  'SUBSCRIPTION_EXPIRING',
   'AD_PENDING_REVIEW',
   'AD_APPROVED',
   'AD_REJECTED',
@@ -327,7 +326,10 @@ export const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
 // Non-launch-blocking templates still warn when missing, but do not prevent
 // the server from booting. Parental consent is operationally important, but a
 // missing SendGrid template ID should not take down the whole API.
-export const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = ['PARENTAL_CONSENT_REQUEST'];
+export const RECOMMENDED_TEMPLATE_KEYS: TemplateKey[] = [
+  'PARENTAL_CONSENT_REQUEST',
+  'SUBSCRIPTION_EXPIRING',
+];
 
 export function isSendGridConfigured(): boolean {
   return Boolean(SENDGRID_API_KEY);
@@ -1777,7 +1779,9 @@ export async function sendOrganizationInviteEmail(params: {
 export async function sendBillingNoticeEmail(params: {
   to: string;
   user_name?: string;
-  // Only `trial_ending` and `payment_failed` have approved templates today.
+  // Only `payment_failed` has a live production trigger today.
+  // `trial_ending` remains available for manual probes / future reactivation,
+  // but it is not startup-critical because the scheduler was intentionally removed.
   // The broader union remains for backward compatibility with stale callers;
   // unsupported variants are blocked below and should be removed at call sites.
   type:

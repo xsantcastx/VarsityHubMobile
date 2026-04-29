@@ -72,7 +72,7 @@ export interface EmailError extends Error {
 }
 
 export interface EmailServiceConfig {
-  provider: 'sendgrid' | 'smtp' | 'test';
+  provider: 'sendgrid' | 'test';
   defaultFrom: EmailRecipient | EmailAddress;
   defaultReplyTo?: EmailRecipient | EmailAddress;
   timeout?: number;

@@ -208,30 +208,9 @@ export function startAdGoLiveCheck() {
       debugLog(`[ad-lifecycle] ${firstDayAds.length} ads starting today`);
 
       for (const ad of firstDayAds) {
-        const lastReservation = await prisma.adReservation.findFirst({
-          where: { ad_id: ad.id },
-          orderBy: { date: 'desc' },
-          select: { date: true },
-        });
-        const lastDate = lastReservation?.date;
-
-        await emailQueue?.add('ads.goes_live', {
-          to: ad.contact_email || '',
-          advertiser_name: ad.contact_name,
-          business_name: ad.business_name,
-          ad_title: ad.business_name,
-          target_zip: ad.target_zip_code,
-          live_until: lastDate ? lastDate.toISOString() : '',
-          analytics_dashboard_url: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/ads/${ad.id}`,
-          ad_preview_url: ad.banner_url || undefined,
-        });
-
-        await prisma.ad.update({
-          where: { id: ad.id },
-          data: { go_live_notified_at: new Date() },
-        });
-
-        debugLog(`[ad-lifecycle] Go-live notification sent for ad ${ad.id} (${ad.business_name})`);
+        debugLog(
+          `[ad-lifecycle] Go-live email removed; leaving ad ${ad.id} (${ad.business_name}) unmarked`
+        );
       }
 
       // 2. Archive expired ads: active+paid but ALL reservations are in the past

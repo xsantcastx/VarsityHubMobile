@@ -1,6 +1,7 @@
 # Railway Deployment Guide for VarsityHub Server
 
 ## Prerequisites
+
 ✅ Railway CLI installed (v4.10.0)
 ✅ Server configuration files ready
 ✅ Environment variables prepared
@@ -8,30 +9,39 @@
 ## Deployment Steps
 
 ### 1. Login to Railway
+
 ```powershell
 railway login
 ```
+
 This will open your browser to authenticate with Railway.
 
 ### 2. Initialize Railway Project (if new)
 
 **Option A: Link to existing project**
+
 ```powershell
 railway link
 ```
+
 Select your existing project from the list.
 
 **Option B: Create new project**
+
 ```powershell
 railway init
 ```
+
 Follow the prompts to create a new project.
 
 ### 3. Add PostgreSQL Database
+
 In Railway dashboard or via CLI:
+
 ```powershell
 railway add
 ```
+
 Select "PostgreSQL" from the list. Railway will automatically provide the `DATABASE_URL` environment variable.
 
 ### 4. Set Environment Variables
@@ -74,15 +84,17 @@ GOOGLE_MAPS_DEFAULT_COUNTRY=US
 ```
 
 **Set variables via CLI:**
+
 ```powershell
 railway variables set JWT_SECRET="your-super-secure-jwt-secret-minimum-32-characters-long"
 railway variables set NODE_ENV="production"
-railway variables set SMTP_HOST="smtp.gmail.com"
-railway variables set SMTP_PORT="587"
+railway variables set EMAIL_PROVIDER="sendgrid"
+railway variables set SENDGRID_API_KEY="SG.your-key-here"
 # ... continue for all variables
 ```
 
 **Or set via Railway Dashboard:**
+
 1. Go to https://railway.app/dashboard
 2. Select your project
 3. Click on your service
@@ -90,33 +102,40 @@ railway variables set SMTP_PORT="587"
 5. Add each variable
 
 ### 5. Deploy to Railway
+
 ```powershell
 railway up
 ```
 
 This will:
+
 - Build your application using the configuration in `.nixpacks.toml`
 - Run `npm install && npm run build`
 - Generate Prisma client
 - Deploy to Railway
 
 ### 6. Run Database Migrations
+
 After first deployment:
+
 ```powershell
 railway run npx prisma migrate deploy
 ```
 
 Or connect to your service and run:
+
 ```powershell
 railway run npx prisma db push
 ```
 
 ### 7. Seed Database (Optional)
+
 ```powershell
 railway run npm run seed
 ```
 
 ### 8. Get Your Deployment URL
+
 ```powershell
 railway domain
 ```
@@ -127,16 +146,19 @@ Or check in Railway dashboard. Your server will be available at:
 ## Monitoring & Logs
 
 **View logs:**
+
 ```powershell
 railway logs
 ```
 
 **View service status:**
+
 ```powershell
 railway status
 ```
 
 **Open Railway dashboard:**
+
 ```powershell
 railway open
 ```
@@ -152,6 +174,7 @@ Your server has these Railway configuration files:
 ## Build & Deploy Commands
 
 Your `package.json` includes:
+
 - `build`: Generates Prisma client and compiles TypeScript
 - `start`: Runs the production server
 - `railway:deploy`: Build command for Railway
@@ -163,19 +186,25 @@ Railway will check `/health` endpoint with 300s timeout.
 ## Troubleshooting
 
 ### Database Connection Issues
+
 ```powershell
 railway variables get DATABASE_URL
 ```
+
 Verify the DATABASE_URL is properly set.
 
 ### Build Failures
+
 Check logs:
+
 ```powershell
 railway logs --deployment
 ```
 
 ### Migration Issues
+
 Connect to service and run:
+
 ```powershell
 railway shell
 npx prisma migrate status

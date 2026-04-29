@@ -67,7 +67,7 @@ const envSchema = z.object({
   GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().optional().transform(toOptional),
   /** Strict Google Play receipt verification (set to '1' to reject unverified) */
   GOOGLE_PLAY_STRICT_VERIFY: z.string().optional(),
-  /** Email provider: sendgrid, smtp, or test */
+  /** Email provider: sendgrid or test */
   EMAIL_PROVIDER: z.string().optional().transform(toOptional),
   /** Sender email (alternative to FROM_EMAIL) */
   EMAIL_FROM: z.string().optional().transform(toOptional),

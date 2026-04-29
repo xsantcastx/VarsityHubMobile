@@ -64,7 +64,6 @@ await initEmailService();
     'SENDGRID_EVENT_CANCELED_TEMPLATE_ID',
     'SENDGRID_EVENT_CANCELLATION_TEMPLATE_ID',
     'SENDGRID_PAYMENT_FAILED_TEMPLATE_ID',
-    'SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID',
     'SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID',
     'SENDGRID_AD_APPROVED_TEMPLATE_ID',
     'SENDGRID_AD_REJECTED_TEMPLATE_ID',
@@ -259,8 +258,7 @@ process.on('unhandledRejection', (reason, promise) => {
   captureException(reason as Error, { context: 'unhandled_rejection', promise: String(promise) });
 });
 
-// Subscription expiry check is handled by the BullMQ scheduler (scheduler.ts line 277)
-// — no duplicate node-cron job needed here.
+// Subscription-expiry reminder emails were intentionally removed; no cron runs for them.
 
 async function runStartupChecks(): Promise<void> {
   const criticalVars: Array<{ key: string; label: string }> = [
