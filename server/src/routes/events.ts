@@ -1,7 +1,12 @@
 import escapeHtml from 'escape-html';
 import { Router } from 'express';
 import { z } from 'zod';
-import { sendEventCanceledEmail } from '../lib/email.js';
+import {
+  sendEventCanceledEmail,
+  sendEventRsvpConfirmedEmail,
+  sendEventSubmissionReceivedEmail,
+  sendEventUpdatedEmail,
+} from '../lib/email.js';
 import {
   cancelGameReminders,
   scheduleGameReminders,
@@ -820,6 +825,18 @@ eventsRouter.post(
         await scheduleGameReminders(id, me.id).catch(err =>
           console.warn('[events] Failed to schedule reminders:', err)
         );
+
+        if (me.email) {
+          sendEventRsvpConfirmedEmail({
+            to: me.email,
+            attendeeName: me.display_name || undefined,
+            eventTitle: event.title || 'Event',
+            eventDate,
+            eventLocation: event.location || undefined,
+          }).catch(err =>
+            console.warn('[events] RSVP confirmation email failed:', (err as any)?.message || err)
+          );
+        }
       } catch (error: any) {
         if (error.message === 'EVENT_AT_CAPACITY') {
           const currentCount = await prisma.eventRsvp.count({ where: { event_id: id } });
@@ -1065,21 +1082,34 @@ eventsRouter.post(
       });
 
       // Submission-received confirmation email removed — non-mandatory transactional email
+      const [creator, team] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { display_name: true, email: true },
+        }),
+        data.home_team_id
+          ? prisma.team.findUnique({
+              where: { id: data.home_team_id },
+              select: { name: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      if (creator?.email) {
+        sendEventSubmissionReceivedEmail({
+          to: creator.email,
+          submitterName: creator.display_name || undefined,
+          eventTitle: event.title,
+          needsApproval: !autoApprove,
+        }).catch(err =>
+          console.warn(
+            '[events] submission receipt email failed:',
+            (err as any)?.message || err
+          )
+        );
+      }
 
       if (!autoApprove) {
-        const [creator, team] = await Promise.all([
-          prisma.user.findUnique({
-            where: { id: userId },
-            select: { display_name: true, email: true },
-          }),
-          data.home_team_id
-            ? prisma.team.findUnique({
-                where: { id: data.home_team_id },
-                select: { name: true },
-              })
-            : Promise.resolve(null),
-        ]);
-
         void notifyPendingEventReviewers(prisma, {
           reviewId: event.id,
           reviewKind: 'event',
@@ -1476,6 +1506,18 @@ eventsRouter.patch(
                 event_id: eventId,
                 screen: 'event-detail',
               }).catch(err => console.warn('[events] Failed to send push:', err));
+              if (rsvp.user.email) {
+                sendEventUpdatedEmail({
+                  to: rsvp.user.email,
+                  attendeeName: rsvp.user.display_name || undefined,
+                  eventTitle: eventName,
+                  changes,
+                  newDate: updated.date,
+                  newLocation: updated.location,
+                }).catch(err =>
+                  console.warn('[events] event update email failed:', (err as any)?.message || err)
+                );
+              }
             }
           }
         }

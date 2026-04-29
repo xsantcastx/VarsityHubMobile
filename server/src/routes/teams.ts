@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { sendTeamInviteEmail } from '../lib/email.js';
+import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -2019,6 +2019,7 @@ teamsRouter.post(
         });
         const teamName = team?.name || 'your team';
         const accepterName = user.display_name || user.email || 'Someone';
+        const acceptedRole = existingMembership?.role || invite.role;
 
         // Find coaches/owners to notify
         const managers = await prisma.teamMembership.findMany({
@@ -2049,6 +2050,25 @@ teamsRouter.post(
                 { type: 'team_invite_accepted', team_id: invite.team_id, screen: 'team-page' }
               )
             )
+          );
+
+          const managerUsers = await prisma.user.findMany({
+            where: { id: { in: managers.map(m => m.user_id) } },
+            select: { email: true, display_name: true },
+          });
+          await Promise.allSettled(
+            managerUsers
+              .filter(manager => !!manager.email)
+              .map(manager =>
+                sendStaffMemberJoinedEmail({
+                  to: manager.email!,
+                  ownerName: manager.display_name || undefined,
+                  newMember: accepterName,
+                  newMemberRole: acceptedRole,
+                  scope: 'team',
+                  scopeName: teamName,
+                })
+              )
           );
         }
       } catch (notifErr) {

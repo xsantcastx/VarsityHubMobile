@@ -24,6 +24,9 @@ describe('organization invite guards', () => {
       /organizationsRouter\.post\(\s*'\/invites\/:inviteId\/accept'[\s\S]*?where:\s*\{\s*id:\s*inviteId,\s*status:\s*'pending'\s*\}/
     );
     expect(organizationsSrc).toMatch(/Invite already processed/);
+    expect(organizationsSrc).toMatch(
+      /organizationsRouter\.post\(\s*'\/invites\/:inviteId\/accept'[\s\S]*?sendStaffMemberJoinedEmail\(\{/
+    );
   });
 
   it('decline route also guards on case-insensitive mailbox match and pending-only updates', () => {

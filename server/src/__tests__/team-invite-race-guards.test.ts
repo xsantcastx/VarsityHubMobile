@@ -18,6 +18,9 @@ describe('team invite race guards', () => {
     );
     expect(teamsSrc).toMatch(/where:\s*\{\s*id:\s*invite\.id,\s*status:\s*'pending'\s*\}/);
     expect(teamsSrc).toMatch(/return sendError\(res,\s*409,\s*'Invite already processed'\)/);
+    expect(teamsSrc).toMatch(
+      /teamsRouter\.post\(\s*'\/invites\/:inviteId\/accept'[\s\S]*?sendStaffMemberJoinedEmail\(\{/
+    );
   });
 
   it('decline route also uses a pending-only updateMany guard', () => {

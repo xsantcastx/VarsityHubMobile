@@ -7,6 +7,7 @@ import {
   sendCoachApprovedEmail,
   sendCoachRejectedEmail,
   sendCoachJoinRequestEmail,
+  sendStaffMemberJoinedEmail,
 } from '../lib/email.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -1324,6 +1325,15 @@ organizationsRouter.post(
       if (!user.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
         return res.status(403).json({ error: 'Invite not for this user' });
       }
+      const existingMembership = await prisma.organizationMembership.findUnique({
+        where: {
+          organization_id_user_id: {
+            organization_id: invite.organization_id,
+            user_id: user.id,
+          } as any,
+        },
+        select: { role: true },
+      });
 
       const accepted = await prisma.$transaction(async tx => {
         const transition = await tx.organizationInvite.updateMany({
@@ -1351,7 +1361,64 @@ organizationsRouter.post(
       });
       if (!accepted) return res.status(409).json({ error: 'Invite already processed' });
 
-      // Organization approval welcome email removed — non-mandatory
+      try {
+        const [org, managers, joinedRole] = await Promise.all([
+          prisma.organization.findUnique({
+            where: { id: invite.organization_id },
+            select: { name: true },
+          }),
+          prisma.organizationMembership.findMany({
+            where: {
+              organization_id: invite.organization_id,
+              role: { in: ['owner', 'manager'] },
+              status: 'active',
+              user_id: { not: user.id },
+            },
+            select: { user_id: true },
+          }),
+          Promise.resolve(existingMembership?.role || invite.role),
+        ]);
+        const orgName = org?.name || 'your organization';
+        const joinedName = user.display_name || user.email || 'Someone';
+
+        if (managers.length > 0) {
+          const managerUsers = await prisma.user.findMany({
+            where: { id: { in: managers.map(m => m.user_id) } },
+            select: { id: true, email: true, display_name: true },
+          });
+
+          await Promise.allSettled(
+            managerUsers.map(manager =>
+              sendPushNotification(
+                manager.id,
+                `${joinedName} joined ${orgName}`,
+                'An organization invite was accepted.',
+                {
+                  type: 'organization_invite_accepted',
+                  organization_id: invite.organization_id,
+                }
+              )
+            )
+          );
+
+          await Promise.allSettled(
+            managerUsers
+              .filter(manager => !!manager.email)
+              .map(manager =>
+                sendStaffMemberJoinedEmail({
+                  to: manager.email!,
+                  ownerName: manager.display_name || undefined,
+                  newMember: joinedName,
+                  newMemberRole: joinedRole,
+                  scope: 'organization',
+                  scopeName: orgName,
+                })
+              )
+          );
+        }
+      } catch (notifErr) {
+        console.warn('[organizations] Failed to send invite-accepted notifications:', notifErr);
+      }
 
       return res.json({ message: 'Invite accepted' });
     } catch (err) {
