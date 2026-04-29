@@ -94,10 +94,13 @@ async function getRedisClient(): Promise<RedisClient | null> {
           db: REDIS_DB,
         });
       })
-      .catch((error) => {
+      .catch(error => {
         if (!warnedAboutRedis) {
           warnedAboutRedis = true;
-          console.warn('[review-tokens] Failed to initialize Redis client:', (error as Error)?.message || error);
+          console.warn(
+            '[review-tokens] Failed to initialize Redis client:',
+            (error as Error)?.message || error
+          );
         }
         return null;
       });

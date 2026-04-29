@@ -138,9 +138,7 @@ describe('POST /auth/account/delete', () => {
 
       // Subsequent login attempt with original credentials must NOT succeed —
       // the email may have been anonymized or the password_hash cleared.
-      const reLogin = await request(app)
-        .post('/auth/login')
-        .send({ email, password: PASSWORD });
+      const reLogin = await request(app).post('/auth/login').send({ email, password: PASSWORD });
       expect(reLogin.status).not.toBe(200);
     });
   });

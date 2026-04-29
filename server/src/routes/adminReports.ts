@@ -92,7 +92,10 @@ function renderReportResultPage(title: string, message: string, success: boolean
 </body></html>`;
 }
 
-async function isReplayTokenAlreadyUsed(token: string, payload: { jti?: string; exp?: number; iat?: number }) {
+async function isReplayTokenAlreadyUsed(
+  token: string,
+  payload: { jti?: string; exp?: number; iat?: number }
+) {
   const replayState = await getReviewTokenReplayState(token, payload);
   return replayState === 'already_used';
 }
@@ -404,11 +407,12 @@ adminReportsRouter.patch(
     });
     if (!existing) return res.status(404).json({ error: 'Abuse report not found' });
     if (existing.status === status) {
-      return res.json({ report: existing, already_final: FINAL_REPORT_STATUSES.includes(status as any) });
+      return res.json({
+        report: existing,
+        already_final: FINAL_REPORT_STATUSES.includes(status as any),
+      });
     }
-    if (
-      FINAL_REPORT_STATUSES.includes(existing.status as (typeof FINAL_REPORT_STATUSES)[number])
-    ) {
+    if (FINAL_REPORT_STATUSES.includes(existing.status as (typeof FINAL_REPORT_STATUSES)[number])) {
       return res.status(409).json({
         error: `Report already ${existing.status}`,
         current_status: existing.status,
@@ -631,9 +635,7 @@ adminReportsRouter.post(
       },
     });
     if (!report) return res.status(404).json({ error: 'Report not found' });
-    if (
-      FINAL_REPORT_STATUSES.includes(report.status as (typeof FINAL_REPORT_STATUSES)[number])
-    ) {
+    if (FINAL_REPORT_STATUSES.includes(report.status as (typeof FINAL_REPORT_STATUSES)[number])) {
       return res.status(409).json({
         error: `Report already ${report.status}`,
         current_status: report.status,
