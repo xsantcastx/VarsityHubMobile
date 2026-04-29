@@ -282,7 +282,9 @@ const TEMPLATE_IDS = {
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
-const SENDGRID_TEMPLATE_ID_REGEX = /^d-[a-f0-9]{32}$/i;
+const SENDGRID_TEMPLATE_ID_COMPACT_REGEX = /^d-[a-f0-9]{32}$/i;
+const SENDGRID_TEMPLATE_ID_HYPHENATED_REGEX =
+  /^d-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 // Critical for launch — server exits if missing in production.
 // These keys back every transactional template currently exercised by production flows.
@@ -303,6 +305,7 @@ export const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'AD_PENDING_REVIEW',
   'AD_APPROVED',
   'AD_REJECTED',
+  'AD_PAYMENT_CONFIRMED',
   'ORG_APPROVED',
   'ORG_DENIED',
   'ADMIN_ACTION_CONFIRMATION',
@@ -345,7 +348,12 @@ export function getMissingRecommendedTemplates(): string[] {
 }
 
 export function isValidSendGridTemplateId(templateId: string | undefined | null): boolean {
-  return typeof templateId === 'string' && SENDGRID_TEMPLATE_ID_REGEX.test(templateId.trim());
+  if (typeof templateId !== 'string') return false;
+  const trimmed = templateId.trim();
+  return (
+    SENDGRID_TEMPLATE_ID_COMPACT_REGEX.test(trimmed) ||
+    SENDGRID_TEMPLATE_ID_HYPHENATED_REGEX.test(trimmed)
+  );
 }
 
 export function getEmailBaseUrlDiagnostics() {

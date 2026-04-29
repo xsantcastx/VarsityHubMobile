@@ -6,6 +6,7 @@ import { describe, expect, it, beforeEach, afterEach, jest } from '@jest/globals
 describe('Email template helpers', () => {
   const originalEnv = process.env;
   const validTemplateId = 'd-0123456789abcdef0123456789abcdef';
+  const validHyphenatedTemplateId = 'd-01234567-89ab-cdef-0123-456789abcdef';
   const vanityOrigin = 'https://varsityhub.app';
 
   beforeEach(() => {
@@ -59,6 +60,7 @@ describe('Email template helpers', () => {
     process.env.SENDGRID_AD_PENDING_REVIEW_TEMPLATE_ID = validTemplateId;
     process.env.SENDGRID_AD_APPROVED_TEMPLATE_ID = validTemplateId;
     process.env.SENDGRID_AD_REJECTED_TEMPLATE_ID = validTemplateId;
+    process.env.SENDGRID_AD_PAYMENT_CONFIRMED_TEMPLATE_ID = validTemplateId;
     process.env.SENDGRID_ORG_APPROVAL_TEMPLATE_ID = validTemplateId;
     process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID = validTemplateId;
     process.env.SENDGRID_ADMIN_ACTION_CONFIRMATION_TEMPLATE_ID = validTemplateId;
@@ -86,6 +88,13 @@ describe('Email template helpers', () => {
     process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = 'd-not-a-real-guid';
     const { getMissingEmailTemplates } = await import('../lib/email.js');
     expect(getMissingEmailTemplates(['TEAM_INVITE'])).toEqual(['team_invite']);
+  });
+
+  it('accepts hyphenated SendGrid template IDs at runtime', async () => {
+    process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID = validHyphenatedTemplateId;
+    const { getMissingEmailTemplates, isValidSendGridTemplateId } = await import('../lib/email.js');
+    expect(isValidSendGridTemplateId(validHyphenatedTemplateId)).toBe(true);
+    expect(getMissingEmailTemplates(['TEAM_INVITE'])).toEqual([]);
   });
 
   it('reports when API and app email links are falling back to canonical vanity hosts', async () => {
