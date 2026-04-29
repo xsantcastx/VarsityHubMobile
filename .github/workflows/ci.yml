@@ -272,7 +272,12 @@ jobs:
         # local jest binary). `npm --prefix .. run ci:retry` would
         # switch cwd to root for the whole chain, breaking jest
         # resolution because jest is only installed under server/.
-        run: node ../scripts/run-with-retry.js 2 npm test -- --runInBand
+        # Do NOT add `--runInBand` here. It forces every suite into the same
+        # Jest process and triggers Node's "module is already linked" failure
+        # across ~40 ESM suites that dynamic-import overlapping modules.
+        # jest.config.js sets maxWorkers: 2 which keeps Postgres connection
+        # pressure bounded without the cross-suite collision.
+        run: node ../scripts/run-with-retry.js 2 npm test
 
   # All checks must pass - this job ensures the PR gate
   all-checks:
