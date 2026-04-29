@@ -237,6 +237,25 @@ const TEMPLATE_IDS = {
 
   // Parental consent for 13-17 users (sent to parent_email on complete-onboarding)
   PARENTAL_CONSENT_REQUEST: tmpl('SENDGRID_PARENTAL_CONSENT_REQUEST_TEMPLATE_ID'),
+
+  // Roster / membership lifecycle notifications
+  ATHLETE_INVITATION: tmpl('SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID'),
+  STAFF_MEMBER_JOINED: tmpl('SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID'),
+  TEAM_ROSTER_UPDATE: tmpl('SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID'),
+  INVITATION_DECLINED: tmpl('SENDGRID_INVITATION_DECLINED_TEMPLATE_ID'),
+  ROLE_ASSIGNMENT: tmpl('SENDGRID_ROLE_ASSIGNMENT_TEMPLATE_ID'),
+  ROSTER_THRESHOLD: tmpl('SENDGRID_ROSTER_THRESHOLD_TEMPLATE_ID'),
+
+  // Event lifecycle (RSVPs, reminders, submissions, updates)
+  EVENT_REMINDER: tmpl('SENDGRID_EVENT_REMINDER_TEMPLATE_ID'),
+  EVENT_RSVP_CONFIRMED: tmpl('SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID'),
+  EVENT_SUBMISSION_RECEIVED: tmpl('SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID'),
+  EVENT_UPDATED: tmpl('SENDGRID_EVENT_UPDATED_TEMPLATE_ID'),
+
+  // Moderation / content takedown (sent to user when their content is moderated)
+  CONTENT_REMOVED: tmpl('SENDGRID_CONTENT_REMOVED_TEMPLATE_ID'),
+  REPORT_DISMISSED: tmpl('SENDGRID_REPORT_DISMISSED_TEMPLATE_ID'),
+  REPORT_RESOLVED: tmpl('SENDGRID_REPORT_RESOLVED_TEMPLATE_ID'),
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -269,6 +288,14 @@ export const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'ACCOUNT_SUSPENSION_45_DAYS',
   'ACCOUNT_PERMANENT_BAN',
   'ACCOUNT_RECOVERY',
+  'STAFF_MEMBER_JOINED',
+  'INVITATION_DECLINED',
+  'EVENT_RSVP_CONFIRMED',
+  'EVENT_SUBMISSION_RECEIVED',
+  'EVENT_UPDATED',
+  'CONTENT_REMOVED',
+  'REPORT_DISMISSED',
+  'REPORT_RESOLVED',
 ];
 
 // Non-launch-blocking templates still warn when missing, but do not prevent
@@ -1059,6 +1086,239 @@ export async function sendAccountModerationEmail(params: {
     },
     `Moderation email (${params.action}) sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
+  );
+}
+
+/**
+ * Notify the inviter when their team or org invite is declined.
+ */
+export async function sendInvitationDeclinedEmail(params: {
+  to: string;
+  inviterName?: string;
+  decliner: string;
+  scope: 'team' | 'organization';
+  scopeName: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.INVITATION_DECLINED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_INVITATION_DECLINED_TEMPLATE_ID');
+    return false;
+  }
+  const subject = `${params.decliner} declined your ${params.scope} invite`;
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      inviter_name: params.inviterName || 'Coach',
+      decliner_name: params.decliner,
+      scope: params.scope,
+      scope_name: params.scopeName,
+    },
+    `Invitation declined email sent to ${params.to}`
+  );
+}
+
+/**
+ * Notify a team or org owner that a new staff member accepted their invite.
+ */
+export async function sendStaffMemberJoinedEmail(params: {
+  to: string;
+  ownerName?: string;
+  newMember: string;
+  newMemberRole: string;
+  scope: 'team' | 'organization';
+  scopeName: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.STAFF_MEMBER_JOINED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID');
+    return false;
+  }
+  const subject = `${params.newMember} joined ${params.scopeName} as ${params.newMemberRole}`;
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      owner_name: params.ownerName || 'Coach',
+      new_member_name: params.newMember,
+      new_member_role: params.newMemberRole,
+      scope: params.scope,
+      scope_name: params.scopeName,
+    },
+    `Staff joined email sent to ${params.to}`
+  );
+}
+
+/**
+ * RSVP confirmation receipt sent to the attendee.
+ */
+export async function sendEventRsvpConfirmedEmail(params: {
+  to: string;
+  attendeeName?: string;
+  eventTitle: string;
+  eventDate: Date;
+  eventLocation?: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.EVENT_RSVP_CONFIRMED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID');
+    return false;
+  }
+  const subject = `You're going to ${params.eventTitle}`;
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      attendee_name: params.attendeeName || 'You',
+      event_title: params.eventTitle,
+      event_date: params.eventDate.toISOString(),
+      event_location: params.eventLocation || '',
+    },
+    `RSVP confirmed email sent to ${params.to}`
+  );
+}
+
+/**
+ * Receipt to the fan/coach who submitted an event for review.
+ */
+export async function sendEventSubmissionReceivedEmail(params: {
+  to: string;
+  submitterName?: string;
+  eventTitle: string;
+  needsApproval: boolean;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.EVENT_SUBMISSION_RECEIVED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID');
+    return false;
+  }
+  const subject = params.needsApproval
+    ? `We received your event submission: ${params.eventTitle}`
+    : `Your event is live: ${params.eventTitle}`;
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      submitter_name: params.submitterName || 'You',
+      event_title: params.eventTitle,
+      needs_approval: params.needsApproval,
+    },
+    `Event submission email sent to ${params.to}`
+  );
+}
+
+/**
+ * Notify attendees when a material event field changes (date, location).
+ */
+export async function sendEventUpdatedEmail(params: {
+  to: string;
+  attendeeName?: string;
+  eventTitle: string;
+  changes: string[];
+  newDate?: Date | null;
+  newLocation?: string | null;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.EVENT_UPDATED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_EVENT_UPDATED_TEMPLATE_ID');
+    return false;
+  }
+  const subject = `Update for ${params.eventTitle}`;
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      attendee_name: params.attendeeName || 'You',
+      event_title: params.eventTitle,
+      changes: params.changes,
+      new_date: params.newDate ? params.newDate.toISOString() : null,
+      new_location: params.newLocation || null,
+    },
+    `Event updated email sent to ${params.to}`
+  );
+}
+
+/**
+ * Notify the author when their content (post/comment/story) is removed by a moderator.
+ */
+export async function sendContentRemovedEmail(params: {
+  to: string;
+  authorName?: string;
+  contentType: 'post' | 'comment' | 'story';
+  reason?: string;
+}): Promise<boolean> {
+  const templateId = TEMPLATE_IDS.CONTENT_REMOVED;
+  if (!templateId) {
+    console.error('[email] Missing SENDGRID_CONTENT_REMOVED_TEMPLATE_ID');
+    return false;
+  }
+  const subject = `Your ${params.contentType} was removed by a moderator`;
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      author_name: params.authorName || 'You',
+      content_type: params.contentType,
+      reason: params.reason || 'Violation of community guidelines',
+      support_email: CUSTOMER_SERVICE_EMAIL,
+    },
+    `Content removed email (${params.contentType}) sent to ${params.to}`,
+    { metadata: await resolveMinorAuditMetadata(params.to) }
+  );
+}
+
+/**
+ * Notify a reporter when their abuse report is dismissed or resolved.
+ * Combined dispatcher because the only difference is the template + subject.
+ */
+export async function sendReportStatusEmail(params: {
+  to: string;
+  reporterName?: string;
+  status: 'dismissed' | 'resolved';
+  resolutionNote?: string;
+}): Promise<boolean> {
+  const templateId =
+    params.status === 'resolved' ? TEMPLATE_IDS.REPORT_RESOLVED : TEMPLATE_IDS.REPORT_DISMISSED;
+  if (!templateId) {
+    console.error(
+      `[email] Missing SENDGRID_REPORT_${params.status.toUpperCase()}_TEMPLATE_ID`
+    );
+    return false;
+  }
+  const subject =
+    params.status === 'resolved'
+      ? 'Update on your report — action taken'
+      : 'Update on your report — no action taken';
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    subject,
+    {
+      ...getCommonTemplateData(),
+      subject,
+      reporter_name: params.reporterName || 'You',
+      status: params.status,
+      resolution_note: params.resolutionNote || '',
+    },
+    `Report ${params.status} email sent to ${params.to}`
   );
 }
 

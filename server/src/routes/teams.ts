@@ -1879,6 +1879,23 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, requireVerifi
           { type: 'team_invite_declined', team_id: invite.team_id, screen: 'team-page' }
         )
       ));
+
+      // Email each manager that the invite was declined
+      const managerUsers = await prisma.user.findMany({
+        where: { id: { in: managers.map(m => m.user_id) } },
+        select: { email: true, display_name: true },
+      });
+      const { sendInvitationDeclinedEmail } = await import('../lib/email.js');
+      for (const m of managerUsers) {
+        if (!m.email) continue;
+        sendInvitationDeclinedEmail({
+          to: m.email,
+          inviterName: m.display_name || undefined,
+          decliner: declinerName,
+          scope: 'team',
+          scopeName: teamName,
+        }).catch(err => console.warn('[teams] sendInvitationDeclinedEmail failed:', err?.message ?? err));
+      }
     }
   } catch (notifErr) {
     console.error('[teams] Failed to send invite declined notification:', notifErr);

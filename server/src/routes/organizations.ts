@@ -1377,6 +1377,46 @@ organizationsRouter.post(
         data: { status: 'declined' },
       });
       if (declined.count === 0) return res.status(409).json({ error: 'Invite already processed' });
+
+      // Email org owner/managers that the invite was declined
+      try {
+        const org = await prisma.organization.findUnique({
+          where: { id: invite.organization_id },
+          select: { name: true },
+        });
+        const orgName = org?.name || 'your organization';
+        const declinerName = user.display_name || user.email || 'Someone';
+        const managers = await prisma.organizationMembership.findMany({
+          where: {
+            organization_id: invite.organization_id,
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+          },
+          select: { user_id: true },
+        });
+        if (managers.length > 0) {
+          const managerUsers = await prisma.user.findMany({
+            where: { id: { in: managers.map(m => m.user_id) } },
+            select: { email: true, display_name: true },
+          });
+          const { sendInvitationDeclinedEmail } = await import('../lib/email.js');
+          for (const m of managerUsers) {
+            if (!m.email) continue;
+            sendInvitationDeclinedEmail({
+              to: m.email,
+              inviterName: m.display_name || undefined,
+              decliner: declinerName,
+              scope: 'organization',
+              scopeName: orgName,
+            }).catch(err =>
+              console.warn('[organizations] sendInvitationDeclinedEmail failed:', err?.message ?? err)
+            );
+          }
+        }
+      } catch (notifErr) {
+        console.warn('[organizations] Failed to send invite-declined emails:', notifErr);
+      }
+
       return res.json({ message: 'Invite declined' });
     } catch (err) {
       console.error('[organizations] POST /invites/:inviteId/decline error:', err);

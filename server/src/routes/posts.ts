@@ -1853,6 +1853,21 @@ postsRouter.delete(
               meta: { post_id: postId, reason: 'Removed by moderator' },
             },
           });
+
+          const author = await prisma.user.findUnique({
+            where: { id: post.author_id },
+            select: { email: true, display_name: true },
+          });
+          if (author?.email) {
+            const { sendContentRemovedEmail } = await import('../lib/email.js');
+            sendContentRemovedEmail({
+              to: author.email,
+              authorName: author.display_name || undefined,
+              contentType: 'post',
+            }).catch((err) =>
+              console.warn('[posts] sendContentRemovedEmail failed:', err?.message ?? err)
+            );
+          }
         } catch (notifErr) {
           console.warn('[posts] Failed to notify author of takedown:', notifErr);
         }

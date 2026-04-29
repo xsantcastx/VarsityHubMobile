@@ -316,7 +316,17 @@ adminReportsRouter.patch('/:id', requireAdmin as any, asyncHandler(async (req: A
     { status, resolution_note, reporter: report.reporter?.email }
   );
 
-  // Report resolution notification email removed — non-mandatory informational email
+  if ((status === 'resolved' || status === 'dismissed') && report.reporter?.email) {
+    const { sendReportStatusEmail } = await import('../lib/email.js');
+    sendReportStatusEmail({
+      to: report.reporter.email,
+      reporterName: report.reporter.display_name || undefined,
+      status,
+      resolutionNote: resolution_note,
+    }).catch((err) =>
+      console.warn('[adminReports] sendReportStatusEmail failed:', err?.message ?? err)
+    );
+  }
 
   return res.json({ report });
 }));
