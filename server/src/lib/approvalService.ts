@@ -247,13 +247,14 @@ export async function approveOrganization(
     include: { leagueOwner: { select: { id: true, display_name: true, email: true, preferences: true } } },
   });
   if (!org) return { error: 'Organization not found', status: 404 };
+  if (org.status === 'rejected') return { error: 'Organization already rejected', status: 409 as const, finalState: 'rejected' as const };
   if (org.admin_approved) return { already: true };
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   // Atomic approval: org + owner approval_status
   const txOps: any[] = [
     prisma.organization.updateMany({
-      where: { id: orgId, admin_approved: false },
+      where: { id: orgId, admin_approved: false, status: { not: 'rejected' } },
       data: {
         admin_approved: true,
         approved_by: adminId || 'email-token',
@@ -292,7 +293,16 @@ export async function approveOrganization(
   }
 
   // Race-condition guard: another admin already approved
-  if (updated.count === 0) return { already: true };
+  if (updated.count === 0) {
+    const current = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { admin_approved: true, status: true },
+    });
+    if (current?.status === 'rejected') {
+      return { error: 'Organization already rejected', status: 409 as const, finalState: 'rejected' as const };
+    }
+    return { already: true };
+  }
 
   // ── Fire-and-forget notifications ──
   if (owner?.email) {
@@ -348,6 +358,7 @@ export async function rejectOrganization(
   });
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { already: true };
+  if (org.admin_approved) return { error: 'Organization already approved', status: 409 as const, finalState: 'approved' as const };
   const owner = await resolveOrganizationOwner(prisma, orgId, org.leagueOwner);
 
   const reason = opts?.reason || null;
@@ -355,7 +366,7 @@ export async function rejectOrganization(
   // Cascade: reject org, unlink teams, revoke memberships, reject owner
   const didReject = await prisma.$transaction(async (tx) => {
     const updated = await tx.organization.updateMany({
-      where: { id: orgId, status: { not: 'rejected' } },
+      where: { id: orgId, status: { not: 'rejected' }, admin_approved: false },
       data: {
         status: 'rejected',
         admin_approved: false,
@@ -393,7 +404,16 @@ export async function rejectOrganization(
     }
     return true;
   });
-  if (!didReject) return { already: true };
+  if (!didReject) {
+    const current = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { admin_approved: true, status: true },
+    });
+    if (current?.admin_approved) {
+      return { error: 'Organization already approved', status: 409 as const, finalState: 'approved' as const };
+    }
+    return { already: true };
+  }
   if (owner?.id) {
     await invalidateMeCacheForUser(owner.id);
   }

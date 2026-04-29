@@ -2977,6 +2977,12 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       }
       const result = await approveOrganization(orgId, adminUserId, prisma, { note: adminNote });
       if (result.error) {
+        const finalState = (result as any).finalState as 'approved' | 'rejected' | undefined;
+        if (finalState === 'rejected') {
+          return res.send(
+            renderLeagueActionResultPage('Already Rejected', 'This league was already rejected.', false)
+          );
+        }
         return res
           .status((result as any).status || 500)
           .send(renderLeagueActionResultPage('Error', result.error, false));
@@ -3196,6 +3202,12 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       }
       const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
       if (result.error) {
+        const finalState = (result as any).finalState as 'approved' | 'rejected' | undefined;
+        if (finalState === 'approved') {
+          return res.send(
+            renderLeagueActionResultPage('Already Approved', 'This league was already approved.', false)
+          );
+        }
         return res
           .status((result as any).status || 500)
           .send(renderLeagueActionResultPage('Error', result.error, false));
