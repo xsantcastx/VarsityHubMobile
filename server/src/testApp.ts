@@ -31,6 +31,7 @@ import { adminReportsRouter } from './routes/adminReports.js';
 import { searchRouter } from './routes/search.js';
 import { dataExportRouter } from './routes/dataExport.js';
 import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
+import { publicSiteRouter } from './routes/publicSite.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -73,6 +74,7 @@ app.use('/admin/reports', adminReportsRouter);
 app.use('/search', searchRouter);
 app.use(dataExportRouter);
 app.use(publicAppHandoffRouter);
+app.use(publicSiteRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
