@@ -10,15 +10,11 @@ function buildApp() {
 }
 
 describe('Public site routes', () => {
-  it('serves a real landing page at root instead of Cannot GET /', async () => {
+  it('redirects the bare root to the dedicated marketing site', async () => {
     const res = await request(buildApp()).get('/').set('Accept', 'text/html');
 
-    expect(res.status).toBe(200);
-    expect(String(res.headers['content-type'] || '')).toContain('text/html');
-    expect(res.text).toContain('VarsityHub');
-    expect(res.text).toContain('Support');
-    expect(res.text).toContain('/privacy-policy');
-    expect(res.text).not.toContain('Cannot GET /');
+    expect(res.status).toBe(308);
+    expect(res.headers.location).toBe('https://www.varsityhub.app/');
   });
 
   it('serves the legal and support pages from the shared public router', async () => {

@@ -1,12 +1,12 @@
 import { Router } from 'express';
 
 const publicSiteRouter = Router();
+const MARKETING_SITE_URL = 'https://www.varsityhub.app/';
 
 const pageStyle = `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:760px;margin:40px auto;padding:0 20px;color:#1F2937;line-height:1.6;background:#F8FAFC}h1{color:#1B3A6B;margin-bottom:8px}h2{color:#2563EB;margin-top:24px}a{color:#2563EB}.card{background:#fff;border:1px solid #E5E7EB;border-radius:18px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,.08)}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}.btn{display:inline-block;background:#1B3A6B;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600}.btn-secondary{background:#EFF6FF;color:#1D4ED8}.meta{font-size:14px;color:#64748B;margin-top:20px}`;
 
 publicSiteRouter.get('/', (_req, res) => {
-  res.setHeader('Content-Type', 'text/html');
-  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>VarsityHub</title><style>${pageStyle}</style></head><body><div class="card"><h1>VarsityHub</h1><p>VarsityHub is the mobile platform for teams, events, highlights, and fan communities.</p><p>If you opened this page from an email and expected the app to open, go back and tap the full verification or reset link again. Direct deep links like <code>/verify</code> and <code>/reset-password</code> are supported.</p><div class="actions"><a class="btn" href="/support">Support</a><a class="btn btn-secondary" href="/privacy-policy">Privacy Policy</a><a class="btn btn-secondary" href="/terms">Terms of Service</a></div><p class="meta">This domain currently serves VarsityHub's backend and app-link pages. A full consumer web app is separate work.</p></div></body></html>`);
+  res.redirect(308, MARKETING_SITE_URL);
 });
 
 publicSiteRouter.get('/privacy-policy', (_req, res) => {
