@@ -17,6 +17,7 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const adminReportsRouter = Router();
 registerIdValidation(adminReportsRouter);
+const FINAL_REPORT_STATUSES = ['resolved', 'dismissed'] as const;
 
 // Helper to get admin email
 async function getAdminEmail(userId: string): Promise<string> {
@@ -147,6 +148,41 @@ async function handleEmailReportReview(
       .send(renderReportResultPage('Not Found', 'Abuse report not found.', false));
   }
 
+  const nextStatus = action === 'dismiss' ? 'dismissed' : 'resolved';
+  if (report.status === nextStatus) {
+    if (signedInAdmin) {
+      return res.json({
+        ok: true,
+        already_final: true,
+        message: `Report ${report.id} already ${nextStatus}.`,
+      });
+    }
+    return res.send(
+      renderReportResultPage(
+        action === 'dismiss' ? 'Already Dismissed' : 'Already Resolved',
+        `Report ${report.id} was already ${nextStatus}.`,
+        true
+      )
+    );
+  }
+  if (report.status === 'resolved' || report.status === 'dismissed') {
+    if (signedInAdmin) {
+      return res.status(409).json({
+        error: `Report already ${report.status}`,
+        current_status: report.status,
+      });
+    }
+    return res
+      .status(409)
+      .send(
+        renderReportResultPage(
+          'Already Reviewed',
+          `This report was already ${report.status}.`,
+          false
+        )
+      );
+  }
+
   if (req.method === 'GET') {
     if (!tokenValid) return res.status(405).json({ error: 'Method not allowed' });
     return res.send(renderReportReviewPage(action, report, token!));
@@ -189,9 +225,8 @@ async function handleEmailReportReview(
     reviewerEmail = reviewer?.email || reviewerEmail;
   }
 
-  const nextStatus = action === 'dismiss' ? 'dismissed' : 'resolved';
-  await prisma.abuseReport.update({
-    where: { id },
+  const transition = await prisma.abuseReport.updateMany({
+    where: { id, status: { notIn: [...FINAL_REPORT_STATUSES] } },
     data: {
       status: nextStatus,
       resolution_note: note || null,
@@ -199,6 +234,28 @@ async function handleEmailReportReview(
       reviewed_at: new Date(),
     },
   });
+  if (transition.count === 0) {
+    const latest = await prisma.abuseReport.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    const currentStatus = latest?.status || 'reviewed';
+    if (signedInAdmin) {
+      return res.status(409).json({
+        error: `Report already ${currentStatus}`,
+        current_status: currentStatus,
+      });
+    }
+    return res
+      .status(409)
+      .send(
+        renderReportResultPage(
+          'Already Reviewed',
+          `This report was already ${currentStatus}.`,
+          false
+        )
+      );
+  }
 
   await logAdminActivity(
     reviewerUserId,
@@ -327,14 +384,8 @@ adminReportsRouter.patch(
       return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
     const { status, resolution_note } = parsed.data;
 
-    const report = await prisma.abuseReport.update({
+    const existing = await prisma.abuseReport.findUnique({
       where: { id },
-      data: {
-        status,
-        resolution_note: resolution_note || null,
-        reviewed_by: req.user.id,
-        reviewed_at: new Date(),
-      },
       include: {
         reporter: {
           select: {
@@ -345,6 +396,60 @@ adminReportsRouter.patch(
         },
       },
     });
+    if (!existing) return res.status(404).json({ error: 'Abuse report not found' });
+    if (existing.status === status) {
+      return res.json({ report: existing, already_final: FINAL_REPORT_STATUSES.includes(status as any) });
+    }
+    if (
+      FINAL_REPORT_STATUSES.includes(existing.status as (typeof FINAL_REPORT_STATUSES)[number])
+    ) {
+      return res.status(409).json({
+        error: `Report already ${existing.status}`,
+        current_status: existing.status,
+      });
+    }
+
+    const transition = await prisma.abuseReport.updateMany({
+      where: { id, status: { notIn: [...FINAL_REPORT_STATUSES] } },
+      data: {
+        status,
+        resolution_note: resolution_note || null,
+        reviewed_by: req.user.id,
+        reviewed_at: new Date(),
+      },
+    });
+    if (transition.count === 0) {
+      const latest = await prisma.abuseReport.findUnique({
+        where: { id },
+        include: {
+          reporter: {
+            select: {
+              id: true,
+              display_name: true,
+              email: true,
+            },
+          },
+        },
+      });
+      return res.status(409).json({
+        error: `Report already ${latest?.status || 'reviewed'}`,
+        current_status: latest?.status || 'reviewed',
+      });
+    }
+
+    const report = await prisma.abuseReport.findUnique({
+      where: { id },
+      include: {
+        reporter: {
+          select: {
+            id: true,
+            display_name: true,
+            email: true,
+          },
+        },
+      },
+    });
+    if (!report) return res.status(404).json({ error: 'Abuse report not found' });
 
     // Log admin activity
     const adminEmail = await getAdminEmail(req.user.id);
@@ -392,7 +497,10 @@ adminReportsRouter.post(
     const { report_ids, status, resolution_note } = parsed.data;
 
     const result = await prisma.abuseReport.updateMany({
-      where: { id: { in: report_ids } },
+      where: {
+        id: { in: report_ids },
+        status: { notIn: [...FINAL_REPORT_STATUSES] },
+      },
       data: {
         status,
         resolution_note: resolution_note || null,
