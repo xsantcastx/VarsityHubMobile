@@ -5,6 +5,12 @@ import { join } from 'node:path';
 const gamesSrc = readFileSync(join(process.cwd(), 'src', 'routes', 'games.ts'), 'utf8');
 
 describe('game email wiring', () => {
+  it('sends a submission receipt email from the live game create route', () => {
+    expect(gamesSrc).toMatch(
+      /gamesRouter\.post\(\s*'\/'[\s\S]*?sendEventSubmissionReceivedEmail\(\{/
+    );
+  });
+
   it('sends linked-event cancellation emails from the live game delete route', () => {
     expect(gamesSrc).toMatch(
       /gamesRouter\.delete\(\s*'\/:id'[\s\S]*?sendEventCanceledEmail\(\{/

@@ -899,8 +899,8 @@ export async function sendEventDeniedEmail(params: any): Promise<boolean> {
 
 // sendEventReminderEmail removed — non-mandatory engagement email
 
-// sendEventSubmissionReceivedEmail removed — non-mandatory receipt email
-// sendEventUpdatedEmail removed — non-mandatory transactional email
+// sendEventSubmissionReceivedEmail and sendEventUpdatedEmail are live again.
+// Keep the signatures stable; both back current production routes.
 
 // Non-mandatory email functions removed:
 // - sendReportResolutionEmail

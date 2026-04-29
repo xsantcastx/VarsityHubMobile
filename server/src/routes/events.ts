@@ -1081,7 +1081,7 @@ eventsRouter.post(
         });
       });
 
-      // Submission-received confirmation email removed — non-mandatory transactional email
+      // Submission-received confirmation email stays in parity with the game create flow.
       const [creator, team] = await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },

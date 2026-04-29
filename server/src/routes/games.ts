@@ -23,6 +23,7 @@ import {
   sendEventApprovedEmail,
   sendEventCanceledEmail,
   sendEventDeniedEmail,
+  sendEventSubmissionReceivedEmail,
   sendEventUpdatedEmail,
 } from '../lib/email.js';
 import { cancelGameReminders } from '../lib/notifications.js';
@@ -1051,6 +1052,17 @@ gamesRouter.post(
               }
             : null,
       };
+
+      if (currentUser?.email) {
+        void sendEventSubmissionReceivedEmail({
+          to: currentUser.email,
+          submitterName: currentUser.display_name || undefined,
+          eventTitle: game.title,
+          needsApproval: gameData.approval_status === 'pending',
+        }).catch((err) => {
+          console.warn('[games] submission receipt email failed:', (err as any)?.message || err);
+        });
+      }
 
       if (gameData.approval_status === 'pending') {
         void notifyPendingEventReviewers(prisma, {
