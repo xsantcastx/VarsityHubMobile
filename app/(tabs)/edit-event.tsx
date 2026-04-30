@@ -1,4 +1,6 @@
+import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -16,6 +18,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Event } from '@/api/entities';
 
 export default function EditEventScreen() {
+  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -32,7 +35,7 @@ export default function EditEventScreen() {
   const [event, setEvent] = useState<any>(null);
 
   const loadEvent = useCallback(async () => {
-    if (!id) return;
+    if (!id || coachLoading || !canAccessCoachTools) return;
     setLoading(true);
     try {
       const data = await Event.get(String(id));
@@ -70,12 +73,15 @@ export default function EditEventScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
+  }, [canAccessCoachTools, coachLoading, id, router]);
 
   useEffect(() => {
+    if (coachLoading || !canAccessCoachTools) return;
     void loadEvent();
-  }, [loadEvent]);
+  }, [canAccessCoachTools, coachLoading, loadEvent]);
 
+  // All useCallback hooks must run on every render — declared above the
+  // coach-gate early returns so React's hook-order invariant holds.
   const uploadBannerFromUri = useCallback(async (uri: string) => {
     setUploadingBanner(true);
     try {
@@ -166,6 +172,24 @@ export default function EditEventScreen() {
       ]
     );
   }, [pickBannerFromLibrary, takeBannerPhoto]);
+
+  if (coachLoading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!canAccessCoachTools) {
+    return (
+      <CoachAccessRedirecting
+        backgroundColor={Colors[colorScheme].background}
+        spinnerColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].mutedText}
+      />
+    );
+  }
 
   const onSubmit = async () => {
     if (!title.trim()) {

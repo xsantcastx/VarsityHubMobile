@@ -204,7 +204,7 @@ export function NotificationTapHandler() {
         case 'game_story_added': {
           const gameId = str(data.game_id);
           if (gameId) {
-            router.push({ pathname: '/game', params: { id: gameId } } as any);
+            router.push({ pathname: '/game/[id]', params: { id: gameId } } as any);
           }
           break;
         }

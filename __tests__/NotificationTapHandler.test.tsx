@@ -111,4 +111,24 @@ describe('NotificationTapHandler', () => {
     });
     expect(mockPush).not.toHaveBeenCalled();
   });
+
+  it('routes game_story_added notifications to the dynamic game detail route', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user_1' },
+      loading: false,
+      hasSession: true,
+    });
+
+    render(<NotificationTapHandler />);
+    expect(listener).toBeTruthy();
+
+    listener?.(makeResponse('game_story_added', { game_id: 'game_123' }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/game/[id]',
+        params: { id: 'game_123' },
+      });
+    });
+  });
 });

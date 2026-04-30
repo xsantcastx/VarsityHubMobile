@@ -1,8 +1,9 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -155,6 +156,7 @@ function buildGameResults(games: any[], teamId: string): GameResult[] {
 function SeasonStatsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ teamId?: string }>();
+  const router = useRouter();
 
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -284,16 +286,22 @@ function SeasonStatsScreen() {
     }
   };
 
+  const screenOptions = {
+    title: 'Season Statistics',
+    headerShown: true,
+    headerStyle: { backgroundColor: Colors[colorScheme].background },
+    headerTintColor: Colors[colorScheme].text,
+    headerLeft: () => (
+      <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
+        <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+      </Pressable>
+    ),
+  } as const;
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen
-          options={{
-            title: 'Season Statistics',
-            headerStyle: { backgroundColor: Colors[colorScheme].background },
-            headerTintColor: Colors[colorScheme].text,
-          }}
-        />
+        <Stack.Screen options={screenOptions} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
           <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
@@ -307,13 +315,7 @@ function SeasonStatsScreen() {
   if (error || !teamStats) {
     return (
       <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen
-          options={{
-            title: 'Season Statistics',
-            headerStyle: { backgroundColor: Colors[colorScheme].background },
-            headerTintColor: Colors[colorScheme].text,
-          }}
-        />
+        <Stack.Screen options={screenOptions} />
         <ScrollView
           contentContainerStyle={styles.emptyContainer}
           refreshControl={
@@ -337,13 +339,7 @@ function SeasonStatsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen
-        options={{
-          title: 'Season Statistics',
-          headerStyle: { backgroundColor: Colors[colorScheme].background },
-          headerTintColor: Colors[colorScheme].text,
-        }}
-      />
+      <Stack.Screen options={screenOptions} />
 
       {/* Team Selector */}
       {showTeamSelector && (
