@@ -1,15 +1,20 @@
 import { Game, Organization, Post, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useShareLink } from '@/hooks/useShareLink';
+import { canShareTeamQr, getCanonicalTeamShareUrl } from '@/utils/teamShare';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as MediaLibrary from 'expo-media-library';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import ViewShot from 'react-native-view-shot';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -22,6 +27,9 @@ type LeagueTeam = {
   description?: string;
   organization_id?: string;
   created_at?: string;
+  is_private?: boolean;
+  followers_count?: number;
+  is_following?: boolean | null;
   _count?: {
     members?: number;
     games?: number;
@@ -147,6 +155,9 @@ function TeamScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [savingQr, setSavingQr] = useState(false);
+  const qrCardRef = useRef<ViewShot | null>(null);
 
   const handleBack = useCallback(() => {
     if (from === 'game-details' && gameId) {
@@ -526,6 +537,56 @@ function TeamScreen() {
   
   const teamName = team?.name || 'Team';
   const teamHandle = `@${(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}`;
+  const isShareableTeam = canShareTeamQr(team);
+  const teamShareUrl = isShareableTeam && team?.id ? getCanonicalTeamShareUrl(team.id) : null;
+  const { share: shareTeamLink, copyLink: copyTeamLink } = useShareLink({
+    kind: 'team',
+    id: isShareableTeam ? team?.id : null,
+    title: teamName,
+    contextLines: [team?.sport ? `${team.sport} team` : null],
+  });
+
+  const handleOpenShareModal = useCallback(() => {
+    if (!isShareableTeam) return;
+    setShareModalVisible(true);
+  }, [isShareableTeam]);
+
+  const handleShareLink = useCallback(async () => {
+    await shareTeamLink();
+  }, [shareTeamLink]);
+
+  const handleCopyLink = useCallback(async () => {
+    await copyTeamLink();
+  }, [copyTeamLink]);
+
+  const handleSaveQr = useCallback(async () => {
+    if (!isShareableTeam || !qrCardRef.current) return;
+    try {
+      setSavingQr(true);
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow photo access to save the team QR code.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
+
+      const uri = await qrCardRef.current.capture?.();
+      if (!uri) {
+        Alert.alert('Save failed', 'Unable to generate the QR image right now.');
+        return;
+      }
+
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Saved', 'The team QR code was saved to your photos.');
+    } catch (error) {
+      if (__DEV__) console.warn('[team-page] Failed to save team QR', error);
+      Alert.alert('Save failed', 'Unable to save the team QR code right now.');
+    } finally {
+      setSavingQr(false);
+    }
+  }, [isShareableTeam]);
 
   const renderHeader = () => (
     <>
@@ -576,18 +637,31 @@ function TeamScreen() {
           </Pressable>
         </View>
 
-        {/* Settings Button - Top Right */}
-        {isTeamAdmin && (
+        {/* Share / Settings Buttons - Top Right */}
+        {(isShareableTeam || isTeamAdmin) && (
           <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
-            <Pressable
-              testID="team-page-settings-button"
-              onPress={() => void router.push('/settings')}
-              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
-              accessibilityRole="button"
-              accessibilityLabel="Team settings"
-            >
-              <Ionicons name="settings-outline" size={18} color={theme.text} />
-            </Pressable>
+            {isShareableTeam && (
+              <Pressable
+                testID="team-page-share-button"
+                onPress={handleOpenShareModal}
+                style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+                accessibilityRole="button"
+                accessibilityLabel="Share team"
+              >
+                <Ionicons name="share-social-outline" size={18} color={theme.text} />
+              </Pressable>
+            )}
+            {isTeamAdmin && (
+              <Pressable
+                testID="team-page-settings-button"
+                onPress={() => void router.push('/settings')}
+                style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+                accessibilityRole="button"
+                accessibilityLabel="Team settings"
+              >
+                <Ionicons name="settings-outline" size={18} color={theme.text} />
+              </Pressable>
+            )}
           </View>
         )}
         
@@ -1178,6 +1252,100 @@ function TeamScreen() {
           title={activeTab === 'posts' ? 'Team posts' : activeTab === 'replies' ? 'Team replies' : activeTab === 'upvotes' ? 'Team upvotes' : 'Team events'}
         />
       </Modal>
+
+      <Modal
+        visible={shareModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShareModalVisible(false)}
+      >
+        <View style={styles.shareModalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShareModalVisible(false)} />
+          <View style={[styles.shareModalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.shareModalTitle, { color: theme.text }]}>Share Team</Text>
+            <Text style={[styles.shareModalSubtitle, { color: theme.mutedText }]}>
+              Reuse this QR anywhere to open the same team page.
+            </Text>
+
+            <ViewShot
+              ref={qrCardRef}
+              options={{ format: 'png', quality: 1, result: 'tmpfile' }}
+              style={styles.qrCaptureWrap}
+            >
+              <View style={styles.qrExportCard}>
+                <LinearGradient
+                  colors={[teamThemeColor, '#111827']}
+                  style={styles.qrExportHeader}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.qrExportIdentity}>
+                    {team?.logo_url ? (
+                      <Image source={{ uri: String(team.logo_url) }} style={styles.qrExportLogo} contentFit="cover" />
+                    ) : (
+                      <View style={styles.qrExportLogoFallback}>
+                        <Ionicons name="people" size={24} color="#ffffff" />
+                      </View>
+                    )}
+                    <View style={styles.qrExportIdentityText}>
+                      <Text style={styles.qrExportTeamName} numberOfLines={1}>{teamName}</Text>
+                      <Text style={styles.qrExportTeamHandle} numberOfLines={1}>{teamHandle}</Text>
+                    </View>
+                  </View>
+                </LinearGradient>
+
+                <View style={styles.qrCodeBlock}>
+                  {teamShareUrl ? (
+                    <QRCode value={teamShareUrl} size={176} color="#111111" backgroundColor="#ffffff" />
+                  ) : null}
+                </View>
+
+                <Text style={styles.qrExportFooter}>Scan to open this team on VarsityHub</Text>
+              </View>
+            </ViewShot>
+
+            {teamShareUrl ? (
+              <Text style={[styles.shareUrlText, { color: theme.mutedText }]} numberOfLines={2}>
+                {teamShareUrl}
+              </Text>
+            ) : null}
+
+            <View style={styles.shareActionsRow}>
+              <Pressable
+                style={[styles.shareActionButton, { backgroundColor: theme.tint }]}
+                onPress={() => void handleShareLink()}
+              >
+                <Ionicons name="share-outline" size={16} color="#ffffff" />
+                <Text style={styles.shareActionPrimaryText}>Share link</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.shareActionButtonSecondary, { borderColor: theme.border, backgroundColor: theme.background }]}
+                onPress={() => void handleCopyLink()}
+              >
+                <Ionicons name="copy-outline" size={16} color={theme.text} />
+                <Text style={[styles.shareActionSecondaryText, { color: theme.text }]}>Copy link</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              testID="team-page-save-qr-button"
+              style={[
+                styles.saveQrButton,
+                { borderColor: theme.border, backgroundColor: theme.background },
+                savingQr && styles.disabledButton,
+              ]}
+              onPress={() => void handleSaveQr()}
+              disabled={savingQr}
+            >
+              <Ionicons name="download-outline" size={16} color={theme.text} />
+              <Text style={[styles.saveQrButtonText, { color: theme.text }]}>
+                {savingQr ? 'Saving...' : 'Save QR to Photos'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1185,6 +1353,9 @@ function TeamScreen() {
 const styles = StyleSheet.create({
   container: { 
     flex: 1
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center', marginBottom: 16 },
@@ -1561,6 +1732,138 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginLeft: 12,
+  },
+  shareModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(2, 6, 23, 0.68)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  shareModalCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 20,
+    gap: 14,
+  },
+  shareModalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  shareModalSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  qrCaptureWrap: {
+    alignSelf: 'center',
+  },
+  qrExportCard: {
+    width: 280,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    overflow: 'hidden',
+    paddingBottom: 20,
+  },
+  qrExportHeader: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  qrExportIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  qrExportIdentityText: {
+    flex: 1,
+  },
+  qrExportLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+  },
+  qrExportLogoFallback: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrExportTeamName: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  qrExportTeamHandle: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  qrCodeBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 22,
+    paddingBottom: 14,
+  },
+  qrExportFooter: {
+    textAlign: 'center',
+    color: '#334155',
+    fontSize: 13,
+    fontWeight: '600',
+    paddingHorizontal: 18,
+  },
+  shareUrlText: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  shareActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  shareActionButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  shareActionButtonSecondary: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  shareActionPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  shareActionSecondaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  saveQrButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  saveQrButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
   orgButton: {
     flexDirection: 'row',

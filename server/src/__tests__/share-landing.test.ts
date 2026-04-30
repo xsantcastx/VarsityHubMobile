@@ -138,6 +138,21 @@ describe('share-landing — OG metadata enrichment', () => {
     expect(res.text).toContain('at Westhill HS');
   });
 
+  it('team landing pulls team metadata for the OG tags', async () => {
+    teamFindUnique.mockResolvedValueOnce({
+      name: 'Westhill Wildcats',
+      description: 'Official team page for Westhill basketball.',
+      logo_url: 'https://cdn.example.com/team-logo.jpg',
+    } as any);
+
+    const res = await request(makeApp()).get('/teams/team_123').set('Accept', 'text/html');
+
+    expect(res.text).toContain('Westhill Wildcats');
+    expect(res.text).toContain('Official team page for Westhill basketball.');
+    expect(res.text).toContain('https://cdn.example.com/team-logo.jpg');
+    expect(teamFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'team_123' } }));
+  });
+
   it('user landing uses @username for the title', async () => {
     userFindUnique.mockResolvedValueOnce({
       display_name: 'Coach Carter',
