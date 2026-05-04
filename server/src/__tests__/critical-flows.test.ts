@@ -14,12 +14,16 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
-
-let prisma: any;
-let signJwt: any;
+import { prisma } from '../lib/prisma.js';
+import { signJwt } from '../lib/jwt.js';
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
+
+function uniqueUsername(prefix: string): string {
+  const entropy = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}${entropy}`.slice(0, 20);
+}
 
 // Skip when running in CI (postgres service) or explicitly skipped
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
@@ -45,8 +49,6 @@ let cleanupIds: { users: string[]; orgs: string[]; posts: string[]; teams: strin
 
 describeDb('Critical Server Flows', () => {
   beforeAll(async () => {
-    ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt } = await import('../lib/jwt.js'));
     cleanupIds = { users: [], orgs: [], posts: [], teams: [] };
 
     const hash = await bcrypt.hash(PASSWORD, 10);
@@ -89,7 +91,7 @@ describeDb('Critical Server Flows', () => {
         email: `critical-approved-${ts}@example.com`,
         password_hash: hash,
         display_name: 'Approved Coach',
-        username: `criticalcoach${ts}`.slice(0, 20),
+        username: uniqueUsername('cc_'),
         email_verified: true,
         role: 'coach',
         onboarding_completed: true,
@@ -424,7 +426,7 @@ describeDb('Critical Server Flows', () => {
           email: `critical-plan-${ts}-${Math.random()}@example.com`,
           password_hash: await bcrypt.hash(PASSWORD, 10),
           display_name: 'Plan Preserve Coach',
-          username: `planpreserve${Date.now()}`.slice(0, 20),
+          username: uniqueUsername('pp_'),
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
@@ -474,7 +476,7 @@ describeDb('Critical Server Flows', () => {
           email: `critical-approved-drift-${ts}-${Math.random()}@example.com`,
           password_hash: await bcrypt.hash(PASSWORD, 10),
           display_name: 'Approved Drift Coach',
-          username: `approveddrift${Date.now()}`.slice(0, 20),
+          username: uniqueUsername('ad_'),
           email_verified: true,
           role: 'fan',
           onboarding_completed: true,
@@ -519,7 +521,7 @@ describeDb('Critical Server Flows', () => {
           email: `critical-skip-payment-${ts}-${Math.random()}@example.com`,
           password_hash: await bcrypt.hash(PASSWORD, 10),
           display_name: 'Skip Payment Coach',
-          username: `skippayment${Date.now()}`.slice(0, 20),
+          username: uniqueUsername('sp_'),
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,

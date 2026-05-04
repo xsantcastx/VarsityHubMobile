@@ -3,6 +3,7 @@ import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
+import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
 import {
   getCanonicalUserRole,
   hasCoachFanModeAccess,
@@ -192,7 +193,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
           preferences: downgradedPrefs,
           subscription_tier: 'free',
           subscription_status: 'expired',
-          max_teams: 2,
+          max_teams: SERVER_ROOKIE_TEAM_LIMIT,
         },
       });
       console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', { userId: req.user.id });

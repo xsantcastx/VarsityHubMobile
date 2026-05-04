@@ -19,6 +19,7 @@ import {
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import {
   LEGEND_YEARLY_PRICE_LABEL,
@@ -60,23 +61,26 @@ function RoleOnboardingScreenInner() {
       try {
         const me: any = await User.me();
         const userRole = getCanonicalCoachRole(me);
-        const storedPlan = me?.preferences?.plan;
-        const subscriptionTier = me?.subscription_tier;
-        const resolvedCoachTier: CoachTier =
-          storedPlan === 'legend' || subscriptionTier === 'pro'
-            ? 'legend'
-            : storedPlan === 'veteran' || subscriptionTier === 'premium'
-              ? 'veteran'
-              : 'rookie';
+        const billing = getCanonicalBillingState(me);
+        const resolvedCoachTier = billing.selected_plan as CoachTier;
 
         // Determine account type (fan or coach)
         if (userRole === 'fan') {
           setAccountType('fan');
-          logTelemetry('prefill-fan', { storedPlan, subscriptionTier });
+          logTelemetry('prefill-fan', {
+            plan: billing.plan,
+            pendingPlan: billing.pending_plan,
+            subscriptionTier: me?.subscription_tier,
+          });
         } else if (userRole === 'coach') {
           setAccountType('coach');
           setCoachTier(resolvedCoachTier);
-          logTelemetry('prefill-coach', { storedPlan, subscriptionTier, resolvedCoachTier });
+          logTelemetry('prefill-coach', {
+            plan: billing.plan,
+            pendingPlan: billing.pending_plan,
+            subscriptionTier: me?.subscription_tier,
+            resolvedCoachTier,
+          });
         }
 
         // Check if zip code is already provided

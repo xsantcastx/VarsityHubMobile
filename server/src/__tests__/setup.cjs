@@ -39,8 +39,10 @@ if (!process.env.VERBOSE) {
 // start. Disconnect after every file so connection usage stays bounded.
 afterAll(async () => {
   try {
-    const mod = await import('../lib/prisma.js');
-    await mod.prisma.$disconnect();
+    const prisma = globalThis.__VARSITYHUB_TEST_PRISMA__;
+    if (prisma?.$disconnect) {
+      await prisma.$disconnect();
+    }
   } catch (_error) {
     // Ignore cleanup failures for specs that never touched Prisma.
   }

@@ -41,8 +41,16 @@ function buildNativeHandoffUrl(pathname: string, req: Request): string {
 // Strict allowlist for query params forwarded into the native scheme URL.
 // Without this, attacker-controlled params (`?redirect_override=...`,
 // `?next=...`) get piped into the deep-link parser, which may interpret
-// them as routing intent. Verify and reset deep-links only need these.
-const ALLOWED_HANDOFF_QUERY_PARAMS = new Set(['token', 'email', 'code', 'delivery']);
+// them as routing intent. Verify/reset links and payment handoff routes
+// only forward the minimal params the native screens require.
+const ALLOWED_HANDOFF_QUERY_PARAMS = new Set([
+  'token',
+  'email',
+  'code',
+  'delivery',
+  'session_id',
+  'type',
+]);
 
 function buildNativeHandoffUrlFromQuery(pathname: string, query: Request['query']): string {
   const normalizedPath = pathname.replace(/^\/+/, '');

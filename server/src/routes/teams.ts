@@ -1445,6 +1445,17 @@ teamsRouter.post(
         if (possibleDuplicates.length > 0) {
           organizationId = possibleDuplicates[0].id;
         } else {
+          // SECURITY: Block creation of a fresh, unapproved org outside onboarding.
+          // Without this gate, any approved coach could mint a new unapproved org and
+          // immediately attach a team to it, bypassing the league approval workflow.
+          if (onboardingComplete) {
+            return res.status(400).json({
+              // error-envelope-exempt
+              error: 'ORGANIZATION_REQUIRED',
+              message: 'Select an organization to create the team under.',
+              code: 'ORGANIZATION_REQUIRED',
+            });
+          }
           const newOrg = await prisma.organization.create({
             data: {
               name: normalizedOrgName,
@@ -1492,76 +1503,78 @@ teamsRouter.post(
         }
         // If we recovered an org ID from the P2002 fallback, continue with it
       }
-    } else {
-      // Validate organization_id if provided (fail fast if invalid)
-      try {
-        const orgExists = await prisma.organization.findUnique({
-          where: { id: organizationId },
-          select: { id: true, status: true, name: true },
+    }
+
+    // Validate the resolved organization regardless of how it was sourced
+    // (client-supplied id, name match, or fresh auto-created org). Both branches
+    // converge here so the approval + membership checks can never be skipped.
+    try {
+      const orgExists = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { id: true, status: true, name: true },
+      });
+
+      if (!orgExists || orgExists.status !== 'active') {
+        return res.status(404).json({
+          // error-envelope-exempt
+          // error-envelope-exempt
+          error: 'Organization not found',
+          message: 'The specified organization does not exist or is not active.',
+          code: 'ORGANIZATION_NOT_FOUND',
         });
+      }
 
-        if (!orgExists || orgExists.status !== 'active') {
-          return res.status(404).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
-            error: 'Organization not found',
-            message: 'The specified organization does not exist or is not active.',
-            code: 'ORGANIZATION_NOT_FOUND',
-          });
-        }
-
-        // Check target org is admin-approved before creating a team under it
-        if (!(await isOrganizationApproved(organizationId, prisma))) {
-          // Exception: org owners during onboarding are creating their first team before org gets approved
-          const isOnboarding = !onboardingComplete;
-          const isOrgOwnerOfTarget = await prisma.organizationMembership.findFirst({
-            where: {
-              organization_id: organizationId,
-              user_id: me.id,
-              role: 'owner',
-              status: 'active',
-            },
-          });
-          if (!(isOnboarding && isOrgOwnerOfTarget)) {
-            return res.status(403).json({
-              // error-envelope-exempt
-              // error-envelope-exempt
-              error: 'ORGANIZATION_NOT_APPROVED',
-              message:
-                'Teams can only be created under organizations that have been approved by VarsityHub.',
-              code: 'ORGANIZATION_NOT_APPROVED',
-            });
-          }
-        }
-
-        // Enforce org hierarchy: requester must already be an active member of target org.
-        const orgMembership = await prisma.organizationMembership.findUnique({
-          where: { organization_id_user_id: { organization_id: organizationId, user_id: me.id } },
-          select: { status: true },
+      // Check target org is admin-approved before creating a team under it
+      if (!(await isOrganizationApproved(organizationId, prisma))) {
+        // Exception: org owners during onboarding are creating their first team before org gets approved
+        const isOnboarding = !onboardingComplete;
+        const isOrgOwnerOfTarget = await prisma.organizationMembership.findFirst({
+          where: {
+            organization_id: organizationId,
+            user_id: me.id,
+            role: 'owner',
+            status: 'active',
+          },
         });
-
-        if (!orgMembership || orgMembership.status !== 'active') {
+        if (!(isOnboarding && isOrgOwnerOfTarget)) {
           return res.status(403).json({
             // error-envelope-exempt
             // error-envelope-exempt
-            error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
-            message: 'You must be an active member of this organization to create a team under it.',
-            code: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+            error: 'ORGANIZATION_NOT_APPROVED',
+            message:
+              'Teams can only be created under organizations that have been approved by VarsityHub.',
+            code: 'ORGANIZATION_NOT_APPROVED',
           });
         }
-      } catch (orgError: any) {
-        console.error('[Teams] Failed to validate organization:', orgError);
-        // Surface the real error for debugging
-        const detail =
-          orgError?.code === 'P2002'
-            ? 'Organization membership already exists'
-            : orgError?.message || 'Unknown error';
-        return res.status(500).json({
+      }
+
+      // Enforce org hierarchy: requester must already be an active member of target org.
+      const orgMembership = await prisma.organizationMembership.findUnique({
+        where: { organization_id_user_id: { organization_id: organizationId, user_id: me.id } },
+        select: { status: true },
+      });
+
+      if (!orgMembership || orgMembership.status !== 'active') {
+        return res.status(403).json({
           // error-envelope-exempt
           // error-envelope-exempt
-          error: `Organization validation failed: ${detail}`,
+          error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+          message: 'You must be an active member of this organization to create a team under it.',
+          code: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
         });
       }
+    } catch (orgError: any) {
+      console.error('[Teams] Failed to validate organization:', orgError);
+      // Surface the real error for debugging
+      const detail =
+        orgError?.code === 'P2002'
+          ? 'Organization membership already exists'
+          : orgError?.message || 'Unknown error';
+      return res.status(500).json({
+        // error-envelope-exempt
+        // error-envelope-exempt
+        error: `Organization validation failed: ${detail}`,
+      });
     }
 
     // Now create team with guaranteed organization_id

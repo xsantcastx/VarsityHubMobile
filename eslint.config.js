@@ -1,10 +1,15 @@
 // https://docs.expo.dev/guides/using-eslint/
 // Flat config compatible with ESLint 8.x — no expo preset required
+const path = require('path');
 const reactHooks = require('eslint-plugin-react-hooks');
 const reactNative = require('eslint-plugin-react-native');
 const tsParser = require('@typescript-eslint/parser');
 const tsPlugin = require('@typescript-eslint/eslint-plugin');
 const importPlugin = require('eslint-plugin-import');
+
+const repoRoot = __dirname;
+const appTsconfig = path.join(repoRoot, 'tsconfig.json');
+const serverTsconfig = path.join(repoRoot, 'server', 'tsconfig.eslint.json');
 
 module.exports = [
   {
@@ -37,7 +42,8 @@ module.exports = [
         ecmaVersion: 'latest',
         sourceType: 'module',
         ecmaFeatures: { jsx: true },
-        project: './tsconfig.json',
+        project: appTsconfig,
+        tsconfigRootDir: repoRoot,
       },
     },
     plugins: {
@@ -90,7 +96,8 @@ module.exports = [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        project: './server/tsconfig.json',
+        project: serverTsconfig,
+        tsconfigRootDir: repoRoot,
       },
     },
     plugins: {

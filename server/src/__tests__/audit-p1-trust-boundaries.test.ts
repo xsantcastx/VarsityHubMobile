@@ -66,7 +66,7 @@ describe('audit P1 — trust-boundary regression guards', () => {
   describe('#3 publicAppHandoff allowlists query params before forwarding into native scheme', () => {
     it('declares an explicit allowlist set', () => {
       expect(handoff).toMatch(
-        /ALLOWED_HANDOFF_QUERY_PARAMS\s*=\s*new Set\(\[[\s\S]*?'token'[\s\S]*?'email'[\s\S]*?'code'[\s\S]*?'delivery'[\s\S]*?\]\)/
+        /ALLOWED_HANDOFF_QUERY_PARAMS\s*=\s*new Set\(\[[\s\S]*?'token'[\s\S]*?'email'[\s\S]*?'code'[\s\S]*?'delivery'[\s\S]*?'session_id'[\s\S]*?'type'[\s\S]*?\]\)/
       );
     });
 

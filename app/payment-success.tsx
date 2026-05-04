@@ -12,6 +12,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAdScheduleBucket } from '@/utils/adStatusBadge';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { setPendingDeepLink } from '@/utils/deepLinks';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -138,8 +139,12 @@ function PaymentSuccessScreen() {
           } else if (isSubscription) {
             const me = await User.me({ force: true });
             if (!mounted) return;
-            const plan = me?.preferences?.plan;
-            if ((plan === 'veteran' || plan === 'legend') && !me?.preferences?.payment_pending && !me?.preferences?.pending_plan) {
+            const billing = getCanonicalBillingState(me);
+            if (
+              (billing.plan === 'veteran' || billing.plan === 'legend') &&
+              !billing.payment_pending &&
+              !billing.pending_plan
+            ) {
               showSuccessState();
               return;
             }
@@ -177,8 +182,12 @@ function PaymentSuccessScreen() {
           try {
             const me = await User.me({ force: true });
             if (!mounted) return;
-            const plan = me?.preferences?.plan;
-            if ((plan === 'veteran' || plan === 'legend') && !me?.preferences?.payment_pending && !me?.preferences?.pending_plan) {
+            const billing = getCanonicalBillingState(me);
+            if (
+              (billing.plan === 'veteran' || billing.plan === 'legend') &&
+              !billing.payment_pending &&
+              !billing.pending_plan
+            ) {
               showSuccessState();
               return;
             }

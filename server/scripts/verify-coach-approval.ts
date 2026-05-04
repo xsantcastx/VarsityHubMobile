@@ -37,20 +37,28 @@ console.log('\n🔍 Coach Approval System Verification\n');
 const onboarded = read('src/middleware/requireOnboarded.ts');
 check(
   'requireOnboarded blocks PENDING coaches',
-  // Middleware uses !== 'APPROVED' which implicitly blocks PENDING, REJECTED, and null
-  onboarded.includes("approval_status !== 'APPROVED'") && onboarded.includes("prefs?.role === 'coach'"),
+  // Middleware now uses canonical role helpers rather than reading prefs.role
+  // directly; the approval gate still blocks any coach whose status is not
+  // explicitly APPROVED.
+  /role === 'coach' && u\?\.approval_status !== 'APPROVED'/.test(onboarded),
 );
 
-// 2. POST /organizations sets creator to PENDING
+// 2. POST /organizations conditionally sets creator to PENDING when approval must be re-checked
 const orgRoutes = read('src/routes/organizations.ts');
-const hasPendingInOrgCreate = (orgRoutes.match(/approval_status: 'PENDING'/g) || []).length >= 2;
-check('POST /organizations sets creator to PENDING', orgRoutes.includes("approval_status: 'PENDING'") && hasPendingInOrgCreate);
+const conditionalPendingWrite = /\.\.\.\(shouldForcePendingApproval \? \{ approval_status: 'PENDING' \} : \{\}\)/;
+check(
+  'POST /organizations conditionally sets creator to PENDING',
+  conditionalPendingWrite.test(orgRoutes)
+);
 
-// 3. POST /organizations/create sets creator to PENDING (same transaction as org create)
-const createHasUserUpdate = orgRoutes.includes("organizationsRouter.post('/create'") && 
-  orgRoutes.includes('tx.user.update') && 
-  orgRoutes.includes("approval_status: 'PENDING'");
-check('POST /organizations/create sets creator to PENDING', createHasUserUpdate);
+// 3. POST /organizations/create uses the same conditional pending write
+const createRouteHasConditionalPending =
+  /organizationsRouter\.post\(\s*['"]\/create['"][\s\S]*?\.\.\.\(shouldForcePendingApproval \? \{ approval_status: 'PENDING' \} : \{\}\)/m
+    .test(orgRoutes);
+check(
+  'POST /organizations/create conditionally sets creator to PENDING',
+  createRouteHasConditionalPending
+);
 
 // 4. League approval sets league owner to APPROVED
 check(

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { OrganizationJoinRequestStatus } from '@prisma/client';
 import { z } from 'zod';
 import {
   buildCoachJoinRequestReviewUrl,
@@ -119,6 +120,42 @@ function buildOrganizationCreateData(
 function isOrganizationAdmin(role: string | null | undefined): boolean {
   if (!role) return false;
   return role === 'owner' || role === 'manager';
+}
+
+const VALID_ORG_INVITE_ROLES = ['manager', 'member'] as const;
+const VALID_ORG_JOIN_REQUEST_STATUSES = ['pending', 'approved', 'denied'] as const;
+
+function normalizeOrganizationInviteRole(role: string | null | undefined): (typeof VALID_ORG_INVITE_ROLES)[number] {
+  return role === 'manager' ? 'manager' : 'member';
+}
+
+function buildAuthorizedUserInvites(
+  authorizedUsers:
+    | Array<{
+        email?: string | null;
+        role?: string | null;
+      }>
+    | undefined
+) {
+  const invitesByEmail = new Map<
+    string,
+    {
+      email: string;
+      role: (typeof VALID_ORG_INVITE_ROLES)[number];
+    }
+  >();
+
+  for (const user of authorizedUsers || []) {
+    const normalizedEmail = String(user.email || '').trim().toLowerCase();
+    if (!normalizedEmail) continue;
+
+    invitesByEmail.set(normalizedEmail, {
+      email: normalizedEmail,
+      role: normalizeOrganizationInviteRole(user.role),
+    });
+  }
+
+  return Array.from(invitesByEmail.values());
 }
 
 function buildPendingCoachPreferences(
@@ -923,6 +960,10 @@ organizationsRouter.post(
           rejection_reason: true,
           preferences: true,
           role: true,
+          plan: true,
+          pending_plan: true,
+          payment_pending: true,
+          payment_approved: true,
         },
       });
       const applicantPrefs = getPreferencesObject(applicant?.preferences);
@@ -975,6 +1016,41 @@ organizationsRouter.post(
           .status(409)
           .json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
       }
+
+      // SECURITY: Validate authorized_users BEFORE creating the org so a bad payload
+      // can't leak a half-finished org. Mirrors the gating in POST /:id/invite —
+      // role whitelist (no owner/admin escalation) and per-org seat cap by plan.
+      const authorizedUserInvites = buildAuthorizedUserInvites(data.authorized_users);
+      if (authorizedUserInvites.length > 0) {
+        const invalidEntry = data.authorized_users?.find(
+          u => u.email && u.role && !VALID_ORG_INVITE_ROLES.includes(u.role as any)
+        );
+        if (invalidEntry) {
+          return res.status(400).json({
+            error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}`,
+            code: 'INVALID_INVITE_ROLE',
+          });
+        }
+
+        const ownerPlan = getEffectiveEntitledPlan(applicant as any);
+        const ownerTeamCount = await prisma.teamMembership.count({
+          where: { user_id: req.user!.id, role: 'owner' },
+        });
+        const limit = getAuthorizedUsersOrgLimit(ownerPlan, ownerTeamCount);
+        if (limit !== null) {
+          // Owner consumes one seat; pending invites consume the rest.
+          const totalAuthorized = authorizedUserInvites.length + 1;
+          if (totalAuthorized > limit) {
+            return res.status(403).json({
+              error: 'USER_LIMIT_REACHED',
+              message: `Plan limit reached. ${ownerPlan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} for your organization.`,
+              limit,
+              current: totalAuthorized,
+            });
+          }
+        }
+      }
+
       // Transaction: create org + owner membership + update league owner atomically.
       // Legacy flows still move to PENDING here; approved CoachApplication users
       // keep their approval while attaching the real organization during final setup.
@@ -1055,14 +1131,13 @@ organizationsRouter.post(
       }
 
       // Send invites to authorized users
-      if (data.authorized_users && data.authorized_users.length > 0) {
-        const invites = data.authorized_users
-          .filter(user => user.email)
-          .map(user => ({
-            organization_id: organization.id,
-            email: user.email!,
-            role: user.role || 'member',
-          }));
+      const invitesForCreate = buildAuthorizedUserInvites(data.authorized_users);
+      if (invitesForCreate.length > 0) {
+        const invites = invitesForCreate.map(invite => ({
+          organization_id: organization.id,
+          email: invite.email,
+          role: invite.role,
+        }));
 
         if (invites.length > 0) {
           await prisma.organizationInvite.createMany({
@@ -1149,12 +1224,12 @@ organizationsRouter.post(
       const inviteEmail = email.trim().toLowerCase();
 
       // Validate role against allowed org roles
-      const VALID_ORG_INVITE_ROLES = ['manager', 'member'];
-      if (role && !VALID_ORG_INVITE_ROLES.includes(role)) {
+      if (role && !VALID_ORG_INVITE_ROLES.includes(role as any)) {
         return res
           .status(400)
           .json({ error: `Invalid role. Must be one of: ${VALID_ORG_INVITE_ROLES.join(', ')}` });
       }
+      const normalizedRole = normalizeOrganizationInviteRole(role);
 
       // Check if user is a member of the organization
       const membership = await prisma.organizationMembership.findUnique({
@@ -1247,14 +1322,14 @@ organizationsRouter.post(
           if (existingInvite) {
             return tx.organizationInvite.update({
               where: { id: existingInvite.id },
-              data: { email: inviteEmail, role: role || 'member', status: 'pending' },
+              data: { email: inviteEmail, role: normalizedRole, status: 'pending' },
             });
           }
           return tx.organizationInvite.create({
             data: {
               organization_id: id,
               email: inviteEmail,
-              role: role || 'member',
+              role: normalizedRole,
               status: 'pending',
             },
           });
@@ -1272,7 +1347,7 @@ organizationsRouter.post(
         await sendOrganizationInviteEmail({
           to: inviteEmail,
           organizationName: org.name,
-          role: role || 'member',
+          role: normalizedRole,
           inviterName: inviter?.display_name || 'An organizer',
           inviteToken: invite.id,
         })
@@ -1363,6 +1438,7 @@ organizationsRouter.post(
         select: { role: true },
       });
 
+      const normalizedInviteRole = normalizeOrganizationInviteRole(invite.role);
       const accepted = await prisma.$transaction(async tx => {
         const transition = await tx.organizationInvite.updateMany({
           where: { id: inviteId, status: 'pending' },
@@ -1381,7 +1457,7 @@ organizationsRouter.post(
           create: {
             organization_id: invite.organization_id,
             user_id: user.id,
-            role: invite.role,
+            role: normalizedInviteRole,
             status: 'active',
           },
         });
@@ -1404,7 +1480,7 @@ organizationsRouter.post(
             },
             select: { user_id: true },
           }),
-          Promise.resolve(existingMembership?.role || invite.role),
+          Promise.resolve(existingMembership?.role || normalizedInviteRole),
         ]);
         const orgName = org?.name || 'your organization';
         const joinedName = user.display_name || user.email || 'Someone';
@@ -1908,7 +1984,11 @@ organizationsRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const id = String(req.params.id);
-      const status = String((req.query as any).status || 'pending');
+      const rawStatus = String((req.query as any).status || 'pending');
+      if (rawStatus !== 'all' && !VALID_ORG_JOIN_REQUEST_STATUSES.includes(rawStatus as any)) {
+        return res.status(400).json({ error: 'Invalid join request status filter' });
+      }
+      const status: OrganizationJoinRequestStatus | 'all' = rawStatus as OrganizationJoinRequestStatus | 'all';
 
       // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findUnique({

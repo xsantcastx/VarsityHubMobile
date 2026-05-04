@@ -26,6 +26,7 @@ import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { getLinkedProvidersSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
 import { getOAuthLinkErrorMessage } from '@/utils/oauthErrors';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachAccessState } from '@/utils/roleChecks';
 
 interface PendingHostRequest {
@@ -314,7 +315,7 @@ export default function SettingsScreen() {
           ? serverPrefs.comment_permission
           : 'everyone',
     });
-    setPlan(serverPrefs?.plan ?? null);
+    setPlan(getCanonicalBillingState(me).selected_plan);
     const effectiveRole = (serverPrefs?.role || me?.role || null) as
       | string
       | null;
@@ -932,10 +933,11 @@ export default function SettingsScreen() {
                               const hasZip = !!zip && String(zip).trim().length > 0;
                               const hasCompletedBasicStep = hasUsername && hasDob && hasZip;
                               if (setOB) {
+                                const billing = getCanonicalBillingState(fresh);
                                 setOB(prev => ({
                                   ...prev,
                                   role: 'coach',
-                                  plan: (prefs.plan as any) || 'rookie',
+                                  plan: billing.selected_plan,
                                   username: fresh?.username ?? prev?.username,
                                   dob: (dob as string | undefined) ?? prev?.dob,
                                   zip: (zip as string | undefined) ?? prev?.zip,
@@ -944,7 +946,7 @@ export default function SettingsScreen() {
                                   step_3_visited: false,
                                 }));
                               }
-                              setPlan((prefs.plan as string | null) ?? 'rookie');
+                              setPlan(getCanonicalBillingState(fresh).selected_plan);
                               if (hasUsername && hasDob && hasZip) {
                                 router.push('/onboarding/coach-application' as any);
                               } else {

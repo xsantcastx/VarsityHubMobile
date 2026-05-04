@@ -85,6 +85,29 @@ enum MembershipStatus {
   archived
 }
 
+enum OrganizationRole {
+  owner
+  manager
+  member
+  coach
+}
+
+enum OrganizationStatus {
+  active
+  rejected
+}
+
+enum OrganizationJoinRequestStatus {
+  pending
+  approved
+  denied
+}
+
+enum TeamStatus {
+  active
+  archived
+}
+
 // ===========================
 // Team Invite Enums
 // ===========================
@@ -225,7 +248,7 @@ model User {
   subscription_status     String    @default("active") // active | cancelled | expired
   subscription_expires_at DateTime?
   stripe_customer_id      String?   @unique
-  max_teams               Int       @default(2) // Free users get 2 teams
+  max_teams               Int       @default(3) // Rookie/free users get 3 teams
   paid_by_owner           Boolean   @default(false) // true if coach's plan is covered by league owner
 
   // Relations
@@ -980,7 +1003,7 @@ model Team {
   season_start             DateTime?
   season_end               DateTime?
   organization_id          String
-  status                   String    @default("active")
+  status                   TeamStatus @default(active)
   // When true, the team is hidden from public search and discover. Only team
   // members, followers, and org admins (owner/manager) can list the roster
   // or pull the full profile. Set via the team-update endpoint by team staff
@@ -1035,7 +1058,7 @@ model Organization {
   zip_code            String?   @db.VarChar(20) // For nearby search
   season_start        DateTime?
   season_end          DateTime?
-  status              String    @default("active")
+  status              OrganizationStatus @default(active)
   created_at          DateTime  @default(now())
   updated_at          DateTime  @default(now()) @updatedAt
 
@@ -1064,7 +1087,6 @@ model Organization {
   joinRequests OrganizationJoinRequest[]
   followers    OrganizationFollow[]
 
-  @@unique([name, zip_code])
   @@index([name])
   @@index([zip_code])
   @@index([location])
@@ -1077,7 +1099,7 @@ model OrganizationJoinRequest {
   id               String    @id @default(cuid())
   organization_id  String
   user_id          String
-  status           String    @default("pending") // pending | approved | denied
+  status           OrganizationJoinRequestStatus @default(pending)
   message          String? // Optional message from user
   rejection_reason String? // Reason provided by admin when denying
   created_at       DateTime  @default(now())
@@ -1098,8 +1120,8 @@ model OrganizationMembership {
   organization_id String
   user_id         String
 
-  role       String   @default("member") // owner | manager | member
-  status     String   @default("active") // active | invited | archived
+  role       OrganizationRole @default(member)
+  status     MembershipStatus @default(active)
   created_at DateTime @default(now())
 
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
@@ -1115,8 +1137,8 @@ model OrganizationInvite {
   id              String   @id @default(cuid())
   organization_id String
   email           String
-  role            String   @default("member") // owner | manager | member
-  status          String   @default("pending") // pending | accepted | declined | revoked
+  role            OrganizationRole @default(member)
+  status          InviteStatus @default(pending)
   created_at      DateTime @default(now())
 
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)

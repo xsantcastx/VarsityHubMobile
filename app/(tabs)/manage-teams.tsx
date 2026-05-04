@@ -15,6 +15,7 @@ import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal
 // @ts-ignore
 import { Game as GameApi } from '@/api/entities';
 import { EmptyState, SectionHeader, TeamCard, TeamCardSkeleton } from '@/components/ui';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -93,12 +94,14 @@ function ManageTeamsSimpleScreen() {
       try {
         const me: any = await User.me();
         const prefs = me?.preferences || {};
-        // Check deferred payment status for paid plans (Rule A: use pending_plan)
-        const plan = prefs.pending_plan || prefs.plan;
-        setUserPlan(plan);
-        if (prefs.payment_pending === true && (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')) {
+        const billing = getCanonicalBillingState(me);
+        setUserPlan(billing.selected_plan);
+        if (
+          billing.payment_pending &&
+          (billing.pending_plan === 'veteran' || billing.pending_plan === 'legend')
+        ) {
           // Independent coaches (no join request) can pay immediately
-          if (prefs.payment_approved === true || prefs.join_request_pending !== true) {
+          if (billing.payment_approved || prefs.join_request_pending !== true) {
             setPaymentStatus('ready_to_pay');
           } else {
             setPaymentStatus('pending_approval');
@@ -119,10 +122,17 @@ function ManageTeamsSimpleScreen() {
     try {
       const me: any = await User.me();
       const prefs = me?.preferences || {};
-      const plan = prefs.pending_plan || prefs.plan;
-      setUserPlan(plan);
-      if (prefs.payment_pending === true && (prefs.pending_plan === 'veteran' || prefs.pending_plan === 'legend')) {
-        setPaymentStatus((prefs.payment_approved === true || prefs.join_request_pending !== true) ? 'ready_to_pay' : 'pending_approval');
+      const billing = getCanonicalBillingState(me);
+      setUserPlan(billing.selected_plan);
+      if (
+        billing.payment_pending &&
+        (billing.pending_plan === 'veteran' || billing.pending_plan === 'legend')
+      ) {
+        setPaymentStatus(
+          billing.payment_approved || prefs.join_request_pending !== true
+            ? 'ready_to_pay'
+            : 'pending_approval'
+        );
       } else {
         setPaymentStatus('none');
       }

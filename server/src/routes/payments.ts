@@ -518,7 +518,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
                   }),
                   subscription_tier: 'free',
                   subscription_status: 'cancelled',
-                  max_teams: 3,
+                  max_teams: SERVER_ROOKIE_TEAM_LIMIT,
                 },
               });
             } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
@@ -2874,7 +2874,7 @@ paymentsRouter.post(
                     }),
                     subscription_tier: 'free',
                     subscription_status: 'cancelled',
-                    max_teams: 3,
+                    max_teams: SERVER_ROOKIE_TEAM_LIMIT,
                   },
                 });
               } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
@@ -3873,7 +3873,7 @@ paymentsRouter.get(
       let current_period_end: string | null = null;
       let monthly_cost: number | null = null;
       let annual_cost: number | null = null;
-      const free_teams = 2;
+      const free_teams = SERVER_ROOKIE_TEAM_LIMIT;
 
       if (plan === 'veteran' && subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {

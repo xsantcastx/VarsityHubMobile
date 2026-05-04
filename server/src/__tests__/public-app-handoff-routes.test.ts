@@ -39,6 +39,13 @@ describe('Public app handoff routes', () => {
     expect(handoffRoute).toContain("{ autoRedirect: isMobileUserAgent(req) }");
   });
 
+  it('preserves payment session params through the public handoff allowlist', () => {
+    expect(handoffRoute).toContain("'session_id'");
+    expect(handoffRoute).toContain("'type'");
+    expect(handoffRoute).toContain("path: '/payment-success'");
+    expect(handoffRoute).toContain("path: '/payment-cancel'");
+  });
+
   it('mounts the shared handoff router in both production and test app entrypoints', () => {
     expect(appSrc).toContain("import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';");
     expect(appSrc).toContain('app.use(publicAppHandoffRouter);');

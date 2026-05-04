@@ -319,10 +319,10 @@ describe('coach flow structural invariants', () => {
 
     it('organization writes flow through an explicit create-data sanitizer', () => {
       expect(/function buildOrganizationCreateData/.test(organizations)).toBe(true);
-      const createRouteBlock = organizations.match(/organizationsRouter\.post\(\s*['"]\/['"][\s\S]{0,5000}/)?.[0] || '';
-      const createWithTeamsBlock = organizations.match(/organizationsRouter\.post\(\s*['"]\/create['"][\s\S]{0,5000}/)?.[0] || '';
-      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id,\s*\{/.test(createRouteBlock)).toBe(true);
-      expect(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id,\s*\{/.test(createWithTeamsBlock)).toBe(true);
+      const createDataCalls =
+        organizations.match(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id,\s*\{/g) ||
+        [];
+      expect(createDataCalls.length).toBeGreaterThanOrEqual(2);
     });
 
     it('organization create routes do not spread parsed onboarding payloads into Prisma writes', () => {

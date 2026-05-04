@@ -6,6 +6,7 @@ import { Colors } from '@/constants/Colors';
 import { extractApiError } from '@/utils/apiErrors';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { validatePassword } from '@/utils/formUtils';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
@@ -57,8 +58,9 @@ export default function ResetPasswordScreen() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.error || 'Password does not meet requirements.');
       return;
     }
     if (password !== confirmPassword) {

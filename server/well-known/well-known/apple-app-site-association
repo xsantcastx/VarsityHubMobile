@@ -17,6 +17,7 @@
           "/settings/manage-subscription",
           "/admin-dashboard",
           "/admin-ads",
+          "/event-approvals",
           "/organization-join-requests",
           "/team-hub",
           "/create-fan-event",

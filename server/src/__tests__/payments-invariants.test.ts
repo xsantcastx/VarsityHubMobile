@@ -27,6 +27,7 @@ const appleAuth = read('lib/appleAuth.ts');
 const appleNotifDedup = read('lib/appleNotificationDedup.ts');
 const billingLifecycle = read('lib/billingLifecycle.ts');
 const indexBoot = read('index.ts');
+const schema = readFileSync(join(process.cwd(), 'prisma', 'schema.prisma'), 'utf8');
 
 describe('payments & subscriptions — structural invariants', () => {
   // ──────────────────────────────────────────────────────────────────────
@@ -133,6 +134,11 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(block).toMatch(/apple_product_id/);
       expect(block).toMatch(/apple_expires_date/);
     });
+
+    it('grace-period downgrade resets max_teams to the canonical Rookie allowance', () => {
+      const block = requireOnboarded.match(/grace_period_expires_at[\s\S]{0,1500}/)?.[0] || '';
+      expect(block).toMatch(/max_teams:\s*SERVER_ROOKIE_TEAM_LIMIT/);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────
@@ -166,6 +172,13 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(block).toMatch(/req\.user\?\.id/);
       expect(block).toMatch(/String\(sessionUserId\) !== String\(req\.user\.id\)/);
       expect(block).toMatch(/refusing to finalize session for non-owner/);
+    });
+
+    it('web checkout success URLs include the session id and payment type for app handoff', () => {
+      const block =
+        payments.match(/function getCheckoutReturnUrls[\s\S]{0,1200}/)?.[0] || '';
+      expect(block).toMatch(/payment-success\?session_id=\{CHECKOUT_SESSION_ID\}&type=\$\{params\.type\}/);
+      expect(block).toMatch(/payment-cancel/);
     });
   });
 
@@ -206,6 +219,21 @@ describe('payments & subscriptions — structural invariants', () => {
 
     it('billingLifecycle.ts defines transition helpers for subscription events', () => {
       expect(billingLifecycle.length).toBeGreaterThan(100);
+    });
+
+    it('subscription summary reports the canonical Rookie free-team allowance', () => {
+      const block =
+        payments.match(/paymentsRouter\.get\(\s*'\/subscription\/summary'[\s\S]{0,2200}/)?.[0] ||
+        '';
+      expect(block).toMatch(/const free_teams = SERVER_ROOKIE_TEAM_LIMIT;/);
+    });
+
+    it('refund and cancellation downgrades reset max_teams to the canonical Rookie allowance', () => {
+      expect(payments).toMatch(/max_teams:\s*SERVER_ROOKIE_TEAM_LIMIT/);
+    });
+
+    it('the persisted User.max_teams default matches the Rookie plan allowance', () => {
+      expect(schema).toMatch(/max_teams\s+Int\s+@default\(3\)/);
     });
   });
 

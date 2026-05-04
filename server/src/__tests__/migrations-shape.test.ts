@@ -39,6 +39,15 @@ const NAMING_GRANDFATHER: Set<string> = new Set([
   '20260325_add_notification_types',
 ]);
 
+// Explicitly forbidden migration directories. These names are known history
+// drift / archaeology artifacts rather than legitimate migrations. If one
+// reappears in the repo, `prisma migrate status` starts reporting a fake
+// "missing from local migrations" mismatch against environments that recorded
+// the stale row in `_prisma_migrations`.
+const FORBIDDEN_MIGRATION_DIRS: Set<string> = new Set([
+  '20260422110117_add_story_and_message_hot_query_indexes',
+]);
+
 
 function listMigrationDirs(): string[] {
   return readdirSync(MIGRATIONS_DIR)
@@ -55,6 +64,11 @@ const migrationDirs = listMigrationDirs();
 describe('Prisma migrations — shape + invariants', () => {
   it('has a non-empty set of migrations', () => {
     expect(migrationDirs.length).toBeGreaterThan(0);
+  });
+
+  it('does not contain known-forbidden duplicate migration directories', () => {
+    const forbidden = migrationDirs.filter((dir) => FORBIDDEN_MIGRATION_DIRS.has(dir));
+    expect(forbidden).toEqual([]);
   });
 
   describe('every migration directory', () => {
@@ -129,6 +143,16 @@ describe('Prisma migrations — shape + invariants', () => {
       expect(abortIdx).toBeGreaterThan(0);
       expect(deleteIdx).toBeGreaterThan(0);
       expect(abortIdx).toBeLessThan(deleteIdx);
+    });
+
+    it('organization duplicate backstop uses normalized partial unique indexes', () => {
+      const dir = migrationDirs.find((d) => d.endsWith('_organization_duplicate_name_backstop'));
+      expect(dir).toBeTruthy();
+      const sql = readFileSync(join(MIGRATIONS_DIR, dir!, 'migration.sql'), 'utf8');
+      expect(sql).toContain('DROP INDEX IF EXISTS "Organization_name_zip_code_key"');
+      expect(sql).toContain('normalize_org_name_for_dedupe');
+      expect(sql).toContain('"Organization_active_norm_name_zip_key"');
+      expect(sql).toContain('"Organization_active_norm_name_null_zip_key"');
     });
   });
 

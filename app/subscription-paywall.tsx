@@ -37,6 +37,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
+import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { getCanonicalBillingState } from '@/utils/billingState';
 
 const isIOS = Platform.OS === 'ios';
 
@@ -56,9 +58,9 @@ function SubscriptionPaywallScreen() {
     void (async () => {
       try {
         const me: any = await User.me();
-        const pp = me?.preferences?.pending_plan;
-        if (pp === 'veteran' || pp === 'legend') {
-          setSelectedTier(pp);
+        const billing = getCanonicalBillingState(me);
+        if (billing.pending_plan === 'veteran' || billing.pending_plan === 'legend') {
+          setSelectedTier(billing.pending_plan);
         }
         // Check if coach is covered by league owner
         if (me?.paid_by_owner === true) {
@@ -129,7 +131,12 @@ function SubscriptionPaywallScreen() {
             await new Promise(r => setTimeout(r, 2000));
             try {
               const me: any = await User.refresh();
-              if ((me?.preferences?.plan === 'veteran' || me?.preferences?.plan === 'legend') && !me?.preferences?.payment_pending) {
+              const billing = getCanonicalBillingState(me);
+              if (
+                (billing.plan === 'veteran' || billing.plan === 'legend') &&
+                !billing.payment_pending &&
+                !billing.pending_plan
+              ) {
                 planActivated = true;
                 break;
               }
@@ -247,7 +254,12 @@ function SubscriptionPaywallScreen() {
           await new Promise(r => setTimeout(r, 2000));
           try {
             const me: any = await User.refresh();
-            if ((me?.preferences?.plan === 'veteran' || me?.preferences?.plan === 'legend') && !me?.preferences?.payment_pending) {
+            const billing = getCanonicalBillingState(me);
+            if (
+              (billing.plan === 'veteran' || billing.plan === 'legend') &&
+              !billing.payment_pending &&
+              !billing.pending_plan
+            ) {
               planActivated = true;
               break;
             }
@@ -659,7 +671,7 @@ function renderFeatureValue(value: string | boolean, scheme: 'light' | 'dark' = 
 
 // Comparison table data
 const comparisonFeatures = [
-  { name: 'Teams', rookie: '3', veteran: 'Unlimited', legend: 'Unlimited' },
+  { name: 'Teams', rookie: String(ROOKIE_TEAM_LIMIT), veteran: 'Unlimited', legend: 'Unlimited' },
   { name: 'Dedicated Admin', rookie: false, veteran: true, legend: true },
   { name: 'Profile Badge', rookie: false, veteran: true, legend: true },
 ];

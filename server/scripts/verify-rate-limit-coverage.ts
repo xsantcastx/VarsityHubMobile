@@ -15,6 +15,12 @@ type Check = {
   pattern: RegExp;
 };
 
+function routeHasLimiter(method: 'get' | 'post', route: string): RegExp {
+  return new RegExp(
+    `paymentsRouter\\.${method}\\(\\s*['"]${route}['"],[\\s\\S]*?paymentLimiter[\\s\\S]*?asyncHandler`
+  );
+}
+
 const checks: Check[] = [
   // Baseline coverage
   {
@@ -63,62 +69,52 @@ const checks: Check[] = [
   // Payments
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/checkout',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/checkout'),
     label: 'payments checkout limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/create-payment-sheet',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/create-payment-sheet'),
     label: 'payments payment-sheet limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/finalize-session',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/finalize-session'),
     label: 'payments finalize-session limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/cancel-intent',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/cancel-intent'),
     label: 'payments cancel-intent limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/subscribe',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/subscribe'),
     label: 'payments subscribe limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/subscription\/cancel',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/subscription\\/cancel'),
     label: 'payments subscription cancel limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/update-subscription-quantity',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/update-subscription-quantity'),
     label: 'payments quantity update limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/apple\/verify-receipt',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/apple\\/verify-receipt'),
     label: 'payments apple receipt limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/apple\/verify-ad-receipt',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/apple\\/verify-ad-receipt'),
     label: 'payments apple ad receipt limiter',
   },
   {
     file: 'src/routes/payments.ts',
-    pattern:
-      /paymentsRouter\.post\('\/google\/verify-purchase',\s*expressPkg\.json\(\),[\s\S]*?paymentLimiter[\s\S]*?asyncHandler/,
+    pattern: routeHasLimiter('post', '\\/google\\/verify-purchase'),
     label: 'payments google purchase limiter',
   },
 

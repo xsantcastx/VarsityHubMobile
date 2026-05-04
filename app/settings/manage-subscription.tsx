@@ -9,6 +9,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
+import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { usePaymentSheet } from '@/utils/stripe';
 
@@ -62,11 +64,11 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const refreshPlan = useCallback(async () => {
     try {
       const me: any = await User.me();
-      const prefs = me?.preferences || {};
-      setPlan(prefs.plan || null);
+      const billing = getCanonicalBillingState(me);
       setPaidByOwner(!!me?.paid_by_owner);
       setApprovalStatus(me?.approval_status || null);
-      setPaymentPending(prefs.payment_pending === true);
+      setPlan(billing.plan);
+      setPaymentPending(billing.payment_pending);
 
       // If covered by owner, fetch the league name
       if (me?.paid_by_owner) {
@@ -280,7 +282,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const onSkipPayment = async () => {
     Alert.alert(
       'Continue as Rookie?',
-      'You can upgrade to a paid plan anytime from Settings. Your team will be limited to 2 teams and 50 roster spots on the free plan.',
+      `You can upgrade to a paid plan anytime from Settings. Your team will be limited to ${ROOKIE_TEAM_LIMIT} teams and 50 roster spots on the free plan.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

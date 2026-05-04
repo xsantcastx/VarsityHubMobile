@@ -9,7 +9,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { captureBreadcrumb } from '@/utils/sentry';
-import { useVHubIAP } from '@/hooks/useIAP';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,11 +16,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-// @ts-ignore
-import { httpPost } from '@/api/http';
 import { getApiBaseUrl } from '@/api/http';
+import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { sanitizeText } from '@/utils/formUtils';
-import { usePaymentSheet } from '@/utils/stripe';
 
 type TeamLimitSummary = {
   owned_teams: number;
@@ -73,8 +71,6 @@ function CreateTeamScreen() {
   const [limitsLoading, setLimitsLoading] = useState(true);
   const [teamLimits, setTeamLimits] = useState<TeamLimitSummary | null>(null);
   const [limitsError, setLimitsError] = useState<string | null>(null);
-  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
-  const { purchase: iapPurchase, purchasing: iapPurchasing } = useVHubIAP();
   const limitReached = !!teamLimits && teamLimits.can_create_more === false;
   const planBadgeText = formatPlanBadge(teamLimits?.subscription_tier);
   const planDisplayName = formatPlanDisplay(teamLimits?.subscription_tier);
@@ -131,17 +127,6 @@ function CreateTeamScreen() {
     setOrgModalSearch('');
     setShowOrgPicker(false);
   }, []);
-
-  const handleCreateNewOrg = useCallback(() => {
-    const trimmed = orgModalSearch.trim();
-    if (trimmed) {
-      setOrganizationName(trimmed);
-      setSelectedOrgId(null);
-    }
-    setOrgSearchResults([]);
-    setOrgModalSearch('');
-    setShowOrgPicker(false);
-  }, [orgModalSearch]);
 
   useEffect(() => {
     return () => { if (orgSearchTimer.current) clearTimeout(orgSearchTimer.current); };
@@ -296,10 +281,10 @@ function CreateTeamScreen() {
       return;
     }
 
-    if (!selectedOrgId && !organizationName.trim()) {
+    if (!selectedOrgId) {
       Alert.alert(
-        'League Required',
-        'Please select an existing league or enter a new league name before creating a team.',
+        'Organization Required',
+        'Please select an existing league or organization before creating a team.',
       );
       return;
     }
@@ -329,7 +314,7 @@ function CreateTeamScreen() {
       
       // Check plan tier limits
       const userRole = user?.preferences?.role; // Already guaranteed coach above
-      const userPlan = user?.preferences?.plan || 'rookie'; // Default to rookie if not set
+      const userPlan = getCanonicalBillingState(user).selected_plan;
 
       let latestLimits: TeamLimitSummary | null = teamLimits;
       try {
@@ -356,154 +341,13 @@ function CreateTeamScreen() {
           return;
         }
 
-        if (userPlan === 'rookie' && teamCount >= 2) {
-          const newTeamCount = teamCount + 1;
-          Alert.alert(
-            'Upgrade Required',
-            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${(newTeamCount * 0.99).toFixed(2)}/month (${newTeamCount} teams × $0.99).`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
-              {
-                text: 'Upgrade & Continue',
-                onPress: async () => {
-                  try {
-                    captureBreadcrumb('Team creation triggered plan upgrade', 'payments.subscription', {
-                      entry: 'create_team',
-                      current_plan: userPlan,
-                      next_team_count: newTeamCount,
-                      platform: Platform.OS,
-                    });
-                    // Use Apple IAP / Google Play on mobile (required by App Store guidelines)
-                    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-                      const success = await iapPurchase('veteran');
-                      captureBreadcrumb('Native plan upgrade returned during team creation', 'payments.subscription', {
-                        entry: 'create_team',
-                        success,
-                        next_team_count: newTeamCount,
-                      });
-                      if (success) {
-                        const me: any = await User.me();
-                        await proceedWithTeamCreation(me);
-                        return;
-                      } else {
-                        setSubmitting(false);
-                        return;
-                      }
-                    }
-                    // Fallback: Stripe PaymentSheet for web/other platforms
-                    captureBreadcrumb('Plan upgrade payment sheet request started during team creation', 'payments.subscription', {
-                      entry: 'create_team',
-                      next_team_count: newTeamCount,
-                    });
-                    const res: any = await httpPost('/payments/create-payment-sheet', { plan: 'veteran', team_count: newTeamCount });
-                    if (res?.paymentIntent) {
-                      captureBreadcrumb('Plan upgrade payment sheet init started during team creation', 'payments.subscription', {
-                        entry: 'create_team',
-                        next_team_count: newTeamCount,
-                      });
-                      const { error: initError } = await initPaymentSheet({
-                        paymentIntentClientSecret: res.paymentIntent,
-                        customerEphemeralKeySecret: res.ephemeralKey,
-                        customerId: res.customer,
-                        merchantDisplayName: 'Varsity Hub',
-                        googlePay: (Platform.OS as string) === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
-                        paymentMethodOrder: ['google_pay', 'card'],
-                      });
-                      if (initError) {
-                        captureBreadcrumb('Plan upgrade payment sheet init failed during team creation', 'payments.subscription', {
-                          entry: 'create_team',
-                          error: initError.message,
-                        }, 'error');
-                        Alert.alert('Error', initError.message);
-                        setSubmitting(false);
-                        return;
-                      }
-                      captureBreadcrumb('Plan upgrade payment sheet presented during team creation', 'payments.subscription', {
-                        entry: 'create_team',
-                      });
-                      const { error } = await presentPaymentSheet();
-                      if (error) {
-                        captureBreadcrumb('Plan upgrade payment sheet failed during team creation', 'payments.subscription', {
-                          entry: 'create_team',
-                          code: error.code,
-                          error: error.message || 'unknown_error',
-                        }, error.code === 'Canceled' ? 'info' : 'error');
-                        if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
-                        setSubmitting(false);
-                        return;
-                      }
-                      captureBreadcrumb('Plan upgrade payment sheet completed during team creation', 'payments.subscription', {
-                        entry: 'create_team',
-                      });
-                      try {
-                        const me: any = await User.me();
-                        const updatedPlan = me?.preferences?.plan ?? 'rookie';
-                        if (updatedPlan === 'veteran') {
-                          captureBreadcrumb('Plan upgrade confirmed before team creation', 'payments.subscription', {
-                            entry: 'create_team',
-                          });
-                          await proceedWithTeamCreation(me);
-                          return;
-                        }
-                      } catch { /* ignore */ }
-                      captureBreadcrumb('Plan upgrade pending before team creation retry', 'payments.subscription', {
-                        entry: 'create_team',
-                      }, 'warning');
-                      Alert.alert('Payment Processing', 'Your payment was submitted. Please try creating your team again in a moment.');
-                      setSubmitting(false);
-                    } else {
-                      Alert.alert('Error', 'Unable to start checkout. Please try again.');
-                      setSubmitting(false);
-                    }
-                  } catch (err: any) {
-                    if (__DEV__) console.error('Upgrade to Veteran failed:', err);
-                    captureBreadcrumb('Plan upgrade failed during team creation', 'payments.subscription', {
-                      entry: 'create_team',
-                      error: err?.data?.error || err?.message || 'unknown_error',
-                      status: err?.status,
-                    }, 'error');
-                    const status = err?.status;
-                    const raw = (err?.data?.error || err?.message || '') as string;
-                    let title = 'Error';
-                    let msg: string;
-                    if (status === 403 && (raw === 'Email verification required' || /verification/i.test(raw))) {
-                      title = 'Verify Your Email';
-                      msg = 'Please verify your email before upgrading. Check your inbox for the verification link.';
-                    } else if (status === 401) {
-                      title = 'Session Expired';
-                      msg = 'Please sign in again to continue.';
-                    } else if (status === 500 && (raw === 'Stripe not configured' || /stripe.*config/i.test(raw))) {
-                      title = 'Payments Unavailable';
-                      msg = 'Payments are being configured. Please try again later.';
-                    } else if (status === 408 || err?.name === 'AbortError') {
-                      title = 'Connection Timeout';
-                      msg = 'The request timed out. Check your connection and try again.';
-                    } else if (!status && (raw?.includes('fetch') || raw?.includes('network') || raw?.includes('Network'))) {
-                      title = 'Connection Error';
-                      msg = 'Check your internet connection and try again.';
-                    } else if (/prod_|price_/i.test(raw)) {
-                      msg = 'Failed to start upgrade. Please try again or contact support.';
-                    } else if (raw) {
-                      msg = raw;
-                    } else {
-                      msg = 'Failed to start upgrade checkout. Please try again.';
-                    }
-                    Alert.alert(title, msg);
-                    setSubmitting(false);
-                  }
-                }
-              }
-            ]
-          );
-          return;
-        }
-        
         if (userPlan === 'veteran') {
           // Veteran plan: Per-team monthly charge - update subscription quantity
           const newTeamCount = teamCount + 1;
+          const billableTeamCount = Math.max(0, newTeamCount - ROOKIE_TEAM_LIMIT);
           Alert.alert(
             'Add Team',
-            `Adding this team will increase your monthly charge to $${(newTeamCount * 0.99).toFixed(2)}/month (${newTeamCount} teams × $0.99). Your subscription will be updated automatically.`,
+            `Adding this team will update your Veteran billing to $${(billableTeamCount * 0.99).toFixed(2)}/month (${billableTeamCount} billable team${billableTeamCount === 1 ? '' : 's'} beyond the first ${ROOKIE_TEAM_LIMIT} free). Your subscription will be updated automatically.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
               { 
@@ -568,8 +412,7 @@ function CreateTeamScreen() {
           Alert.alert('Warning', 'Team created but logo upload failed. You can add a logo later.');
         }
       }
-      // Let /teams/create handle org lookup + creation atomically.
-      // This avoids extra /organizations requests and timeout chains.
+      // Team creation now requires an approved organization selection.
 
       const teamData = {
         name: sanitizeText(name),
@@ -580,7 +423,6 @@ function CreateTeamScreen() {
         season: season || undefined,
         primary_color: teamColor || undefined,
         organization_id: selectedOrgId || undefined,
-        organization_name: !selectedOrgId ? (sanitizeText(organizationName) || undefined) : undefined,
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       
@@ -1088,15 +930,6 @@ function CreateTeamScreen() {
                 </Pressable>
               </View>
             )}
-            {!selectedOrgId && organizationName.length > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
-                <MaterialIcons name="edit" size={14} color={Colors[colorScheme].mutedText} />
-                <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>New organization: {organizationName}</Text>
-                <Pressable onPress={() => { setOrganizationName(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear organization name">
-                  <MaterialIcons name="close" size={16} color={Colors[colorScheme].mutedText} />
-                </Pressable>
-              </View>
-            )}
           </View>
 
           {/* Description */}
@@ -1211,7 +1044,7 @@ function CreateTeamScreen() {
               {orgModalSearch.trim().length >= 2 && !orgSearching && orgSearchResults.length === 0 && (
                 <View style={styles.orgPickerEmpty}>
                   <Text style={[styles.orgPickerEmptyText, { color: Colors[colorScheme].mutedText }]}>
-                    No organizations found
+                    No approved organizations found. Select an existing organization to continue.
                   </Text>
                 </View>
               )}
@@ -1241,22 +1074,6 @@ function CreateTeamScreen() {
                   )}
                 </Pressable>
               ))}
-              {/* Create New option */}
-              {orgModalSearch.trim().length >= 2 && !orgSearching && (
-                <Pressable
-                  style={[styles.orgPickerItem, { borderBottomColor: Colors[colorScheme].border }]}
-                  onPress={handleCreateNewOrg}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Create new organization: ${orgModalSearch.trim()}`}
-                >
-                  <View style={styles.orgPickerItemContent}>
-                    <MaterialIcons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
-                    <Text style={[styles.orgPickerItemText, { color: Colors[colorScheme].tint }]}>
-                      Create New: "{orgModalSearch.trim()}"
-                    </Text>
-                  </View>
-                </Pressable>
-              )}
             </RNScrollView>
           </View>
         </View>

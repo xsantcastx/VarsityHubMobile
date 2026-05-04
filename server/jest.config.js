@@ -1,5 +1,4 @@
 export default {
-  preset: 'ts-jest',
   testEnvironment: 'node',
   resolver: '<rootDir>/jest.resolver.cjs',
   extensionsToTreatAsEsm: ['.ts'],
@@ -48,7 +47,6 @@ export default {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^zod$': '<rootDir>/node_modules/zod/index.cjs',
-    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testTimeout: 10000,
   verbose: true,

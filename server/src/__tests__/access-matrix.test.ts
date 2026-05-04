@@ -70,6 +70,11 @@ let signJwt: any;
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
+function uniqueUsername(prefix: string): string {
+  const entropy = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}${entropy}`.slice(0, 20);
+}
+
 const FAN_EMAIL = `matrix-fan-${ts}@example.com`;
 const ROOKIE_EMAIL = `matrix-rookie-${ts}@example.com`;
 const VETERAN_EMAIL = `matrix-veteran-${ts}@example.com`;
@@ -109,7 +114,9 @@ async function createUser(
       display_name: displayName,
       username:
         role === 'coach'
-          ? `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '')}${ts}`.slice(0, 20)
+          ? uniqueUsername(
+              `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6)}_`,
+            )
           : undefined,
       email_verified: true,
       // Mirror role + onboarding to canonical columns; canonical readers

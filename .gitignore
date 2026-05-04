@@ -55,6 +55,7 @@ android/app/*.keystore
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+.eslintcache
 *.log
 *.tmp
 

@@ -74,6 +74,11 @@ export const prisma = new PrismaClient({
   log: isProduction ? ['error'] : ['query', 'error', 'warn'],
 });
 
+if (isTest) {
+  (globalThis as typeof globalThis & { __VARSITYHUB_TEST_PRISMA__?: PrismaClient }).__VARSITYHUB_TEST_PRISMA__ =
+    prisma;
+}
+
 const getTrimmed = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
   return value.trim();
