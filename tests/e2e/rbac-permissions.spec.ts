@@ -59,7 +59,7 @@ test.describe('RBAC Permissions', () => {
     expect(response.status()).toBe(403);
     const body = await response.json();
     expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(
-      /coach_role_required|only coach accounts|complete onboarding/i
+      /email verification required|coach_role_required|only coach accounts|complete onboarding/i
     );
   });
 
@@ -77,11 +77,11 @@ test.describe('RBAC Permissions', () => {
     expect(response.status()).toBe(403);
     const body = await response.json();
     expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(
-      /only coach accounts|coach|complete onboarding/i
+      /email verification required|only coach accounts|coach|complete onboarding/i
     );
   });
 
-  test('Coach onboarding organization creation bypasses email verification gate', async ({ request }) => {
+  test('Regular organization creation still requires verification for fresh coach accounts', async ({ request }) => {
     const coach = await createTestUser(request, 'coach');
     const response = await createAuthRequest(request, coach.token).post(`${API_BASE_URL}/organizations`, {
       data: {
@@ -92,11 +92,9 @@ test.describe('RBAC Permissions', () => {
       },
     });
 
-    expect([201, 409, 429]).toContain(response.status());
-    if (response.status() !== 201) {
-      const body = await response.json();
-      expect(`${body.error ?? ''} ${body.code ?? ''}`).not.toMatch(/email verification required/i);
-    }
+    expect(response.status()).toBe(403);
+    const body = await response.json();
+    expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(/email verification required/i);
   });
 
   test('Coach game creation is still blocked before onboarding is complete', async ({ request }) => {

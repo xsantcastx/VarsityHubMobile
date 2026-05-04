@@ -1712,9 +1712,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.75)' }
+      : {
+          textShadowColor: 'rgba(0, 0, 0, 0.75)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
+        }),
   },
   authorNameButton: {
     alignSelf: 'flex-start',
@@ -1724,15 +1728,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     lineHeight: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.75)' }
+      : {
+          textShadowColor: 'rgba(0, 0, 0, 0.75)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
+        }),
   },
   captionToggle: {
     color: '#e2e8f0',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.75)' }
+      : {
+          textShadowColor: 'rgba(0, 0, 0, 0.75)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
+        }),
   },
   videoWrap: {
     width: '100%',
@@ -1796,9 +1808,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
     fontSize: 16,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.75)' }
+      : {
+          textShadowColor: 'rgba(0, 0, 0, 0.75)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
+        }),
   },
   titleOverlay: {
     position: 'absolute',
@@ -1830,17 +1846,25 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 16,
     color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.75)' }
+      : {
+          textShadowColor: 'rgba(0, 0, 0, 0.75)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
+        }),
   },
   titleSubtitle: {
     color: '#e5e7eb',
     marginTop: 2,
     fontSize: 12,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 3px rgba(0, 0, 0, 0.75)' }
+      : {
+          textShadowColor: 'rgba(0, 0, 0, 0.75)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
+        }),
   },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   emptyStateTitle: { fontWeight: '800', fontSize: 18 },

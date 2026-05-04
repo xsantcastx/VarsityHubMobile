@@ -31,6 +31,14 @@ const DEFAULT_WEB_BASE = 'https://varsityhub.app';
 
 const normalizeUrl = (value: string) => value.replace(/\/$/, '');
 
+function getDevLocalApiUrl(): string {
+  if (typeof window === 'undefined') return 'http://localhost:4000';
+  const host = window.location.hostname;
+  if (host === '127.0.0.1') return 'http://127.0.0.1:4000';
+  if (host === 'localhost') return 'http://localhost:4000';
+  return `http://${host}:4000`;
+}
+
 function readEnv(key: EnvKey, fallback?: string): string {
   const raw = processEnv[key] ?? (expoConfigExtra[key] as string | undefined);
   if (raw === undefined || raw === null || raw === '') {
@@ -66,14 +74,22 @@ export type AppConfig = {
 };
 
 const config: AppConfig = {
-  // Force production URL - ignore localhost even if set
   apiUrl: (() => {
     const envUrl = readEnv('EXPO_PUBLIC_API_URL');
-    if (envUrl && envUrl.includes('localhost')) {
-      // Ignore localhost, use production
-      return DEFAULT_API_URL;
+    const forceRemoteApi = readBoolean('EXPO_PUBLIC_FORCE_REMOTE_API', true);
+    const normalizedEnvUrl = envUrl ? normalizeUrl(envUrl) : '';
+
+    if (normalizedEnvUrl) {
+      if (!forceRemoteApi || !/localhost|127\.0\.0\.1/.test(normalizedEnvUrl)) {
+        return normalizedEnvUrl;
+      }
     }
-    return normalizeUrl(envUrl || DEFAULT_API_URL);
+
+    if (__DEV__ && !forceRemoteApi) {
+      return getDevLocalApiUrl();
+    }
+
+    return DEFAULT_API_URL;
   })(),
   forceRemoteApi: readBoolean('EXPO_PUBLIC_FORCE_REMOTE_API', true),
   nodeEnv: readEnv('EXPO_PUBLIC_NODE_ENV', __DEV__ ? 'development' : 'production'),

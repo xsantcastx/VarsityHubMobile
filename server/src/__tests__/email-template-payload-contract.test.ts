@@ -79,6 +79,7 @@ const {
   sendEventPendingReviewEmail,
   sendCoachApprovedEmail,
   sendCoachRejectedEmail,
+  sendCoachJoinRequestEmail,
   sendAdPendingReviewEmail,
   sendAdApprovedEmail,
   sendAdRejectedEmail,
@@ -273,6 +274,45 @@ describe('SendGrid template payload contract', () => {
     expect(result).toBe(true);
     const payload = mockSend.mock.calls[0]![0] as any;
     expectAllVarsCovered(getTemplateVars('join-request-admin.html'), payload.templateData);
+    expect(payload.templateData.requester_email).toBe('');
+    expect(payload.templateData.owner_email).toBe('');
+  });
+
+  it('sendEventPendingReviewEmail can expose requester email for platform-admin fallback reviews only', async () => {
+    const result = await sendEventPendingReviewEmail({
+      to: 'admin@example.com',
+      reviewerName: 'Admin Reviewer',
+      requesterName: 'Taylor Fan',
+      requesterEmail: 'taylor@example.com',
+      eventTitle: 'Community Night',
+      eventType: 'fundraiser',
+      teamName: 'Westhill Athletics',
+      reviewId: 'evt_review_123',
+      reviewKind: 'event',
+      includeRequesterEmail: true,
+    });
+    expect(result).toBe(true);
+    const payload = mockSend.mock.calls[0]![0] as any;
+    expect(payload.templateData.requester_email).toBe('taylor@example.com');
+    expect(payload.templateData.owner_email).toBe('taylor@example.com');
+  });
+
+  it('sendCoachJoinRequestEmail does not expose the coach email in owner review emails', async () => {
+    const result = await sendCoachJoinRequestEmail({
+      ownerEmail: 'owner@example.com',
+      ownerName: 'League Owner',
+      coachName: 'Pending Coach',
+      coachEmail: 'coach@example.com',
+      organizationName: 'Westhill Athletics',
+      organizationId: 'org_123',
+      requestId: 'req_123',
+      approveUrl: 'https://varsityhub.app/approve',
+      rejectUrl: 'https://varsityhub.app/reject',
+      coachNotes: 'Background verified',
+    });
+    expect(result).toBe(true);
+    const payload = mockSend.mock.calls[0]![0] as any;
+    expect(payload.templateData.coach_email ?? '').toBe('');
   });
 
   it('ad-pending-review.html — sendAdPendingReviewEmail covers every {{var}}', async () => {

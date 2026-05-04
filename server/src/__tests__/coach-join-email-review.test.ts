@@ -105,6 +105,18 @@ describe('Coach join request email-token review routes', () => {
     expect(res.text).toMatch(/Link Expired/i);
   });
 
+  it('rejects requests with a token whose organization binding does not match the join request', async () => {
+    const wrongOrgToken = signReviewToken(
+      { requestId, orgId: 'org_other', action: 'approve_join_request' },
+      '48h'
+    );
+    const res = await request(app).get(
+      `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(wrongOrgToken)}`
+    );
+    expect(res.status).toBe(401);
+    expect(res.text).toMatch(/Link Expired/i);
+  });
+
   it('renders a confirmation page on GET with a valid approve token', async () => {
     const token = signReviewToken(
       { requestId, orgId, action: 'approve_join_request' },

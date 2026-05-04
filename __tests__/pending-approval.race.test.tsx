@@ -19,13 +19,15 @@
  */
 
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 const mockReplace = jest.fn();
 const mockCheckAuth = jest.fn();
 const mockRegisterPushToken = jest.fn(() => Promise.resolve(true));
 const mockSignOut = jest.fn();
 let capturedFocusCallback: null | (() => void) = null;
+let consoleErrorSpy: jest.SpyInstance | null = null;
+const originalConsoleError = console.error;
 
 const PENDING_USER = {
   id: 'u_test_coach',
@@ -113,6 +115,26 @@ jest.mock('react-native-safe-area-context', () => {
 import PendingApproval from '../app/onboarding/pending-approval';
 
 describe('pending-approval — admin-approves-during-pending race', () => {
+  beforeAll(() => {
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      const format = typeof args[0] === 'string' ? args[0] : '';
+      const mentionsPendingApproval = args.some((arg) => String(arg).includes('PendingApproval'));
+      if (
+        format.includes('not wrapped in act') &&
+        mentionsPendingApproval
+      ) {
+        return;
+      }
+
+      originalConsoleError(...(args as Parameters<typeof console.error>));
+    });
+  });
+
+  afterAll(() => {
+    consoleErrorSpy?.mockRestore();
+    consoleErrorSpy = null;
+  });
+
   beforeEach(() => {
     mockReplace.mockReset();
     mockCheckAuth.mockReset();
@@ -123,7 +145,8 @@ describe('pending-approval — admin-approves-during-pending race', () => {
 
   it('renders Application Submitted when /me returns PENDING', async () => {
     mockUserMe.mockResolvedValue(PENDING_USER);
-    const { findByText } = render(<PendingApproval />);
+    const screen = render(<PendingApproval />);
+    const { findByText } = screen;
     expect(await findByText('Application Submitted')).toBeTruthy();
   });
 
@@ -132,14 +155,17 @@ describe('pending-approval — admin-approves-during-pending race', () => {
     // Second call onward (focus / interval / foreground) — APPROVED
     mockUserMe.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
 
-    const { findByText } = render(<PendingApproval />);
+    const screen = render(<PendingApproval />);
+    const { findByText } = screen;
 
     // Initial state: pending
     expect(await findByText('Application Submitted')).toBeTruthy();
 
     // Simulate focus event firing — coach foregrounds app, admin already approved
     expect(capturedFocusCallback).not.toBeNull();
-    capturedFocusCallback?.();
+    act(() => {
+      capturedFocusCallback?.();
+    });
 
     // After the focus-driven checkApproval, /me reports APPROVED → UI swaps
     expect(await findByText("You're Approved!")).toBeTruthy();
@@ -152,12 +178,15 @@ describe('pending-approval — admin-approves-during-pending race', () => {
     // pipes that into getPostAuthRouteDecision.
     mockCheckAuth.mockResolvedValue(APPROVED_USER);
 
-    const { findByText } = render(<PendingApproval />);
+    const screen = render(<PendingApproval />);
+    const { findByText } = screen;
     // Wait for initial pending render so the polling effect has wired up
     await findByText('Application Submitted');
 
     // Trigger focus → /me returns APPROVED → screen swaps
-    capturedFocusCallback?.();
+    act(() => {
+      capturedFocusCallback?.();
+    });
     const continueButton = await findByText('Continue Coach Setup');
 
     // User taps the button → handleApprovedNavigation runs

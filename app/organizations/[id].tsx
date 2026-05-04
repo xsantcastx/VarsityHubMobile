@@ -1,11 +1,15 @@
 import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
+import { useShareLink } from '@/hooks/useShareLink';
 import { httpGet } from '@/api/http';
 import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrganizations';
 import { Ionicons } from '@expo/vector-icons';
+import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Linking, Platform, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+import ViewShot from 'react-native-view-shot';
 import { safeGoBack } from '@/utils/navigation';
 
 interface OrgTeam {
@@ -21,6 +25,9 @@ interface Organization {
   id: string;
   name: string;
   description?: string | null;
+  logo_url?: string | null;
+  avatar_url?: string | null;
+  profile_picture_url?: string | null;
   formatted_address?: string | null;
   location?: string | null;
   place_id?: string | null;
@@ -48,8 +55,11 @@ function OrganizationDetailScreen() {
   const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [savingQr, setSavingQr] = useState(false);
   const { apiUrl } = getConfig();
   const seedOrg = useMemo(() => normalizedId ? findSeedOrganization(normalizedId) : null, [normalizedId]);
+  const qrCardRef = useRef<ViewShot | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +92,15 @@ function OrganizationDetailScreen() {
   }, [normalizedId, apiUrl, seedOrg]);
 
   const locationText = org?.formatted_address || org?.location || null;
+  const orgName = org?.name || seedOrg?.name || 'Organization';
+  const orgShareId = org?.id || normalizedId || null;
+  const orgThemeColor = theme.tint || '#2563EB';
+  const { share: shareOrganizationLink, copyLink: copyOrganizationLink, webUrl: orgShareUrl } = useShareLink({
+    kind: 'organization',
+    id: orgShareId,
+    title: org?.name || seedOrg?.name || null,
+    contextLines: [locationText],
+  });
 
   const handleLocationPress = () => {
     if (!locationText) return;
@@ -94,6 +113,43 @@ function OrganizationDetailScreen() {
       void Linking.openURL(`https://maps.google.com/?q=${query}`);
     });
   };
+
+  const handleShareLink = useCallback(async () => {
+    await shareOrganizationLink();
+  }, [shareOrganizationLink]);
+
+  const handleCopyLink = useCallback(async () => {
+    await copyOrganizationLink();
+  }, [copyOrganizationLink]);
+
+  const handleSaveQr = useCallback(async () => {
+    if (!orgShareUrl || !qrCardRef.current) return;
+    try {
+      setSavingQr(true);
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow photo access to save the organization QR code.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
+
+      const uri = await qrCardRef.current.capture?.();
+      if (!uri) {
+        Alert.alert('Save failed', 'Unable to generate the organization QR image right now.');
+        return;
+      }
+
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Alert.alert('Saved', 'The organization QR code was saved to your photos.');
+    } catch (e) {
+      if (__DEV__) console.warn('[organization-detail] Failed to save organization QR', e);
+      Alert.alert('Save failed', 'Unable to save the organization QR code right now.');
+    } finally {
+      setSavingQr(false);
+    }
+  }, [orgShareUrl]);
 
   if (loading) {
     return (
@@ -158,7 +214,7 @@ function OrganizationDetailScreen() {
       ) : null}
 
       {/* CTA row */}
-      <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
         <Pressable
           accessibilityRole="button"
           onPress={handleContactPress}
@@ -172,6 +228,14 @@ function OrganizationDetailScreen() {
           style={{ backgroundColor: theme.tint, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 }}
         >
           <Text style={{ color: '#fff', fontWeight: '600' }}>Request to Join</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          testID="organization-page-share-button"
+          onPress={() => setShareModalVisible(true)}
+          style={{ borderWidth: 1, borderColor: theme.border, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 }}
+        >
+          <Text style={{ color: theme.text, fontWeight: '600' }}>Share</Text>
         </Pressable>
       </View>
 
@@ -224,6 +288,117 @@ function OrganizationDetailScreen() {
           {org._count?.memberships ? `${org._count.memberships} member${org._count.memberships === 1 ? '' : 's'}` : 'No members yet'}
         </Text>
       </View>
+
+      <Modal
+        visible={shareModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShareModalVisible(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(15, 23, 42, 0.5)' }}>
+          <Pressable style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} onPress={() => setShareModalVisible(false)} />
+          <View style={{ borderRadius: 20, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background, padding: 20, gap: 16 }}>
+            <Text style={{ fontSize: 22, fontWeight: '700', color: theme.text }}>Share Organization</Text>
+            <Text style={{ color: theme.mutedText }}>
+              Scan or share this code to open the public organization page.
+            </Text>
+
+            <ViewShot
+              ref={qrCardRef}
+              options={{ format: 'png', quality: 1, result: 'tmpfile' }}
+            >
+              <View
+                style={{
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  backgroundColor: '#ffffff',
+                }}
+              >
+                <View style={{ backgroundColor: orgThemeColor, paddingHorizontal: 20, paddingVertical: 18 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    {org.logo_url || org.avatar_url || org.profile_picture_url ? (
+                      <Image
+                        source={{ uri: String(org.logo_url || org.avatar_url || org.profile_picture_url) }}
+                        style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.18)' }}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: 28,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'rgba(255,255,255,0.2)',
+                        }}
+                      >
+                        <Ionicons name="business-outline" size={28} color="#ffffff" />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={{ fontSize: 20, fontWeight: '700', color: '#ffffff' }}>
+                        {orgName}
+                      </Text>
+                      <Text numberOfLines={1} style={{ marginTop: 2, color: 'rgba(255,255,255,0.82)' }}>
+                        VarsityHub organization
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={{ alignItems: 'center', paddingHorizontal: 24, paddingVertical: 24 }}>
+                  {orgShareUrl ? (
+                    <QRCode value={orgShareUrl} size={196} color="#111111" backgroundColor="#ffffff" />
+                  ) : null}
+                </View>
+
+                <Text style={{ paddingHorizontal: 20, paddingBottom: 20, textAlign: 'center', color: '#374151' }}>
+                  Scan to open this organization page on VarsityHub
+                </Text>
+              </View>
+            </ViewShot>
+
+            {orgShareUrl ? (
+              <Text numberOfLines={2} style={{ color: theme.mutedText }}>
+                {orgShareUrl}
+              </Text>
+            ) : null}
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Pressable
+                onPress={() => void handleShareLink()}
+                style={{ flex: 1, borderRadius: 12, backgroundColor: theme.tint, paddingVertical: 12, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#ffffff', fontWeight: '700' }}>Share link</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void handleCopyLink()}
+                style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: theme.border, paddingVertical: 12, alignItems: 'center' }}
+              >
+                <Text style={{ color: theme.text, fontWeight: '700' }}>Copy link</Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              testID="organization-page-save-qr-button"
+              onPress={() => void handleSaveQr()}
+              disabled={savingQr}
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.border,
+                paddingVertical: 12,
+                alignItems: 'center',
+                opacity: savingQr ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: theme.text, fontWeight: '700' }}>
+                {savingQr ? 'Saving...' : 'Save QR to Photos'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

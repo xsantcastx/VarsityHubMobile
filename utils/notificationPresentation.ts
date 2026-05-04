@@ -164,7 +164,7 @@ export function getNotificationHref(item: NotificationItem): any | null {
     return `/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}`;
   }
   if (type === 'TEAM_INVITE' && item.meta?.coach_request) {
-    return '/approvals';
+    return '/organization?tab=requests';
   }
   if (type === 'TEAM_INVITE' && item.meta?.coach_approved) {
     return '/(tabs)/create-team';

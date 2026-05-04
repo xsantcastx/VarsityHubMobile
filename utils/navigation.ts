@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { useContext } from 'react';
 import { getNavigationFallback, NavigationHistoryContext } from '@/context/NavigationHistoryContext';
@@ -14,8 +15,26 @@ export function safeGoBack(
     router.back();
   } else {
     const fallback = explicitFallback ?? getNavigationFallback();
-    router.replace(fallback as any);
+    router.replace(fallback as Href);
   }
+}
+
+/**
+ * Prefer the tracked prior route when a screen has an explicit back button and
+ * Expo Router's native stack would otherwise pop to a less specific screen.
+ */
+export function goBackToTrackedRoute(
+  router: ReturnType<typeof useRouter>,
+  currentHref: string | null | undefined,
+  trackedPreviousHref: string | null | undefined,
+  explicitFallback?: string
+) {
+  if (trackedPreviousHref && trackedPreviousHref !== currentHref) {
+    router.replace(trackedPreviousHref as Href);
+    return;
+  }
+
+  safeGoBack(router, explicitFallback);
 }
 
 /**
@@ -31,7 +50,7 @@ export function useSafeNavigation() {
       router.back();
     } else {
       const fallback = navHistory?.getFallbackRoute?.() ?? getNavigationFallback();
-      router.replace(fallback as any);
+      router.replace(fallback as Href);
     }
   };
 

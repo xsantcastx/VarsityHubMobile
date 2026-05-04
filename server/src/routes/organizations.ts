@@ -381,6 +381,139 @@ organizationsRouter.get(
 
 // List organizations where current user has admin access
 organizationsRouter.get(
+  '/mine/review-summaries',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const memberships = await prisma.organizationMembership.findMany({
+        where: {
+          user_id: req.user!.id,
+          role: { in: ['owner', 'manager'] },
+          status: 'active',
+        },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+        select: {
+          role: true,
+          organization_id: true,
+          organization: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      const organizations = memberships
+        .map(membership => ({
+          id: String(membership.organization?.id || membership.organization_id),
+          name: String(membership.organization?.name || 'Organization'),
+          membership_role: String(membership.role || '').toLowerCase() || null,
+        }))
+        .filter(organization => organization.id.length > 0);
+
+      const organizationIds = organizations.map(organization => organization.id);
+      if (organizationIds.length === 0) {
+        return res.json([]);
+      }
+
+      const teams = await prisma.team.findMany({
+        where: { organization_id: { in: organizationIds } },
+        select: { id: true, organization_id: true },
+      });
+      const teamToOrgId = new Map(
+        teams
+          .filter(team => Boolean(team.organization_id))
+          .map(team => [team.id, String(team.organization_id)])
+      );
+      const teamIds = teams.map(team => team.id);
+
+      const [pendingCoachRequests, pendingGames, pendingEvents] = await Promise.all([
+        prisma.organizationJoinRequest.groupBy({
+          by: ['organization_id'],
+          where: {
+            organization_id: { in: organizationIds },
+            status: 'pending',
+          },
+          _count: { _all: true },
+        }),
+        teamIds.length > 0
+          ? prisma.game.findMany({
+              where: {
+                approval_status: 'pending',
+                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              },
+              select: {
+                id: true,
+                home_team_id: true,
+                away_team_id: true,
+              },
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.event.findMany({
+              where: {
+                approval_status: 'pending',
+                game_id: null,
+                team_id: { in: teamIds },
+              },
+              select: {
+                id: true,
+                team_id: true,
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const coachRequestCountByOrgId = new Map(
+        pendingCoachRequests.map(row => [String(row.organization_id), row._count._all])
+      );
+      const pendingGameCountByOrgId = new Map<string, number>();
+      for (const game of pendingGames) {
+        const orgIdsForGame = new Set<string>();
+        const homeOrgId = game.home_team_id ? teamToOrgId.get(String(game.home_team_id)) : null;
+        const awayOrgId = game.away_team_id ? teamToOrgId.get(String(game.away_team_id)) : null;
+        if (homeOrgId) orgIdsForGame.add(homeOrgId);
+        if (awayOrgId) orgIdsForGame.add(awayOrgId);
+        for (const orgId of orgIdsForGame) {
+          pendingGameCountByOrgId.set(orgId, (pendingGameCountByOrgId.get(orgId) || 0) + 1);
+        }
+      }
+
+      const pendingEventCountByOrgId = new Map<string, number>();
+      for (const event of pendingEvents) {
+        const orgId = event.team_id ? teamToOrgId.get(String(event.team_id)) : null;
+        if (!orgId) continue;
+        pendingEventCountByOrgId.set(orgId, (pendingEventCountByOrgId.get(orgId) || 0) + 1);
+      }
+
+      return res.json(
+        organizations.map(organization => ({
+          organization: {
+            id: organization.id,
+            name: organization.name,
+          },
+          permissions: {
+            can_manage: true,
+            can_review_coach_requests: organization.membership_role === 'owner',
+            membership_role: organization.membership_role,
+          },
+          counts: {
+            pending_coach_requests: coachRequestCountByOrgId.get(organization.id) || 0,
+            pending_game_reviews: pendingGameCountByOrgId.get(organization.id) || 0,
+            pending_event_reviews: pendingEventCountByOrgId.get(organization.id) || 0,
+          },
+        }))
+      );
+    } catch (err) {
+      console.error('[organizations] GET /mine/review-summaries error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
+
+organizationsRouter.get(
   '/mine',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
@@ -688,6 +821,297 @@ organizationsRouter.get(
       return res.json(list);
     } catch (err) {
       console.error('[organizations] GET /:id/members error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
+
+organizationsRouter.get(
+  '/:id/admin-summary',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const userId = req.user!.id;
+
+      const [organization, membership, isPlatformAdmin] = await Promise.all([
+        prisma.organization.findUnique({
+          where: { id },
+          include: {
+            _count: { select: { followers: true, teams: true } },
+          },
+        }),
+        prisma.organizationMembership.findUnique({
+          where: {
+            organization_id_user_id: {
+              organization_id: id,
+              user_id: userId,
+            } as any,
+          },
+          select: { role: true, status: true },
+        }),
+        isCurrentUserPlatformAdmin(req),
+      ]);
+
+      if (!organization) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+
+      const activeMembershipRole =
+        membership?.status === 'active' ? String(membership.role || '').toLowerCase() : null;
+      const canManage =
+        isPlatformAdmin || activeMembershipRole === 'owner' || activeMembershipRole === 'manager';
+      const canReviewCoachRequests = isPlatformAdmin || activeMembershipRole === 'owner';
+
+      if (!canManage) {
+        return res.status(403).json({ error: 'Only organization admins can access organization tools' });
+      }
+
+      const now = new Date();
+
+      const teams = await prisma.team.findMany({
+        where: { organization_id: id },
+        orderBy: { name: 'asc' },
+        take: 200,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          sport: true,
+          season: true,
+          season_start: true,
+          season_end: true,
+          status: true,
+          logo_url: true,
+          avatar_url: true,
+          created_at: true,
+          _count: {
+            select: {
+              memberships: true,
+              followers: true,
+            },
+          },
+        },
+      });
+      const teamIds = teams.map(team => team.id);
+
+      const [
+        members,
+        pendingAuthorizedInvites,
+        pendingCoachRequests,
+        pendingGames,
+        pendingEvents,
+        upcomingGames,
+        upcomingEvents,
+      ] = await Promise.all([
+        prisma.organizationMembership.findMany({
+          where: { organization_id: id, status: 'active' },
+          orderBy: [{ role: 'asc' }, { created_at: 'asc' }],
+          take: 500,
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                display_name: true,
+                username: true,
+                avatar_url: true,
+                preferences: true,
+              },
+            },
+          },
+        }),
+        prisma.organizationInvite.findMany({
+          where: { organization_id: id, status: 'pending' },
+          orderBy: { created_at: 'desc' },
+          take: 100,
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            status: true,
+            created_at: true,
+          },
+        }),
+        canReviewCoachRequests
+          ? prisma.organizationJoinRequest.findMany({
+              where: { organization_id: id, status: 'pending' },
+              orderBy: { created_at: 'desc' },
+              take: 100,
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    display_name: true,
+                    username: true,
+                    avatar_url: true,
+                    email: true,
+                    approval_status: true,
+                  },
+                },
+              },
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.game.findMany({
+              where: {
+                approval_status: 'pending',
+                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              },
+              orderBy: { created_at: 'desc' },
+              take: 50,
+              select: {
+                id: true,
+                title: true,
+                date: true,
+                location: true,
+                event_type: true,
+                approval_status: true,
+                home_team_id: true,
+                away_team_id: true,
+                home_team: true,
+                away_team: true,
+                created_by: {
+                  select: {
+                    id: true,
+                    display_name: true,
+                    username: true,
+                    avatar_url: true,
+                  },
+                },
+              },
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.event.findMany({
+              where: {
+                approval_status: 'pending',
+                game_id: null,
+                team_id: { in: teamIds },
+              },
+              orderBy: { created_at: 'desc' },
+              take: 50,
+              select: {
+                id: true,
+                title: true,
+                date: true,
+                location: true,
+                event_type: true,
+                approval_status: true,
+                team_id: true,
+                creator: {
+                  select: {
+                    id: true,
+                    display_name: true,
+                    username: true,
+                    avatar_url: true,
+                  },
+                },
+              },
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.game.findMany({
+              where: {
+                approval_status: 'approved',
+                date: { gte: now },
+                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              },
+              orderBy: { date: 'asc' },
+              take: 12,
+              select: {
+                id: true,
+                title: true,
+                date: true,
+                location: true,
+                event_type: true,
+                home_team_id: true,
+                away_team_id: true,
+                home_team: true,
+                away_team: true,
+              },
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.event.findMany({
+              where: {
+                approval_status: 'approved',
+                game_id: null,
+                date: { gte: now },
+                team_id: { in: teamIds },
+              },
+              orderBy: { date: 'asc' },
+              take: 12,
+              select: {
+                id: true,
+                title: true,
+                date: true,
+                location: true,
+                event_type: true,
+                team_id: true,
+              },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      return res.json({
+        organization: serializeOrganization(organization, {
+          includeCounts: true,
+          includeTeams: false,
+          includeViewerState: false,
+        }),
+        permissions: {
+          can_manage: canManage,
+          can_review_coach_requests: canReviewCoachRequests,
+          membership_role: activeMembershipRole,
+          is_platform_admin: isPlatformAdmin,
+        },
+        counts: {
+          teams: organization._count?.teams ?? teams.length,
+          members: members.length,
+          followers: organization._count?.followers ?? 0,
+          pending_authorized_invites: pendingAuthorizedInvites.length,
+          pending_coach_requests: pendingCoachRequests.length,
+          pending_game_reviews: pendingGames.length,
+          pending_event_reviews: pendingEvents.length,
+          upcoming_games: upcomingGames.length,
+          upcoming_events: upcomingEvents.length,
+        },
+        teams: teams.map(team => ({
+          ...team,
+          members_count: team._count.memberships,
+          followers_count: team._count.followers,
+        })),
+        members: members.map(member => {
+          const prefs = (member.user?.preferences || {}) as any;
+          return {
+            id: member.id,
+            role: member.role,
+            status: member.status,
+            created_at: member.created_at,
+            user: {
+              id: member.user?.id,
+              email: member.user?.email || null,
+              display_name: member.user?.display_name,
+              username: member.user?.username,
+              avatar_url: member.user?.avatar_url,
+              is_parent: prefs?.is_parent === true,
+            },
+          };
+        }),
+        requests: {
+          authorized_invites: pendingAuthorizedInvites,
+          coach_requests: pendingCoachRequests,
+          pending_games: pendingGames,
+          pending_events: pendingEvents,
+        },
+        upcoming: {
+          games: upcomingGames,
+          events: upcomingEvents,
+        },
+      });
+    } catch (err) {
+      console.error('[organizations] GET /:id/admin-summary error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
   })
@@ -1380,6 +1804,68 @@ organizationsRouter.post(
         return res.status(err.status).json(err.body);
       }
       console.error('[organizations] POST /:id/invite error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
+
+organizationsRouter.post(
+  '/:id/invites/:inviteId/cancel',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const inviteId = String(req.params.inviteId);
+
+      const [membership, invite] = await Promise.all([
+        prisma.organizationMembership.findUnique({
+          where: {
+            organization_id_user_id: {
+              organization_id: id,
+              user_id: req.user!.id,
+            } as any,
+          },
+          select: { role: true, status: true },
+        }),
+        prisma.organizationInvite.findUnique({
+          where: { id: inviteId },
+          select: {
+            id: true,
+            organization_id: true,
+            status: true,
+            email: true,
+            role: true,
+          },
+        }),
+      ]);
+
+      if (!membership || membership.status !== 'active' || !isOrganizationAdmin(membership.role)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      if (!invite || invite.organization_id !== id || invite.status !== 'pending') {
+        return res.status(404).json({ error: 'Invite not found or not valid' });
+      }
+
+      const revoked = await prisma.organizationInvite.updateMany({
+        where: { id: inviteId, organization_id: id, status: 'pending' },
+        data: { status: 'revoked' },
+      });
+      if (revoked.count === 0) return res.status(409).json({ error: 'Invite already processed' });
+
+      return res.json({
+        message: 'Invite cancelled',
+        invite: {
+          id: invite.id,
+          email: invite.email,
+          role: invite.role,
+          status: 'revoked',
+        },
+      });
+    } catch (err) {
+      console.error('[organizations] POST /:id/invites/:inviteId/cancel error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
   })
@@ -2782,6 +3268,18 @@ async function joinRequestEmailReviewHandler(
         joinReviewHtml(
           'Request Not Found',
           '<h1>Request Not Found</h1><p>This coach join request no longer exists.</p>'
+        )
+      );
+  }
+
+  if (payload.orgId !== joinRequest.organization_id) {
+    return res
+      .status(401)
+      .send(
+        joinReviewHtml(
+          'Link Expired',
+          `<h1 style="color:#DC2626">Link Expired</h1><p>This ${linkLabel} link is no longer valid.</p>`,
+          '#DC2626'
         )
       );
   }

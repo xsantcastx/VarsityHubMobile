@@ -9,13 +9,18 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { getCoachAccessState, getPendingCoachRoute } from '@/utils/roleChecks';
+import {
+  getCoachAccessState,
+  getPendingCoachRoute,
+  type CoachUserLike,
+} from '@/utils/roleChecks';
 
 export function useRequireCoach() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const coachUser = user as CoachUserLike | null | undefined;
 
-  const coachAccess = useMemo(() => getCoachAccessState(user as any), [user]);
+  const coachAccess = useMemo(() => getCoachAccessState(coachUser), [coachUser]);
   const isCoach = coachAccess.isCoach;
   const isApprovedCoach = coachAccess.isApprovedCoach;
   const hasCurrentAgreement = coachAccess.hasCurrentCoachAgreement;
@@ -30,7 +35,7 @@ export function useRequireCoach() {
     // utils/appRouteDecisions.ts and utils/roleChecks.ts:getCoachRecoveryRoute
     // shipped in commit 7c875eb6 — this hook is the third routing path
     // and was missed in that pass. Send them back to /(tabs) instead.
-    if ((user as any)?.is_admin === true && (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)) {
+    if (coachUser?.is_admin === true && (coachAccess.isPendingCoach || coachAccess.isRejectedCoach)) {
       router.replace('/(tabs)');
       return;
     }
@@ -44,10 +49,10 @@ export function useRequireCoach() {
       coachAccess.hasAcceptedCoachAgreement &&
       coachAccess.acceptedCoachAgreementVersion < coachAccess.requiredCoachAgreementVersion;
     const needsAgreement = coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement;
-    const pendingRoute = getPendingCoachRoute(user as any);
+    const pendingRoute = getPendingCoachRoute(coachUser);
 
     if (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) {
-      router.replace(pendingRoute as any);
+      router.replace(pendingRoute as never);
       return;
     }
 
@@ -55,9 +60,9 @@ export function useRequireCoach() {
       router.replace({
         pathname: '/onboarding/coach-agreement',
         params: agreementOutdated ? { reason: 'outdated' } : undefined,
-      } as any);
+      } as never);
     }
-  }, [coachAccess, hasCurrentAgreement, isCoach, loading, router, user]);
+  }, [coachAccess, coachUser, hasCurrentAgreement, isCoach, loading, router, user]);
 
   return { isCoach, isApprovedCoach, canAccessCoachTools, loading };
 }

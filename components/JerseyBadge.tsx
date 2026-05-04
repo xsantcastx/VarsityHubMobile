@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Platform, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
 /**
  * Jersey badge component that displays a jersey number with customizable colors.
@@ -123,7 +123,9 @@ export function JerseyBadge({
           {
             fontSize: dimensions.fontSize,
             color: secondaryColor,
-            textShadowColor: accentColor,
+            ...(Platform.OS === 'web'
+              ? { textShadow: `1px 1px 2px ${accentColor}` }
+              : { textShadowColor: accentColor }),
           },
         ]}
       >
@@ -145,10 +147,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+        }),
     elevation: 5,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -156,8 +162,12 @@ const styles = StyleSheet.create({
   number: {
     fontWeight: '900',
     textAlign: 'center',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '1px 1px 2px rgba(0, 0, 0, 0.35)' }
+      : {
+          textShadowOffset: { width: 1, height: 1 },
+          textShadowRadius: 2,
+        }),
     letterSpacing: -0.5,
   },
   emoji: {

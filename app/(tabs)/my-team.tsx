@@ -6,7 +6,7 @@ import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,6 +14,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -48,6 +49,49 @@ type TeamMember = {
   jersey_number?: string;
   user: MemberUser;
 };
+
+type RawManagedTeam = {
+  id: string;
+  name?: string | null;
+  sport?: string | null;
+  avatar_url?: string | null;
+};
+
+type RawTeamMember = {
+  id: string;
+  role?: string | null;
+  status?: string | null;
+  position?: string | null;
+  custom_position?: string | null;
+  jersey_number?: string | null;
+  user?: {
+    id?: string | null;
+    email?: string | null;
+    display_name?: string | null;
+    avatar_url?: string | null;
+    username?: string | null;
+    is_parent?: boolean | null;
+  } | null;
+};
+
+type ApiErrorLike = {
+  message?: string;
+};
+
+function resolveNextSelectedTeamId(
+  teams: ManagedTeam[],
+  routeTeamId: string | null,
+  previousSelectedTeamId: string | null
+): string | null {
+  if (teams.length === 0) return null;
+  if (routeTeamId && teams.some(team => team.id === routeTeamId)) {
+    return routeTeamId;
+  }
+  if (previousSelectedTeamId && teams.some(team => team.id === previousSelectedTeamId)) {
+    return previousSelectedTeamId;
+  }
+  return teams[0].id;
+}
 
 const ROLE_OPTIONS = ['owner', 'manager', 'coach', 'assistant_coach', 'player', 'parent', 'member'] as const;
 type Role = (typeof ROLE_OPTIONS)[number];
@@ -84,6 +128,16 @@ function MyTeamScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const params = useLocalSearchParams<{ teamId?: string; fallback?: string; orgId?: string; orgTab?: string }>();
+
+  const routeTeamId =
+    typeof params.teamId === 'string' && params.teamId.trim().length > 0 ? params.teamId.trim() : null;
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : params.orgId
+        ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=${encodeURIComponent(params.orgTab || 'teams')}`
+        : '/organization?tab=teams';
 
   const [teams, setTeams] = useState<ManagedTeam[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -118,42 +172,47 @@ function MyTeamScreen() {
 
   // Guard: useRequireCoach hook handles redirect for non-coaches
 
-  const loadTeams = useCallback(async () => {
+  const loadTeams = useCallback(async (): Promise<string | null> => {
     try {
       setError(null);
-      const list: any[] = await TeamApi.managed();
-      const formatted: ManagedTeam[] = list.map((t: any) => ({
+      const list = (await TeamApi.managed()) as RawManagedTeam[];
+      const formatted: ManagedTeam[] = list.map((t) => ({
         id: String(t.id),
         name: String(t.name || 'Team'),
         sport: t.sport || undefined,
         avatar_url: t.avatar_url || undefined,
       }));
       setTeams(formatted);
-      // Auto-select first team if none selected or current selection is gone
-      if (formatted.length > 0) {
-        setSelectedTeamId((prev) => {
-          if (prev && formatted.some((t) => t.id === prev)) return prev;
-          return formatted[0].id;
-        });
-      } else {
+      const nextSelectedTeamId = resolveNextSelectedTeamId(
+        formatted,
+        routeTeamId,
+        selectedTeamId
+      );
+      setSelectedTeamId(nextSelectedTeamId);
+      if (!nextSelectedTeamId) {
         setSelectedTeamId(null);
         setMembers([]);
       }
-    } catch (e: any) {
+      return nextSelectedTeamId;
+    } catch (error: unknown) {
+      const e = error as ApiErrorLike;
       if (handleCoachAccessError(router, e, 'loading your teams')) {
-        return;
+        return null;
       }
       if (__DEV__) console.error('Failed to load teams:', e);
       setError('Unable to load teams.');
       setTeams([]);
+      setSelectedTeamId(null);
+      setMembers([]);
+      return null;
     }
-  }, []);
+  }, [routeTeamId, router, selectedTeamId]);
 
   const loadMembers = useCallback(async (teamId: string) => {
     try {
-      const list: any[] = await TeamApi.members(teamId);
+      const list = (await TeamApi.members(teamId)) as RawTeamMember[];
       setMembers(
-        list.map((m: any) => ({
+        list.map((m) => ({
           id: String(m.id),
           role: m.role || 'member',
           status: m.status || 'active',
@@ -169,24 +228,22 @@ function MyTeamScreen() {
           },
         })),
       );
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApiErrorLike;
       if (handleCoachAccessError(router, e, 'loading team members')) {
         return;
       }
       if (__DEV__) console.error('Failed to load members:', e);
       setMembers([]);
     }
-  }, []);
+  }, [router]);
 
   const loadAll = useCallback(async () => {
-    await loadTeams();
-  }, [loadTeams]);
-
-  // When selectedTeamId changes, load members
-  const loadMembersForSelected = useCallback(async () => {
-    if (!selectedTeamId) return;
-    await loadMembers(selectedTeamId);
-  }, [selectedTeamId, loadMembers]);
+    const nextSelectedTeamId = await loadTeams();
+    if (nextSelectedTeamId) {
+      await loadMembers(nextSelectedTeamId);
+    }
+  }, [loadMembers, loadTeams]);
 
   useFocusEffect(
     useCallback(() => {
@@ -195,14 +252,13 @@ function MyTeamScreen() {
     }, [loadAll]),
   );
 
-  // Reload members whenever team changes
-  useFocusEffect(
-    useCallback(() => {
-      if (selectedTeamId) {
-        void loadMembersForSelected();
-      }
-    }, [selectedTeamId, loadMembersForSelected]),
-  );
+  useEffect(() => {
+    if (!selectedTeamId) {
+      setMembers([]);
+      return;
+    }
+    void loadMembers(selectedTeamId);
+  }, [loadMembers, selectedTeamId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -220,7 +276,8 @@ function MyTeamScreen() {
         if (selectedTeamId) await loadMembers(selectedTeamId);
         setShowRoleModal(false);
         setSelectedMember(null);
-      } catch (e: any) {
+      } catch (error: unknown) {
+        const e = error as ApiErrorLike;
         if (handleCoachAccessError(router, e, 'updating team roles')) {
           return;
         }
@@ -229,7 +286,7 @@ function MyTeamScreen() {
         setMemberActionLoading(false);
       }
     },
-    [selectedMember, selectedTeamId, loadMembers, memberActionLoading],
+    [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router],
   );
 
   const handleUpdatePosition = useCallback(async () => {
@@ -241,7 +298,8 @@ function MyTeamScreen() {
       setShowPositionModal(false);
       setSelectedMember(null);
       setPositionInput('');
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApiErrorLike;
       if (handleCoachAccessError(router, e, 'updating team positions')) {
         return;
       }
@@ -249,7 +307,7 @@ function MyTeamScreen() {
     } finally {
       setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, positionInput, loadMembers, memberActionLoading]);
+  }, [selectedMember, selectedTeamId, positionInput, loadMembers, memberActionLoading, router]);
 
   const handleRemoveMember = useCallback(async () => {
     if (!selectedMember || memberActionLoading) return;
@@ -259,7 +317,8 @@ function MyTeamScreen() {
       if (selectedTeamId) await loadMembers(selectedTeamId);
       setShowRemoveModal(false);
       setSelectedMember(null);
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApiErrorLike;
       if (handleCoachAccessError(router, e, 'removing team members')) {
         return;
       }
@@ -267,7 +326,7 @@ function MyTeamScreen() {
     } finally {
       setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, loadMembers, memberActionLoading]);
+  }, [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router]);
 
   const handleInvite = useCallback(async () => {
     if (!selectedTeamId || !inviteEmail.trim()) return;
@@ -279,7 +338,8 @@ function MyTeamScreen() {
       setInviteEmail('');
       setInviteRole('player');
       await loadMembers(selectedTeamId);
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApiErrorLike;
       if (handleCoachAccessError(router, e, 'sending team invites')) {
         return;
       }
@@ -287,7 +347,7 @@ function MyTeamScreen() {
     } finally {
       setInviting(false);
     }
-  }, [selectedTeamId, inviteEmail, inviteRole, loadMembers]);
+  }, [selectedTeamId, inviteEmail, inviteRole, loadMembers, router]);
 
   const selectedTeam = teams.find((t) => t.id === selectedTeamId);
 
@@ -437,7 +497,7 @@ function MyTeamScreen() {
           title: 'My Team',
           headerShown: true,
           headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
@@ -914,10 +974,14 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.12,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 6,
   },
   modalTitle: {

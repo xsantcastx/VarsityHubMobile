@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import type { Href } from 'expo-router';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,12 +18,27 @@ import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 import { extractApiError } from '@/utils/apiErrors';
 
 type ParamValue = string | string[] | undefined;
+type VerificationRequestResponse = {
+  dev_verification_code?: string | null;
+};
+
+type ApiErrorLike = {
+  status?: number;
+  response?: {
+    status?: number;
+  };
+};
 
 const toSingleValue = (value: ParamValue): string | undefined => {
   if (Array.isArray(value)) {
     return value[0];
   }
   return value;
+};
+
+const getErrorStatus = (value: unknown): number | null => {
+  const error = value as ApiErrorLike | null | undefined;
+  return error?.status ?? error?.response?.status ?? null;
 };
 
 function VerifyScreen() {
@@ -49,13 +65,13 @@ function VerifyScreen() {
     confirmCode: (code: string) => User.verifyEmail(code),
     autoFinishOnVerified: false,
     resendCooldownSeconds: 60,
-    getRequestSuccessState: (res: any) => ({
+    getRequestSuccessState: (res: VerificationRequestResponse) => ({
       info: __DEV__ && res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent',
       cooldownSeconds: 60,
     }),
-    getConfirmErrorMessage: (e: any) =>
+    getConfirmErrorMessage: (e: unknown) =>
       extractApiError(e, 'Verification failed').message,
-    getRequestErrorMessage: (e: any) =>
+    getRequestErrorMessage: (e: unknown) =>
       extractApiError(e, 'Resend failed').message,
     onVerified: async () => {
       await checkAuth().catch(() => {});
@@ -67,10 +83,10 @@ function VerifyScreen() {
         const userInfo = await User.me();
         const targetRoute = getPostAuthLandingRoute(userInfo);
         redirectTimerRef.current = setTimeout(() => {
-          router.replace(targetRoute as any);
+          router.replace(targetRoute as Href);
         }, 3000);
-      } catch (meErr: any) {
-        const status = meErr?.status ?? meErr?.response?.status ?? null;
+      } catch (meErr) {
+        const status = getErrorStatus(meErr);
         if (status === 401 || status === 403) {
           setScreenError('Your session expired. Please sign in again.');
           redirectTimerRef.current = setTimeout(() => router.replace('/sign-in'), 2000);
@@ -80,42 +96,43 @@ function VerifyScreen() {
       }
     },
   });
+  const { code, error, info, loading, resend, resendCooldown, setCode, verify } = gate;
 
   // Require exactly 6-digit code for email verification
-  const codeValid = gate.code.trim().length === 6;
-  const canVerify = !gate.loading && codeValid;
-  const isResendDisabled = gate.loading || gate.resendCooldown > 0;
+  const codeValid = code.trim().length === 6;
+  const canVerify = !loading && codeValid;
+  const isResendDisabled = loading || resendCooldown > 0;
 
   // Load dev code from params if available
   useEffect(() => {
     const fromParams = toSingleValue(params.devCode);
     if (fromParams) {
       setDevCode(fromParams);
-      gate.setCode(fromParams);
+      setCode(fromParams);
     }
-  }, [gate.setCode, params.devCode]);
+  }, [params.devCode, setCode]);
 
   const onVerify = async () => {
     setScreenError(null);
     setScreenInfo(null);
-    await gate.verify();
+    await verify();
   };
 
   const onResend = async () => {
     setScreenError(null);
     setScreenInfo(null);
-    await gate.resend();
+    await resend();
   };
 
   const onContinue = async () => {
     try {
       const userInfo = await User.me();
-      router.replace(getPostAuthLandingRoute(userInfo) as any);
-    } catch (err: any) {
+      router.replace(getPostAuthLandingRoute(userInfo) as Href);
+    } catch (err) {
       // v1.0.2 pass 12: distinguish auth errors (401/403) from transient network
       // failures. Previously every error dumped the user into step-1-role even
       // when onboarding was already complete — see the onVerify handler above.
-      const status = err?.status ?? err?.response?.status ?? null;
+      const status = getErrorStatus(err);
       if (status === 401 || status === 403) {
         setScreenError('Your session expired. Please sign in again.');
         router.replace('/sign-in');
@@ -160,8 +177,8 @@ function VerifyScreen() {
           We sent a 6-digit verification code to your email address.
         </Text>
         
-        {screenError || gate.error ? <Text style={styles.error}>{screenError || gate.error}</Text> : null}
-        {screenInfo || gate.info ? <Text style={styles.info}>{screenInfo || gate.info}</Text> : null}
+        {screenError || error ? <Text style={styles.error}>{screenError || error}</Text> : null}
+        {screenInfo || info ? <Text style={styles.info}>{screenInfo || info}</Text> : null}
         
         {devCode ? (
           <View style={styles.devCodeContainer}>
@@ -174,15 +191,15 @@ function VerifyScreen() {
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
           <Input
             placeholder="Enter 6-digit code"
-            value={gate.code}
+            value={code}
             onChangeText={(t: string) => {
               const cleaned = t.replace(/[^0-9]/g, '');
-              gate.setCode(cleaned);
+              setCode(cleaned);
               // v1.0.2: auto-submit at 6 digits so users aren't stuck (parity with verify.tsx)
               if (cleaned.length === 6) {
                 setTimeout(() => {
                   Keyboard.dismiss();
-                  if (!gate.loading && !isVerified) {
+                  if (!loading && !isVerified) {
                     void onVerify();
                   }
                 }, 150);
@@ -190,7 +207,7 @@ function VerifyScreen() {
             }}
             returnKeyType="done"
             onSubmitEditing={() => {
-              if (gate.code.trim().length >= 6 && !gate.loading && !isVerified) void onVerify();
+              if (code.trim().length >= 6 && !loading && !isVerified) void onVerify();
             }}
             keyboardType="number-pad"
             maxLength={6}
@@ -204,7 +221,7 @@ function VerifyScreen() {
           </Button>
         ) : (
           <Button onPress={onVerify} disabled={!canVerify} style={styles.verifyButton}>
-            {gate.loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
+            {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
           </Button>
         )}
         
@@ -219,7 +236,7 @@ function VerifyScreen() {
                   isResendDisabled && styles.linkTextDisabled
                 ]}
               >
-                {gate.resendCooldown > 0 ? `Resend in ${gate.resendCooldown}s` : 'Resend Code'}
+                {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
               </Text>
             </Pressable>
           </View>

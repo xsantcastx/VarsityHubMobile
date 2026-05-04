@@ -186,6 +186,7 @@ export async function notifyPendingEventReviewers(
         reviewerName: recipient.displayName,
         requesterName: params.requesterName || 'VarsityHub User',
         requesterEmail: params.requesterEmail || '',
+        includeRequesterEmail: recipient.source === 'admin_fallback',
         eventTitle: params.eventTitle,
         eventType: params.eventType || undefined,
         teamName: params.teamName || undefined,

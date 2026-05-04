@@ -6,6 +6,7 @@ import {
     ActivityIndicator,
     Alert,
     Modal,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -779,10 +780,14 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     zIndex: 1000,
     elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.15)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.15,
+          shadowRadius: 12,
+        }),
   },
   dropdownContent: {
     padding: 8,

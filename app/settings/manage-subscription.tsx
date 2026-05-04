@@ -74,9 +74,9 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       if (me?.paid_by_owner) {
         try {
           const { Organization } = await import('@/api/entities');
-          const orgs: any = await Organization.mine();
-          if (Array.isArray(orgs) && orgs.length > 0) {
-            setOwnerLeagueName(orgs[0].name || null);
+          const summaries: any = await Organization.reviewSummaries();
+          if (Array.isArray(summaries) && summaries.length > 0) {
+            setOwnerLeagueName(summaries[0]?.organization?.name || null);
           }
         } catch { /* ignore */ }
       }

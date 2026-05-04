@@ -201,6 +201,16 @@ const genericHandoffRoutes: Array<{ path: string; title: string; description: st
     description: 'Open VarsityHub with a coach or admin account to review this event.',
   },
   {
+    path: '/organization',
+    title: 'Open Organization Tools',
+    description: 'Open VarsityHub to continue in organization tools.',
+  },
+  {
+    path: '/approvals',
+    title: 'Open Organization Requests',
+    description: 'Open VarsityHub to review organization requests.',
+  },
+  {
     path: '/organization-join-requests',
     title: 'Open Join Requests',
     description: 'Open VarsityHub to review this organization join request.',

@@ -17,7 +17,7 @@
     "diagnose:metro": "bash scripts/diagnose-metro.sh",
     "diagnose:env": "node scripts/check-env-alignment.js",
     "web:playwright": "cross-env CI=1 NODE_OPTIONS=--max-old-space-size=8192 RCT_METRO_PORT=8081 EXPO_PUBLIC_API_URL=http://localhost:4000 EXPO_PUBLIC_FORCE_REMOTE_API=0 EXPO_PUBLIC_NODE_ENV=development expo start --web --non-interactive",
-    "web:playwright:ci": "cross-env CI=1 EXPO_NO_DOTENV=1 NODE_OPTIONS=--max-old-space-size=8192 RCT_METRO_PORT=8081 EXPO_PUBLIC_API_URL=http://localhost:4000 EXPO_PUBLIC_FORCE_REMOTE_API=0 EXPO_PUBLIC_NODE_ENV=development expo start --web --port 8081",
+    "web:playwright:ci": "cross-env CI=1 NODE_OPTIONS=--max-old-space-size=8192 RCT_METRO_PORT=8081 EXPO_PUBLIC_API_URL=http://localhost:4000 EXPO_PUBLIC_FORCE_REMOTE_API=0 EXPO_PUBLIC_NODE_ENV=development expo start --web --port 8081",
     "start:ci": "cross-env CI=1 expo start --port 19001",
     "web:ci": "cross-env CI=1 expo start --web --port 9500",
     "android:ci": "cross-env CI=1 expo start --android --port 19002",
@@ -192,7 +192,7 @@
   "overrides": {
     "react-native-safe-area-context": "5.6.2",
     "undici": "^6.24.0",
-    "fast-xml-parser": "5.5.7",
+    "fast-xml-parser": "5.7.1",
     "@tootallnate/once": "3.0.1",
     "node-forge": "^1.4.0",
     "brace-expansion": "^2.0.0",
@@ -204,6 +204,7 @@
     "yaml": "^2.8.3",
     "@xmldom/xmldom": "0.8.13",
     "postcss": "8.5.12",
+    "uuid": "^14.0.0",
     "lodash": ">=4.18.0",
     "axios": ">=1.15.0",
     "follow-redirects": ">=1.15.12"

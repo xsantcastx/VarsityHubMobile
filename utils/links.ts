@@ -93,6 +93,18 @@ export const AppLinks = {
   },
 
   /**
+   * Generate shareable link for an organization public page
+   */
+  organization: (id: string, orgName?: string): ShareableLink => {
+    const webUrl = `${WEB_BASE_URL}/organizations/${id}`;
+    const deepLink = `${APP_SCHEME}://organizations/${id}`;
+    const shareMessage = orgName
+      ? `Check out ${orgName} on VarsityHub!\n${webUrl}`
+      : `Check out this organization on VarsityHub!\n${webUrl}`;
+    return { webUrl, deepLink, shareMessage };
+  },
+
+  /**
    * Generate invite link for organization
    */
   organizationInvite: (orgId: string, orgName?: string): ShareableLink => {

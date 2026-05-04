@@ -22,6 +22,9 @@ const MOBILE_SERVICE_TAG = 'mobile';
 let sentryReady = false;
 const SENSITIVE_BREADCRUMB_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
 const MAX_BREADCRUMB_VALUE_LENGTH = 160;
+const MAX_CONTEXT_DEPTH = 3;
+const MAX_CONTEXT_KEYS = 25;
+const MAX_CONTEXT_ARRAY_ITEMS = 10;
 
 export function initSentry() {
   const dsn = SENTRY_DSN;
@@ -129,13 +132,18 @@ export function captureException(error: Error | unknown, context?: Record<string
       const { tags, ...rest } = context;
       if (tags && typeof tags === 'object' && !Array.isArray(tags)) {
         Object.entries(tags).forEach(([key, value]) => {
-          if (value !== undefined && value !== null) {
+          if (
+            value !== undefined &&
+            value !== null &&
+            !SENSITIVE_BREADCRUMB_KEY_RE.test(key)
+          ) {
             scope.setTag(key, String(value));
           }
         });
       }
-      if (Object.keys(rest).length > 0) {
-        scope.setContext('custom', rest);
+      const sanitizedContext = sanitizeContextData(rest);
+      if (sanitizedContext && Object.keys(sanitizedContext).length > 0) {
+        scope.setContext('custom', sanitizedContext);
       }
     }
     scope.setTag('platform', Platform.OS);
@@ -177,6 +185,53 @@ function normalizeBreadcrumbData(data?: Record<string, any>) {
       : normalizeBreadcrumbValue(value);
   }
   return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function sanitizeContextValue(value: unknown, depth = 0): unknown {
+  if (value == null || typeof value === 'boolean') return value ?? null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 'non-finite';
+  if (typeof value === 'string') {
+    return value.length > MAX_BREADCRUMB_VALUE_LENGTH
+      ? `${value.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
+      : value;
+  }
+  if (depth >= MAX_CONTEXT_DEPTH) {
+    return normalizeBreadcrumbValue(value);
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, MAX_CONTEXT_ARRAY_ITEMS).map(item => sanitizeContextValue(item, depth + 1));
+  }
+  if (typeof value === 'object') {
+    const sanitized = Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .slice(0, MAX_CONTEXT_KEYS)
+        .filter(([, nestedValue]) => typeof nestedValue !== 'undefined')
+        .map(([key, nestedValue]) => [
+          key,
+          SENSITIVE_BREADCRUMB_KEY_RE.test(key)
+            ? '[redacted]'
+            : sanitizeContextValue(nestedValue, depth + 1),
+        ])
+    );
+    return Object.keys(sanitized).length > 0 ? sanitized : '[empty-object]';
+  }
+  return normalizeBreadcrumbValue(value);
+}
+
+function sanitizeContextData(data?: Record<string, any>) {
+  if (!data) return undefined;
+
+  const sanitized = Object.fromEntries(
+    Object.entries(data)
+      .slice(0, MAX_CONTEXT_KEYS)
+      .filter(([, value]) => typeof value !== 'undefined')
+      .map(([key, value]) => [
+        key,
+        SENSITIVE_BREADCRUMB_KEY_RE.test(key) ? '[redacted]' : sanitizeContextValue(value),
+      ])
+  );
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
 }
 
 export function captureBreadcrumb(

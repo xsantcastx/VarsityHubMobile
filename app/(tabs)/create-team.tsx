@@ -8,7 +8,6 @@ import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { captureBreadcrumb } from '@/utils/sentry';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +27,38 @@ type TeamLimitSummary = {
   remaining?: number;
   subscription_tier?: string;
   upgrade_required?: boolean;
+};
+
+type ApiErrorLike = {
+  message?: string;
+  code?: string;
+  status?: number;
+  data?: {
+    code?: string;
+    error?: string;
+  };
+  response?: {
+    status?: number;
+  };
+};
+
+type UserOrgPreference = {
+  plan?: string | null;
+  pending_plan?: string | null;
+  payment_pending?: boolean | null;
+  payment_approved?: boolean | null;
+  subscription_tier?: string | null;
+  preferences?: {
+    organization_id?: string | null;
+    role?: string | null;
+    plan?: string | null;
+    pending_plan?: string | null;
+    payment_pending?: boolean | null;
+    payment_approved?: boolean | null;
+  };
+  _count?: {
+    teams?: number;
+  };
 };
 
 const normalizePlanTier = (tier?: string | null) => {
@@ -87,16 +118,16 @@ function CreateTeamScreen() {
   
   // Predefined team colors
   const teamColors = [
-    { name: 'Red', value: '#DC2626' },
-    { name: 'Blue', value: '#2563EB' },
-    { name: 'Green', value: '#16A34A' },
-    { name: 'Purple', value: '#9333EA' },
-    { name: 'Orange', value: '#EA580C' },
-    { name: 'Yellow', value: '#EAB308' },
-    { name: 'Navy', value: '#1E3A8A' },
-    { name: 'Maroon', value: '#7F1D1D' },
-    { name: 'Black', value: '#0F172A' },
-    { name: 'Gold', value: '#F59E0B' },
+    { name: 'Red', hex: '#DC2626' },
+    { name: 'Blue', hex: '#2563EB' },
+    { name: 'Green', hex: '#16A34A' },
+    { name: 'Purple', hex: '#9333EA' },
+    { name: 'Orange', hex: '#EA580C' },
+    { name: 'Yellow', hex: '#EAB308' },
+    { name: 'Navy', hex: '#1E3A8A' },
+    { name: 'Maroon', hex: '#7F1D1D' },
+    { name: 'Black', hex: '#0F172A' },
+    { name: 'Gold', hex: '#F59E0B' },
   ];
 
   // Organization search inside modal
@@ -110,7 +141,11 @@ function CreateTeamScreen() {
     orgSearchTimer.current = setTimeout(async () => {
       setOrgSearching(true);
       try {
-        const results: any = await Organization.list(text.trim(), 20);
+        const results = (await Organization.list(text.trim(), 20)) as Array<{
+          id: string;
+          name: string;
+          description?: string;
+        }> | null;
         setOrgSearchResults(Array.isArray(results) ? results : []);
       } catch {
         setOrgSearchResults([]);
@@ -135,9 +170,9 @@ function CreateTeamScreen() {
   // Pre-populate org from coach's profile if they have one
   useEffect(() => {
     if (selectedOrgId) return; // Already selected
-    (async () => {
+    void (async () => {
       try {
-        const me: any = await User.me();
+        const me = (await User.me()) as UserOrgPreference | null;
         const orgId = me?.preferences?.organization_id;
         if (orgId) {
           const { Organization } = await import('@/api/entities');
@@ -149,7 +184,7 @@ function CreateTeamScreen() {
         }
       } catch { /* ignore — user may not have an org yet */ }
     })();
-  }, []);
+  }, [selectedOrgId]);
 
   // Auto-suggest year based on season selection
   const getSuggestedYear = (seasonName: string) => {
@@ -256,8 +291,9 @@ function CreateTeamScreen() {
         const summary: TeamLimitSummary = await Team.limits();
         if (!mounted) return;
         setTeamLimits(summary);
-      } catch (err: any) {
+      } catch (error: unknown) {
         if (!mounted) return;
+        const err = error as ApiErrorLike;
         setTeamLimits(null);
         const status = err?.status ?? err?.response?.status;
         const message =
@@ -298,7 +334,7 @@ function CreateTeamScreen() {
     try {
       let user;
       try { 
-        user = await User.me(); 
+        user = (await User.me()) as UserOrgPreference | null; 
       } catch { 
         Alert.alert('Sign in required', 'Please sign in to create a team.'); 
         setSubmitting(false); 
@@ -356,8 +392,9 @@ function CreateTeamScreen() {
                   try {
                     // Update subscription quantity before creating the team
                     await Subscriptions.updateQuantity(newTeamCount);
-                    await proceedWithTeamCreation(user);
-                  } catch (err: any) {
+                      await proceedWithTeamCreation();
+                  } catch (error: unknown) {
+                    const err = error as ApiErrorLike;
                     if (__DEV__) console.error('Failed to update subscription:', err);
                     Alert.alert('Error', err?.message || 'Failed to update subscription. Please try again or contact support.');
                     setSubmitting(false);
@@ -373,9 +410,10 @@ function CreateTeamScreen() {
       }
       
       // For non-coaches or Legend plan, proceed directly
-      await proceedWithTeamCreation(user);
+      await proceedWithTeamCreation();
       
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApiErrorLike;
       if (__DEV__) console.error('Team creation error:', e);
       if (e?.data?.code === 'COACH_AGREEMENT_REQUIRED' || e?.code === 'COACH_AGREEMENT_REQUIRED') {
         Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating teams.', [
@@ -398,7 +436,7 @@ function CreateTeamScreen() {
     }
   };
 
-  const proceedWithTeamCreation = async (_user?: any) => {
+  const proceedWithTeamCreation = async () => {
     try {
       let logoUrl = null;
       
@@ -428,25 +466,30 @@ function CreateTeamScreen() {
       
       const response = await Team.create(teamData);
       const createdTeam = response?.team || response;
-      // v1.0.2 pass 9: if API returns malformed response (no id), don't trap user on a dead button.
-      // Fall back to manage-teams which will show the freshly-created team in its list.
+      // Keep the fallback on the canonical org-admin surface even if the
+      // create response comes back without a usable team id.
       const teamId = createdTeam?.id ? String(createdTeam.id) : null;
       Alert.alert('Success!', 'Your team has been created successfully.', [
         {
           text: 'View Team',
           onPress: () => {
             if (teamId) {
-              router.push({ pathname: '/team-page', params: { id: teamId } } as any);
+              router.push({ pathname: '/team-page', params: { id: teamId } } as never);
             } else {
-              if (__DEV__) console.warn('[create-team] API returned no team.id — falling back to manage-teams');
-              // v1.0.2 pass 10: explicit (tabs) prefix — both /app/manage-teams.tsx and
-              // /app/(tabs)/manage-teams.tsx exist; ambiguous route would land on the wrong one.
-              router.replace('/(tabs)/manage-teams' as any);
+              if (__DEV__) console.warn('[create-team] API returned no team.id — falling back to organization tools');
+              router.replace({
+                pathname: '/organization',
+                params: {
+                  ...(selectedOrgId ? { id: selectedOrgId } : {}),
+                  tab: 'teams',
+                },
+              } as never);
             }
           },
         },
       ]);
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApiErrorLike;
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);
       if (e?.data?.code === 'COACH_AGREEMENT_REQUIRED' || e?.code === 'COACH_AGREEMENT_REQUIRED') {
         Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating teams.', [
@@ -472,10 +515,14 @@ function CreateTeamScreen() {
 
   if (coachLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-        <Stack.Screen options={{ title: 'Create Team', headerShown: false }} />
-        <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
-      </SafeAreaView>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['bottom']}
+        children={[
+          <Stack.Screen key="loading-screen-options" options={{ title: 'Create Team', headerShown: false }} />,
+          <ActivityIndicator key="loading-spinner" style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />,
+        ]}
+      />
     );
   }
 
@@ -493,592 +540,809 @@ function CreateTeamScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Create Team', headerShown: false }} />
-      
-      <KeyboardAwareScreen 
-        style={{ flex: 1 }} 
+      <KeyboardAwareScreen
+        style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => safeGoBack(router)}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Create Team</Text>
-          <View style={{ width: 32 }} />
-        </View>
-
-        {/* Intro Card */}
-        <View style={[styles.introCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-          <LinearGradient colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']} style={styles.introIcon}>
-            <MaterialIcons name="group" size={28} color="#fff" />
-          </LinearGradient>
-          <Text style={[styles.introTitle, { color: Colors[colorScheme].text }]}>
-            Start Your Team
-          </Text>
-          <Text style={[styles.introSubtitle, { color: Colors[colorScheme].mutedText }]}>
-            Create a team to organize players, schedule games, and manage your season.
-          </Text>
-        </View>
-
-        {/* Plan Limit Summary */}
-        {!limitsLoading && (teamLimits || limitsError) && (
+        children={[
           <View
-            style={[
-              styles.limitCard,
-              { 
-                borderColor: limitReached ? '#F97316' : Colors[colorScheme].border,
-                backgroundColor: limitReached ? '#FEF3C7' : Colors[colorScheme].surface
-              }
+            key="content-stack"
+            children={[
+          <View
+            key="header"
+            style={[styles.header, { paddingTop: 12 + insets.top }]}
+            children={[
+              <Pressable
+                key="header-back"
+                style={styles.backButton}
+                onPress={() => safeGoBack(router)}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                children={[
+                  <MaterialIcons key="header-back-icon" name="arrow-back" size={24} color={Colors[colorScheme].text} />,
+                ]}
+              />,
+              <Text key="header-title" style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Create Team</Text>,
+              <View key="header-spacer" style={{ width: 32 }} />,
             ]}
-          >
-            <View style={styles.limitHeader}>
-              <Text style={[styles.limitBadge, { backgroundColor: Colors[colorScheme].tint + '15', color: Colors[colorScheme].tint }]}>
-                {planBadgeText}
-              </Text>
-              {limitReached && Platform.OS !== 'ios' && (
-                <Pressable onPress={() => router.push('/subscription-paywall')} style={styles.limitUpgradeLink} accessibilityRole="button" accessibilityLabel="View subscription plans">
-                  <MaterialIcons name="arrow-circle-right" size={18} color={Colors[colorScheme].tint} />
-                  <Text style={[styles.limitUpgradeText, { color: Colors[colorScheme].tint }]}>View plans</Text>
-                </Pressable>
-              )}
-            </View>
-            {teamLimits ? (
-              <>
-                <Text style={[styles.limitTitle, { color: Colors[colorScheme].text }]}>
-                  {limitReached
-                    ? 'Team limit reached'
-                    : `You have created ${teamLimits.owned_teams ?? 0} of ${maxTeamsLabel} teams`}
-                </Text>
-                <Text style={[styles.limitDescription, { color: Colors[colorScheme].mutedText }]}>
-                  {limitReached
-                    ? (Platform.OS === 'ios' ? "You've reached the maximum number of teams." : 'Upgrade your plan to add more teams and authorized staff.')
-                    : remainingCount === null
-                      ? 'Unlimited teams on this plan.'
-                      : `${remainingCount} team${remainingCount === 1 ? '' : 's'} remaining on your plan.`}
-                </Text>
-              </>
-            ) : (
-              <Text style={[styles.limitDescription, { color: Colors[colorScheme].mutedText }]}>
-                {limitsError}
-              </Text>
-            )}
-          </View>
-        )}
+          />,
 
-        {/* Form Fields */}
-        <View style={styles.formSection}>
-          {/* Team Name */}
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-              Team Name <Text style={{ color: Colors[colorScheme].destructive }}>*</Text>
-            </Text>
-            <View style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <MaterialIcons name="emoji-events" size={20} color={Colors[colorScheme].mutedText} />
-              <TextInput
-                value={name}
-                onChangeText={(text) => { setName(text); setNameError(''); }}
-                placeholder="e.g. Springfield Eagles"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                style={[styles.textInput, { color: Colors[colorScheme].text }]}
-                accessibilityLabel="Team name"
-                returnKeyType="done"
-              />
-            </View>
-            {nameError ? <Text style={{ color: '#EF4444', fontSize: 13, marginTop: 4 }}>{nameError}</Text> : null}
-          </View>
+          <View
+            key="intro-card"
+            style={[styles.introCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+            children={[
+              <LinearGradient
+                key="intro-icon"
+                colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']}
+                style={styles.introIcon}
+                children={[
+                  <MaterialIcons key="intro-icon-glyph" name="group" size={28} color="#fff" />,
+                ]}
+              />,
+              <Text key="intro-title" style={[styles.introTitle, { color: Colors[colorScheme].text }]}>
+                Start Your Team
+              </Text>,
+              <Text key="intro-subtitle" style={[styles.introSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                Create a team to organize players, schedule games, and manage your season.
+              </Text>,
+            ]}
+          />,
 
-          {/* Team Logo */}
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Team Logo</Text>
-            <View style={styles.logoSection}>
-              <Pressable
-                style={[styles.logoContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-                onPress={showImagePicker}
-                accessibilityRole="button"
-                accessibilityLabel={logoUri ? "Change team logo" : "Add team logo"}
-              >
-                {logoUri ? (
-                  <Image source={{ uri: logoUri }} style={styles.logoImage} />
-                ) : (
-                  <>
-                    <MaterialIcons name="camera-alt" size={32} color={Colors[colorScheme].mutedText} />
-                    <Text style={[styles.logoPlaceholderText, { color: Colors[colorScheme].mutedText }]}>
-                      Add Logo
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-              <View style={styles.logoActions}>
-                <Pressable
-                  style={[styles.logoActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-                  onPress={showImagePicker}
-                  accessibilityRole="button"
-                  accessibilityLabel={logoUri ? "Change logo" : "Add logo"}
-                >
-                  <MaterialIcons name="add" size={20} color="#fff" />
-                  <Text style={styles.logoActionText}>
-                    {logoUri ? 'Change' : 'Add Logo'}
+          !limitsLoading && (teamLimits || limitsError) ? (
+            <View
+              key="limit-card"
+              style={[
+                styles.limitCard,
+                {
+                  borderColor: limitReached ? '#F97316' : Colors[colorScheme].border,
+                  backgroundColor: limitReached ? '#FEF3C7' : Colors[colorScheme].surface
+                }
+              ]}
+              children={[
+                <View
+                  key="limit-header"
+                  style={styles.limitHeader}
+                  children={[
+                    <Text key="limit-badge" style={[styles.limitBadge, { backgroundColor: Colors[colorScheme].tint + '15', color: Colors[colorScheme].tint }]}>
+                      {planBadgeText}
+                    </Text>,
+                    limitReached && Platform.OS !== 'ios' ? (
+                      <Pressable
+                        key="limit-cta"
+                        onPress={() => router.push('/subscription-paywall')}
+                        style={styles.limitUpgradeLink}
+                        accessibilityRole="button"
+                        accessibilityLabel="View subscription plans"
+                        children={[
+                          <MaterialIcons key="limit-cta-icon" name="arrow-circle-right" size={18} color={Colors[colorScheme].tint} />,
+                          <Text key="limit-cta-label" style={[styles.limitUpgradeText, { color: Colors[colorScheme].tint }]}>View plans</Text>,
+                        ]}
+                      />
+                    ) : null,
+                  ]}
+                />,
+                teamLimits ? (
+                  <Text key="limit-title" style={[styles.limitTitle, { color: Colors[colorScheme].text }]}>
+                    {limitReached
+                      ? 'Team limit reached'
+                      : `You have created ${teamLimits.owned_teams ?? 0} of ${maxTeamsLabel} teams`}
                   </Text>
-                </Pressable>
-                {logoUri && (
-                  <Pressable
-                    style={[styles.logoActionButton, { backgroundColor: '#EF4444' }]}
-                    onPress={() => setLogoUri(null)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Remove logo"
-                  >
-                    <MaterialIcons name="delete-outline" size={20} color="#fff" />
-                    <Text style={styles.logoActionText}>Remove</Text>
-                  </Pressable>
-                )}
-              </View>
-            </View>
-            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
-              Upload a square logo (PNG or JPG) for your team. This will be displayed on games and team profiles.
-            </Text>
-          </View>
+                ) : null,
+                teamLimits ? (
+                  <Text key="limit-description" style={[styles.limitDescription, { color: Colors[colorScheme].mutedText }]}>
+                    {limitReached
+                      ? (Platform.OS === 'ios' ? "You've reached the maximum number of teams." : 'Upgrade your plan to add more teams and authorized staff.')
+                      : remainingCount === null
+                        ? 'Unlimited teams on this plan.'
+                        : `${remainingCount} team${remainingCount === 1 ? '' : 's'} remaining on your plan.`}
+                  </Text>
+                ) : (
+                  <Text key="limit-error" style={[styles.limitDescription, { color: Colors[colorScheme].mutedText }]}>
+                    {limitsError}
+                  </Text>
+                ),
+              ]}
+            />
+          ) : null,
 
-          {/* Club Type Selection */}
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Team Type</Text>
-            <View style={styles.clubTypeContainer}>
-              <Pressable
-                style={[
-                  styles.clubTypeButton,
-                  {
-                    backgroundColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                    borderColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].border
-                  }
-                ]}
-                onPress={() => {
-                  setClubType('sport');
-                  setExtracurricularCategory('');
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Sport Team"
-                accessibilityState={{ selected: clubType === 'sport' }}
-              >
-                <MaterialIcons name="sports-football" size={20} color={clubType === 'sport' ? '#fff' : Colors[colorScheme].text} />
-                <Text style={[
-                  styles.clubTypeText,
-                  { color: clubType === 'sport' ? '#fff' : Colors[colorScheme].text }
-                ]}>
-                  Sport Team
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.clubTypeButton,
-                  {
-                    backgroundColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                    borderColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                    opacity: (teamLimits?.subscription_tier || 'rookie').toLowerCase() === 'legend' ? 1 : 0.5
-                  }
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Extracurricular Club"
-                accessibilityState={{ selected: clubType === 'extracurricular' }}
-                onPress={async () => {
-                  const userPlan = (teamLimits?.subscription_tier || 'rookie').toLowerCase();
-                  if (userPlan !== 'legend') {
-                    Alert.alert(
-                      'Legend Plan Required',
-                      'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($20/year). Upgrade to create clubs beyond sports teams.',
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Upgrade to Legend',
-                          onPress: () => router.push('/subscription-paywall'),
-                          style: 'default'
-                        }
-                      ]
-                    );
-                    return;
-                  }
-                  setClubType('extracurricular');
-                  setSport('');
-                }}
-              >
-                <MaterialIcons name="school" size={20} color={clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text} />
-                <Text style={[
-                  styles.clubTypeText,
-                  { color: clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text }
-                ]}>
-                  Extracurricular Club
-                </Text>
-                {(teamLimits?.subscription_tier || 'rookie').toLowerCase() !== 'legend' && (
-                  <View style={styles.legendBadge}>
-                    <Text style={styles.legendBadgeText}>LEGEND</Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-            {clubType === 'extracurricular' && (
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Club Category</Text>
-                <View style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <MaterialIcons name="local-library" size={20} color={Colors[colorScheme].mutedText} />
-                  <TextInput
-                    value={extracurricularCategory}
-                    onChangeText={setExtracurricularCategory}
-                    placeholder="e.g. Theater, Chess, Debate, Robotics"
-                    placeholderTextColor={Colors[colorScheme].mutedText}
-                    style={[styles.textInput, { color: Colors[colorScheme].text }]}
-                    accessibilityLabel="Club category"
-                  />
-                </View>
-              </View>
-            )}
-          </View>
+          <View
+            key="form-section"
+            style={styles.formSection}
+            children={[
+            <View
+              key="team-name-group"
+              style={styles.fieldGroup}
+              children={[
+                <Text key="team-name-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                  Team Name <Text style={{ color: Colors[colorScheme].destructive }}>*</Text>
+                </Text>,
+                <View
+                  key="team-name-input-wrapper"
+                  style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                  children={[
+                    <MaterialIcons key="team-name-icon" name="emoji-events" size={20} color={Colors[colorScheme].mutedText} />,
+                    <TextInput
+                      key="team-name-input"
+                      value={name}
+                      onChangeText={(text) => { setName(text); setNameError(''); }}
+                      placeholder="e.g. Springfield Eagles"
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                      style={[styles.textInput, { color: Colors[colorScheme].text }]}
+                      accessibilityLabel="Team name"
+                      returnKeyType="done"
+                    />,
+                  ]}
+                />,
+                nameError ? <Text key="team-name-error" style={{ color: '#EF4444', fontSize: 13, marginTop: 4 }}>{nameError}</Text> : null,
+              ]}
+            />,
 
-          {/* Sport Selection (only for sport teams) */}
-          {clubType === 'sport' && (
-            <View style={styles.fieldGroup}>
-              <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Sport</Text>
-              <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
-                {sports.map((sportOption) => (
+            <View
+              key="team-logo-group"
+              style={styles.fieldGroup}
+              children={[
+                <Text key="team-logo-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Team Logo</Text>,
+                <View
+                  key="team-logo-section"
+                  style={styles.logoSection}
+                  children={[
+                    <Pressable
+                      key="logo-picker"
+                      style={[styles.logoContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                      onPress={showImagePicker}
+                      accessibilityRole="button"
+                      accessibilityLabel={logoUri ? "Change team logo" : "Add team logo"}
+                      children={
+                        logoUri ? (
+                          <Image source={{ uri: logoUri }} style={styles.logoImage} />
+                        ) : [
+                          <MaterialIcons key="logo-placeholder-icon" name="camera-alt" size={32} color={Colors[colorScheme].mutedText} />,
+                          <Text key="logo-placeholder-text" style={[styles.logoPlaceholderText, { color: Colors[colorScheme].mutedText }]}>
+                            Add Logo
+                          </Text>,
+                        ]
+                      }
+                    />,
+                    <View
+                      key="logo-actions"
+                      style={styles.logoActions}
+                      children={[
+                        <Pressable
+                          key="logo-add-button"
+                          style={[styles.logoActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+                          onPress={showImagePicker}
+                          accessibilityRole="button"
+                          accessibilityLabel={logoUri ? "Change logo" : "Add logo"}
+                          children={[
+                            <MaterialIcons key="logo-add-button-icon" name="add" size={20} color="#fff" />,
+                            <Text key="logo-add-button-text" style={styles.logoActionText}>
+                              {logoUri ? 'Change' : 'Add Logo'}
+                            </Text>,
+                          ]}
+                        />,
+                        logoUri ? (
+                          <Pressable
+                            key="logo-remove-button"
+                            style={[styles.logoActionButton, { backgroundColor: '#EF4444' }]}
+                            onPress={() => setLogoUri(null)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Remove logo"
+                            children={[
+                              <MaterialIcons key="logo-remove-icon" name="delete-outline" size={20} color="#fff" />,
+                              <Text key="logo-remove-text" style={styles.logoActionText}>Remove</Text>,
+                            ]}
+                          />
+                        ) : null,
+                      ]}
+                    />,
+                  ]}
+                />,
+                <Text key="team-logo-hint" style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+                  Upload a square logo (PNG or JPG) for your team. This will be displayed on games and team profiles.
+                </Text>,
+              ]}
+            />,
+
+            <View
+              key="club-type-group"
+              style={styles.fieldGroup}
+              children={[
+                <Text key="club-type-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Team Type</Text>,
+                <View
+                  key="club-type-options"
+                  style={styles.clubTypeContainer}
+                  children={[
                   <Pressable
-                    key={sportOption}
+                    key="sport-team-button"
                     style={[
-                      styles.chipButton,
+                      styles.clubTypeButton,
                       {
-                        backgroundColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                        borderColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].border
+                        backgroundColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                        borderColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].border
                       }
                     ]}
-                    onPress={() => setSport(sport === sportOption ? '' : sportOption)}
+                    onPress={() => {
+                      setClubType('sport');
+                      setExtracurricularCategory('');
+                    }}
                     accessibilityRole="button"
-                    accessibilityLabel={sportOption}
-                    accessibilityState={{ selected: sport === sportOption }}
-                  >
-                    <Text style={[
-                      styles.chipText,
-                      { color: sport === sportOption ? '#fff' : Colors[colorScheme].text }
-                    ]}>
-                      {sportOption}
-                    </Text>
-                  </Pressable>
-                ))}
-              </RNScrollView>
-              {sport === 'Other' && (
-                <TextInput
-                  style={{
-                    marginTop: 10,
-                    borderWidth: 1,
-                    borderRadius: 8,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    fontSize: 15,
-                    backgroundColor: Colors[colorScheme].surface,
-                    borderColor: Colors[colorScheme].border,
-                    color: Colors[colorScheme].text,
-                  }}
-                  value={customSport}
-                  onChangeText={setCustomSport}
-                  placeholder="Enter your sport name"
-                  placeholderTextColor={Colors[colorScheme].mutedText}
-                  accessibilityLabel="Custom sport name"
-                />
-              )}
-            </View>
-          )}
-
-          {/* Season Selection */}
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Season</Text>
-            
-            {/* Season Type Picker */}
-            <View style={styles.seasonGrid}>
-              {['Fall', 'Winter', 'Spring', 'Summer'].map((type) => (
-                <Pressable
-                  key={type}
-                  style={[
-                    styles.seasonButton,
-                    {
-                      backgroundColor: seasonType === type ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
-                      borderColor: seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].border
-                    }
+                    accessibilityLabel="Sport Team"
+                    accessibilityState={{ selected: clubType === 'sport' }}
+                    children={[
+                      <MaterialIcons key="sport-team-icon" name="sports-football" size={20} color={clubType === 'sport' ? '#fff' : Colors[colorScheme].text} />,
+                      <Text
+                        key="sport-team-text"
+                        style={[
+                          styles.clubTypeText,
+                          { color: clubType === 'sport' ? '#fff' : Colors[colorScheme].text }
+                        ]}
+                      >
+                        Sport Team
+                      </Text>,
+                    ]}
+                  />,
+                  <Pressable
+                    key="extracurricular-button"
+                    style={[
+                      styles.clubTypeButton,
+                      {
+                        backgroundColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                        borderColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                        opacity: (teamLimits?.subscription_tier || 'rookie').toLowerCase() === 'legend' ? 1 : 0.5
+                      }
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Extracurricular Club"
+                    accessibilityState={{ selected: clubType === 'extracurricular' }}
+                    onPress={async () => {
+                      const userPlan = (teamLimits?.subscription_tier || 'rookie').toLowerCase();
+                      if (userPlan !== 'legend') {
+                        Alert.alert(
+                          'Legend Plan Required',
+                          'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($20/year). Upgrade to create clubs beyond sports teams.',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Upgrade to Legend',
+                              onPress: () => router.push('/subscription-paywall'),
+                              style: 'default'
+                            }
+                          ]
+                        );
+                        return;
+                      }
+                      setClubType('extracurricular');
+                      setSport('');
+                    }}
+                    children={[
+                      <MaterialIcons key="extracurricular-icon" name="school" size={20} color={clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text} />,
+                      <Text
+                        key="extracurricular-text"
+                        style={[
+                          styles.clubTypeText,
+                          { color: clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text }
+                        ]}
+                      >
+                        Extracurricular Club
+                      </Text>,
+                      (teamLimits?.subscription_tier || 'rookie').toLowerCase() !== 'legend' ? (
+                        <View
+                          key="legend-badge"
+                          style={styles.legendBadge}
+                          children={[
+                            <Text key="legend-badge-text" style={styles.legendBadgeText}>LEGEND</Text>,
+                          ]}
+                        />
+                      ) : null,
+                    ]}
+                  />,
                   ]}
-                  onPress={() => handleSeasonTypeSelect(type)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${type} season`}
-                  accessibilityState={{ selected: seasonType === type }}
-                >
-                  <MaterialIcons 
-                    name="event" 
-                    size={16} 
-                    color={seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+                />,
+                clubType === 'extracurricular' ? (
+                  <View
+                    key="club-category-group"
+                    style={styles.fieldGroup}
+                    children={[
+                      <Text key="club-category-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Club Category</Text>,
+                      <View
+                        key="club-category-input-wrapper"
+                        style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                        children={[
+                          <MaterialIcons key="club-category-icon" name="local-library" size={20} color={Colors[colorScheme].mutedText} />,
+                          <TextInput
+                            key="club-category-input"
+                            value={extracurricularCategory}
+                            onChangeText={setExtracurricularCategory}
+                            placeholder="e.g. Theater, Chess, Debate, Robotics"
+                            placeholderTextColor={Colors[colorScheme].mutedText}
+                            style={[styles.textInput, { color: Colors[colorScheme].text }]}
+                            accessibilityLabel="Club category"
+                          />,
+                        ]}
+                      />,
+                    ]}
                   />
-                  <Text style={[
-                    styles.seasonButtonText,
-                    { color: seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].text }
-                  ]}>
-                    {type}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+                ) : null,
+              ]}
+            />,
 
-            {/* Year Input (editable) */}
-            {seasonType && (
-              <View style={[styles.yearInputContainer, { marginTop: 12 }]}>
-                <Text style={[styles.fieldLabelSmall, { color: Colors[colorScheme].mutedText }]}>Year</Text>
-                <View style={[styles.yearInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <TextInput
-                    value={seasonYear}
-                    onChangeText={setSeasonYear}
-                    placeholder="2025"
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    placeholderTextColor={Colors[colorScheme].mutedText}
-                    style={[styles.yearInputText, { color: Colors[colorScheme].text }]}
-                    accessibilityLabel="Season year"
-                  />
-                </View>
-                {season && (
-                  <Text style={[styles.seasonPreview, { color: Colors[colorScheme].mutedText }]}>
-                    Season: {season}
-                  </Text>
-                )}
-              </View>
-            )}
-          </View>
-
-          {/* Team Color Picker */}
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-              Team Color <Text style={{ color: Colors[colorScheme].destructive }}>*</Text>
-            </Text>
-            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 12 }]}>
-              Select your team's primary color for branding
-            </Text>
-            <View style={styles.colorGrid}>
-              {teamColors.map((color) => (
-                <Pressable
-                  key={color.value}
-                  style={[
-                    styles.colorButton,
-                    {
-                      backgroundColor: color.value,
-                      borderWidth: teamColor === color.value ? 3 : 0,
-                      borderColor: teamColor === color.value ? Colors[colorScheme].text : 'transparent',
-                    }
-                  ]}
-                  onPress={() => { Keyboard.dismiss(); setTeamColor(color.value); setColorError(''); }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${color.name} color`}
-                  accessibilityState={{ selected: teamColor === color.value }}
-                >
-                  {teamColor === color.value && (
-                    <MaterialIcons name="check" size={20} color="#fff" />
-                  )}
-                </Pressable>
-              ))}
-            </View>
-            {teamColor && (
-              <Text style={[styles.colorPreview, { color: Colors[colorScheme].mutedText }]}>
-                Selected: {teamColors.find(c => c.value === teamColor)?.name}
-              </Text>
-            )}
-            {colorError ? <Text style={{ color: '#EF4444', fontSize: 13, marginTop: 4 }}>{colorError}</Text> : null}
-          </View>
-
-          {/* Organization/School Name */}
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
-            <Pressable
-              onPress={() => {
-                Keyboard.dismiss();
-                setOrgModalSearch('');
-                setOrgSearchResults([]);
-                setShowOrgPicker(true);
-              }}
-              style={[styles.textInput, {
-                backgroundColor: Colors[colorScheme].surface,
-                borderColor: selectedOrgId ? Colors[colorScheme].tint : organizationName ? Colors[colorScheme].border : Colors[colorScheme].border,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }]}
-              accessibilityRole="button"
-              accessibilityLabel={organizationName ? `Selected organization: ${organizationName}` : "Select a school or organization"}
-            >
-              <Text
-                style={{
-                  color: organizationName ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
-                  fontSize: 15,
-                  flex: 1,
-                }}
-                numberOfLines={1}
-              >
-                {organizationName || 'Select a school or organization'}
-              </Text>
-              <MaterialIcons name="arrow-drop-down" size={24} color={Colors[colorScheme].mutedText} />
-            </Pressable>
-            {selectedOrgId && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
-                <MaterialIcons name="check-circle" size={16} color={Colors[colorScheme].tint} />
-                <Text style={{ color: Colors[colorScheme].tint, fontSize: 13, fontWeight: '600' }}>Linked to existing organization</Text>
-                <Pressable onPress={() => { setSelectedOrgId(null); setOrganizationName(''); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove selected organization">
-                  <MaterialIcons name="close" size={16} color={Colors[colorScheme].mutedText} />
-                </Pressable>
-              </View>
-            )}
-          </View>
-
-          {/* Description */}
-          <View style={styles.fieldGroup}>
-            <View style={styles.fieldLabelRow}>
-              <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Description</Text>
-              <Text style={[styles.charCount, { color: description.length > 500 ? Colors[colorScheme].destructive : Colors[colorScheme].mutedText }]}>
-                {description.length}/500
-              </Text>
-            </View>
-            <View style={[styles.textAreaContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border }]}>
-              <TextInput
-                value={description}
-                onChangeText={(text) => {
-                  if (text.length <= 500) {
-                    setDescription(text);
-                  }
-                }}
-                placeholder="Tell players what this team is about..."
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                style={[styles.textArea, { color: Colors[colorScheme].text }]}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                maxLength={500}
-                accessibilityLabel="Team description"
+            clubType === 'sport' ? (
+              <View
+                key="sport-group"
+                style={styles.fieldGroup}
+                children={[
+                  <Text key="sport-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Sport</Text>,
+                  <RNScrollView
+                    key="sport-options"
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 4 }}
+                    children={sports.map((sportOption) => (
+                      <Pressable
+                        key={sportOption}
+                        style={[
+                          styles.chipButton,
+                          {
+                            backgroundColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                            borderColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].border
+                          }
+                        ]}
+                        onPress={() => setSport(sport === sportOption ? '' : sportOption)}
+                        accessibilityRole="button"
+                        accessibilityLabel={sportOption}
+                        accessibilityState={{ selected: sport === sportOption }}
+                        children={[
+                          <Text
+                            key={`${sportOption}-text`}
+                            style={[
+                              styles.chipText,
+                              { color: sport === sportOption ? '#fff' : Colors[colorScheme].text }
+                            ]}
+                          >
+                            {sportOption}
+                          </Text>,
+                        ]}
+                      />
+                    ))}
+                  />,
+                  sport === 'Other' ? (
+                    <TextInput
+                      key="sport-other-input"
+                      style={{
+                        marginTop: 10,
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        fontSize: 15,
+                        backgroundColor: Colors[colorScheme].surface,
+                        borderColor: Colors[colorScheme].border,
+                        color: Colors[colorScheme].text,
+                      }}
+                      value={customSport}
+                      onChangeText={setCustomSport}
+                      placeholder="Enter your sport name"
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                      accessibilityLabel="Custom sport name"
+                    />
+                  ) : null,
+                ]}
               />
-            </View>
-          </View>
-        </View>
+            ) : null,
 
-        {/* Create Button */}
-        <View style={styles.actionSection}>
-          {limitReached && (
-            <View style={styles.limitWarning}>
-              <MaterialIcons name="error" size={18} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />
-              <Text style={styles.limitWarningText}>
-                {Platform.OS === 'ios'
-                  ? "You've reached the maximum number of teams."
-                  : `You've reached the ${planDisplayName} plan limit. Upgrade to create more teams.`}
-              </Text>
-            </View>
-          )}
-          <Pressable
-            style={[
-              styles.createButton,
-              {
-                backgroundColor: submitting || limitReached || !name.trim() ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
-                opacity: submitting || limitReached || !name.trim() ? 0.5 : 1
-              }
-            ]}
-            onPress={onSubmit}
-            disabled={submitting || limitReached || !name.trim()}
-            accessibilityRole="button"
-            accessibilityLabel={submitting ? "Creating team" : "Create team"}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <MaterialIcons name="check" size={20} color="#fff" />
-            )}
-            <Text style={styles.createButtonText}>
-              {submitting ? 'Creating Team...' : 'Create Team'}
-            </Text>
-          </Pressable>
-        </View>
-      </KeyboardAwareScreen>
+            <View
+              key="season-group"
+              style={styles.fieldGroup}
+              children={[
+                <Text key="season-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Season</Text>,
+                <View
+                  key="season-grid"
+                  style={styles.seasonGrid}
+                  children={['Fall', 'Winter', 'Spring', 'Summer'].map((type) => (
+                    <Pressable
+                      key={type}
+                      style={[
+                        styles.seasonButton,
+                        {
+                          backgroundColor: seasonType === type ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
+                          borderColor: seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].border
+                        }
+                      ]}
+                      onPress={() => handleSeasonTypeSelect(type)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${type} season`}
+                      accessibilityState={{ selected: seasonType === type }}
+                      children={[
+                        <MaterialIcons
+                          key={`${type}-icon`}
+                          name="event"
+                          size={16}
+                          color={seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].mutedText}
+                        />,
+                        <Text
+                          key={`${type}-text`}
+                          style={[
+                            styles.seasonButtonText,
+                            { color: seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].text }
+                          ]}
+                        >
+                          {type}
+                        </Text>,
+                      ]}
+                    />
+                  ))}
+                />,
+                seasonType ? (
+                  <View
+                    key="season-year-group"
+                    style={[styles.yearInputContainer, { marginTop: 12 }]}
+                    children={[
+                      <Text key="season-year-label" style={[styles.fieldLabelSmall, { color: Colors[colorScheme].mutedText }]}>Year</Text>,
+                      <View
+                        key="season-year-input-wrapper"
+                        style={[styles.yearInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                        children={[
+                          <TextInput
+                            key="season-year-input"
+                            value={seasonYear}
+                            onChangeText={setSeasonYear}
+                            placeholder="2025"
+                            keyboardType="number-pad"
+                            maxLength={4}
+                            placeholderTextColor={Colors[colorScheme].mutedText}
+                            style={[styles.yearInputText, { color: Colors[colorScheme].text }]}
+                            accessibilityLabel="Season year"
+                          />,
+                        ]}
+                      />,
+                      season ? (
+                        <Text key="season-preview" style={[styles.seasonPreview, { color: Colors[colorScheme].mutedText }]}>
+                          Season: {season}
+                        </Text>
+                      ) : null,
+                    ]}
+                  />
+                ) : null,
+              ]}
+            />,
 
-      {/* Organization Picker Modal */}
-      <Modal
-        visible={showOrgPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowOrgPicker(false)}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
-        <View style={styles.orgPickerOverlay}>
-          <View style={[styles.orgPickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
-            <View style={[styles.orgPickerHeader, { borderBottomColor: Colors[colorScheme].border }]}>
-              <Pressable onPress={() => { setShowOrgPicker(false); setOrgModalSearch(''); setOrgSearchResults([]); }} accessibilityRole="button" accessibilityLabel="Cancel">
-                <Text style={[styles.orgPickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
-              </Pressable>
-              <Text style={[styles.orgPickerTitle, { color: Colors[colorScheme].text }]}>Select Organization</Text>
-              <View style={{ width: 50 }} />
-            </View>
-            <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-              <View style={[styles.orgPickerSearchBar, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
-                <TextInput
-                  value={orgModalSearch}
-                  onChangeText={handleOrgModalSearch}
-                  placeholder="Search organizations..."
-                  placeholderTextColor={Colors[colorScheme].mutedText}
-                  style={[styles.orgPickerSearchInput, { color: Colors[colorScheme].text }]}
-                  autoFocus
-                  accessibilityLabel="Search organizations"
-                />
-                {orgSearching && (
-                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
-                )}
-              </View>
-            </View>
-            <RNScrollView style={styles.orgPickerList} keyboardShouldPersistTaps="handled">
-              {orgModalSearch.trim().length < 2 && orgSearchResults.length === 0 && (
-                <View style={styles.orgPickerEmpty}>
-                  <MaterialIcons name="business" size={40} color={Colors[colorScheme].mutedText} />
-                  <Text style={[styles.orgPickerEmptyText, { color: Colors[colorScheme].mutedText }]}>
-                    Type at least 2 characters to search
+            <View
+              key="team-color-group"
+              style={styles.fieldGroup}
+              children={[
+                <Text key="team-color-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                  Team Color <Text style={{ color: Colors[colorScheme].destructive }}>*</Text>
+                </Text>,
+                <Text key="team-color-hint" style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 12 }]}>
+                  Select your team's primary color for branding
+                </Text>,
+                <View
+                  key="team-color-grid"
+                  style={styles.colorGrid}
+                  children={teamColors.map((color) => (
+                    <Pressable
+                      key={color.hex}
+                      style={[
+                        styles.colorButton,
+                        {
+                          backgroundColor: color.hex,
+                          borderWidth: teamColor === color.hex ? 3 : 0,
+                          borderColor: teamColor === color.hex ? Colors[colorScheme].text : 'transparent',
+                        }
+                      ]}
+                      onPress={() => { Keyboard.dismiss(); setTeamColor(color.hex); setColorError(''); }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${color.name} color`}
+                      accessibilityState={{ selected: teamColor === color.hex }}
+                      children={
+                        teamColor === color.hex
+                          ? [<MaterialIcons key={`${color.hex}-check`} name="check" size={20} color="#fff" />]
+                          : []
+                      }
+                    />
+                  ))}
+                />,
+                teamColor ? (
+                  <Text key="team-color-preview" style={[styles.colorPreview, { color: Colors[colorScheme].mutedText }]}>
+                    Selected: {teamColors.find(c => c.hex === teamColor)?.name}
                   </Text>
-                </View>
-              )}
-              {orgModalSearch.trim().length >= 2 && !orgSearching && orgSearchResults.length === 0 && (
-                <View style={styles.orgPickerEmpty}>
-                  <Text style={[styles.orgPickerEmptyText, { color: Colors[colorScheme].mutedText }]}>
-                    No approved organizations found. Select an existing organization to continue.
-                  </Text>
-                </View>
-              )}
-              {orgSearchResults.map((org) => (
+                ) : null,
+                colorError ? <Text key="team-color-error" style={{ color: '#EF4444', fontSize: 13, marginTop: 4 }}>{colorError}</Text> : null,
+              ]}
+            />,
+
+            <View
+              key="organization-group"
+              style={styles.fieldGroup}
+              children={[
+                <Text key="org-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>,
                 <Pressable
-                  key={org.id}
-                  style={[
-                    styles.orgPickerItem,
-                    { borderBottomColor: Colors[colorScheme].border },
-                    selectedOrgId === org.id && { backgroundColor: Colors[colorScheme].surface }
-                  ]}
-                  onPress={() => handleSelectOrg(org)}
+                  key="org-picker-trigger"
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setOrgModalSearch('');
+                    setOrgSearchResults([]);
+                    setShowOrgPicker(true);
+                  }}
+                  style={[styles.textInput, {
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: selectedOrgId ? Colors[colorScheme].tint : organizationName ? Colors[colorScheme].border : Colors[colorScheme].border,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }]}
                   accessibilityRole="button"
-                  accessibilityLabel={`Select ${org.name}`}
-                >
-                  <View style={styles.orgPickerItemContent}>
-                    <MaterialIcons name="business" size={24} color={Colors[colorScheme].mutedText} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.orgPickerItemText, { color: Colors[colorScheme].text }]}>{org.name}</Text>
-                      {org.description ? (
-                        <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 12 }} numberOfLines={1}>{org.description}</Text>
-                      ) : null}
-                    </View>
-                  </View>
-                  {selectedOrgId === org.id && (
-                    <MaterialIcons name="check" size={20} color={Colors[colorScheme].tint} />
-                  )}
-                </Pressable>
-              ))}
-            </RNScrollView>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
+                  accessibilityLabel={organizationName ? `Selected organization: ${organizationName}` : 'Select a school or organization'}
+                  children={[
+                    <Text
+                      key="org-picker-label"
+                      style={{
+                        color: organizationName ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
+                        fontSize: 15,
+                        flex: 1,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {organizationName || 'Select a school or organization'}
+                    </Text>,
+                    <MaterialIcons key="org-picker-icon" name="arrow-drop-down" size={24} color={Colors[colorScheme].mutedText} />,
+                  ]}
+                />,
+                selectedOrgId ? (
+                  <View
+                    key="org-selected-row"
+                    style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}
+                    children={[
+                      <Text
+                        key="org-selected-label"
+                        style={{ color: Colors[colorScheme].tint, fontSize: 13, fontWeight: '600', flex: 1 }}
+                      >
+                        Linked to existing organization
+                      </Text>,
+                      <Pressable
+                        key="org-selected-remove"
+                        onPress={() => { setSelectedOrgId(null); setOrganizationName(''); }}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel="Remove selected organization"
+                        children={[
+                          <Text key="org-selected-remove-label" style={{ color: Colors[colorScheme].mutedText, fontSize: 16, lineHeight: 16 }}>Remove</Text>,
+                        ]}
+                      />,
+                    ]}
+                  />
+                ) : null,
+              ]}
+            />,
+
+            <View
+              key="description-group"
+              style={styles.fieldGroup}
+              children={[
+                <View
+                  key="description-header"
+                  style={styles.fieldLabelRow}
+                  children={[
+                    <Text key="description-label" style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Description</Text>,
+                    <Text key="description-count" style={[styles.charCount, { color: description.length > 500 ? Colors[colorScheme].destructive : Colors[colorScheme].mutedText }]}>
+                      {description.length}/500
+                    </Text>,
+                  ]}
+                />,
+                <View
+                  key="description-input-wrapper"
+                  style={[styles.textAreaContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border }]}
+                  children={[
+                    <TextInput
+                      key="description-input"
+                      value={description}
+                      onChangeText={(text) => {
+                        if (text.length <= 500) {
+                          setDescription(text);
+                        }
+                      }}
+                      placeholder="Tell players what this team is about..."
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                      style={[styles.textArea, { color: Colors[colorScheme].text }]}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                      maxLength={500}
+                      accessibilityLabel="Team description"
+                    />,
+                  ]}
+                />,
+              ]}
+            />,
+            ]}
+          />,
+
+          <View
+            key="action-section"
+            style={styles.actionSection}
+            children={[
+              limitReached ? (
+                <View
+                  key="limit-warning"
+                  style={styles.limitWarning}
+                  children={[
+                    <MaterialIcons key="limit-warning-icon" name="error" size={18} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />,
+                    <Text key="limit-warning-text" style={styles.limitWarningText}>
+                      {Platform.OS === 'ios'
+                        ? "You've reached the maximum number of teams."
+                        : `You've reached the ${planDisplayName} plan limit. Upgrade to create more teams.`}
+                    </Text>,
+                  ]}
+                />
+              ) : null,
+              <Pressable
+                key="create-button"
+                style={[
+                  styles.createButton,
+                  {
+                    backgroundColor: submitting || limitReached || !name.trim() ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
+                    opacity: submitting || limitReached || !name.trim() ? 0.5 : 1
+                  }
+                ]}
+                onPress={onSubmit}
+                disabled={submitting || limitReached || !name.trim()}
+                accessibilityRole="button"
+                accessibilityLabel={submitting ? "Creating team" : "Create team"}
+                children={[
+                  submitting ? (
+                    <ActivityIndicator key="create-button-spinner" color="#fff" size="small" />
+                  ) : (
+                    <MaterialIcons key="create-button-icon" name="check" size={20} color="#fff" />
+                  ),
+                  <Text key="create-button-label" style={styles.createButtonText}>
+                    {submitting ? 'Creating Team...' : 'Create Team'}
+                  </Text>,
+                ]}
+              />,
+            ]}
+          />,
+            ]}
+          />,
+        ]}
+      />
+
+      {showOrgPicker ? (
+        <Modal
+          key="org-picker-modal"
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowOrgPicker(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={0}
+            children={[
+              <View
+                key="org-picker-overlay"
+                style={styles.orgPickerOverlay}
+                children={[
+                  <View
+                    key="org-picker-container"
+                    style={[styles.orgPickerContainer, { backgroundColor: Colors[colorScheme].background }]}
+                    children={[
+                      <View
+                        key="org-picker-header"
+                        style={[styles.orgPickerHeader, { borderBottomColor: Colors[colorScheme].border }]}
+                        children={[
+                          <Pressable
+                            key="org-picker-cancel"
+                            onPress={() => { setShowOrgPicker(false); setOrgModalSearch(''); setOrgSearchResults([]); }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Cancel"
+                            children={[
+                              <Text key="org-picker-cancel-label" style={[styles.orgPickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>,
+                            ]}
+                          />,
+                          <Text key="org-picker-title" style={[styles.orgPickerTitle, { color: Colors[colorScheme].text }]}>Select Organization</Text>,
+                          <View key="org-picker-header-spacer" style={{ width: 50 }} />,
+                        ]}
+                      />,
+                      <View
+                        key="org-picker-search-section"
+                        style={{ paddingHorizontal: 16, paddingVertical: 12 }}
+                        children={[
+                          <View
+                            key="org-picker-search-bar"
+                            style={[styles.orgPickerSearchBar, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                            children={[
+                              <MaterialIcons key="org-picker-search-icon" name="search" size={20} color={Colors[colorScheme].mutedText} />,
+                              <TextInput
+                                key="org-picker-search-input"
+                                value={orgModalSearch}
+                                onChangeText={handleOrgModalSearch}
+                                placeholder="Search organizations..."
+                                placeholderTextColor={Colors[colorScheme].mutedText}
+                                style={[styles.orgPickerSearchInput, { color: Colors[colorScheme].text }]}
+                                autoFocus
+                                accessibilityLabel="Search organizations"
+                              />,
+                              orgSearching ? (
+                                <ActivityIndicator key="org-picker-search-spinner" size="small" color={Colors[colorScheme].tint} />
+                              ) : null,
+                            ]}
+                          />,
+                        ]}
+                      />,
+                      <RNScrollView
+                        key="org-picker-list"
+                        style={styles.orgPickerList}
+                        keyboardShouldPersistTaps="handled"
+                        children={[
+                          orgModalSearch.trim().length < 2 && orgSearchResults.length === 0 ? (
+                            <View
+                              key="org-picker-empty-initial"
+                              style={styles.orgPickerEmpty}
+                              children={[
+                                <MaterialIcons key="org-picker-empty-icon" name="business" size={40} color={Colors[colorScheme].mutedText} />,
+                                <Text key="org-picker-empty-label" style={[styles.orgPickerEmptyText, { color: Colors[colorScheme].mutedText }]}>
+                                  Type at least 2 characters to search
+                                </Text>,
+                              ]}
+                            />
+                          ) : null,
+                          orgModalSearch.trim().length >= 2 && !orgSearching && orgSearchResults.length === 0 ? (
+                            <View
+                              key="org-picker-empty-results"
+                              style={styles.orgPickerEmpty}
+                              children={[
+                                <Text key="org-picker-empty-results-label" style={[styles.orgPickerEmptyText, { color: Colors[colorScheme].mutedText }]}>
+                                  No approved organizations found. Select an existing organization to continue.
+                                </Text>,
+                              ]}
+                            />
+                          ) : null,
+                          ...orgSearchResults.map((org) => (
+                            <Pressable
+                              key={org.id}
+                              style={[
+                                styles.orgPickerItem,
+                                { borderBottomColor: Colors[colorScheme].border },
+                                selectedOrgId === org.id && { backgroundColor: Colors[colorScheme].surface }
+                              ]}
+                              onPress={() => handleSelectOrg(org)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Select ${org.name}`}
+                              children={[
+                                <View
+                                  key={`${org.id}-content`}
+                                  style={styles.orgPickerItemContent}
+                                  children={[
+                                    <MaterialIcons key={`${org.id}-icon`} name="business" size={24} color={Colors[colorScheme].mutedText} />,
+                                    <View
+                                      key={`${org.id}-text`}
+                                      style={{ flex: 1 }}
+                                      children={[
+                                        <Text key={`${org.id}-name`} style={[styles.orgPickerItemText, { color: Colors[colorScheme].text }]}>{org.name}</Text>,
+                                        org.description ? (
+                                          <Text key={`${org.id}-description`} style={{ color: Colors[colorScheme].mutedText, fontSize: 12 }} numberOfLines={1}>{org.description}</Text>
+                                        ) : null,
+                                      ]}
+                                    />,
+                                  ]}
+                                />,
+                                selectedOrgId === org.id ? (
+                                  <MaterialIcons key={`${org.id}-check`} name="check" size={20} color={Colors[colorScheme].tint} />
+                                ) : null,
+                              ]}
+                            />
+                          )),
+                        ]}
+                      />,
+                    ]}
+                  />,
+                ]}
+              />,
+            ]}
+          />
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1405,10 +1669,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.2,
+          shadowRadius: 4,
+        }),
   },
   colorPreview: {
     fontSize: 14,

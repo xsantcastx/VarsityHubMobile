@@ -1,136 +1,116 @@
-# Audit commandments (deck-friendly)
+# Audit Commandments
 
-One-page distillation of [AUDIT_METHODOLOGY.md](./AUDIT_METHODOLOGY.md). **Canonical detail, anchors, and tables live there.** Use this file for decks, onboarding, and quick PR self-checks.
+One-page summary of [`AUDIT_STANDARD.md`](./AUDIT_STANDARD.md). This file is
+for decks, onboarding, and quick self-checks. Canonical definitions live in the
+standard.
 
-Every line below is **testable**: the “pass signal” is how you know it held.
+## Rule Types
 
----
+| Type                     | What it means         |
+| ------------------------ | --------------------- |
+| **Audit step**           | Reviewer action       |
+| **Engineering standard** | Code structure rule   |
+| **Business rule**        | Product invariant     |
+| **Release gate**         | Merge or ship blocker |
 
-## Rule types (do not mix in one bullet)
+## Audit Framework
 
-| Type | Question it answers |
-| ---- | -------------------- |
-| **Audit step** | What did the reviewer actually check? |
-| **Engineering standard** | How must the code be structured? |
-| **Business rule** | What product invariant must stay true? |
-| **Release gate** | What must be true before merge or ship? |
+| Commandment                                 | Pass signal                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Map the full flow under review              | Written path: trigger → API → DB → async/webhook → final state                               |
+| Name one source of truth per critical state | Auth, payment, subscription, approval, membership, ownership each have one owner             |
+| Make trust boundaries explicit              | Client, admin, webhook, job, deep link, storage, third party all listed when touched         |
+| Touch the threat model every time           | Bypass, escalation, IDOR, spoofing, replay, drift, deep-link abuse, stale cache all answered |
+| Check validation drift                      | FE, BE, schema, and async side effects compared                                              |
+| Treat async flows as replayable             | Webhooks, retries, callbacks, jobs are idempotent                                            |
+| Findings need proof                         | Files, path, expected vs actual, fix direction, verification                                 |
+| Fixes need verification                     | Test, typecheck, script, log proof, or before/after reproduction                             |
 
----
+## Architecture Standards
 
-## Audit framework (full-system or targeted)
+| Commandment                     | Pass signal                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------- |
+| Thin routes, thick modules      | `app/` stays wrapper-oriented; logic lives in shared, feature, API, hook, or server modules |
+| Shared logic stays shared       | No new duplicated policy logic when a helper or middleware already exists                   |
+| Screens do not call raw `fetch` | Network calls route through `api/*` clients                                                 |
+| Use repo aliases consistently   | No deep relative imports across feature boundaries                                          |
+| Global state stays narrow       | Cross-cutting concerns only; no convenience global state for feature-local logic            |
 
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| Map end-to-end for each flow under review | Written path: UI or trigger → API → DB → async/webhook → third party → final persisted state |
-| One **source of truth** per critical state | Table or bullets naming owner for auth, payment, subscription, approval, membership |
-| **Trust boundaries** explicit | List: untrusted client, authed client, admin, webhook, job, storage; each crossing says what is revalidated |
-| **Threat model** touched | At least one line each on: bypass, escalation, IDOR, payment spoof, webhook replay, validation drift, deep-link abuse, silent security-weakening fallback |
-| **Validation drift** checked | FE vs BE vs schema vs async side effects; intentional deltas documented |
-| **Async idempotent** | Webhooks/retries/jobs safe to replay; no silent “complete” on failure |
-| **Findings have proof** | Affected files, exploit/failure path, expected vs actual, fix direction, verification |
-| **Fixes have verification** | Tests or grep anchor; before/after for security fixes; release risk called out |
+## Validation And Data Integrity
 
----
+| Commandment                             | Pass signal                                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------- |
+| Backend validation is law               | Protected fields rejected or ignored server-side                                      |
+| Frontend validation is guidance         | UI checks improve UX but do not enforce security                                      |
+| No client-owned critical state          | Clients cannot set payment, approval, privileged role, plan, or ownership             |
+| Ownership is explicit, not implied      | Org ownership and team authority come from persisted server state, not UI assumptions |
+| Privileged failures fail closed         | Missing or malformed params deny or safe-error, not silent success                    |
+| Public navigation fails gracefully      | Missing deep-link params do not trigger privileged side effects                       |
+| Drift is a bug until proven intentional | Any FE/BE/schema mismatch is documented or fixed                                      |
 
-## Architecture (this repo)
+## Auth, Roles, Permissions
 
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| Thin **Expo Router** files (`app/`) | Large logic lives in `api/`, `components/`, `hooks/`, `utils/`, `context/`, or `app/features/` |
-| Shared code reused | Imports use `@/api/*`, `@/components/*`, `@/hooks/*`, `@/features/*`, `@/shared/*` per `tsconfig.json`; no copy-paste helpers |
-| **No raw `fetch`** in screens | `grep 'fetch(' app/` trends toward zero; `api/` clients used |
+| Commandment                                 | Pass signal                                                           |
+| ------------------------------------------- | --------------------------------------------------------------------- |
+| Every protected action checks on the server | Auth, role, plan, ownership enforced in server code                   |
+| UI hiding is not enforcement                | Protected UI actions still fail server-side without permission        |
+| Policy should not be copy-pasted            | Shared helpers and middleware own recurring gate logic                |
+| Admin actions are auditable                 | Actor, target, action, and timestamp recorded somewhere authoritative |
+| Sensitive responses are sanitized           | No accidental token or unnecessary PII leakage                        |
 
----
+## Payments And Subscriptions
 
-## Validation and data integrity
+| Commandment                                              | Pass signal                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------ |
+| Paid state changes only on trusted server confirmation   | Success screens and query params are not the final source of truth |
+| Webhooks verify and dedupe                               | Signature validation and replay safety exist                       |
+| Success UI verifies backend state                        | Payment-success screens confirm server state                       |
+| Entitlements are derived server-side                     | Limits and billing quantities are not client-authored              |
+| Financial flows stay consistent on retries and reversals | Reject, refund, cancel, and replay paths preserve integrity        |
 
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| **Backend validation is law** | Protected fields rejected or stripped server-side |
-| **Frontend validation is guidance** | UX only; cannot be only line of defense for role/plan/payment/approval |
-| **No client-owned security state** | Request bodies cannot set plan, approval, privileged role, ownership |
-| **DB backs invariants** | Critical uniqueness / tenancy where Prisma/schema allows |
-| **Privileged: fail closed** | Bad/missing params → deny or safe error, not silent success |
-| **Public nav: fail gracefully** | Missing deep-link params → safe UI, no partial privileged writes |
+## Navigation And Deep Links
 
----
+| Commandment                                   | Pass signal                                          |
+| --------------------------------------------- | ---------------------------------------------------- |
+| Routes used by email, push, and OAuth resolve | Expo Router path exists and is smoke-testable        |
+| Required params are validated                 | Privileged work does not proceed on bad params       |
+| Wrappers stay stateless                       | Routing files do not hide business-state mutations   |
+| Back navigation stays safe                    | Fallback paths do not grow stacks or strand the user |
 
-## Auth, roles, permissions
+## UI Reliability
 
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| Every protected route checks **auth + role + plan + ownership** as applicable | Middleware + handler review; grep route tests |
-| **Server** enforces even if UI hides | Same checks in `server/src/routes/*` |
-| **Policy not copy-paste** | Prefer shared helpers/middleware over scattered `if (role)` |
-| **Admin actions auditable** | `adminActivityLogger` or equivalent for sensitive mutations |
-| **Sensitive responses sanitized** | No accidental token or PII in JSON |
+| Commandment                        | Pass signal                                               |
+| ---------------------------------- | --------------------------------------------------------- |
+| Async UI shows all four states     | Loading, success, error, empty are explicit               |
+| Forms block double submit          | `saving` / `isLoading` guards exist                       |
+| Errors are surfaced, not swallowed | No empty user-flow catches; user sees contextual recovery |
+| Async effects are unmount-safe     | Mounted guards or cancellation present where needed       |
+| Critical controls are accessible   | Labels, test IDs, and meaningful text are present         |
 
----
+## Testing And Release
 
-## Payments and subscriptions
+| Commandment                                | Pass signal                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| Critical flows have automated coverage     | Auth, onboarding, payments, team/org, deep links covered or tracked as debt |
+| Typecheck and guardrails stay green        | `tsc`, guardrail scripts, and regression suites pass when applicable        |
+| Security fixes prove before and after      | Reproduction or failure path documented pre/post fix                        |
+| Deploy-order changes are reversible        | Migration and rollback notes exist                                          |
+| Observability is part of release readiness | Logs or audit evidence are enough to debug changed critical flows           |
 
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| Paid state only after **trusted server** event | Webhook / verified session; tests or idempotency keys |
-| **Webhooks**: verify, log, retry-safe | Signature check + duplicate event handling |
-| **Success UI** verifies backend | Not query-string trust only; retry UX where applicable |
-| **Refund/reject/cancel** financially consistent | Status machine documented in code review |
-| **Pricing / entitlements server-side** | Client shows server-derived limits |
+## Ten Lines For Slides
 
----
-
-## Navigation and deep links
-
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| Push/email/OAuth routes **resolve** in Expo Router | Route exists; smoke or manual matrix |
-| **Params validated** before privileged work | Parser + error boundary |
-| **Wrappers stateless** for business rules | No hidden mutation in layout-only files |
-| **Back stack** safe | No unbounded stack on fallback paths |
-
----
-
-## UI / UX reliability
-
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| Async UI: **loading, error, success, empty** | Screen review / component tests |
-| **No double submit** | `disabled` / `isLoading` on primary actions |
-| **Errors surfaced** | No empty `catch {}` on user flows; user-readable message |
-| **Unmount-safe async** | Mounted guards or cancellation where needed |
-| **Accessibility** | `testID` / `accessibilityLabel` / image alt for critical flows (store and a11y policy) |
-
----
-
-## Testing and release
-
-| Commandment | Pass signal |
-| ----------- | ----------- |
-| Critical flows have **automated** coverage | Auth, onboarding, payment, org/team, deep links — tests exist or tracked debt |
-| **Typecheck + lint** green | CI or documented exception |
-| **Security fix**: repro before/after | PR description or linked issue |
-| **Migrations**: rollback notes | PR + `docs/release/` if schema changes |
-| **Real-device smoke** for risky releases | Auth, payments, messaging, dark mode — checklist ticked |
-
----
-
-## Ten lines for slides
-
-1. **Thin routes, thick modules** — `app/` stays navigational; logic in `api/` / shared dirs. *Pass: grep.*
-2. **Backend validation is law; frontend is guidance** — *Pass: schema + route review.*
-3. **No client-controlled security-critical state** — *Pass: body allowlists.*
-4. **One source of truth per domain object** — *Pass: written owner table.*
-5. **Every protected action checks auth, role, plan, ownership on the server** — *Pass: middleware + tests.*
-6. **Every async flow is idempotent** — *Pass: webhook + retry review.*
-7. **No silent failures in user or payment flows** — *Pass: logging + UI states.*
-8. **No duplicate security logic across routes** — *Pass: shared middleware/helpers.*
-9. **Every screen handles loading, error, success, and empty** — *Pass: UI review.*
-10. **Every admin action is auditable; every risky release is testable and reversible** — *Pass: logs + checklist.*
-
----
+1. **Map the real flow before judging the code.**
+2. **One source of truth per critical state.**
+3. **Backend validation is law; frontend validation is guidance.**
+4. **No client-controlled security-critical state.**
+5. **Ownership and team authority come from persisted server state.**
+6. **Every protected action checks auth, role, plan, and ownership on the server.**
+7. **Every async critical flow is idempotent.**
+8. **No silent fallback that weakens security posture.**
+9. **Every finding needs proof; every fix needs verification.**
+10. **Every risky release must be testable and reversible.**
 
 ## Related
 
-- [Audit methodology](./AUDIT_METHODOLOGY.md) — full standard
-- [Audit review gate](./AUDIT_REVIEW_GATE.md) — PR + release checklists
-- [Audit execution guide](./AUDIT_EXECUTION_GUIDE.md) — how to run an audit
+- [`AUDIT_STANDARD.md`](./AUDIT_STANDARD.md)
+- [`PR_CHECKLIST.md`](./PR_CHECKLIST.md)

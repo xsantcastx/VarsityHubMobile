@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router, type Response } from 'express';
@@ -903,8 +904,19 @@ authRouter.post(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
-    const { count } = await prisma.refreshToken.deleteMany({ where: { user_id: req.user!.id } });
-    return res.json({ ok: true, revoked: count });
+    const revoked = await prisma.$transaction(async tx => {
+      await tx.user.update({
+        where: { id: req.user!.id },
+        data: {
+          // Force every currently-issued access token to fail authMiddleware
+          // immediately, not just refresh tokens minted afterward.
+          session_epoch: { increment: 1 },
+        },
+      });
+      const { count } = await tx.refreshToken.deleteMany({ where: { user_id: req.user!.id } });
+      return count;
+    });
+    return res.json({ ok: true, revoked });
   })
 );
 
@@ -2501,8 +2513,8 @@ authRouter.put(
     await invalidateMeCacheForUser(req.user!.id);
 
     // v1.0.2 pass 9: rewrite @mentions in existing posts + comments so old @oldname becomes @newname.
-    // Fire-and-forget so the user's response isn't blocked. Uses raw SQL for case-insensitive
-    // word-boundary replace; safe because both names are validated against /^[a-z0-9_.]+$/.
+    // Fire-and-forget so the user's response isn't blocked. Keep the SQL text static and
+    // pass both handles as bound parameters so this request path never needs executeRawUnsafe.
     if (
       priorUsername &&
       data.username &&
@@ -2512,19 +2524,13 @@ authRouter.put(
       const newHandle = '@' + data.username;
       (async () => {
         try {
-          // Postgres regexp_replace with word boundaries — safe (no user-controlled regex)
-          await prisma.$executeRawUnsafe(
-            `UPDATE "Post" SET content = regexp_replace(content, '\\m' || $1 || '\\M', $2, 'g')
-           WHERE content ILIKE '%' || $1 || '%'`,
-            oldHandle,
-            newHandle
-          );
-          await prisma.$executeRawUnsafe(
-            `UPDATE "Comment" SET content = regexp_replace(content, '\\m' || $1 || '\\M', $2, 'g')
-           WHERE content ILIKE '%' || $1 || '%'`,
-            oldHandle,
-            newHandle
-          );
+          const mentionRewriteSql = (tableName: 'Post' | 'Comment') => Prisma.sql`
+            UPDATE ${Prisma.raw(`"${tableName}"`)}
+            SET content = regexp_replace(content, '\\m' || ${oldHandle} || '\\M', ${newHandle}, 'g')
+            WHERE content ILIKE '%' || ${oldHandle} || '%'
+          `;
+          await prisma.$executeRaw(mentionRewriteSql('Post'));
+          await prisma.$executeRaw(mentionRewriteSql('Comment'));
         } catch (err: any) {
           console.error(
             '[auth] mention rewrite after username change failed:',

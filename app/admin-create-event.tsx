@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    FlatList,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -17,9 +16,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-// @ts-ignore
-import { httpPost } from '@/api/http';
-import { Team } from '@/api/entities';
+import { Event, Game, Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
 import { sanitizeText } from '@/utils/formUtils';
@@ -37,6 +34,32 @@ const EVENT_TYPES = [
 ];
 
 type TeamResult = { id: string; name: string; sport?: string; logo_url?: string | null };
+type TeamListResponse = TeamResult[] | { items?: TeamResult[] };
+type EventCreatePayload = {
+  title: string;
+  description: string;
+  event_type: string;
+  location: string;
+  venue_address: string;
+  venue_place_id?: string;
+  date: string;
+  autoGeocode: boolean;
+  home_team_id?: string;
+  home_team?: string;
+  away_team_id?: string;
+  away_team?: string;
+  away_team_name?: string;
+};
+type EventCreateError = {
+  message?: string;
+  data?: {
+    error?: string;
+    issues?: Array<{
+      path?: Array<string | number> | string;
+      message?: string;
+    }>;
+  };
+};
 
 function CreateEventScreen() {
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
@@ -83,7 +106,9 @@ function CreateEventScreen() {
     timerRef.current = setTimeout(async () => {
       try {
         const res = await Team.list(query, false, { limit: 8 });
-        setResults(res.teams || res.data || []);
+        const parsed = res as TeamListResponse;
+        const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : []);
+        setResults(list);
       } catch { setResults([]); }
       finally { setSearching(false); }
     }, 300);
@@ -114,10 +139,13 @@ function CreateEventScreen() {
   }, []);
 
   useEffect(() => {
+    const locationTimer = locationTimerRef.current;
+    const homeTimer = homeTimerRef.current;
+    const awayTimer = awayTimerRef.current;
     return () => {
-      if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
-      if (homeTimerRef.current) clearTimeout(homeTimerRef.current);
-      if (awayTimerRef.current) clearTimeout(awayTimerRef.current);
+      if (locationTimer) clearTimeout(locationTimer);
+      if (homeTimer) clearTimeout(homeTimer);
+      if (awayTimer) clearTimeout(awayTimer);
     };
   }, []);
 
@@ -135,9 +163,7 @@ function CreateEventScreen() {
 
     setSubmitting(true);
     try {
-      // All admin events go through /games so they get a full event page
-      // with stories, polls, RSVP, and appear as cards in the feed
-      const gameData: Record<string, any> = {
+      const payload: EventCreatePayload = {
         title: sanitizeText(title),
         description: sanitizeText(description),
         event_type: eventType,
@@ -150,24 +176,29 @@ function CreateEventScreen() {
 
       // Add team info only if provided
       if (homeTeam) {
-        gameData.home_team_id = homeTeam.id;
-        gameData.home_team = homeTeam.name;
+        payload.home_team_id = homeTeam.id;
+        payload.home_team = homeTeam.name;
       }
       if (awayTeam) {
-        gameData.away_team_id = awayTeam.id;
-        gameData.away_team = awayTeam.name;
+        payload.away_team_id = awayTeam.id;
+        payload.away_team = awayTeam.name;
       }
       if (!awayTeam && awayTeamName.trim()) {
-        gameData.away_team_name = awayTeamName.trim();
-        gameData.away_team = awayTeamName.trim();
+        payload.away_team_name = awayTeamName.trim();
+        payload.away_team = awayTeamName.trim();
       }
 
-      await httpPost('/games', gameData);
+      if (isGameType) {
+        await Game.create(payload);
+      } else {
+        await Event.create(payload as never);
+      }
 
-      Alert.alert('Event Created!', 'Your event has been published and is visible to all users.', [
+      Alert.alert('Event Created!', 'Your event has been saved successfully.', [
         { text: 'OK', onPress: () => { safeGoBack(router); } },
       ]);
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as EventCreateError;
       if (isSessionExpiryError(e)) {
         return;
       }
@@ -175,7 +206,12 @@ function CreateEventScreen() {
       // Surface Zod validation details if available
       const issues = e?.data?.issues;
       if (issues && Array.isArray(issues)) {
-        errorMsg = issues.map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`).join('\n');
+        errorMsg = issues
+          .map((issue) => {
+            const issuePath = Array.isArray(issue.path) ? issue.path.join('.') : issue.path;
+            return `${issuePath || 'field'}: ${issue.message || 'Invalid value'}`;
+          })
+          .join('\n');
       }
       Alert.alert('Error', errorMsg);
     } finally {

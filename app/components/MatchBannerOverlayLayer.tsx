@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import { resolveMatchBannerPalette, type MatchBannerPalette, type ResolvePaletteInput } from '../../utils/resolveMatchBannerPalette';
 
 type Props = {
@@ -162,9 +162,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 10,
-    shadowColor: '#ffffff',
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 6px rgba(255, 255, 255, 0.35)' }
+      : {
+          shadowColor: '#ffffff',
+          shadowOpacity: 0.35,
+          shadowRadius: 6,
+        }),
   },
   sideStreakLeft: {
     position: 'absolute',
@@ -199,11 +203,14 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     opacity: 0.6,
     zIndex: 30,
-    shadowColor: '#fff',
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 12px rgba(255, 255, 255, 0.6)' }
+      : {
+          shadowColor: '#fff',
+          shadowOpacity: 0.6,
+          shadowRadius: 12,
+        }),
   },
 });
-
 
 

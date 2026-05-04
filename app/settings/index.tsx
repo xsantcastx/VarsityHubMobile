@@ -393,7 +393,6 @@ export default function SettingsScreen() {
         bio: me?.bio ?? prefsFromServer.bio ?? '',
         sports_interests: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
         primary_intents: prefsFromServer.primary_intents ?? [],
-        authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
       };
 
       // Previously we attempted to record onboarding history here, but the context no longer exposes that API.

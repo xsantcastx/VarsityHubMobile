@@ -14,6 +14,7 @@ import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Platform, Pr
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
+import type { TeamAdminSummaryResponse } from '@/api/schemas/team';
 import { useAuth } from '@/context/AuthProvider';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
@@ -21,9 +22,15 @@ import { getApiBaseUrl } from '@/api/http';
 function EditTeamScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; orgId?: string; orgTab?: string; fallback?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  const fallbackRoute =
+    typeof params.fallback === 'string' && params.fallback.trim().length > 0
+      ? params.fallback
+      : params.orgId
+        ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=${encodeURIComponent(params.orgTab || 'teams')}`
+        : '/organization?tab=teams';
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -58,7 +65,11 @@ function EditTeamScreen() {
     try {
       setLoading(true);
       if (!params.id) return;
-      const teamData = await Team.get(params.id);
+      const summary = (await Team.adminSummary(params.id)) as TeamAdminSummaryResponse;
+      const teamData = summary?.team;
+      if (!teamData) {
+        throw new Error('Team not found');
+      }
       setTeam(teamData);
       setName(teamData.name || '');
       setDescription(teamData.description || '');
@@ -67,69 +78,21 @@ function EditTeamScreen() {
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
       setIsPrivate(!!teamData.is_private);
 
-      // Check if current user can manage this team. Mirrors the server's
-      // canManageTeam: team staff role OR org owner/manager fallback.
-      // Load membership and org context in parallel so navigation into edit
-      // screens does not wait on serial round-trips.
-      const orgFromResponse = (teamData as any).organization;
-      try {
-        const [membersList, orgMembers, orgDetails] = await Promise.all([
-          Team.members(params.id),
-          teamData.organization_id && currentUser?.id
-            ? Organization.members(teamData.organization_id).catch((orgErr) => {
-                if (__DEV__) console.warn('[EditTeam] org membership check failed:', orgErr);
-                return [];
-              })
-            : Promise.resolve([]),
-          !orgFromResponse?.name && teamData.organization_id
-            ? Organization.get(teamData.organization_id).catch((err) => {
-                if (__DEV__) console.error('Failed to load organization:', err);
-                return null;
-              })
-            : Promise.resolve(null),
-        ]);
-        const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
-        setMembers(arr);
-        const STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'];
-        const myMembership = arr.find(
-          (m: any) => m.user_id === currentUser?.id || m.user?.id === currentUser?.id
-        );
-        const isTeamStaff =
-          !!myMembership && STAFF_ROLES.includes(String(myMembership.role || '').toLowerCase());
-
-        const orgArr = Array.isArray(orgMembers) ? orgMembers : (orgMembers?.members || []);
-        const myOrgMembership = orgArr.find(
-          (m: any) => (m.user_id || m.user?.id) === currentUser?.id
-        );
-        const myOrgRole = String(myOrgMembership?.role || '').toLowerCase();
-        const isOrgAdmin = ['owner', 'manager'].includes(myOrgRole);
-
-        if (!isTeamStaff && !isOrgAdmin) {
-          Alert.alert(
-            'Access Denied',
-            'You must be team staff or an organization admin to edit this team.'
-          );
-          safeGoBack(router);
-          return;
-        }
-        setIsOwner(myMembership?.role === 'owner');
-        setOrganizationName(orgFromResponse?.name || orgDetails?.name || '');
-      } catch (err) {
-        if (__DEV__) console.error('[EditTeam] Failed to load edit context:', err);
-        setOrganizationName(orgFromResponse?.name || '');
-      }
+      const memberList = Array.isArray(summary?.members) ? summary.members : [];
+      setMembers(memberList);
+      setIsOwner(String(summary?.permissions?.membership_role || '').toLowerCase() === 'owner');
+      setOrganizationName((teamData as any).organization?.name || '');
     } catch (error) {
       if (handleCoachAccessError(router, error, 'editing teams')) {
         return;
       }
       if (__DEV__) console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
-      safeGoBack(router);
+      safeGoBack(router, fallbackRoute);
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally excludes currentUser?.id to prevent re-fetching when auth state changes
-  }, [params.id, router]);
+  }, [fallbackRoute, params.id, router]);
 
   useEffect(() => {
     if (params?.id) {
@@ -292,7 +255,7 @@ function EditTeamScreen() {
         setOrganizationName(organizationId ? trimmedOrgName : '');
       }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
-        { text: 'OK', onPress: () => safeGoBack(router) }
+        { text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) }
       ]);
     } catch (e: any) {
       if (handleCoachAccessError(router, e, 'editing teams')) {
@@ -353,7 +316,7 @@ function EditTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => { safeGoBack(router); }}
+            onPress={() => { safeGoBack(router, fallbackRoute); }}
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
@@ -637,7 +600,7 @@ function EditTeamScreen() {
                                 setMemberSearch('');
                                 setIsOwner(false);
                                 Alert.alert('Ownership Transferred', `${displayName} is now the team owner.`, [
-                                  { text: 'OK', onPress: () => { safeGoBack(router); } }
+                                  { text: 'OK', onPress: () => { safeGoBack(router, fallbackRoute); } }
                                 ]);
                               } catch (e: any) {
                                 const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';

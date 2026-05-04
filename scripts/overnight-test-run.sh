@@ -54,6 +54,20 @@ echo "================================================="
     npm run test:smoke 2>&1 || echo "⚠️  E2E tests completed with failures"
 } 2>&1 | tee "$LOG_DIR/4-e2e-tests.log"
 
+# 5. Auth canary (optional, env-driven)
+echo ""
+echo "================================================="
+echo "Phase 5: Auth Canary"
+echo "================================================="
+{
+    if [ -n "${AUTH_CANARY_EMAIL:-}" ] && [ -n "${AUTH_CANARY_PASSWORD:-}" ]; then
+        echo "🔍 Running auth canary..."
+        AUTH_CANARY_REPORT_PATH="../$LOG_DIR/5-auth-canary-report.json" npm --prefix server run verify:auth-canary 2>&1 || echo "⚠️  Auth canary completed with failures"
+    else
+        echo "⚠️  AUTH_CANARY_EMAIL / AUTH_CANARY_PASSWORD not set, skipping auth canary"
+    fi
+} 2>&1 | tee "$LOG_DIR/5-auth-canary.log"
+
 echo ""
 echo "================================================="
 echo "Test Run Complete"

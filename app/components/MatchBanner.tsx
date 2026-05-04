@@ -340,9 +340,13 @@ const styles = StyleSheet.create({
     color: '#fff', // Always white on banner images
     fontWeight: '800',
     fontSize: 18,
-    textShadowColor: 'rgba(0,0,0,0.8)', // Shadow needed for readability on images
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 2px rgba(0, 0, 0, 0.8)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.8)', // Shadow needed for readability on images
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 2,
+        }),
     maxWidth: '48%'
   },
   teamNameLeft: {
@@ -471,9 +475,13 @@ const styles = StyleSheet.create({
   sideTitle: {
     color: '#fff',
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 6px rgba(0, 0, 0, 0.8)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.8)',
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 6,
+        }),
     maxWidth: 100,
   },
   vsTouchArea: {
@@ -507,9 +515,13 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 1,
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 6px rgba(0, 0, 0, 0.85)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.85)',
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 6,
+        }),
   },
   aggressiveLeftCompact: {
     fontSize: 20,
@@ -518,9 +530,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 28,
     fontWeight: '900',
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 2px 6px rgba(0, 0, 0, 0.85)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.85)',
+          textShadowOffset: { width: 0, height: 2 },
+          textShadowRadius: 6,
+        }),
   },
   aggressiveRightCompact: {
     fontSize: 16,
@@ -534,9 +550,13 @@ const styles = StyleSheet.create({
     top: -10,
     left: 12,
     zIndex: 40,
-    shadowColor: '#fff',
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 0px 6px rgba(255, 255, 255, 0.6)' }
+      : {
+          shadowColor: '#fff',
+          shadowOpacity: 0.6,
+          shadowRadius: 6,
+        }),
   },
   sparkle2: {
     position: 'absolute',

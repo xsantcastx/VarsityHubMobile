@@ -10,6 +10,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -2568,10 +2569,14 @@ const styles = StyleSheet.create({
   },
   championshipCard: {
     borderWidth: 2,
-    shadowColor: '#F59E0B',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(245, 158, 11, 0.25)' }
+      : {
+          shadowColor: '#F59E0B',
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 4,
   },
   matchupHeader: {

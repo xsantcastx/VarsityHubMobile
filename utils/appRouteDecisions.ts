@@ -22,7 +22,8 @@ export type AppRoute =
   | '/settings/manage-subscription'
   | '/(tabs)'
   | '/(tabs)/team-hub'
-  | '/(tabs)/create-team';
+  | '/(tabs)/create-team'
+  | '/organization';
 
 type RoutePreference = {
   email_verified?: boolean | null;
@@ -136,7 +137,7 @@ export type CoachAgreementRouteDecision = {
 const COACH_AGREEMENT_ROUTE_BY_KIND: Record<CoachAgreementRouteKind, AppRoute> = {
   final_setup: '/onboarding/step-3-league',
   create_team: '/(tabs)/create-team',
-  team_hub: '/(tabs)/team-hub',
+  team_hub: '/organization',
 };
 
 function resolveServerDirectedPostAuthKind(user: RoutingUserLike): PostAuthRouteKind | null {

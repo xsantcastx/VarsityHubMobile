@@ -55,6 +55,36 @@ type OrgJoinRequest = {
   organization: { id: string; name: string };
 };
 
+type ApprovalError = {
+  isSessionExpired?: boolean;
+  status?: number;
+  message?: string;
+  data?: {
+    error?: string;
+    message?: string;
+  };
+  response?: {
+    status?: number;
+    data?: {
+      error?: string;
+      message?: string;
+    };
+  };
+};
+
+type RawPendingEvent = PendingEvent & {
+  approval_status?: string;
+};
+
+type RawPendingGame = PendingEvent & {
+  approval_status?: string;
+  created_by?: boolean;
+  created_by_id?: string;
+  created_by_name?: string;
+};
+
+const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -105,7 +135,7 @@ export default function EventApprovalsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const lastHandledLinkRef = useRef<string | null>(null);
 
-  const isSessionExpiryError = (err: any) => {
+  const isSessionExpiryError = (err: ApprovalError) => {
     const status = err?.status || err?.response?.status;
     const serverData = err?.data || err?.response?.data;
     const message = String(serverData?.error || serverData?.message || err?.message || '').toLowerCase();
@@ -118,67 +148,70 @@ export default function EventApprovalsScreen() {
   const loadInvitesFailedRef = useRef(false);
   const loadOrgFailedRef = useRef(false);
 
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     try {
       // Load both pending events AND pending games (fan pitches go to /games)
       const [eventsData, gamesData] = await Promise.all([
         httpGet('/events/pending').catch(() => []),
         httpGet('/games?show_pending=true&limit=50').catch(() => ({ games: [] })),
       ]);
-      const pendingEvents = Array.isArray(eventsData)
-        ? eventsData.filter((e: any) => e?.approval_status === 'pending')
-        : [];
-      const pendingGames = (gamesData?.games || [])
-        .filter((g: any) => g?.approval_status === 'pending')
-        .map((g: any) => ({
-          ...g,
+      const pendingEvents = asArray<RawPendingEvent>(eventsData)
+        .filter((event) => event?.approval_status === 'pending');
+      const pendingGames = asArray<RawPendingGame>((gamesData as { games?: unknown })?.games)
+        .filter((game) => game?.approval_status === 'pending')
+        .map((game) => ({
+          ...game,
           _isGame: true, // Flag to use game approve endpoint
-          event_type: g.event_type || 'game',
-          creator: g.created_by ? { id: g.created_by_id, display_name: g.created_by_name } : undefined,
+          event_type: game.event_type || 'game',
+          creator: game.created_by
+            ? { id: game.created_by_id || '', display_name: game.created_by_name || 'Unknown' }
+            : undefined,
         }));
       setEvents([...pendingEvents, ...pendingGames]);
       loadEventsFailedRef.current = false;
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
       if (__DEV__) console.warn('[Approvals] Events load failed:', e?.message);
       setEvents([]);
       loadEventsFailedRef.current = true;
     } finally {
       setEventsLoading(false);
     }
-  };
+  }, []);
 
-  const loadTeamInvites = async () => {
+  const loadTeamInvites = useCallback(async () => {
     try {
       const data = await httpGet('/teams/invites/me');
-      const pending = Array.isArray(data)
-        ? data.filter((inv: any) => inv?.status === 'pending')
-        : [];
+      const pending = asArray<TeamInvite & { status?: string }>(data)
+        .filter((invite) => invite?.status === 'pending');
       setTeamInvites(pending);
       loadInvitesFailedRef.current = false;
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
       if (__DEV__) console.warn('[Approvals] Team invites load failed:', e?.message);
       setTeamInvites([]);
       loadInvitesFailedRef.current = true;
     } finally {
       setInvitesLoading(false);
     }
-  };
+  }, []);
 
-  const loadOrgRequests = async () => {
+  const loadOrgRequests = useCallback(async () => {
     try {
       const data = await httpGet('/organizations/join-requests/me');
       // Show all requests (pending, approved, denied) as read-only status view
-      const requests = Array.isArray(data) ? data : [];
+      const requests = asArray<OrgJoinRequest>(data);
       setOrgRequests(requests);
       loadOrgFailedRef.current = false;
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
       if (__DEV__) console.warn('[Approvals] Org join requests load failed:', e?.message);
       setOrgRequests([]);
       loadOrgFailedRef.current = true;
     } finally {
       setOrgRequestsLoading(false);
     }
-  };
+  }, []);
 
   const loadAll = useCallback(async () => {
     setError(null);
@@ -199,10 +232,121 @@ export default function EventApprovalsScreen() {
     ) {
       setError('Failed to load approvals. Pull down to refresh.');
     }
-  }, [canAccessCoachTools]);
+  }, [canAccessCoachTools, loadEvents, loadOrgRequests, loadTeamInvites]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   useEffect(() => { void loadAll(); }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setEventsLoading(true);
+    setInvitesLoading(true);
+    setOrgRequestsLoading(true);
+    await loadAll();
+    setRefreshing(false);
+  }, [loadAll]);
+
+  // ── Event actions ─────────────────────────────────────────────────────────
+
+  const handleApproveEvent = useCallback(async (eventId: string) => {
+    setProcessingEventId(eventId);
+    const evt = events.find(event => event.id === eventId);
+    captureBreadcrumb('Event approval started', 'admin.approval', {
+      action: 'approve',
+      actor: 'coach_tools',
+      event_id: eventId,
+      is_game: !!evt?._isGame,
+    });
+    try {
+      if (evt?._isGame) {
+        await httpPut(`/games/${eventId}/approve`, { approval_status: 'approved' });
+      } else {
+        await httpPut(`/events/${eventId}/approve`, {});
+      }
+      captureBreadcrumb('Event approval succeeded', 'admin.approval', {
+        action: 'approve',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+      });
+      analytics.track(ANALYTICS_EVENTS.COACH_APPROVED, {
+        approval_type: 'event',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+      });
+      Alert.alert('Approved', 'The event has been published.');
+      setEvents(prev => prev.filter(event => event.id !== eventId));
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
+      if (isSessionExpiryError(e)) {
+        return;
+      }
+      captureBreadcrumb('Event approval failed', 'admin.approval', {
+        action: 'approve',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+        error: e?.message || 'unknown_error',
+      }, 'error');
+      Alert.alert('Error', e?.message || 'Failed to approve event.');
+    } finally {
+      setProcessingEventId(null);
+    }
+  }, [events]);
+
+  const [rejectModal, setRejectModal] = useState<{ eventId: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const handleRejectEvent = useCallback((eventId: string) => {
+    setRejectReason('');
+    setRejectModal({ eventId });
+  }, []);
+
+  const confirmRejectEvent = useCallback(async () => {
+    if (!rejectModal) return;
+    const { eventId } = rejectModal;
+    setRejectModal(null);
+    setProcessingEventId(eventId);
+    const evt = events.find(event => event.id === eventId);
+    captureBreadcrumb('Event rejection started', 'admin.approval', {
+      action: 'reject',
+      actor: 'coach_tools',
+      event_id: eventId,
+      is_game: !!evt?._isGame,
+      has_reason: rejectReason.trim().length > 0,
+    });
+    try {
+      if (evt?._isGame) {
+        // Games use the same approve endpoint with approval_status: 'rejected'
+        await httpPut(`/games/${eventId}/approve`, { approval_status: 'rejected', reason: rejectReason.trim() || undefined });
+      } else {
+        await httpPut(`/events/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
+      }
+      captureBreadcrumb('Event rejection succeeded', 'admin.approval', {
+        action: 'reject',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+      });
+      Alert.alert('Rejected', 'The event has been rejected.');
+      setEvents(prev => prev.filter(event => event.id !== eventId));
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
+      if (isSessionExpiryError(e)) {
+        return;
+      }
+      captureBreadcrumb('Event rejection failed', 'admin.approval', {
+        action: 'reject',
+        actor: 'coach_tools',
+        event_id: eventId,
+        is_game: !!evt?._isGame,
+        error: e?.message || 'unknown_error',
+      }, 'error');
+      Alert.alert('Error', e?.message || 'Failed to reject event.');
+    } finally {
+      setProcessingEventId(null);
+    }
+  }, [events, rejectModal, rejectReason]);
 
   useEffect(() => {
     const eventId = String(params.event_id || '').trim();
@@ -230,116 +374,7 @@ export default function EventApprovalsScreen() {
       return;
     }
     handleRejectEvent(matchedEvent.id);
-  }, [canAccessCoachTools, events, params.action, params.event_id, params.review_kind]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    setEventsLoading(true);
-    setInvitesLoading(true);
-    setOrgRequestsLoading(true);
-    await loadAll();
-    setRefreshing(false);
-  }, [loadAll]);
-
-  // ── Event actions ─────────────────────────────────────────────────────────
-
-  const handleApproveEvent = async (eventId: string) => {
-    setProcessingEventId(eventId);
-    const evt = events.find(e => e.id === eventId) as any;
-    captureBreadcrumb('Event approval started', 'admin.approval', {
-      action: 'approve',
-      actor: 'coach_tools',
-      event_id: eventId,
-      is_game: !!evt?._isGame,
-    });
-    try {
-      if (evt?._isGame) {
-        await httpPut(`/games/${eventId}/approve`, { approval_status: 'approved' });
-      } else {
-        await httpPut(`/events/${eventId}/approve`, {});
-      }
-      captureBreadcrumb('Event approval succeeded', 'admin.approval', {
-        action: 'approve',
-        actor: 'coach_tools',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-      });
-      analytics.track(ANALYTICS_EVENTS.COACH_APPROVED, {
-        approval_type: 'event',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-      });
-      Alert.alert('Approved', 'The event has been published.');
-      setEvents(prev => prev.filter(e => e.id !== eventId));
-    } catch (e: any) {
-      if (isSessionExpiryError(e)) {
-        return;
-      }
-      captureBreadcrumb('Event approval failed', 'admin.approval', {
-        action: 'approve',
-        actor: 'coach_tools',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-        error: e?.message || 'unknown_error',
-      }, 'error');
-      Alert.alert('Error', e?.message || 'Failed to approve event.');
-    } finally {
-      setProcessingEventId(null);
-    }
-  };
-
-  const [rejectModal, setRejectModal] = useState<{ eventId: string } | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
-
-  const handleRejectEvent = (eventId: string) => {
-    setRejectReason('');
-    setRejectModal({ eventId });
-  };
-
-  const confirmRejectEvent = async () => {
-    if (!rejectModal) return;
-    const { eventId } = rejectModal;
-    setRejectModal(null);
-    setProcessingEventId(eventId);
-    const evt = events.find(e => e.id === eventId) as any;
-    captureBreadcrumb('Event rejection started', 'admin.approval', {
-      action: 'reject',
-      actor: 'coach_tools',
-      event_id: eventId,
-      is_game: !!evt?._isGame,
-      has_reason: rejectReason.trim().length > 0,
-    });
-    try {
-      if (evt?._isGame) {
-        // Games use the same approve endpoint with approval_status: 'rejected'
-        await httpPut(`/games/${eventId}/approve`, { approval_status: 'rejected', reason: rejectReason.trim() || undefined });
-      } else {
-        await httpPut(`/events/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
-      }
-      captureBreadcrumb('Event rejection succeeded', 'admin.approval', {
-        action: 'reject',
-        actor: 'coach_tools',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-      });
-      Alert.alert('Rejected', 'The event has been rejected.');
-      setEvents(prev => prev.filter(e => e.id !== eventId));
-    } catch (e: any) {
-      if (isSessionExpiryError(e)) {
-        return;
-      }
-      captureBreadcrumb('Event rejection failed', 'admin.approval', {
-        action: 'reject',
-        actor: 'coach_tools',
-        event_id: eventId,
-        is_game: !!evt?._isGame,
-        error: e?.message || 'unknown_error',
-      }, 'error');
-      Alert.alert('Error', e?.message || 'Failed to reject event.');
-    } finally {
-      setProcessingEventId(null);
-    }
-  };
+  }, [canAccessCoachTools, events, handleApproveEvent, handleRejectEvent, params.action, params.event_id, params.review_kind]);
 
   // ── Team invite actions ───────────────────────────────────────────────────
 
@@ -349,7 +384,8 @@ export default function EventApprovalsScreen() {
       await httpPost(`/teams/invites/${inviteId}/accept`);
       Alert.alert('Accepted', 'You have joined the team.');
       setTeamInvites(prev => prev.filter(i => i.id !== inviteId));
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as ApprovalError;
       Alert.alert('Error', e?.message || 'Failed to accept invite.');
     } finally {
       setProcessingInviteId(null);
@@ -367,7 +403,8 @@ export default function EventApprovalsScreen() {
           try {
             await httpPost(`/teams/invites/${inviteId}/decline`);
             setTeamInvites(prev => prev.filter(i => i.id !== inviteId));
-          } catch (e: any) {
+          } catch (error: unknown) {
+            const e = error as ApprovalError;
             Alert.alert('Error', e?.message || 'Failed to decline invite.');
           } finally {
             setProcessingInviteId(null);
@@ -647,7 +684,7 @@ export default function EventApprovalsScreen() {
           }
 
           {/* ── Section 2: Roster Invites ── */}
-          {renderSectionHeader('Roster Invites', 'people-outline', teamInvites.length, '#3B82F6', () => router.push('/my-team' as any))}
+          {renderSectionHeader('Roster Invites', 'people-outline', teamInvites.length, '#3B82F6', () => router.push('/my-team' as never))}
           {invitesLoading
             ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
             : teamInvites.length === 0
@@ -655,12 +692,12 @@ export default function EventApprovalsScreen() {
               : teamInvites.map(renderInviteCard)
           }
 
-          {/* ── Section 3: Authorized User Requests ── */}
-          {renderSectionHeader('Authorized User Requests', 'shield-checkmark-outline', pendingOrgRequests.length, '#8B5CF6', () => router.push('/team-hub' as any))}
+          {/* ── Section 3: Organization Join Requests ── */}
+          {renderSectionHeader('Organization Join Requests', 'shield-checkmark-outline', pendingOrgRequests.length, '#8B5CF6')}
           {orgRequestsLoading
             ? <ActivityIndicator style={styles.sectionLoader} color={C.tint} />
             : orgRequests.length === 0
-              ? renderEmpty('No pending organization requests.')
+              ? renderEmpty('No organization join requests.')
               : orgRequests.map(renderOrgRequestCard)
           }
         </ScrollView>

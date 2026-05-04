@@ -4,6 +4,7 @@ import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
@@ -14,19 +15,20 @@ import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { safeGoBack } from '@/utils/navigation';
+import { goBackToTrackedRoute } from '@/utils/navigation';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -130,7 +132,9 @@ export default function ProfileScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
+  const navHistory = useContext(NavigationHistoryContext);
   const insets = useSafeAreaInsets();
+  const href = useUnstableGlobalHref();
   const { user: userFromHook, refresh: refreshUserFromHook } = useUser(false); // Get user from hook but don't auto-load
   const { user: userFromAuth } = useAuth(); // Get user from AuthProvider
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
@@ -180,6 +184,7 @@ export default function ProfileScreen() {
   const profileRequestInFlight = useRef(false);
   const params = useLocalSearchParams<{ id?: string }>();
   const viewingUserId = params.id;
+  const currentHref = typeof href === 'string' ? href : null;
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -197,6 +202,10 @@ export default function ProfileScreen() {
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
 
   const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
+
+  const handleViewedProfileBack = useCallback(() => {
+    goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.());
+  }, [currentHref, navHistory, router]);
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {
@@ -934,7 +943,7 @@ export default function ProfileScreen() {
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
             testID="profile-back-button"
-            onPress={() => safeGoBack(router)}
+            onPress={handleViewedProfileBack}
             hitSlop={12}
             style={[
               styles.controlButton,
@@ -2008,10 +2017,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.2,
+          shadowRadius: 3,
+        }),
     elevation: 2,
   },
   headerActionButtonGhost: {
@@ -2036,10 +2049,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.2,
+          shadowRadius: 3,
+        }),
     elevation: 2,
   },
   backgroundEditButton: {
@@ -2077,10 +2094,14 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 4,
     borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.2,
+          shadowRadius: 8,
+        }),
     elevation: 99999, // Highest elevation for Android
     backgroundColor: '#ffffff',
     zIndex: 99999, // Highest z-index to ensure avatar is always on top
@@ -2320,10 +2341,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#7c3aed',
     gap: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.15)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.15,
+          shadowRadius: 2,
+        }),
     elevation: 2,
   },
   coachBadge: { backgroundColor: '#1d4ed8' },
@@ -2345,10 +2370,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 24,
     paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
+        }),
     elevation: 6,
     borderWidth: 1,
     borderColor: '#f1f5f9',
@@ -2385,10 +2414,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 2,
+        }),
     elevation: 2,
   },
   tabsContainer: {
@@ -2464,10 +2497,14 @@ const styles = StyleSheet.create({
     borderRadius: 14, // Rounded corners like event page
     overflow: 'hidden',
     backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        }),
     elevation: 2,
   },
   gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
@@ -2501,9 +2538,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
     lineHeight: 16,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.3)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 2,
+        }),
   },
   gridIconBadge: {
     position: 'absolute',
@@ -2515,10 +2556,14 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.3,
+          shadowRadius: 2,
+        }),
   },
   gridCounts: {
     position: 'absolute',
@@ -2531,10 +2576,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.3,
+          shadowRadius: 2,
+        }),
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },

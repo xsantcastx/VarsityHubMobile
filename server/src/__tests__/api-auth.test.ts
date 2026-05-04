@@ -25,6 +25,7 @@ describe('API Authentication Endpoints', () => {
   let userId: string;
   let accessToken: string;
   let verificationCode: string;
+  const cleanupUserIds = new Set<string>();
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -34,11 +35,13 @@ describe('API Authentication Endpoints', () => {
 
   afterAll(async () => {
     try {
+      if (cleanupUserIds.size > 0) {
+        await prisma.refreshToken.deleteMany({ where: { user_id: { in: Array.from(cleanupUserIds) } } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: { in: Array.from(cleanupUserIds) } } }).catch(() => {});
+      }
       await prisma.user.deleteMany({
         where: {
-          email: {
-            startsWith: 'test-api-auth-',
-          },
+          email: TEST_EMAIL,
         },
       });
     } catch (error) {
@@ -287,6 +290,293 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.onboarding_completed).toBe(true);
       expect(response.body.preferences.role).toBe('coach');
       expect(response.body.preferences.onboarding_completed).toBe(true);
+    });
+  });
+
+  describe('POST /auth/revoke-all-tokens', () => {
+    it('revokes refresh tokens and immediately invalidates the current access token', async () => {
+      const loginResponse = await request(app)
+        .post('/auth/login')
+        .send({
+          email: TEST_EMAIL,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+
+      const currentAccessToken = loginResponse.body.access_token as string;
+      const currentRefreshToken = loginResponse.body.refresh_token as string;
+      expect(typeof currentAccessToken).toBe('string');
+      expect(typeof currentRefreshToken).toBe('string');
+
+      const revokeResponse = await request(app)
+        .post('/auth/revoke-all-tokens')
+        .set('Authorization', `Bearer ${currentAccessToken}`)
+        .expect(200);
+
+      expect(revokeResponse.body.ok).toBe(true);
+      expect(revokeResponse.body.revoked).toBeGreaterThanOrEqual(1);
+
+      await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${currentAccessToken}`)
+        .expect(401);
+
+      await request(app)
+        .post('/auth/refresh')
+        .send({ refresh_token: currentRefreshToken })
+        .expect(401);
+
+      const relogin = await request(app)
+        .post('/auth/login')
+        .send({
+          email: TEST_EMAIL,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+
+      accessToken = relogin.body.access_token;
+    });
+
+    it('revokes every active session for the user, not just the caller session', async () => {
+      const revokeTestEmail = `test-api-auth-revoke-${Date.now()}@example.com`;
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const revokeUser = await prisma.user.create({
+        data: {
+          email: revokeTestEmail,
+          password_hash: passwordHash,
+          display_name: 'API Auth Revoke User',
+          email_verified: true,
+          preferences: { role: 'fan', onboarding_completed: true },
+        },
+      });
+      cleanupUserIds.add(revokeUser.id);
+
+      const loginA = await request(app)
+        .post('/auth/login')
+        .send({
+          email: revokeTestEmail,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+
+      const loginB = await request(app)
+        .post('/auth/login')
+        .send({
+          email: revokeTestEmail,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+
+      const tokenA = String(loginA.body.access_token || '');
+      const tokenB = String(loginB.body.access_token || '');
+      const refreshA = String(loginA.body.refresh_token || '');
+      const refreshB = String(loginB.body.refresh_token || '');
+
+      const revokeResponse = await request(app)
+        .post('/auth/revoke-all-tokens')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+
+      expect(revokeResponse.body.ok).toBe(true);
+      expect(revokeResponse.body.revoked).toBeGreaterThanOrEqual(2);
+
+      await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(401);
+      await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(401);
+      await request(app)
+        .post('/auth/refresh')
+        .send({ refresh_token: refreshA })
+        .expect(401);
+      await request(app)
+        .post('/auth/refresh')
+        .send({ refresh_token: refreshB })
+        .expect(401);
+
+      await request(app)
+        .post('/auth/login')
+        .send({
+          email: revokeTestEmail,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+    });
+  });
+
+  describe('session invalidation across multiple active sessions', () => {
+    it('password change immediately invalidates both active access tokens and both refresh tokens', async () => {
+      const originalAccessToken = accessToken;
+      const passwordTestEmail = `test-api-auth-password-${Date.now()}@example.com`;
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const passwordUser = await prisma.user.create({
+        data: {
+          email: passwordTestEmail,
+          password_hash: passwordHash,
+          display_name: 'API Auth Password Change User',
+          email_verified: true,
+          preferences: { role: 'fan', onboarding_completed: true },
+        },
+      });
+      cleanupUserIds.add(passwordUser.id);
+
+      const loginA = await request(app)
+        .post('/auth/login')
+        .send({
+          email: passwordTestEmail,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+      const loginB = await request(app)
+        .post('/auth/login')
+        .send({
+          email: passwordTestEmail,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+
+      const tokenA = String(loginA.body.access_token || '');
+      const tokenB = String(loginB.body.access_token || '');
+      const refreshA = String(loginA.body.refresh_token || '');
+      const refreshB = String(loginB.body.refresh_token || '');
+
+      await request(app)
+        .post('/auth/password/change')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({
+          current_password: TEST_PASSWORD,
+          new_password: 'TestPassword456!',
+        })
+        .expect(200);
+
+      await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(401);
+      await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(401);
+      await request(app)
+        .post('/auth/refresh')
+        .send({ refresh_token: refreshA })
+        .expect(401);
+      await request(app)
+        .post('/auth/refresh')
+        .send({ refresh_token: refreshB })
+        .expect(401);
+
+      const relogin = await request(app)
+        .post('/auth/login')
+        .send({
+          email: passwordTestEmail,
+          password: 'TestPassword456!',
+        })
+        .expect(200);
+
+      accessToken = relogin.body.access_token;
+
+      await request(app)
+        .post('/auth/password/change')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          current_password: 'TestPassword456!',
+          new_password: TEST_PASSWORD,
+        })
+        .expect(200);
+
+      const restoreLogin = await request(app)
+        .post('/auth/login')
+        .send({
+          email: passwordTestEmail,
+          password: TEST_PASSWORD,
+        })
+        .expect(200);
+
+      expect(typeof restoreLogin.body.access_token).toBe('string');
+      accessToken = originalAccessToken;
+    });
+
+    it('admin ban immediately invalidates both active access tokens and refresh tokens for the target user', async () => {
+      const originalAccessToken = accessToken;
+      const originalAdminEmails = process.env.ADMIN_EMAILS;
+      const adminEmail = `test-api-auth-admin-${Date.now()}@example.com`;
+      const targetEmail = `test-api-auth-target-${Date.now()}@example.com`;
+      process.env.ADMIN_EMAILS = adminEmail;
+
+      try {
+        const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+        const [adminUser, targetUser] = await Promise.all([
+          prisma.user.create({
+            data: {
+              email: adminEmail,
+              password_hash: passwordHash,
+              display_name: 'API Auth Admin',
+              email_verified: true,
+              preferences: { role: 'fan', onboarding_completed: true },
+            },
+          }),
+          prisma.user.create({
+            data: {
+              email: targetEmail,
+              password_hash: passwordHash,
+              display_name: 'API Auth Target',
+              email_verified: true,
+              preferences: { role: 'fan', onboarding_completed: true },
+            },
+          }),
+        ]);
+        cleanupUserIds.add(adminUser.id);
+        cleanupUserIds.add(targetUser.id);
+
+        const adminLogin = await request(app)
+          .post('/auth/login')
+          .send({ email: adminEmail, password: TEST_PASSWORD })
+          .expect(200);
+        const targetLoginA = await request(app)
+          .post('/auth/login')
+          .send({ email: targetEmail, password: TEST_PASSWORD })
+          .expect(200);
+        const targetLoginB = await request(app)
+          .post('/auth/login')
+          .send({ email: targetEmail, password: TEST_PASSWORD })
+          .expect(200);
+
+        const adminToken = String(adminLogin.body.access_token || '');
+        const targetTokenA = String(targetLoginA.body.access_token || '');
+        const targetTokenB = String(targetLoginB.body.access_token || '');
+        const targetRefreshA = String(targetLoginA.body.refresh_token || '');
+        const targetRefreshB = String(targetLoginB.body.refresh_token || '');
+
+        await request(app)
+          .post(`/admin/users/${targetUser.id}/ban`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ reason: 'auth regression test' })
+          .expect(200);
+
+        await request(app)
+          .get('/auth/me')
+          .set('Authorization', `Bearer ${targetTokenA}`)
+          .expect(403);
+        await request(app)
+          .get('/auth/me')
+          .set('Authorization', `Bearer ${targetTokenB}`)
+          .expect(403);
+        await request(app)
+          .post('/auth/refresh')
+          .send({ refresh_token: targetRefreshA })
+          .expect(401);
+        await request(app)
+          .post('/auth/refresh')
+          .send({ refresh_token: targetRefreshB })
+          .expect(401);
+      } finally {
+        accessToken = originalAccessToken;
+        process.env.ADMIN_EMAILS = originalAdminEmails;
+      }
     });
   });
 

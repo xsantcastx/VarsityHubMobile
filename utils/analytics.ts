@@ -21,33 +21,81 @@ const POSTHOG_API_KEY = readAnalyticsEnv('EXPO_PUBLIC_POSTHOG_API_KEY');
 const POSTHOG_HOST = readAnalyticsEnv('EXPO_PUBLIC_POSTHOG_HOST', 'https://us.i.posthog.com');
 const APP_VERSION = Constants.expoConfig?.version || 'unknown';
 const APP_RUNTIME = String(Constants.expoConfig?.runtimeVersion || APP_VERSION);
+const SENSITIVE_ANALYTICS_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
+const MAX_ANALYTICS_STRING_LENGTH = 160;
+const MAX_ANALYTICS_DEPTH = 3;
+const MAX_ANALYTICS_ARRAY_ITEMS = 10;
+const MAX_ANALYTICS_KEYS = 25;
 
 let posthog: PostHog | null = null;
 let analyticsInitialized = false;
 
-function normalizeAnalyticsValue(value: unknown): string | number | boolean | string[] {
+function normalizeAnalyticsValue(
+  value: unknown,
+  depth = 0
+): string | number | boolean | string[] {
   if (value == null) return 'null';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (typeof value === 'string' && value.length > MAX_ANALYTICS_STRING_LENGTH) {
+      return `${value.slice(0, MAX_ANALYTICS_STRING_LENGTH)}...`;
+    }
     return value;
   }
   if (Array.isArray(value)) {
-    return value.slice(0, 5).map(item => {
+    return value.slice(0, MAX_ANALYTICS_ARRAY_ITEMS).map(item => {
       if (item == null) return 'null';
       if (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
         return String(item);
       }
+      if (depth >= MAX_ANALYTICS_DEPTH) {
+        try {
+          return JSON.stringify(item);
+        } catch {
+          return '[unserializable]';
+        }
+      }
       try {
-        return JSON.stringify(item);
+        return JSON.stringify(sanitizeAnalyticsObject(item, depth + 1));
       } catch {
         return '[unserializable]';
       }
     });
   }
   try {
-    return JSON.stringify(value);
+    return JSON.stringify(sanitizeAnalyticsObject(value, depth + 1));
   } catch {
     return '[unserializable]';
   }
+}
+
+function sanitizeAnalyticsObject(value: unknown, depth = 0): unknown {
+  if (value == null || typeof value === 'boolean') return value ?? null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 'non-finite';
+  if (typeof value === 'string') {
+    return value.length > MAX_ANALYTICS_STRING_LENGTH
+      ? `${value.slice(0, MAX_ANALYTICS_STRING_LENGTH)}...`
+      : value;
+  }
+  if (depth >= MAX_ANALYTICS_DEPTH) {
+    return normalizeAnalyticsValue(value, depth);
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, MAX_ANALYTICS_ARRAY_ITEMS).map(item => sanitizeAnalyticsObject(item, depth + 1));
+  }
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .slice(0, MAX_ANALYTICS_KEYS)
+        .filter(([, nestedValue]) => typeof nestedValue !== 'undefined')
+        .map(([key, nestedValue]) => [
+          key,
+          SENSITIVE_ANALYTICS_KEY_RE.test(key)
+            ? '[redacted]'
+            : sanitizeAnalyticsObject(nestedValue, depth + 1),
+        ])
+    );
+  }
+  return String(value);
 }
 
 function normalizeAnalyticsProperties(
@@ -56,8 +104,12 @@ function normalizeAnalyticsProperties(
   return properties
     ? Object.fromEntries(
         Object.entries(properties)
+          .slice(0, MAX_ANALYTICS_KEYS)
           .filter(([, value]) => typeof value !== 'undefined')
-          .map(([key, value]) => [key, normalizeAnalyticsValue(value)])
+          .map(([key, value]) => [
+            key,
+            SENSITIVE_ANALYTICS_KEY_RE.test(key) ? '[redacted]' : normalizeAnalyticsValue(value),
+          ])
       )
     : undefined;
 }
@@ -98,7 +150,7 @@ export function captureAnalyticsException(
 
 export const analytics = {
   track: (event: string, properties?: Record<string, any>) => {
-    posthog?.capture(event, properties);
+    posthog?.capture(event, normalizeAnalyticsProperties(properties));
   },
 
   identify: (userId: string, properties?: Record<string, any>) => {
@@ -116,7 +168,7 @@ export const analytics = {
   },
 
   screen: (screenName: string, properties?: Record<string, any>) => {
-    posthog?.screen(screenName, properties);
+    posthog?.screen(screenName, normalizeAnalyticsProperties(properties));
   },
 };
 

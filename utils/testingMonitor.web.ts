@@ -46,10 +46,11 @@ class TestingMonitor {
 
     // Capture console warnings
     console.warn = (...args: any[]) => {
+      const message = args.map(a => String(a)).join(' ');
       this.log({
         timestamp: new Date().toISOString(),
         type: 'warning',
-        message: args.map(a => String(a)).join(' '),
+        message,
       });
       this.originalConsoleWarn.apply(console, args);
     };

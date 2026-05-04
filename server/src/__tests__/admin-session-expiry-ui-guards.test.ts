@@ -22,8 +22,9 @@ describe('admin session-expiry UI guards', () => {
   });
 
   it('league-owner approvals screen defers expired-session errors to the global auth handler', () => {
-    expect(approvalsSource).toMatch(/isSessionExpiryError/);
-    expect(approvalsSource).toContain('if (isSessionExpiryError(err)) {');
+    expect(approvalsSource).toContain('Organization.reviewSummaries()');
+    expect(approvalsSource).toContain('setError(err instanceof Error ? err.message');
     expect(approvalsSource).not.toContain("Alert.alert('Session expired'");
+    expect(approvalsSource).not.toContain('Your admin session expired. Please sign in again.');
   });
 });

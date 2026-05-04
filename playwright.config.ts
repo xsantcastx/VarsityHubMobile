@@ -8,16 +8,24 @@ const webServerConfig = skipEmbeddedServer
   ? undefined
   : [
       {
-        command: 'NODE_ENV=development ENABLE_DEV_CODES=1 npx tsx server/src/index.ts',
+        command: 'env -u NO_COLOR NODE_ENV=development ENABLE_DEV_CODES=1 PLAYWRIGHT_E2E=1 npx tsx server/src/index.ts',
         url: `${process.env.API_URL}/health`,
         reuseExistingServer: reuseEmbeddedServer,
         timeout: 120 * 1000,
+        gracefulShutdown: {
+          signal: 'SIGTERM',
+          timeout: 5000,
+        },
       },
       {
-        command: 'npm run web:playwright:ci',
+        command: 'env -u NO_COLOR PLAYWRIGHT_E2E=1 npm run web:playwright:ci',
         url: 'http://localhost:8081',
         reuseExistingServer: reuseEmbeddedServer,
         timeout: 120 * 1000,
+        gracefulShutdown: {
+          signal: 'SIGTERM',
+          timeout: 5000,
+        },
       },
     ];
 

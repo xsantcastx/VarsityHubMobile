@@ -10,7 +10,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import ExpandableText from './ExpandableText';
@@ -615,10 +615,14 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 14,
     borderWidth: 0,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 6px 12px rgba(15, 23, 42, 0.06)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
+        }),
     elevation: 2,
   },
   containerPressed: { transform: [{ scale: 0.995 }] },
@@ -754,10 +758,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 160,
     paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.25)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 4,
+        }),
     elevation: 5,
   },
   actionItem: {

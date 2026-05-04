@@ -12,6 +12,7 @@ import {
   Alert,
   Image,
   Keyboard,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -228,9 +229,12 @@ function Step3League() {
           // Never auto-skip — let user see and confirm their organization info
         } else {
           // Check for existing organizations that the user can manage
-          const orgs = await Organization.mine();
-          if (orgs && orgs.length > 0) {
-            const firstOrg = orgs[0];
+          const summaries = await Organization.reviewSummaries();
+          if (summaries && summaries.length > 0) {
+            const firstOrg = summaries[0]?.organization;
+            if (!firstOrg?.id) {
+              return;
+            }
             setExistingOrg(firstOrg);
             setOrgName(firstOrg.name || '');
             setAlreadyExists(true);
@@ -285,8 +289,8 @@ function Step3League() {
             : `Organization "${displayName}" is ready to go!`,
         description:
           existingTeam || ob.team_id
-            ? 'Team page has been created. Continue to add authorized users and complete your setup.'
-            : 'Organization page has been created. Continue to add authorized users and complete your setup.',
+            ? 'Team page has been created. Continue through setup, then manage roster and staff invites from your team tools.'
+            : 'Organization page has been created. Continue through setup, then invite managers and members from organization tools.',
         alreadyExists: true,
       };
     }
@@ -1783,10 +1787,14 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       borderRadius: 28,
       paddingHorizontal: 24,
       paddingVertical: 24,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.3,
-      shadowRadius: 32,
+      ...(Platform.OS === 'web'
+        ? { boxShadow: '0px 12px 32px rgba(0, 0, 0, 0.3)' }
+        : {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: 0.3,
+            shadowRadius: 32,
+          }),
       elevation: 12,
       borderWidth: 1,
       borderColor: colorScheme === 'dark' ? '#1E293B' : '#E2E8F0',
@@ -1804,10 +1812,14 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: 16,
-      shadowColor: '#0284C7',
-      shadowOpacity: 0.4,
-      shadowOffset: { width: 0, height: 6 },
-      shadowRadius: 12,
+      ...(Platform.OS === 'web'
+        ? { boxShadow: '0px 6px 12px rgba(2, 132, 199, 0.4)' }
+        : {
+            shadowColor: '#0284C7',
+            shadowOpacity: 0.4,
+            shadowOffset: { width: 0, height: 6 },
+            shadowRadius: 12,
+          }),
     },
     enhancedModalTitle: {
       fontSize: 20,
@@ -1894,10 +1906,14 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       paddingVertical: 12,
       paddingHorizontal: 20,
       borderRadius: 16,
-      shadowColor: '#0284C7',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.35,
-      shadowRadius: 12,
+      ...(Platform.OS === 'web'
+        ? { boxShadow: '0px 6px 12px rgba(2, 132, 199, 0.35)' }
+        : {
+            shadowColor: '#0284C7',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.35,
+            shadowRadius: 12,
+          }),
       elevation: 6,
     },
     primaryActionText: {

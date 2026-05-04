@@ -1,202 +1,284 @@
 # VarsityHub Audit Standard
 
-> Reference for scheduled audits and for any review that triggers the word
-> "audit." Not a PR checklist — see `PR_CHECKLIST.md` for per-PR mechanics.
+> Canonical audit framework for this repo. Use this file when a task is
+> described as an audit, security review, architecture review, validation pass,
+> or release-risk review. Short-form summaries live in
+> [`AUDIT_COMMANDMENTS.md`](./AUDIT_COMMANDMENTS.md). Per-PR operating gates live
+> in [`PR_CHECKLIST.md`](./PR_CHECKLIST.md).
 
 ## Purpose
 
-Define how we audit this codebase for security, data-integrity, and
-architectural risk in a way that is:
+This standard exists to keep three things separate and aligned:
 
-1. **Threat-model first, style second.** Audits must lead with trust
-   boundaries and invariants. Style rules follow.
-2. **Mechanically verifiable where possible.** Every finding should name a
-   command, grep, or test that produces a pass/fail. Opinion is a fallback,
-   not a default.
-3. **Proof-bearing.** Findings without a reproducible path are conjecture and
-   do not enter the fix queue.
+1. **Audit steps**: what reviewers must inspect and prove
+2. **Engineering standards**: how code must be structured
+3. **Business rules**: VarsityHub product invariants that must hold true
+4. **Release gates**: objective pass/fail conditions before merge or ship
 
-The audits that found real bugs in this codebase followed these heuristics:
-paired code must stay in lockstep (middleware drift); "keep on missing data"
-filters are almost always wrong (map past-events); catch-all error handlers
-hide real bugs (ad banner); inline type switches drift from shared helpers
-(notification routing); server-side state transitions without a WHERE guard
-race (event approval). Codify the pattern; don't rediscover it next time.
+Every rule in this document must be testable by one of:
 
----
+- a command or script
+- a grep or file anchor
+- a runtime log or audit record
+- a before/after reproduction
+- a reviewer-verifiable code path
 
-## Phase 1 — Map the system
+If a rule cannot be verified, it is guidance, not a gate. Do not present
+guidance as enforcement.
 
-Before looking for bugs, describe the system. Every audit begins by producing:
+## Rule Types
 
-- **Flow diagram.** Client → API → database → async jobs → third parties.
-  Every hop. If you can't draw it, you can't audit it.
-- **Production-log sample for the reported failure.** Pull at least one real
-  failing request from production logs before auditing route-level code. If
-  production logs are unavailable, say so explicitly; do not substitute
-  static code reading for runtime evidence.
-- **Source-of-truth table.** For each critical state (auth, plan, approval,
-  membership, payment, ownership), name the one layer that owns it. See the
-  living table below; update it when it changes.
-- **Trust boundaries.** User input, deep links, webhooks, background jobs,
-  admin actions, third-party callbacks. Each boundary is a validation gate.
-- **Invariants.** Statements that must always be true regardless of inputs.
-  Example: "a user's subscription tier is the tier they last paid for, as
-  confirmed by Stripe or Apple." These are what the audit tests.
+| Type                     | What it answers                                  |
+| ------------------------ | ------------------------------------------------ |
+| **Audit step**           | What did the reviewer actually check?            |
+| **Engineering standard** | How should the code be organized or implemented? |
+| **Business rule**        | What product invariant must stay true?           |
+| **Release gate**         | What must be true before merge or ship?          |
 
-## Phase 2 — Threat model
+Do not mix these in one bullet without naming which one it is.
 
-For every critical flow, walk every category below. If a category does not
-apply, say so explicitly. Silence is not an answer.
+## Audit Workflow
 
-- **Auth bypass** — can this action execute without a session?
-- **Privilege escalation** — can a user perform an action above their role,
-  plan, or ownership level?
-- **IDOR** — can a user reference another user's resource by ID?
-- **Payment spoofing** — can a user cause a paid-state transition without a
-  verified payment provider event?
-- **Webhook replay** — is the handler idempotent? Signature-verified?
-  Deduplicated by provider event id?
-- **Middleware / parser ordering** — does any gate read `req.body` or
-  `req.query` before that data is populated for the route type? JSON routes
-  get app-level parsing; multipart routes often do not until `multer` runs.
-- **Stale cache** — does a mutation invalidate every cache that reads the
-  mutated entity?
-- **Deep-link abuse** — can a crafted link put the app in a bad state?
-- **Concurrent-write race** — can two callers cause contradictory state?
+### 1. System mapping
 
-Each category gets a one-line answer. If the answer is "mitigated by X," name
-X and cite the file.
+Every audit starts by writing down the actual system under review.
 
-## Phase 3 — Drift checks
+- Map the full flow: UI or trigger → API → database → async job or webhook →
+  third party → final persisted state.
+- Identify the one **source of truth** for each critical state touched by that
+  flow: auth, payment, subscription, approval, membership, ownership.
+- Name every **trust boundary** crossed by the flow:
+  - client input
+  - authenticated client
+  - admin action
+  - deep link
+  - webhook
+  - background job
+  - storage adapter
+  - third-party callback
+- Record the observability path:
+  - runtime log
+  - audit log
+  - metric
+  - test
+  - verification script
 
-Compare authoritative layers against each other. Drift is where bugs live.
+**Pass signal**
 
-- **Frontend validation vs backend Zod vs database constraint.** Do they
-  agree? Frontend strictly weaker than backend is correct; stricter is drift.
-- **Sibling middlewares or handlers** that must stay in lockstep (e.g.,
-  `requireVerified` and `requireOnboarded`). One updated without the other is
-  the bug.
-- **Endpoint-family parity.** If multiple endpoints perform the same
-  conceptual state transition, verify the fix or invariant on every sibling
-  before declaring the issue closed.
-- **Shared utility vs inline duplicates.** Any inline duplicate of a shared
-  helper is a drift candidate. Grep for the helper's call sites and confirm
-  every caller uses it.
-- **Client TypeScript types vs server response shape.** Missing fields on the
-  client silently degrade; extra fields on the client mask missing server
-  fields.
-- **Documented policy vs enforced code.** If the README says "X is enforced"
-  and no test or runtime check enforces X, that's drift.
+- Written path exists for the audited flow
+- Source-of-truth owner is named
+- Trust boundaries are listed explicitly
+- At least one production or local-runtime evidence source is cited
 
-## Phase 4 — Classification
+### 2. Threat model
 
-Every finding is classified on three axes, not a single severity label.
+For each critical flow, answer every category below. If a category does not
+apply, say so explicitly.
 
-| Axis           | Scale                                                                     |
-| -------------- | ------------------------------------------------------------------------- |
-| Exploitability | unauthenticated / any authenticated user / specific role                  |
-| Blast radius   | one user / subset / all users / system-wide data integrity                |
-| Recoverability | auto-heals / manual fix per user / manual fix system-wide / unrecoverable |
+- **Auth bypass**: can the action happen without a valid session?
+- **Privilege escalation**: can a user exceed their role, plan, or ownership?
+- **IDOR**: can one user act on another user's resource by id?
+- **Payment spoofing**: can a paid state be reached without a trusted server
+  confirmation path?
+- **Webhook replay**: is the handler signature-verified, deduped, and safe to
+  replay?
+- **Validation drift**: are client, server, schema, and async side effects out
+  of sync?
+- **Deep-link abuse**: can crafted params push the app into a privileged or
+  inconsistent state?
+- **Stale cache**: can a mutation leave stale access, plan, or ownership state
+  readable elsewhere?
+- **Concurrent-write race**: can two callers cause contradictory state?
+- **Silent security-weakening fallback**: does a fallback, catch, retry, or
+  redirect skip an auth, ownership, plan, payment, or approval check?
+- **Client-controlled critical state**: can request payloads, query params,
+  local storage, or deep links set payment, approval, role, plan, or ownership?
 
-A CRITICAL finding is typically high on all three. A finding that affects all
-users but auto-heals is different from one that affects one user but is
-unrecoverable — conflating them under one severity hides the real risk.
+**Pass signal**
 
-## Phase 5 — Proof
+- Each category has a one-line answer
+- Mitigations cite the actual file, helper, middleware, or test
 
-Every finding must carry:
+### 3. Drift checks
 
-- Branch confirmation for the code being read. Run
-  `git rev-parse --abbrev-ref HEAD` before reporting a finding and confirm it
-  matches the branch production deploys from.
-- File path(s) and line number(s)
-- Reproduction: exact steps or `curl` invocation
-- Expected vs actual behavior
-- One-sentence fix strategy
+Most audit regressions in this repo come from layers drifting apart.
 
-Findings without proof are conjecture and do not enter the fix queue. This
-rule exists because agent-based audits in particular over-report; reading the
-actual file before accepting a finding is not optional.
+- Compare frontend validation to backend validation. Backend is authoritative;
+  frontend is UX only.
+- Compare backend validation to Prisma or persistence constraints where
+  applicable.
+- Check sibling middlewares and routes that must stay in lockstep, especially
+  `requireAuth`, `requireVerified`, and `requireOnboarded`.
+- Check endpoint families that perform the same conceptual state transition.
+- Check shared helper domains for inline duplication:
+  - notification routing
+  - user display formatting
+  - upload error surfacing
+  - booking horizon logic
+- Check client TypeScript expectations against actual server response shape.
+- Check docs and checklists against enforced code so policy does not outrun
+  implementation.
 
-## Phase 6 — Fix + verification
+**Pass signal**
 
-Every fix must ship with:
+- Intentional deltas are documented
+- Accidental deltas produce a concrete finding with file references
 
-- **Regression test that fails against the pre-fix code.** If the test would
-  pass before the fix too, it isn't a regression test.
-- `npx tsc --noEmit` green on both server and client
-- `npm run verify:guardrails` green
-- `npm run test:regressions` green
-- If the fix touches auth, payment, approval, or schema: before/after
-  reproduction documented in the PR description
-- If the fix touches schema: migration plan + rollback plan
+### 4. Findings and classification
 
----
+Each finding must carry proof, not only severity.
 
-## Source-of-truth table
+Required fields:
 
-These are the current authoritative layers. Code that contradicts this table
-is wrong. Update this table when the architecture changes — it is meant to be
-the single reference for "where does X live?"
+- affected files and line anchors
+- exploit path or failure path
+- expected behavior
+- actual behavior
+- fix strategy
+- verification method
 
-| Domain                  | Source of truth                                                               |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| Authentication          | JWT validated in `server/src/middleware/auth.ts`                              |
-| Email verification      | `User.email_verified`, enforced by `server/src/middleware/requireVerified.ts` |
-| Onboarding status       | Canonical top-level `onboarding_completed`, mirrored into                     |
-|                         | `preferences.onboarding_completed` for compatibility; enforced by             |
-|                         | `requireOnboarded.ts`                                                         |
-| Onboarding bypass       | Shared route list in both middlewares — must stay in lockstep                 |
-| User role               | Canonical top-level `role`, with `preferences.role` accepted only as          |
-|                         | compatibility fallback in shared helpers                                      |
-| Subscription plan       | `subscription_*` columns, written only by Stripe/Apple webhook handlers       |
-| Organization membership | `OrganizationMembership.status === 'active'` (not just row existence)         |
-| Team membership         | `TeamMembership.status === 'active'` (not just row existence)                 |
-| Approval status         | `approval_status` column, mutated only via `updateMany` + WHERE guard         |
-|                         | inside `server/src/lib/approvalService.ts`                                    |
-| Payment event processed | Persisted event-id dedup store, checked before side effects                   |
-| Booking horizon         | `server/src/utils/bookingHorizon.ts` — single function, called by client      |
-|                         | and server                                                                    |
-| Notification routing    | `utils/notificationPresentation.ts` — shared by feed drawer + full screen     |
-| User display label      | `utils/userDisplay.ts` `formatUserLabel`                                      |
-| Upload error surface    | `utils/uploadErrorAlert.ts` `showUploadErrorAlert`                            |
-| Post-event upload grace | `server/src/lib/geofencing.ts` — 2 days before / live / 48h after-if-live     |
+Classify each finding on three axes:
 
-## Known assumptions (deliberately accepted, not bugs)
+| Axis               | Typical scale                                                      |
+| ------------------ | ------------------------------------------------------------------ |
+| **Exploitability** | unauthenticated / any authenticated / specific role                |
+| **Blast radius**   | one user / subset / all users / system-wide integrity              |
+| **Recoverability** | auto-heals / manual fix per user / system-wide fix / unrecoverable |
 
-These have been audited and explicitly accepted as product decisions. Do not
-re-audit without new information.
+Severity labels are still useful, but they are not enough without these three
+dimensions.
 
-- **App is US-only.** USD is hardcoded in payments.ts `formatUsd` and in
-  Stripe `currency: 'usd'` calls. Ad-calendar UI uses `$` literals. Apple IAP
-  uses `displayPrice` verbatim (correct). See `AUDIT_I18N_*.md` for the six
-  locations to revisit if internationalization is ever in scope.
-- **No client/server version negotiation.** Deploy discipline is "server
-  first, OTA second." App Store binaries older than current `version` do not
-  receive OTAs. Accepted at current scale. Adding a `/capabilities` endpoint
-  - `X-App-Version` header is ~30 minutes of work if this becomes real pain.
-- **Post soft-delete leaves orphaned comments/votes/bookmarks as storage
-  debt.** Read paths already filter `deleted_at` at the join step, so
-  orphans never reach the UI. Treated as nightly-cron work, not a user-facing
-  bug.
-- **User delete uses CASCADE plus manual `deleteMany` inside a
-  `$transaction`.** Redundant but rollback-safe because the whole transaction
-  rolls back on any failure. Not a bug.
+### 5. Fix verification
 
-## Audit cadence
+Every accepted fix must include verification proportional to risk.
 
-- **Per-PR:** PR_CHECKLIST.md mechanical gates run every PR.
-- **Per-release:** Source-of-truth table reviewed; any changed entry gets a
-  paired regression test.
-- **Quarterly:** Full threat-model walk of each critical flow. Findings
-  captured with proof per Phase 5. Dismissals captured in "Known assumptions."
-- **Triggered:** Any production incident triggers a focused audit of the flow
-  that broke, following Phases 1–6.
+- Reproduce the bug or exploit before the fix when feasible
+- Add or update regression coverage
+- Run typecheck where relevant:
+  - `npx tsc --noEmit`
+  - `npx tsc --noEmit --project server/tsconfig.json`
+- Run repo guardrails where relevant:
+  - `npm run verify:guardrails`
+  - `npm run verify:error-envelope`
+  - `npm run test:regressions`
+- For payments, approvals, auth, or other critical flows, include runtime proof
+  or documented before/after behavior
+- For schema or deploy-order changes, include rollback notes
 
-## Related docs
+**Pass signal**
 
-- `PR_CHECKLIST.md` — mechanical checklist run on every PR.
-- `AUDIT_SCORECARD.md` — reusable pass/fail sheet for each audit run.
-- `AUDIT_I18N_*.md`, `AUDIT_VERSION_DRIFT_*.md` — accepted-assumption
-  registers. Add a new one when you accept a new assumption.
+- The fix has a named verification path
+- The verification path is runnable or directly reviewable in this repo
+
+## Engineering Standards
+
+These are structural rules for this codebase.
+
+- **Thin route wrappers**: `app/` should remain routing-oriented. Business logic
+  belongs in feature modules, shared utilities, hooks, API clients, or server
+  code.
+- **Typed network boundary**: screens must not call raw `fetch`; network access
+  goes through `api/*` clients.
+- **Shared logic stays shared**: no copy-paste policy logic across sibling
+  routes or screens when a helper or middleware already owns it.
+- **Path aliases over deep relatives**: use repo aliases consistently.
+- **Feature-scoped state by default**: global state is reserved for true
+  cross-cutting concerns such as auth, theme, session, and similar app-level
+  state.
+- **No client-only security decisions**: hiding a UI action is not enforcement.
+- **Async UI states explicit**: loading, success, error, and empty states should
+  all be represented for async screens and forms.
+
+## Business Rules
+
+These are repo-specific invariants that audits must treat as hard rules.
+
+- **Backend validation is law**. Frontend validation is guidance for UX.
+- **No client-controlled critical state**. Clients must not authoritatively set
+  payment state, approval state, privileged role, plan, or ownership.
+- **Server-side gates are mandatory**. Protected actions must check auth, role,
+  plan, and ownership as applicable on the server even if the UI also gates.
+- **Subscription state changes only on trusted server confirmation**. Success
+  pages and client query params are not authoritative.
+- **Membership and ownership come from persisted rows and canonical helpers**,
+  not UI assumptions or stale preference mirrors.
+- **Organization ownership is explicit and transferable**. The org owner owns
+  the organization until a server-authorized transfer changes that state.
+- **Team authority is scoped to the teams a coach manages**. Coach tooling must
+  not imply org-wide ownership, and org-wide tooling must not silently rewrite
+  team ownership.
+- **Async critical flows must be idempotent**. Webhooks, retries, callbacks, and
+  background jobs must be safe to replay.
+- **Admin and reviewer actions must be auditable** with actor, target, action,
+  and timestamp.
+- **Privileged failures fail closed**. Public navigation can fail gracefully, but
+  privileged actions must not silently succeed on malformed or missing params.
+- **No silent fallback that weakens security posture**. Catch blocks, retries,
+  and fallbacks must not skip auth, plan, approval, payment, or ownership
+  enforcement.
+
+## Release Gates
+
+These are the current-team strict gates for risky changes and releases.
+
+- Critical flows touched by the change have automated coverage or explicitly
+  tracked debt with owner and follow-up.
+- `npx tsc --noEmit` and `npx tsc --noEmit --project server/tsconfig.json`
+  remain green, or the PR documents a no-new-errors exception path.
+- `npm run verify:guardrails` remains green.
+- `npm run test:regressions` remains green for changes that touch guarded flows.
+- `npm run verify:error-envelope` remains clean when error envelope behavior is
+  touched.
+- Security fixes include an exploit or failure reproduction before and after the
+  fix when feasible.
+- Schema or deployment-order changes document migration status, server-first
+  order where needed, and rollback notes.
+- Observability is sufficient to debug the changed flow without shipping a
+  second patch just to add logs.
+
+## Source-of-Truth Table
+
+Code that contradicts this table is wrong unless this document is updated in
+the same change.
+
+| Domain                   | Source of truth                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Authentication           | JWT/session enforcement in `server/src/middleware/auth.ts`                                                                      |
+| Email verification       | `email_verified`, enforced by `server/src/middleware/requireVerified.ts`                                                        |
+| Onboarding state         | Canonical onboarding state enforced by `server/src/middleware/requireOnboarded.ts`, with compatibility mirrors where documented |
+| User role                | Canonical role helpers and persisted user state, not client-only preferences                                                    |
+| Subscription plan        | Server-owned subscription state written through trusted payment confirmation paths                                              |
+| Approval state           | Persisted approval columns and shared approval services, not client flags                                                       |
+| Organization membership  | Active organization membership rows and server authorization helpers                                                            |
+| Team membership          | Active team membership rows and server authorization helpers                                                                    |
+| Ownership                | Persisted organization/team owner relationships and explicit server-side transfer rules                                         |
+| Payment event processing | Verified provider events and deduped server processing                                                                          |
+| Deep-link routing        | Expo Router route resolution plus parser/guard logic                                                                            |
+| Notification routing     | `utils/notificationPresentation.ts`                                                                                             |
+| User display label       | `utils/userDisplay.ts` `formatUserLabel`                                                                                        |
+| Upload error surfacing   | `utils/uploadErrorAlert.ts` `showUploadErrorAlert`                                                                              |
+| Booking horizon logic    | Shared booking-horizon utility referenced by the flows that enforce it                                                          |
+
+## Audit Deliverables
+
+A completed audit should leave behind:
+
+- a written flow map
+- trust-boundary list
+- source-of-truth declaration
+- threat-model notes
+- findings with proof
+- verification steps for each accepted fix
+
+If the output does not let another engineer reproduce the problem and verify the
+fix, it is not complete.
+
+## Relationship To Other Docs
+
+- [`AUDIT_COMMANDMENTS.md`](./AUDIT_COMMANDMENTS.md): one-page, deck-friendly
+  summary of this standard
+- [`PR_CHECKLIST.md`](./PR_CHECKLIST.md): operational PR and release review gate
+- `docs/release/*`: release-specific runbooks and readiness checklists
+
+Do not create a new parallel “audit framework” doc unless these files cannot
+express the needed policy. Extend the canon before creating a sibling.

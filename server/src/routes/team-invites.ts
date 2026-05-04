@@ -5,12 +5,16 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { prisma } from '../lib/prisma.js';
-import { getAuthorizedUsersPerTeam } from '../lib/planLimits.js';
 import { inviteLimiter } from '../middleware/rateLimiters.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
-import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
+import {
+  buildTeamPlanLockedError,
+  getTeamEntitlementState,
+  isAuthorizedTeamRole,
+  TEAM_AUTHORIZED_ROLES,
+} from '../lib/teamEntitlements.js';
 
 export const teamInvitesRouter = Router();
 
@@ -48,30 +52,6 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
     });
   }
 
-  // PLAN LIMITS: Enforce authorized user caps based on TEAM OWNER's plan (Rule B).
-  // Authorized users are covered by the coach's plan — never charged individually.
-  const ownerMembership = await prisma.teamMembership.findFirst({
-    where: { team_id: teamId, role: 'owner', status: 'active' },
-    select: { user_id: true },
-  });
-  const ownerId = ownerMembership?.user_id || req.user.id;
-  const owner = await prisma.user.findUnique({
-    where: { id: ownerId },
-    select: {
-      preferences: true,
-      plan: true,
-      pending_plan: true,
-      payment_pending: true,
-      payment_approved: true,
-    },
-  });
-  const plan = getEffectiveEntitledPlan(owner as any);
-  const limit = getAuthorizedUsersPerTeam(plan);
-
-  const existingInvite = await prisma.teamInvite.findUnique({
-    where: { team_id_email: { team_id: teamId, email: emailLower } } as any,
-  });
-
   let invite;
   try {
     invite = await prisma.$transaction(async (tx) => {
@@ -100,14 +80,32 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
         );
       }
 
-      if (limit !== null && !current) {
-        const inviteCount = await tx.teamInvite.count({ where: { team_id: teamId, status: 'pending' } });
-        const memberCount = await tx.teamMembership.count({
-          where: { team_id: teamId, role: { in: ['manager', 'coach', 'assistant_coach', 'equipment', 'health_wellness'] } },
-        });
-        const totalAuthorized = inviteCount + memberCount;
-        if (totalAuthorized >= limit) {
-          throw new Error(`USER_LIMIT_REACHED:${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team`);
+      const entitlement = await getTeamEntitlementState(tx, teamId);
+      if (entitlement.teamLocked) {
+        throw new Error('TEAM_PLAN_LOCKED');
+      }
+
+      if (isAuthorizedTeamRole(assignedRole)) {
+        const limit = entitlement.maxAuthorizedUsers;
+        if (limit !== null) {
+          const inviteCount = await tx.teamInvite.count({
+            where: {
+              team_id: teamId,
+              status: 'pending',
+              ...(current ? { id: { not: current.id } } : {}),
+            },
+          });
+          const memberCount = await tx.teamMembership.count({
+            where: {
+              team_id: teamId,
+              status: 'active',
+              role: { in: [...TEAM_AUTHORIZED_ROLES] as any },
+            },
+          });
+          const totalAuthorized = inviteCount + memberCount + 1;
+          if (totalAuthorized > limit) {
+            throw new Error(`USER_LIMIT_REACHED:Plan limit reached for authorized users. This team allows ${limit} authorized user${limit === 1 ? '' : 's'}.`);
+          }
         }
       }
       return await tx.teamInvite.upsert({
@@ -117,6 +115,10 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
       });
     });
   } catch (e: any) {
+    if (e?.message === 'TEAM_PLAN_LOCKED') {
+      const entitlement = await getTeamEntitlementState(prisma, teamId);
+      return res.status(403).json(buildTeamPlanLockedError(entitlement));
+    }
     if (e?.message?.startsWith('INVITE_ROLE_CONFLICT:')) {
       const [, message] = e.message.split(':');
       return res.status(409).json({
@@ -141,6 +143,7 @@ teamInvitesRouter.post('/', requireAuth as any, requireVerified as any, requireO
     teamName: team.name,
     role: assignedRole,
     inviterName: inviter?.display_name || 'VarsityHub Coach',
+    inviteToken: invite.id,
   }).catch((err) => {
     console.error('[team-invites] Failed to send invite email:', err);
   });

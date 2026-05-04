@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -492,10 +493,14 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     borderRadius: 12,
     borderWidth: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.05)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+        }),
     elevation: 2,
     minHeight: 260,
   },
@@ -505,8 +510,12 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderWidth: 3,
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 12px rgba(0, 0, 0, 0.15)' }
+      : {
+          shadowOpacity: 0.15,
+          shadowRadius: 12,
+        }),
     elevation: 6,
   },
   cardHeader: {
@@ -552,10 +561,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.15,
+          shadowRadius: 8,
+        }),
     elevation: 6,
   },
   sideButtonText: {

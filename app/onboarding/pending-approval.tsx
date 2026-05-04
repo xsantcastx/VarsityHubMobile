@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import type { Href } from 'expo-router';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,6 +11,33 @@ import { User, Notification as NotificationApi } from '@/api/entities';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+
+type PendingApprovalUser = {
+  role?: string | null;
+  approval_status?: string | null;
+  preferences?: {
+    role?: string | null;
+    proceeding_as_fan?: boolean | null;
+    organization_id?: string | null;
+  } | null;
+};
+
+type ApprovalNotification = {
+  type?: string | null;
+  meta?: {
+    reason?: string | null;
+  } | null;
+};
+
+type ApiErrorLike = {
+  message?: string;
+  data?: {
+    error?: string;
+    code?: string;
+    retry_after_hours?: number;
+    retry_at?: string;
+  };
+};
 
 function PendingApproval() {
   const router = useRouter();
@@ -24,7 +52,7 @@ function PendingApproval() {
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [orgId, setOrgId] = useState<string | null>(null);
+  const [_orgId, setOrgId] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,7 +91,7 @@ function PendingApproval() {
     try {
       approvalCheckInFlightRef.current = true;
       setChecking(true);
-      const me: any = await User.me();
+      const me = (await User.me()) as PendingApprovalUser;
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
       const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
@@ -86,7 +114,9 @@ function PendingApproval() {
         try {
           const page = await NotificationApi.listPage(null, 20, false);
           const rejectionNotif = Array.isArray(page?.items)
-            ? page.items.find((n: any) => n.type === 'COACH_REJECTED' && n.meta?.reason)
+            ? page.items.find(
+                (n: ApprovalNotification) => n.type === 'COACH_REJECTED' && n.meta?.reason
+              )
             : null;
           if (rejectionNotif?.meta?.reason) {
             setRejectionReason(rejectionNotif.meta.reason);
@@ -103,7 +133,7 @@ function PendingApproval() {
         stopPolling();
         // Do not auto-complete coach onboarding here. Approval only unlocks
         // the real coach setup flow; the user still needs agreement + setup.
-        registerPushToken().catch(() => {});
+        void registerPushToken().catch(() => {});
       }
     } catch {
       // ignore polling errors
@@ -111,7 +141,7 @@ function PendingApproval() {
       approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
-  }, [ob.organization_id, redirectToOnboarding, stopPolling]);
+  }, [ob.organization_id, redirectToOnboarding, registerPushToken, stopPolling]);
 
   useEffect(() => {
     // Initial check
@@ -166,11 +196,12 @@ function PendingApproval() {
       await User.updatePreferences({ proceeding_as_fan: true });
       const freshUser = await checkAuth();
       const decision = getPostAuthRouteDecision(freshUser ?? null);
-      router.replace(decision.route as any);
-    } catch (err: any) {
+      router.replace(decision.route as Href);
+    } catch (err) {
       proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[pending-approval] Failed to proceed as fan:', err);
-      const msg = err?.data?.error || err?.message || 'Could not complete setup. Please try again.';
+      const error = err as ApiErrorLike | null | undefined;
+      const msg = error?.data?.error || error?.message || 'Could not complete setup. Please try again.';
       Alert.alert('Failed', msg);
     }
   };
@@ -183,9 +214,9 @@ function PendingApproval() {
       const freshUser = await checkAuth();
       const decision = getPostAuthRouteDecision(freshUser ?? null);
       if (decision.route === '/onboarding/coach-agreement') {
-        router.replace({ pathname: decision.route, params: { redirect } } as any);
+        router.replace({ pathname: decision.route, params: { redirect } } as Href);
       } else {
-        router.replace(decision.route as any);
+        router.replace(decision.route as Href);
       }
     } catch {
       Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
@@ -276,12 +307,13 @@ function PendingApproval() {
                     setRejected(false);
                     setRejectionReason(null);
                     Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
-                    router.replace('/onboarding/coach-application' as any);
-                  } catch (e: any) {
-                    const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
-                    const code = e?.data?.code;
-                    const hrs = e?.data?.retry_after_hours;
-                    const retryAt = e?.data?.retry_at;
+                    router.replace('/onboarding/coach-application');
+                  } catch (e) {
+                    const error = e as ApiErrorLike | null | undefined;
+                    const msg = error?.data?.error || error?.message || 'Failed to re-apply.';
+                    const code = error?.data?.code;
+                    const hrs = error?.data?.retry_after_hours;
+                    const retryAt = error?.data?.retry_at;
                     if (code === 'REJECTION_COOLDOWN') {
                       // v1.0.3: prefer the exact ISO timestamp when the server
                       // provides it — rounded hours alone read like "2 full

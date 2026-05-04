@@ -97,13 +97,13 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/message-thread?conversation_id=conv-1');
   });
 
-  it('TEAM_INVITE + coach_request → /approvals (coach approver view)', () => {
+  it('TEAM_INVITE + coach_request → organization requests tab', () => {
     const href = getNotificationHref({
       type: 'TEAM_INVITE',
       actor: makeActor(),
       meta: { coach_request: true },
     });
-    expect(href).toBe('/approvals');
+    expect(href).toBe('/organization?tab=requests');
   });
 
   it('TEAM_INVITE + coach_approved → /(tabs)/create-team (was /(tabs) in feed.tsx drift)', () => {

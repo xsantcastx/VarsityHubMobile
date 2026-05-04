@@ -35,6 +35,7 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
   '/verify-email',
   '/payment-success',
   '/payment-cancel',
+  '/organizations/[id]',
 ]);
 
 // Pending deep link URL — deferred until auth settles. Stored with a
@@ -44,6 +45,25 @@ const PUBLIC_DEEP_LINK_ROUTES = new Set([
 let _pendingDeepLinkUrl: string | null = null;
 let _pendingDeepLinkSetAt = 0;
 const PENDING_DEEP_LINK_TTL_MS = 5 * 60 * 1000;
+const devConsole = globalThis.console;
+
+const deepLinkLog = (...args: unknown[]) => {
+  if (__DEV__) {
+    devConsole.log(...args);
+  }
+};
+
+const deepLinkWarn = (...args: unknown[]) => {
+  if (__DEV__) {
+    devConsole.warn(...args);
+  }
+};
+
+const deepLinkError = (...args: unknown[]) => {
+  if (__DEV__) {
+    devConsole.error(...args);
+  }
+};
 
 /** Validate deep link ID — alphanumeric, dash, underscore; 3–64 chars (cuid/uuid compatible) */
 function isValidDeepLinkId(id: string | undefined | null): boolean {
@@ -71,7 +91,7 @@ export function consumePendingDeepLink(): string | null {
   _pendingDeepLinkSetAt = 0;
   if (!url) return null;
   if (Date.now() - setAt > PENDING_DEEP_LINK_TTL_MS) {
-    if (__DEV__) console.log('[DeepLinks] Discarding stale pending URL (>5min old)');
+    deepLinkLog('[DeepLinks] Discarding stale pending URL (>5min old)');
     return null;
   }
   return url;
@@ -105,6 +125,7 @@ const ROUTE_MAP: Record<string, string> = {
   events: '/event-detail', // /events/:id (server + email links)
   team: '/team-page',
   teams: '/team-page', // /teams/:id (server + share URLs)
+  organizations: '/organizations/[id]', // /organizations/:id public org pages
   profile: '/user-profile',
   user: '/user-profile',
   users: '/user-profile', // /users/:id (server's plural form)
@@ -114,13 +135,14 @@ const ROUTE_MAP: Record<string, string> = {
   'verify': '/verify',
   // Onboarding continuation (after coach approval)
   'onboarding': '/onboarding',
-  'approvals': '/approvals',
+  'approvals': '/organization',
   'admin-dashboard': '/admin-dashboard',
   'admin-ads': '/admin-ads',
   'event-approvals': '/event-approvals',
+  'organization': '/organization',
   'organization-join-requests': '/organization-join-requests',
   'organization-invites': '/organization-invites',
-  'team-hub': '/team-hub',
+  'team-hub': '/organization',
   'create-fan-event': '/create-fan-event',
   'event-detail': '/event-detail',
   'settings': '/settings',
@@ -146,6 +168,7 @@ const EXACT_MATCH_ROUTE_KEYS = new Set([
   'admin-dashboard',
   'admin-ads',
   'event-approvals',
+  'organization',
   'organization-join-requests',
   'organization-invites',
   'team-hub',
@@ -155,6 +178,21 @@ const EXACT_MATCH_ROUTE_KEYS = new Set([
   'payment-success',
   'payment-cancel',
 ]);
+
+const DEFAULT_ROUTE_PARAMS: Record<string, Record<string, string>> = {
+  approvals: { tab: 'requests' },
+  'team-hub': { tab: 'teams' },
+};
+
+function buildRouteParams(type: string, queryParams: Record<string, unknown>): Record<string, string> {
+  const params: Record<string, string> = {
+    ...(DEFAULT_ROUTE_PARAMS[type] || {}),
+  };
+  for (const [key, value] of Object.entries(queryParams)) {
+    if (typeof value === 'string') params[key] = value;
+  }
+  return params;
+}
 
 /**
  * Parse a deep link URL into screen and params
@@ -180,10 +218,10 @@ export function parseDeepLink(url: string): ParsedDeepLink | null {
       return parsePathLink(parsed);
     }
     
-    if (__DEV__) console.warn('[DeepLinks] Unable to parse URL:', url);
+    deepLinkWarn('[DeepLinks] Unable to parse URL:', url);
     return null;
   } catch (error) {
-    if (__DEV__) console.error('[DeepLinks] Parse error:', error);
+    deepLinkError('[DeepLinks] Parse error:', error);
     return null;
   }
 }
@@ -202,13 +240,10 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     const type = pathParts[0];
     const screen = ROUTE_MAP[type];
     if (screen) {
-      const params: Record<string, string> = {};
-      for (const [key, value] of Object.entries(queryParams)) {
-        if (typeof value === 'string') params[key] = value;
-      }
+      const params = buildRouteParams(type, queryParams);
       return { screen, params, source: 'scheme' };
     }
-    if (__DEV__) console.warn('[DeepLinks] Single-segment path not a known route:', pathParts[0]);
+    deepLinkWarn('[DeepLinks] Single-segment path not a known route:', pathParts[0]);
     return null;
   }
 
@@ -219,10 +254,7 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   // Multi-segment routes that have NO resource ID — same handling as the path-link parser.
   const wholePathKey = pathParts.join('/');
   if (ROUTE_MAP[wholePathKey]) {
-    const params: Record<string, string> = {};
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (typeof value === 'string') params[key] = value;
-    }
+    const params = buildRouteParams(wholePathKey, queryParams);
     return { screen: ROUTE_MAP[wholePathKey], params, source: 'scheme' };
   }
 
@@ -236,7 +268,7 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   } else {
     type = pathParts[0];
     if (EXACT_MATCH_ROUTE_KEYS.has(type)) {
-      if (__DEV__) console.warn('[DeepLinks] Exact-match route cannot consume an ID:', type);
+      deepLinkWarn('[DeepLinks] Exact-match route cannot consume an ID:', type);
       return null;
     }
     id = pathParts[1];
@@ -244,11 +276,11 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   const screen = ROUTE_MAP[type];
 
   if (!screen) {
-    if (__DEV__) console.warn('[DeepLinks] Unknown content type:', type);
+    deepLinkWarn('[DeepLinks] Unknown content type:', type);
     return null;
   }
   if (!isValidDeepLinkId(id)) {
-    if (__DEV__) console.warn('[DeepLinks] Invalid ID format:', type);
+    deepLinkWarn('[DeepLinks] Invalid ID format:', type);
     return null;
   }
 
@@ -271,17 +303,17 @@ function parseUniversalLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     const id = queryParams.id as string;
     
     if (!type || !id) {
-      if (__DEV__) console.warn('[DeepLinks] Missing type or id in share link');
+      deepLinkWarn('[DeepLinks] Missing type or id in share link');
       return null;
     }
     
     const screen = ROUTE_MAP[type];
     if (!screen) {
-      if (__DEV__) console.warn('[DeepLinks] Unknown content type:', type);
+      deepLinkWarn('[DeepLinks] Unknown content type:', type);
       return null;
     }
     if (!isValidDeepLinkId(id)) {
-      if (__DEV__) console.warn('[DeepLinks] Invalid ID format in share link:', type);
+      deepLinkWarn('[DeepLinks] Invalid ID format in share link:', type);
       return null;
     }
     
@@ -319,10 +351,7 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     if (!screen) {
       return null;
     }
-    const params: Record<string, string> = {};
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (typeof value === 'string') params[key] = value;
-    }
+    const params = buildRouteParams(type, queryParams);
     return {
       screen,
       params,
@@ -339,10 +368,7 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
   // type+id pattern if no whole-path key exists.
   const wholePathKey = pathParts.join('/');
   if (ROUTE_MAP[wholePathKey]) {
-    const params: Record<string, string> = {};
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (typeof value === 'string') params[key] = value;
-    }
+    const params = buildRouteParams(wholePathKey, queryParams);
     return {
       screen: ROUTE_MAP[wholePathKey],
       params,
@@ -389,23 +415,23 @@ export function handleDeepLink(url: string): boolean {
   const parsed = parseDeepLink(url);
 
   if (!parsed) {
-    if (__DEV__) console.log('[DeepLinks] Could not parse URL:', url);
+    deepLinkLog('[DeepLinks] Could not parse URL:', url);
     return false;
   }
 
   // Log UTM params for analytics if present
   if (parsed.utmParams) {
-    if (__DEV__) console.log('[DeepLinks] UTM params:', parsed.utmParams);
+    deepLinkLog('[DeepLinks] UTM params:', parsed.utmParams);
   }
 
   try {
     router.push({
-      pathname: parsed.screen as any,
+      pathname: parsed.screen as never,
       params: parsed.params,
     });
     return true;
   } catch (error) {
-    if (__DEV__) console.error('[DeepLinks] Navigation failed:', error);
+    deepLinkError('[DeepLinks] Navigation failed:', error);
     return false;
   }
 }
@@ -418,17 +444,17 @@ export function handleDeepLinkAuthAware(url: string): boolean {
   const parsed = parseDeepLink(url);
 
   if (!parsed) {
-    if (__DEV__) console.log('[DeepLinks] Could not parse URL:', url);
+    deepLinkLog('[DeepLinks] Could not parse URL:', url);
     return false;
   }
 
   if (isPublicRoute(parsed)) {
-    if (__DEV__) console.log('[DeepLinks] Public route — navigating immediately:', parsed.screen);
+    deepLinkLog('[DeepLinks] Public route — navigating immediately:', parsed.screen);
     return handleDeepLink(url);
   }
 
   // Protected route — defer until auth settles
-  if (__DEV__) console.log('[DeepLinks] Protected route — deferring until auth:', parsed.screen);
+  deepLinkLog('[DeepLinks] Protected route — deferring until auth:', parsed.screen);
   setPendingDeepLink(url);
   return true;
 }
@@ -440,7 +466,7 @@ export function setupDeepLinkListener(
   onLink?: (url: string, parsed: ParsedDeepLink | null) => void
 ): () => void {
   const subscription = Linking.addEventListener('url', ({ url }) => {
-    if (__DEV__) console.log('[DeepLinks] Received URL while app is open:', url);
+    deepLinkLog('[DeepLinks] Received URL while app is open:', url);
     const parsed = parseDeepLink(url);
     
     if (onLink) {
@@ -465,7 +491,7 @@ export async function handleInitialDeepLink(
     const url = await Linking.getInitialURL();
     
     if (url) {
-      if (__DEV__) console.log('[DeepLinks] App launched with URL:', url);
+      deepLinkLog('[DeepLinks] App launched with URL:', url);
       const parsed = parseDeepLink(url);
       
       if (onLink) {
@@ -478,7 +504,7 @@ export async function handleInitialDeepLink(
     
     return false;
   } catch (error) {
-    if (__DEV__) console.error('[DeepLinks] Error getting initial URL:', error);
+    deepLinkError('[DeepLinks] Error getting initial URL:', error);
     return false;
   }
 }

@@ -12,7 +12,74 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatUserLabel } from '@/utils/userDisplay';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
-import { Team as TeamApi } from '@/api/entities';
+import { Organization, Team as TeamApi } from '@/api/entities';
+
+type ManageUserRow = {
+  id: string;
+  role?: string | null;
+  status?: string | null;
+  user?: {
+    id?: string | null;
+    display_name?: string | null;
+    email?: string | null;
+    username?: string | null;
+  } | null;
+  team?: {
+    id?: string | null;
+    name?: string | null;
+  } | null;
+};
+
+function mapScopeMembers(
+  members: any[],
+  scope: { id: string; name: string },
+  fallbackKeyPrefix: string
+): ManageUserRow[] {
+  return members.map((member: any) => ({
+    id: String(
+      member.id ||
+        `${member.user?.id || member.user?.email || member.user?.username || fallbackKeyPrefix}:${
+          member.role || 'member'
+        }`
+    ),
+    role: member.role || 'member',
+    status: member.status || 'active',
+    user: member.user || null,
+    team: scope,
+  }));
+}
+
+function mapScopeInvites(
+  invites: any[],
+  scope: { id: string; name: string }
+): ManageUserRow[] {
+  return invites.map((invite: any) => ({
+    id: String(invite.id || invite.email),
+    role: invite.role || 'member',
+    status: invite.status || 'pending',
+    user: {
+      email: invite.email || null,
+      display_name: invite.email || null,
+      username: null,
+    },
+    team: scope,
+  }));
+}
+
+function dedupeRows(rows: ManageUserRow[]): ManageUserRow[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = [
+      row.user?.id || row.user?.email || row.id,
+      row.team?.id || row.team?.name || 'no-team',
+      row.role || 'member',
+      row.status || 'active',
+    ].join('::');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 // TODO v1.1: Wire up navigation from admin-dashboard
 function ManageUsersScreen() {
@@ -25,19 +92,66 @@ function ManageUsersScreen() {
   const [rows, setRows] = useState<any[]>([]);
 
   useEffect(() => {
+    if (coachLoading || !canAccessCoachTools) return;
+
     let mounted = true;
     void (async () => {
       setLoading(true); setError(null);
       try {
-        const list: any[] = await TeamApi.allMembers();
+        const scopedRows: ManageUserRow[] = [];
+
+        const orgSummaries: any = await Organization.reviewSummaries().catch(() => []);
+        const managedOrgSummaries = await Promise.all(
+          (Array.isArray(orgSummaries) ? orgSummaries : []).map((entry: any) =>
+            Organization.adminSummary(String(entry?.organization?.id)).catch(() => null)
+          )
+        );
+
+        for (const summary of managedOrgSummaries) {
+          if (!summary?.organization?.id) continue;
+          const members = Array.isArray(summary.members) ? summary.members : [];
+          const invites = Array.isArray(summary?.requests?.authorized_invites)
+            ? summary.requests.authorized_invites
+            : [];
+          const scope = {
+            id: String(summary.organization.id),
+            name: summary.organization.name || 'Organization',
+          };
+          scopedRows.push(
+            ...mapScopeMembers(members, scope, scope.id),
+            ...mapScopeInvites(invites, scope)
+          );
+        }
+
+        const managedTeams: any[] = await TeamApi.managed().catch(() => []);
+        const teamSummaries = await Promise.all(
+          (Array.isArray(managedTeams) ? managedTeams : []).map((team: any) =>
+            TeamApi.adminSummary(String(team.id)).catch(() => null)
+          )
+        );
+
+        for (const summary of teamSummaries) {
+          if (!summary?.team?.id) continue;
+          const members = Array.isArray(summary.members) ? summary.members : [];
+          const invites = Array.isArray(summary.pending_invites) ? summary.pending_invites : [];
+          const scope = {
+            id: String(summary.team.id),
+            name: summary.team.name || 'Team',
+          };
+          scopedRows.push(
+            ...mapScopeMembers(members, scope, scope.id),
+            ...mapScopeInvites(invites, scope)
+          );
+        }
+
         if (!mounted) return;
-        setRows(list);
+        setRows(dedupeRows(scopedRows));
       } catch {
         if (!mounted) return; setError('Failed to load users');
       } finally { if (mounted) setLoading(false); }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [canAccessCoachTools, coachLoading]);
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
@@ -76,6 +190,9 @@ function ManageUsersScreen() {
       <Input placeholder="Search name, email, or team" value={q} onChangeText={setQ} style={{ marginBottom: 10 }} />
       {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
       {error && !loading && <Text style={{ color: '#b91c1c' }}>{error}</Text>}
+      {!error && !loading && filtered.length === 0 && (
+        <Text style={{ color: Colors[colorScheme].mutedText }}>No members or pending invites found.</Text>
+      )}
       <FlatList
         data={filtered}
         keyExtractor={(u) => String(u.id)}

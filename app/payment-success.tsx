@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ExpoLinking from 'expo-linking';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Payments, User } from '@/api/entities';
@@ -458,8 +458,15 @@ const styles = StyleSheet.create({
     width: 80, height: 80, borderRadius: 40,
     backgroundColor: '#16A34A',
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#16A34A', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(22, 163, 74, 0.3)' }
+      : {
+          shadowColor: '#16A34A',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 12,
+        }),
+    elevation: 6,
   },
   successTitle: { fontSize: 26, fontWeight: '800', marginTop: 16 },
   card: {

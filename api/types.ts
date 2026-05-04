@@ -54,12 +54,6 @@ export interface CompleteOnboardingPayload {
   notifications_enabled?: boolean;
   messaging_policy_accepted?: boolean;
   proceeding_as_fan?: boolean;
-  authorized_users?: Array<{
-    email?: string;
-    user_id?: string;
-    role?: string;
-    assign_team?: string;
-  }>;
   [key: string]: unknown;
 }
 

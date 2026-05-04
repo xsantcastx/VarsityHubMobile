@@ -24,6 +24,7 @@
     "test:payments:confidence": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runTestsByPath src/__tests__/distributedLock.test.ts src/__tests__/transaction-logger-update.test.ts src/__tests__/payments-finalization.test.ts",
     "verify:email": "tsx scripts/verify-email-config.ts",
     "verify:production-health": "tsx scripts/verify-production-health.ts",
+    "verify:auth-canary": "tsx scripts/verify-auth-canary.ts",
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
     "verify:cloudinary": "tsx scripts/verify-cloudinary.ts",
     "verify:coach-approval": "tsx scripts/verify-coach-approval.ts",
@@ -99,6 +100,7 @@
   "overrides": {
     "fast-xml-parser": "^5.7.1",
     "undici": "^6.24.0",
+    "postcss": "8.5.12",
     "axios": "1.15.0",
     "brace-expansion": "^5.0.5",
     "follow-redirects": ">=1.15.12"

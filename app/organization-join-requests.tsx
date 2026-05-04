@@ -47,6 +47,9 @@ function OrganizationJoinRequestsScreen() {
     request_id?: string;
     action?: 'approve' | 'reject';
   }>();
+  const fallbackRoute = params.organization_id
+    ? `/organization?id=${encodeURIComponent(params.organization_id)}&tab=requests`
+    : '/organization?tab=requests';
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -242,7 +245,7 @@ function OrganizationJoinRequestsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen
         options={{
-          title: 'Team Join Requests',
+          title: 'Coach Requests',
           headerShown: false,
         }}
       />
@@ -250,7 +253,7 @@ function OrganizationJoinRequestsScreen() {
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
         <Pressable 
-          onPress={() => safeGoBack(router)} 
+          onPress={() => safeGoBack(router, fallbackRoute)} 
           style={styles.backButton}
         >
           <MaterialIcons name="arrow-back" size={24} color={theme.text} />

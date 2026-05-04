@@ -182,10 +182,21 @@ describe('parseDeepLink', () => {
     });
   });
 
-  it('parses universal team-hub links used by approval emails', () => {
+  it('parses universal team-hub links into the canonical organization tools route', () => {
     expect(parseDeepLink('https://varsityhub.app/team-hub')).toEqual({
-      screen: '/team-hub',
-      params: {},
+      screen: '/organization',
+      params: { tab: 'teams' },
+      source: 'universal',
+    });
+  });
+
+  it('parses canonical organization tools links with query params', () => {
+    expect(parseDeepLink('https://varsityhub.app/organization?tab=requests&id=org-123')).toEqual({
+      screen: '/organization',
+      params: {
+        tab: 'requests',
+        id: 'org-123',
+      },
       source: 'universal',
     });
   });
@@ -208,6 +219,7 @@ describe('parseDeepLink', () => {
       ['/games/game_abc123', '/game-detail', 'game_abc123'],
       ['/events/event_abc123', '/event-detail', 'event_abc123'],
       ['/teams/team_abc123', '/team-page', 'team_abc123'],
+      ['/organizations/org_abc123', '/organizations/[id]', 'org_abc123'],
       ['/users/user_abc123', '/user-profile', 'user_abc123'],
     ];
     for (const [path, expectedScreen, expectedId] of cases) {

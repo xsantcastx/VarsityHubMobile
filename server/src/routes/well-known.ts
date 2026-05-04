@@ -19,6 +19,8 @@ const IOS_PATHS = [
   '/admin-dashboard',
   '/admin-ads',
   '/event-approvals',
+  '/organization',
+  '/approvals',
   '/organization-join-requests',
   '/team-hub',
   '/create-fan-event',

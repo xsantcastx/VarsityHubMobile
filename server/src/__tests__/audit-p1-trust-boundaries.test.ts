@@ -19,6 +19,8 @@
  *        authorized-user cap counts the owner's seat.
  *   #8 — PUT /teams reassignment calls isOrganizationApproved on the
  *        target org, matching the create-path approval gate.
+ *   #9 — PUT /auth/me mention rewrite uses parameterized executeRaw,
+ *        not executeRawUnsafe, on the request path.
  */
 
 import { describe, expect, it } from '@jest/globals';
@@ -33,6 +35,7 @@ const teams = read('routes/teams.ts');
 const organizations = read('routes/organizations.ts');
 const handoff = read('routes/publicAppHandoff.ts');
 const env = read('lib/env.ts');
+const auth = read('routes/auth.ts');
 
 describe('audit P1 — trust-boundary regression guards', () => {
   describe('#2 subscription cancel/resume verify Stripe customer ownership', () => {
@@ -126,6 +129,15 @@ describe('audit P1 — trust-boundary regression guards', () => {
       const putBlock = teams.match(/teamsRouter\.put\(\s*'\/:id'[\s\S]+?^\)/m)?.[0] || '';
       expect(putBlock).toMatch(/isOrganizationApproved\(targetOrganizationId/);
       expect(putBlock).toMatch(/ORGANIZATION_NOT_APPROVED/);
+    });
+  });
+
+  describe('#9 PUT /auth/me mention rewrite avoids executeRawUnsafe', () => {
+    it('uses executeRaw with bound params for mention rewrites', () => {
+      const putMeBlock = auth.match(/authRouter\.put\(\s*'\/me'[\s\S]+?return res\.json\(sanitizeUser\(user\)\);[\s\S]+?\)\s*\)/m)?.[0] || '';
+      expect(putMeBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Post'\)\)/);
+      expect(putMeBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Comment'\)\)/);
+      expect(putMeBlock).not.toMatch(/\$executeRawUnsafe/);
     });
   });
 });

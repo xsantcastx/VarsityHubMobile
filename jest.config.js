@@ -18,6 +18,7 @@ module.exports = {
     '^.+\\.(ts|tsx)$': [
       'ts-jest',
       {
+        diagnostics: false,
         tsconfig: {
           jsx: 'react-jsx',
           esModuleInterop: true,
@@ -57,10 +58,4 @@ module.exports = {
     '<rootDir>/node_modules_broken3/',
   ],
   watchman: false,
-  globals: {
-    'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.json',
-      diagnostics: false,
-    },
-  },
 };

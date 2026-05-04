@@ -458,10 +458,19 @@ export default function SignInScreen() {
                 overflow: 'hidden',
                 borderWidth: colorScheme === 'dark' ? 3 : 1,
                 borderColor: colorScheme === 'dark' ? '#64748b' : '#E5E7EB',
-                shadowColor: '#000000',
-                shadowOpacity: colorScheme === 'dark' ? 0.6 : 0.1,
-                shadowOffset: { width: 0, height: 4 },
-                shadowRadius: 16,
+                ...(Platform.OS === 'web'
+                  ? {
+                      boxShadow:
+                        colorScheme === 'dark'
+                          ? '0px 4px 16px rgba(0, 0, 0, 0.6)'
+                          : '0px 4px 16px rgba(0, 0, 0, 0.1)',
+                    }
+                  : {
+                      shadowColor: '#000000',
+                      shadowOpacity: colorScheme === 'dark' ? 0.6 : 0.1,
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowRadius: 16,
+                    }),
                 elevation: 8,
               }
             ]}>
@@ -589,10 +598,18 @@ export default function SignInScreen() {
                         borderColor: getInputBorderColor(emailFocused, emailInvalid),
                         borderWidth: emailFocused || emailInvalid ? 3 : 2,
                         color: palette.text,
-                        shadowColor: emailFocused ? palette.tint : 'transparent',
-                        shadowOpacity: emailFocused ? 0.18 : 0,
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowRadius: 8,
+                        ...(Platform.OS === 'web'
+                          ? {
+                              boxShadow: emailFocused
+                                ? `0px 0px 8px ${palette.tint}2e`
+                                : 'none',
+                            }
+                          : {
+                              shadowColor: emailFocused ? palette.tint : 'transparent',
+                              shadowOpacity: emailFocused ? 0.18 : 0,
+                              shadowOffset: { width: 0, height: 0 },
+                              shadowRadius: 8,
+                            }),
                       },
                     ]}
                   />
@@ -626,10 +643,18 @@ export default function SignInScreen() {
                         borderColor: getInputBorderColor(passwordFocused, passwordInvalid),
                         borderWidth: passwordFocused || passwordInvalid ? 3 : 2,
                         color: palette.text,
-                        shadowColor: passwordFocused ? palette.tint : 'transparent',
-                        shadowOpacity: passwordFocused ? 0.18 : 0,
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowRadius: 8,
+                        ...(Platform.OS === 'web'
+                          ? {
+                              boxShadow: passwordFocused
+                                ? `0px 0px 8px ${palette.tint}2e`
+                                : 'none',
+                            }
+                          : {
+                              shadowColor: passwordFocused ? palette.tint : 'transparent',
+                              shadowOpacity: passwordFocused ? 0.18 : 0,
+                              shadowOffset: { width: 0, height: 0 },
+                              shadowRadius: 8,
+                            }),
                       },
                     ]}
                   />

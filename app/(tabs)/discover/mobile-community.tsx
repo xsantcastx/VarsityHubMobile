@@ -496,10 +496,11 @@ function CommunityDiscoverScreen() {
 
   const handleManageOrg = useCallback(async () => {
     try {
-      const orgs = await Organization.mine();
-      const list = Array.isArray(orgs) ? orgs : [];
-      if (list.length > 0) {
-        router.push({ pathname: '/organization', params: { id: list[0].id } } as any);
+      const summaries = await Organization.reviewSummaries();
+      const list = Array.isArray(summaries) ? summaries : [];
+      const firstOrgId = list[0]?.organization?.id;
+      if (firstOrgId) {
+        router.push({ pathname: '/organization', params: { id: firstOrgId } } as any);
       } else {
         Alert.alert('No Organization', 'You are not linked to any organization yet.');
       }
@@ -1537,7 +1538,7 @@ function CommunityDiscoverScreen() {
                     borderColor: Colors[colorScheme].tint + '30',
                   },
                 ]}
-                onPress={() => void router.push('/manage-teams')}
+                onPress={() => void router.push('/organization?tab=teams')}
                 accessibilityRole="button"
                 accessibilityLabel="Manage Teams"
               >
@@ -2327,10 +2328,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(15, 23, 42, 0.08)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 3,
   },
   zipSuggestionItem: {

@@ -46,8 +46,6 @@ export type OnboardingState = {
   organization_location?: string | null;
   join_request_pending?: boolean;
   sport?: string;
-  authorized?: Array<{ email?: string; user_id?: string; role?: TeamRole; assign_team?: string }>;
-  authorized_users?: Array<{ email?: string; user_id?: string; role?: TeamRole; assign_team?: string }>;
   avatar_url?: string;
   bio?: string;
   sports_interests?: Interest[];

@@ -51,6 +51,7 @@ export async function resolveMinorAuditMetadata(
 }
 
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
+const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
 
 let emailServicePromise: Promise<EmailService> | null = null;
 const getEmailService = async (): Promise<EmailService | null> => {
@@ -451,7 +452,7 @@ export async function initEmailService() {
 
   // Also check for missing templates (legacy check)
   const missing = getMissingEmailTemplates();
-  if (missing.length) {
+  if (missing.length && !isPlaywrightE2E) {
     console.error(
       `[email] ⛔ ${missing.length} critical SendGrid template IDs missing: ${missing.join(', ')}`
     );
@@ -467,7 +468,7 @@ export async function initEmailService() {
   }
 
   const missingRecommended = getMissingRecommendedTemplates();
-  if (missingRecommended.length) {
+  if (missingRecommended.length && !isPlaywrightE2E) {
     console.warn(
       `[email] ⚠️  ${missingRecommended.length} recommended SendGrid template IDs missing: ${missingRecommended.join(', ')}`
     );
@@ -804,7 +805,7 @@ export async function sendEventApprovedEmail(params: any): Promise<boolean> {
       organization_name: params.organizationName || 'VarsityHub',
       approval_notes: params.approvalNotes || '',
       view_event_url: buildEventDetailUrl(params.eventId, params.eventLink),
-      manage_event_url: params.manageLink || buildWebScreenUrl('/team-hub'),
+      manage_event_url: params.manageLink || buildWebScreenUrl('/organization?tab=teams'),
     },
     `Event approved email sent to ${params.to}`,
     { metadata: await resolveMinorAuditMetadata(params.to) }
@@ -1944,6 +1945,8 @@ async function sendJoinRequestAdminTemplate(params: {
   requesterName: string;
   /** Contact email of the requester — shown or linked in the request details. */
   requesterEmail: string;
+  /** Only platform-admin review flows should expose the requester's email. */
+  includeRequesterEmail?: boolean;
   /** Name used to greet the admin reviewing the request. */
   adminName?: string;
   sport?: string;
@@ -1961,6 +1964,8 @@ async function sendJoinRequestAdminTemplate(params: {
     );
     return false;
   }
+
+  const requesterEmail = params.includeRequesterEmail ? params.requesterEmail : '';
 
   // The SendGrid join-request-admin template renders `{{requester_name}}`,
   // `{{org_name}}`, `{{admin_name}}`, `{{deny_url}}`, `{{coach_notes}}`,
@@ -1987,7 +1992,8 @@ async function sendJoinRequestAdminTemplate(params: {
       // template revisions that may reference them)
       league_name: params.leagueName,
       owner_name: params.requesterName,
-      owner_email: params.requesterEmail,
+      owner_email: requesterEmail,
+      requester_email: requesterEmail,
       sport: params.sport || 'Not specified',
       org_type: params.orgType || 'Not specified',
       created_date: new Date().toLocaleDateString(),
@@ -2203,6 +2209,7 @@ export async function sendLeagueApprovalRequestEmail(params: {
         approveUrl,
         rejectUrl,
         supportingDocumentUrl: params.supportingDocumentUrl,
+        includeRequesterEmail: true,
       })
     )
   );
@@ -2245,6 +2252,7 @@ export async function sendCoachJoinRequestEmail(params: {
       approveUrl: params.approveUrl,
       rejectUrl: params.rejectUrl,
       coachNotes: params.coachNotes,
+      includeRequesterEmail: false,
     });
   }
   return sendTemplateEmail(
@@ -2256,7 +2264,7 @@ export async function sendCoachJoinRequestEmail(params: {
       subject,
       owner_name: params.ownerName,
       coach_name: params.coachName,
-      coach_email: params.coachEmail,
+      coach_email: '',
       organization_name: params.organizationName,
       approve_url: params.approveUrl || '',
       reject_url: params.rejectUrl || '',
@@ -2297,8 +2305,8 @@ export async function sendEventPendingReviewEmail(params: {
   to: string;
   reviewerName?: string;
   requesterName?: string;
-  requesterEmail?: string;
-  eventTitle: string;
+    requesterEmail?: string;
+    eventTitle: string;
   eventType?: string;
   teamName?: string;
   reviewId: string;
@@ -2306,6 +2314,7 @@ export async function sendEventPendingReviewEmail(params: {
   approveUrl?: string;
   rejectUrl?: string;
   coachNotes?: string;
+  includeRequesterEmail?: boolean;
 }): Promise<boolean> {
   const reviewKind = params.reviewKind || 'event';
   const subject = `New ${reviewKind} awaiting approval: ${params.eventTitle}`;
@@ -2340,6 +2349,7 @@ export async function sendEventPendingReviewEmail(params: {
       approveUrl,
       rejectUrl,
       coachNotes: params.coachNotes,
+      includeRequesterEmail: params.includeRequesterEmail === true,
     });
   }
   return sendTemplateEmail(
@@ -2351,7 +2361,7 @@ export async function sendEventPendingReviewEmail(params: {
       subject,
       reviewer_name: params.reviewerName || 'Reviewer',
       requester_name: params.requesterName || 'VarsityHub User',
-      requester_email: params.requesterEmail || '',
+      requester_email: params.includeRequesterEmail === true ? params.requesterEmail || '' : '',
       event_title: params.eventTitle,
       event_type: params.eventType || 'Event',
       team_name: params.teamName || 'VarsityHub',
@@ -2391,7 +2401,7 @@ export async function sendLeagueApprovedEmail(params: {
       org_name: params.leagueName,
       org_logo_url: '',
       admin_note: params.note || '',
-      dashboard_url: buildWebScreenUrl('/team-hub'),
+      dashboard_url: buildWebScreenUrl('/organization?tab=teams'),
     },
     `League approved email sent to ${params.to}`
   );
@@ -2456,8 +2466,8 @@ export async function sendCoachApprovedEmail(params: {
       org_name: params.leagueName,
       admin_name: 'VarsityHub',
       admin_note: params.note || '',
-      org_url: buildWebScreenUrl('/team-hub'),
-      dashboard_url: buildWebScreenUrl('/team-hub'),
+      org_url: buildWebScreenUrl('/organization?tab=teams'),
+      dashboard_url: buildWebScreenUrl('/organization?tab=teams'),
       org_logo_url: '',
     },
     `Coach approved email sent to ${params.to}`

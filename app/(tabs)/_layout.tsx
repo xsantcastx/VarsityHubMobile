@@ -1,7 +1,7 @@
 import { Tabs, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Pressable, View, Text } from 'react-native';
+import { Platform, Pressable, View, Text } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { HapticTab } from '@/components/HapticTab';
@@ -43,8 +43,7 @@ export default function TabLayout() {
         paddingTop: 6,
         backgroundColor: colorScheme === 'dark' ? '#0f172a' : palette.card,
         overflow: 'visible' as const,
-        shadowOpacity: 0,
-        shadowRadius: 0,
+        ...(Platform.OS === 'web' ? { boxShadow: 'none' } : { shadowOpacity: 0, shadowRadius: 0 }),
         elevation: 0,
         borderTopWidth: 0,
       },

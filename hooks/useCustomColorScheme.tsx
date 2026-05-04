@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useColorScheme as useSystemColorScheme } from 'react-native';
+import { Platform, useColorScheme as useSystemColorScheme } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 
@@ -20,6 +20,29 @@ const THEME_STORAGE_KEY = 'vh_theme_preference';
 function storageKeyForUser(userId?: string | null) {
   if (!userId) return THEME_STORAGE_KEY + '_global';
   return `${THEME_STORAGE_KEY}_${userId}`;
+}
+
+async function getStoredTheme(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+  return SecureStore.getItemAsync(key);
+}
+
+async function setStoredTheme(key: string, theme: ColorScheme): Promise<void> {
+  if (Platform.OS === 'web') {
+    try {
+      window.localStorage.setItem(key, theme);
+    } catch {
+      // Best effort only on web.
+    }
+    return;
+  }
+  await SecureStore.setItemAsync(key, theme);
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -42,7 +65,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
         const key = storageKeyForUser(me?.id ?? me?.user_id ?? null);
         currentStorageKey.current = key;
-        const savedTheme = await SecureStore.getItemAsync(key);
+        const savedTheme = await getStoredTheme(key);
         if (mounted && savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
           setThemePreferenceState(savedTheme as ColorScheme);
         }
@@ -65,7 +88,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       // Save to the scoped key (per-user when possible)
       const key = currentStorageKey.current || storageKeyForUser(null);
-      await SecureStore.setItemAsync(key, theme);
+      await setStoredTheme(key, theme);
       setThemePreferenceState(theme);
     } catch (error) {
       if (__DEV__) console.warn('Failed to save theme preference:', error);

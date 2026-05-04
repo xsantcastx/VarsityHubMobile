@@ -1,0 +1,111 @@
+import { describe, expect, it } from '@jest/globals';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = join(process.cwd());
+const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+
+const teamPage = read('app/team-page.tsx');
+const teamAdmin = read('app/team-admin.tsx');
+const createTeam = read('app/(tabs)/create-team.tsx');
+const approvals = read('app/(tabs)/approvals.tsx');
+const editTeam = read('app/(tabs)/edit-team.tsx');
+const myTeam = read('app/(tabs)/my-team.tsx');
+const manageUsers = read('app/manage-users.tsx');
+const organizationScreen = read('app/(tabs)/organization.tsx');
+const organizationDetail = read('app/organizations/[id].tsx');
+const organizationJoinRequests = read('app/organization-join-requests.tsx');
+const step3League = read('app/onboarding/step-3-league.tsx');
+const mobileCommunity = read('app/(tabs)/discover/mobile-community.tsx');
+
+describe('coach/org navigation contracts', () => {
+  it('team page routes the organization button to the canonical organization tools screen', () => {
+    expect(teamPage).toContain("pathname: '/organization'");
+    expect(teamPage).toContain("tab: 'overview'");
+    expect(teamPage).not.toContain("pathname: '/league'");
+  });
+
+  it('team page uses the scoped screen summary contract and routes admin controls into team tools', () => {
+    expect(teamPage).toContain('Team.screenSummary(teamId)');
+    expect(teamPage).not.toContain('Team.members(teamData.id)');
+    expect(teamPage).not.toContain('Organization.members(orgId)');
+    expect(teamPage).toContain("pathname: '/team-admin'");
+  });
+
+  it('organization sharing owns the QR flow, while team pages only keep link sharing', () => {
+    expect(teamPage).not.toContain('react-native-qrcode-svg');
+    expect(teamPage).not.toContain('team-page-save-qr-button');
+    expect(organizationDetail).toContain('react-native-qrcode-svg');
+    expect(organizationDetail).toContain('organization-page-save-qr-button');
+    expect(organizationDetail).toContain("kind: 'organization'");
+  });
+
+  it('team admin back navigation returns to the organization teams tab', () => {
+    expect(teamAdmin).toContain("'/organization?tab=teams'");
+  });
+
+  it('team admin staff tooling surfaces pending invites from the scoped team admin summary', () => {
+    expect(teamAdmin).toContain('pending_invites');
+    expect(teamAdmin).toContain('Pending Invites');
+    expect(teamAdmin).toContain('Team.cancelInvite(');
+    expect(teamAdmin).toContain('Team.adminSummary(nextTeamId)');
+  });
+
+  it('team creation fallback routes back to organization tools, not manage-teams', () => {
+    expect(createTeam).toContain("pathname: '/organization'");
+    expect(createTeam).toContain("tab: 'teams'");
+    expect(createTeam).not.toContain("'/(tabs)/manage-teams'");
+  });
+
+  it('approvals wrapper auto-forwards directly when only one managed organization exists', () => {
+    expect(approvals).toContain('entries.length !== 1');
+    expect(approvals).toContain('router.replace(buildOrganizationRequestsRoute(entries[0].id))');
+  });
+
+  it('organization coach-request review returns to the canonical organization requests tab and uses coach-first copy', () => {
+    expect(organizationJoinRequests).toContain("'/organization?tab=requests'");
+    expect(organizationJoinRequests).toContain("title: 'Coach Requests'");
+    expect(organizationJoinRequests).not.toContain("title: 'Team Join Requests'");
+  });
+
+  it('edit-team uses the scoped team admin summary instead of rebuilding access from org and roster fetches', () => {
+    expect(editTeam).toContain('Team.adminSummary(params.id)');
+    expect(editTeam).toContain("'/organization?tab=teams'");
+    expect(editTeam).not.toContain('Team.members(params.id)');
+    expect(editTeam).not.toContain('Organization.members(teamData.organization_id)');
+  });
+
+  it('my-team uses one focus loader and keeps member loading keyed to the selected team', () => {
+    expect((myTeam.match(/useFocusEffect\(/g) || [])).toHaveLength(1);
+    expect(myTeam).toContain('await loadMembers(nextSelectedTeamId)');
+    expect(myTeam).toContain('void loadMembers(selectedTeamId)');
+  });
+
+  it('manage-users stays coach-scoped and never falls back to the admin-only allMembers endpoint', () => {
+    expect(manageUsers).toContain('Organization.reviewSummaries()');
+    expect(manageUsers).toContain('orgSummaries) ? orgSummaries : []).map');
+    expect(manageUsers).toContain('Organization.adminSummary(');
+    expect(manageUsers).toContain('TeamApi.managed().catch(() => [])');
+    expect(manageUsers).toContain('TeamApi.adminSummary(');
+    expect(manageUsers).not.toContain('TeamApi.allMembers(');
+  });
+
+  it('org entry screens use the lighter review summary lookup when they only need a managed organization id/name', () => {
+    expect(organizationScreen).toContain('Organization.reviewSummaries()');
+    expect(step3League).toContain('Organization.reviewSummaries()');
+    expect(mobileCommunity).toContain('Organization.reviewSummaries()');
+  });
+
+  it('organization members tooling exposes the authorized-user invite path and pending invite state', () => {
+    expect(organizationScreen).toContain('Organization.invite(');
+    expect(organizationScreen).toContain('Organization.cancelInvite(');
+    expect(organizationScreen).toContain('pending_authorized_invites');
+    expect(organizationScreen).toContain('authorized_invites');
+  });
+
+  it('coach setup copy points users to live team/org management tools instead of a dead authorized-user onboarding step', () => {
+    expect(step3League).toContain('invite managers and members from organization tools');
+    expect(step3League).toContain('manage roster and staff invites from your team tools');
+    expect(step3League).not.toContain('Continue to add authorized users and complete your setup.');
+  });
+});

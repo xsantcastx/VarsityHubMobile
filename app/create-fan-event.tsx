@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
@@ -25,7 +25,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { APP_ROUTES } from '@/utils/appRoutes';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
-import { Game, Team as TeamAPI, User } from '@/api/entities';
+import { Event, Game, Team as TeamAPI, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { getApiBaseUrl, httpGet } from '@/api/http';
@@ -47,6 +47,80 @@ const EVENT_TYPES = [
   { value: 'other', label: 'Other', emoji: '📌' },
 ];
 
+type MeResponse = {
+  approval_status?: string | null;
+  preferences?: {
+    role?: string | null;
+    onboarding_completed?: boolean;
+  } | null;
+};
+
+type MyEventSummary = {
+  approval_status?: string | null;
+};
+
+type FollowedTeam = {
+  id: string;
+  name?: string | null;
+  logo_url?: string | null;
+  avatar_url?: string | null;
+  venue_address?: string | null;
+};
+
+type TeamOption = {
+  id: string;
+  name: string;
+  logo?: string;
+  venue_address: string | null;
+};
+
+type TeamSearchResponse = {
+  items?: Array<{
+    id: string;
+    name?: string | null;
+  }>;
+};
+
+type CreateEventError = {
+  code?: string;
+  message?: string;
+  data?: {
+    code?: string;
+    message?: string;
+  };
+};
+
+type GameCreatePayload = {
+  title: string;
+  date: string;
+  location: string;
+  venue_address: string;
+  venue_place_id?: string;
+  description?: string;
+  event_type: 'game';
+  banner_url: string;
+  cover_image_url: string;
+  appearance: AppearancePreset;
+  home_team: string;
+  away_team: string;
+  home_team_id?: string;
+  away_team_id?: string;
+};
+
+type EventCreatePayload = {
+  title: string;
+  description: string;
+  event_type: string;
+  location: string;
+  venue_address: string;
+  venue_place_id?: string;
+  date: string;
+  banner_url: string;
+  cover_image_url: string;
+  appearance: AppearancePreset;
+  home_team_id?: string;
+};
+
 function CreateFanEventScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
@@ -60,7 +134,7 @@ function CreateFanEventScreen() {
 
   useEffect(() => {
     User.me()
-      .then((u: any) => {
+      .then((u: MeResponse) => {
         const coachAccess = getCoachAccessState(u);
         const canCreateCoachEvents = coachAccess.isApprovedCoach && coachAccess.onboardingCompleted;
         setUserRole(canCreateCoachEvents ? 'coach' : 'fan');
@@ -75,9 +149,9 @@ function CreateFanEventScreen() {
       });
     // Pre-check pending event count so we can warn before form fill
     httpGet('/events/my-events')
-      .then((events: any) => {
+      .then((events: MyEventSummary[]) => {
         if (Array.isArray(events)) {
-          const pending = events.filter((e: any) => e.approval_status === 'pending').length;
+          const pending = events.filter((event) => event.approval_status === 'pending').length;
           setPendingEventCount(pending);
         }
       })
@@ -89,7 +163,7 @@ function CreateFanEventScreen() {
   const isCoach = userRole === 'coach';
 
   // Load followed teams
-  const [rawTeams, setRawTeams] = useState<any[]>([]);
+  const [rawTeams, setRawTeams] = useState<FollowedTeam[]>([]);
   const [_teamsLoading, setTeamsLoading] = useState(true);
   const [teamsError, setTeamsError] = useState(false);
 
@@ -99,8 +173,8 @@ function CreateFanEventScreen() {
         setTeamsLoading(true);
         setTeamsError(false);
         const teams = await httpGet('/follows/teams?user_id=me');
-        setRawTeams(Array.isArray(teams) ? teams : []);
-      } catch (error: any) {
+        setRawTeams(Array.isArray(teams) ? (teams as FollowedTeam[]) : []);
+      } catch (error: unknown) {
         if (__DEV__) console.warn('[CreateFanEvent] Failed to load followed teams:', error);
         setRawTeams([]);
         setTeamsError(true);
@@ -126,7 +200,7 @@ function CreateFanEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const bannerCaptureRef = useRef<any>(null);
+  const bannerCaptureRef = useRef<ViewShot | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [appearance, setAppearance] = useState<AppearancePreset>('classic');
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -146,9 +220,9 @@ function CreateFanEventScreen() {
   const [gameType, setGameType] = useState<'home' | 'away'>('home');
   const [showTeamPicker, setShowTeamPicker] = useState(false);
 
-  const teams = useMemo(() => {
+  const teams = useMemo<TeamOption[]>(() => {
     if (!Array.isArray(rawTeams) || rawTeams.length === 0) return [];
-    return rawTeams.map((team: any) => ({
+    return rawTeams.map((team) => ({
       id: String(team.id),
       name: team.name || 'Unknown Team',
       logo: (team.logo_url || team.avatar_url || undefined) as string | undefined,
@@ -297,8 +371,10 @@ function CreateFanEventScreen() {
     opponentTimerRef.current = setTimeout(async () => {
       try {
         const results = await TeamAPI.list(text.trim(), false, { limit: 6 });
-        const list = Array.isArray(results) ? results : (Array.isArray(results?.items) ? results.items : []);
-        setOpponentSuggestions(list.map((t: any) => ({ id: String(t.id), name: String(t.name || '') })));
+        const list = Array.isArray(results)
+          ? (results as TeamSearchResponse['items'])
+          : (Array.isArray((results as TeamSearchResponse | null)?.items) ? (results as TeamSearchResponse).items : []);
+        setOpponentSuggestions((list || []).map((team) => ({ id: String(team.id), name: String(team.name || '') })));
       } catch {
         setOpponentSuggestions([]);
       } finally {
@@ -357,8 +433,9 @@ function CreateFanEventScreen() {
     if (!result.canceled && result.assets[0]) {
       try {
         await uploadBannerFromUri(result.assets[0].uri);
-      } catch (error: any) {
-        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
+      } catch (error: unknown) {
+        const uploadError = error as CreateEventError;
+        Alert.alert('Upload Failed', uploadError?.message || 'Failed to upload event photo. Please try again.');
       }
     }
   }, [uploadBannerFromUri]);
@@ -384,8 +461,9 @@ function CreateFanEventScreen() {
     if (!result.canceled && result.assets[0]) {
       try {
         await uploadBannerFromUri(result.assets[0].uri);
-      } catch (error: any) {
-        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
+      } catch (error: unknown) {
+        const uploadError = error as CreateEventError;
+        Alert.alert('Upload Failed', uploadError?.message || 'Failed to upload event photo. Please try again.');
       }
     }
   }, [uploadBannerFromUri]);
@@ -466,7 +544,7 @@ function CreateFanEventScreen() {
         const homeTeamName = gameType === 'home' ? selectedTeam : sanitizedOpponent;
         const awayTeamName = gameType === 'home' ? sanitizedOpponent : selectedTeam;
 
-        const gamePayload: Record<string, any> = {
+        const gamePayload: GameCreatePayload = {
           title: `${homeTeamName} vs ${awayTeamName}`,
           date: gameDateTime.toISOString(),
           location: selectedPlace?.description || location,
@@ -477,10 +555,9 @@ function CreateFanEventScreen() {
           banner_url: finalBannerUrl,
           cover_image_url: finalBannerUrl,
           appearance,
+          home_team: homeTeamName,
+          away_team: awayTeamName,
         };
-
-        gamePayload.home_team = homeTeamName;
-        gamePayload.away_team = awayTeamName;
 
         if (gameType === 'home' && selectedTeamId) {
           gamePayload.home_team_id = selectedTeamId;
@@ -491,7 +568,7 @@ function CreateFanEventScreen() {
         await Game.create(gamePayload);
       } else {
         // Non-game event or fan pitch — must be tied to a team
-        const eventData: Record<string, any> = {
+        const eventData: EventCreatePayload = {
           title: sanitizeText(title),
           description: sanitizeText(description),
           event_type: eventType,
@@ -509,7 +586,7 @@ function CreateFanEventScreen() {
           eventData.home_team_id = pitchTeamId;
         }
 
-        await Game.create(eventData);
+        await Event.create(eventData as never);
       }
 
       if (!isCoach) {
@@ -526,7 +603,8 @@ function CreateFanEventScreen() {
           : 'Your event idea has been submitted! A coach or admin will review it and you\'ll be notified.',
         [{ text: 'OK', onPress: () => safeGoBack(router) }]
       );
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const e = error as CreateEventError;
       const errorCode = e?.code || e?.data?.code;
       const errorMessage = e?.message || e?.data?.message;
 
@@ -565,7 +643,7 @@ function CreateFanEventScreen() {
     }
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowDatePicker(false);
     }
@@ -577,7 +655,7 @@ function CreateFanEventScreen() {
     }
   };
 
-  const handleTimeChange = (event: any, selectedDate?: Date) => {
+  const handleTimeChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
       setShowTimePicker(false);
     }
@@ -636,7 +714,7 @@ function CreateFanEventScreen() {
               You have {pendingEventCount} pending events (limit: 3). Wait for approval or{' '}
               <Text
                 style={{ fontWeight: '700' }}
-                onPress={() => router.push(APP_ROUTES.manageSubscription as any)}
+                onPress={() => router.push(APP_ROUTES.manageSubscription as never)}
               >
                 upgrade your plan
               </Text>
@@ -1492,10 +1570,14 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     zIndex: 1000,
     elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        }),
   },
   locationSuggestionItem: {
     flexDirection: 'row',

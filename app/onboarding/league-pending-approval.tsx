@@ -1,5 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import type { Href } from 'expo-router';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -12,6 +13,44 @@ import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { User, Notification as NotificationApi } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { captureException } from '@/utils/sentry';
+
+type LeaguePendingUser = {
+  account_state?: string | null;
+  organization_id?: string | null;
+  role?: string | null;
+  approval_status?: string | null;
+  coach_application?: {
+    organization_name?: string | null;
+  } | null;
+  preferences?: {
+    organization_id?: string | null;
+    role?: string | null;
+    proceeding_as_fan?: boolean | null;
+  } | null;
+};
+
+type OrganizationApprovalResponse = {
+  id?: string | null;
+  status?: string | null;
+  admin_approved?: boolean | null;
+};
+
+type ApprovalNotification = {
+  type?: string | null;
+  meta?: {
+    reason?: string | null;
+  } | null;
+};
+
+type ApiErrorLike = {
+  message?: string;
+  data?: {
+    error?: string;
+    code?: string;
+    retry_after_hours?: number;
+    retry_at?: string;
+  };
+};
 
 function LeaguePendingApproval() {
   const router = useRouter();
@@ -60,7 +99,7 @@ function LeaguePendingApproval() {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
     stopPolling();
-    router.replace('/onboarding/coach-application' as any);
+    router.replace('/onboarding/coach-application');
   }, [router, stopPolling]);
 
   useEffect(() => () => {
@@ -74,12 +113,12 @@ function LeaguePendingApproval() {
   useEffect(() => {
     if (orgId) {
       setHydrating(false);
-      return;
+      return undefined;
     }
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
-        const me: any = await User.refresh();
+        const me = (await User.refresh()) as LeaguePendingUser;
         if (cancelled) return;
         const applicationName = String(me?.coach_application?.organization_name || '').trim();
         if (applicationName) setLeagueName(applicationName);
@@ -128,7 +167,7 @@ function LeaguePendingApproval() {
     try {
       approvalCheckInFlightRef.current = true;
       setChecking(true);
-      const me: any = await User.refresh().catch(() => null);
+      const me = ((await User.refresh().catch(() => null)) as LeaguePendingUser | null) ?? null;
       const accountState = String(me?.account_state || '').trim();
       const applicationName = String(me?.coach_application?.organization_name || '').trim();
       if (applicationName) setLeagueName(applicationName);
@@ -148,7 +187,11 @@ function LeaguePendingApproval() {
         try {
           const page = await NotificationApi.listPage(null, 20, false);
           const rejectionNotif = Array.isArray(page?.items)
-            ? page.items.find((n: any) => (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') && n.meta?.reason)
+            ? page.items.find(
+                (n: ApprovalNotification) =>
+                  (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') &&
+                  n.meta?.reason
+              )
             : null;
           if (rejectionNotif?.meta?.reason) {
             setRejectionReason(rejectionNotif.meta.reason);
@@ -173,7 +216,7 @@ function LeaguePendingApproval() {
         return;
       }
 
-      const org: any = await httpGet(`/organizations/${orgId}`);
+      const org = (await httpGet(`/organizations/${orgId}`)) as OrganizationApprovalResponse;
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
       const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
@@ -201,7 +244,11 @@ function LeaguePendingApproval() {
         try {
           const page = await NotificationApi.listPage(null, 20, false);
           const rejectionNotif = Array.isArray(page?.items)
-            ? page.items.find((n: any) => (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') && n.meta?.reason)
+            ? page.items.find(
+                (n: ApprovalNotification) =>
+                  (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') &&
+                  n.meta?.reason
+              )
             : null;
           if (rejectionNotif?.meta?.reason) {
             setRejectionReason(rejectionNotif.meta.reason);
@@ -216,7 +263,7 @@ function LeaguePendingApproval() {
         setApproved(true);
         stopPolling();
         // Approval only unlocks real coach setup. Do not mark onboarding complete here.
-        registerPushToken().catch(() => {});
+        void registerPushToken().catch(() => {});
       }
     } catch {
       // ignore polling errors
@@ -224,7 +271,7 @@ function LeaguePendingApproval() {
       approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
-  }, [orgId, redirectToLeagueSetup, stopPolling]);
+  }, [orgId, redirectToLeagueSetup, registerPushToken, stopPolling]);
 
   useEffect(() => {
     void checkApproval('initial');
@@ -276,7 +323,7 @@ function LeaguePendingApproval() {
       await User.updatePreferences({ proceeding_as_fan: true });
       const freshUser = await checkAuth();
       const decision = getPostAuthRouteDecision(freshUser ?? null);
-      router.replace(decision.route as any);
+      router.replace(decision.route as Href);
     } catch (err) {
       proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[league-pending-approval] Failed to proceed as fan:', err);
@@ -295,9 +342,9 @@ function LeaguePendingApproval() {
       const freshUser = await checkAuth();
       const decision = getPostAuthRouteDecision(freshUser ?? null);
       if (decision.route === '/onboarding/coach-agreement') {
-        router.replace({ pathname: decision.route, params: { redirect } } as any);
+        router.replace({ pathname: decision.route, params: { redirect } } as Href);
       } else {
-        router.replace(decision.route as any);
+        router.replace(decision.route as Href);
       }
     } catch {
       Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
@@ -392,7 +439,7 @@ function LeaguePendingApproval() {
             </Pressable>
             <Pressable
               style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
-              onPress={() => router.replace('/onboarding/coach-application' as any)}
+              onPress={() => router.replace('/onboarding/coach-application')}
             >
               <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Back to Organization Setup</Text>
             </Pressable>
@@ -411,12 +458,13 @@ function LeaguePendingApproval() {
                     setRejected(false);
                     setRejectionReason(null);
                     Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
-                    router.replace('/onboarding/coach-application' as any);
-                  } catch (e: any) {
-                    const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
-                    const code = e?.data?.code;
-                    const hrs = e?.data?.retry_after_hours;
-                    const retryAt = e?.data?.retry_at;
+                    router.replace('/onboarding/coach-application');
+                  } catch (e) {
+                    const error = e as ApiErrorLike | null | undefined;
+                    const msg = error?.data?.error || error?.message || 'Failed to re-apply.';
+                    const code = error?.data?.code;
+                    const hrs = error?.data?.retry_after_hours;
+                    const retryAt = error?.data?.retry_at;
                     if (code === 'REJECTION_COOLDOWN') {
                       let msgText = 'You can try again once the cooldown expires.';
                       if (typeof retryAt === 'string') {
@@ -437,7 +485,7 @@ function LeaguePendingApproval() {
                   return;
                 }
 
-                router.replace('/onboarding/coach-application' as any);
+                router.replace('/onboarding/coach-application');
               }}
               disabled={checking}
             >

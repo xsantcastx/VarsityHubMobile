@@ -33,11 +33,10 @@ import { StripeProvider } from '@/utils/stripe';
 // @ts-ignore
 import { User } from '@/api/entities';
 
-
 // Conditionally import notifications only if not in Expo Go
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
-let Notifications: any = null;
-if (!isExpoGo) {
+let Notifications: typeof import('expo-notifications') | null = null;
+if (!isExpoGo && Platform.OS !== 'web') {
   Notifications = require('expo-notifications');
 }
 
@@ -60,6 +59,26 @@ if (Platform.OS === 'web' && __DEV__) {
       devLog('Web Testing Monitor Active - Tracking all errors');
     })
     .catch(error => devLog('Testing monitor failed to start', error));
+}
+
+if (Platform.OS === 'web' && __DEV__ && !(globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__) {
+  (globalThis as any).__VH_WEB_WARNING_FILTER_INSTALLED__ = true;
+  const suppressedMessages = [
+    'props.pointerEvents is deprecated. Use style.pointerEvents',
+    'Animated: `useNativeDriver` is not supported because the native animated module is missing.',
+  ];
+  const filterConsole = (method: 'warn' | 'error') => {
+    const original = console[method].bind(console);
+    console[method] = (...args: unknown[]) => {
+      const firstArg = typeof args[0] === 'string' ? args[0] : '';
+      if (suppressedMessages.some(message => firstArg.includes(message))) {
+        return;
+      }
+      original(...args);
+    };
+  };
+  filterConsole('warn');
+  filterConsole('error');
 }
 
 function VerificationGateHost() {
@@ -116,13 +135,13 @@ function RootLayout() {
       'Require cycle:',
       'PushNotificationIOS has been extracted',
       'Invariant Violation: `new NativeEventEmitter()',
-      // Reanimated warning triggered by expo-router navigation transition internals
       'animations-in-inline-styling',
       '[Reanimated] Tried to access',
     ]);
     if (Platform.OS === 'web') {
       LogBox.ignoreLogs([
         '"shadow*" style props are deprecated',
+        '"textShadow*" style props are deprecated',
         'props.pointerEvents is deprecated. Use style.pointerEvents',
       ]);
     }
@@ -269,6 +288,7 @@ function RootLayout() {
                     <Stack.Screen name="create-team" options={{ headerShown: false }} />
                     <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
                     <Stack.Screen name="my-team" options={{ headerShown: false }} />
+                    <Stack.Screen name="team-admin" options={{ headerShown: false }} />
                     <Stack.Screen name="organization" options={{ headerShown: false }} />
                     <Stack.Screen name="edit-organization" options={{ headerShown: false }} />
                     <Stack.Screen name="event-detail" options={{ headerShown: false }} />

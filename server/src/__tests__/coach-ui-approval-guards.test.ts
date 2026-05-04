@@ -48,12 +48,16 @@ const step3LeagueScreen = readFileSync(
 );
 
 describe('coach approval UI guards', () => {
-  it('decline flow resets both declining state and row action loading in finally', () => {
+  it('approvals screen is now an org-picker shell that forwards into organization requests', () => {
+    expect(approvalsScreen).toContain('Organization.reviewSummaries()');
+    expect(approvalsScreen).toContain('function buildOrganizationRequestsRoute');
+    expect(approvalsScreen).toContain("safeGoBack(router, '/organization?tab=requests')");
+    expect(approvalsScreen).toMatch(/const hasAutoForwardedRef = useRef\(false\)/);
     expect(approvalsScreen).toMatch(
-      /handleDeclineConfirm[\s\S]*?setActionLoading\(declineTarget\.user\.id\);/
+      /if \(loading \|\| refreshing \|\| error \|\| entries\.length !== 1 \|\| hasAutoForwardedRef\.current\)/
     );
     expect(approvalsScreen).toMatch(
-      /handleDeclineConfirm[\s\S]*?finally\s*\{[\s\S]*?setActionLoading\(null\);[\s\S]*?setDeclining\(false\);/
+      /hasAutoForwardedRef\.current = true;[\s\S]*router\.replace\(buildOrganizationRequestsRoute\(entries\[0\]\.id\)\);/
     );
   });
 

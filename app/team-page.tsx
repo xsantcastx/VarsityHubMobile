@@ -1,20 +1,18 @@
-import { Game, Organization, Post, Team, User } from '@/api/entities';
+import { Post, Team } from '@/api/entities';
+import type { TeamScreenSummaryResponse } from '@/api/schemas/team';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useShareLink } from '@/hooks/useShareLink';
-import { canShareTeamQr, getCanonicalTeamShareUrl } from '@/utils/teamShare';
+import { canShareTeamQr } from '@/utils/teamShare';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as MediaLibrary from 'expo-media-library';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
+import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import ViewShot from 'react-native-view-shot';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -127,7 +125,6 @@ function TeamScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
-  const [me, setMe] = useState<{ id?: string; username?: string; display_name?: string; avatar_url?: string } | null>(null);
   
   // Posts state - matching profile.tsx
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -155,9 +152,6 @@ function TeamScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
-  const [shareModalVisible, setShareModalVisible] = useState(false);
-  const [savingQr, setSavingQr] = useState(false);
-  const qrCardRef = useRef<ViewShot | null>(null);
 
   const handleBack = useCallback(() => {
     if (from === 'game-details' && gameId) {
@@ -179,16 +173,14 @@ function TeamScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (_teamId: string) => {
+  const refreshPosts = useCallback(async (_teamId: string, sourceGames?: GameItem[]) => {
     if (postsRequestInFlight.current || !mounted.current) return;
     postsRequestInFlight.current = true;
     if (mounted.current) setPostsLoading(true);
     try {
-      // Fetch only this team's games instead of scanning the global game list.
-      const allGamesData = await Game.list('-date', { teamId: _teamId, limit: 50 });
-      if (!mounted.current) return;
-      const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
-      const gameIds = allGames.map((g: GameItem) => g.id).filter(Boolean);
+      const gameIds = (Array.isArray(sourceGames) ? sourceGames : games)
+        .map((g: GameItem) => g.id)
+        .filter(Boolean);
       if (!mounted.current) return;
       
       if (gameIds.length === 0) {
@@ -236,7 +228,7 @@ function TeamScreen() {
       postsRequestInFlight.current = false;
       if (mounted.current) setPostsLoading(false);
     }
-  }, [team?.name]);
+  }, [games]);
 
   const refreshReplies = useCallback(async (_teamId: string) => {
     if (repliesRequestInFlight.current || !mounted.current) return;
@@ -298,39 +290,27 @@ function TeamScreen() {
         return;
       }
 
+      let summary: TeamScreenSummaryResponse | null = null;
       let teamData: LeagueTeam | null = null;
 
       try {
-        // If we have a team ID, use Team.get() to get full details including organization_id
         if (teamId) {
-          try {
-            const fullTeamData = await Team.get(teamId);
-            if (fullTeamData) {
-              teamData = fullTeamData as LeagueTeam;
-            }
-          } catch (getErr: any) {
-            if (__DEV__) console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
-          }
+          summary = (await Team.screenSummary(teamId)) as TeamScreenSummaryResponse;
+          teamData = (summary?.team as LeagueTeam | undefined) ?? null;
         }
-        
-        // Fallback to list if get() didn't work or we only have teamName
-        if (!teamData) {
-          const allTeams = await Team.list(undefined, undefined, { limit: 100 });
-          const teamsList = Array.isArray(allTeams) ? allTeams : [];
-          
-          if (teamId && !teamData) {
-            teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
-          }
-          
-          if (!teamData && teamName) {
-            teamData = teamsList.find((t: LeagueTeam) => 
-              t.name?.toLowerCase() === teamName.toLowerCase()
-            ) || null;
+
+        if (!summary && teamName) {
+          const teamsList = await Team.list(teamName, undefined, { limit: 20 });
+          const exactMatch = (Array.isArray(teamsList) ? teamsList : []).find(
+            (entry: LeagueTeam) => entry.name?.toLowerCase() === teamName.toLowerCase()
+          );
+          if (exactMatch?.id) {
+            summary = (await Team.screenSummary(String(exactMatch.id))) as TeamScreenSummaryResponse;
+            teamData = (summary?.team as LeagueTeam | undefined) ?? exactMatch;
           }
         }
       } catch (apiErr: any) {
         if (__DEV__) console.error('[team-page] Failed to fetch teams from API:', apiErr);
-        // Continue to try fallback logic
       }
 
       if (!teamData && teamName) {
@@ -355,94 +335,28 @@ function TeamScreen() {
       
       setTeam(teamData);
       setIsFollowing(!!(teamData as any).is_following);
-
-      // Load current user, team memberships, and org data in parallel
-      // (was sequential: User.me → Team.members → Organization.get)
-      {
-        const currentUser = me || await User.me().catch(() => null);
-        if (!mounted.current) return;
-        if (currentUser && !me) setMe(currentUser);
-
-        if (currentUser && teamData.id) {
-          try {
-            // Parallelize membership check and org-admin check. Org-admin
-            // fallback now mirrors the server's canManageTeam: BOTH owner
-            // (`league_owner_id` shortcut) AND manager (membership role).
-            // Previously only league_owner_id counted, so org managers had
-            // no admin controls in the UI even though the backend allowed
-            // them to manage the team.
-            const [memberships, org, orgMemberships] = await Promise.all([
-              Team.members(teamData.id).catch(() => []),
-              orgId ? Organization.get(orgId).catch(() => null) : Promise.resolve(null),
-              orgId ? Organization.members(orgId).catch(() => []) : Promise.resolve([]),
-            ]);
-            if (!mounted.current) return;
-
-            const memberList = Array.isArray(memberships) ? memberships : [];
-            const membership = memberList.find((m: TeamMember) => {
-              const memberUserId = m.user_id || m.user?.id;
-              if (memberUserId !== currentUser.id) return false;
-              const role = String(m.role || '').toLowerCase();
-              return ['owner', 'manager', 'coach', 'assistant_coach', 'admin'].includes(role);
-            });
-            const isLeagueOwner = !!(org?.league_owner_id && org.league_owner_id === currentUser.id);
-            const orgMembersList = Array.isArray(orgMemberships) ? orgMemberships : ((orgMemberships as any)?.members || []);
-            const myOrgMembership = orgMembersList.find((m: any) => (m.user_id || m.user?.id) === currentUser.id);
-            const isOrgManager = ['owner', 'manager'].includes(String(myOrgMembership?.role || '').toLowerCase());
-            if (mounted.current) setIsTeamAdmin(!!membership || isLeagueOwner || isOrgManager);
-          } catch (err: any) {
-            if (__DEV__) console.error('[team-page] Failed to check team admin status:', err);
-            if (mounted.current) setIsTeamAdmin(false);
-          }
-        } else if (!currentUser) {
-          if (mounted.current) { setMe(null); setIsTeamAdmin(false); }
-        }
-      }
+      setIsTeamAdmin(!!summary?.permissions?.can_manage);
 
       // Use default theme color (teams don't have preferences field yet)
       if (mounted.current) setTeamThemeColor('#3B82F6');
 
-      // Fetch games, posts, and members
-      const [gamesResult, membersResult] = await Promise.all([
-        Game.list('-date', { teamId: teamData.id, limit: 50 })
-          .then(allGamesData => {
-            if (!mounted.current) return [];
-            const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
-            return allGames
-              .sort((a: GameItem, b: GameItem) => {
-                  const dateA = new Date(a.date || a.created_at || 0).getTime();
-                  const dateB = new Date(b.date || b.created_at || 0).getTime();
-                  return dateA - dateB;
-                });
+      const gamesResult: GameItem[] = Array.isArray(summary?.games)
+        ? ([...summary.games] as GameItem[]).sort((a: GameItem, b: GameItem) => {
+            const dateA = new Date(a.date || a.created_at || 0).getTime();
+            const dateB = new Date(b.date || b.created_at || 0).getTime();
+            return dateA - dateB;
           })
-          .catch((err: any) => {
-            if (__DEV__) console.error('[team-page] Failed to load games:', err);
-            return [];
-          }),
-        
-        (async () => {
-          try {
-            if (!teamData?.id || !mounted.current) return [];
-            const teamMembers = await Team.members(teamData.id);
-            if (!mounted.current) return [];
-            
-            const memberList = Array.isArray(teamMembers) ? teamMembers : [];
-            return memberList
-              .filter((m: TeamMember) => m.team_id === teamData!.id)
-              .sort((a: TeamMember, b: TeamMember) => {
-                const aJersey = parseInt(String(a.jersey_number || 999), 10);
-                const bJersey = parseInt(String(b.jersey_number || 999), 10);
-                if (aJersey !== bJersey) return aJersey - bJersey;
-                const aName = a.user?.display_name || '';
-                const bName = b.user?.display_name || '';
-                return aName.localeCompare(bName);
-              });
-          } catch (err: any) {
-            if (__DEV__) console.error('[team-page] Failed to load members:', err);
-            return [];
-          }
-        })(),
-      ]);
+        : [];
+      const membersResult: TeamMember[] = Array.isArray(summary?.members)
+        ? ([...summary.members] as TeamMember[]).sort((a: TeamMember, b: TeamMember) => {
+            const aJersey = parseInt(String(a.jersey_number || 999), 10);
+            const bJersey = parseInt(String(b.jersey_number || 999), 10);
+            if (aJersey !== bJersey) return aJersey - bJersey;
+            const aName = a.user?.display_name || '';
+            const bName = b.user?.display_name || '';
+            return aName.localeCompare(bName);
+          })
+        : [];
 
       if (!mounted.current) return;
       setGames(gamesResult);
@@ -450,7 +364,7 @@ function TeamScreen() {
       
       // Load initial posts
       if (teamData.id) {
-        await refreshPosts(teamData.id);
+        await refreshPosts(teamData.id, gamesResult);
       }
     } catch (err: any) {
       if (!mounted.current) return;
@@ -460,7 +374,7 @@ function TeamScreen() {
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [params.id, params.name, me, refreshPosts]);
+  }, [params.id, params.name, refreshPosts]);
 
   useEffect(() => {
     void loadTeam();
@@ -538,55 +452,16 @@ function TeamScreen() {
   const teamName = team?.name || 'Team';
   const teamHandle = `@${(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}`;
   const isShareableTeam = canShareTeamQr(team);
-  const teamShareUrl = isShareableTeam && team?.id ? getCanonicalTeamShareUrl(team.id) : null;
-  const { share: shareTeamLink, copyLink: copyTeamLink } = useShareLink({
+  const { share: shareTeamLink } = useShareLink({
     kind: 'team',
     id: isShareableTeam ? team?.id : null,
     title: teamName,
     contextLines: [team?.sport ? `${team.sport} team` : null],
   });
 
-  const handleOpenShareModal = useCallback(() => {
-    if (!isShareableTeam) return;
-    setShareModalVisible(true);
-  }, [isShareableTeam]);
-
   const handleShareLink = useCallback(async () => {
     await shareTeamLink();
   }, [shareTeamLink]);
-
-  const handleCopyLink = useCallback(async () => {
-    await copyTeamLink();
-  }, [copyTeamLink]);
-
-  const handleSaveQr = useCallback(async () => {
-    if (!isShareableTeam || !qrCardRef.current) return;
-    try {
-      setSavingQr(true);
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow photo access to save the team QR code.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
-        ]);
-        return;
-      }
-
-      const uri = await qrCardRef.current.capture?.();
-      if (!uri) {
-        Alert.alert('Save failed', 'Unable to generate the QR image right now.');
-        return;
-      }
-
-      await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert('Saved', 'The team QR code was saved to your photos.');
-    } catch (error) {
-      if (__DEV__) console.warn('[team-page] Failed to save team QR', error);
-      Alert.alert('Save failed', 'Unable to save the team QR code right now.');
-    } finally {
-      setSavingQr(false);
-    }
-  }, [isShareableTeam]);
 
   const renderHeader = () => (
     <>
@@ -643,7 +518,7 @@ function TeamScreen() {
             {isShareableTeam && (
               <Pressable
                 testID="team-page-share-button"
-                onPress={handleOpenShareModal}
+                onPress={() => void handleShareLink()}
                 style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
                 accessibilityRole="button"
                 accessibilityLabel="Share team"
@@ -654,7 +529,17 @@ function TeamScreen() {
             {isTeamAdmin && (
               <Pressable
                 testID="team-page-settings-button"
-                onPress={() => void router.push('/settings')}
+                onPress={() =>
+                  void router.push({
+                    pathname: '/team-admin',
+                    params: {
+                      teamId: team?.id,
+                      orgId: team?.organization_id,
+                      orgTab: 'teams',
+                      tab: 'overview',
+                    },
+                  } as any)
+                }
                 style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
                 accessibilityRole="button"
                 accessibilityLabel="Team settings"
@@ -704,7 +589,16 @@ function TeamScreen() {
               <Pressable
                 testID="team-page-edit-button"
                 style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
-                onPress={() => void router.push(`/edit-team?id=${team?.id}` as any)}
+                onPress={() =>
+                  void router.push({
+                    pathname: '/edit-team',
+                    params: {
+                      id: team?.id,
+                      orgId: team?.organization_id,
+                      orgTab: 'teams',
+                    },
+                  } as any)
+                }
                 accessibilityRole="button"
                 accessibilityLabel="Edit team profile"
               >
@@ -859,7 +753,10 @@ function TeamScreen() {
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push({ pathname: '/league', params: { id: orgId } } as any);
+                router.push({
+                  pathname: '/organization',
+                  params: { id: orgId, tab: 'overview' },
+                } as any);
               }
             }}
             disabled={!team?.organization_id}
@@ -873,7 +770,7 @@ function TeamScreen() {
               styles.orgButtonText,
               { color: team?.organization_id ? theme.text : theme.mutedText }
             ]}>
-              {team?.organization_id ? 'My League' : 'No Organization'}
+              {team?.organization_id ? 'Organization' : 'No Organization'}
             </Text>
             {team?.organization_id && (
               <Ionicons name="chevron-forward" size={14} color={theme.text} />
@@ -1252,100 +1149,6 @@ function TeamScreen() {
           title={activeTab === 'posts' ? 'Team posts' : activeTab === 'replies' ? 'Team replies' : activeTab === 'upvotes' ? 'Team upvotes' : 'Team events'}
         />
       </Modal>
-
-      <Modal
-        visible={shareModalVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setShareModalVisible(false)}
-      >
-        <View style={styles.shareModalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShareModalVisible(false)} />
-          <View style={[styles.shareModalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.shareModalTitle, { color: theme.text }]}>Share Team</Text>
-            <Text style={[styles.shareModalSubtitle, { color: theme.mutedText }]}>
-              Reuse this QR anywhere to open the same team page.
-            </Text>
-
-            <ViewShot
-              ref={qrCardRef}
-              options={{ format: 'png', quality: 1, result: 'tmpfile' }}
-              style={styles.qrCaptureWrap}
-            >
-              <View style={styles.qrExportCard}>
-                <LinearGradient
-                  colors={[teamThemeColor, '#111827']}
-                  style={styles.qrExportHeader}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <View style={styles.qrExportIdentity}>
-                    {team?.logo_url ? (
-                      <Image source={{ uri: String(team.logo_url) }} style={styles.qrExportLogo} contentFit="cover" />
-                    ) : (
-                      <View style={styles.qrExportLogoFallback}>
-                        <Ionicons name="people" size={24} color="#ffffff" />
-                      </View>
-                    )}
-                    <View style={styles.qrExportIdentityText}>
-                      <Text style={styles.qrExportTeamName} numberOfLines={1}>{teamName}</Text>
-                      <Text style={styles.qrExportTeamHandle} numberOfLines={1}>{teamHandle}</Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-
-                <View style={styles.qrCodeBlock}>
-                  {teamShareUrl ? (
-                    <QRCode value={teamShareUrl} size={176} color="#111111" backgroundColor="#ffffff" />
-                  ) : null}
-                </View>
-
-                <Text style={styles.qrExportFooter}>Scan to open this team on VarsityHub</Text>
-              </View>
-            </ViewShot>
-
-            {teamShareUrl ? (
-              <Text style={[styles.shareUrlText, { color: theme.mutedText }]} numberOfLines={2}>
-                {teamShareUrl}
-              </Text>
-            ) : null}
-
-            <View style={styles.shareActionsRow}>
-              <Pressable
-                style={[styles.shareActionButton, { backgroundColor: theme.tint }]}
-                onPress={() => void handleShareLink()}
-              >
-                <Ionicons name="share-outline" size={16} color="#ffffff" />
-                <Text style={styles.shareActionPrimaryText}>Share link</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.shareActionButtonSecondary, { borderColor: theme.border, backgroundColor: theme.background }]}
-                onPress={() => void handleCopyLink()}
-              >
-                <Ionicons name="copy-outline" size={16} color={theme.text} />
-                <Text style={[styles.shareActionSecondaryText, { color: theme.text }]}>Copy link</Text>
-              </Pressable>
-            </View>
-
-            <Pressable
-              testID="team-page-save-qr-button"
-              style={[
-                styles.saveQrButton,
-                { borderColor: theme.border, backgroundColor: theme.background },
-                savingQr && styles.disabledButton,
-              ]}
-              onPress={() => void handleSaveQr()}
-              disabled={savingQr}
-            >
-              <Ionicons name="download-outline" size={16} color={theme.text} />
-              <Text style={[styles.saveQrButtonText, { color: theme.text }]}>
-                {savingQr ? 'Saving...' : 'Save QR to Photos'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -1408,10 +1211,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.2,
+          shadowRadius: 3,
+        }),
     elevation: 2,
   },
   profileContent: {
@@ -1436,10 +1243,14 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 4,
     borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.2,
+          shadowRadius: 8,
+        }),
     elevation: 99999,
     backgroundColor: '#ffffff',
     zIndex: 99999,
@@ -1489,10 +1300,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#7c3aed',
     gap: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.15)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.15,
+          shadowRadius: 2,
+        }),
     elevation: 2,
   },
   teamBadge: { backgroundColor: '#10B981' },
@@ -1629,10 +1444,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden', 
     backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        }),
     elevation: 2,
   },
   gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
@@ -1661,9 +1480,13 @@ const styles = StyleSheet.create({
     fontWeight: '700', 
     fontSize: 12, 
     lineHeight: 16,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    ...(Platform.OS === 'web'
+      ? { textShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
+      : {
+          textShadowColor: 'rgba(0,0,0,0.3)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 2,
+        })
   },
   gridIconBadge: { 
     position: 'absolute', 
@@ -1675,10 +1498,14 @@ const styles = StyleSheet.create({
     height: 28, 
     alignItems: 'center', 
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.3,
+          shadowRadius: 2,
+        })
   },
   gridCounts: { 
     position: 'absolute', 
@@ -1691,10 +1518,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.3,
+          shadowRadius: 2,
+        })
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },

@@ -41,6 +41,26 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
+function serializeRosterMember(member: any) {
+  const user = member.user;
+  const prefs = (user?.preferences || {}) as any;
+  return {
+    id: member.id,
+    role: member.role,
+    status: member.status,
+    position: member.custom_position || null,
+    jersey_number: prefs?.jersey_number || null,
+    user: {
+      id: member.user_id,
+      email: user?.email || null,
+      display_name: user?.display_name || null,
+      avatar_url: user?.avatar_url || null,
+      username: user?.username || null,
+      is_parent: prefs?.is_parent === true,
+    },
+  };
+}
+
 async function ensureTeamGroupChatMembership(teamId: string, userId: string) {
   return withDistributedLock(
     {
@@ -498,6 +518,297 @@ teamsRouter.get(
   })
 );
 
+teamsRouter.get(
+  '/:id/admin-summary',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const userId = req.user!.id;
+
+      const [team, directMembership, isPlatformAdmin] = await Promise.all([
+        prisma.team.findUnique({
+          where: { id },
+          include: {
+            _count: { select: { memberships: true, followers: true } },
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                sport: true,
+              },
+            },
+          },
+        }),
+        prisma.teamMembership.findFirst({
+          where: { team_id: id, user_id: userId, status: 'active' },
+          select: { role: true, status: true },
+        }),
+        getIsAdmin(req as any),
+      ]);
+
+      if (!team) {
+        return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
+      }
+
+      const membershipRole =
+        directMembership?.status === 'active' ? String(directMembership.role || '').toLowerCase() : null;
+      const viaOrgAdmin =
+        !isPlatformAdmin && team.organization_id
+          ? await isOrgAdminScoped(userId, team.organization_id)
+          : false;
+      const canManage = isPlatformAdmin || isManagementRole(membershipRole) || viaOrgAdmin;
+
+      if (!canManage) {
+        return res.status(403).json({ error: 'Only team staff or organization admins can access team tools' }); // error-envelope-exempt
+      }
+
+      const entitlement = await getTeamEntitlementState(prisma, id);
+      if (entitlement.teamLocked) {
+        return res.status(403).json(buildTeamPlanLockedError(entitlement)); // error-envelope-exempt
+      }
+
+      const now = new Date();
+      const [members, pendingInvites, upcomingGames] = await Promise.all([
+        prisma.teamMembership.findMany({
+          where: { team_id: id, status: 'active' },
+          orderBy: [{ role: 'asc' }, { created_at: 'asc' }],
+          take: 500,
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                display_name: true,
+                avatar_url: true,
+                username: true,
+                preferences: true,
+              },
+            },
+          },
+        }),
+        prisma.teamInvite.findMany({
+          where: { team_id: id, status: 'pending' },
+          orderBy: { created_at: 'desc' },
+          take: 100,
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            status: true,
+            created_at: true,
+          },
+        }),
+        prisma.game.findMany({
+          where: {
+            approval_status: 'approved',
+            date: { gte: now },
+            OR: [{ home_team_id: id }, { away_team_id: id }],
+          },
+          orderBy: { date: 'asc' },
+          take: 20,
+          select: {
+            id: true,
+            title: true,
+            date: true,
+            location: true,
+            home_team: true,
+            away_team: true,
+            home_team_id: true,
+            away_team_id: true,
+          },
+        }),
+      ]);
+
+      const roster = members.map(serializeRosterMember);
+      const staffCount = roster.filter(member => isManagementRole(member.role)).length;
+
+      return res.json({
+        team: serializeTeam(team, {
+          includeCounts: true,
+          includeOrganization: true,
+          includeViewerState: true,
+          viewerRole: membershipRole,
+          isFollowing: null,
+        }),
+        permissions: {
+          can_manage: true,
+          membership_role: membershipRole,
+          via_org_admin: viaOrgAdmin,
+          is_platform_admin: isPlatformAdmin,
+        },
+        counts: {
+          members: roster.length,
+          staff: staffCount,
+          pending_invites: pendingInvites.length,
+          upcoming_games: upcomingGames.length,
+        },
+        members: roster,
+        pending_invites: pendingInvites,
+        upcoming_games: upcomingGames.map(game => ({
+          id: game.id,
+          title: game.title,
+          date: game.date?.toISOString?.() || null,
+          location: game.location || null,
+          home_team: game.home_team || null,
+          away_team: game.away_team || null,
+          home_team_id: game.home_team_id || null,
+          away_team_id: game.away_team_id || null,
+        })),
+      });
+    } catch (err) {
+      console.error('[teams] get-admin-summary error:', err);
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
+    }
+  })
+);
+
+teamsRouter.get(
+  '/:id/screen-summary',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const currentUserId = req.user?.id ?? null;
+      const isPlatformAdmin = currentUserId ? await getIsAdmin(req as any) : false;
+
+      const team = await prisma.team.findUnique({
+        where: { id },
+        include: {
+          _count: { select: { memberships: true, followers: true } },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              sport: true,
+            },
+          },
+        },
+      });
+
+      if (!team) {
+        return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
+      }
+
+      if (!isPlatformAdmin) {
+        const hidden = await isTeamHiddenFromViewer(id, currentUserId);
+        if (hidden) {
+          return res.status(404).json({ error: 'Team not found' }); // error-envelope-exempt
+        }
+      }
+
+      const [directMembership, isFollowing] = await Promise.all([
+        currentUserId
+          ? prisma.teamMembership.findFirst({
+              where: { team_id: id, user_id: currentUserId, status: 'active' },
+              select: { role: true, status: true },
+            })
+          : Promise.resolve(null),
+        currentUserId
+          ? prisma.teamFollow.findFirst({
+              where: { user_id: currentUserId, team_id: id },
+              select: { team_id: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const membershipRole =
+        directMembership?.status === 'active' ? String(directMembership.role || '').toLowerCase() : null;
+      const viaOrgAdmin =
+        currentUserId && !isPlatformAdmin && team.organization_id
+          ? await isOrgAdminScoped(currentUserId, team.organization_id)
+          : false;
+      const canManage = !!currentUserId && (isPlatformAdmin || isManagementRole(membershipRole) || viaOrgAdmin);
+
+      if (canManage) {
+        const entitlement = await getTeamEntitlementState(prisma, id);
+        if (entitlement.teamLocked) {
+          return res.status(403).json(buildTeamPlanLockedError(entitlement)); // error-envelope-exempt
+        }
+      }
+
+      const [members, games] = await Promise.all([
+        prisma.teamMembership.findMany({
+          where: { team_id: id, status: 'active' },
+          orderBy: [{ role: 'asc' }, { created_at: 'asc' }],
+          take: 500,
+          include: {
+            user: {
+              select: {
+                id: true,
+                display_name: true,
+                avatar_url: true,
+                username: true,
+                preferences: true,
+              },
+            },
+          },
+        }),
+        prisma.game.findMany({
+          where: {
+            approval_status: 'approved',
+            OR: [{ home_team_id: id }, { away_team_id: id }],
+          },
+          orderBy: { date: 'asc' },
+          take: 50,
+          select: {
+            id: true,
+            title: true,
+            date: true,
+            location: true,
+            home_team: true,
+            away_team: true,
+            home_team_id: true,
+            away_team_id: true,
+            home_score: true,
+            away_score: true,
+          },
+        }),
+      ]);
+
+      const roster = members.map(serializeRosterMember);
+
+      return res.json({
+        team: serializeTeam(team, {
+          includeCounts: true,
+          includeOrganization: true,
+          includeViewerState: true,
+          viewerRole: membershipRole,
+          isFollowing: !!isFollowing,
+        }),
+        permissions: {
+          can_manage: canManage,
+          membership_role: membershipRole,
+          via_org_admin: viaOrgAdmin,
+          is_platform_admin: isPlatformAdmin,
+        },
+        counts: {
+          members: roster.length,
+          followers: team._count?.followers ?? 0,
+          games: games.length,
+        },
+        members: roster,
+        games: games.map(game => ({
+          id: game.id,
+          title: game.title,
+          date: game.date?.toISOString?.() || null,
+          location: game.location || null,
+          home_team: game.home_team || null,
+          away_team: game.away_team || null,
+          home_team_id: game.home_team_id || null,
+          away_team_id: game.away_team_id || null,
+          home_score: game.home_score ?? null,
+          away_score: game.away_score ?? null,
+        })),
+      });
+    } catch (err) {
+      console.error('[teams] get-screen-summary error:', err);
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
+    }
+  })
+);
+
 // Team members list (auth required — roster visibility)
 // Restricted to team members, org admins (owner/manager), or platform admins
 teamsRouter.get(
@@ -561,24 +872,7 @@ teamsRouter.get(
           },
         },
       });
-      const list = mems.map(m => {
-        const user = (m as any).user;
-        const prefs = (user?.preferences || {}) as any;
-        return {
-          id: m.id,
-          role: m.role,
-          status: m.status,
-          position: (m as any).custom_position || null,
-          jersey_number: prefs?.jersey_number || null,
-          user: {
-            id: m.user_id,
-            display_name: user?.display_name || null,
-            avatar_url: user?.avatar_url || null,
-            username: user?.username || null,
-            is_parent: prefs?.is_parent === true,
-          },
-        };
-      });
+      const list = mems.map(serializeRosterMember);
       return res.json(list);
     } catch (err) {
       console.error('[teams] get-members error:', err);
@@ -1972,6 +2266,64 @@ teamsRouter.post(
     }
 
     return res.status(201).json(invite); // error-envelope-exempt
+  })
+);
+
+teamsRouter.post(
+  '/:id/invites/:inviteId/cancel',
+  requireAuth as any,
+  requireVerified as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const id = String(req.params.id);
+      const inviteId = String(req.params.inviteId);
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
+
+      const [canManage, invite] = await Promise.all([
+        canManageTeamScoped(req.user.id, id),
+        prisma.teamInvite.findUnique({
+          where: { id: inviteId },
+          select: {
+            id: true,
+            team_id: true,
+            status: true,
+            email: true,
+            role: true,
+          },
+        }),
+      ]);
+
+      if (!canManage) {
+        return res.status(403).json({
+          error: 'PERMISSION_DENIED',
+          message: 'Only team staff or organization admins can manage team invites.',
+        });
+      }
+
+      if (!invite || invite.team_id !== id || invite.status !== 'pending') {
+        return res.status(404).json({ error: 'Invite not found' }); // error-envelope-exempt
+      }
+
+      const revoked = await prisma.teamInvite.updateMany({
+        where: { id: inviteId, team_id: id, status: 'pending' },
+        data: { status: 'revoked' },
+      });
+      if (revoked.count === 0) return sendError(res, 409, 'Invite already processed');
+
+      return res.json({
+        ok: true,
+        invite: {
+          id: invite.id,
+          email: invite.email,
+          role: invite.role,
+          status: 'revoked',
+        },
+      });
+    } catch (err) {
+      console.error('[teams] cancel-invite error:', err);
+      return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
+    }
   })
 );
 

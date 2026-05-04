@@ -173,18 +173,45 @@ function executeOrReuseInflightGet(
 }
 
 export function getApiBaseUrl(): string {
-  // Support environment-based configuration for testing/staging/preview builds
   const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
-  const envUrl =
-    process.env.EXPO_PUBLIC_API_URL ||
-    Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL ||
-    Constants.expoConfig?.extra?.apiUrl;
+  const processEnv =
+    typeof process !== 'undefined' && process?.env ? (process.env as Record<string, string | undefined>) : {};
+  const processForceRemoteApi = processEnv.EXPO_PUBLIC_FORCE_REMOTE_API;
+  const constantsForceRemoteApi = Constants.expoConfig?.extra?.EXPO_PUBLIC_FORCE_REMOTE_API;
+  const forceRemoteApiRaw = processForceRemoteApi || constantsForceRemoteApi;
+  const forceRemoteApi =
+    typeof forceRemoteApiRaw === 'string'
+      ? ['1', 'true', 'yes', 'on'].includes(forceRemoteApiRaw.toLowerCase())
+      : true;
+  const processEnvUrl = processEnv.EXPO_PUBLIC_API_URL;
+  const constantsEnvUrl =
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.apiUrl;
+  const envUrl = processEnvUrl || constantsEnvUrl;
   const normalizedEnvUrl = envUrl?.trim().replace(/\/$/, '');
-  const isLocalhost = normalizedEnvUrl
+  const isLocalhostEnv = normalizedEnvUrl
     ? /(^http:\/\/localhost)|(^http:\/\/127\.0\.0\.1)/.test(normalizedEnvUrl)
     : false;
-  const finalUrl =
-    normalizedEnvUrl && (!isLocalhost || __DEV__) ? normalizedEnvUrl : PRODUCTION_URL;
+  const browserHostname =
+    typeof window !== 'undefined' && typeof window.location?.hostname === 'string'
+      ? window.location.hostname
+      : null;
+  const localWindowHost =
+    browserHostname && /^(localhost|127\.0\.0\.1)$/.test(browserHostname) ? browserHostname : null;
+  const localDevUrl = localWindowHost ? `http://${localWindowHost}:4000` : null;
+  const preferLocalDevUrl =
+    __DEV__ &&
+    localDevUrl &&
+    !forceRemoteApi &&
+    (!normalizedEnvUrl || isLocalhostEnv || normalizedEnvUrl === PRODUCTION_URL);
+  const finalUrl = preferLocalDevUrl
+    ? localDevUrl
+    : normalizedEnvUrl
+    ? !isLocalhostEnv || __DEV__ || !forceRemoteApi
+      ? normalizedEnvUrl
+      : PRODUCTION_URL
+    : __DEV__ && !forceRemoteApi && localDevUrl
+      ? localDevUrl
+      : PRODUCTION_URL;
   const isCustom = finalUrl !== PRODUCTION_URL;
 
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {

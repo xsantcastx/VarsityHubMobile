@@ -3,7 +3,14 @@ import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AppLinks, { ShareableLink } from '@/utils/links';
 
-export type ShareLinkKind = 'post' | 'highlight' | 'event' | 'game' | 'team' | 'user';
+export type ShareLinkKind =
+  | 'post'
+  | 'highlight'
+  | 'event'
+  | 'game'
+  | 'team'
+  | 'user'
+  | 'organization';
 
 interface ShareLinkOptions {
   kind: ShareLinkKind;
@@ -31,6 +38,8 @@ const formatLink = (options: ShareLinkOptions): ShareableLink | null => {
       return AppLinks.team(id, options.title || undefined);
     case 'user':
       return AppLinks.user(id, options.title || undefined);
+    case 'organization':
+      return AppLinks.organization(id, options.title || undefined);
     default:
       return null;
   }

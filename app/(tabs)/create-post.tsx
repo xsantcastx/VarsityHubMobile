@@ -1535,19 +1535,27 @@ const styles = StyleSheet.create({
   swipeOptionActiveCamera: {
     backgroundColor: '#1D4ED8',
     borderColor: '#1D4ED8',
-    shadowColor: '#1D4ED8',
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(29, 78, 216, 0.18)' }
+      : {
+          shadowColor: '#1D4ED8',
+          shadowOpacity: 0.18,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 8,
+        }),
     elevation: 4,
   },
   swipeOptionActiveReview: {
     backgroundColor: '#DC2626',
     borderColor: '#DC2626',
-    shadowColor: '#DC2626',
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(220, 38, 38, 0.18)' }
+      : {
+          shadowColor: '#DC2626',
+          shadowOpacity: 0.18,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 8,
+        }),
     elevation: 4,
   },
   swipeOptionLabel: {
@@ -1604,10 +1612,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    shadowColor: '#000', 
-    shadowOpacity: 0.08, 
-    shadowRadius: 8, 
-    shadowOffset: { width: 0, height: 2 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+        }),
     elevation: 3 
   },
   primaryTile: {
@@ -1643,10 +1655,14 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+        }),
     elevation: 4
   },
   previewMedia: { 
@@ -2079,10 +2095,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.2)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.2,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+        }),
     elevation: 4,
   },
   retakeButtonText: {
@@ -2217,10 +2237,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 999,
-    shadowColor: '#1B3A6B',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 6px rgba(27, 58, 107, 0.3)' }
+      : {
+          shadowColor: '#1B3A6B',
+          shadowOpacity: 0.3,
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 6,
+        }),
     elevation: 4,
   },
   headerPostBtnText: {

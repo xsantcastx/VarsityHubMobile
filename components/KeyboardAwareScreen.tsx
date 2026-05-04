@@ -27,10 +27,9 @@ const KeyboardAwareScreen: React.FC<KeyboardAwareScreenProps> = ({
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
       automaticallyAdjustKeyboardInsets
+      children={children}
       {...scrollViewProps}
-    >
-      {children}
-    </ScrollView>
+    />
   );
 };
 

@@ -1,125 +1,136 @@
 # Pull Request Checklist
 
-> Every PR answers every line. "N/A" is a valid answer **with a reason.**
-> "Not applicable because this PR only touches docs" is valid. "Not applicable"
-> alone is not.
+> Every line needs a pass/fail answer. `N/A` is valid only with a reason.
+> Canonical policy lives in [`AUDIT_STANDARD.md`](./AUDIT_STANDARD.md). This
+> file is the operating review gate for PRs.
 
-## Mechanical gates — must all pass
+## Mechanical Gates
 
 - [ ] `npx tsc --noEmit --project server/tsconfig.json` exits 0
 - [ ] `npx tsc --noEmit` exits 0
-- [ ] `npm run test:regressions` passes
 - [ ] `npm run verify:guardrails` passes
-- [ ] `npm run verify:error-envelope` clean
-- [ ] Pre-commit hook ran locally (husky installed via `npm install`)
+- [ ] `npm run test:regressions` passes when touched flows are covered there, or
+      `N/A` with reason
+- [ ] `npm run verify:error-envelope` is clean when error-envelope behavior is
+      touched, or `N/A` with reason
+- [ ] Pre-commit or equivalent local verification ran before review
 
-## Drift / duplication
+## Audit Framing For Risky Changes
 
-- [ ] No new inline notification-type switch or if/else on `item.type` outside
+- [ ] If this PR changes a critical state, the source of truth is named in the
+      PR description: auth, payment, subscription, approval, membership, or
+      ownership
+- [ ] Trust boundaries touched by this PR are listed explicitly when relevant:
+      client, API, webhook, job, admin, storage, deep link
+- [ ] If this PR fixes a security or integrity bug, the failure or exploit path
+      is documented before and after the fix
+
+## Drift And Duplication
+
+- [ ] No new inline notification routing outside
       `utils/notificationPresentation.ts`
-- [ ] No new `display_name || ... || 'Unknown'`-style fallback chain outside
-      `utils/userDisplay.ts` — use `formatUserLabel`
-- [ ] No new inline `Alert.alert('Image Error', ...)` in upload error paths
-      — use `utils/uploadErrorAlert.ts`
-- [ ] If this PR touches `requireAuth` / `requireVerified` / `requireOnboarded`,
-      or their bypass lists: both sibling middlewares are updated
-- [ ] No new client TypeScript type declaring fields the server doesn't return
-      (update the server select if the client needs new fields)
+- [ ] No new user-label fallback chain outside `utils/userDisplay.ts`
+- [ ] No new inline upload-alert copy where `utils/uploadErrorAlert.ts` should
+      own the behavior
+- [ ] If this PR touches `requireAuth`, `requireVerified`, `requireOnboarded`,
+      or their bypass behavior, sibling middleware expectations were reviewed in
+      the same pass
+- [ ] If the client needs new response fields, the server response shape and
+      client types were updated together
+- [ ] No new duplicated policy helper was introduced where an existing shared
+      helper or middleware should have been reused
 
-## Security
+## Security And Authorization
 
-- [ ] If this PR touches a mutation route: auth, role, plan, AND ownership
-      are all checked server-side (not just in the UI)
-- [ ] If this PR adds a protected UI action: server enforces it independently
-      of client gating
-- [ ] If this PR adds a new access to `req.user`: `requireAuth` (or a sibling
-      that implies auth) is on the route
-- [ ] No client-controlled field sets payment / approval / role / plan state
-- [ ] No new `.catch(() => {})` on operations the user expects to succeed
-      (push, payment, email, entitlement writes)
-- [ ] No PII (email, token, raw user object) logged to console / Sentry
-      unredacted — route through `server/src/lib/logRedaction.ts`
+- [ ] Protected mutations touched here enforce auth, role, plan, and ownership
+      server-side as applicable
+- [ ] New protected UI actions still fail server-side without permission
+- [ ] Organization ownership and team authority remain explicit server-side;
+      this PR does not imply ownership from client state or unrelated coach/org
+      membership
+- [ ] Any new use of `req.user` is behind `requireAuth` or a stronger implied
+      middleware
+- [ ] No client-controlled field sets payment, approval, privileged role, plan,
+      or ownership state
+- [ ] No fallback, retry, catch, or redirect path weakens auth, approval, plan,
+      payment, or ownership enforcement
+- [ ] No new silent `.catch(() => {})` is added on user-expected success paths
+- [ ] Logs and Sentry breadcrumbs avoid raw PII or unredacted sensitive values
 
-## Async / concurrency
+## Async And Concurrency
 
-- [ ] If this PR mutates state based on current state (approval, plan,
-      capacity): uses `updateMany` with state in WHERE + `result.count`
-      check, OR a `$transaction` with re-check inside
-- [ ] If this PR touches a webhook: idempotent, signature-verified, logged,
-      dedupes by provider event id
-- [ ] If this PR increments a counter: uses Prisma atomic `increment`, not
-      read-then-write
-- [ ] If this PR writes to more than one table: wrapped in `$transaction`
+- [ ] State transitions based on current state use a race-safe pattern:
+      `updateMany` with guarded `WHERE`, atomic increment, or `$transaction`
+- [ ] Multi-table critical writes are wrapped in `$transaction` where required
+- [ ] Webhook changes are signature-verified, deduped, logged, and replay-safe
+- [ ] Retry or callback paths document idempotency or replay behavior when they
+      affect critical state
+- [ ] Cache invalidation is covered for any mutated cached entity, or `N/A` with
+      reason
 
-## Caching
+## Payments And Subscriptions
 
-- [ ] If this PR writes to a cached entity: the matching `invalidate*` helper
-      is called in the same code path
-- [ ] If this PR adds a new cache: it has an explicit invalidation path and
-      its cache key includes all relevant params (user id, org id, filters)
+- [ ] No paid or subscription state is persisted before trusted server
+      confirmation
+- [ ] Success pages verify backend state rather than trusting query params alone
+- [ ] Billing quantities, pricing, and entitlements are derived server-side
+- [ ] Refund, reject, cancel, or replay paths preserve financial consistency
+- [ ] Webhook event handling remains deduped and auditable
 
-## UI reliability
+## Deep Links And Navigation
 
-- [ ] Any new async screen renders: loading, success, error, empty — all four
-- [ ] Any new form blocks double-submit (`saving` / `isLoading` guard)
-- [ ] Any new button has `accessibilityLabel` and `testID`
-- [ ] No hardcoded text color (`#000`, `#111827`, `'black'`) — use
-      `useColorScheme()` or theme constants
-- [ ] No hardcoded navigation back-route — use `safeGoBack`
-- [ ] If this PR adds a `TextInput` on iOS with no autofill intent, consider
-      `autoCorrect={false}` + `spellCheck={false}` to minimize QuickType bar
+- [ ] New or changed routes resolve in Expo Router
+- [ ] Required params are validated before privileged work
+- [ ] Missing params fail gracefully for public navigation and fail closed for
+      privileged actions
+- [ ] Back navigation uses the repo-safe pattern and does not grow stacks on
+      fallback paths
+- [ ] Routing wrappers stay stateless and do not hide business-state mutation
 
-## Payments (skip unless this PR touches payments)
+## UI Reliability
 
-- [ ] No persisted plan / subscription state change before payment provider
-      confirmation (webhook or verified receipt)
-- [ ] Stripe webhook handler verifies signature AND dedupes by event id
-- [ ] Apple S2S notification handler persists `notificationUUID` before any
-      side effects
-- [ ] Pricing / entitlements / billing quantities are derived server-side, not
-      read from client input
+- [ ] New async screens expose loading, success, error, and empty states
+- [ ] New forms block double submit with `saving`, `isLoading`, or equivalent
+- [ ] New critical controls include accessibility labels and test anchors where
+      appropriate
+- [ ] User-facing errors are surfaced with contextual recovery, not silently
+      swallowed
+- [ ] Async effects guard against updates after unmount where needed
 
-## Deep links / navigation (skip unless this PR adds or changes a route)
+## Observability And Audit Trail
 
-- [ ] Route resolves in Expo Router when opened via cold deep link
-- [ ] Required params validated; missing params fail gracefully for public
-      navigation and fail closed for privileged actions
-- [ ] Back navigation uses `safeGoBack`; does not grow stack on fallback
+- [ ] Critical auth, payment, approval, or admin flows touched here emit enough
+      logs or audit records for production debugging
+- [ ] Admin or reviewer actions touched here record actor, target, action, and
+      timestamp somewhere authoritative
+- [ ] New critical flows have at least one named verification path: test, log,
+      script, or runtime proof
 
-## Deploy (skip unless this PR adds/changes a server endpoint or schema)
+## Deploy And Rollback
 
-- [ ] If new required Zod field on an existing endpoint: backward-compat path
-      for older OTA clients (field made optional for 1–2 releases)
-- [ ] If new endpoint the client calls: server-first deploy order documented
-      in PR description
-- [ ] If schema change: migration tested locally, rollback plan noted
-- [ ] Any touched Railway env var is documented in the PR description
-      (normal case is "no env vars touched" — per CLAUDE.md, changing
-      `JWT_SECRET`, `GOOGLE_OAUTH_CLIENT_IDS`, `APPLE_KEY_ID`, or
-      `APPLE_PRIVATE_KEY` breaks all active sessions)
+- [ ] If this PR changes server/client contract shape, deploy order is safe and
+      documented when needed
+- [ ] If this PR changes schema, migration status and rollback notes are
+      documented
+- [ ] If this PR relies on tracked debt or temporary exceptions, owner and
+      follow-up path are named
+- [ ] If environment assumptions changed, the PR description says so explicitly;
+      otherwise it states that no env behavior changed
 
-## Proof of fix (skip unless this PR closes a bug)
+## Proof Of Fix
 
-- [ ] Regression test that FAILS against pre-fix code (name it in description)
-- [ ] Before/after reproduction for security fixes
-- [ ] Link to the finding / issue / Sentry event being closed
+- [ ] Regression coverage exists for the bug or invariant touched, or `N/A` with
+      reason
+- [ ] Security fixes include before/after reproduction when feasible
+- [ ] The finding, issue, Sentry event, or audit note being closed is linked in
+      the PR description
 
----
+## Reviewer Order Of Operations
 
-## Reviewer guide
-
-When reviewing, prioritize in this order:
-
-1. Mechanical gates — if any are red, stop and ask the author to fix before
-   going further.
-2. Drift / duplication — these catch the majority of regressions we've
-   actually shipped. Grep for the relevant shared helper; if the PR bypasses
-   it, that's the finding.
-3. Security + concurrency — read the code, not the PR description. Look for
-   the exact patterns listed above.
-4. Everything else — standards-of-care. Push back when violated but accept
-   "known debt, will fix in follow-up" as an answer **with a linked ticket.**
-
-When in doubt about a rule, consult `AUDIT_STANDARD.md` or the
-`source-of-truth table` in that doc. Use `AUDIT_SCORECARD.md` when the PR is
-part of a broader audit or release-readiness review.
+1. Stop on red mechanical gates.
+2. Check drift and duplication next; this repo ships many regressions through
+   duplicated logic.
+3. Review security, authorization, and concurrency in code, not just in the PR
+   description.
+4. Use `AUDIT_STANDARD.md` when policy questions come up.
+5. Accept `N/A` only when it has a concrete reason.

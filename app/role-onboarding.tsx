@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -49,6 +50,8 @@ function RoleOnboardingScreenInner() {
   const [saving, setSaving] = useState(false);
   const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showCoachTierSelection, setShowCoachTierSelection] = useState(false);
+  const orgOverviewRoute = '/organization';
+  const orgTeamsRoute = '/organization?tab=teams';
   const logTelemetry = (event: string, data?: Record<string, unknown>) => {
     if (__DEV__) {
       // eslint-disable-next-line no-console
@@ -251,21 +254,21 @@ function RoleOnboardingScreenInner() {
       icon: 'people',
       title: 'Manage Roster',
       description: 'Add players, assign roles, build your squad',
-      route: '/manage-teams',
+      route: orgTeamsRoute,
       gradient: ['#7c3aed', '#6d28d9'],
     },
     {
       icon: 'calendar',
       title: 'Schedule Games',
       description: 'Create games and events for your teams',
-      route: '/my-team',
+      route: orgTeamsRoute,
       gradient: ['#059669', '#047857'],
     },
     {
       icon: 'trending-up',
       title: 'Track Performance',
       description: 'View stats, game results, and analytics',
-      route: '/team-hub',
+      route: orgOverviewRoute,
       gradient: ['#dc2626', '#b91c1c'],
     },
   ];
@@ -276,21 +279,21 @@ function RoleOnboardingScreenInner() {
       icon: 'trophy',
       title: 'Unlimited Teams',
       description: `First ${ROOKIE_TEAM_LIMIT} teams free, then ${VETERAN_MONTHLY_TEAM_PRICE_LABEL}`,
-      route: '/manage-teams',
+      route: orgTeamsRoute,
       gradient: ['#f59e0b', '#d97706'],
     },
     {
       icon: 'people-circle',
       title: 'Advanced Roster Tools',
       description: 'Depth charts, positions, player stats tracking',
-      route: '/manage-teams',
+      route: orgTeamsRoute,
       gradient: ['#8b5cf6', '#7c3aed'],
     },
     {
       icon: 'trending-up',
       title: 'Season Analytics',
       description: 'Detailed performance metrics and reports',
-      route: '/team-hub',
+      route: orgOverviewRoute,
       gradient: ['#3b82f6', '#2563eb'],
     },
     {
@@ -308,21 +311,21 @@ function RoleOnboardingScreenInner() {
       icon: 'sparkles',
       title: 'Unlimited Teams',
       description: 'Manage unlimited teams across all sports',
-      route: '/manage-teams',
+      route: orgTeamsRoute,
       gradient: ['#7c3aed', '#6d28d9'],
     },
     {
       icon: 'people',
       title: 'Unlimited Authorized Users',
       description: 'Add assistant coaches and staff with full access',
-      route: '/my-team',
+      route: orgTeamsRoute,
       gradient: ['#3b82f6', '#2563eb'],
     },
     {
       icon: 'business',
       title: 'Organization Management',
       description: 'Manage entire athletic programs and departments',
-      route: '/manage-teams',
+      route: orgOverviewRoute,
       gradient: ['#10b981', '#059669'],
     },
     {
@@ -781,11 +784,15 @@ const styles = StyleSheet.create({
   actionCard: {
     borderRadius: 16,
     overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+        }),
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
   },
   actionGradient: {
     padding: 20,

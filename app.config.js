@@ -18,6 +18,12 @@ module.exports = ({ config }) => {
   const appVersion = process.env.APP_VERSION_OVERRIDE || packageVersion;
   const runtimeVersion = process.env.RUNTIME_VERSION_OVERRIDE || appVersion;
   const sentryAutoUploadEnabled = process.env.SENTRY_DISABLE_AUTO_UPLOAD !== 'true';
+  const publicApiUrl =
+    process.env.EXPO_PUBLIC_API_URL || 'https://api-production-8ac3.up.railway.app';
+  const forceRemoteApi = process.env.EXPO_PUBLIC_FORCE_REMOTE_API || '1';
+  const publicNodeEnv =
+    process.env.EXPO_PUBLIC_NODE_ENV ||
+    (process.env.NODE_ENV === 'development' ? 'development' : 'production');
 
   // Client IDs are NOT secrets — they're embedded in the app bundle.
   // Hardcoded fallbacks ensure the URL scheme is always registered even
@@ -277,9 +283,9 @@ module.exports = ({ config }) => {
       eas: {
         projectId: EAS_PROJECT_ID,
       },
-      EXPO_PUBLIC_API_URL: 'https://api-production-8ac3.up.railway.app',
-      EXPO_PUBLIC_FORCE_REMOTE_API: '1',
-      EXPO_PUBLIC_NODE_ENV: 'production',
+      EXPO_PUBLIC_API_URL: publicApiUrl,
+      EXPO_PUBLIC_FORCE_REMOTE_API: forceRemoteApi,
+      EXPO_PUBLIC_NODE_ENV: publicNodeEnv,
       EXPO_PUBLIC_APP_SCHEME: 'varsityhubmobile',
       EXPO_PUBLIC_WEB_BASE_URL: 'https://varsityhub.app',
       APP_STORE_PRIVACY_POLICY_URL: 'https://varsityhub.app/privacy-policy',

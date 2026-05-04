@@ -516,6 +516,275 @@ describe('API Team Endpoints', () => {
     });
   });
 
+  describe('GET /teams/:id/admin-summary', () => {
+    it('returns the scoped admin summary for org admins without team membership', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const teamOwner = await prisma.user.create({
+        data: {
+          email: `team-admin-summary-owner-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Summary Team Owner',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      const player = await prisma.user.create({
+        data: {
+          email: `team-admin-summary-player-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Summary Player',
+          email_verified: true,
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+          },
+        },
+      });
+
+      const team = await prisma.team.create({
+        data: {
+          name: `Admin Summary Team ${Date.now()}`,
+          description: 'Scoped team admin summary fixture',
+          organization_id: testOrgId,
+          sport: 'Volleyball',
+          season: 'Spring',
+        },
+      });
+
+      await prisma.teamMembership.createMany({
+        data: [
+          { team_id: team.id, user_id: teamOwner.id, role: 'owner', status: 'active' },
+          { team_id: team.id, user_id: player.id, role: 'player', status: 'active' },
+        ],
+      });
+
+      await prisma.game.create({
+        data: {
+          title: 'Scoped Team Game',
+          date: new Date(Date.now() + 86_400_000),
+          location: 'Main Gym',
+          home_team_id: team.id,
+          home_team: team.name,
+          approval_status: 'approved',
+          created_by_id: coachUserId,
+        },
+      });
+
+      const response = await request(app)
+        .get(`/teams/${team.id}/admin-summary`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      expect(response.body.team?.id).toBe(team.id);
+      expect(response.body.team?.organization_id).toBe(testOrgId);
+      expect(response.body.team?.organization?.id).toBe(testOrgId);
+      expect(response.body.permissions?.can_manage).toBe(true);
+      expect(response.body.permissions?.membership_role).toBeNull();
+      expect(response.body.permissions?.via_org_admin).toBe(true);
+      expect(response.body.counts?.members).toBe(2);
+      expect(response.body.counts?.staff).toBe(1);
+      expect(response.body.counts?.upcoming_games).toBe(1);
+      expect(Array.isArray(response.body.members)).toBe(true);
+      expect(response.body.members).toHaveLength(2);
+      expect(response.body.members).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            user: expect.objectContaining({
+              email: player.email,
+            }),
+          }),
+        ])
+      );
+      expect(Array.isArray(response.body.upcoming_games)).toBe(true);
+      expect(response.body.upcoming_games).toHaveLength(1);
+      expect(response.body.upcoming_games[0]?.home_team).toBe(team.name);
+
+      await prisma.game.deleteMany({ where: { home_team_id: team.id } }).catch(() => {});
+      await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      await prisma.user
+        .deleteMany({ where: { id: { in: [teamOwner.id, player.id] } } })
+        .catch(() => {});
+    });
+
+    it('allows org admins without team membership to revoke pending team invites', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const teamOwner = await prisma.user.create({
+        data: {
+          email: `team-cancel-owner-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Cancel Team Owner',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      const team = await prisma.team.create({
+        data: {
+          name: `Cancel Invite Team ${Date.now()}`,
+          description: 'Scoped cancel invite fixture',
+          organization_id: testOrgId,
+          sport: 'Basketball',
+          season: 'Winter',
+        },
+      });
+
+      await prisma.teamMembership.create({
+        data: { team_id: team.id, user_id: teamOwner.id, role: 'owner', status: 'active' },
+      });
+
+      const invite = await prisma.teamInvite.create({
+        data: {
+          team_id: team.id,
+          email: `team-cancel-${Date.now()}@example.com`,
+          role: 'manager',
+          status: 'pending',
+        },
+      });
+
+      const response = await request(app)
+        .post(`/teams/${team.id}/invites/${invite.id}/cancel`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      expect(response.body.ok).toBe(true);
+      expect(response.body.invite?.id).toBe(invite.id);
+      expect(response.body.invite?.status).toBe('revoked');
+
+      const updated = await prisma.teamInvite.findUnique({
+        where: { id: invite.id },
+        select: { status: true },
+      });
+      expect(updated?.status).toBe('revoked');
+
+      await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: teamOwner.id } }).catch(() => {});
+    });
+  });
+
+  describe('GET /teams/:id/screen-summary', () => {
+    it('returns a public screen summary with roster and approved games while exposing scoped manage permissions for org admins', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const teamOwner = await prisma.user.create({
+        data: {
+          email: `team-screen-summary-owner-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Screen Summary Team Owner',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      const player = await prisma.user.create({
+        data: {
+          email: `team-screen-summary-player-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Screen Summary Player',
+          email_verified: true,
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+            jersey_number: '12',
+          },
+        },
+      });
+
+      const team = await prisma.team.create({
+        data: {
+          name: `Screen Summary Team ${Date.now()}`,
+          description: 'Scoped public team summary fixture',
+          organization_id: testOrgId,
+          sport: 'Soccer',
+          season: 'Spring',
+          status: 'active',
+        },
+      });
+
+      await prisma.teamMembership.createMany({
+        data: [
+          { team_id: team.id, user_id: teamOwner.id, role: 'owner', status: 'active' },
+          { team_id: team.id, user_id: player.id, role: 'player', status: 'active' },
+        ],
+      });
+
+      await prisma.game.createMany({
+        data: [
+          {
+            title: 'Screen Summary Past Game',
+            date: new Date(Date.now() - 86_400_000),
+            location: 'North Field',
+            home_team_id: team.id,
+            home_team: team.name,
+            away_team: 'Visitors',
+            approval_status: 'approved',
+            created_by_id: coachUserId,
+          },
+          {
+            title: 'Pending Game Should Hide',
+            date: new Date(Date.now() + 172_800_000),
+            location: 'North Field',
+            home_team_id: team.id,
+            home_team: team.name,
+            away_team: 'Pending Opponent',
+            approval_status: 'pending',
+            created_by_id: coachUserId,
+          },
+        ],
+      });
+
+      const publicResponse = await request(app)
+        .get(`/teams/${team.id}/screen-summary`)
+        .expect(200);
+
+      expect(publicResponse.body.team?.id).toBe(team.id);
+      expect(publicResponse.body.permissions?.can_manage).toBe(false);
+      expect(publicResponse.body.permissions?.membership_role).toBeNull();
+      expect(publicResponse.body.counts?.members).toBe(2);
+      expect(publicResponse.body.counts?.games).toBe(1);
+      expect(Array.isArray(publicResponse.body.members)).toBe(true);
+      expect(publicResponse.body.members).toHaveLength(2);
+      expect(publicResponse.body.members[1]?.user?.display_name).toBe('Screen Summary Player');
+      expect(Array.isArray(publicResponse.body.games)).toBe(true);
+      expect(publicResponse.body.games).toHaveLength(1);
+      expect(publicResponse.body.games[0]?.title).toBe('Screen Summary Past Game');
+
+      const orgAdminResponse = await request(app)
+        .get(`/teams/${team.id}/screen-summary`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      expect(orgAdminResponse.body.permissions?.can_manage).toBe(true);
+      expect(orgAdminResponse.body.permissions?.via_org_admin).toBe(true);
+
+      await prisma.game.deleteMany({ where: { home_team_id: team.id } }).catch(() => {});
+      await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      await prisma.user
+        .deleteMany({ where: { id: { in: [teamOwner.id, player.id] } } })
+        .catch(() => {});
+    });
+  });
+
   describe('Team privacy', () => {
     it('hides private teams from public list and detail while allowing followers and org admins', async () => {
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);

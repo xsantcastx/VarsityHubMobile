@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ActivityIndicator, Keyboard, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
@@ -124,10 +124,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 8px 18px rgba(0, 0, 0, 0.16)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.16,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 },
+        }),
     elevation: 8,
   },
   iconWrap: {

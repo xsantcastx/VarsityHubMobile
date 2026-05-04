@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -408,10 +409,14 @@ const styles = StyleSheet.create({
     borderRadius: 70,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10B981',
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 10px 20px rgba(16, 185, 129, 0.3)' }
+      : {
+          shadowColor: '#10B981',
+          shadowOpacity: 0.3,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 10 },
+        }),
     elevation: 8,
   },
   messageContainer: {
@@ -473,10 +478,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 24,
     marginBottom: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.05,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 3,
   },
   detailRow: {
@@ -520,10 +529,14 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: 12,
-    shadowColor: '#10B981',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(16, 185, 129, 0.25)' }
+      : {
+          shadowColor: '#10B981',
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 4,
   },
   primaryButtonText: {

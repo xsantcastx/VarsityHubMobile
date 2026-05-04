@@ -239,4 +239,16 @@ describe('getCoachAgreementRouteDecision', () => {
     expect(decision.kind).toBe('create_team');
     expect(decision.params).toEqual({ organization_id: 'org_123' });
   });
+
+  it('routes approved coaches with an organization into organization tools by default', () => {
+    const decision = getCoachAgreementRouteDecision(
+      {
+        preferences: { role: 'coach', organization_id: 'org_456' },
+      } as any,
+      null
+    );
+
+    expect(decision.kind).toBe('team_hub');
+    expect(decision.route).toBe('/organization');
+  });
 });

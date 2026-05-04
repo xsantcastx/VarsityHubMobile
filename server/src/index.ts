@@ -5,6 +5,7 @@ import { initEmailService } from './lib/email.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
 import { setupScheduler, startSchedulerWorker } from './jobs/scheduler.js';
 import { env } from './lib/env.js';
+const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
 
 // Initialize SendGrid email service
 await initEmailService();
@@ -269,11 +270,14 @@ async function runStartupChecks(): Promise<void> {
   ];
   for (const { key, label } of criticalVars) {
     if (!process.env[key]) {
+      if (isPlaywrightE2E && (key === 'REDIS_URL' || key === 'SENDGRID_API_KEY')) {
+        continue;
+      }
       console.error(`[startup] STARTUP: ${label} not configured`);
       captureMessage(`STARTUP: ${label} not configured`, 'error');
     }
   }
-  if (!process.env.SENTRY_DSN) {
+  if (!process.env.SENTRY_DSN && !isPlaywrightE2E) {
     console.error('[startup] STARTUP: SENTRY_DSN not configured — error tracking disabled');
   }
 

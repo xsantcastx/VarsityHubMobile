@@ -1,8 +1,18 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
 import { validateEvent, validateEventArray, validateEventRsvpArray } from './schemas/event';
-import { validateOrganization, validateOrganizationArray } from './schemas/organization';
-import { validateTeam, validateTeamArray } from './schemas/team';
+import {
+  validateOrganization,
+  validateOrganizationAdminSummary,
+  validateOrganizationArray,
+  validateOrganizationReviewSummaryArray,
+} from './schemas/organization';
+import {
+  validateTeam,
+  validateTeamAdminSummary,
+  validateTeamArray,
+  validateTeamScreenSummary,
+} from './schemas/team';
 import {
   httpDelete,
   httpGet,
@@ -561,9 +571,17 @@ export const Organization = {
     httpGet('/organizations/mine').then(data =>
       validateOrganizationArray('organizations.mine', data)
     ),
+  reviewSummaries: (): Promise<any> =>
+    httpGet('/organizations/mine/review-summaries').then(data =>
+      validateOrganizationReviewSummaryArray('organizations.reviewSummaries', data)
+    ),
   get: (id: string): Promise<any> =>
     httpGet('/organizations/' + encodeURIComponent(id)).then(data =>
       validateOrganization('organizations.get', data)
+    ),
+  adminSummary: (id: string): Promise<any> =>
+    httpGet(`/organizations/${encodeURIComponent(id)}/admin-summary`).then(data =>
+      validateOrganizationAdminSummary('organizations.adminSummary', data)
     ),
   follow: (id: string) => httpPost(`/organizations/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/organizations/${encodeURIComponent(id)}/follow`),
@@ -588,6 +606,11 @@ export const Organization = {
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) =>
     httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
+  cancelInvite: (organizationId: string, inviteId: string) =>
+    httpPost(
+      `/organizations/${encodeURIComponent(organizationId)}/invites/${encodeURIComponent(inviteId)}/cancel`,
+      {}
+    ),
   myInvites: () => httpGet('/organizations/invites/me'),
   acceptInvite: (inviteId: string) =>
     httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),
@@ -655,6 +678,14 @@ export const Team = {
   },
   get: (id: string): Promise<any> =>
     httpGet('/teams/' + encodeURIComponent(id)).then(data => validateTeam('teams.get', data)),
+  screenSummary: (id: string): Promise<any> =>
+    httpGet('/teams/' + encodeURIComponent(id) + '/screen-summary').then(data =>
+      validateTeamScreenSummary('teams.screenSummary', data)
+    ),
+  adminSummary: (id: string): Promise<any> =>
+    httpGet('/teams/' + encodeURIComponent(id) + '/admin-summary').then(data =>
+      validateTeamAdminSummary('teams.adminSummary', data)
+    ),
   follow: (id: string) => httpPost(`/teams/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpDelete(`/teams/${encodeURIComponent(id)}/follow`),
   members: (id: string) => httpGet(`/teams/${encodeURIComponent(id)}/members`),
@@ -714,6 +745,8 @@ export const Team = {
   },
   invite: (teamId: string, email: string, role?: string) =>
     httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
+  cancelInvite: (teamId: string, inviteId: string) =>
+    httpPost(`/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/cancel`, {}),
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) =>
     httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),

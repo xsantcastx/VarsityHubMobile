@@ -964,10 +964,14 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     backgroundColor: '#f3f4f6',
     elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 6px rgba(0, 0, 0, 0.08)' }
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 2 },
+        }),
     borderWidth: 0,
   },
   pickerItemText: {

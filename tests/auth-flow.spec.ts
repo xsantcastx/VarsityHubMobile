@@ -93,6 +93,29 @@ async function submitSignInRequest(page: Page) {
   throw lastError;
 }
 
+async function submitSignUpRequest(page: Page) {
+  const createAccountButton = page.getByLabel('Create account');
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const responsePromise = page.waitForResponse(
+        response =>
+          response.request().method() === 'POST' && response.url().includes('/auth/register'),
+        { timeout: 7000 }
+      );
+      await createAccountButton.click();
+      await responsePromise;
+      return;
+    } catch (error) {
+      lastError = error;
+      await recoverFromOfflineBanner(page);
+    }
+  }
+
+  throw lastError;
+}
+
 async function completeSignInToVerification(page: Page) {
   const signInError = page
     .getByText(
@@ -143,7 +166,7 @@ test.describe('Authentication Flow', () => {
 
     await page.getByLabel('Email').fill(email);
     await page.getByLabel('Password').fill(password);
-    await page.getByLabel('Create account').click();
+    await submitSignUpRequest(page);
 
     await waitForVerificationScreen(page);
 

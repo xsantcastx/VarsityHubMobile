@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { getCoachAgreementRouteDecision } from '@/utils/appRouteDecisions';
 import { safeGoBack } from '@/utils/navigation';
+import type { CoachUserLike } from '@/utils/roleChecks';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -35,14 +36,17 @@ function CoachAgreementScreen() {
       });
       // Sync auth state so we have the latest preferences
       await checkAuth();
-      const me: any = await User.me();
-      const decision = getCoachAgreementRouteDecision(me, params.redirect);
+      const me = (await User.me()) as CoachUserLike | null;
+      const decision = me
+        ? getCoachAgreementRouteDecision(me, params.redirect)
+        : { route: '/onboarding/step-3-league', params: undefined };
       if (decision.params) {
-        router.replace({ pathname: decision.route, params: decision.params } as any);
+        router.replace({ pathname: decision.route, params: decision.params } as never);
       } else {
-        router.replace(decision.route as any);
+        router.replace(decision.route as never);
       }
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       Alert.alert('Error', err?.message || 'Failed to accept agreement. Please try again.');
     } finally {
       setAccepting(false);

@@ -63,6 +63,82 @@ const organizationArraySchema = z.array(organizationSchema);
 export type OrganizationResponse = z.infer<typeof organizationSchema>;
 export type OrganizationArrayResponse = z.infer<typeof organizationArraySchema>;
 
+const organizationReviewSummarySchema = z
+  .object({
+    organization: z
+      .object({
+        id: z.string(),
+        name: z.string(),
+      })
+      .passthrough(),
+    permissions: z
+      .object({
+        can_manage: z.boolean(),
+        can_review_coach_requests: z.boolean(),
+        membership_role: z.string().nullable().optional(),
+      })
+      .passthrough(),
+    counts: z
+      .object({
+        pending_coach_requests: z.number(),
+        pending_game_reviews: z.number(),
+        pending_event_reviews: z.number(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const organizationReviewSummaryArraySchema = z.array(organizationReviewSummarySchema);
+export type OrganizationReviewSummaryResponse = z.infer<typeof organizationReviewSummarySchema>;
+export type OrganizationReviewSummaryArrayResponse = z.infer<
+  typeof organizationReviewSummaryArraySchema
+>;
+
+const organizationAdminSummarySchema = z
+  .object({
+    organization: organizationSchema,
+    permissions: z
+      .object({
+        can_manage: z.boolean(),
+        can_review_coach_requests: z.boolean(),
+        membership_role: z.string().nullable().optional(),
+        is_platform_admin: z.boolean().optional(),
+      })
+      .passthrough(),
+    counts: z
+      .object({
+        teams: z.number(),
+        members: z.number(),
+        followers: z.number(),
+        pending_authorized_invites: z.number().optional(),
+        pending_coach_requests: z.number(),
+        pending_game_reviews: z.number(),
+        pending_event_reviews: z.number(),
+        upcoming_games: z.number(),
+        upcoming_events: z.number(),
+      })
+      .passthrough(),
+    teams: z.array(z.record(z.any())),
+    members: z.array(z.record(z.any())),
+    requests: z
+      .object({
+        authorized_invites: z.array(z.record(z.any())).optional(),
+        coach_requests: z.array(z.record(z.any())),
+        pending_games: z.array(z.record(z.any())),
+        pending_events: z.array(z.record(z.any())),
+      })
+      .passthrough(),
+    upcoming: z
+      .object({
+        games: z.array(z.record(z.any())),
+        events: z.array(z.record(z.any())),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export type OrganizationAdminSummaryResponse = z.infer<typeof organizationAdminSummarySchema>;
+
 function summarizeKeys(value: unknown): string[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
   return Object.keys(value as Record<string, unknown>).sort();
@@ -100,4 +176,24 @@ export function validateOrganizationArray(
   if (result.success) return result.data;
   reportShapeDrift(endpoint, result, payload);
   return payload as OrganizationArrayResponse;
+}
+
+export function validateOrganizationAdminSummary(
+  endpoint: string,
+  payload: unknown
+): OrganizationAdminSummaryResponse {
+  const result = organizationAdminSummarySchema.safeParse(payload);
+  if (result.success) return result.data;
+  reportShapeDrift(endpoint, result, payload);
+  return payload as OrganizationAdminSummaryResponse;
+}
+
+export function validateOrganizationReviewSummaryArray(
+  endpoint: string,
+  payload: unknown
+): OrganizationReviewSummaryArrayResponse {
+  const result = organizationReviewSummaryArraySchema.safeParse(payload);
+  if (result.success) return result.data;
+  reportShapeDrift(endpoint, result, payload);
+  return payload as OrganizationReviewSummaryArrayResponse;
 }

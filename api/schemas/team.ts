@@ -48,6 +48,58 @@ const teamArraySchema = z.array(teamSchema);
 export type TeamResponse = z.infer<typeof teamSchema>;
 export type TeamArrayResponse = z.infer<typeof teamArraySchema>;
 
+const teamAdminSummarySchema = z
+  .object({
+    team: teamSchema,
+    permissions: z
+      .object({
+        can_manage: z.boolean(),
+        membership_role: z.string().nullable().optional(),
+        via_org_admin: z.boolean().optional(),
+        is_platform_admin: z.boolean().optional(),
+      })
+      .passthrough(),
+    counts: z
+      .object({
+        members: z.number(),
+        staff: z.number(),
+        pending_invites: z.number().optional(),
+        upcoming_games: z.number(),
+      })
+      .passthrough(),
+    members: z.array(z.record(z.any())),
+    pending_invites: z.array(z.record(z.any())).optional(),
+    upcoming_games: z.array(z.record(z.any())),
+  })
+  .passthrough();
+
+export type TeamAdminSummaryResponse = z.infer<typeof teamAdminSummarySchema>;
+
+const teamScreenSummarySchema = z
+  .object({
+    team: teamSchema,
+    permissions: z
+      .object({
+        can_manage: z.boolean(),
+        membership_role: z.string().nullable().optional(),
+        via_org_admin: z.boolean().optional(),
+        is_platform_admin: z.boolean().optional(),
+      })
+      .passthrough(),
+    counts: z
+      .object({
+        members: z.number(),
+        followers: z.number(),
+        games: z.number(),
+      })
+      .passthrough(),
+    members: z.array(z.record(z.any())),
+    games: z.array(z.record(z.any())),
+  })
+  .passthrough();
+
+export type TeamScreenSummaryResponse = z.infer<typeof teamScreenSummarySchema>;
+
 function summarizeKeys(value: unknown): string[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
   return Object.keys(value as Record<string, unknown>).sort();
@@ -82,4 +134,24 @@ export function validateTeamArray(endpoint: string, payload: unknown): TeamArray
   if (result.success) return result.data;
   reportShapeDrift(endpoint, result, payload);
   return payload as TeamArrayResponse;
+}
+
+export function validateTeamAdminSummary(
+  endpoint: string,
+  payload: unknown
+): TeamAdminSummaryResponse {
+  const result = teamAdminSummarySchema.safeParse(payload);
+  if (result.success) return result.data;
+  reportShapeDrift(endpoint, result, payload);
+  return payload as TeamAdminSummaryResponse;
+}
+
+export function validateTeamScreenSummary(
+  endpoint: string,
+  payload: unknown
+): TeamScreenSummaryResponse {
+  const result = teamScreenSummarySchema.safeParse(payload);
+  if (result.success) return result.data;
+  reportShapeDrift(endpoint, result, payload);
+  return payload as TeamScreenSummaryResponse;
 }

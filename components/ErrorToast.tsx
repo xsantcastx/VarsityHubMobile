@@ -9,7 +9,7 @@
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ToastType = 'error' | 'success' | 'warning' | 'info';
@@ -86,7 +86,14 @@ export function ErrorToastContainer() {
   if (visibleToasts.length === 0) return null;
 
   return (
-    <View style={[styles.container, { top: insets.top + 10 }]} pointerEvents="box-none">
+    <View
+      style={[
+        styles.container,
+        { top: insets.top + 10 },
+        Platform.OS === 'web' ? { pointerEvents: 'box-none' } : null,
+      ]}
+      pointerEvents={Platform.OS === 'web' ? undefined : 'box-none'}
+    >
       {visibleToasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onDismiss={() => hideToast(toast.id)} />
       ))}
@@ -99,19 +106,20 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   const [fadeAnim] = useState(new Animated.Value(0));
   const colorScheme = useColorScheme() ?? 'light';
   const _colors = Colors[colorScheme];
+  const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => {
     // Slide in and fade in
     Animated.parallel([
       Animated.spring(slideAnim, {
         toValue: 0,
-        useNativeDriver: true,
+        useNativeDriver,
         friction: 8,
       }),
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver,
       }),
     ]).start();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fadeAnim and slideAnim are Animated.Values (ref-like), initial mount only
@@ -174,10 +182,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     minWidth: 300,
     maxWidth: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.3)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+        }),
     elevation: 8,
   },
   icon: {

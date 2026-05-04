@@ -6,6 +6,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -185,7 +186,7 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any; onRSVPChange?: (
         zIndex: 1000,
         opacity: isLoading || isEventPast ? 0.6 : 1,
       }}
-      accessibilityRole="button"
+      accessibilityRole={Platform.OS === 'web' ? undefined : 'button'}
       accessibilityLabel={badgeA11yLabel}
     >
       <Text
@@ -2271,10 +2272,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 20,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        }),
     elevation: 3,
   },
   mapsButtonText: {
@@ -2297,10 +2302,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: '#0f172a',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(15, 23, 42, 0.12)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 3,
   },
   singleEventCard: {
@@ -2310,10 +2319,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: '#0f172a',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(15, 23, 42, 0.12)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 3,
   },
   singleEventImage: { width: '100%', height: '100%' },
@@ -2358,10 +2371,14 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 18,
     overflow: 'hidden',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(15, 23, 42, 0.08)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 3,
   },
   sponsoredHeader: {
@@ -2481,10 +2498,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: '#0f172a',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 8px rgba(15, 23, 42, 0.12)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 3,
   },
   gridImage: { width: '100%', height: '100%' },
@@ -2513,10 +2534,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     gap: 12,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(15, 23, 42, 0.08)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.08,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 12,
+        }),
     elevation: 3,
   },
   sponsoredGridLabel: {
@@ -2564,10 +2589,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     overflow: 'hidden',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 4px 12px rgba(15, 23, 42, 0.08)' }
+      : {
+          shadowColor: '#0f172a',
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+        }),
     elevation: 3,
   },
   zipSuggestionItem: {

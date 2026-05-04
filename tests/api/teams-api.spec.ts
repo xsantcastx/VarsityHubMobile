@@ -113,7 +113,7 @@ test.describe('Teams API', () => {
     expect(Array.isArray(body)).toBeTruthy();
   });
 
-  test('POST /teams/create should create a team (coach only)', async ({ request }) => {
+  test('POST /teams/create returns either success or an actionable coach-team setup error', async ({ request }) => {
     const response = await request.post(`${API_BASE_URL}/teams/create`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -132,8 +132,14 @@ test.describe('Teams API', () => {
       expect(body.team?.id).toBeDefined();
       expect(body.team?.name).toBeDefined();
     } else {
-      // If fails, should be due to verification requirement
-      expect([401, 403]).toContain(response.status());
+      expect([400, 401, 403]).toContain(response.status());
+      const body = await response.json();
+      expect(body.error).toBeDefined();
+      if (response.status() === 400) {
+        expect(`${body.error ?? ''} ${body.code ?? ''}`).toMatch(
+          /organization required|organization_required/i
+        );
+      }
     }
   });
 

@@ -16,6 +16,7 @@
 
 import { Queue } from 'bullmq';
 type RedisClient = import('ioredis').Redis;
+const isPlaywrightE2E = process.env.PLAYWRIGHT_E2E === '1';
 
 // Job types
 export interface NotificationJob {
@@ -103,7 +104,9 @@ async function getRedisConnection(): Promise<RedisClient | null> {
   
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
-    console.warn('[Jobs] REDIS_URL not configured - job queues will use fallback mode');
+    if (!isPlaywrightE2E) {
+      console.warn('[Jobs] REDIS_URL not configured - job queues will use fallback mode');
+    }
     return null;
   }
 
