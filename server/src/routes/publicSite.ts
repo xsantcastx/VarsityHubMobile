@@ -2,7 +2,7 @@ import { type Request, type Response, Router } from 'express';
 
 const publicSiteRouter = Router();
 const MARKETING_SITE_URL = 'https://www.varsityhub.app/';
-const FALLBACK_WEB_APP_ORIGIN = 'https://varsity-hub-varsityhub.expo.app';
+const FALLBACK_WEB_APP_ORIGIN = 'https://app.varsityhub.app';
 const WEB_APP_REDIRECT_PATHS = new Set([
   '/sign-in',
   '/sign-up',

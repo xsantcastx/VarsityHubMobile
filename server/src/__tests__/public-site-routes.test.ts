@@ -53,7 +53,7 @@ describe('Public site routes', () => {
 
     expect(res.status).toBe(307);
     expect(res.headers.location).toBe(
-      'https://varsity-hub-varsityhub.expo.app/sign-in?next=%2Fcreate-team'
+      'https://app.varsityhub.app/sign-in?next=%2Fcreate-team'
     );
   });
 
@@ -64,6 +64,6 @@ describe('Public site routes', () => {
       .set('Accept', 'text/html');
 
     expect(res.status).toBe(307);
-    expect(res.headers.location).toBe('https://varsity-hub-varsityhub.expo.app/organizations/test-org');
+    expect(res.headers.location).toBe('https://app.varsityhub.app/organizations/test-org');
   });
 });
