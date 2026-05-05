@@ -7,11 +7,16 @@ on:
     branches: [main, develop]
   # Push triggers are handled by ci.yml to avoid duplicate runs
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +52,7 @@ jobs:
   test:
     name: Jest Unit Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -83,7 +88,7 @@ jobs:
             const fs = require('fs');
             const jestOutput = fs.readFileSync('jest-output.txt', 'utf8');
             const coverage = jestOutput.match(/Statements\s+:\s([\d.]+)%/)?.[1] || 'N/A';
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -94,7 +99,7 @@ jobs:
   server-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -143,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test]
     if: success()
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -164,7 +169,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test, server-tests, build-check]
     if: always()
-    
+
     steps:
       - name: Determine status
         run: |

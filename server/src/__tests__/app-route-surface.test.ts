@@ -15,7 +15,7 @@ describe('app route surface contracts', () => {
   });
 
   it('mirrors /me and /v1 route surfaces in the shared test app', () => {
-    expect(testAppSrc).toContain("const meProxy = (req: any, res: any, next: any) => {");
+    expect(testAppSrc).toContain('const meProxy = (req: any, res: any, next: any) => {');
     expect(testAppSrc).toContain("parent.use('/me', meProxy);");
     expect(testAppSrc).toContain("parent.post('/me/consent/resend'");
     expect(testAppSrc).toContain("app.use('/v1', v1);");

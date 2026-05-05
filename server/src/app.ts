@@ -165,7 +165,14 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'If-None-Match', 'Cache-Control', 'Pragma'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'If-None-Match',
+    'Cache-Control',
+    'Pragma',
+  ],
   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);

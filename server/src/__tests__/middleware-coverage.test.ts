@@ -177,8 +177,8 @@ describe('Middleware coverage on critical mutation routes', () => {
       expect(testAppSrc).toContain(`./routes/${baseName}.js`);
     }
 
-    expect(appSrc).not.toContain("./routes/tournaments.js");
-    expect(testAppSrc).not.toContain("./routes/tournaments.js");
+    expect(appSrc).not.toContain('./routes/tournaments.js');
+    expect(testAppSrc).not.toContain('./routes/tournaments.js');
   });
 
   it('requireAuth is imported in every route file that uses req.user', () => {

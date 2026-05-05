@@ -108,18 +108,20 @@ describe('Public app handoff behavior', () => {
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.text).toContain('Check Your Email');
     expect(res.text).toContain(user.email);
-    expect(String(after?.email_verification_code)).not.toBe(String(before?.email_verification_code));
+    expect(String(after?.email_verification_code)).not.toBe(
+      String(before?.email_verification_code)
+    );
     expect(after?.email_verification_expires?.getTime()).toBeGreaterThan(
       before?.email_verification_expires?.getTime() || 0
     );
   });
 
   it('returns a handled 500 response when verify prevalidation throws', async () => {
-    const findFirstSpy = jest.spyOn(prisma.user, 'findFirst').mockRejectedValue(new Error('db boom'));
+    const findFirstSpy = jest
+      .spyOn(prisma.user, 'findFirst')
+      .mockRejectedValue(new Error('db boom'));
 
-    const res = await request(app)
-      .get('/verify?email=test@example.com&token=123456')
-      .expect(500);
+    const res = await request(app).get('/verify?email=test@example.com&token=123456').expect(500);
 
     expect(findFirstSpy).toHaveBeenCalled();
     expect(res.headers['content-type']).toContain('application/json');

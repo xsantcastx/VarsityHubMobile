@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write
       pull-requests: write
 
     steps:
@@ -83,9 +84,9 @@ jobs:
             const rootVulns = '${{ steps.root-parse.outputs.vulnerabilities }}';
             const serverVulns = '${{ steps.server-parse.outputs.vulnerabilities }}';
             const totalVulns = parseInt(rootVulns) + parseInt(serverVulns);
-            
+
             const status = totalVulns === 0 ? '✅ Clean' : `❌ Found ${totalVulns} vulnerabilities`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,

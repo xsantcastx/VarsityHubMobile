@@ -110,9 +110,7 @@ describe('Coach Agreement Versioning', () => {
   it('GET /me exposes the current required coach agreement version', async () => {
     process.env.REQUIRED_COACH_AGREEMENT_VERSION = '4';
 
-    const res = await request(app)
-      .get('/me')
-      .set('Authorization', `Bearer ${coachToken}`);
+    const res = await request(app).get('/me').set('Authorization', `Bearer ${coachToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.required_coach_agreement_version).toBe(4);

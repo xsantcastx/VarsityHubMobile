@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Authentication Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for authentication:
  * - POST /auth/register
  * - POST /auth/login
@@ -36,8 +36,12 @@ describe('API Authentication Endpoints', () => {
   afterAll(async () => {
     try {
       if (cleanupUserIds.size > 0) {
-        await prisma.refreshToken.deleteMany({ where: { user_id: { in: Array.from(cleanupUserIds) } } }).catch(() => {});
-        await prisma.user.deleteMany({ where: { id: { in: Array.from(cleanupUserIds) } } }).catch(() => {});
+        await prisma.refreshToken
+          .deleteMany({ where: { user_id: { in: Array.from(cleanupUserIds) } } })
+          .catch(() => {});
+        await prisma.user
+          .deleteMany({ where: { id: { in: Array.from(cleanupUserIds) } } })
+          .catch(() => {});
       }
       await prisma.user.deleteMany({
         where: {
@@ -131,12 +135,10 @@ describe('API Authentication Endpoints', () => {
 
     it('should sanitize email (trim and lowercase)', async () => {
       const emailWithSpaces = `  ${TEST_EMAIL.toUpperCase()}  `;
-      const response = await request(app)
-        .post('/auth/register')
-        .send({
-          email: emailWithSpaces,
-          password: TEST_PASSWORD,
-        });
+      const response = await request(app).post('/auth/register').send({
+        email: emailWithSpaces,
+        password: TEST_PASSWORD,
+      });
 
       // Should either succeed (if sanitized) or fail with 409 (if already exists)
       // The key is that email should be normalized
@@ -228,9 +230,7 @@ describe('API Authentication Endpoints', () => {
 
   describe('GET /auth/me', () => {
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/auth/me')
-        .expect(401);
+      const response = await request(app).get('/auth/me').expect(401);
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('Unauthorized');
@@ -262,9 +262,7 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.preferences.role).toBe('fan');
       expect(response.body.zip_code).toBe('10001');
       expect(response.body.location).toBe('New York, NY');
-      expect(response.body.header_image_url).toBe(
-        'https://cdn.varsityhub.test/profile-header.jpg'
-      );
+      expect(response.body.header_image_url).toBe('https://cdn.varsityhub.test/profile-header.jpg');
       expect(response.body.sports_interests).toEqual(['Basketball']);
     });
 
@@ -390,22 +388,10 @@ describe('API Authentication Endpoints', () => {
       expect(revokeResponse.body.ok).toBe(true);
       expect(revokeResponse.body.revoked).toBeGreaterThanOrEqual(2);
 
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenA}`)
-        .expect(401);
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenB}`)
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshA })
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshB })
-        .expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenA}`).expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenB}`).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshA }).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshB }).expect(401);
 
       await request(app)
         .post('/auth/login')
@@ -462,22 +448,10 @@ describe('API Authentication Endpoints', () => {
         })
         .expect(200);
 
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenA}`)
-        .expect(401);
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenB}`)
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshA })
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshB })
-        .expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenA}`).expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenB}`).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshA }).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshB }).expect(401);
 
       const relogin = await request(app)
         .post('/auth/login')

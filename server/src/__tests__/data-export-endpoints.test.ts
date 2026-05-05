@@ -256,7 +256,7 @@ describeDb('GDPR data export — HTTP endpoints', () => {
       expect(stillThere.status).toBe('pending');
     });
 
-    it('GET /me/data-exports returns only the requester\'s rows', async () => {
+    it("GET /me/data-exports returns only the requester's rows", async () => {
       await (prisma as any).dataExport.create({
         data: { user_id: userBId, status: 'pending' },
       });
