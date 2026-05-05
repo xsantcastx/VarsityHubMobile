@@ -9,8 +9,10 @@ describe('Geocoding contracts', () => {
   let signJwt: any;
   let token: string;
   let userId: string;
+  const originalGoogleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
 
   beforeAll(async () => {
+    process.env.GOOGLE_MAPS_API_KEY = originalGoogleMapsApiKey || 'test-google-maps-api-key';
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
 
@@ -35,6 +37,11 @@ describe('Geocoding contracts', () => {
   afterAll(async () => {
     await prisma.refreshToken.deleteMany({ where: { user_id: userId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: userId } }).catch(() => {});
+    if (originalGoogleMapsApiKey) {
+      process.env.GOOGLE_MAPS_API_KEY = originalGoogleMapsApiKey;
+    } else {
+      delete process.env.GOOGLE_MAPS_API_KEY;
+    }
   });
 
   it('honors the autocomplete limit query param at the server contract boundary', async () => {
