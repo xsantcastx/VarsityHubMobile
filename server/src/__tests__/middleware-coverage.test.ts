@@ -23,6 +23,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROUTES_DIR = join(process.cwd(), 'src', 'routes');
+const appSrc = readFileSync(join(process.cwd(), 'src', 'app.ts'), 'utf8');
+const testAppSrc = readFileSync(join(process.cwd(), 'src', 'testApp.ts'), 'utf8');
 
 type Expectation = {
   file: string;
@@ -148,30 +150,6 @@ const EXPECTATIONS: Expectation[] = [
     registrationPattern: /teamMembershipsRouter\.delete\(\s*['"]\/:id['"]/,
     mustInclude: ['requireAuth', 'requireOnboarded'],
   },
-  {
-    file: 'tournaments.ts',
-    description: 'POST /tournaments/',
-    registrationPattern: /tournamentsRouter\.post\(\s*['"]\/['"]/,
-    mustInclude: ['requireAuth', 'requireOnboarded'],
-  },
-  {
-    file: 'tournaments.ts',
-    description: 'PATCH /tournaments/:id',
-    registrationPattern: /tournamentsRouter\.patch\(\s*['"]\/:id['"]/,
-    mustInclude: ['requireAuth', 'requireOnboarded'],
-  },
-  {
-    file: 'tournaments.ts',
-    description: 'POST /tournaments/:id/teams',
-    registrationPattern: /tournamentsRouter\.post\(\s*['"]\/:id\/teams['"]/,
-    mustInclude: ['requireAuth', 'requireOnboarded'],
-  },
-  {
-    file: 'tournaments.ts',
-    description: 'POST /tournaments/:id/games',
-    registrationPattern: /tournamentsRouter\.post\(\s*['"]\/:id\/games['"]/,
-    mustInclude: ['requireAuth', 'requireOnboarded'],
-  },
 ];
 
 describe('Middleware coverage on critical mutation routes', () => {
@@ -187,6 +165,21 @@ describe('Middleware coverage on critical mutation routes', () => {
       }
     }
   );
+
+  it('only claims middleware coverage for routers mounted on the shipped app surface', () => {
+    const mountedFiles = new Set(
+      EXPECTATIONS.map(expectation => expectation.file).filter(file => file !== 'auth.ts')
+    );
+
+    for (const file of mountedFiles) {
+      const baseName = file.replace(/\.ts$/, '');
+      expect(appSrc).toContain(`./routes/${baseName}.js`);
+      expect(testAppSrc).toContain(`./routes/${baseName}.js`);
+    }
+
+    expect(appSrc).not.toContain("./routes/tournaments.js");
+    expect(testAppSrc).not.toContain("./routes/tournaments.js");
+  });
 
   it('requireAuth is imported in every route file that uses req.user', () => {
     // Belt-and-braces per CLAUDE.md rule: "ALL routes accessing req.user MUST

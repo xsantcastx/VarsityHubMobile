@@ -244,7 +244,6 @@ const genericHandoffRoutes: Array<{ path: string; title: string; description: st
 ];
 
 publicAppHandoffRouter.get('/verify', asyncHandler(async (req, res) => {
-  res.setHeader('Content-Type', 'text/html');
   const nativeUrl = buildNativeHandoffUrl('/verify', req);
   const autoRedirect = isMobileUserAgent(req);
   const state = await getVerifyHandoffState(req);
@@ -296,7 +295,6 @@ publicAppHandoffRouter.post(
   noStore,
   publicVerifyResendLimiter,
   asyncHandler(async (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
     const email = sanitizeEmailQuery(req.body?.email);
     const nativeUrl = buildNativeHandoffUrlFromQuery('/verify', email ? { email } : {});
 
@@ -345,7 +343,6 @@ publicAppHandoffRouter.post(
 );
 
 publicAppHandoffRouter.get('/reset-password', asyncHandler(async (req, res) => {
-  res.setHeader('Content-Type', 'text/html');
   const nativeUrl = buildNativeHandoffUrl('/reset-password', req);
   const autoRedirect = isMobileUserAgent(req);
   const state = await getResetHandoffState(req);
@@ -383,7 +380,6 @@ publicAppHandoffRouter.get('/reset-password', asyncHandler(async (req, res) => {
 
 for (const route of genericHandoffRoutes) {
   publicAppHandoffRouter.get(route.path, (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
     res.send(
       renderAppHandoffPage(
         route.title,

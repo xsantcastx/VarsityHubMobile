@@ -1,25 +1,8 @@
 # Error Audit
 
-Work in progress. Confirmed findings below are ordered by leverage, not completion order.
+No open findings remain from this audit pass.
 
-## High
+Resolved in this branch:
 
-### Public email-verification and password-reset handoff routes bypass the shared async error handler
-
-- Affected files:
-  - [server/src/routes/publicAppHandoff.ts](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/routes/publicAppHandoff.ts:245)
-  - [server/src/routes/publicAppHandoff.ts](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/routes/publicAppHandoff.ts:293)
-  - [server/src/routes/publicAppHandoff.ts](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/routes/publicAppHandoff.ts:346)
-  - [server/src/middleware/asyncHandler.ts](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/middleware/asyncHandler.ts:3)
-- Failure path:
-  - `/verify`, `/verify/resend`, and `/reset-password` are registered as raw `async (req, res)` Express handlers.
-  - They await Prisma reads/writes and helper calls that can reject.
-  - Unlike the rest of the server, these handlers are not wrapped in `asyncHandler`, so rejected promises can bypass the central error pipeline.
-- Expected behavior:
-  - Public auth-recovery and verification routes should funnel asynchronous failures through the same error handler as the rest of the API.
-- Actual behavior:
-  - This route family is an exception and can fail outside the normal `catch(next)` path.
-- Fix recommendation:
-  - Wrap these handlers in `asyncHandler`, or convert them to non-async handlers that explicitly forward errors with `next`.
-- Verification:
-  - Add a behavior test that forces a thrown dependency inside `/verify` or `/reset-password` and asserts the request returns a handled server error instead of an unhandled rejection or hung response.
+- Public verification and password-reset handoff routes are wrapped in `asyncHandler` in [`server/src/routes/publicAppHandoff.ts`](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/routes/publicAppHandoff.ts:1).
+- Runtime error handling is verified by [`server/src/__tests__/public-app-handoff-behavior.test.ts`](/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/src/__tests__/public-app-handoff-behavior.test.ts:1), including a forced dependency failure case.

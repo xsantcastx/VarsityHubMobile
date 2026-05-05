@@ -7,6 +7,10 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import {
+  geocodingAutocompleteLimiter,
+  geocodingLocationLimiter,
+} from '../middleware/rateLimiters.js';
 
 dotenv.config();
 
@@ -16,7 +20,7 @@ const geocodeSchema = z.object({
   location: z.string().min(2, 'Location must be at least 2 characters'),
 });
 
-geocodingRouter.post('/location', requireAuth, asyncHandler(async (req: AuthedRequest, res) => {
+geocodingRouter.post('/location', requireAuth, geocodingLocationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
     const { location } = geocodeSchema.parse(req.body);
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -57,13 +61,14 @@ geocodingRouter.post('/location', requireAuth, asyncHandler(async (req: AuthedRe
 
 const autocompleteSchema = z.object({
   input: z.string().min(1),
+  limit: z.coerce.number().int().min(1).max(10).optional(),
   sessiontoken: z.string().optional(),
   zip: z.string().max(20).optional(),
 });
 
-geocodingRouter.get('/autocomplete', requireAuth, asyncHandler(async (req: AuthedRequest, res) => {
+geocodingRouter.get('/autocomplete', requireAuth, geocodingAutocompleteLimiter, asyncHandler(async (req: AuthedRequest, res) => {
   try {
-    const { input, sessiontoken, zip } = autocompleteSchema.parse(req.query);
+    const { input, limit = 6, sessiontoken, zip } = autocompleteSchema.parse(req.query);
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
     if (!apiKey) {
@@ -118,7 +123,7 @@ geocodingRouter.get('/autocomplete', requireAuth, asyncHandler(async (req: Authe
       structured_formatting: p.structured_formatting,
     }));
 
-    return res.json({ suggestions });
+    return res.json({ suggestions: suggestions.slice(0, limit) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
