@@ -44,4 +44,26 @@ describe('Public site routes', () => {
     expect(support.status).toBe(200);
     expect(support.text).toContain('Customer Service');
   });
+
+  it('redirects browser app entry routes to the configured web app host', async () => {
+    const res = await request(buildApp())
+      .get('/sign-in?next=%2Fcreate-team')
+      .set('Host', 'varsityhub.app')
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(307);
+    expect(res.headers.location).toBe(
+      'https://varsity-hub-varsityhub.expo.app/sign-in?next=%2Fcreate-team'
+    );
+  });
+
+  it('redirects organization browser routes to the configured web app host', async () => {
+    const res = await request(buildApp())
+      .get('/organizations/test-org')
+      .set('Host', 'varsityhub.app')
+      .set('Accept', 'text/html');
+
+    expect(res.status).toBe(307);
+    expect(res.headers.location).toBe('https://varsity-hub-varsityhub.expo.app/organizations/test-org');
+  });
 });
