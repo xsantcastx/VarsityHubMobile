@@ -31,6 +31,28 @@ module.exports = ({ config }) => {
   const GOOGLE_IOS_CLIENT_ID =
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
     '514463516787-dm665i3u3a6un7eties8q73eik17vcs3.apps.googleusercontent.com';
+  const universalLinkHosts = ['varsityhub.app', 'www.varsityhub.app', 'app.varsityhub.app'];
+  const universalLinkPathPrefixes = [
+    '/posts',
+    '/games',
+    '/teams',
+    '/users',
+    '/events',
+    '/join',
+    '/share',
+    '/verify',
+    '/verify-email',
+    '/reset-password',
+    '/settings/manage-subscription',
+    '/admin-dashboard',
+    '/admin-ads',
+    '/organization-join-requests',
+    '/team-hub',
+    '/create-fan-event',
+    '/event-detail',
+    '/payment-success',
+    '/payment-cancel',
+  ];
 
   return {
     ...config,
@@ -67,7 +89,7 @@ module.exports = ({ config }) => {
       supportsTablet: true,
       appleTeamId: 'B5H8F69RW5',
       bundleIdentifier: 'com.varsithub.varsityhub-ios',
-      associatedDomains: ['applinks:varsityhub.app', 'applinks:www.varsityhub.app'],
+      associatedDomains: universalLinkHosts.map(host => `applinks:${host}`),
       usesAppleSignIn: true,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -111,56 +133,13 @@ module.exports = ({ config }) => {
           action: 'VIEW',
           autoVerify: true,
           category: ['BROWSABLE', 'DEFAULT'],
-          data: [
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/posts' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/games' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/teams' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/users' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/events' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/join' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/share' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/verify' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/reset-password' },
-            {
+          data: universalLinkHosts.flatMap(host =>
+            universalLinkPathPrefixes.map(pathPrefix => ({
               scheme: 'https',
-              host: 'varsityhub.app',
-              pathPrefix: '/settings/manage-subscription',
-            },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/admin-dashboard' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/admin-ads' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/organization-join-requests' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/team-hub' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/create-fan-event' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/event-detail' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/payment-success' },
-            { scheme: 'https', host: 'varsityhub.app', pathPrefix: '/payment-cancel' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/posts' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/games' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/teams' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/users' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/events' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/join' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/share' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/verify' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/reset-password' },
-            {
-              scheme: 'https',
-              host: 'www.varsityhub.app',
-              pathPrefix: '/settings/manage-subscription',
-            },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/admin-dashboard' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/admin-ads' },
-            {
-              scheme: 'https',
-              host: 'www.varsityhub.app',
-              pathPrefix: '/organization-join-requests',
-            },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/team-hub' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/create-fan-event' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/event-detail' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/payment-success' },
-            { scheme: 'https', host: 'www.varsityhub.app', pathPrefix: '/payment-cancel' },
-          ],
+              host,
+              pathPrefix,
+            }))
+          ),
         },
       ],
       permissions: [

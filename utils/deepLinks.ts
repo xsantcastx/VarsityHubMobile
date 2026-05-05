@@ -26,7 +26,13 @@ import { getConfig } from '@/config/env';
 
 // App scheme and web domain (must match app.json scheme and shared URLs)
 const APP_SCHEME = getConfig().appScheme || 'varsityhubmobile';
-const WEB_DOMAINS = ['varsityhub.app', 'www.varsityhub.app', 'varsityhub.com', 'www.varsityhub.com'];
+const WEB_DOMAINS = [
+  'varsityhub.app',
+  'www.varsityhub.app',
+  'app.varsityhub.app',
+  'varsityhub.com',
+  'www.varsityhub.com',
+];
 
 // Routes that don't require authentication — safe to navigate immediately
 const PUBLIC_DEEP_LINK_ROUTES = new Set([

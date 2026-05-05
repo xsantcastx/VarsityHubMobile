@@ -21,6 +21,7 @@ describe('resolveWellKnownDir', () => {
 
     expect(aasa.applinks.details[0].appID).toBe('B5H8F69RW5.com.varsithub.varsityhub-ios');
     expect(aasa.applinks.details[0].paths).toContain('/verify');
+    expect(aasa.applinks.details[0].paths).toContain('/verify-email');
     expect(aasa.applinks.details[0].paths).toContain('/reset-password');
     expect(assetLinks[0].target.package_name).toBe('com.varsityhub.varsityhub');
   });

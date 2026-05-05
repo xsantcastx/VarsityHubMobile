@@ -54,7 +54,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "softwareKeyboardLayoutMode": "resize",
+      "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "versionCode": 3,
       "package": "com.varsityhub.varsityhub",
@@ -168,7 +168,7 @@
       "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
       "EXPO_PUBLIC_NODE_ENV": "production",
       "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",
-      "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
+      "EXPO_PUBLIC_WEB_BASE_URL": "https://app.varsityhub.app",
       "APP_STORE_PRIVACY_POLICY_URL": "https://varsityhub.app/privacy-policy",
       "EXPO_PUBLIC_SENTRY_DSN": "",
       "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",

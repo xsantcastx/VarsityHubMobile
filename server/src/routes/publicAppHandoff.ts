@@ -160,6 +160,53 @@ async function getResetHandoffState(req: Request): Promise<ResetHandoffState> {
   return { kind: 'valid', email, code };
 }
 
+async function renderVerifyHandoff(req: Request, res: express.Response) {
+  const nativeUrl = buildNativeHandoffUrl('/verify', req);
+  const autoRedirect = isMobileUserAgent(req);
+  const state = await getVerifyHandoffState(req);
+
+  if (state.kind === 'valid') {
+    return res.send(
+      renderAppHandoffPage(
+        'Verify Your Email',
+        'Open VarsityHub to finish verifying your email address.',
+        nativeUrl,
+        buildVerifyFallbackHtml(req),
+        { autoRedirect }
+      )
+    );
+  }
+  if (state.kind === 'expired') {
+    return res.send(
+      renderAppHandoffPage(
+        'Verification Link Expired',
+        `This verification link for ${escapeHtml(state.email)} has expired. Request a fresh code, then open VarsityHub to finish verifying your email address.`,
+        nativeUrl,
+        buildVerifyResendCtaHtml(state.email)
+      )
+    );
+  }
+  if (state.kind === 'already_verified') {
+    return res.send(
+      renderAppHandoffPage(
+        'Email Already Verified',
+        `The email address ${escapeHtml(state.email)} is already verified. Open VarsityHub to continue signing in.`,
+        nativeUrl
+      )
+    );
+  }
+  return res.send(
+    renderAppHandoffPage(
+      'Verification Link Invalid',
+      state.email
+        ? `This verification link for ${escapeHtml(state.email)} is no longer valid. Request a fresh code, then open VarsityHub to continue.`
+        : 'This verification link is no longer valid. Open VarsityHub and request a fresh code to continue.',
+      nativeUrl,
+      state.email ? buildVerifyResendCtaHtml(state.email) : ''
+    )
+  );
+}
+
 function buildVerifyFallbackHtml(req: Request): string {
   const token = sanitizeSixDigitValue(req.query.token);
   if (!token) return '';
@@ -246,50 +293,14 @@ const genericHandoffRoutes: Array<{ path: string; title: string; description: st
 publicAppHandoffRouter.get(
   '/verify',
   asyncHandler(async (req, res) => {
-    const nativeUrl = buildNativeHandoffUrl('/verify', req);
-    const autoRedirect = isMobileUserAgent(req);
-    const state = await getVerifyHandoffState(req);
+    return renderVerifyHandoff(req, res);
+  })
+);
 
-    if (state.kind === 'valid') {
-      return res.send(
-        renderAppHandoffPage(
-          'Verify Your Email',
-          'Open VarsityHub to finish verifying your email address.',
-          nativeUrl,
-          buildVerifyFallbackHtml(req),
-          { autoRedirect }
-        )
-      );
-    }
-    if (state.kind === 'expired') {
-      return res.send(
-        renderAppHandoffPage(
-          'Verification Link Expired',
-          `This verification link for ${escapeHtml(state.email)} has expired. Request a fresh code, then open VarsityHub to finish verifying your email address.`,
-          nativeUrl,
-          buildVerifyResendCtaHtml(state.email)
-        )
-      );
-    }
-    if (state.kind === 'already_verified') {
-      return res.send(
-        renderAppHandoffPage(
-          'Email Already Verified',
-          `The email address ${escapeHtml(state.email)} is already verified. Open VarsityHub to continue signing in.`,
-          nativeUrl
-        )
-      );
-    }
-    return res.send(
-      renderAppHandoffPage(
-        'Verification Link Invalid',
-        state.email
-          ? `This verification link for ${escapeHtml(state.email)} is no longer valid. Request a fresh code, then open VarsityHub to continue.`
-          : 'This verification link is no longer valid. Open VarsityHub and request a fresh code to continue.',
-        nativeUrl,
-        state.email ? buildVerifyResendCtaHtml(state.email) : ''
-      )
-    );
+publicAppHandoffRouter.get(
+  '/verify-email',
+  asyncHandler(async (req, res) => {
+    return renderVerifyHandoff(req, res);
   })
 );
 

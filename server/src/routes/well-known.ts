@@ -14,6 +14,7 @@ const IOS_PATHS = [
   '/join/*',
   '/share',
   '/verify',
+  '/verify-email',
   '/reset-password',
   '/settings/manage-subscription',
   '/admin-dashboard',
@@ -99,7 +100,7 @@ export const wellKnownRouter = Router();
  */
 wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  res.send(FALLBACK_AASA);
+  res.send(getWellKnownPayload('apple-app-site-association'));
 });
 
 /**
@@ -108,5 +109,5 @@ wellKnownRouter.get('/apple-app-site-association', (_req, res) => {
  */
 wellKnownRouter.get('/assetlinks.json', (_req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  res.send(FALLBACK_ASSET_LINKS);
+  res.send(getWellKnownPayload('assetlinks.json'));
 });
