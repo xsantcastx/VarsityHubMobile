@@ -3980,7 +3980,15 @@ organizationsRouter.post(
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const { id: orgId, userId: coachId } = req.params;
-      const { team_id: teamId } = req.body || {};
+      const approveCoachSchema = z.object({
+        team_id: z.string().min(1).optional(),
+        note: z.string().max(500).optional(),
+      });
+      const parsed = approveCoachSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+      }
+      const { team_id: teamId } = parsed.data;
 
       // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({
@@ -4173,7 +4181,14 @@ organizationsRouter.post(
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const { id: orgId, userId: coachId } = req.params;
-      const reason = req.body?.reason as string | undefined;
+      const rejectCoachSchema = z.object({
+        reason: z.string().max(500).optional(),
+      });
+      const parsed = rejectCoachSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+      }
+      const { reason } = parsed.data;
 
       // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({

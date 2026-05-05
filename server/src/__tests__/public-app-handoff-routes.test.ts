@@ -31,6 +31,13 @@ describe('Public app handoff routes', () => {
     expect(handoffRoute).toContain('publicVerifyResendLimiter');
   });
 
+  it('wraps async handoff routes in asyncHandler so failures reach the central error path', () => {
+    expect(handoffRoute).toContain("import { asyncHandler } from '../middleware/asyncHandler.js';");
+    expect(handoffRoute).toContain("publicAppHandoffRouter.get('/verify', asyncHandler(async");
+    expect(handoffRoute).toContain('publicAppHandoffRouter.post(');
+    expect(handoffRoute).toContain("publicAppHandoffRouter.get('/reset-password', asyncHandler(async");
+  });
+
   it('only auto-redirects handoff pages on mobile user agents', () => {
     expect(handoffRoute).toContain('function isMobileUserAgent');
     expect(handoffRoute).toContain('/iphone|ipad|ipod|android|mobile/i');

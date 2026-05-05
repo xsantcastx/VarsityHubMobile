@@ -258,7 +258,7 @@ describeDb('Critical Server Flows', () => {
   describe('Verification gate on onboarding', () => {
     it('blocks unverified users from completing onboarding', async () => {
       const res = await request(app)
-        .post('/auth/me/complete-onboarding')
+        .post('/me/complete-onboarding')
         .set('Authorization', `Bearer ${unverifiedCoachToken}`)
         .send({});
 
@@ -273,7 +273,7 @@ describeDb('Critical Server Flows', () => {
       });
 
       const res = await request(app)
-        .patch('/auth/me')
+        .patch('/me')
         .set('Authorization', `Bearer ${unverifiedCoachToken}`)
         .send({ display_name: 'Mutated While Unverified' });
 
@@ -295,7 +295,7 @@ describeDb('Critical Server Flows', () => {
       });
 
       const res = await request(app)
-        .patch('/auth/me/preferences')
+        .patch('/me/preferences')
         .set('Authorization', `Bearer ${unverifiedCoachToken}`)
         .send({ onboarding_completed: true, role: 'fan' });
 

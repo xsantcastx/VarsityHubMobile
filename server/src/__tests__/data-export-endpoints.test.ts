@@ -13,7 +13,6 @@
  */
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import bcrypt from 'bcrypt';
-import express from 'express';
 import request from 'supertest';
 import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
@@ -24,20 +23,7 @@ jest.unstable_mockModule('../jobs/queues.js', () => ({
   queueDataExport: mockQueueDataExport,
 }));
 
-const { authMiddleware } = await import('../middleware/auth.js');
-const { dataExportRouter } = await import('../routes/dataExport.js');
-
-const app = express();
-app.use(express.json());
-app.use(authMiddleware);
-app.use(dataExportRouter);
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-  if (typeof err?.toJSON === 'function') {
-    return res.status(status).json(err.toJSON());
-  }
-  return res.status(status).json({ error: err?.message || 'Internal server error' });
-});
+const { app } = await import('../testApp.js');
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';

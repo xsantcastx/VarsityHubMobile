@@ -9,6 +9,11 @@ app.disable('x-powered-by');
 app.use(express.json());
 app.use(authMiddleware);
 app.use('/auth', authRouter);
+app.use('/me', (req: any, res: any, next: any) => {
+  const suffix = req.url === '/' ? '' : req.url;
+  req.url = '/me' + suffix;
+  authRouter(req, res, next);
+});
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;

@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { sendVerificationEmail } from '../lib/email.js';
 import { hashRefreshToken } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const publicAppHandoffRouter = Router();
 const handoffPageStyle = `body{font-family:-apple-system,Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333;line-height:1.6}h1{color:#1B3A6B}h2{color:#2563eb;margin-top:24px}a{color:#2563eb}`;
@@ -242,7 +243,7 @@ const genericHandoffRoutes: Array<{ path: string; title: string; description: st
   },
 ];
 
-publicAppHandoffRouter.get('/verify', async (req, res) => {
+publicAppHandoffRouter.get('/verify', asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'text/html');
   const nativeUrl = buildNativeHandoffUrl('/verify', req);
   const autoRedirect = isMobileUserAgent(req);
@@ -288,13 +289,13 @@ publicAppHandoffRouter.get('/verify', async (req, res) => {
       state.email ? buildVerifyResendCtaHtml(state.email) : ''
     )
   );
-});
+}));
 
 publicAppHandoffRouter.post(
   '/verify/resend',
   noStore,
   publicVerifyResendLimiter,
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     res.setHeader('Content-Type', 'text/html');
     const email = sanitizeEmailQuery(req.body?.email);
     const nativeUrl = buildNativeHandoffUrlFromQuery('/verify', email ? { email } : {});
@@ -340,10 +341,10 @@ publicAppHandoffRouter.post(
         nativeUrl
       )
     );
-  }
+  })
 );
 
-publicAppHandoffRouter.get('/reset-password', async (req, res) => {
+publicAppHandoffRouter.get('/reset-password', asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'text/html');
   const nativeUrl = buildNativeHandoffUrl('/reset-password', req);
   const autoRedirect = isMobileUserAgent(req);
@@ -378,7 +379,7 @@ publicAppHandoffRouter.get('/reset-password', async (req, res) => {
       nativeUrl
     )
   );
-});
+}));
 
 for (const route of genericHandoffRoutes) {
   publicAppHandoffRouter.get(route.path, (req, res) => {
