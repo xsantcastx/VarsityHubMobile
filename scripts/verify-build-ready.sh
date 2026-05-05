@@ -42,6 +42,16 @@ get_eas_env_value() {
     fi
 }
 
+get_eas_json_env_value() {
+    local key="$1"
+    node -e "
+      const fs = require('fs');
+      const config = JSON.parse(fs.readFileSync('eas.json', 'utf8'));
+      const value = config?.build?.production?.env?.['$key'] || '';
+      process.stdout.write(value);
+    " 2>/dev/null || true
+}
+
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}🚀 BUILD READINESS VERIFICATION${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -496,8 +506,14 @@ echo ""
 echo -e "${BLUE}Step 11: Environment variables validation...${NC}"
 
 # Check EXPO_PUBLIC_SENTRY_DSN (check both app.json and .env)
-SENTRY_DSN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_SENTRY_DSN || '')" 2>/dev/null)
+SENTRY_DSN="${EXPO_PUBLIC_SENTRY_DSN:-}"
 SENTRY_DSN_FROM_EAS=0
+if [ -z "$SENTRY_DSN" ] || [ "$SENTRY_DSN" = "" ]; then
+    SENTRY_DSN=$(get_eas_json_env_value "EXPO_PUBLIC_SENTRY_DSN")
+fi
+if [ -z "$SENTRY_DSN" ] || [ "$SENTRY_DSN" = "" ]; then
+    SENTRY_DSN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_SENTRY_DSN || '')" 2>/dev/null)
+fi
 if [ -z "$SENTRY_DSN" ] || [ "$SENTRY_DSN" = "" ]; then
     # Fallback to .env file
     if [ -f ".env" ]; then
@@ -524,8 +540,14 @@ else
 fi
 
 # Check EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY (check both app.json and .env)
-STRIPE_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')" 2>/dev/null)
+STRIPE_KEY="${EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}"
 STRIPE_KEY_FROM_EAS=0
+if [ -z "$STRIPE_KEY" ] || [ "$STRIPE_KEY" = "" ]; then
+    STRIPE_KEY=$(get_eas_json_env_value "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY")
+fi
+if [ -z "$STRIPE_KEY" ] || [ "$STRIPE_KEY" = "" ]; then
+    STRIPE_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')" 2>/dev/null)
+fi
 if [ -z "$STRIPE_KEY" ] || [ "$STRIPE_KEY" = "" ]; then
     # Fallback to .env file
     if [ -f ".env" ]; then
