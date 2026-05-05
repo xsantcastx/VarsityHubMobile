@@ -35,6 +35,12 @@ config.resolver.extraNodeModules = {
 // Shim native-only modules on web so Metro doesn't try to bundle them
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'expo-modules-core') {
+    return {
+      type: 'sourceFile',
+      filePath: path.resolve(__dirname, 'node_modules/expo-modules-core/src/index.ts'),
+    };
+  }
   if (platform === 'web' && moduleName === '@stripe/stripe-react-native') {
     return { type: 'sourceFile', filePath: path.resolve(__dirname, 'shims/stripe-react-native.js') };
   }
