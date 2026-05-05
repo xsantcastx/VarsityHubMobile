@@ -150,7 +150,7 @@ function SubmitAdScreen() {
               'You need to verify your email before submitting an ad. Would you like to verify now?',
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Verify Now', onPress: () => router.push('/verify-email' as any) },
+                { text: 'Verify Now', onPress: () => router.push('/verify' as any) },
               ]
             );
             return;

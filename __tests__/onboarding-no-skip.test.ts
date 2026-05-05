@@ -211,6 +211,7 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(rootIndex).toMatch(/Root-screen failsafe/);
       expect(rootIndex).toMatch(/router\.replace\('/);
       expect(rootIndex).toMatch(/getPostAuthRouteDecision/);
+      expect(rootIndex).toMatch(/\/verify/);
     });
 
     it('root layout does not hard-block auth bootstrap on navState.key', () => {

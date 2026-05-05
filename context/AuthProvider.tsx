@@ -917,8 +917,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         !!pendingVerificationEmail
       );
 
-    // If user is awaiting email verification, navigate to verify-email
-    if (pendingVerificationEmail && firstSegment !== 'verify-email') {
+    // If user is awaiting email verification, navigate to the canonical verify
+    // screen. /verify-email remains as a compatibility alias only.
+    if (pendingVerificationEmail && firstSegment !== 'verify' && firstSegment !== 'verify-email') {
       // Belt-and-suspenders: if we have a pending email but no user, check the
       // stored token asynchronously. If the token is gone, the verification
       // flow is stale — clear it. setState triggers this effect to re-run,
@@ -935,8 +936,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           }
         })();
       }
-      if (lastRedirectRef.current !== '/verify-email') {
-        redirectWithTelemetry('/verify-email', 'pending_verification');
+      if (lastRedirectRef.current !== '/verify') {
+        redirectWithTelemetry('/verify', 'pending_verification');
       }
       return;
     }

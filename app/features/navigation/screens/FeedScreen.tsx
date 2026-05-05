@@ -957,7 +957,7 @@ export default function FeedScreen() {
     return (
       <Pressable
         testID="feed-verify-email-button"
-        onPress={() => void router.push('/verify-email')}
+        onPress={() => void router.push('/verify')}
         style={{
           padding: 10,
           borderRadius: 10,

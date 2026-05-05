@@ -28,7 +28,7 @@ export default function Index() {
     if (loading) return;
 
     if (pendingVerificationEmail) {
-      router.replace('/verify-email' as any);
+      router.replace('/verify' as any);
       return;
     }
 

@@ -127,6 +127,19 @@ describe('getPostAuthRouteDecision', () => {
       expect(decision.kind).toBe(testCase.kind);
     });
   }
+
+  it('routes pending verification sign-ins to the canonical verify screen', () => {
+    const decision = getPostAuthRouteDecision(
+      {
+        email_verified: false,
+        preferences: { onboarding_completed: false, role: 'fan' },
+      } as any,
+      { pendingVerification: true }
+    );
+
+    expect(decision.kind).toBe('pending_verification');
+    expect(decision.route).toBe('/verify');
+  });
 });
 
 describe('getOnboardingIndexRouteDecision', () => {

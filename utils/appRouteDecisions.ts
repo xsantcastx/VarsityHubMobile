@@ -65,7 +65,7 @@ export type PostAuthRouteDecision = {
 
 const POST_AUTH_ROUTE_BY_KIND: Record<PostAuthRouteKind, AppRoute> = {
   unauthenticated: '/sign-in',
-  pending_verification: '/verify-email',
+  pending_verification: '/verify',
   email_verification_required: '/verify',
   server_application_required: '/onboarding/coach-application',
   server_application_submitted_waiting: '/onboarding/league-pending-approval',

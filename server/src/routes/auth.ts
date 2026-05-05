@@ -2452,6 +2452,7 @@ const updateMeSchema = z.object({
 authRouter.put(
   '/me',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
@@ -2548,6 +2549,7 @@ authRouter.put(
 authRouter.patch(
   '/me',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
@@ -2661,6 +2663,7 @@ function stripProtectedKeys(obj: Record<string, unknown>): Record<string, unknow
 authRouter.patch(
   '/me/preferences',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const schema = z
       .object({

@@ -25,6 +25,7 @@ const verificationGate = read('hooks/useVerificationGate.ts');
 const forgotPasswordScreen = read('app/forgot-password.tsx');
 const resetPasswordScreen = read('app/reset-password.tsx');
 const legacyResetScreen = read('app/reset.tsx');
+const legacyVerifyScreen = read('app/(tabs)/verify-email.tsx');
 const manageSubscriptionScreen = read('app/settings/manage-subscription.tsx');
 const dmRestrictions = read('utils/dmRestrictions.ts');
 const settingsScreen = read('app/settings/index.tsx');
@@ -146,6 +147,11 @@ describe('account boundary invariants', () => {
       expect(verifyIdentityScreen).toMatch(/useVerificationGate\(/);
     });
 
+    it('legacy /verify-email is only a compatibility handoff to the canonical /verify screen', () => {
+      expect(legacyVerifyScreen).toMatch(/<Redirect href="\/verify" \/>/);
+      expect(legacyVerifyScreen).not.toMatch(/useVerificationGate\(/);
+    });
+
     it('verification hook retains the synchronous resend\/confirm guards', () => {
       expect(verificationGate).toMatch(/resendInFlightRef/);
       expect(verificationGate).toMatch(/if \(loading \|\| resendInFlightRef\.current \|\| resendCooldown > 0\) return;/);
@@ -173,6 +179,14 @@ describe('account boundary invariants', () => {
     it('manage subscription routes unverified users into the guarded verify flow', () => {
       expect(manageSubscriptionScreen).toMatch(/\{\s*text:\s*'Verify now', onPress: \(\) => void router\.push\('\/verify'\)\s*\}/);
       expect(manageSubscriptionScreen).not.toMatch(/User\.requestVerification\(\)/);
+    });
+
+    it('server profile mutation routes require verified accounts before changing canonical user state', () => {
+      expect(serverAuthRoutes).toMatch(/authRouter\.put\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/);
+      expect(serverAuthRoutes).toMatch(/authRouter\.patch\(\s*'\/me',\s*requireAuth as any,\s*requireVerified as any,/);
+      expect(serverAuthRoutes).toMatch(
+        /authRouter\.patch\(\s*'\/me\/preferences',\s*requireAuth as any,\s*requireVerified as any,/
+      );
     });
   });
 });

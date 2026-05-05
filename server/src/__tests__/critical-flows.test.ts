@@ -265,6 +265,50 @@ describeDb('Critical Server Flows', () => {
       expect(res.statusCode).toEqual(403);
       expect(res.body.error).toBe('Email verification required');
     });
+
+    it('blocks unverified users from patching canonical profile fields', async () => {
+      const before = await prisma.user.findUnique({
+        where: { id: unverifiedCoach.id },
+        select: { display_name: true },
+      });
+
+      const res = await request(app)
+        .patch('/auth/me')
+        .set('Authorization', `Bearer ${unverifiedCoachToken}`)
+        .send({ display_name: 'Mutated While Unverified' });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toBe('Email verification required');
+
+      const after = await prisma.user.findUnique({
+        where: { id: unverifiedCoach.id },
+        select: { display_name: true },
+      });
+
+      expect(after?.display_name).toBe(before?.display_name);
+    });
+
+    it('blocks unverified users from patching canonical preferences', async () => {
+      const before = await prisma.user.findUnique({
+        where: { id: unverifiedCoach.id },
+        select: { preferences: true },
+      });
+
+      const res = await request(app)
+        .patch('/auth/me/preferences')
+        .set('Authorization', `Bearer ${unverifiedCoachToken}`)
+        .send({ onboarding_completed: true, role: 'fan' });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toBe('Email verification required');
+
+      const after = await prisma.user.findUnique({
+        where: { id: unverifiedCoach.id },
+        select: { preferences: true },
+      });
+
+      expect(after?.preferences).toEqual(before?.preferences);
+    });
   });
 
   // ─── 2. Comment Dedup Guard ────────────────────────────────────────────────
