@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Authentication Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for authentication:
  * - POST /auth/register
  * - POST /auth/login
@@ -36,8 +36,12 @@ describe('API Authentication Endpoints', () => {
   afterAll(async () => {
     try {
       if (cleanupUserIds.size > 0) {
-        await prisma.refreshToken.deleteMany({ where: { user_id: { in: Array.from(cleanupUserIds) } } }).catch(() => {});
-        await prisma.user.deleteMany({ where: { id: { in: Array.from(cleanupUserIds) } } }).catch(() => {});
+        await prisma.refreshToken
+          .deleteMany({ where: { user_id: { in: Array.from(cleanupUserIds) } } })
+          .catch(() => {});
+        await prisma.user
+          .deleteMany({ where: { id: { in: Array.from(cleanupUserIds) } } })
+          .catch(() => {});
       }
       await prisma.user.deleteMany({
         where: {
@@ -131,12 +135,10 @@ describe('API Authentication Endpoints', () => {
 
     it('should sanitize email (trim and lowercase)', async () => {
       const emailWithSpaces = `  ${TEST_EMAIL.toUpperCase()}  `;
-      const response = await request(app)
-        .post('/auth/register')
-        .send({
-          email: emailWithSpaces,
-          password: TEST_PASSWORD,
-        });
+      const response = await request(app).post('/auth/register').send({
+        email: emailWithSpaces,
+        password: TEST_PASSWORD,
+      });
 
       // Should either succeed (if sanitized) or fail with 409 (if already exists)
       // The key is that email should be normalized
@@ -228,9 +230,7 @@ describe('API Authentication Endpoints', () => {
 
   describe('GET /auth/me', () => {
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/auth/me')
-        .expect(401);
+      const response = await request(app).get('/auth/me').expect(401);
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('Unauthorized');
@@ -262,9 +262,7 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.preferences.role).toBe('fan');
       expect(response.body.zip_code).toBe('10001');
       expect(response.body.location).toBe('New York, NY');
-      expect(response.body.header_image_url).toBe(
-        'https://cdn.varsityhub.test/profile-header.jpg'
-      );
+      expect(response.body.header_image_url).toBe('https://cdn.varsityhub.test/profile-header.jpg');
       expect(response.body.sports_interests).toEqual(['Basketball']);
     });
 
@@ -290,6 +288,16 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.onboarding_completed).toBe(true);
       expect(response.body.preferences.role).toBe('coach');
       expect(response.body.preferences.onboarding_completed).toBe(true);
+    });
+
+    it('should return current user through the canonical /me alias', async () => {
+      const response = await request(app)
+        .get('/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body.email).toBe(TEST_EMAIL);
+      expect(response.body).toHaveProperty('preferences');
     });
   });
 
@@ -380,22 +388,10 @@ describe('API Authentication Endpoints', () => {
       expect(revokeResponse.body.ok).toBe(true);
       expect(revokeResponse.body.revoked).toBeGreaterThanOrEqual(2);
 
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenA}`)
-        .expect(401);
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenB}`)
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshA })
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshB })
-        .expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenA}`).expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenB}`).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshA }).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshB }).expect(401);
 
       await request(app)
         .post('/auth/login')
@@ -452,22 +448,10 @@ describe('API Authentication Endpoints', () => {
         })
         .expect(200);
 
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenA}`)
-        .expect(401);
-      await request(app)
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${tokenB}`)
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshA })
-        .expect(401);
-      await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refreshB })
-        .expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenA}`).expect(401);
+      await request(app).get('/auth/me').set('Authorization', `Bearer ${tokenB}`).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshA }).expect(401);
+      await request(app).post('/auth/refresh').send({ refresh_token: refreshB }).expect(401);
 
       const relogin = await request(app)
         .post('/auth/login')
@@ -580,11 +564,25 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('PATCH /auth/me/preferences', () => {
+  describe('PATCH /me/preferences', () => {
     it('should ignore client attempts to set paid plan fields', async () => {
+      const verifiedEmail = `test-api-auth-preferences-${Date.now()}@example.com`;
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const verifiedUser = await prisma.user.create({
+        data: {
+          email: verifiedEmail,
+          password_hash: passwordHash,
+          display_name: 'Verified Preferences User',
+          email_verified: true,
+          preferences: { role: 'fan', onboarding_completed: true },
+        },
+      });
+      cleanupUserIds.add(verifiedUser.id);
+      const verifiedAccessToken = signJwt({ id: verifiedUser.id });
+
       await request(app)
-        .patch('/auth/me/preferences')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .patch('/me/preferences')
+        .set('Authorization', `Bearer ${verifiedAccessToken}`)
         .send({
           plan: 'legend',
           notifications_enabled: false,
@@ -592,7 +590,7 @@ describe('API Authentication Endpoints', () => {
         .expect(200);
 
       const user = await prisma.user.findUnique({
-        where: { id: userId },
+        where: { id: verifiedUser.id },
         select: { preferences: true },
       });
       const prefs = (user?.preferences as any) || {};

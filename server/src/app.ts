@@ -28,6 +28,8 @@ import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter } from './routes/ads.js';
 import { authRouter } from './routes/auth.js';
 import { consentRouter } from './routes/consent.js';
+import { handleConsentResend } from './routes/consent.js';
+import { dataExportRouter } from './routes/dataExport.js';
 import { eventsRouter } from './routes/events.js';
 import { feedRouter } from './routes/feed.js';
 import { followsRouter } from './routes/follows.js';
@@ -163,7 +165,14 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'If-None-Match', 'Cache-Control', 'Pragma'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'If-None-Match',
+    'Cache-Control',
+    'Pragma',
+  ],
   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
@@ -313,6 +322,8 @@ function mountApiRoutes(parent: any) {
   parent.use(requireParentalConsent as any);
   parent.use('/auth', authLimiter, authRouter);
   parent.use('/consent', consentRouter);
+  parent.post('/me/consent/resend', noStore, ...handleConsentResend);
+  parent.use(dataExportRouter);
   parent.use('/me', noStore, meProxy);
   parent.use('/games', gamesRouter);
   parent.use('/posts', postsRouter);

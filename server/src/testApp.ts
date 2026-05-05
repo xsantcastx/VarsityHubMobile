@@ -5,7 +5,7 @@ import { requireParentalConsent } from './middleware/requireParentalConsent.js';
 import adminRouter from './routes/admin.js';
 import { authRouter } from './routes/auth.js';
 import { adsRouter } from './routes/ads.js';
-import { consentRouter } from './routes/consent.js';
+import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { followsRouter } from './routes/follows.js';
 import { eventsRouter } from './routes/events.js';
 import { feedRouter } from './routes/feed.js';
@@ -39,40 +39,54 @@ app.disable('x-powered-by');
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(authMiddleware);
-// Mirror app.ts: parental consent firewall runs before all API routes so
-// minors with pending/denied consent are blocked from non-allowlisted
-// endpoints. Without this in the test app, the firewall never executes
-// and security tests give false-greens.
-app.use(requireParentalConsent as any);
 
-app.use('/auth', authRouter);
-app.use('/ads', adsRouter);
-app.use('/admin', adminRouter);
-app.use('/consent', consentRouter);
-app.use('/events', eventsRouter);
-app.use('/feed', feedRouter);
-app.use('/follows', followsRouter);
-app.use('/games', gamesRouter);
-app.use('/geocoding', geocodingRouter);
-app.use('/highlights', highlightsRouter);
-app.use('/notifications', notificationsRouter);
-app.use('/organizations', organizationsRouter);
-app.use('/payments', paymentsRouter);
-app.use('/posts', postsRouter);
-app.use('/messages', messagesRouter);
-app.use('/promos', promosRouter);
-app.use('/reports', reportsRouter);
-app.use('/rsvps', rsvpsRouter);
-app.use('/support', supportRouter);
-app.use('/team-invites', teamInvitesRouter);
-app.use('/team-memberships', teamMembershipsRouter);
-app.use('/teams', teamsRouter);
-app.use('/uploads', uploadsRouter);
-app.use('/users', usersRouter);
-app.use('/group-chats', groupChatsRouter);
-app.use('/admin/reports', adminReportsRouter);
-app.use('/search', searchRouter);
-app.use(dataExportRouter);
+const meProxy = (req: any, res: any, next: any) => {
+  const suffix = req.url === '/' ? '' : req.url;
+  req.url = '/me' + suffix;
+  authRouter(req, res, next);
+};
+
+function mountApiRoutes(parent: any) {
+  // Mirror app.ts: the consent firewall runs inside the mounted API bundle so
+  // /v1-prefixed requests are evaluated on the stripped path, not the raw
+  // outer URL. That keeps allowlist behavior identical to production.
+  parent.use(requireParentalConsent as any);
+  parent.use('/auth', authRouter);
+  parent.use('/consent', consentRouter);
+  parent.post('/me/consent/resend', ...handleConsentResend);
+  parent.use(dataExportRouter);
+  parent.use('/me', meProxy);
+  parent.use('/ads', adsRouter);
+  parent.use('/admin', adminRouter);
+  parent.use('/events', eventsRouter);
+  parent.use('/feed', feedRouter);
+  parent.use('/follows', followsRouter);
+  parent.use('/games', gamesRouter);
+  parent.use('/geocoding', geocodingRouter);
+  parent.use('/highlights', highlightsRouter);
+  parent.use('/notifications', notificationsRouter);
+  parent.use('/organizations', organizationsRouter);
+  parent.use('/payments', paymentsRouter);
+  parent.use('/posts', postsRouter);
+  parent.use('/messages', messagesRouter);
+  parent.use('/promos', promosRouter);
+  parent.use('/reports', reportsRouter);
+  parent.use('/rsvps', rsvpsRouter);
+  parent.use('/support', supportRouter);
+  parent.use('/team-invites', teamInvitesRouter);
+  parent.use('/team-memberships', teamMembershipsRouter);
+  parent.use('/teams', teamsRouter);
+  parent.use('/uploads', uploadsRouter);
+  parent.use('/users', usersRouter);
+  parent.use('/group-chats', groupChatsRouter);
+  parent.use('/admin/reports', adminReportsRouter);
+  parent.use('/search', searchRouter);
+}
+
+mountApiRoutes(app);
+const v1 = express.Router();
+mountApiRoutes(v1);
+app.use('/v1', v1);
 app.use(publicAppHandoffRouter);
 app.use(publicSiteRouter);
 

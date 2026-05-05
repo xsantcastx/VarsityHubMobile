@@ -490,6 +490,26 @@ export const mentionsSearchLimiter = createLimiter({
   max: rateLimitingDisabled ? 100000 : 30,
 });
 
+/**
+ * Geocoding lookups
+ * 10 per minute per user to protect paid upstream geocode usage
+ */
+export const geocodingLocationLimiter = createLimiter({
+  name: 'geocoding-location',
+  windowMs: 60 * 1000,
+  max: rateLimitingDisabled ? 100000 : 10,
+});
+
+/**
+ * Geocoding autocomplete
+ * 30 per minute per user to allow typeahead while still limiting paid API abuse
+ */
+export const geocodingAutocompleteLimiter = createLimiter({
+  name: 'geocoding-autocomplete',
+  windowMs: 60 * 1000,
+  max: rateLimitingDisabled ? 100000 : 30,
+});
+
 // Admin dashboard limiter (generous but prevents abuse)
 export const adminLimiter = createLimiter({
   name: 'admin',
@@ -545,6 +565,8 @@ export const rateLimiters = {
   promoCode: promoCodeLimiter,
   userLookup: userLookupLimiter,
   mentionsSearch: mentionsSearchLimiter,
+  geocodingLocation: geocodingLocationLimiter,
+  geocodingAutocomplete: geocodingAutocompleteLimiter,
   defaultApi: defaultApiLimiter,
 };
 

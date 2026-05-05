@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { sendVerificationEmail } from '../lib/email.js';
 import { hashRefreshToken } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const publicAppHandoffRouter = Router();
 const handoffPageStyle = `body{font-family:-apple-system,Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;color:#333;line-height:1.6}h1{color:#1B3A6B}h2{color:#2563eb;margin-top:24px}a{color:#2563eb}`;
@@ -242,60 +243,61 @@ const genericHandoffRoutes: Array<{ path: string; title: string; description: st
   },
 ];
 
-publicAppHandoffRouter.get('/verify', async (req, res) => {
-  res.setHeader('Content-Type', 'text/html');
-  const nativeUrl = buildNativeHandoffUrl('/verify', req);
-  const autoRedirect = isMobileUserAgent(req);
-  const state = await getVerifyHandoffState(req);
+publicAppHandoffRouter.get(
+  '/verify',
+  asyncHandler(async (req, res) => {
+    const nativeUrl = buildNativeHandoffUrl('/verify', req);
+    const autoRedirect = isMobileUserAgent(req);
+    const state = await getVerifyHandoffState(req);
 
-  if (state.kind === 'valid') {
+    if (state.kind === 'valid') {
+      return res.send(
+        renderAppHandoffPage(
+          'Verify Your Email',
+          'Open VarsityHub to finish verifying your email address.',
+          nativeUrl,
+          buildVerifyFallbackHtml(req),
+          { autoRedirect }
+        )
+      );
+    }
+    if (state.kind === 'expired') {
+      return res.send(
+        renderAppHandoffPage(
+          'Verification Link Expired',
+          `This verification link for ${escapeHtml(state.email)} has expired. Request a fresh code, then open VarsityHub to finish verifying your email address.`,
+          nativeUrl,
+          buildVerifyResendCtaHtml(state.email)
+        )
+      );
+    }
+    if (state.kind === 'already_verified') {
+      return res.send(
+        renderAppHandoffPage(
+          'Email Already Verified',
+          `The email address ${escapeHtml(state.email)} is already verified. Open VarsityHub to continue signing in.`,
+          nativeUrl
+        )
+      );
+    }
     return res.send(
       renderAppHandoffPage(
-        'Verify Your Email',
-        'Open VarsityHub to finish verifying your email address.',
+        'Verification Link Invalid',
+        state.email
+          ? `This verification link for ${escapeHtml(state.email)} is no longer valid. Request a fresh code, then open VarsityHub to continue.`
+          : 'This verification link is no longer valid. Open VarsityHub and request a fresh code to continue.',
         nativeUrl,
-        buildVerifyFallbackHtml(req),
-        { autoRedirect }
+        state.email ? buildVerifyResendCtaHtml(state.email) : ''
       )
     );
-  }
-  if (state.kind === 'expired') {
-    return res.send(
-      renderAppHandoffPage(
-        'Verification Link Expired',
-        `This verification link for ${escapeHtml(state.email)} has expired. Request a fresh code, then open VarsityHub to finish verifying your email address.`,
-        nativeUrl,
-        buildVerifyResendCtaHtml(state.email)
-      )
-    );
-  }
-  if (state.kind === 'already_verified') {
-    return res.send(
-      renderAppHandoffPage(
-        'Email Already Verified',
-        `The email address ${escapeHtml(state.email)} is already verified. Open VarsityHub to continue signing in.`,
-        nativeUrl
-      )
-    );
-  }
-  return res.send(
-    renderAppHandoffPage(
-      'Verification Link Invalid',
-      state.email
-        ? `This verification link for ${escapeHtml(state.email)} is no longer valid. Request a fresh code, then open VarsityHub to continue.`
-        : 'This verification link is no longer valid. Open VarsityHub and request a fresh code to continue.',
-      nativeUrl,
-      state.email ? buildVerifyResendCtaHtml(state.email) : ''
-    )
-  );
-});
+  })
+);
 
 publicAppHandoffRouter.post(
   '/verify/resend',
   noStore,
   publicVerifyResendLimiter,
-  async (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
+  asyncHandler(async (req, res) => {
     const email = sanitizeEmailQuery(req.body?.email);
     const nativeUrl = buildNativeHandoffUrlFromQuery('/verify', email ? { email } : {});
 
@@ -340,49 +342,50 @@ publicAppHandoffRouter.post(
         nativeUrl
       )
     );
-  }
+  })
 );
 
-publicAppHandoffRouter.get('/reset-password', async (req, res) => {
-  res.setHeader('Content-Type', 'text/html');
-  const nativeUrl = buildNativeHandoffUrl('/reset-password', req);
-  const autoRedirect = isMobileUserAgent(req);
-  const state = await getResetHandoffState(req);
+publicAppHandoffRouter.get(
+  '/reset-password',
+  asyncHandler(async (req, res) => {
+    const nativeUrl = buildNativeHandoffUrl('/reset-password', req);
+    const autoRedirect = isMobileUserAgent(req);
+    const state = await getResetHandoffState(req);
 
-  if (state.kind === 'valid') {
+    if (state.kind === 'valid') {
+      return res.send(
+        renderAppHandoffPage(
+          'Reset Your Password',
+          'Open VarsityHub to continue your password reset.',
+          nativeUrl,
+          buildResetFallbackHtml(req),
+          { autoRedirect }
+        )
+      );
+    }
+    if (state.kind === 'expired') {
+      return res.send(
+        renderAppHandoffPage(
+          'Reset Link Expired',
+          `This password reset link for ${escapeHtml(state.email)} has expired. Open VarsityHub and request a fresh reset email to continue.`,
+          nativeUrl
+        )
+      );
+    }
     return res.send(
       renderAppHandoffPage(
-        'Reset Your Password',
-        'Open VarsityHub to continue your password reset.',
-        nativeUrl,
-        buildResetFallbackHtml(req),
-        { autoRedirect }
-      )
-    );
-  }
-  if (state.kind === 'expired') {
-    return res.send(
-      renderAppHandoffPage(
-        'Reset Link Expired',
-        `This password reset link for ${escapeHtml(state.email)} has expired. Open VarsityHub and request a fresh reset email to continue.`,
+        'Reset Link Invalid',
+        state.email
+          ? `This password reset link for ${escapeHtml(state.email)} is no longer valid. Open VarsityHub and request a fresh reset email to continue.`
+          : 'This password reset link is no longer valid. Open VarsityHub and request a fresh reset email to continue.',
         nativeUrl
       )
     );
-  }
-  return res.send(
-    renderAppHandoffPage(
-      'Reset Link Invalid',
-      state.email
-        ? `This password reset link for ${escapeHtml(state.email)} is no longer valid. Open VarsityHub and request a fresh reset email to continue.`
-        : 'This password reset link is no longer valid. Open VarsityHub and request a fresh reset email to continue.',
-      nativeUrl
-    )
-  );
-});
+  })
+);
 
 for (const route of genericHandoffRoutes) {
   publicAppHandoffRouter.get(route.path, (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
     res.send(
       renderAppHandoffPage(
         route.title,

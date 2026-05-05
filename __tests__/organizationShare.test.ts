@@ -5,12 +5,14 @@ describe('organization sharing', () => {
     const initialLink = AppLinks.organization('org_123', 'Westhill Athletics');
     const renamedLink = AppLinks.organization('org_123', 'Westhill Sports');
 
-    expect(initialLink.webUrl).toBe('https://varsityhub.app/organizations/org_123');
+    expect(initialLink.webUrl).toBe('https://app.varsityhub.app/organizations/org_123');
     expect(renamedLink.webUrl).toBe(initialLink.webUrl);
     expect(initialLink.deepLink).toBe('varsityhubmobile://organizations/org_123');
   });
 
   it('gives different public URLs to different organizations', () => {
-    expect(AppLinks.organization('org_123').webUrl).not.toBe(AppLinks.organization('org_456').webUrl);
+    expect(AppLinks.organization('org_123').webUrl).not.toBe(
+      AppLinks.organization('org_456').webUrl
+    );
   });
 });

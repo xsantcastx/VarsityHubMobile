@@ -184,9 +184,11 @@ describeDb('Critical Server Flows', () => {
       await prisma.teamMembership.deleteMany({ where: { team_id: id } }).catch(() => {});
       await prisma.team.delete({ where: { id } }).catch(() => {});
     }
-    await prisma.organizationMembership.deleteMany({
-      where: { organization_id: { in: cleanupIds.orgs } },
-    }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { organization_id: { in: cleanupIds.orgs } },
+      })
+      .catch(() => {});
     for (const id of cleanupIds.orgs) {
       await prisma.organization.delete({ where: { id } }).catch(() => {});
     }
@@ -258,7 +260,7 @@ describeDb('Critical Server Flows', () => {
   describe('Verification gate on onboarding', () => {
     it('blocks unverified users from completing onboarding', async () => {
       const res = await request(app)
-        .post('/auth/me/complete-onboarding')
+        .post('/me/complete-onboarding')
         .set('Authorization', `Bearer ${unverifiedCoachToken}`)
         .send({});
 
@@ -273,7 +275,7 @@ describeDb('Critical Server Flows', () => {
       });
 
       const res = await request(app)
-        .patch('/auth/me')
+        .patch('/me')
         .set('Authorization', `Bearer ${unverifiedCoachToken}`)
         .send({ display_name: 'Mutated While Unverified' });
 
@@ -295,7 +297,7 @@ describeDb('Critical Server Flows', () => {
       });
 
       const res = await request(app)
-        .patch('/auth/me/preferences')
+        .patch('/me/preferences')
         .set('Authorization', `Bearer ${unverifiedCoachToken}`)
         .send({ onboarding_completed: true, role: 'fan' });
 
@@ -359,8 +361,7 @@ describeDb('Critical Server Flows', () => {
 
   describe('asyncHandler Error Propagation', () => {
     it('should return JSON error (not crash) for non-existent post', async () => {
-      const res = await request(app)
-        .get('/posts/00000000-0000-0000-0000-000000000000');
+      const res = await request(app).get('/posts/00000000-0000-0000-0000-000000000000');
 
       // Should be 404 or valid error, NOT a raw exception / 500 stack trace
       expect([404, 400]).toContain(res.statusCode);

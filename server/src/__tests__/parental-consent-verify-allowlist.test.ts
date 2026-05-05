@@ -90,6 +90,25 @@ describe('Parental consent firewall — /auth/verify allowlist', () => {
     expect((after as any)?.email_verified).toBe(true);
   });
 
+  it('pending-consent minor can POST /me/consent/resend without tripping the firewall', async () => {
+    await prisma.user.update({
+      where: { id: minorId },
+      data: {
+        email_verified: false,
+        parent_email: `guardian-${ts}@example.com`,
+        parental_consent_status: 'pending',
+      },
+    });
+
+    const res = await request(app)
+      .post('/me/consent/resend')
+      .set('Authorization', `Bearer ${minorToken}`)
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+
   it('pending-consent minor remains firewall-blocked from non-allowlisted routes', async () => {
     // Sanity check that the firewall ITSELF still works — only verify/* is exempt.
     // POST /posts is a representative non-allowlisted route.

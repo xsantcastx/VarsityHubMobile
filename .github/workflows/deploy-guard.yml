@@ -12,13 +12,14 @@ on:
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
 
 jobs:
   pre-deploy-health-check:
     name: Railway Health Check Before Merge
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +44,7 @@ jobs:
         run: |
           response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
           status=$(echo "$response" | jq -r '.status' 2>/dev/null || echo "unknown")
-          
+
           if [ "$status" = "ok" ]; then
             echo "status=ok" >> $GITHUB_OUTPUT
             echo "exit_code=0" >> $GITHUB_OUTPUT
@@ -58,14 +59,14 @@ jobs:
         if: always()
         run: |
           response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
-          
+
           echo "## Railway Health Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```json' >> $GITHUB_STEP_SUMMARY
           echo "$response" | jq '.' 2>/dev/null || echo "$response" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           status=$(echo "$response" | jq -r '.status' 2>/dev/null || echo "unknown")
           if [ "$status" = "ok" ]; then
             echo "✅ **Status**: Healthy - Safe to merge" >> $GITHUB_STEP_SUMMARY
@@ -129,9 +130,9 @@ jobs:
             const statusEmoji = status === 'ok' ? '✅' : '❌';
             const statusText = status === 'ok' ? 'healthy' : 'unhealthy';
             const forced = '${{ steps.force.outputs.force }}' === 'true';
-            
+
             let body = `${statusEmoji} **Railway API Status:** ${statusText}\n\n`;
-            
+
             if (status === 'ok') {
               body += 'The API is healthy. Safe to merge.';
             } else if (forced) {
@@ -139,11 +140,10 @@ jobs:
             } else {
               body += '❌ The API is unhealthy. Fix issues before merging.\n\n**Troubleshooting:**\n1. Check Railway dashboard\n2. Review deployment logs\n3. Test: https://api-production-8ac3.up.railway.app/health';
             }
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: body
             });
-

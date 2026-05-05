@@ -27,6 +27,7 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
+import { sendError } from '../lib/http/sendError.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { serializeOrganization } from '../lib/serializeOrganization.js';
@@ -125,7 +126,9 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
 const VALID_ORG_INVITE_ROLES = ['manager', 'member'] as const;
 const VALID_ORG_JOIN_REQUEST_STATUSES = ['pending', 'approved', 'denied'] as const;
 
-function normalizeOrganizationInviteRole(role: string | null | undefined): (typeof VALID_ORG_INVITE_ROLES)[number] {
+function normalizeOrganizationInviteRole(
+  role: string | null | undefined
+): (typeof VALID_ORG_INVITE_ROLES)[number] {
   return role === 'manager' ? 'manager' : 'member';
 }
 
@@ -146,7 +149,9 @@ function buildAuthorizedUserInvites(
   >();
 
   for (const user of authorizedUsers || []) {
-    const normalizedEmail = String(user.email || '').trim().toLowerCase();
+    const normalizedEmail = String(user.email || '')
+      .trim()
+      .toLowerCase();
     if (!normalizedEmail) continue;
 
     invitesByEmail.set(normalizedEmail, {
@@ -864,7 +869,9 @@ organizationsRouter.get(
       const canReviewCoachRequests = isPlatformAdmin || activeMembershipRole === 'owner';
 
       if (!canManage) {
-        return res.status(403).json({ error: 'Only organization admins can access organization tools' });
+        return res
+          .status(403)
+          .json({ error: 'Only organization admins can access organization tools' });
       }
 
       const now = new Date();
@@ -2474,7 +2481,9 @@ organizationsRouter.get(
       if (rawStatus !== 'all' && !VALID_ORG_JOIN_REQUEST_STATUSES.includes(rawStatus as any)) {
         return res.status(400).json({ error: 'Invalid join request status filter' });
       }
-      const status: OrganizationJoinRequestStatus | 'all' = rawStatus as OrganizationJoinRequestStatus | 'all';
+      const status: OrganizationJoinRequestStatus | 'all' = rawStatus as
+        | OrganizationJoinRequestStatus
+        | 'all';
 
       // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findUnique({
@@ -3980,7 +3989,18 @@ organizationsRouter.post(
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const { id: orgId, userId: coachId } = req.params;
-      const { team_id: teamId } = req.body || {};
+      const approveCoachSchema = z.object({
+        team_id: z.string().min(1).optional(),
+        note: z.string().max(500).optional(),
+      });
+      const parsed = approveCoachSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return sendError(res, 400, 'INVALID_PAYLOAD', {
+          message: 'Invalid payload',
+          details: { issues: parsed.error.issues },
+        });
+      }
+      const { team_id: teamId } = parsed.data;
 
       // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({
@@ -4173,7 +4193,17 @@ organizationsRouter.post(
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const { id: orgId, userId: coachId } = req.params;
-      const reason = req.body?.reason as string | undefined;
+      const rejectCoachSchema = z.object({
+        reason: z.string().max(500).optional(),
+      });
+      const parsed = rejectCoachSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return sendError(res, 400, 'INVALID_PAYLOAD', {
+          message: 'Invalid payload',
+          details: { issues: parsed.error.issues },
+        });
+      }
+      const { reason } = parsed.data;
 
       // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({

@@ -63,7 +63,7 @@ describe('Coach Agreement Versioning', () => {
     process.env.REQUIRED_COACH_AGREEMENT_VERSION = '3';
 
     const res = await request(app)
-      .patch('/auth/me/preferences')
+      .patch('/me/preferences')
       .set('Authorization', `Bearer ${coachToken}`)
       .send({ coach_agreement_accepted_at: new Date().toISOString() });
     expect(res.status).toBe(200);
@@ -94,7 +94,7 @@ describe('Coach Agreement Versioning', () => {
     });
 
     const res = await request(app)
-      .patch('/auth/me/preferences')
+      .patch('/me/preferences')
       .set('Authorization', `Bearer ${coachToken}`)
       .send({ notifications_enabled: false });
     expect(res.status).toBe(200);
@@ -107,12 +107,10 @@ describe('Coach Agreement Versioning', () => {
     expect(prefs.coach_agreement_version).toBe(3);
   });
 
-  it('GET /auth/me exposes the current required coach agreement version', async () => {
+  it('GET /me exposes the current required coach agreement version', async () => {
     process.env.REQUIRED_COACH_AGREEMENT_VERSION = '4';
 
-    const res = await request(app)
-      .get('/auth/me')
-      .set('Authorization', `Bearer ${coachToken}`);
+    const res = await request(app).get('/me').set('Authorization', `Bearer ${coachToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.required_coach_agreement_version).toBe(4);
