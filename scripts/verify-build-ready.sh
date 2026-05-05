@@ -573,7 +573,13 @@ if [ -n "$STRIPE_KEY" ] && [ "$STRIPE_KEY" != "" ]; then
         mark_warning_or_error "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY format may be invalid"
     fi
 else
-    mark_warning_or_error "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is empty (checked app.json and .env)"
+    if [ -n "$CI" ]; then
+        echo -e "${YELLOW}⚠️  EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is not visible to CI (checked workflow env, eas.json, app.json, and .env)${NC}"
+        echo -e "${YELLOW}   Verify it exists in the actual EAS/GitHub build environment before shipping a store build.${NC}"
+        WARNINGS=$((WARNINGS + 1))
+    else
+        mark_warning_or_error "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is empty (checked app.json and .env)"
+    fi
 fi
 
 # Check API URL is configured
