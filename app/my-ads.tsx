@@ -23,6 +23,8 @@ type ManagedAd = {
   created_at: string;
   status?: string;
   payment_status?: string;
+  impression_count?: number;
+  click_count?: number;
   owner_id?: string | null;
   isLocal?: boolean;
 };
@@ -92,6 +94,8 @@ function MyAdsScreen() {
           created_at: a.created_at || new Date().toISOString(),
           status: a.status,
           payment_status: a.payment_status,
+          impression_count: typeof a.impression_count === 'number' ? a.impression_count : 0,
+          click_count: typeof a.click_count === 'number' ? a.click_count : 0,
           owner_id: a.owner_id,
         });
       };
@@ -237,10 +241,15 @@ function MyAdsScreen() {
     const badge = getCompositeAdBadge(item.status, item.payment_status, dates);
     const requiresEditBeforeScheduling = item.status === 'rejected' || item.status === 'archived';
     const isAwaitingPayment = (item.status === 'approved' || item.status === 'active') && !isPaid;
+    const impressions = item.impression_count || 0;
+    const clicks = item.click_count || 0;
+    const ctr = impressions > 0 ? Math.round((clicks / impressions) * 1000) / 10 : 0;
     const primaryActionLabel = item.status === 'rejected'
       ? 'Edit to Resubmit'
       : item.status === 'archived'
         ? 'Edit to Run Again'
+        : item.status === 'draft'
+          ? 'Submit for Review'
         : item.status === 'pending'
           ? 'View Review Status'
           : isAwaitingPayment
@@ -292,6 +301,23 @@ function MyAdsScreen() {
               <Text style={[styles.badgeText, badgeTextStyleForTone(badge.tone)]}>
                 {badge.label.toUpperCase()}
               </Text>
+            </View>
+          </View>
+
+          <View style={[styles.metricsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+            <View style={styles.metricBlock}>
+              <Text style={[styles.metricValue, { color: Colors[colorScheme].text }]}>{impressions}</Text>
+              <Text style={[styles.metricLabel, { color: Colors[colorScheme].mutedText }]}>Impressions</Text>
+            </View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metricBlock}>
+              <Text style={[styles.metricValue, { color: Colors[colorScheme].text }]}>{clicks}</Text>
+              <Text style={[styles.metricLabel, { color: Colors[colorScheme].mutedText }]}>Clicks</Text>
+            </View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metricBlock}>
+              <Text style={[styles.metricValue, { color: Colors[colorScheme].text }]}>{ctr}%</Text>
+              <Text style={[styles.metricLabel, { color: Colors[colorScheme].mutedText }]}>CTR</Text>
             </View>
           </View>
         </View>
@@ -619,6 +645,36 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexWrap: 'wrap',
     gap: 8,
+  },
+  metricsCard: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metricBlock: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  metricValue: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  metricLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  metricDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: '#D1D5DB',
+    opacity: 0.8,
   },
   badge: {
     paddingHorizontal: 12,

@@ -794,6 +794,10 @@ model Ad {
   status              AdStatus        @default(draft)
   payment_status      AdPaymentStatus @default(unpaid)
   admin_note          String?         @db.VarChar(2000) // Note from admin when approving/rejecting
+  impression_count    Int             @default(0)
+  click_count         Int             @default(0)
+  last_impression_at  DateTime?
+  last_click_at       DateTime?
   banner_moderation_status   AdBannerModerationStatus?
   banner_moderation_labels   Json?
   banner_moderation_score    Float?

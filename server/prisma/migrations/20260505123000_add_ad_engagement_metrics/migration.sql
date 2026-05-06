@@ -1,0 +1,5 @@
+ALTER TABLE "Ad"
+ADD COLUMN "impression_count" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "click_count" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "last_impression_at" TIMESTAMP(3),
+ADD COLUMN "last_click_at" TIMESTAMP(3);

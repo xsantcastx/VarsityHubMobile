@@ -189,6 +189,12 @@ export const User = {
     invalidateMeCache();
     return response;
   },
+  downgradeToFan: async () => {
+    invalidateMeCache();
+    const response = await httpPost('/auth/downgrade-to-fan', {});
+    invalidateMeCache();
+    return response;
+  },
   // v1.0.2: rejected coaches can re-apply after 48hr cooldown
   reapplyCoach: () => httpPost('/auth/coach/reapply', {}),
   // v1.0.2: escape paywall loop by downgrading to free rookie plan
@@ -920,8 +926,12 @@ export const Advertisement = {
     if (lng != null) q.push('lng=' + String(lng));
     return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
   },
-  submitForApproval: (adId: string, dates: string[]) =>
-    httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, { dates }),
+  submitForApproval: (adId: string) =>
+    httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, {}),
+  trackImpression: (adId: string) =>
+    httpPost(`/ads/${encodeURIComponent(adId)}/impression`, {}),
+  trackClick: (adId: string) =>
+    httpPost(`/ads/${encodeURIComponent(adId)}/click`, {}),
   review: (adId: string, action: 'approve' | 'reject', note?: string) =>
     httpPost(`/ads/${encodeURIComponent(adId)}/review`, { action, note }),
   report: (adId: string, reason: string, details?: string) =>

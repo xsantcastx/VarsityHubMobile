@@ -27,7 +27,6 @@ import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { addBreadcrumb } from '../lib/sentry.js';
-import { getDatesPastBookingHorizon } from '../utils/bookingHorizon.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -208,23 +207,6 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
     if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
       return res.status(400).json({ error: 'Invalid ad ID' }); // error-envelope-exempt
     }
-    const { dates } = req.body || {};
-    if (!Array.isArray(dates) || dates.length === 0) {
-      return res.status(400).json({ error: 'dates[] is required' }); // error-envelope-exempt
-    }
-    if (dates.length > 30) {
-      return res.status(400).json({ error: 'Maximum 30 dates per booking' }); // error-envelope-exempt
-    }
-    // Validate each date is a valid ISO date string (YYYY-MM-DD)
-    const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    const today = new Date().toISOString().slice(0, 10);
-    for (const d of dates) {
-      const ds = String(d);
-      if (!isoDateRegex.test(ds)) {
-        return res.status(400).json({ error: `Invalid date format: ${ds}. Use YYYY-MM-DD.` }); // error-envelope-exempt
-      }
-    }
-    const isoDates = Array.from(new Set(dates.map((d: any) => String(d))));
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' }); // error-envelope-exempt
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' }); // error-envelope-exempt
@@ -234,81 +216,10 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
         .json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
     }
 
-    // Enforce booking horizon — dates must be within 56 days from today
-    const MAX_BOOKING_HORIZON_DAYS = 56;
-    const pastHorizon = getDatesPastBookingHorizon(isoDates, new Date(), MAX_BOOKING_HORIZON_DAYS);
-    if (pastHorizon.length > 0) {
-      return res.status(400).json({
-        // error-envelope-exempt
-        error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`,
-        dates: pastHorizon,
-      });
-    }
-
-    const todayUtc = new Date(today + 'T00:00:00.000Z');
-    const pastDates = isoDates.filter(d => new Date(d + 'T00:00:00.000Z') < todayUtc);
-    if (pastDates.length > 0) {
-      return res.status(400).json({
-        // error-envelope-exempt
-        error: 'Ad dates must be today or in the future',
-        dates: pastDates,
-      });
-    }
-
-    const MAX_AD_SLOTS = 2;
-    const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-
-    // Slot check + reservation creation inside Serializable transaction to prevent race condition
-    const slotResult = await prisma.$transaction(
-      async tx => {
-        if (ad.target_zip_code) {
-          const reservedAdsInZip = await tx.ad.findMany({
-            where: {
-              target_zip_code: ad.target_zip_code,
-              payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-              NOT: { id },
-            },
-            select: { id: true },
-            take: 100,
-          });
-          if (reservedAdsInZip.length > 0) {
-            const bookedSlots = await tx.adReservation.groupBy({
-              by: ['date'],
-              where: {
-                ad_id: { in: reservedAdsInZip.map((a: any) => a.id) },
-                date: { in: dateObjects },
-              },
-              _count: { date: true },
-            });
-            const fullDates = bookedSlots.filter((s: any) => s._count.date >= MAX_AD_SLOTS);
-            if (fullDates.length > 0) {
-              return {
-                error: true,
-                dates: fullDates.map((s: any) => s.date.toISOString().slice(0, 10)),
-              };
-            }
-          }
-        }
-        await tx.ad.update({
-          where: { id },
-          data: { status: 'pending', payment_status: 'pending_approval' },
-        });
-        await tx.adReservation.createMany({
-          data: dateObjects.map(d => ({ ad_id: id, date: d })),
-          skipDuplicates: true,
-        });
-        return { error: false };
-      },
-      { isolationLevel: 'Serializable' as any }
-    );
-
-    if (slotResult.error) {
-      return res.status(409).json({
-        // error-envelope-exempt
-        error: 'One or more selected dates are fully booked',
-        dates: (slotResult as any).dates,
-      });
-    }
+    await prisma.ad.update({
+      where: { id },
+      data: { status: 'pending', payment_status: 'pending_approval' },
+    });
 
     let updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     if (updated?.banner_url) {
@@ -591,6 +502,78 @@ adsRouter.get(
       })),
     });
   })
+);
+
+async function trackAdEngagement(
+  req: AuthedRequest,
+  res: Response,
+  type: 'impression' | 'click'
+) {
+  const id = String(req.params.id || '').trim();
+  if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid ad ID' });
+  }
+
+  const ad = await prisma.ad.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      payment_status: true,
+      impression_count: true,
+      click_count: true,
+    },
+  });
+
+  if (!ad || ad.status !== 'active' || ad.payment_status !== 'paid') {
+    return res.status(404).json({ error: 'Ad not found' });
+  }
+
+  const now = new Date();
+  const update =
+    type === 'impression'
+      ? {
+          impression_count: { increment: 1 },
+          last_impression_at: now,
+        }
+      : {
+          click_count: { increment: 1 },
+          last_click_at: now,
+        };
+
+  const updated = await prisma.ad.update({
+    where: { id },
+    data: update,
+    select: {
+      id: true,
+      impression_count: true,
+      click_count: true,
+      last_impression_at: true,
+      last_click_at: true,
+    },
+  });
+
+  addBreadcrumb('Ad engagement recorded', 'ads.engagement', 'info', {
+    adId: id,
+    type,
+    userId: req.user?.id || null,
+    impressionCount: updated.impression_count,
+    clickCount: updated.click_count,
+  });
+
+  return res.status(200).json({ ok: true, type, ...updated });
+}
+
+adsRouter.post(
+  '/:id([a-zA-Z0-9_-]{10,100})/impression',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => trackAdEngagement(req, res, 'impression'))
+);
+
+adsRouter.post(
+  '/:id([a-zA-Z0-9_-]{10,100})/click',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => trackAdEngagement(req, res, 'click'))
 );
 
 // Get a single Ad with its reservations (dates)

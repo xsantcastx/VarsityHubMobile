@@ -40,6 +40,7 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
+import { useAuth } from '@/context/AuthProvider';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
   getNotificationHref,
@@ -263,6 +264,7 @@ const buildVotePreviewEntry = (
 };
 
 export default function FeedScreen() {
+  const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -1438,6 +1440,7 @@ export default function FeedScreen() {
               </View>
               {adData.banner_url ? (
                 <BannerAd
+                  adId={adData.id}
                   bannerUrl={adData.banner_url}
                   fitMode={adData.banner_fit_mode || 'fill'}
                   targetUrl={adData.target_url}
@@ -2136,7 +2139,7 @@ export default function FeedScreen() {
                         }
 
                         setNotificationsMenuOpen(false);
-                        const href = getNotificationHref(item);
+                        const href = getNotificationHref(item, user as any);
                         if (href) {
                           router.push(href as any);
                         }

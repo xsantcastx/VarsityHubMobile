@@ -6,13 +6,15 @@
 
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Advertisement } from '@/api/entities';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface BannerAdProps {
+  adId?: string | null;
   bannerUrl?: string | null;
   targetUrl?: string | null;
   businessName?: string;
@@ -23,6 +25,7 @@ interface BannerAdProps {
 }
 
 export function BannerAd({
+  adId,
   bannerUrl,
   targetUrl,
   businessName,
@@ -32,6 +35,13 @@ export function BannerAd({
   onPress,
 }: BannerAdProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const hasTrackedImpressionRef = useRef(false);
+
+  useEffect(() => {
+    if (!adId || hasTrackedImpressionRef.current) return;
+    hasTrackedImpressionRef.current = true;
+    void Advertisement.trackImpression(String(adId)).catch(() => {});
+  }, [adId]);
 
   const handlePress = async () => {
     // Use custom onPress if provided
@@ -81,6 +91,9 @@ export function BannerAd({
             try {
               const canOpen = await Linking.canOpenURL(normalizedUrl);
               if (canOpen) {
+                if (adId) {
+                  await Advertisement.trackClick(String(adId)).catch(() => {});
+                }
                 await Linking.openURL(normalizedUrl);
               } else {
                 Alert.alert('Invalid Link', 'Unable to open this link. Please check the URL format.');

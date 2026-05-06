@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Advertisement as AdsApi } from '@/api/entities';
 import settings from '@/api/settings';
 import { getApiBaseUrl } from '../api/http';
+import { isValidAdTargetUrl, normalizeAdTargetUrl } from '@/utils/adTargetUrl';
 import { sanitizeText } from '@/utils/formUtils';
 
 function EditAdScreen() {
@@ -38,13 +39,14 @@ function EditAdScreen() {
   const [desc, setDesc] = useState('');
   const [status, setStatus] = useState<'draft'|'pending'|'active'|'rejected'|'archived'>('draft');
   const [payment, setPayment] = useState<'unpaid'|'paid'|'refunded'|'pending_approval'|'hold'>('unpaid');
+  const [reviewNote, setReviewNote] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const isSubmitting = useRef(false);
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim());
   const zipValid = !zip.trim() || /^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/.test(zip.trim());
-  const urlValid = !targetUrl.trim() || /^https?:\/\/.+/.test(targetUrl.trim());
+  const urlValid = isValidAdTargetUrl(targetUrl);
 
   const canSave = useMemo(() => {
     return !!id
@@ -71,6 +73,7 @@ function EditAdScreen() {
         setDesc(ad?.description || '');
         setStatus((ad?.status || 'draft') as any);
         setPayment((ad?.payment_status || 'unpaid') as any);
+        setReviewNote(typeof ad?.admin_note === 'string' && ad.admin_note.trim() ? ad.admin_note.trim() : null);
         if (ad?.payment_status === 'paid') {
           try {
             const res: any = await AdsApi.reservationsForAd(String(id));
@@ -91,6 +94,11 @@ function EditAdScreen() {
           setDesc(found.description || '');
           setStatus((found.status || 'draft') as any);
           setPayment((found.payment_status || 'unpaid') as any);
+          setReviewNote(
+            typeof found.admin_note === 'string' && found.admin_note.trim()
+              ? found.admin_note.trim()
+              : null
+          );
         }
       }
     } finally { setLoading(false); }
@@ -135,7 +143,7 @@ function EditAdScreen() {
         contact_email: contactEmail.trim(),
         business_name: sanitizeText(business),
         banner_url: bannerUrl || undefined,
-        target_url: targetUrl.trim() || undefined,
+        target_url: normalizeAdTargetUrl(targetUrl) || undefined,
         target_zip_code: zip.trim(),
         description: sanitizeText(desc) || undefined,
       });
@@ -173,6 +181,15 @@ function EditAdScreen() {
               <Text style={[styles.title, { color: theme.text }]}>Edit Advertisement</Text>
               <Text style={[styles.subtitle, { color: theme.mutedText }]}>Update your ad details and settings</Text>
             </View>
+
+            {status === 'rejected' && reviewNote ? (
+              <View style={[styles.reviewNoteCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(220, 38, 38, 0.12)' : '#FEF2F2', borderColor: colorScheme === 'dark' ? '#7F1D1D' : '#FECACA' }]}>
+                <Text style={[styles.reviewNoteLabel, { color: colorScheme === 'dark' ? '#FCA5A5' : '#991B1B' }]}>
+                  Review Feedback
+                </Text>
+                <Text style={[styles.reviewNoteText, { color: theme.text }]}>{reviewNote}</Text>
+              </View>
+            ) : null}
 
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[styles.label, { color: theme.text }]}>Business Name *</Text>
@@ -359,6 +376,24 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     lineHeight: 24,
+  },
+  reviewNoteCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    gap: 6,
+  },
+  reviewNoteLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  reviewNoteText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
   },
   card: { 
     padding: 16, 

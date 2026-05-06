@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { isValidAdTargetUrl, normalizeAdTargetUrl } from '@/utils/adTargetUrl';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -41,6 +42,8 @@ type DraftAd = {
   created_at: string;
   owner_id?: string | null;
   isLocal?: boolean;
+  status?: string;
+  payment_status?: string;
 };
 
 function SubmitAdScreen() {
@@ -67,14 +70,6 @@ function SubmitAdScreen() {
     }
   }, [params.zip]);
 
-  // Normalize URL: auto-prepend https:// if user omits protocol
-  const normalizeUrl = (url: string): string => {
-    const trimmed = url.trim();
-    if (!trimmed) return '';
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    return `https://${trimmed}`;
-  };
-
   const normalizeBannerFitMode = (mode: BannerFitValue): ServerBannerFitMode => {
     if (String(mode).startsWith('rotate')) return 'contain';
     if (mode === 'stretch') return 'fill';
@@ -87,6 +82,7 @@ function SubmitAdScreen() {
     if (!/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/.test(zip.trim())) return false; // Must be a valid postal code
     if (!bannerUrl) return false; // Banner is mandatory
     if (!targetUrl.trim()) return false; // Website link mandatory
+    if (!isValidAdTargetUrl(targetUrl)) return false;
     return true;
   }, [name, email, business, zip, bannerUrl, targetUrl]);
 
@@ -129,7 +125,7 @@ function SubmitAdScreen() {
           business_name: sanitizeText(business),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: normalizeBannerFitMode(bannerFitMode),
-          target_url: normalizeUrl(targetUrl) || undefined,
+          target_url: normalizeAdTargetUrl(targetUrl) || undefined,
           target_zip_code: zip.trim(),
           radius: 9,
           description: sanitizeText(desc) || undefined,
@@ -174,6 +170,19 @@ function SubmitAdScreen() {
       }
 
       const adId = serverId;
+      let submittedForApproval = false;
+      try {
+        await AdsApi.submitForApproval(adId);
+        submittedForApproval = true;
+      } catch (err: any) {
+        if (__DEV__) {
+          console.warn(
+            '[submit-ad] submit-for-approval failed:',
+            err?.message ?? err
+          );
+        }
+      }
+
       analytics.track(ANALYTICS_EVENTS.AD_SUBMITTED, { ad_id: adId });
       // Keep a local copy so My Ads can show offline
       try {
@@ -184,12 +193,14 @@ function SubmitAdScreen() {
           contact_email: normalizedEmail || email.trim().toLowerCase(),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: bannerFitMode,
-          target_url: normalizeUrl(targetUrl) || undefined,
+          target_url: normalizeAdTargetUrl(targetUrl) || undefined,
           zip_code: zip.trim(),
           description: desc.trim() || undefined,
           created_at: new Date().toISOString(),
           owner_id: currentUserId,
           isLocal: false,
+          status: submittedForApproval ? 'pending' : 'draft',
+          payment_status: submittedForApproval ? 'pending_approval' : 'unpaid',
         };
         const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
         const scopedKey = currentUserId ? `${baseKey}_${currentUserId}` : baseKey;
@@ -212,7 +223,20 @@ function SubmitAdScreen() {
           );
       }
 
-      router.push({ pathname: '/ad-calendar', params: { adId } });
+      if (!submittedForApproval) {
+        Alert.alert(
+          'Draft Saved',
+          'Your ad was saved, but we could not submit it for review right now. Open My Ads to retry safely.'
+        );
+        router.replace('/my-ads');
+        return;
+      }
+
+      Alert.alert(
+        'Submitted for Approval',
+        "Your ad is now in review. You'll choose dates and complete payment after approval."
+      );
+      router.replace('/my-ads');
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to save your ad.');
     } finally {
@@ -257,7 +281,7 @@ function SubmitAdScreen() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>Submit a Local Ad</Text>
           <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            Promote your business to local teams and families. Continue to pick your campaign dates.
+            Promote your business to local teams and families. Your ad goes to review first, then you choose dates after approval.
           </Text>
         </View>
 

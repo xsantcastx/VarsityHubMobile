@@ -1,20 +1,22 @@
 import { Post, Team } from '@/api/entities';
 import type { TeamScreenSummaryResponse } from '@/api/schemas/team';
 import { Colors } from '@/constants/Colors';
+import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useShareLink } from '@/hooks/useShareLink';
-import { canShareTeamQr } from '@/utils/teamShare';
+import { goBackToTrackedRoute, safeGoBack } from '@/utils/navigation';
 import { getGradientForColor } from '@/utils/theme';
+import { canShareTeamQr } from '@/utils/teamShare';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
-import { safeGoBack } from '@/utils/navigation';
+import { sanitizePublicDescription } from '@/utils/publicDescriptions';
 
 type LeagueTeam = {
   id: string;
@@ -24,10 +26,15 @@ type LeagueTeam = {
   logo_url?: string;
   description?: string;
   organization_id?: string;
+  venue_address?: string | null;
   created_at?: string;
   is_private?: boolean;
   followers_count?: number;
   is_following?: boolean | null;
+  organization?: {
+    id?: string;
+    name?: string;
+  } | null;
   _count?: {
     members?: number;
     games?: number;
@@ -111,10 +118,13 @@ function TeamScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
+  const navHistory = useContext(NavigationHistoryContext);
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; name?: string; from?: string; gameId?: string }>();
+  const href = useUnstableGlobalHref();
   const { from, gameId } = params;
   const navigation = useNavigation();
+  const currentHref = typeof href === 'string' ? href : null;
   
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<LeagueTeam | null>(null);
@@ -161,9 +171,17 @@ function TeamScreen() {
         router.push({ pathname: '/game/[id]', params: { id: gameId } } as any);
       }
     } else {
-      safeGoBack(router);
+      const explicitFallback = team?.organization_id
+        ? `/organizations/${encodeURIComponent(team.organization_id)}`
+        : '/(tabs)/discover';
+      goBackToTrackedRoute(
+        router,
+        currentHref,
+        navHistory?.getFallbackRoute?.(),
+        explicitFallback
+      );
     }
-  }, [from, gameId, navigation, router]);
+  }, [currentHref, from, gameId, navHistory, navigation, router, team?.organization_id]);
 
   // Mounted guard to prevent state updates after unmount
   const mounted = useRef(true);
@@ -451,6 +469,12 @@ function TeamScreen() {
   
   const teamName = team?.name || 'Team';
   const teamHandle = `@${(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}`;
+  const teamDescription = sanitizePublicDescription(team?.description);
+  const teamVenue = typeof team?.venue_address === 'string' ? team.venue_address.trim() : '';
+  const teamOrganizationName =
+    typeof team?.organization?.name === 'string' && team.organization.name.trim().length > 0
+      ? team.organization.name.trim()
+      : null;
   const isShareableTeam = canShareTeamQr(team);
   const { share: shareTeamLink } = useShareLink({
     kind: 'team',
@@ -667,9 +691,39 @@ function TeamScreen() {
 
         {/* Team Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
-          {team?.description && (
-            <Text style={[styles.userBio, { color: theme.text }]}>{team.description}</Text>
-          )}
+          {teamDescription ? (
+            <Text style={[styles.userBio, { color: theme.text }]}>{teamDescription}</Text>
+          ) : null}
+
+          {teamVenue ? (
+            <View style={styles.metaItem}>
+              <Ionicons name="location-outline" size={14} color={theme.mutedText} />
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>{teamVenue}</Text>
+            </View>
+          ) : null}
+
+          {teamOrganizationName ? (
+            <Pressable
+              onPress={() => {
+                if (!team?.organization_id) return;
+                void router.push({
+                  pathname: '/organizations/[id]',
+                  params: { id: team.organization_id },
+                } as any);
+              }}
+              style={styles.metaItem}
+              accessibilityRole="button"
+              accessibilityLabel={`Open organization page for ${teamOrganizationName}`}
+            >
+              <Ionicons name="business-outline" size={14} color={theme.mutedText} />
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                {teamOrganizationName}
+              </Text>
+              {team?.organization_id ? (
+                <Ionicons name="chevron-forward" size={12} color={theme.mutedText} />
+              ) : null}
+            </Pressable>
+          ) : null}
           
           {/* Created Date */}
           {team?.created_at && (
