@@ -28,7 +28,7 @@ Run `/claude install <plugin-name>` or enable via Claude Code settings.
 
 ### claude-md-management
 **Adds:** `/revise-claude-md` slash command
-**Why useful:** Keeps CLAUDE.md up to date as the app evolves. Run after major feature releases.
+**Why useful:** Keeps `CLAUDE.md` up to date as the app evolves. Run after major feature releases, then mirror any shared product-fact changes into `AGENTS.md` so Claude and Codex stay aligned.
 
 ---
 

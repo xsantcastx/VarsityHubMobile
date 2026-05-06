@@ -1,5 +1,12 @@
 # VarsityHub Mobile — Claude Instructions
 
+## Instruction Ownership
+
+- `CLAUDE.md` is the authoritative instruction file for Claude Code in this repo.
+- `AGENTS.md` is maintained for Codex and Codex-spawned agents. Do not assume Codex reads `CLAUDE.md` as its primary repo instruction source.
+- Shared product facts must stay aligned across both files: stack, payments, navigation, deployment risk, and server-enforced invariants.
+- If a rule changes for both tools, update both `CLAUDE.md` and `AGENTS.md` in the same pass.
+
 ## Stack
 
 - React Native / Expo SDK 54 with Expo Router (file-based routing)
@@ -32,6 +39,13 @@ npm test            # jest
 **Railway auto-deploys from `main`.** A bad push is an instant production outage. The app is live in the App Store.
 
 **Never change Railway env vars** (JWT_SECRET, GOOGLE_OAUTH_CLIENT_IDS, APPLE_KEY_ID, APPLE_PRIVATE_KEY) — changing them invalidates all active sessions.
+
+## Claude Worktrees
+
+- `.claude/worktrees/` are Claude-local git worktrees for parallel investigation and implementation. They are operational tooling, not product deliverables.
+- Never push `.claude/worktrees/` paths or treat Claude-local report output as app/server source changes.
+- Generated local artifacts such as `.snyk-cache/`, `metro.pid`, and ad-hoc Claude reports should not be used as evidence that product code is dirty.
+- When using a Claude worktree, pass the current task scope and decisions explicitly. Do not rely on another worktree's transient files as shared memory.
 
 ## Debugging Approach
 

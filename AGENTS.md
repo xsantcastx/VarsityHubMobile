@@ -7,6 +7,20 @@
 - If a subagent needs prior audit state, scope boundaries, or decisions already made in the main thread, pass that context directly instead of assuming inheritance.
 - Put repo-wide workflow rules here. Put task-specific role instructions in the spawned agent prompt.
 
+## Instruction Ownership
+
+- `AGENTS.md` is the authoritative repo instruction file for Codex and Codex-spawned agents.
+- `CLAUDE.md` is maintained for Claude Code and Claude-managed worktrees. It is not the live instruction source for Codex.
+- Shared product facts that affect both tools must stay aligned across both files: stack, payments, navigation, server-side invariants, and deploy rules.
+- If `AGENTS.md` and `CLAUDE.md` ever disagree, update both files rather than relying on one tool to infer intent from the other.
+
+## Claude Worktree Hygiene
+
+- `.claude/worktrees/` are local Claude worktrees and must never be pushed.
+- Treat files under `.claude/` inside a linked worktree as Claude-local tooling unless they are intentionally tracked repo assets.
+- Generated local artifacts such as `.snyk-cache/`, `metro.pid`, and Claude-local report output must not be treated as product changes.
+- Before concluding a branch is dirty, distinguish tracked source changes from Claude-local worktree noise.
+
 ## Available Agent Types
 
 ### Explore

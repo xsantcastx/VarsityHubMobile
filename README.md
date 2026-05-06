@@ -33,6 +33,8 @@ See **[docs/INDEX.md](./docs/INDEX.md)** for the full documentation index.
 ## 📚 Key Documentation
 
 - **[docs/INDEX.md](./docs/INDEX.md)** - Documentation entry point
+- **[AGENTS.md](./AGENTS.md)** - Codex repo instructions and agent workflow rules
+- **[CLAUDE.md](./CLAUDE.md)** - Claude Code repo instructions
 - **[docs/AUDIT_STANDARD.md](./docs/AUDIT_STANDARD.md)** - Canonical audit standard and invariants
 - **[docs/AUDIT_EXECUTION_GUIDE.md](./docs/AUDIT_EXECUTION_GUIDE.md)** - Audit workflow and finding templates
 - **[docs/PR_CHECKLIST.md](./docs/PR_CHECKLIST.md)** - PR review and release readiness checklist for protected changes
