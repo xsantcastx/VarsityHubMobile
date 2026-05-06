@@ -2139,7 +2139,7 @@ export default function FeedScreen() {
                         }
 
                         setNotificationsMenuOpen(false);
-                        const href = getNotificationHref(item, user as any);
+                        const href = getNotificationHref(item);
                         if (href) {
                           router.push(href as any);
                         }

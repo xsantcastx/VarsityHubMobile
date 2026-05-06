@@ -530,7 +530,7 @@ function AdCalendarScreen() {
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
-      await Advertisement.submitForApproval(String(adId), dates);
+      await Advertisement.submitForApproval(String(adId));
       setAdStatus('pending');
       setReserved(new Set(dates));
       setSelected(new Set());
