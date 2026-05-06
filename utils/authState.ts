@@ -8,12 +8,14 @@ type AuthStateLike = {
   has_password?: boolean | null;
   google_id?: string | null;
   apple_id?: string | null;
+  role?: string | null;
   linked_providers?: {
     password?: boolean | null;
     google?: boolean | null;
     apple?: boolean | null;
   } | null;
   approval_status?: string | null;
+  preferences?: Record<string, unknown> | null;
 };
 
 export function getLinkedProvidersSnapshot(
@@ -38,5 +40,10 @@ export function getLinkedProvidersSnapshot(
 }
 
 export function isApprovedCoach(source: AuthStateLike | null | undefined): boolean {
-  return String(source?.approval_status || '').toUpperCase() === 'APPROVED';
+  const prefRole =
+    source?.preferences && typeof source.preferences === 'object'
+      ? (source.preferences as Record<string, unknown>).role
+      : null;
+  const role = String(prefRole || source?.role || '').trim().toLowerCase();
+  return role === 'coach' && String(source?.approval_status || '').toUpperCase() === 'APPROVED';
 }

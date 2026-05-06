@@ -1,10 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
-
-let prisma: any;
-let signJwt: any;
-let app: import('express').Express;
+import { app } from '../testApp.js';
+import { prisma } from '../lib/prisma.js';
+import { signJwt } from '../lib/jwt.js';
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -18,10 +17,6 @@ describe('League review routes', () => {
   let orgId = '';
 
   beforeAll(async () => {
-    ({ app } = await import('../testApp.js'));
-    ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt } = await import('../lib/jwt.js'));
-
     const hash = await bcrypt.hash(PASSWORD, 10);
     const admin = await prisma.user.create({
       data: {

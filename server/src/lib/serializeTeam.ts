@@ -49,6 +49,74 @@ export interface SerializeTeamOptions {
 
   /** Whether the viewer follows this team (pre-resolved). */
   isFollowing?: boolean | null;
+
+  /** Whether the viewer can manage the team. */
+  canManageTeam?: boolean;
+
+  /** Whether the viewer is an org admin for the team's org. */
+  isOrgAdmin?: boolean;
+}
+
+export const TEAM_SERIALIZE_SAFE_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  sport: true,
+  club_type: true,
+  extracurricular_category: true,
+  season: true,
+  season_start: true,
+  season_end: true,
+  logo_url: true,
+  avatar_url: true,
+  primary_color: true,
+  is_private: true,
+  city: true,
+  state: true,
+  league: true,
+  venue_place_id: true,
+  venue_lat: true,
+  venue_lng: true,
+  venue_address: true,
+  organization_id: true,
+  created_at: true,
+} as const;
+
+type BuildTeamSerializeSelectOptions = {
+  includeCounts?: boolean;
+  includeOrganization?: boolean;
+  includeMembershipsForUserId?: string | null;
+};
+
+export function buildTeamSerializeSelect(
+  opts: BuildTeamSerializeSelectOptions = {},
+) {
+  return {
+    ...TEAM_SERIALIZE_SAFE_SELECT,
+    ...(opts.includeCounts
+      ? { _count: { select: { memberships: true, followers: true } } }
+      : {}),
+    ...(opts.includeOrganization
+      ? {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              sport: true,
+            },
+          },
+        }
+      : {}),
+    ...(opts.includeMembershipsForUserId
+      ? {
+          memberships: {
+            where: { user_id: opts.includeMembershipsForUserId, status: 'active' },
+            select: { role: true },
+          },
+        }
+      : {}),
+  };
 }
 
 function toIso(value: unknown): string | null {
@@ -125,6 +193,8 @@ export function serializeTeam(team: any, opts: SerializeTeamOptions = {}) {
     base.viewer_role = opts.viewerRole ?? null;
     base.my_role = opts.viewerRole ?? null;
     base.is_following = opts.isFollowing ?? null;
+    base.can_manage_team = opts.canManageTeam === true;
+    base.is_org_admin = opts.isOrgAdmin === true;
   }
 
   return base;

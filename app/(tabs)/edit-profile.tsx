@@ -45,7 +45,7 @@ const THEME_COLORS = [
   { name: 'Victory Green', value: '#10B981', gradient: ['#065f46', '#10b981', '#34d399'] },
   { name: 'Gold Medal', value: '#F59E0B', gradient: ['#78350f', '#f59e0b', '#fbbf24'] },
   { name: 'Royal Purple', value: '#8B5CF6', gradient: ['#4c1d95', '#8b5cf6', '#a78bfa'] },
-  { name: 'Classic Gray', value: '#6B7280', gradient: ['#1f2937', '#6b7280', '#9ca3af'] },
+  { name: 'Classic Gray', value: '#6B7280', gradient: ['#1f2937', '#6b7280', '#9ca3af'] }, // audit: intentional theme preset gradient
 ];
 
 export default function EditProfileScreen() {

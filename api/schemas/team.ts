@@ -41,6 +41,8 @@ export const teamSchema = z
     viewer_role: z.string().nullable().optional(),
     my_role: z.string().nullable().optional(),
     is_following: z.boolean().nullable().optional(),
+    can_manage_team: z.boolean().optional(),
+    is_org_admin: z.boolean().optional(),
   })
   .passthrough();
 

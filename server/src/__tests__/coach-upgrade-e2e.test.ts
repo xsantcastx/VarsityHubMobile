@@ -180,8 +180,10 @@ describeDb('POST /auth/upgrade-to-coach — fan → coach state transition', () 
       .set('Authorization', `Bearer ${fanToken}`)
       .send({ plan: 'veteran' });
 
-    expect(res.status).toBe(400);
-    expect(String(res.body.error || '').toLowerCase()).toContain('already a coach');
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('COACH_UPGRADE_IN_PROGRESS');
+    expect(String(res.body.error || '').toLowerCase()).toContain('already');
+    expect(typeof res.body.next_step).toBe('string');
   });
 
   it('enforces 18+ age gate — under-18 user gets AGE_REQUIREMENT 403', async () => {

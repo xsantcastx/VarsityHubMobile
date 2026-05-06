@@ -1,290 +1,214 @@
-import { Organization } from '@/api/entities';
-import { httpPut } from '@/api/http';
-import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
-import { Colors } from '@/constants/Colors';
+import { Game, Organization, Team } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
+import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { safeGoBack } from '@/utils/navigation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { safeGoBack } from '@/utils/navigation';
 
-type OrganizationTab = 'overview' | 'teams' | 'requests' | 'members';
+type OrganizationData = {
+  id: string;
+  name?: string;
+  display_name?: string;
+  description?: string;
+  bio?: string;
+  background_url?: string;
+  logo_url?: string;
+  avatar_url?: string;
+  created_at?: string;
+  contact_info?: string;
+  location?: string;
+  formatted_address?: string;
+  followers_count?: number;
+  is_following?: boolean;
+};
 
-type SummaryTeam = {
+type TeamItem = {
   id: string;
   name: string;
   sport?: string | null;
   season?: string | null;
-  status?: string | null;
-  avatar_url?: string | null;
   logo_url?: string | null;
-  members_count?: number;
-  followers_count?: number;
+  organization_id?: string;
 };
 
-type SummaryMember = {
+type GameItem = {
   id: string;
-  role: string;
-  status: string;
-  created_at?: string;
-  user?: {
-    id?: string;
-    display_name?: string | null;
-    username?: string | null;
-    avatar_url?: string | null;
-    is_parent?: boolean;
-  };
+  date?: string | Date;
+  scheduled_date?: string;
+  home_team?: string;
+  away_team?: string;
+  opponent_name?: string;
+  location?: string;
+  game_type?: string;
 };
-
-type CoachRequest = {
-  id: string;
-  message?: string | null;
-  created_at?: string;
-  user?: {
-    id: string;
-    display_name?: string | null;
-    username?: string | null;
-    approval_status?: string | null;
-  };
-};
-
-type AuthorizedInvite = {
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-  created_at?: string;
-};
-
-type ReviewItem = {
-  id: string;
-  title?: string | null;
-  date?: string;
-  location?: string | null;
-  event_type?: string | null;
-  home_team?: string | null;
-  away_team?: string | null;
-  creator?: {
-    id?: string;
-    display_name?: string | null;
-    username?: string | null;
-  };
-  created_by?: {
-    id?: string;
-    display_name?: string | null;
-    username?: string | null;
-  };
-};
-
-type AdminSummary = {
-  organization: {
-    id: string;
-    name: string;
-    description?: string | null;
-    background_url?: string | null;
-    logo_url?: string | null;
-    avatar_url?: string | null;
-    formatted_address?: string | null;
-    location?: string | null;
-    followers_count?: number;
-  };
-  permissions: {
-    can_manage: boolean;
-    can_review_coach_requests: boolean;
-    membership_role?: string | null;
-    is_platform_admin?: boolean;
-  };
-  counts: {
-    teams: number;
-    members: number;
-    followers: number;
-    pending_authorized_invites: number;
-    pending_coach_requests: number;
-    pending_game_reviews: number;
-    pending_event_reviews: number;
-    upcoming_games: number;
-    upcoming_events: number;
-  };
-  teams: SummaryTeam[];
-  members: SummaryMember[];
-  requests: {
-    authorized_invites: AuthorizedInvite[];
-    coach_requests: CoachRequest[];
-    pending_games: ReviewItem[];
-    pending_events: ReviewItem[];
-  };
-  upcoming: {
-    games: ReviewItem[];
-    events: ReviewItem[];
-  };
-};
-
-type PublicOrganization = {
-  id: string;
-  name?: string;
-  display_name?: string;
-  description?: string | null;
-  bio?: string | null;
-  formatted_address?: string | null;
-  location?: string | null;
-  teams?: SummaryTeam[] | null;
-  followers_count?: number;
-  members_count?: number;
-  teams_count?: number;
-};
-
-type ApiErrorLike = {
-  message?: string;
-  status?: number;
-  response?: {
-    status?: number;
-  };
-};
-
-const TABS: Array<{ key: OrganizationTab; label: string }> = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'teams', label: 'Teams' },
-  { key: 'requests', label: 'Requests' },
-  { key: 'members', label: 'Members' },
-];
-
-function isValidTab(value: string | string[] | undefined): value is OrganizationTab {
-  return value === 'overview' || value === 'teams' || value === 'requests' || value === 'members';
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return 'TBD';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'TBD';
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function labelRole(role?: string | null): string {
-  const normalized = String(role || '').replace(/_/g, ' ').trim();
-  if (!normalized) return 'Member';
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
 
 export default function OrganizationScreen() {
   const { user } = useAuth();
-  const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string; tab?: string }>();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [organization, setOrganization] = useState<OrganizationData | null>(null);
+  const [teams, setTeams] = useState<TeamItem[]>([]);
+  const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<OrganizationTab>(
-    isValidTab(params.tab) ? params.tab : 'overview'
-  );
-  const [summary, setSummary] = useState<AdminSummary | null>(null);
-  const [publicOrg, setPublicOrg] = useState<PublicOrganization | null>(null);
-  const [resolvedOrgId, setResolvedOrgId] = useState<string | null>(null);
-  const [actingId, setActingId] = useState<string | null>(null);
+  const [isOrgOwner, setIsOrgOwner] = useState(false);
+  const [isOrgMember, setIsOrgMember] = useState(false);
+  const [pendingCoachCount, setPendingCoachCount] = useState(0);
+  const [pendingCoachError, setPendingCoachError] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [isRequestingJoin, setIsRequestingJoin] = useState(false);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'manager' | 'member'>('member');
 
+  const mounted = useRef(true);
   useEffect(() => {
-    if (isValidTab(params.tab)) {
-      setActiveTab(params.tab);
-    }
-  }, [params.tab]);
-
-  const resolveOrgId = useCallback(async (): Promise<string | null> => {
-    const directId = typeof params.id === 'string' ? params.id.trim() : '';
-    if (directId) return directId;
-
-    try {
-      const summaries = await Organization.reviewSummaries();
-      if (Array.isArray(summaries) && summaries[0]?.organization?.id) {
-        return String(summaries[0].organization.id);
-      }
-    } catch {
-      // Fall through to preferences-based org resolution.
-    }
-
-    const fallbackId = user?.preferences?.organization_id;
-    return typeof fallbackId === 'string' && fallbackId.trim().length > 0 ? fallbackId : null;
-  }, [params.id, user?.preferences?.organization_id]);
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const loadOrganization = useCallback(async () => {
-    if (!user) {
-      setLoading(false);
-      setError('Unauthorized');
-      return;
-    }
-
+    if (!mounted.current || !user) return;
     setError(null);
-    const orgId = await resolveOrgId();
-    setResolvedOrgId(orgId);
-
-    if (!orgId) {
-      setSummary(null);
-      setPublicOrg(null);
-      setLoading(false);
-      setError('not_found');
-      return;
-    }
-
     try {
-      const adminSummary = (await Organization.adminSummary(orgId)) as AdminSummary;
-      setSummary(adminSummary);
-      setPublicOrg(null);
-      setError(null);
-    } catch (error: unknown) {
-      const adminErr = error as ApiErrorLike;
-      const status = adminErr?.status || adminErr?.response?.status;
-      if (status !== 403) {
-        const message = String(adminErr?.message || '').toLowerCase();
-        if (!message.includes('organization') && !message.includes('not found')) {
-          setError(adminErr?.message || 'Failed to load organization tools');
-          setSummary(null);
-          setPublicOrg(null);
-          setLoading(false);
-          return;
+      let orgId = params.id?.trim();
+
+      // Fallback: if no orgId in params, look up the user's org from the server
+      if (!orgId || orgId === 'undefined' || orgId === 'null' || !/^[a-zA-Z0-9_-]{1,128}$/.test(orgId)) {
+        try {
+          const myOrgs = await Organization.mine();
+          const firstOrg = Array.isArray(myOrgs) ? myOrgs[0] : null;
+          if (firstOrg?.id) {
+            orgId = firstOrg.id;
+          } else if (user?.preferences?.organization_id) {
+            // Coaches who joined via request have role='member' — mine() won't return their org.
+            // Fall back to the org ID stored in their preferences during onboarding.
+            orgId = user.preferences.organization_id;
+          } else {
+            if (mounted.current) { setError('not_found'); setLoading(false); }
+            return;
+          }
+        } catch {
+          if (user?.preferences?.organization_id) {
+            orgId = user.preferences.organization_id;
+          } else {
+            if (mounted.current) { setError('not_found'); setLoading(false); }
+            return;
+          }
         }
       }
 
+      let orgData: OrganizationData | null = null;
       try {
-        const org = (await Organization.get(orgId)) as PublicOrganization;
-        setPublicOrg(org);
-        setSummary(null);
-        setError(null);
-      } catch (error: unknown) {
-        const publicErr = error as ApiErrorLike;
-        setSummary(null);
-        setPublicOrg(null);
-        setError(String(publicErr?.message || '').toLowerCase().includes('not found') ? 'not_found' : (publicErr?.message || 'Failed to load organization'));
+        orgData = await Organization.get(orgId as string);
+        if (!mounted.current) return;
+        setOrganization(orgData);
+        setIsFollowing(!!(orgData as any).is_following);
+      } catch (err: any) {
+        if (!mounted.current) return;
+        if (__DEV__) console.error('[organization] Failed to load organization data:', err);
+        const errMsg = err?.message || 'Failed to load organization';
+        // Surface the error rather than showing a blank page
+        if (mounted.current) {
+          setError(errMsg.toLowerCase().includes('not found') ? 'not_found' : errMsg);
+          setLoading(false);
+        }
+        return;
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [resolveOrgId, user]);
 
-  useEffect(() => {
-    void loadOrganization();
-  }, [loadOrganization]);
+      const ownerAccess =
+        (orgData as any)?.can_edit === true || (orgData as any)?.is_owner === true;
+      const memberAccess = ownerAccess || (orgData as any)?.is_member === true;
+      if (mounted.current) {
+        setIsOrgOwner(ownerAccess);
+        setIsOrgMember(memberAccess);
+      }
+      if (ownerAccess) {
+        Organization.pendingCoaches(orgId as string).then((pending: any) => {
+          if (mounted.current) {
+            setPendingCoachError(false);
+            setPendingCoachCount(Array.isArray(pending) ? pending.length : 0);
+          }
+        }).catch(() => {
+          if (mounted.current) setPendingCoachError(true);
+        });
+      } else if (mounted.current) {
+        setPendingCoachCount(0);
+        setPendingCoachError(false);
+      }
+
+      let allTeams: any[] = [];
+      try {
+        allTeams = await Team.list(undefined, undefined, { limit: 100 });
+      } catch (err: any) {
+        if (__DEV__) console.error('[organization] Failed to load teams list:', err);
+        allTeams = [];
+      }
+
+      if (!mounted.current) return;
+
+      const orgTeams: TeamItem[] = allTeams
+        .filter((t: any) => t.organization_id === orgId)
+        .map((t: any) => ({
+          id: String(t.id),
+          name: t.name || 'Team',
+          sport: t.sport || null,
+          season: t.season || null,
+          logo_url: t.logo_url || t.avatar_url || null,
+          organization_id: t.organization_id,
+        }))
+        .sort((a: TeamItem, b: TeamItem) => a.name.localeCompare(b.name));
+      setTeams(orgTeams);
+
+      try {
+        const allGamesData = await Game.list('-date');
+        if (!mounted.current) return;
+        const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
+        const teamNames = orgTeams.map((t) => t.name.toLowerCase());
+        const orgGames: GameItem[] = allGames
+          .filter((g: any) => {
+            const homeTeam = (g.home_team || '').toLowerCase();
+            const awayTeam = (g.away_team || '').toLowerCase();
+            return teamNames.some((name) => homeTeam.includes(name) || awayTeam.includes(name));
+          })
+          .map((g: any) => ({
+            id: String(g.id),
+            date: g.date,
+            scheduled_date: g.scheduled_date,
+            home_team: g.home_team,
+            away_team: g.away_team,
+            opponent_name: g.opponent_name,
+            location: g.location,
+            game_type: g.game_type,
+          }))
+          .sort((a: GameItem, b: GameItem) => {
+            const dateA = new Date((a.scheduled_date || a.date) as string).getTime();
+            const dateB = new Date((b.scheduled_date || b.date) as string).getTime();
+            return dateA - dateB;
+          });
+        setGames(orgGames);
+      } catch (err: any) {
+        if (__DEV__) console.error('[organization] Failed to load games:', err);
+        if (mounted.current) setGames([]);
+      }
+    } catch (err: any) {
+      if (!mounted.current) return;
+      if (__DEV__) console.error('[organization] Failed to load organization:', err);
+      setError(err?.message || 'Failed to load organization data');
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  }, [params.id, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -292,160 +216,42 @@ export default function OrganizationScreen() {
     setRefreshing(false);
   }, [loadOrganization]);
 
-  const handleApproveCoach = useCallback(
-    async (request: CoachRequest) => {
-      if (!resolvedOrgId || !request.user?.id || actingId) return;
-      setActingId(request.id);
-      try {
-        await Organization.approveCoach(resolvedOrgId, request.user.id);
-        await loadOrganization();
-      } catch (error: unknown) {
-        const err = error as ApiErrorLike;
-        Alert.alert('Unable to approve coach', err?.message || 'Please try again.');
-      } finally {
-        setActingId(null);
-      }
-    },
-    [actingId, loadOrganization, resolvedOrgId]
-  );
+  useEffect(() => {
+    void loadOrganization();
+  }, [loadOrganization]);
 
-  const handleRejectCoach = useCallback(
-    async (request: CoachRequest) => {
-      if (!resolvedOrgId || !request.user?.id || actingId) return;
-      Alert.alert(
-        'Reject coach request',
-        `Reject ${request.user.display_name || request.user.username || 'this coach'}?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Reject',
-            style: 'destructive',
-            onPress: async () => {
-              setActingId(request.id);
-              try {
-                await Organization.rejectCoach(resolvedOrgId, request.user!.id);
-                await loadOrganization();
-              } catch (error: unknown) {
-                const err = error as ApiErrorLike;
-                Alert.alert('Unable to reject coach', err?.message || 'Please try again.');
-              } finally {
-                setActingId(null);
-              }
-            },
-          },
-        ]
-      );
-    },
-    [actingId, loadOrganization, resolvedOrgId]
-  );
+  const handleTeamPress = (team: TeamItem) => {
+    router.push({ pathname: '/team-profile', params: { id: team.id, name: team.name } });
+  };
 
-  const handleReview = useCallback(
-    async (item: ReviewItem, kind: 'event' | 'game', action: 'approve' | 'reject') => {
-      if (actingId) return;
-      setActingId(`${kind}:${item.id}:${action}`);
-      try {
-        if (kind === 'game') {
-          await httpPut(`/games/${encodeURIComponent(item.id)}/approve`, {
-            approval_status: action === 'approve' ? 'approved' : 'rejected',
-          });
-        } else {
-          await httpPut(`/events/${encodeURIComponent(item.id)}/${action}`, {});
-        }
-        await loadOrganization();
-      } catch (error: unknown) {
-        const err = error as ApiErrorLike;
-        Alert.alert(
-          `Unable to ${action} ${kind}`,
-          err?.message || `Please try again.`
-        );
-      } finally {
-        setActingId(null);
-      }
-    },
-    [actingId, loadOrganization]
-  );
+  const handleGamePress = (game: GameItem) => {
+    router.push({ pathname: '/game/[id]', params: { id: game.id } });
+  };
 
-  const handleInviteAuthorizedUser = useCallback(async () => {
-    const orgId = resolvedOrgId || summary?.organization.id || null;
-    const trimmedEmail = inviteEmail.trim().toLowerCase();
-    if (!orgId || !trimmedEmail || actingId) return;
-
-    setActingId(`invite:${trimmedEmail}`);
+  const formatEventDate = (dateValue?: string | Date | null): string => {
+    if (!dateValue) return 'TBD';
     try {
-      await Organization.invite(orgId, trimmedEmail, inviteRole);
-      setInviteEmail('');
-      setInviteRole('member');
-      setInviteModalVisible(false);
-      await loadOrganization();
-      Alert.alert('Invite sent', `An organization invite was sent to ${trimmedEmail}.`);
-    } catch (error: unknown) {
-      const err = error as ApiErrorLike;
-      Alert.alert('Unable to send invite', err?.message || 'Please try again.');
-    } finally {
-      setActingId(null);
+      const date = new Date(dateValue as string);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const eventDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const daysDiff = Math.floor((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff === 0) return 'Today';
+      if (daysDiff === 1) return 'Tomorrow';
+      return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+      });
+    } catch {
+      return String(dateValue);
     }
-  }, [actingId, inviteEmail, inviteRole, loadOrganization, resolvedOrgId, summary?.organization.id]);
-
-  const handleCancelAuthorizedInvite = useCallback(
-    async (invite: AuthorizedInvite) => {
-      const orgId = resolvedOrgId || summary?.organization.id || null;
-      if (!orgId || actingId) return;
-
-      Alert.alert(
-        'Cancel invite',
-        `Cancel the pending invite for ${invite.email}?`,
-        [
-          { text: 'Keep', style: 'cancel' },
-          {
-            text: 'Cancel Invite',
-            style: 'destructive',
-            onPress: async () => {
-              setActingId(`authorized-invite:${invite.id}`);
-              try {
-                await Organization.cancelInvite(orgId, invite.id);
-                await loadOrganization();
-              } catch (error: unknown) {
-                const err = error as ApiErrorLike;
-                Alert.alert('Unable to cancel invite', err?.message || 'Please try again.');
-              } finally {
-                setActingId(null);
-              }
-            },
-          },
-        ]
-      );
-    },
-    [actingId, loadOrganization, resolvedOrgId, summary?.organization.id]
-  );
-
-  const counts = summary?.counts;
-  const locationText =
-    summary?.organization.formatted_address ||
-    summary?.organization.location ||
-    publicOrg?.formatted_address ||
-    publicOrg?.location ||
-    null;
-  const orgName =
-    summary?.organization.name ||
-    publicOrg?.display_name ||
-    publicOrg?.name ||
-    'Organization';
-  const orgDescription =
-    summary?.organization.description || publicOrg?.bio || publicOrg?.description || null;
-
-  const requestsTotal = useMemo(() => {
-    if (!counts) return 0;
-    return (
-      counts.pending_coach_requests +
-      counts.pending_event_reviews +
-      counts.pending_game_reviews
-    );
-  }, [counts]);
+  };
 
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.centered}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.tint} />
         </View>
       </SafeAreaView>
@@ -455,14 +261,12 @@ export default function OrganizationScreen() {
   if (error === 'not_found') {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.centered}>
-          <Ionicons name="business-outline" size={40} color={theme.mutedText} />
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>Organization not found</Text>
-          <Pressable
-            onPress={() => safeGoBack(router, '/(tabs)')}
-            style={[styles.primaryButton, { backgroundColor: theme.tint }]}
-          >
-            <Text style={styles.primaryButtonText}>Go back</Text>
+        <View style={styles.errorContainer}>
+          <Ionicons name="business" size={48} color={theme.mutedText} style={{ marginBottom: 12 }} />
+          <Text style={[styles.errorText, { color: theme.text, fontSize: 18, fontWeight: '600' }]}>Not Found</Text>
+          <Text style={{ color: theme.mutedText, textAlign: 'center', marginTop: 4, marginBottom: 16 }}>This organization doesn't exist or the link is invalid.</Text>
+          <Pressable onPress={() => safeGoBack(router)} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.retryText}>Go Back</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -472,614 +276,435 @@ export default function OrganizationScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.centered}>
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>{error}</Text>
-          <Pressable
-            onPress={() => void loadOrganization()}
-            style={[styles.primaryButton, { backgroundColor: theme.tint }]}
-          >
-            <Text style={styles.primaryButtonText}>Retry</Text>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
+          <Pressable onPress={loadOrganization} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!summary && publicOrg) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
-          <View style={styles.headerRow}>
-            <Pressable onPress={() => safeGoBack(router, '/(tabs)')} hitSlop={12}>
-              <Ionicons name="chevron-back" size={24} color={theme.text} />
-            </Pressable>
-            <View style={styles.headerTitleWrap}>
-              <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-                {orgName}
-              </Text>
-            </View>
-            <View style={styles.headerSpacer} />
-          </View>
+  const orgName = organization?.display_name || organization?.name || 'Organization';
+  const handle = orgName.replace(/\s+/g, '').toLowerCase();
+  const orgBio = organization?.bio || organization?.description || null;
+  const contactText = organization?.contact_info?.trim() || null;
+  const locationText = organization?.formatted_address || organization?.location || null;
 
-          <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.orgName, { color: theme.text }]}>{orgName}</Text>
-            <Text style={[styles.metaText, { color: theme.mutedText }]}>
-              Organization tools require owner or manager access.
-            </Text>
-            {orgDescription ? (
-              <Text style={[styles.description, { color: theme.text }]}>{orgDescription}</Text>
-            ) : null}
-            {locationText ? (
-              <View style={styles.inlineRow}>
-                <Ionicons name="location-outline" size={16} color={theme.mutedText} />
-                <Text style={[styles.metaText, { color: theme.mutedText }]}>{locationText}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.statsGrid}>
-            <StatCard label="Teams" value={publicOrg.teams_count || publicOrg.teams?.length || 0} theme={theme} />
-            <StatCard label="Members" value={publicOrg.members_count || 0} theme={theme} />
-            <StatCard label="Followers" value={publicOrg.followers_count || 0} theme={theme} />
-          </View>
-
-          <SectionCard title="Teams" theme={theme}>
-            {(publicOrg.teams || []).map(team => (
-              <Pressable
-                key={team.id}
-                onPress={() => router.push({ pathname: '/team-page', params: { id: team.id } })}
-                style={[styles.listRow, { borderColor: theme.border }]}
-              >
-                <View style={styles.listGrow}>
-                  <Text style={[styles.listTitle, { color: theme.text }]}>{team.name}</Text>
-                  {!!team.sport && (
-                    <Text style={[styles.metaText, { color: theme.mutedText }]}>{team.sport}</Text>
-                  )}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
-              </Pressable>
-            ))}
-          </SectionCard>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  if (!summary) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <CoachAccessRedirecting
-          backgroundColor={theme.background}
-          spinnerColor={theme.tint}
-          textColor={theme.mutedText}
-        />
-      </SafeAreaView>
-    );
-  }
+  const handleLocationPress = () => {
+    if (!locationText) return;
+    const query = encodeURIComponent(locationText);
+    const url = Platform.select({
+      ios: `maps:0,0?q=${query}`,
+      default: `https://maps.google.com/?q=${query}`,
+    });
+    void Linking.openURL(url).catch(() => {
+      void Linking.openURL(`https://maps.google.com/?q=${query}`);
+    });
+  };
+  const upcomingGames = games
+    .filter((g) => {
+      const d = g.scheduled_date || g.date;
+      return d && new Date(d as string) >= new Date();
+    })
+    .slice(0, 10);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ title: orgName, headerShown: false }} />
+
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} colors={[theme.tint]} />
+        }
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => safeGoBack(router, '/(tabs)')} hitSlop={12}>
-            <Ionicons name="chevron-back" size={24} color={theme.text} />
-          </Pressable>
-          <View style={styles.headerTitleWrap}>
-            <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-              Organization Tools
-            </Text>
-          </View>
-          <Pressable
-            onPress={() =>
-              router.push({ pathname: '/edit-organization', params: { id: summary.organization.id } })
-            }
-            hitSlop={12}
-          >
-            <MaterialIcons name="edit" size={22} color={theme.text} />
-          </Pressable>
-        </View>
+        {/* Back Button */}
+        <Pressable
+          onPress={() => safeGoBack(router)}
+          style={[styles.backButton, { borderColor: theme.border }]}
+        >
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        </Pressable>
 
-        <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.orgName, { color: theme.text }]}>{orgName}</Text>
-          <Text style={[styles.metaText, { color: theme.mutedText }]}>
-            {labelRole(summary.permissions.membership_role)} access
-          </Text>
-          {orgDescription ? (
-            <Text style={[styles.description, { color: theme.text }]}>{orgDescription}</Text>
-          ) : null}
-          {locationText ? (
-            <View style={styles.inlineRow}>
-              <Ionicons name="location-outline" size={16} color={theme.mutedText} />
-              <Text style={[styles.metaText, { color: theme.mutedText }]}>{locationText}</Text>
-            </View>
-          ) : null}
-          <View style={styles.actionRow}>
+        {/* Admin: View Join Requests */}
+        {isOrgOwner && organization?.id && (
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             <Pressable
-              onPress={() => router.push({ pathname: '/organizations/[id]', params: { id: summary.organization.id } })}
-              style={[styles.secondaryButton, { borderColor: theme.border }]}
+              onPress={() =>
+                router.push({
+                  pathname: '/organization-join-requests',
+                  params: { organization_id: organization.id, organization_name: organization.name || orgName },
+                })
+              }
+              style={[styles.adminButton, { backgroundColor: theme.tint, flex: 1 }]}
             >
-              <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Public Page</Text>
+              <Ionicons name="people" size={20} color="#fff" />
+              <Text style={styles.adminButtonText}>Coach Requests</Text>
             </Pressable>
             <Pressable
-              onPress={() => router.push('/create-team')}
-              style={[styles.primaryButton, { backgroundColor: theme.tint }]}
-            >
-              <Text style={styles.primaryButtonText}>New Team</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.statsGrid}>
-          <StatCard label="Teams" value={counts?.teams || 0} theme={theme} />
-          <StatCard label="Members" value={counts?.members || 0} theme={theme} />
-          <StatCard label="Requests" value={requestsTotal} theme={theme} />
-          <StatCard label="Followers" value={counts?.followers || 0} theme={theme} />
-        </View>
-
-        <View style={[styles.tabsRow, { borderColor: theme.border }]}>
-          {TABS.map(tab => {
-            const selected = tab.key === activeTab;
-            const badgeValue =
-              tab.key === 'requests'
-                ? requestsTotal
-                : tab.key === 'teams'
-                  ? counts?.teams || 0
-                  : tab.key === 'members'
-                    ? counts?.members || 0
-                    : 0;
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => setActiveTab(tab.key)}
-                style={[
-                  styles.tabButton,
-                  {
-                    backgroundColor: selected ? theme.tint : theme.card,
-                    borderColor: selected ? theme.tint : theme.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.tabLabel, { color: selected ? '#fff' : theme.text }]}>
-                  {tab.label}
-                </Text>
-                {badgeValue > 0 ? (
-                  <View
-                    style={[
-                      styles.tabBadge,
-                      { backgroundColor: selected ? 'rgba(255,255,255,0.22)' : theme.surface },
-                    ]}
-                  >
-                    <Text style={[styles.tabBadgeText, { color: selected ? '#fff' : theme.text }]}>
-                      {badgeValue}
-                    </Text>
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {activeTab === 'overview' ? (
-          <>
-            <SectionCard title="Upcoming Games" theme={theme}>
-              {summary.upcoming.games.length === 0 ? (
-                <EmptyCopy text="No upcoming games loaded for this organization." theme={theme} />
-              ) : (
-                summary.upcoming.games.map(game => (
-                  <Pressable
-                    key={game.id}
-                    onPress={() => router.push({ pathname: '/game/[id]', params: { id: game.id } })}
-                    style={[styles.listRow, { borderColor: theme.border }]}
-                  >
-                    <View style={styles.listGrow}>
-                      <Text style={[styles.listTitle, { color: theme.text }]}>
-                        {game.home_team && game.away_team
-                          ? `${game.home_team} vs ${game.away_team}`
-                          : game.title || 'Game'}
-                      </Text>
-                      <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                        {formatDate(game.date)}{game.location ? `  |  ${game.location}` : ''}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
-                  </Pressable>
-                ))
-              )}
-            </SectionCard>
-
-            <SectionCard title="Upcoming Events" theme={theme}>
-              {summary.upcoming.events.length === 0 ? (
-                <EmptyCopy text="No upcoming non-game events are scheduled." theme={theme} />
-              ) : (
-                summary.upcoming.events.map(event => (
-                  <Pressable
-                    key={event.id}
-                    onPress={() => router.push({ pathname: '/event-detail', params: { id: event.id } })}
-                    style={[styles.listRow, { borderColor: theme.border }]}
-                  >
-                    <View style={styles.listGrow}>
-                      <Text style={[styles.listTitle, { color: theme.text }]}>
-                        {event.title || 'Event'}
-                      </Text>
-                      <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                        {formatDate(event.date)}{event.location ? `  |  ${event.location}` : ''}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
-                  </Pressable>
-                ))
-              )}
-            </SectionCard>
-          </>
-        ) : null}
-
-        {activeTab === 'teams' ? (
-          <SectionCard title="Teams" theme={theme}>
-            {summary.teams.length === 0 ? (
-              <EmptyCopy text="No teams are attached to this organization yet." theme={theme} />
-            ) : (
-              summary.teams.map(team => (
-                <View key={team.id} style={[styles.listRow, { borderColor: theme.border, alignItems: 'center' }]}>
-                  <View style={styles.listGrow}>
-                    <Text style={[styles.listTitle, { color: theme.text }]}>{team.name}</Text>
-                    <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                      {[team.sport, team.season, `${team.members_count || 0} members`]
-                        .filter(Boolean)
-                        .join('  |  ')}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: '/team-admin',
-                        params: {
-                          teamId: team.id,
-                          orgId: summary.organization.id,
-                          orgTab: 'teams',
-                        },
-                      })
-                    }
-                    style={[styles.inlineButton, { borderColor: theme.border }]}
-                  >
-                    <Text style={[styles.inlineButtonText, { color: theme.text }]}>Open</Text>
-                  </Pressable>
-                </View>
-              ))
-            )}
-          </SectionCard>
-        ) : null}
-
-        {activeTab === 'requests' ? (
-          <>
-            <SectionCard title="Coach Requests" theme={theme}>
-              {!summary.permissions.can_review_coach_requests ? (
-                <EmptyCopy text="Only organization owners can approve coach join requests." theme={theme} />
-              ) : summary.requests.coach_requests.length === 0 ? (
-                <EmptyCopy text="No coach requests are waiting for review." theme={theme} />
-              ) : (
-                summary.requests.coach_requests.map(request => (
-                  <View key={request.id} style={[styles.requestCard, { borderColor: theme.border }]}>
-                    <View style={styles.listGrow}>
-                      <Text style={[styles.listTitle, { color: theme.text }]}>
-                        {request.user?.display_name || request.user?.username || 'Coach request'}
-                      </Text>
-                      <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                        {formatDate(request.created_at)}{request.message ? `  |  ${request.message}` : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.compactActions}>
-                      <Pressable
-                        disabled={actingId === request.id}
-                        onPress={() => void handleApproveCoach(request)}
-                        style={[styles.approveButton, { backgroundColor: '#16A34A' }]}
-                      >
-                        <Text style={styles.actionButtonText}>
-                          {actingId === request.id ? '...' : 'Approve'}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        disabled={actingId === request.id}
-                        onPress={() => void handleRejectCoach(request)}
-                        style={[styles.rejectButton, { backgroundColor: theme.destructive }]}
-                      >
-                        <Text style={styles.actionButtonText}>Reject</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                ))
-              )}
-            </SectionCard>
-
-            <SectionCard title="Pending Games" theme={theme}>
-              {summary.requests.pending_games.length === 0 ? (
-                <EmptyCopy text="No pending games are waiting on this organization." theme={theme} />
-              ) : (
-                summary.requests.pending_games.map(game => (
-                  <ReviewRow
-                    key={game.id}
-                    item={game}
-                    theme={theme}
-                    acting={actingId === `game:${game.id}:approve` || actingId === `game:${game.id}:reject`}
-                    onOpen={() => router.push({ pathname: '/game/[id]', params: { id: game.id } })}
-                    onApprove={() => void handleReview(game, 'game', 'approve')}
-                    onReject={() => void handleReview(game, 'game', 'reject')}
-                  />
-                ))
-              )}
-            </SectionCard>
-
-            <SectionCard title="Pending Events" theme={theme}>
-              {summary.requests.pending_events.length === 0 ? (
-                <EmptyCopy text="No pending non-game events are waiting on this organization." theme={theme} />
-              ) : (
-                summary.requests.pending_events.map(event => (
-                  <ReviewRow
-                    key={event.id}
-                    item={event}
-                    theme={theme}
-                    acting={actingId === `event:${event.id}:approve` || actingId === `event:${event.id}:reject`}
-                    onOpen={() => router.push({ pathname: '/event-detail', params: { id: event.id } })}
-                    onApprove={() => void handleReview(event, 'event', 'approve')}
-                    onReject={() => void handleReview(event, 'event', 'reject')}
-                  />
-                ))
-              )}
-            </SectionCard>
-          </>
-        ) : null}
-
-        {activeTab === 'members' ? (
-          <SectionCard title="Members" theme={theme}>
-            <View style={styles.sectionHeaderActions}>
-              <Text style={[styles.metaText, { color: theme.mutedText, flex: 1 }]}>
-                {summary.counts.pending_authorized_invites > 0
-                  ? `${summary.counts.pending_authorized_invites} authorized invite${summary.counts.pending_authorized_invites === 1 ? '' : 's'} pending`
-                  : 'Invite managers and members into this organization workspace.'}
-              </Text>
-              <Pressable
-                testID="organization-invite-authorized-user-button"
-                onPress={() => setInviteModalVisible(true)}
-                style={[styles.inlineButton, { borderColor: theme.border }]}
-              >
-                <Text style={[styles.inlineButtonText, { color: theme.text }]}>Invite</Text>
-              </Pressable>
-            </View>
-
-            {summary.members.length === 0 ? (
-              <EmptyCopy text="No members found for this organization." theme={theme} />
-            ) : (
-              summary.members.map(member => (
-                <View key={member.id} style={[styles.listRow, { borderColor: theme.border }]}>
-                  <View style={styles.listGrow}>
-                    <Text style={[styles.listTitle, { color: theme.text }]}>
-                      {member.user?.display_name || member.user?.username || 'Member'}
-                    </Text>
-                    <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                      {labelRole(member.role)}  |  {member.status}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            )}
-
-            <View style={styles.invitesSection}>
-              <Text style={[styles.sectionSubtitle, { color: theme.text }]}>Pending Invites</Text>
-              {summary.requests.authorized_invites.length === 0 ? (
-                <EmptyCopy text="No pending authorized-user invites." theme={theme} />
-              ) : (
-                summary.requests.authorized_invites.map(invite => (
-                  <View key={invite.id} style={[styles.listRow, { borderColor: theme.border }]}>
-                    <View style={styles.listGrow}>
-                      <Text style={[styles.listTitle, { color: theme.text }]}>{invite.email}</Text>
-                      <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                        {labelRole(invite.role)}  |  Pending  |  {formatDate(invite.created_at)}
-                      </Text>
-                    </View>
-                    <Pressable
-                      testID={`organization-cancel-invite-${invite.id}`}
-                      disabled={actingId === `authorized-invite:${invite.id}`}
-                      onPress={() => void handleCancelAuthorizedInvite(invite)}
-                      style={[styles.rejectButton, { backgroundColor: theme.destructive, alignSelf: 'center' }]}
-                    >
-                      <Text style={styles.actionButtonText}>
-                        {actingId === `authorized-invite:${invite.id}` ? '...' : 'Cancel'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ))
-              )}
-            </View>
-          </SectionCard>
-        ) : null}
-      </ScrollView>
-
-      <Modal
-        visible={inviteModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setInviteModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable style={styles.modalBackdropPressable} onPress={() => setInviteModalVisible(false)} />
-          <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Invite Authorized User</Text>
-            <Text style={[styles.metaText, { color: theme.mutedText }]}>
-              Add a manager or member to this organization workspace.
-            </Text>
-
-            <TextInput
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              placeholder="staff@example.com"
-              placeholderTextColor={theme.mutedText}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
+              onPress={() => {
+                setInviteEmail('');
+                setInviteModalVisible(true);
+              }}
               style={[
-                styles.textInput,
+                styles.adminButton,
                 {
-                  color: theme.text,
+                  backgroundColor: theme.card,
+                  borderWidth: 1,
                   borderColor: theme.border,
-                  backgroundColor: theme.background,
+                  flex: 1,
                 },
               ]}
-            />
+            >
+              <Ionicons name="person-add-outline" size={20} color={theme.text} />
+              <Text style={[styles.adminButtonText, { color: theme.text }]}>Invite Coach</Text>
+            </Pressable>
+          </View>
+        )}
 
-            <View style={styles.rolePickerRow}>
-              {(['member', 'manager'] as const).map(role => {
-                const active = inviteRole === role;
-                return (
-                  <Pressable
-                    key={role}
-                    onPress={() => setInviteRole(role)}
-                    style={[
-                      styles.roleChip,
-                      {
-                        backgroundColor: active ? theme.tint : theme.background,
-                        borderColor: active ? theme.tint : theme.border,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: active ? '#fff' : theme.text, fontWeight: '600' }}>
-                      {labelRole(role)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+        {/* Cover Image */}
+        <View style={[styles.card, styles.coverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {organization?.background_url ? (
+            <Image source={{ uri: organization.background_url }} style={styles.coverImage} contentFit="cover" />
+          ) : (
+            <View style={[styles.coverPlaceholder, { borderColor: theme.border }]}>
+              <Ionicons name="business-outline" size={28} color={theme.mutedText} />
+              <Text style={[styles.placeholderText, { color: theme.mutedText }]}>No cover image</Text>
             </View>
+          )}
+        </View>
 
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => {
-                  setInviteModalVisible(false);
-                  setInviteEmail('');
-                  setInviteRole('member');
-                }}
-                style={[styles.secondaryButton, { borderColor: theme.border, flex: 1 }]}
-              >
-                <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => void handleInviteAuthorizedUser()}
-                disabled={!inviteEmail.trim() || !!actingId}
-                style={[
-                  styles.primaryButton,
-                  { backgroundColor: theme.tint, flex: 1 },
-                  (!inviteEmail.trim() || !!actingId) && styles.disabledButton,
-                ]}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {actingId?.startsWith('invite:') ? 'Sending...' : 'Send Invite'}
-                </Text>
-              </Pressable>
+        {/* Profile Card */}
+        <View style={[styles.card, styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={[styles.avatarShell, { borderColor: theme.border }]}>
+            {organization?.avatar_url || organization?.logo_url ? (
+              <Image
+                source={{ uri: String(organization.avatar_url || organization.logo_url) }}
+                style={styles.avatarImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.avatarFallback, { backgroundColor: theme.surface }]}>
+                <Ionicons name="business" size={28} color={theme.mutedText} />
+              </View>
+            )}
+          </View>
+          <View style={styles.profileText}>
+            <Text style={[styles.profileName, { color: theme.text }]}>{orgName}</Text>
+            <Text style={[styles.profileHandle, { color: theme.mutedText }]}>@{handle}</Text>
+            <View style={styles.statsRow}>
+              <Text style={[styles.statNumber, { color: theme.text }]}>{teams.length}</Text>
+              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Teams  </Text>
+              <Text style={[styles.statNumber, { color: theme.text }]}>{organization?.followers_count ?? 0}</Text>
+              <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers</Text>
             </View>
           </View>
         </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionRow}>
+          {isOrgOwner ? (
+            <Pressable
+              style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
+              onPress={() => router.push({ pathname: '/edit-organization', params: { id: organization?.id } })}
+            >
+              <Ionicons name="pencil-outline" size={16} color={theme.text} />
+              <Text style={[styles.actionBtnText, { color: theme.text }]}>Edit Profile</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                style={[
+                  styles.actionBtn,
+                  {
+                    flex: 1,
+                    backgroundColor: isFollowing ? theme.tint : 'transparent',
+                    borderColor: theme.tint,
+                    borderWidth: 1,
+                  },
+                ]}
+                disabled={followBusy}
+                onPress={async () => {
+                  if (!organization?.id || followBusy) return;
+                  setFollowBusy(true);
+                  try {
+                    if (isFollowing) {
+                      await Organization.unfollow(organization.id);
+                      setIsFollowing(false);
+                      setOrganization((prev) =>
+                        prev ? { ...prev, followers_count: Math.max(0, (prev.followers_count ?? 0) - 1) } : null
+                      );
+                    } else {
+                      await Organization.follow(organization.id);
+                      setIsFollowing(true);
+                      setOrganization((prev) =>
+                        prev ? { ...prev, followers_count: (prev.followers_count ?? 0) + 1 } : null
+                      );
+                    }
+                  } catch (err) {
+                    if (__DEV__) console.error('Organization follow/unfollow failed:', err);
+                    Alert.alert('Error', 'Failed to update follow status. Please try again.');
+                  } finally {
+                    setFollowBusy(false);
+                  }
+                }}
+              >
+                <Ionicons name={isFollowing ? 'checkmark' : 'add'} size={16} color={isFollowing ? '#fff' : theme.tint} />
+                <Text style={[styles.actionBtnText, { color: isFollowing ? '#fff' : theme.tint }]}>
+                  {isFollowing ? 'Following' : 'Follow'}
+                </Text>
+              </Pressable>
+
+              {!isOrgMember && (
+                <Pressable
+                  style={[
+                    styles.actionBtn,
+                    { flex: 1, backgroundColor: 'transparent', borderColor: theme.border, borderWidth: 1 },
+                  ]}
+                  disabled={isRequestingJoin}
+                  onPress={async () => {
+                    if (!organization?.id) return;
+                    setIsRequestingJoin(true);
+                    try {
+                      await Organization.requestToJoin(organization.id);
+                      Alert.alert('Request Sent', 'Your request to join this organization has been submitted.');
+                    } catch (err: any) {
+                      Alert.alert('Error', err?.message || 'Failed to send join request.');
+                    } finally {
+                      setIsRequestingJoin(false);
+                    }
+                  }}
+                >
+                  {isRequestingJoin ? (
+                    <ActivityIndicator size="small" color={theme.text} />
+                  ) : (
+                    <>
+                      <Ionicons name="person-add-outline" size={16} color={theme.text} />
+                      <Text style={[styles.actionBtnText, { color: theme.text }]}>Request to Join</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Pending Coaches Quick Action */}
+        {isOrgOwner && pendingCoachError && organization?.id && (
+          <Pressable
+            style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]}
+            onPress={() => router.push('/approvals')}
+          >
+            <MaterialIcons name="error-outline" size={24} color={theme.destructive} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: theme.destructive, fontWeight: '600' }}>
+                Could not load pending coaches
+              </Text>
+              <Text style={{ fontSize: 12, color: theme.mutedText, marginTop: 2 }}>Tap to open approvals</Text>
+            </View>
+          </Pressable>
+        )}
+        {isOrgOwner && pendingCoachCount > 0 && organization?.id && (
+          <Pressable
+            style={[
+              styles.card,
+              styles.sectionCard,
+              {
+                backgroundColor:
+                  colorScheme === 'dark' ? 'rgba(245,158,11,0.12)' : '#FEF9C3',
+                borderColor:
+                  colorScheme === 'dark' ? 'rgba(245,158,11,0.35)' : '#DAA520',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              },
+            ]}
+            onPress={() => router.push('/approvals')}
+          >
+            <MaterialIcons
+              name="group-add"
+              size={24}
+              color={colorScheme === 'dark' ? '#FCD34D' : '#DAA520'}
+            />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: '700',
+                  color: colorScheme === 'dark' ? '#FDE68A' : '#92400E',
+                }}
+              >
+                {pendingCoachCount} coach{pendingCoachCount !== 1 ? 'es' : ''} pending approval
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colorScheme === 'dark' ? '#FCD34D' : '#A16207',
+                  marginTop: 2,
+                }}
+              >
+                Tap to review requests
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={colorScheme === 'dark' ? '#FCD34D' : '#DAA520'}
+            />
+          </Pressable>
+        )}
+
+        {/* About */}
+        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
+          {orgBio ? (
+            <Text style={[styles.bioText, { color: theme.text }]}>
+              {orgBio}
+            </Text>
+          ) : null}
+          {contactText && (
+            <View style={[styles.contactRow, { borderColor: theme.border }]}>
+              <Ionicons name="mail-outline" size={16} color={theme.mutedText} />
+              <Text style={[styles.contactText, { color: theme.mutedText }]} selectable>{contactText}</Text>
+            </View>
+          )}
+          {organization?.created_at && (
+            <View style={styles.metaRow}>
+              <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                Created {new Date(organization.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Location */}
+        {locationText ? (
+          <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Location</Text>
+            <Pressable onPress={handleLocationPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="location-outline" size={16} color={theme.tint} />
+              <Text style={{ color: theme.tint }}>{locationText}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Teams */}
+        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Teams</Text>
+          {teams.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No teams yet.</Text>
+          ) : (
+            teams.map((team) => {
+              const subline = [team.sport, team.season].filter(Boolean).join(' • ');
+              return (
+                <Pressable
+                  key={team.id}
+                  style={[styles.rowItem, { borderColor: theme.border }]}
+                  onPress={() => handleTeamPress(team)}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+                      {team.name}
+                    </Text>
+                    {subline.length > 0 && (
+                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                        {subline}
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+
+        {/* Upcoming Events */}
+        <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Upcoming Events</Text>
+          {upcomingGames.length === 0 ? (
+            <Text style={[styles.emptyText, { color: theme.mutedText }]}>No upcoming events.</Text>
+          ) : (
+            upcomingGames.map((game) => {
+              const dateStr = formatEventDate(game.scheduled_date || game.date);
+              const opponent = game.opponent_name || game.away_team || 'TBD';
+              return (
+                <Pressable
+                  key={game.id}
+                  style={[styles.rowItem, { borderColor: theme.border }]}
+                  onPress={() => handleGamePress(game)}
+                >
+                  <View style={[styles.eventIconContainer, { backgroundColor: theme.surface }]}>
+                    <Ionicons name="football-outline" size={20} color={theme.tint} />
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+                      vs {opponent}
+                    </Text>
+                    <View style={styles.eventMetaRow}>
+                      <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}>{dateStr}</Text>
+                      {game.location && (
+                        <>
+                          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]}> • </Text>
+                          <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                            {game.location}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+                </Pressable>
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
+      {/* Invite Coach Modal — replaces iOS-only Alert.prompt */}
+      <Modal visible={inviteModalVisible} transparent animationType="fade" onRequestClose={() => setInviteModalVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setInviteModalVisible(false)}>
+          <Pressable style={[styles.modalContent, { backgroundColor: theme.card }]} onPress={() => {}}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Invite Coach</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>Enter the email address of the coach to invite:</Text>
+            <TextInput
+              style={[styles.modalInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+              placeholder="coach@example.com"
+              placeholderTextColor={theme.mutedText}
+              value={inviteEmail}
+              onChangeText={setInviteEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <Pressable style={[styles.modalButton, { borderColor: theme.border }]} onPress={() => setInviteModalVisible(false)}>
+                <Text style={[styles.modalButtonText, { color: theme.mutedText }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, { backgroundColor: theme.tint }]}
+                onPress={async () => {
+                  if (!inviteEmail.trim() || !organization) return;
+                  try {
+                    await Organization.invite(organization.id, inviteEmail.trim(), 'member');
+                    setInviteModalVisible(false);
+                    Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+                  } catch (err: any) {
+                    Alert.alert('Error', err?.data?.error || err?.message || 'Failed to send invite');
+                  }
+                }}
+              >
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>Send Invite</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
-  );
-}
-
-function SectionCard({
-  title,
-  theme,
-  children,
-}: {
-  title: string;
-  theme: typeof Colors.light;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
-      {children}
-    </View>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  theme,
-}: {
-  label: string;
-  value: number;
-  theme: typeof Colors.light;
-}) {
-  return (
-    <View style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Text style={[styles.statValue, { color: theme.text }]}>{value}</Text>
-      <Text style={[styles.statLabel, { color: theme.mutedText }]}>{label}</Text>
-    </View>
-  );
-}
-
-function EmptyCopy({
-  text,
-  theme,
-}: {
-  text: string;
-  theme: typeof Colors.light;
-}) {
-  return <Text style={[styles.metaText, { color: theme.mutedText }]}>{text}</Text>;
-}
-
-function ReviewRow({
-  item,
-  theme,
-  acting,
-  onOpen,
-  onApprove,
-  onReject,
-}: {
-  item: ReviewItem;
-  theme: typeof Colors.light;
-  acting: boolean;
-  onOpen: () => void;
-  onApprove: () => void;
-  onReject: () => void;
-}) {
-  const requester =
-    item.creator?.display_name ||
-    item.created_by?.display_name ||
-    item.creator?.username ||
-    item.created_by?.username ||
-    'Unknown';
-
-  return (
-    <View style={[styles.requestCard, { borderColor: theme.border }]}>
-      <Pressable onPress={onOpen} style={styles.listGrow}>
-        <Text style={[styles.listTitle, { color: theme.text }]}>{item.title || 'Untitled'}</Text>
-        <Text style={[styles.metaText, { color: theme.mutedText }]}>
-          {formatDate(item.date)}{item.location ? `  |  ${item.location}` : ''}
-        </Text>
-        <Text style={[styles.metaText, { color: theme.mutedText }]}>Submitted by {requester}</Text>
-      </Pressable>
-      <View style={styles.compactActions}>
-        <Pressable
-          disabled={acting}
-          onPress={onApprove}
-          style={[styles.approveButton, { backgroundColor: '#16A34A' }]}
-        >
-          <Text style={styles.actionButtonText}>{acting ? '...' : 'Approve'}</Text>
-        </Pressable>
-        <Pressable
-          disabled={acting}
-          onPress={onReject}
-          style={[styles.rejectButton, { backgroundColor: theme.destructive }]}
-        >
-          <Text style={styles.actionButtonText}>Reject</Text>
-        </Pressable>
-      </View>
-    </View>
   );
 }
 
@@ -1087,257 +712,244 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centered: {
+  loadingContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
-    padding: 24,
+    alignItems: 'center',
   },
-  scrollContent: {
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  content: {
     padding: 16,
     gap: 16,
   },
-  headerRow: {
-    flexDirection: 'row',
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
-    gap: 12,
-  },
-  headerTitleWrap: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  headerSpacer: {
-    width: 24,
-  },
-  heroCard: {
+    justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
-    gap: 10,
   },
-  orgName: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  inlineRow: {
+  adminButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
   },
-  metaText: {
+  adminButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  coverCard: {
+    height: 160,
+    overflow: 'hidden',
+    padding: 0,
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverPlaceholder: {
+    flex: 1,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  placeholderText: {
     fontSize: 13,
-    lineHeight: 18,
+    fontWeight: '500',
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+  },
+  avatarShell: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileText: {
+    flex: 1,
+    gap: 4,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  profileHandle: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 4,
+  },
+  statNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: 14,
+    fontWeight: '400',
   },
   actionRow: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 6,
   },
-  primaryButton: {
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  actionBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 14,
+    gap: 6,
     paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minHeight: 40,
   },
-  secondaryButtonText: {
+  actionBtnText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  statCard: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    minWidth: '47%',
-    flexGrow: 1,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  statLabel: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  tabButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  tabLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  tabBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  tabBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
   },
   sectionCard: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  sectionHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  listRow: {
-    borderTopWidth: 1,
-    paddingTop: 12,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  listGrow: {
-    flex: 1,
-    gap: 4,
-  },
-  listTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  inlineButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignSelf: 'center',
-  },
-  inlineButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  invitesSection: {
-    gap: 12,
-  },
-  requestCard: {
-    borderTopWidth: 1,
-    paddingTop: 12,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  compactActions: {
-    gap: 8,
-    justifyContent: 'center',
-  },
-  approveButton: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rejectButton: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  modalBackdrop: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-  },
-  modalBackdropPressable: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  modalCard: {
-    borderWidth: 1,
-    borderRadius: 12,
     padding: 16,
     gap: 12,
   },
-  modalTitle: {
-    fontSize: 18,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: '700',
   },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+  bioText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
-  rolePickerRow: {
+  contactRow: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
   },
-  roleChip: {
+  contactText: {
+    fontSize: 14,
     flex: 1,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  metaText: {
+    fontSize: 13,
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  rowItem: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rowSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  eventIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  modalActions: {
+  eventMetaRow: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
-  disabledButton: {
-    opacity: 0.6,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  modalSubtitle: { fontSize: 14, marginBottom: 12 },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  modalButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  modalButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modalButtonText: { fontSize: 16, fontWeight: '600' },
 });

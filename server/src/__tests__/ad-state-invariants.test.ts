@@ -114,9 +114,9 @@ describe('ad lifecycle structural invariants', () => {
   it('admin approval and rejection keep ads inside the allowed tuple set', () => {
     const approveAd = sliceFunction(approvalService, 'export async function approveAd');
     expect(approveAd).toMatch(/status:\s*'approved'/);
-    expect(approveAd).toMatch(/payment_status:\s*ad\.payment_status === 'paid' \? 'paid' : 'pending_approval'/);
+    expect(approveAd).toMatch(/payment_status:\s*ad\.payment_status === 'paid' \? 'paid' : 'unpaid'/);
     expectAllowedTuple('approved', 'paid');
-    expectAllowedTuple('approved', 'pending_approval');
+    expectAllowedTuple('approved', 'unpaid');
 
     const rejectAd = sliceFunction(approvalService, 'export async function rejectAd');
     expect(rejectAd).toMatch(/status:\s*'draft'/);

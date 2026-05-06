@@ -21,7 +21,7 @@ export default function TermsOfServiceScreen() {
         </Text>
 
         <TermSection colorScheme={colorScheme} title="1. Agreement"
-          body={'By using VarsityHub you agree to these Terms. If you disagree, do not use the app. You must be 13+ (parental consent required for 13-17).'} />
+          body={'By using VarsityHub you agree to these Terms. If you disagree, do not use the app. You must be 13 or older to use VarsityHub.'} />
 
         <TermSection colorScheme={colorScheme} title="2. The Service"
           body={'VarsityHub lets you create/manage sports teams, schedule games, share content, and access premium features via paid subscriptions.'} />

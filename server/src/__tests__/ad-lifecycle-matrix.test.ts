@@ -51,13 +51,13 @@ const VALID_TRANSITIONS: StateTransition[] = [
     fromStatus: 'pending',
     fromPayment: 'pending_approval',
     expectedStatus: 'approved',
-    expectedPayment: 'pending_approval',
+    expectedPayment: 'unpaid',
     description: 'pending → approved by admin',
   },
   {
     action: 'payment_confirmed',
     fromStatus: 'approved',
-    fromPayment: 'pending_approval',
+    fromPayment: 'unpaid',
     expectedStatus: 'active',
     expectedPayment: 'paid',
     description: 'approved → active after payment',
@@ -136,7 +136,7 @@ const INVALID_TRANSITIONS: StateTransition[] = [
   {
     action: 'submit_for_approval',
     fromStatus: 'approved',
-    fromPayment: 'pending_approval',
+    fromPayment: 'unpaid',
     expectedStatus: null,
     expectedPayment: null,
     description: 'cannot re-submit an already approved ad',
@@ -283,6 +283,7 @@ describe('Ad Lifecycle — Happy Path Sequence', () => {
     status = result!.status;
     payment = result!.payment;
     expect(status).toBe('approved');
+    expect(payment).toBe('unpaid');
 
     // Step 3: Payment confirmed
     result = stateMachine.get(transitionKey(status, payment, 'payment_confirmed'));
@@ -340,7 +341,7 @@ describe('Ad Lifecycle — State Machine Completeness', () => {
         const representativePayment: AdPaymentStatus =
           status === 'draft' ? 'unpaid' :
           status === 'pending' ? 'pending_approval' :
-          status === 'approved' ? 'pending_approval' :
+          status === 'approved' ? 'unpaid' :
           status === 'active' ? 'paid' :
           status === 'rejected' ? 'unpaid' :
           'paid'; // archived

@@ -7,14 +7,17 @@ let prisma: any;
 let signJwt: any;
 
 describe('API Organization Endpoints', () => {
+  const coachAgreementAcceptedAt = new Date().toISOString();
+
   let userId: string;
   let token: string;
+  let ownerId: string;
+  let ownerToken: string;
+  let managerId: string;
+  let managerToken: string;
   let approvedOrgId: string;
   let pendingOrgId: string;
-  let managedOrgId: string;
-  let managedTeamId: string;
-  let managedInviteId: string;
-  let userEmail: string;
+  let ownedOrgId: string;
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -26,120 +29,125 @@ describe('API Organization Endpoints', () => {
         password_hash: await bcrypt.hash('TestPassword123!', 10),
         display_name: 'Org Contract Tester',
         email_verified: true,
+        role: 'fan',
         onboarding_completed: true,
         preferences: { role: 'fan', onboarding_completed: true },
       },
     });
     userId = user.id;
-    userEmail = user.email;
     token = signJwt({ id: userId });
+
+    const owner = await prisma.user.create({
+      data: {
+        email: `test-org-owner-${Date.now()}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Org Owner',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
+        coach_agreement_accepted_at: coachAgreementAcceptedAt,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: coachAgreementAcceptedAt,
+        },
+      },
+    });
+    ownerId = owner.id;
+    ownerToken = signJwt({ id: ownerId });
+
+    const manager = await prisma.user.create({
+      data: {
+        email: `test-org-manager-${Date.now()}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Org Manager',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
+        coach_agreement_accepted_at: coachAgreementAcceptedAt,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: coachAgreementAcceptedAt,
+        },
+      },
+    });
+    managerId = manager.id;
+    managerToken = signJwt({ id: managerId });
 
     const approved = await prisma.organization.create({
       data: {
         name: `Approved Org ${Date.now()}`,
+        org_type: 'club',
         admin_approved: true,
+        updated_at: new Date(),
       },
+      select: { id: true },
     });
     approvedOrgId = approved.id;
 
     const pending = await prisma.organization.create({
       data: {
         name: `Pending Org ${Date.now()}`,
+        org_type: 'club',
         admin_approved: false,
+        updated_at: new Date(),
       },
+      select: { id: true },
     });
     pendingOrgId = pending.id;
 
-    await prisma.organizationJoinRequest.create({
+    const ownedOrg = await prisma.organization.create({
       data: {
-        organization_id: pendingOrgId,
-        user_id: userId,
-        status: 'pending',
-      },
-    });
-
-    const managedOrg = await prisma.organization.create({
-      data: {
-        name: `Managed Review Org ${Date.now()}`,
+        name: `Owned Org ${Date.now()}`,
+        org_type: 'club',
         admin_approved: true,
+        league_owner_id: ownerId,
+        updated_at: new Date(),
       },
+      select: { id: true },
     });
-    managedOrgId = managedOrg.id;
+    ownedOrgId = ownedOrg.id;
 
-    await prisma.organizationMembership.create({
-      data: {
-        organization_id: managedOrgId,
-        user_id: userId,
-        role: 'owner',
-        status: 'active',
-      },
-    });
-
-    const managedInvite = await prisma.organizationInvite.create({
-      data: {
-        organization_id: managedOrgId,
-        email: `managed-org-invite-${Date.now()}@example.com`,
-        role: 'manager',
-        status: 'pending',
-      },
-    });
-    managedInviteId = managedInvite.id;
-
-    const managedTeam = await prisma.team.create({
-      data: {
-        name: `Managed Review Team ${Date.now()}`,
-        organization_id: managedOrgId,
-      },
-    });
-    managedTeamId = managedTeam.id;
-
-    await prisma.organizationJoinRequest.create({
-      data: {
-        organization_id: managedOrgId,
-        user_id: userId,
-        status: 'pending',
-      },
+    await prisma.organizationMembership.createMany({
+      data: [
+        {
+          organization_id: ownedOrgId,
+          user_id: ownerId,
+          role: 'owner',
+          status: 'active',
+        },
+        {
+          organization_id: ownedOrgId,
+          user_id: managerId,
+          role: 'manager',
+          status: 'active',
+        },
+      ],
     });
 
-    await prisma.game.create({
-      data: {
-        title: 'Pending Review Game',
-        date: new Date(Date.now() + 86_400_000),
-        home_team_id: managedTeamId,
-        home_team: managedTeam.name,
-        approval_status: 'pending',
-        created_by_id: userId,
-      },
-    });
-
-    await prisma.event.create({
-      data: {
-        title: 'Pending Review Event',
-        date: new Date(Date.now() + 86_400_000),
-        team_id: managedTeamId,
-        creator_id: userId,
-        creator_role: 'coach',
-        approval_status: 'pending',
-        status: 'approved',
-      },
+    await prisma.organizationJoinRequest.createMany({
+      data: [
+        {
+          organization_id: pendingOrgId,
+          user_id: userId,
+          status: 'pending',
+        },
+      ],
     });
   });
 
   afterAll(async () => {
-    await prisma.organizationInvite.deleteMany({ where: { id: managedInviteId } }).catch(() => {});
-    await prisma.event.deleteMany({ where: { team_id: managedTeamId } }).catch(() => {});
-    await prisma.game.deleteMany({
-      where: {
-        OR: [{ home_team_id: managedTeamId }, { away_team_id: managedTeamId }],
-      },
-    }).catch(() => {});
-    await prisma.team.deleteMany({ where: { id: managedTeamId } }).catch(() => {});
     await prisma.organizationJoinRequest.deleteMany({ where: { user_id: userId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { user_id: userId } }).catch(() => {});
-    await prisma.organization.deleteMany({
-      where: { id: { in: [approvedOrgId, pendingOrgId, managedOrgId].filter(Boolean) } },
+    await prisma.organizationMembership.deleteMany({
+      where: { user_id: { in: [userId, ownerId, managerId].filter(Boolean) } },
     }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: userId } }).catch(() => {});
+    await prisma.organization.deleteMany({
+      where: { id: { in: [approvedOrgId, pendingOrgId, ownedOrgId].filter(Boolean) } },
+    }).catch(() => {});
+    await prisma.user.deleteMany({
+      where: { id: { in: [userId, ownerId, managerId].filter(Boolean) } },
+    }).catch(() => {});
   });
 
   describe('GET /organizations', () => {
@@ -161,86 +169,91 @@ describe('API Organization Endpoints', () => {
     });
   });
 
-  describe('GET /organizations/mine/review-summaries', () => {
-    it('returns the compact review summary list for managed organizations', async () => {
+  describe('owner-only organization management', () => {
+    it('GET /organizations/:id returns approved organization details without a decode error', async () => {
       const response = await request(app)
-        .get('/organizations/mine/review-summaries')
-        .set('Authorization', `Bearer ${token}`)
+        .get(`/organizations/${ownedOrgId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
         .expect(200);
 
-      expect(Array.isArray(response.body)).toBe(true);
-
-      const managedOrg = response.body.find(
-        (entry: any) => entry.organization?.id === managedOrgId
-      );
-
-      expect(managedOrg).toBeTruthy();
-      expect(managedOrg.organization?.name).toContain('Managed Review Org');
-      expect(managedOrg.permissions?.can_manage).toBe(true);
-      expect(managedOrg.permissions?.can_review_coach_requests).toBe(true);
-      expect(managedOrg.permissions?.membership_role).toBe('owner');
-      expect(managedOrg.counts?.pending_coach_requests).toBe(1);
-      expect(managedOrg.counts?.pending_game_reviews).toBe(1);
-      expect(managedOrg.counts?.pending_event_reviews).toBe(1);
+      expect(response.body.id).toBe(ownedOrgId);
+      expect(response.body.name).toContain('Owned Org');
+      expect(response.body.viewer_role).toBe('owner');
+      expect(response.body.is_member).toBe(true);
+      expect(response.body.is_owner).toBe(true);
+      expect(response.body.can_edit).toBe(true);
+      expect(response.body.can_review_coaches).toBe(true);
     });
-  });
 
-  describe('GET /organizations/:id/admin-summary', () => {
-    it('includes pending authorized-user invites for managed organizations', async () => {
-      const response = await request(app)
-        .get(`/organizations/${managedOrgId}/admin-summary`)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(200);
+    it('GET /organizations/mine returns owner organizations but excludes manager-only memberships', async () => {
+      const [ownerResponse, managerResponse] = await Promise.all([
+        request(app).get('/organizations/mine').set('Authorization', `Bearer ${ownerToken}`),
+        request(app).get('/organizations/mine').set('Authorization', `Bearer ${managerToken}`),
+      ]);
 
-      expect(response.body.permissions?.can_manage).toBe(true);
-      expect(response.body.counts?.pending_authorized_invites).toBe(1);
-      expect(Array.isArray(response.body.requests?.authorized_invites)).toBe(true);
-      expect(response.body.requests.authorized_invites).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: managedInviteId,
-            role: 'manager',
-            status: 'pending',
-          }),
-        ])
-      );
-      expect(response.body.members).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            user: expect.objectContaining({
-              email: userEmail,
-            }),
-          }),
-        ])
-      );
+      expect(ownerResponse.status).toBe(200);
+      expect(managerResponse.status).toBe(200);
+      expect(ownerResponse.body.some((org: any) => org.id === ownedOrgId)).toBe(true);
+      expect(managerResponse.body.some((org: any) => org.id === ownedOrgId)).toBe(false);
     });
-  });
 
-  describe('POST /organizations/:id/invites/:inviteId/cancel', () => {
-    it('allows organization admins to revoke pending authorized-user invites', async () => {
-      const invite = await prisma.organizationInvite.create({
-        data: {
-          organization_id: managedOrgId,
-          email: `org-cancel-${Date.now()}@example.com`,
-          role: 'member',
-          status: 'pending',
-        },
-      });
+    it('PATCH /organizations/:id allows the owner and rejects a manager', async () => {
+      const ownerRes = await request(app)
+        .patch(`/organizations/${ownedOrgId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ description: 'Owner updated description' });
 
+      expect(ownerRes.status).toBe(200);
+      expect(ownerRes.body.description).toBe('Owner updated description');
+
+      const managerRes = await request(app)
+        .patch(`/organizations/${ownedOrgId}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({ description: 'Manager should not update' });
+
+      expect(managerRes.status).toBe(403);
+      expect(managerRes.body.error).toBe('Only the organization owner can edit this organization.');
+    });
+
+    it('GET /organizations/:id exposes manager membership without owner privileges', async () => {
       const response = await request(app)
-        .post(`/organizations/${managedOrgId}/invites/${invite.id}/cancel`)
-        .set('Authorization', `Bearer ${token}`)
+        .get(`/organizations/${ownedOrgId}`)
+        .set('Authorization', `Bearer ${managerToken}`)
         .expect(200);
 
-      expect(response.body.message).toBe('Invite cancelled');
-      expect(response.body.invite?.id).toBe(invite.id);
-      expect(response.body.invite?.status).toBe('revoked');
+      expect(response.body.viewer_role).toBe('manager');
+      expect(response.body.is_member).toBe(true);
+      expect(response.body.is_owner).toBe(false);
+      expect(response.body.can_edit).toBe(false);
+      expect(response.body.can_review_coaches).toBe(false);
+    });
 
-      const updated = await prisma.organizationInvite.findUnique({
-        where: { id: invite.id },
-        select: { status: true },
-      });
-      expect(updated?.status).toBe('revoked');
+    it('POST /organizations/:id/transfer-ownership updates both membership roles and league_owner_id', async () => {
+      const transferRes = await request(app)
+        .post(`/organizations/${ownedOrgId}/transfer-ownership`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ new_owner_id: managerId });
+
+      expect(transferRes.status).toBe(200);
+
+      const [org, membershipRows] = await Promise.all([
+        prisma.organization.findUnique({
+          where: { id: ownedOrgId },
+          select: { league_owner_id: true },
+        }),
+        prisma.$queryRaw<Array<{ user_id: string; role: string }>>`
+          SELECT user_id, role::text AS role
+          FROM "OrganizationMembership"
+          WHERE organization_id = ${ownedOrgId}
+            AND user_id IN (${ownerId}, ${managerId})
+        `,
+      ]);
+      const ownerMembership = membershipRows.find(row => row.user_id === ownerId);
+      const managerMembership = membershipRows.find(row => row.user_id === managerId);
+
+      expect(org?.league_owner_id).toBe(managerId);
+      expect(ownerMembership?.role).toBe('manager');
+      expect(managerMembership?.role).toBe('owner');
     });
   });
 });

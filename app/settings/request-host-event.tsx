@@ -1,6 +1,7 @@
 import { Event, Message } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import EventPreviewImageField from '@/components/EventPreviewImageField';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -41,6 +42,7 @@ function RequestHostEventScreen() {
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
@@ -130,6 +132,8 @@ function RequestHostEventScreen() {
         date: date.toISOString(),
         requested_by: displayName || 'Unknown',
         requested_email: profileEmail,
+        banner_url: previewImageUrl || undefined,
+        cover_image_url: previewImageUrl || undefined,
       };
       await Event.create(eventData);
       // Send notification to coach/admin
@@ -210,6 +214,12 @@ function RequestHostEventScreen() {
             textAlignVertical="top"
           />
         </View>
+        <EventPreviewImageField
+          value={previewImageUrl}
+          onChange={setPreviewImageUrl}
+          disabled={submitting}
+          helperText="Add the preview image reviewers and users should see for this event request."
+        />
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Date & Time *</Text>
           <View style={styles.dateTimeRow}>

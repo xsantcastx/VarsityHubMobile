@@ -1,5 +1,5 @@
 import { Organization, User } from '@/api/entities';
-import { canReviewCoachRequests } from '@/utils/roleChecks';
+import { getOrganizationAccess } from '@/utils/roleChecks';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { captureException } from '@/utils/sentry';
@@ -91,9 +91,9 @@ function OrganizationJoinRequestsScreen() {
         User.me().catch(() => null),
         Organization.members(params.organization_id).catch(() => []),
       ]);
-      if (!canReviewCoachRequests(currentUser as any, Array.isArray(members) ? members : [])) {
+      if (!getOrganizationAccess(currentUser as any, Array.isArray(members) ? members : []).isOwner) {
         setLoading(false);
-        setError('Only the league owner can review coach requests for this organization.');
+        setError('Only the organization owner can review coach requests for this organization.');
         return;
       }
 

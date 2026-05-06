@@ -1,36 +1,25 @@
 import { Colors } from '@/constants/Colors';
-import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
-import type { TeamAdminSummaryResponse } from '@/api/schemas/team';
 import { useAuth } from '@/context/AuthProvider';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 
 function EditTeamScreen() {
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string; orgId?: string; orgTab?: string; fallback?: string }>();
+  const params = useLocalSearchParams<{ id?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-  const fallbackRoute =
-    typeof params.fallback === 'string' && params.fallback.trim().length > 0
-      ? params.fallback
-      : params.orgId
-        ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=${encodeURIComponent(params.orgTab || 'teams')}`
-        : '/organization?tab=teams';
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -65,11 +54,7 @@ function EditTeamScreen() {
     try {
       setLoading(true);
       if (!params.id) return;
-      const summary = (await Team.adminSummary(params.id)) as TeamAdminSummaryResponse;
-      const teamData = summary?.team;
-      if (!teamData) {
-        throw new Error('Team not found');
-      }
+      const teamData = await Team.get(params.id);
       setTeam(teamData);
       setName(teamData.name || '');
       setDescription(teamData.description || '');
@@ -78,21 +63,43 @@ function EditTeamScreen() {
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
       setIsPrivate(!!teamData.is_private);
 
-      const memberList = Array.isArray(summary?.members) ? summary.members : [];
-      setMembers(memberList);
-      setIsOwner(String(summary?.permissions?.membership_role || '').toLowerCase() === 'owner');
-      setOrganizationName((teamData as any).organization?.name || '');
-    } catch (error) {
-      if (handleCoachAccessError(router, error, 'editing teams')) {
+      if (!teamData?.can_manage_team) {
+        Alert.alert('Access Denied', 'You must be team staff or an organization admin to edit this team.');
+        safeGoBack(router);
         return;
       }
+      setIsOwner(teamData?.my_role === 'owner');
+
+      try {
+        const membersList = await Team.members(params.id);
+        const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
+        setMembers(arr);
+      } catch (err) {
+        if (__DEV__) console.error('[EditTeam] Failed to load members:', err);
+      }
+
+      const orgFromResponse = (teamData as any).organization;
+      if (orgFromResponse?.name) {
+        setOrganizationName(orgFromResponse.name);
+      } else if (teamData.organization_id) {
+        try {
+          const org = await Organization.get(teamData.organization_id);
+          setOrganizationName(org.name || '');
+        } catch (err) {
+          if (__DEV__) console.error('Failed to load organization:', err);
+          setOrganizationName('');
+        }
+      } else {
+        setOrganizationName('');
+      }
+    } catch (error) {
       if (__DEV__) console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
-      safeGoBack(router, fallbackRoute);
+      safeGoBack(router);
     } finally {
       setLoading(false);
     }
-  }, [fallbackRoute, params.id, router]);
+  }, [params.id, router]);
 
   useEffect(() => {
     if (params?.id) {
@@ -255,12 +262,9 @@ function EditTeamScreen() {
         setOrganizationName(organizationId ? trimmedOrgName : '');
       }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
-        { text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) }
+        { text: 'OK', onPress: () => safeGoBack(router) }
       ]);
     } catch (e: any) {
-      if (handleCoachAccessError(router, e, 'editing teams')) {
-        return;
-      }
       if (__DEV__) console.error('Team update error:', e);
       if (__DEV__) console.error('Team update error status:', e?.status);
       if (__DEV__) console.error('Team update error data:', e?.data);
@@ -271,26 +275,6 @@ function EditTeamScreen() {
       setSubmitting(false);
     }
   };
-
-  if (coachLoading) {
-    return (
-      <View style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{ title: 'Edit Team', headerShown: false }} />
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading team...</Text>
-      </View>
-    );
-  }
-
-  if (!canAccessCoachTools) {
-    return (
-      <CoachAccessRedirecting
-        backgroundColor={Colors[colorScheme].background}
-        spinnerColor={Colors[colorScheme].tint}
-        textColor={Colors[colorScheme].mutedText}
-      />
-    );
-  }
 
   if (loading) {
     return (
@@ -316,7 +300,7 @@ function EditTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => { safeGoBack(router, fallbackRoute); }}
+            onPress={() => { safeGoBack(router); }}
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
@@ -600,7 +584,7 @@ function EditTeamScreen() {
                                 setMemberSearch('');
                                 setIsOwner(false);
                                 Alert.alert('Ownership Transferred', `${displayName} is now the team owner.`, [
-                                  { text: 'OK', onPress: () => { safeGoBack(router, fallbackRoute); } }
+                                  { text: 'OK', onPress: () => { safeGoBack(router); } }
                                 ]);
                               } catch (e: any) {
                                 const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';

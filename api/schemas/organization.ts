@@ -54,6 +54,11 @@ export const organizationSchema = z
     members_count: z.number().optional(),
     followers_count: z.number().optional(),
     is_following: z.boolean().nullable().optional(),
+    viewer_role: z.string().nullable().optional(),
+    is_member: z.boolean().optional(),
+    is_owner: z.boolean().optional(),
+    can_edit: z.boolean().optional(),
+    can_review_coaches: z.boolean().optional(),
     _count: organizationCountSchema.optional(),
     teams: z.array(organizationTeamSchema).nullable().optional(),
   })

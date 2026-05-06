@@ -200,11 +200,13 @@ function CommunityDiscoverScreen() {
     permissionGranted &&
     needsPreciseAccuracy &&
     !precisionBannerDismissed;
-  // Unified search (users, teams, organizations) - uses same query as zip search
+  // Unified search (users, teams, organizations, games, events)
   const [unifiedSearchResults, setUnifiedSearchResults] = useState<{
     users: any[];
     teams: any[];
     organizations: any[];
+    games: any[];
+    events: any[];
   } | null>(null);
   const [unifiedSearchLoading, setUnifiedSearchLoading] = useState(false);
 
@@ -452,7 +454,7 @@ function CommunityDiscoverScreen() {
     void load().catch(() => {});
   }, [load]);
 
-  // Debounced unified search (users, teams, organizations)
+  // Debounced unified search (users, teams, organizations, games, events)
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed || trimmed.length < 2) {
@@ -469,12 +471,14 @@ function CommunityDiscoverScreen() {
           users: res?.users ?? [],
           teams: res?.teams ?? [],
           organizations: res?.organizations ?? [],
+          games: res?.games ?? [],
+          events: res?.events ?? [],
         });
         saveRecentSearch(trimmed);
         analytics.track(ANALYTICS_EVENTS.SEARCH_PERFORMED, { query: trimmed });
       } catch {
         if (!mounted) return;
-        setUnifiedSearchResults({ users: [], teams: [], organizations: [] });
+        setUnifiedSearchResults({ users: [], teams: [], organizations: [], games: [], events: [] });
       } finally {
         if (mounted) setUnifiedSearchLoading(false);
       }
@@ -854,7 +858,7 @@ function CommunityDiscoverScreen() {
         >
           <MaterialIcons name="search" size={20} color={Colors[colorScheme].mutedText} />
           <TextInput
-            placeholder="Search people, teams, organizations, or zip..."
+            placeholder="Search people, teams, organizations, games, events, or zip..."
             placeholderTextColor={Colors[colorScheme].mutedText}
             value={query}
             onChangeText={v => {
@@ -865,7 +869,7 @@ function CommunityDiscoverScreen() {
             style={[styles.searchInput, { color: Colors[colorScheme].text }]}
             returnKeyType="search"
             onBlur={() => setZipSuggestionsOpen(false)}
-            accessibilityLabel="Search people, teams, organizations, or zip code"
+            accessibilityLabel="Search people, teams, organizations, games, events, or zip code"
           />
         </View>
 
@@ -972,7 +976,7 @@ function CommunityDiscoverScreen() {
         </View>
       )}
 
-      {/* Unified search results - People, Teams, Organizations */}
+      {/* Unified search results - People, Teams, Organizations, Games, Events */}
       {unifiedSearchLoading ? (
         <View style={{ paddingVertical: 24, alignItems: 'center' }}>
           <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
@@ -1312,9 +1316,119 @@ function CommunityDiscoverScreen() {
               ))}
             </View>
           ) : null}
+          {unifiedSearchResults.games.length > 0 ? (
+            <View style={styles.searchSection}>
+              <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>
+                Games
+              </Text>
+              {unifiedSearchResults.games.map(game => (
+                <Pressable
+                  key={game.id}
+                  style={[
+                    styles.searchResultRow,
+                    { borderBottomColor: Colors[colorScheme].border },
+                  ]}
+                  onPress={() => {
+                    setQuery('');
+                    setUnifiedSearchResults(null);
+                    void router.push({ pathname: '/game/[id]', params: { id: String(game.id) } });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View game ${game.title}`}
+                >
+                  <View style={styles.searchResultLeft}>
+                    {game.banner_url ? (
+                      <Image
+                        source={{ uri: optimizeImageUrl(game.banner_url, 120) }}
+                        style={[styles.searchResultAvatar, { borderRadius: 8 }]}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={['#1e293b', '#0f172a']}
+                        style={[styles.searchResultAvatar, { borderRadius: 8 }]}
+                      />
+                    )}
+                    <View>
+                      <Text
+                        style={[styles.searchResultName, { color: Colors[colorScheme].text }]}
+                        numberOfLines={1}
+                      >
+                        {game.title}
+                      </Text>
+                      <Text
+                        style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]}
+                        numberOfLines={1}
+                      >
+                        {[game.location, game.date ? new Date(game.date).toLocaleDateString() : null]
+                          .filter(Boolean)
+                          .join(' • ')}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          {unifiedSearchResults.events.length > 0 ? (
+            <View style={styles.searchSection}>
+              <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>
+                Events
+              </Text>
+              {unifiedSearchResults.events.map(event => (
+                <Pressable
+                  key={event.id}
+                  style={[
+                    styles.searchResultRow,
+                    { borderBottomColor: Colors[colorScheme].border },
+                  ]}
+                  onPress={() => {
+                    setQuery('');
+                    setUnifiedSearchResults(null);
+                    void router.push(`/event-detail?id=${event.id}`);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View event ${event.title}`}
+                >
+                  <View style={styles.searchResultLeft}>
+                    {event.banner_url ? (
+                      <Image
+                        source={{ uri: optimizeImageUrl(event.banner_url, 120) }}
+                        style={[styles.searchResultAvatar, { borderRadius: 8 }]}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={['#1e293b', '#0f172a']}
+                        style={[styles.searchResultAvatar, { borderRadius: 8 }]}
+                      />
+                    )}
+                    <View>
+                      <Text
+                        style={[styles.searchResultName, { color: Colors[colorScheme].text }]}
+                        numberOfLines={1}
+                      >
+                        {event.title}
+                      </Text>
+                      <Text
+                        style={[styles.searchResultSub, { color: Colors[colorScheme].mutedText }]}
+                        numberOfLines={1}
+                      >
+                        {[event.location, event.date ? new Date(event.date).toLocaleDateString() : null]
+                          .filter(Boolean)
+                          .join(' • ')}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           {unifiedSearchResults.users.length === 0 &&
           unifiedSearchResults.teams.length === 0 &&
-          unifiedSearchResults.organizations.length === 0 ? (
+          unifiedSearchResults.organizations.length === 0 &&
+          unifiedSearchResults.games.length === 0 &&
+          unifiedSearchResults.events.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 24 }}>
               <MaterialIcons name="search-off" size={40} color={Colors[colorScheme].mutedText} />
               <Text

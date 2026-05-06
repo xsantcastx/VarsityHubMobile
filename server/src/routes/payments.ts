@@ -10,15 +10,11 @@ import { withDistributedLock } from '../lib/distributedLock.js';
 import { sendAdPaymentConfirmedEmail, sendBillingNoticeEmail } from '../lib/email.js';
 import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
+import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
-import {
-  calculateStripeFee,
-  getTransactionBySession,
-  logTransaction,
-  updateTransactionStatus,
-} from '../lib/transactionLogger.js';
+import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import {
   SERVER_LEGEND_PRICE_CENTS,
@@ -52,9 +48,7 @@ const require = createRequire(import.meta.url);
 const StripeCtor = require('stripe') as typeof import('stripe').default;
 
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
-  throw new Error(
-    'FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.'
-  );
+  throw new Error('FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.');
 }
 if (!process.env.STRIPE_SECRET_KEY) {
   console.error('[payments] STRIPE_SECRET_KEY is not set — payment features will fail');
@@ -69,18 +63,12 @@ const isJestRuntime = process.env.JEST_WORKER_ID != null;
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    console.error(
-      '[payments] FATAL: STRIPE_WEBHOOK_SECRET is not set in production — webhooks will fail silently. Server cannot start.'
-    );
+    console.error('[payments] FATAL: STRIPE_WEBHOOK_SECRET is not set in production — webhooks will fail silently. Server cannot start.');
     process.exit(1);
   }
-  if (!process.env.APPLE_IAP_SHARED_SECRET)
-    console.warn('[payments] Apple IAP shared secret not set — iOS IAP verification disabled');
+  if (!process.env.APPLE_IAP_SHARED_SECRET) console.warn('[payments] Apple IAP shared secret not set — iOS IAP verification disabled');
 } else {
-  if (!process.env.STRIPE_WEBHOOK_SECRET)
-    console.warn(
-      '[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set in development — webhooks will fail silently'
-    );
+  if (!process.env.STRIPE_WEBHOOK_SECRET) console.warn('[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set in development — webhooks will fail silently');
 }
 
 // Admin notification email — first entry from ADMIN_EMAILS env var
@@ -119,7 +107,7 @@ async function releaseAdInventoryAfterSlotFullRefundWithRetry(adId: string) {
     } catch (error) {
       lastError = error;
       if (attempt < 3) {
-        await new Promise(resolve => setTimeout(resolve, 250 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
       }
     }
   }
@@ -129,11 +117,11 @@ async function releaseAdInventoryAfterSlotFullRefundWithRetry(adId: string) {
 async function enforceVerifiedForSubscriptionFlow(
   req: AuthedRequest,
   res: Response,
-  plan?: string
+  plan?: string,
 ) {
   if (!plan?.trim()) return true;
   if (!req.user?.id) {
-    res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
+    res.status(401).json({ error: 'Unauthorized' });
     return false;
   }
   const u = await prisma.user.findUnique({
@@ -142,7 +130,7 @@ async function enforceVerifiedForSubscriptionFlow(
   });
   const verifiedUser = await ensureOAuthUserVerified(u);
   if (!verifiedUser?.email_verified) {
-    res.status(403).json({ error: 'Email verification required' }); // error-envelope-exempt
+    res.status(403).json({ error: 'Email verification required' });
     return false;
   }
   return true;
@@ -185,769 +173,556 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
       });
     }
   } catch (dedupErr: any) {
-    console.error(
-      '[webhook] Failed to record event state for dedup, rejecting for retry:',
-      dedupErr?.message || dedupErr
-    );
+    console.error('[webhook] Failed to record event state for dedup, rejecting for retry:', dedupErr?.message || dedupErr);
     return { status: 500, body: { error: 'Dedup recording failed, will retry' } };
   }
 
   try {
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      if (!session?.id) {
-        console.error('[webhook] Malformed checkout.session.completed — missing session.id', {
-          eventId: event.id,
-        });
-        await markStripeEventFailed(event.id, new Error('Invalid session object'));
-        return { status: 400, body: { error: 'Invalid session object' } };
-      }
-      try {
-        await finalizeFromSession(session);
-      } catch (e) {
-        await markStripeEventFailed(event.id, e);
-        console.error(
-          '[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:',
-          (e as any)?.message || e
-        );
-        captureException(e as Error, {
-          context: 'stripe_webhook_finalize_failed',
-          sessionId: session.id,
-        });
-        return { status: 500, body: { error: 'Finalization failed' } };
-      }
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    if (!session?.id) {
+      console.error('[webhook] Malformed checkout.session.completed — missing session.id', { eventId: event.id });
+      await markStripeEventFailed(event.id, new Error('Invalid session object'));
+      return { status: 400, body: { error: 'Invalid session object' } };
     }
+    try {
+      await finalizeFromSession(session);
+    } catch (e) {
+      await markStripeEventFailed(event.id, e);
+      console.error('[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:', (e as any)?.message || e);
+      captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
+      return { status: 500, body: { error: 'Finalization failed' } };
+    }
+  }
 
-    // Send billing notification emails for subscription events
-    if (event.type === 'invoice.payment_succeeded') {
-      const invoice = event.data.object as Stripe.Invoice;
-      // Log renewal transaction
-      if (invoice.customer && invoice.subscription) {
-        const renewalUser = await prisma.user.findFirst({
-          where: { stripe_customer_id: String(invoice.customer) },
-          select: { id: true },
-        });
-        if (renewalUser) {
-          // v1.0.2 audit fix: await so renewal audit trail is never silently dropped.
-          try {
-            await logTransaction({
-              transactionType: 'SUBSCRIPTION_RENEWAL',
-              status: 'COMPLETED',
-              userId: renewalUser.id,
-              totalCents: invoice.amount_paid || 0,
-              stripeSessionId: String(invoice.id),
-              stripeSubscriptionId: String(invoice.subscription),
-              metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
-            });
-          } catch (err) {
-            captureException(err as Error, { context: 'renewal_transaction_log' });
-          }
+  // Send billing notification emails for subscription events
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object as Stripe.Invoice;
+    // Log renewal transaction
+    if (invoice.customer && invoice.subscription) {
+      const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
+      if (renewalUser) {
+        // v1.0.2 audit fix: await so renewal audit trail is never silently dropped.
+        try {
+          await logTransaction({
+            transactionType: 'SUBSCRIPTION_RENEWAL',
+            status: 'COMPLETED',
+            userId: renewalUser.id,
+            totalCents: invoice.amount_paid || 0,
+            stripeSessionId: String(invoice.id),
+            stripeSubscriptionId: String(invoice.subscription),
+            metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
+          });
+        } catch (err) {
+          captureException(err as Error, { context: 'renewal_transaction_log' });
         }
       }
     }
+  }
 
-    if (event.type === 'invoice.payment_failed') {
-      const invoice = event.data.object as Stripe.Invoice;
-      // Mark user's subscription as past_due so the app can prompt for payment update
-      if (invoice.customer && invoice.subscription) {
-        const failedUser = await prisma.user.findFirst({
-          where: { stripe_customer_id: String(invoice.customer) },
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice;
+    // Mark user's subscription as past_due so the app can prompt for payment update
+    if (invoice.customer && invoice.subscription) {
+      const failedUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) } });
+      if (failedUser) {
+        await prisma.user.update({
+          where: { id: failedUser.id },
+          data: { subscription_status: 'past_due' },
         });
-        if (failedUser) {
-          await prisma.user.update({
-            // cache-invalidation-exempt
-            where: { id: failedUser.id },
-            data: { subscription_status: 'past_due' },
-          });
-          await invalidateMeCacheForUser(failedUser.id);
-          console.warn('[webhook] invoice.payment_failed — marked user as past_due', {
-            userId: failedUser.id,
-            invoiceId: invoice.id,
-          });
-        }
-      }
-      if (invoice.customer_email) {
-        await sendBillingNoticeEmail({
-          to: invoice.customer_email,
-          type: 'payment_failed',
-          planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
-        }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
+        await invalidateMeCacheForUser(failedUser.id);
+        console.warn('[webhook] invoice.payment_failed — marked user as past_due', { userId: failedUser.id, invoiceId: invoice.id });
       }
     }
+    if (invoice.customer_email) {
+      await sendBillingNoticeEmail({
+        to: invoice.customer_email,
+        type: 'payment_failed',
+        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
+    }
+  }
 
-    if (event.type === 'customer.subscription.deleted') {
-      const subscription = event.data.object as Stripe.Subscription;
-      const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
-      if (!customerId) {
-        console.error('[webhook] customer.subscription.deleted: subscription.customer is null');
-        return { status: 400, body: { error: 'Missing customer ID' } };
-      }
-      const customer = await stripe.customers.retrieve(customerId).catch(() => null);
-      const customerEmail = customer && !customer.deleted ? customer.email : null;
-      void customerEmail;
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!customerId) {
+      console.error('[webhook] customer.subscription.deleted: subscription.customer is null');
+      return { status: 400, body: { error: 'Missing customer ID' } };
+    }
+    const customer = await stripe.customers.retrieve(customerId).catch(() => null);
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
+    void customerEmail;
 
-      // Downgrade user to rookie plan now that subscription period has ended
-      const canceledUser = await prisma.user.findFirst({
-        where: { stripe_customer_id: customerId },
+    // Downgrade user to rookie plan now that subscription period has ended
+    const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: customerId } });
+    if (canceledUser) {
+      const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
+      const previousPlan = getCanonicalPlan(canceledUser as any);
+      delete prefs.subscription_id;
+      delete prefs.subscription_period_end;
+      const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
       });
-      if (canceledUser) {
-        const prefs =
-          canceledUser.preferences && typeof canceledUser.preferences === 'object'
-            ? (canceledUser.preferences as any)
-            : {};
-        const previousPlan = getCanonicalPlan(canceledUser as any);
-        delete prefs.subscription_id;
-        delete prefs.subscription_period_end;
-        const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
-          plan: 'rookie',
+      // ATOMIC: downgrade + cancellation log must succeed or fail together
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: canceledUser.id },
+          data: {
+            preferences: nextPrefs,
+            ...buildBillingStateColumns({
+              plan: 'rookie',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_CANCEL',
+            status: 'COMPLETED',
+            stripe_subscription_id: subscription.id,
+            user_id: canceledUser.id,
+            metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
+            subtotal_cents: 0,
+            tax_cents: 0,
+            stripe_fee_cents: 0,
+            discount_cents: 0,
+            total_cents: 0,
+            net_cents: 0,
+            promo_discount_cents: 0,
+            currency: 'usd',
+          },
+        }),
+      ]);
+      await invalidateMeCacheForUser(canceledUser.id);
+    }
+  }
+
+  if (event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const subCustomerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!subCustomerId) {
+      console.error('[webhook] customer.subscription.updated: subscription.customer is null');
+      return { status: 400, body: { error: 'Missing customer ID' } };
+    }
+    const customer = await stripe.customers.retrieve(subCustomerId).catch(() => null);
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
+
+    // Sync subscription state to database (independent of email availability)
+    const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subCustomerId } });
+    if (subUser) {
+      const priceId = subscription.items?.data?.[0]?.price?.id;
+      // Map Stripe price ID back to plan tier
+      let newTier: string = subUser.subscription_tier || 'free';
+      if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
+      else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
+
+      const statusMap: Record<string, string> = {
+        active: 'active', past_due: 'past_due', unpaid: 'unpaid',
+        canceled: 'canceled', incomplete: 'incomplete', incomplete_expired: 'canceled',
+        trialing: 'active', paused: 'paused',
+      };
+      const newStatus = statusMap[subscription.status] || subscription.status;
+
+      // Also update preferences.plan to keep it in sync with subscription_tier
+      const planFromTier = newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
+      const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
+      if (planFromTier && (newStatus === 'active')) {
+        const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
+        updateData.preferences = mergeBillingStateIntoPreferences(existingPrefs, {
+          plan: planFromTier as 'veteran' | 'legend',
           pending_plan: null,
           payment_pending: false,
           payment_approved: false,
         });
-        // ATOMIC: downgrade + cancellation log must succeed or fail together
-        await prisma.$transaction([
-          prisma.user.update({
-            // cache-invalidation-exempt
-            where: { id: canceledUser.id },
+        Object.assign(updateData, buildBillingStateColumns({
+          plan: planFromTier as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }));
+      }
+
+      await prisma.user.update({
+        where: { id: subUser.id },
+        data: updateData,
+      });
+      await invalidateMeCacheForUser(subUser.id);
+      console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
+
+      // Update any PENDING transaction log created by PaymentSheet flow
+      updateTransactionStatus(subscription.id, 'COMPLETED', {
+        metadata: { event: 'subscription.updated', status: subscription.status },
+      }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
+    }
+
+    void customerEmail;
+  }
+
+  // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
+  // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
+  // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
+  // affect the user's plan or ad — they kept access without paying.
+  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+    const charge = event.data.object as Stripe.Charge;
+    const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+    const refundAmount = charge.amount_refunded || charge.amount;
+    try {
+      // Find the original transaction by payment intent
+      const tx = piId
+        ? await prisma.transactionLog.findFirst({ where: { stripe_payment_intent_id: piId }, orderBy: { created_at: 'desc' } })
+        : null;
+      if (!tx) {
+        console.error('[webhook] charge.refunded without matching transactionLog', { charge_id: charge.id, pi: piId });
+        captureException(new Error('charge.refunded: no matching transaction'), { context: 'refund_no_tx', chargeId: charge.id });
+      } else {
+        const promoRollbackRefs = Array.from(
+          new Set(
+            [tx.stripe_payment_intent_id, tx.stripe_session_id]
+              .map((value) => String(value || '').trim())
+              .filter(Boolean)
+          )
+        );
+
+        const { promoRollback } = await prisma.$transaction(async (db) => {
+          const promoRollbackResult = await reversePromoRedemption(
+            { orderReferences: promoRollbackRefs },
+            db
+          );
+
+          await db.transactionLog.update({
+            where: { id: tx.id },
             data: {
-              preferences: nextPrefs,
-              ...buildBillingStateColumns({
+              status: 'REFUNDED' as any,
+              metadata: {
+                ...(tx.metadata as any || {}),
+                refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+                refunded_amount_cents: refundAmount,
+                stripe_charge_id: charge.id,
+                refunded_at: new Date().toISOString(),
+                promo_redemption_reversed: promoRollbackResult.reversed,
+                promo_reversal_count: promoRollbackResult.count,
+                promo_reversal_refs: promoRollbackResult.orderReferences,
+              },
+            },
+          });
+
+          // Cascade based on transaction type:
+          // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+          // - AD_PURCHASE → mark ad refunded + release reservations
+          if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+            const u = await db.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
+            const prefs = (u?.preferences as any) || {};
+            const nextPrefs = mergeBillingStateIntoPreferences(
+              { ...prefs, subscription_id: null, subscription_period_end: null },
+              {
                 plan: 'rookie',
                 pending_plan: null,
                 payment_pending: false,
                 payment_approved: false,
-              }),
-              subscription_tier: 'free',
-              subscription_status: 'canceled',
-            },
-          }),
-          prisma.transactionLog.create({
-            data: {
-              transaction_type: 'SUBSCRIPTION_CANCEL',
-              status: 'COMPLETED',
-              stripe_subscription_id: subscription.id,
-              user_id: canceledUser.id,
-              metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
-              subtotal_cents: 0,
-              tax_cents: 0,
-              stripe_fee_cents: 0,
-              discount_cents: 0,
-              total_cents: 0,
-              net_cents: 0,
-              promo_discount_cents: 0,
-              currency: 'usd',
-            },
-          }),
-        ]);
-        await invalidateMeCacheForUser(canceledUser.id);
-      }
-    }
-
-    if (event.type === 'customer.subscription.updated') {
-      const subscription = event.data.object as Stripe.Subscription;
-      const subCustomerId =
-        typeof subscription.customer === 'string' ? subscription.customer : null;
-      if (!subCustomerId) {
-        console.error('[webhook] customer.subscription.updated: subscription.customer is null');
-        return { status: 400, body: { error: 'Missing customer ID' } };
-      }
-      const customer = await stripe.customers.retrieve(subCustomerId).catch(() => null);
-      const customerEmail = customer && !customer.deleted ? customer.email : null;
-
-      // Sync subscription state to database (independent of email availability)
-      const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subCustomerId } });
-      if (subUser) {
-        const priceId = subscription.items?.data?.[0]?.price?.id;
-        // Map Stripe price ID back to plan tier
-        let newTier: string = subUser.subscription_tier || 'free';
-        if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
-        else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
-
-        const statusMap: Record<string, string> = {
-          active: 'active',
-          past_due: 'past_due',
-          unpaid: 'unpaid',
-          canceled: 'canceled',
-          incomplete: 'incomplete',
-          incomplete_expired: 'canceled',
-          trialing: 'active',
-          paused: 'paused',
-        };
-        const newStatus = statusMap[subscription.status] || subscription.status;
-
-        // Also update preferences.plan to keep it in sync with subscription_tier
-        const planFromTier =
-          newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
-        const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
-        if (planFromTier && newStatus === 'active') {
-          const existingPrefs =
-            subUser.preferences && typeof subUser.preferences === 'object'
-              ? (subUser.preferences as any)
-              : {};
-          updateData.preferences = mergeBillingStateIntoPreferences(existingPrefs, {
-            plan: planFromTier as 'veteran' | 'legend',
-            pending_plan: null,
-            payment_pending: false,
-            payment_approved: false,
-          });
-          Object.assign(
-            updateData,
-            buildBillingStateColumns({
-              plan: planFromTier as 'veteran' | 'legend',
-              pending_plan: null,
-              payment_pending: false,
-              payment_approved: false,
-            })
-          );
-        }
-
-        await prisma.user.update({
-          // cache-invalidation-exempt
-          where: { id: subUser.id },
-          data: updateData,
-        });
-        await invalidateMeCacheForUser(subUser.id);
-        console.log(
-          `[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`
-        );
-
-        // Update any PENDING transaction log created by PaymentSheet flow
-        updateTransactionStatus(subscription.id, 'COMPLETED', {
-          metadata: { event: 'subscription.updated', status: subscription.status },
-        }).catch(err =>
-          captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' })
-        );
-      }
-
-      void customerEmail;
-    }
-
-    // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
-    // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
-    // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
-    // affect the user's plan or ad — they kept access without paying.
-    if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
-      const charge = event.data.object as Stripe.Charge;
-      const piId =
-        typeof charge.payment_intent === 'string'
-          ? charge.payment_intent
-          : charge.payment_intent?.id;
-      const refundAmount = charge.amount_refunded || charge.amount;
-      try {
-        // Find the original transaction by payment intent
-        const tx = piId
-          ? await prisma.transactionLog.findFirst({
-              where: { stripe_payment_intent_id: piId },
-              orderBy: { created_at: 'desc' },
-            })
-          : null;
-        if (!tx) {
-          console.error('[webhook] charge.refunded without matching transactionLog', {
-            charge_id: charge.id,
-            pi: piId,
-          });
-          captureException(new Error('charge.refunded: no matching transaction'), {
-            context: 'refund_no_tx',
-            chargeId: charge.id,
-          });
-        } else {
-          const promoRollbackRefs = Array.from(
-            new Set(
-              [tx.stripe_payment_intent_id, tx.stripe_session_id]
-                .map(value => String(value || '').trim())
-                .filter(Boolean)
-            )
-          );
-
-          const { promoRollback } = await prisma.$transaction(async db => {
-            const promoRollbackResult = await reversePromoRedemption(
-              { orderReferences: promoRollbackRefs },
-              db
+              }
             );
-
-            await db.transactionLog.update({
-              where: { id: tx.id },
+            await db.user.update({
+              where: { id: tx.user_id },
               data: {
-                status: 'REFUNDED' as any,
-                metadata: {
-                  ...((tx.metadata as any) || {}),
-                  refund_source:
-                    event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
-                  refunded_amount_cents: refundAmount,
-                  stripe_charge_id: charge.id,
-                  refunded_at: new Date().toISOString(),
-                  promo_redemption_reversed: promoRollbackResult.reversed,
-                  promo_reversal_count: promoRollbackResult.count,
-                  promo_reversal_refs: promoRollbackResult.orderReferences,
-                },
-              },
-            });
-
-            // Cascade based on transaction type:
-            // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
-            // - AD_PURCHASE → mark ad refunded + release reservations
-            if (
-              tx.user_id &&
-              (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
-                tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
-            ) {
-              const u = await db.user.findUnique({
-                where: { id: tx.user_id },
-                select: { preferences: true },
-              });
-              const prefs = (u?.preferences as any) || {};
-              const nextPrefs = mergeBillingStateIntoPreferences(
-                { ...prefs, subscription_id: null, subscription_period_end: null },
-                {
+                preferences: nextPrefs,
+                ...buildBillingStateColumns({
                   plan: 'rookie',
                   pending_plan: null,
                   payment_pending: false,
                   payment_approved: false,
-                }
-              );
-              await db.user.update({
-                // cache-invalidation-exempt
-                where: { id: tx.user_id },
-                data: {
-                  preferences: nextPrefs,
-                  ...buildBillingStateColumns({
-                    plan: 'rookie',
-                    pending_plan: null,
-                    payment_pending: false,
-                    payment_approved: false,
-                  }),
-                  subscription_tier: 'free',
-                  subscription_status: 'cancelled',
-                  max_teams: SERVER_ROOKIE_TEAM_LIMIT,
-                },
-              });
-            } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-              await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
-              await db.ad.updateMany({
-                where: { id: tx.order_id },
-                data: { status: 'draft', payment_status: 'refunded' },
-              });
-            }
-
-            return { promoRollback: promoRollbackResult };
-          });
-
-          if (
-            tx.user_id &&
-            (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
-              tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
-          ) {
-            await invalidateMeCacheForUser(tx.user_id);
-            console.warn('[webhook] User downgraded to rookie after Stripe refund', {
-              user_id: tx.user_id,
+                }),
+                subscription_tier: 'free',
+                subscription_status: 'cancelled',
+                max_teams: 3,
+              },
             });
           } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-            console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
-          }
-
-          if (promoRollback.reversed) {
-            console.warn('[webhook] Promo redemption reversed after refund', {
-              transaction_id: tx.id,
-              refs: promoRollback.orderReferences,
-              count: promoRollback.count,
+            await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
+            await db.ad.updateMany({
+              where: { id: tx.order_id },
+              data: { status: 'draft', payment_status: 'refunded' },
             });
           }
+
+          return { promoRollback: promoRollbackResult };
+        });
+
+        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+          await invalidateMeCacheForUser(tx.user_id);
+          console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
+        } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+          console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
         }
-      } catch (refundErr: any) {
-        console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
-        captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+
+        if (promoRollback.reversed) {
+          console.warn('[webhook] Promo redemption reversed after refund', {
+            transaction_id: tx.id,
+            refs: promoRollback.orderReferences,
+            count: promoRollback.count,
+          });
+        }
+      }
+    } catch (refundErr: any) {
+      console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
+      captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+    }
+  }
+
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await updateTransactionStatus(session.id, 'FAILED', {
+      metadata: { reason: 'checkout_expired' },
+    }).catch(err => { console.error('[transaction-log] expired session update failed:', err); captureException(err as Error, { context: 'transaction_log_expired_session' }); });
+
+    // Release ad slot holds if this was an ad checkout
+    const expiredAdId = session.metadata?.ad_id;
+    if (expiredAdId) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: expiredAdId }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
+            prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on expiry:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_expired', adId: expiredAdId });
+      }
+    }
+  }
+
+  // Handle failed payment intents
+  if (event.type === 'payment_intent.payment_failed') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    await logTransaction({
+      transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+      status: 'FAILED',
+      stripePaymentIntentId: pi.id,
+      userId: meta.user_id || undefined,
+      totalCents: pi.amount,
+      metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
+    }).catch(err => { console.error('[transaction-log] failed payment log failed:', err); captureException(err as Error, { context: 'transaction_log_failed_payment' }); });
+
+    // Release ad slot holds on payment failure
+    if (meta.ad_id) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: meta.ad_id }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
+            prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on payment failure:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_failed_pi', adId: meta.ad_id });
       }
     }
 
-    if (event.type === 'checkout.session.expired') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      await updateTransactionStatus(session.id, 'FAILED', {
-        metadata: { reason: 'checkout_expired' },
-      }).catch(err => {
-        console.error('[transaction-log] expired session update failed:', err);
-        captureException(err as Error, { context: 'transaction_log_expired_session' });
-      });
-
-      // Release ad slot holds if this was an ad checkout
-      const expiredAdId = session.metadata?.ad_id;
-      if (expiredAdId) {
-        try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: expiredAdId },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
-              prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on expiry:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_expired',
-            adId: expiredAdId,
-          });
-        }
+    // Notify user of failed payment
+    if (meta.user_id) {
+      const failedUser = await prisma.user.findUnique({ where: { id: meta.user_id } });
+      if (failedUser?.email) {
+        await sendBillingNoticeEmail({
+          to: failedUser.email,
+          type: 'payment_failed',
+          amount: `$${(pi.amount / 100).toFixed(2)}`,
+          planName: meta.ad_id ? 'Ad Purchase' : 'VarsityHub Subscription',
+        }).catch(err => console.warn('[billing-email] payment_intent.failed notification failed:', err));
       }
     }
+  }
 
-    // Handle failed payment intents
-    if (event.type === 'payment_intent.payment_failed') {
-      const pi = event.data.object as Stripe.PaymentIntent;
-      const meta = pi.metadata || {};
-      await logTransaction({
-        transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
-        status: 'FAILED',
-        stripePaymentIntentId: pi.id,
-        userId: meta.user_id || undefined,
-        totalCents: pi.amount,
-        metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
-      }).catch(err => {
-        console.error('[transaction-log] failed payment log failed:', err);
-        captureException(err as Error, { context: 'transaction_log_failed_payment' });
-      });
-
-      // Release ad slot holds on payment failure
-      if (meta.ad_id) {
+  // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
+  if (event.type === 'payment_intent.succeeded') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    if (meta.ad_id) {
+      const adId = meta.ad_id;
+      let piDates: string[] = [];
+      try { piDates = JSON.parse(String(meta.dates || '[]')); } catch { /* ignore */ }
+      if (piDates.length > 0) {
         try {
-          const heldAd = await prisma.ad.findUnique({
-            where: { id: meta.ad_id },
-            select: { payment_status: true },
-          });
-          if (heldAd?.payment_status === 'hold') {
-            await prisma.$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
-              prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
-            ]);
-            debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
-          }
-        } catch (releaseErr) {
-          console.error(
-            '[webhook] Failed to release ad hold on payment failure:',
-            (releaseErr as any)?.message
-          );
-          captureException(releaseErr as Error, {
-            context: 'release_ad_hold_failed_pi',
-            adId: meta.ad_id,
-          });
-        }
-      }
-
-      // Notify user of failed payment
-      if (meta.user_id) {
-        const failedUser = await prisma.user.findUnique({ where: { id: meta.user_id } });
-        if (failedUser?.email) {
-          await sendBillingNoticeEmail({
-            to: failedUser.email,
-            type: 'payment_failed',
-            amount: `$${(pi.amount / 100).toFixed(2)}`,
-            planName: meta.ad_id ? 'Ad Purchase' : 'VarsityHub Subscription',
-          }).catch(err =>
-            console.warn('[billing-email] payment_intent.failed notification failed:', err)
-          );
-        }
-      }
-    }
-
-    // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
-    if (event.type === 'payment_intent.succeeded') {
-      const pi = event.data.object as Stripe.PaymentIntent;
-      const meta = pi.metadata || {};
-      if (meta.ad_id) {
-        const adId = meta.ad_id;
-        let piDates: string[] = [];
-        try {
-          piDates = JSON.parse(String(meta.dates || '[]'));
-        } catch {
-          /* ignore */
-        }
-        if (piDates.length > 0) {
-          try {
-            await prisma.$transaction(
-              async tx => {
-                const MAX_AD_SLOTS = 2;
-                const adRecord = await tx.ad.findUnique({
-                  where: { id: adId },
-                  select: { target_zip_code: true },
+          await prisma.$transaction(async (tx) => {
+            const MAX_AD_SLOTS = 2;
+            const adRecord = await tx.ad.findUnique({ where: { id: adId }, select: { target_zip_code: true } });
+            if (adRecord?.target_zip_code) {
+              // Count paid and held ads (excluding this one) to check slot availability
+              const reservedAdsInZip = await tx.ad.findMany({
+                where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: adId } },
+                select: { id: true },
+                take: 100,
+              });
+              if (reservedAdsInZip.length > 0) {
+                const dateObjects = piDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+                const bookedSlots = await tx.adReservation.groupBy({
+                  by: ['date'],
+                  where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+                  _count: { date: true },
                 });
-                if (adRecord?.target_zip_code) {
-                  // Count paid and held ads (excluding this one) to check slot availability
-                  const reservedAdsInZip = await tx.ad.findMany({
-                    where: {
-                      target_zip_code: adRecord.target_zip_code,
-                      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-                      NOT: { id: adId },
-                    },
-                    select: { id: true },
-                    take: 100,
-                  });
-                  if (reservedAdsInZip.length > 0) {
-                    const dateObjects = piDates.map(s => new Date(s + 'T00:00:00.000Z'));
-                    const bookedSlots = await tx.adReservation.groupBy({
-                      by: ['date'],
-                      where: {
-                        ad_id: { in: reservedAdsInZip.map(a => a.id) },
-                        date: { in: dateObjects },
-                      },
-                      _count: { date: true },
-                    });
-                    const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-                    if (fullDates.length > 0) {
-                      const err = new Error('SLOT_FULL') as any;
-                      err.slotFull = true;
-                      err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-                      throw err;
-                    }
-                  }
+                const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+                if (fullDates.length > 0) {
+                  const err = new Error('SLOT_FULL') as any;
+                  err.slotFull = true;
+                  err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+                  throw err;
                 }
-                // SECURITY: Only activate ads that have been approved by admin.
-                // Use the same lost-race + idempotency guard as the Checkout Session path.
-                const adCheck = await tx.ad.findUnique({
-                  where: { id: adId },
-                  select: { status: true, payment_status: true },
-                });
-                if (adCheck?.payment_status === 'paid') {
-                  console.log(
-                    `[payments] Idempotent: ad ${adId} already paid, skipping duplicate PaymentIntent activation`
-                  );
-                  return;
-                }
-                if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`
-                  );
-                }
-
-                const updated = await tx.ad.updateMany({
-                  where: { id: adId, status: { in: ['approved', 'active'] } },
-                  data: { payment_status: 'paid', status: 'active' },
-                });
-                if (updated.count === 0) {
-                  throw new Error(
-                    `AD_NOT_APPROVED: Ad ${adId} was no longer approved at activation time`
-                  );
-                }
-                await tx.adReservation.createMany({
-                  data: piDates.map(s => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
-                  skipDuplicates: true,
-                });
-              },
-              { isolationLevel: 'Serializable' }
-            );
-
-            // Update transaction
-            await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
-            // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
-            const adForEmail = await prisma.ad.findUnique({
-              where: { id: adId },
-              select: { business_name: true, target_zip_code: true },
-            });
-            sendAdPaymentEmail({
-              userId: meta.user_id || null,
-              adId,
-              dates: piDates,
-              totalCents: pi.amount,
-              businessName: adForEmail?.business_name,
-              zipCode: adForEmail?.target_zip_code,
-            }).catch(err =>
-              console.warn('[webhook] ad payment receipt failed:', (err as any)?.message || err)
-            );
-            // Ad was already approved before payment — no admin review needed
-
-            // Redeem promo code if one was used — retry up to 3 times to prevent reuse
-            if (meta.promo_code && meta.user_id) {
-              const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
-              let promoRedeemed = false;
-              for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                  await redeemPromo({
-                    code: meta.promo_code,
-                    subtotalCents: promoSubtotal,
-                    userId: meta.user_id || '',
-                    service: 'booking',
-                    orderId: pi.id,
-                  });
-                  promoRedeemed = true;
-                  break;
-                } catch (e) {
-                  console.warn(
-                    `[webhook] promo redeem attempt ${attempt}/3 failed:`,
-                    (e as any)?.message
-                  );
-                  if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
-                }
-              }
-              if (!promoRedeemed) {
-                // PAY-5: Payment succeeded but promo usage wasn't decremented — promo can be reused.
-                // Use NEEDS_REVIEW (not FAILED — the payment completed) so the admin
-                // dashboard surfaces it without misrepresenting the payment outcome.
-                console.error(
-                  '[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable',
-                  { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id }
-                );
-                captureException(
-                  new Error('Promo redemption failed after retries — revenue leak risk'),
-                  {
-                    context: 'promo_redeem_failed',
-                    promoCode: meta.promo_code,
-                    piId: pi.id,
-                    userId: meta.user_id,
-                    level: 'fatal',
-                  }
-                );
-                updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
-                  metadata: {
-                    promo_redemption_failed: true,
-                    promo_code: meta.promo_code,
-                    needs_review: true,
-                  },
-                }).catch(err =>
-                  console.warn('[webhook] failed to flag promo redemption failure:', err)
-                );
               }
             }
-          } catch (e: any) {
-            if (e?.slotFull) {
-              console.error(
-                '[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund',
-                { ad_id: adId, dates: e.dates, pi_id: pi.id }
-              );
-              // Auto-refund: charge the user's card back immediately
+            // SECURITY: Only activate ads that have been approved by admin
+            const adCheck = await tx.ad.findUnique({ where: { id: adId }, select: { status: true } });
+            if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
+              throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`);
+            }
+
+            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
+            await tx.adReservation.createMany({
+              data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
+              skipDuplicates: true,
+            });
+          }, { isolationLevel: 'Serializable' });
+
+          // Update transaction
+          await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+          // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
+          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+          sendAdPaymentEmail({
+            userId: meta.user_id || null,
+            adId,
+            dates: piDates,
+            totalCents: pi.amount,
+            businessName: adForEmail?.business_name,
+            zipCode: adForEmail?.target_zip_code,
+          }).catch((err) => console.warn('[webhook] ad payment receipt failed:', (err as any)?.message || err));
+          // Ad was already approved before payment — no admin review needed
+
+          // Redeem promo code if one was used — retry up to 3 times to prevent reuse
+          if (meta.promo_code && meta.user_id) {
+            const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
+            let promoRedeemed = false;
+            for (let attempt = 1; attempt <= 3; attempt++) {
               try {
-                const refund = await stripe.refunds.create({
-                  payment_intent: pi.id,
-                  reason: 'requested_by_customer',
+                await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id });
+                promoRedeemed = true;
+                break;
+              } catch (e) {
+                console.warn(`[webhook] promo redeem attempt ${attempt}/3 failed:`, (e as any)?.message);
+                if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+              }
+            }
+            if (!promoRedeemed) {
+              // PAY-5: Payment succeeded but promo usage wasn't decremented — promo can be reused.
+              // Use NEEDS_REVIEW (not FAILED — the payment completed) so the admin
+              // dashboard surfaces it without misrepresenting the payment outcome.
+              console.error('[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable', { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id });
+              captureException(new Error('Promo redemption failed after retries — revenue leak risk'), {
+                context: 'promo_redeem_failed',
+                promoCode: meta.promo_code,
+                piId: pi.id,
+                userId: meta.user_id,
+                level: 'fatal',
+              });
+              updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
+                metadata: { promo_redemption_failed: true, promo_code: meta.promo_code, needs_review: true },
+              }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
+            }
+          }
+        } catch (e: any) {
+          if (e?.slotFull) {
+            console.error('[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund', { ad_id: adId, dates: e.dates, pi_id: pi.id });
+            // Auto-refund: charge the user's card back immediately
+            try {
+              const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
+              try {
+                await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
+                await updateTransactionStatus(pi.id, 'REFUNDED', {
+                  metadata: {
+                    reason: 'slot_full',
+                    overbooked_dates: e.dates,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                  },
                 });
-                try {
-                  await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
-                  await updateTransactionStatus(pi.id, 'REFUNDED', {
-                    metadata: {
-                      reason: 'slot_full',
-                      overbooked_dates: e.dates,
-                      stripe_refund_id: refund.id,
-                      refunded_amount_cents: refund.amount ?? pi.amount,
-                      refund_currency: refund.currency || 'usd',
-                      refund_status: refund.status || 'pending',
-                      refunded_at: new Date().toISOString(),
-                    },
-                  });
-                } catch (releaseErr: any) {
-                  console.error(
-                    '[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED',
-                    {
-                      ad_id: adId,
-                      pi_id: pi.id,
-                      error: releaseErr?.message,
-                    }
-                  );
-                  captureException(releaseErr as Error, {
-                    context: 'slot_full_release_after_refund_failed',
-                    adId,
-                    piId: pi.id,
-                    refundId: refund.id,
-                  });
-                  await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
-                    metadata: {
-                      reason: 'slot_full_release_failed',
-                      overbooked_dates: e.dates,
-                      stripe_refund_id: refund.id,
-                      refunded_amount_cents: refund.amount ?? pi.amount,
-                      refund_currency: refund.currency || 'usd',
-                      refund_status: refund.status || 'pending',
-                      refunded_at: new Date().toISOString(),
-                      release_pending: true,
-                      release_error: releaseErr?.message || 'release_failed',
-                    },
-                  });
-                }
-                // Notify user their dates were unavailable and they've been refunded
-                const adForRefund = await prisma.ad.findUnique({
-                  where: { id: adId },
-                  select: { business_name: true, target_zip_code: true },
-                });
-                const refundUser = meta.user_id
-                  ? await prisma.user.findUnique({
-                      where: { id: meta.user_id },
-                      select: { email: true },
-                    })
-                  : null;
-                if (refundUser?.email) {
-                  sendBillingNoticeEmail({
-                    to: refundUser.email,
-                    type: 'payment_failed',
-                    planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
-                    amount: `$${(pi.amount / 100).toFixed(2)}`,
-                    perks: [
-                      `Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(pi.amount / 100).toFixed(2)}.`,
-                    ],
-                  }).catch(err => {
-                    console.error('[payments] Failed to send refund email:', err);
-                    captureException(err as Error, {
-                      context: 'slot_full_refund_email',
-                      adId,
-                      piId: pi.id,
-                    });
-                  });
-                }
-              } catch (refundErr: any) {
-                // Refund failed — this is critical, requires manual intervention
-                console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', {
+              } catch (releaseErr: any) {
+                console.error('[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED', {
                   ad_id: adId,
                   pi_id: pi.id,
-                  error: refundErr?.message,
+                  error: releaseErr?.message,
                 });
-                captureException(refundErr as Error, {
-                  context: 'slot_full_auto_refund_failed',
+                captureException(releaseErr as Error, {
+                  context: 'slot_full_release_after_refund_failed',
                   adId,
                   piId: pi.id,
-                  amount: pi.amount,
+                  refundId: refund.id,
                 });
-                await updateTransactionStatus(pi.id, 'FAILED', {
+                await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
                   metadata: {
-                    reason: 'slot_full_refund_failed',
+                    reason: 'slot_full_release_failed',
                     overbooked_dates: e.dates,
-                    refund_failed: true,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                    release_pending: true,
+                    release_error: releaseErr?.message || 'release_failed',
                   },
-                }).catch(err => {
-                  console.error('[transaction-log] PI slot-full status update failed:', err);
-                  captureException(err as Error, { context: 'transaction_log_slot_full_pi' });
                 });
-                await markStripeEventFailed(event.id, refundErr);
-                return { status: 500, body: { error: 'Auto-refund failed; retrying webhook' } };
               }
-            } else {
-              await markStripeEventFailed(event.id, e);
-              console.error(
-                '[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry',
-                { ad_id: adId, pi_id: pi.id, error: e }
-              );
-              captureException(e as Error, {
-                context: 'payment_intent_succeeded_ad',
-                adId,
-                piId: pi.id,
-              });
-              return { status: 500, body: { error: 'Ad processing failed' } };
+              // Notify user their dates were unavailable and they've been refunded
+              const adForRefund = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+              const refundUser = meta.user_id ? await prisma.user.findUnique({ where: { id: meta.user_id }, select: { email: true } }) : null;
+              if (refundUser?.email) {
+                sendBillingNoticeEmail({
+                  to: refundUser.email,
+                  type: 'payment_failed',
+                  planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
+                  amount: `$${(pi.amount / 100).toFixed(2)}`,
+                  perks: [`Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(pi.amount / 100).toFixed(2)}.`],
+                }).catch(err => {
+                  console.error('[payments] Failed to send refund email:', err);
+                  captureException(err as Error, { context: 'slot_full_refund_email', adId, piId: pi.id });
+                });
+              }
+            } catch (refundErr: any) {
+              // Refund failed — this is critical, requires manual intervention
+              console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { ad_id: adId, pi_id: pi.id, error: refundErr?.message });
+              captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed', adId, piId: pi.id, amount: pi.amount });
+              await updateTransactionStatus(pi.id, 'FAILED', {
+                metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
+              }).catch(err => { console.error('[transaction-log] PI slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full_pi' }); });
+              await markStripeEventFailed(event.id, refundErr);
+              return { status: 500, body: { error: 'Auto-refund failed; retrying webhook' } };
             }
+          } else {
+            await markStripeEventFailed(event.id, e);
+            console.error('[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry', { ad_id: adId, pi_id: pi.id, error: e });
+            captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
+            return { status: 500, body: { error: 'Ad processing failed' } };
           }
         }
       }
     }
+  }
   } catch (eventErr: any) {
     await markStripeEventFailed(event.id, eventErr);
-    console.error(
-      '[webhook] CRITICAL: Unhandled webhook processing failure:',
-      eventErr?.message || eventErr
-    );
-    captureException(eventErr as Error, {
-      context: 'stripe_webhook_unhandled_processing_error',
-      eventType: event.type,
-      eventId: event.id,
-    });
+    console.error('[webhook] CRITICAL: Unhandled webhook processing failure:', eventErr?.message || eventErr);
+    captureException(eventErr as Error, { context: 'stripe_webhook_unhandled_processing_error', eventType: event.type, eventId: event.id });
     return { status: 500, body: { error: 'Webhook processing failed' } };
   }
 
@@ -955,16 +730,20 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
   return { status: 200, body: { received: true } };
 }
 
+
 // Public config for coach onboarding and payment UI (no auth required)
 paymentsRouter.get('/config', (_req, res) => {
   const stripePublishableKey =
-    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+    process.env.STRIPE_PUBLISHABLE_KEY ||
+    '';
   const availablePlans = getAllPlanDefinitions();
-  const stripeConfigured = !!(stripePublishableKey && process.env.STRIPE_SECRET_KEY);
+  const stripeConfigured = !!(
+    stripePublishableKey &&
+    process.env.STRIPE_SECRET_KEY
+  );
   if (!stripeConfigured) {
-    return res
-      .status(503)
-      .json({ error: 'Payment system not configured', payments_enabled: false });
+    return res.status(503).json({ error: 'Payment system not configured', payments_enabled: false });
   }
   res.json({
     stripe_publishable_key: stripePublishableKey,
@@ -991,7 +770,7 @@ paymentsRouter.post(
         .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     }
 
-    const isoDates = Array.from(new Set(parsed.data.dates.map(d => String(d))));
+    const isoDates = Array.from(new Set(parsed.data.dates.map((d) => String(d))));
     const quote = await buildAdQuote({
       adId: parsed.data.ad_id,
       userId: req.user!.id,
@@ -1000,7 +779,6 @@ paymentsRouter.post(
     });
     if ('error' in quote) {
       return res.status(quote.status!).json({
-        // error-envelope-exempt
         error: quote.error!,
         ...(quote.dates ? { dates: quote.dates } : {}),
       });
@@ -1029,7 +807,7 @@ function getPastAdDates(isoDates: string[], now: Date = new Date()): string[] {
   const todayIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
     .toISOString()
     .slice(0, 10);
-  return isoDates.filter(dateIso => dateIso < todayIso);
+  return isoDates.filter((dateIso) => dateIso < todayIso);
 }
 
 async function buildAdQuote(params: {
@@ -1103,7 +881,10 @@ async function buildAdQuote(params: {
   };
 }
 
-function getCheckoutReturnUrls(params: { type: 'subscription' | 'ad'; mode?: 'app' | 'web' }) {
+function getCheckoutReturnUrls(params: {
+  type: 'subscription' | 'ad';
+  mode?: 'app' | 'web';
+}) {
   if (params.mode === 'web') {
     const appBase = (process.env.APP_BASE_URL || process.env.EXPO_PUBLIC_API_URL || '')
       .trim()
@@ -1128,10 +909,7 @@ function getCheckoutReturnUrls(params: { type: 'subscription' | 'ad'; mode?: 'ap
 async function getUserEmail(userId?: string | null, fallbackEmail?: string | null) {
   if (fallbackEmail && fallbackEmail.includes('@')) return fallbackEmail;
   if (!userId) return null;
-  const user = await prisma.user.findUnique({
-    where: { id: String(userId) },
-    select: { email: true },
-  });
+  const user = await prisma.user.findUnique({ where: { id: String(userId) }, select: { email: true } });
   return user?.email || null;
 }
 
@@ -1170,17 +948,12 @@ async function sendAdPaymentEmail({
     hoursLabel = `${hoursRemaining} hrs (${dates.length} day${dates.length !== 1 ? 's' : ''})`;
   }
 
-  const formattedDates = [...dates].sort().map(d => {
+  const formattedDates = [...dates].sort().map((d) => {
     try {
       return new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
       });
-    } catch {
-      return d;
-    }
+    } catch { return d; }
   });
 
   try {
@@ -1225,7 +998,7 @@ async function sendSubscriptionEmail({
 // and proper week-block grouping (multiple dates in same week = single charge)
 
 const membershipPlans = ['veteran', 'legend'] as const;
-type MembershipPlan = (typeof membershipPlans)[number];
+type MembershipPlan = typeof membershipPlans[number];
 
 const membershipPriceIds: Record<MembershipPlan, string | undefined> = {
   veteran: process.env.STRIPE_PRICE_VETERAN,
@@ -1254,35 +1027,20 @@ async function getVeteranBillingSnapshot(
   };
 }
 
-async function createMembershipCheckoutSession(
-  req: AuthedRequest,
-  planValue: unknown,
-  promoCode?: string,
-  teamCount?: number,
-  organizationId?: string
-) {
+async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown, promoCode?: string, teamCount?: number, organizationId?: string) {
   if (!process.env.STRIPE_SECRET_KEY) throw membershipError(500, 'Stripe not configured');
-  if (typeof planValue !== 'string' || !planValue.trim())
-    throw membershipError(400, 'plan is required');
+  if (typeof planValue !== 'string' || !planValue.trim()) throw membershipError(400, 'plan is required');
   const raw = planValue.trim().toLowerCase();
-  if (raw !== 'veteran' && raw !== 'legend')
-    throw membershipError(400, 'Invalid plan for subscription');
+  if (raw !== 'veteran' && raw !== 'legend') throw membershipError(400, 'Invalid plan for subscription');
   const chosen = raw as MembershipPlan;
   let actualTeamCount = 0;
   let billableQuantity = 1;
 
   // Verify org ownership if organization_id provided
   if (organizationId) {
-    const orgMembership = await prisma.organizationMembership.findUnique({
-      where: {
-        organization_id_user_id: { organization_id: organizationId, user_id: req.user!.id },
-      },
-    });
-    if (!orgMembership || orgMembership.role !== 'owner') {
-      throw membershipError(
-        403,
-        'Only the organization owner can purchase a subscription for the organization'
-      );
+    const orgMembership = await getOrganizationMembership(req.user!.id, organizationId);
+    if (!orgMembership || orgMembership.role !== 'owner' || orgMembership.status !== 'active') {
+      throw membershipError(403, 'Only the organization owner can purchase a subscription for the organization');
     }
   }
 
@@ -1322,8 +1080,7 @@ async function createMembershipCheckoutSession(
       payment_approved: true,
     },
   });
-  const prefs =
-    user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
+  const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
   const userRole = getCanonicalUserRole(user as any);
 
   // Block checkout if coach hasn't been approved yet
@@ -1331,7 +1088,7 @@ async function createMembershipCheckoutSession(
     throw membershipError(403, 'Your league must be approved before you can subscribe.');
   }
   const currentPlan = getCanonicalPlan(user as any);
-
+  
   // Only block if user already has the exact same paid plan they're trying to purchase
   // Allow upgrades from rookie to veteran/legend, and between veteran/legend
   if (currentPlan === chosen) {
@@ -1344,20 +1101,17 @@ async function createMembershipCheckoutSession(
   try {
     const recentSessions = await stripe.checkout.sessions.list({
       limit: 10,
-      created: { gte: Math.floor((Date.now() - 10 * 60 * 1000) / 1000) }, // Last 10 minutes
+      created: { gte: Math.floor((Date.now() - 10 * 60 * 1000) / 1000) } // Last 10 minutes
     });
-
-    const recentUserSession = recentSessions.data.find(
-      session =>
-        session.metadata?.user_id === userId &&
-        session.metadata?.plan === chosen &&
-        session.payment_status === 'paid' // Only consider actually paid sessions
+    
+    const recentUserSession = recentSessions.data.find(session => 
+      session.metadata?.user_id === userId && 
+      session.metadata?.plan === chosen &&
+      session.payment_status === 'paid' // Only consider actually paid sessions
     );
 
     if (recentUserSession) {
-      debugLog(
-        '[payments] Recent PAID session found, updating user preferences from Stripe session'
-      );
+      debugLog('[payments] Recent PAID session found, updating user preferences from Stripe session');
       // Update user preferences from the recent successful session
       await finalizeFromSession(recentUserSession);
       throw membershipError(400, 'Payment already processed recently');
@@ -1369,41 +1123,33 @@ async function createMembershipCheckoutSession(
   const priceIdRaw = membershipPriceIds[chosen];
   const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
   const placeholderHints = ['price_xxx', 'price_yyy', 'your_price_id'];
-  const isPlaceholder =
-    normalizedPriceId.length === 0 ||
-    placeholderHints.some(hint => normalizedPriceId.toLowerCase().includes(hint));
+  const isPlaceholder = normalizedPriceId.length === 0 || placeholderHints.some((hint) => normalizedPriceId.toLowerCase().includes(hint));
   const hasExplicitPriceId = /^price_/i.test(normalizedPriceId) && !isPlaceholder;
   if (!hasExplicitPriceId && normalizedPriceId) {
     console.warn('[payments] Ignoring invalid Stripe price id for plan', chosen, normalizedPriceId);
   }
 
   if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
-    throw membershipError(
-      500,
-      `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.`
-    );
+    throw membershipError(500, `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.`);
   }
 
   const lineItems = hasExplicitPriceId
     ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
-    : [
-        {
-          quantity: chosen === 'veteran' ? billableQuantity : 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount:
-              chosen === 'veteran' ? SERVER_VETERAN_PRICE_CENTS : SERVER_LEGEND_PRICE_CENTS,
-            recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
-            product_data: {
-              name: 'Membership - ' + chosen,
-              description:
-                chosen === 'veteran'
-                  ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
-                  : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
-            },
+    : [{
+        quantity: chosen === 'veteran' ? billableQuantity : 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount:
+            chosen === 'veteran' ? SERVER_VETERAN_PRICE_CENTS : SERVER_LEGEND_PRICE_CENTS,
+          recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
+          product_data: {
+            name: 'Membership - ' + chosen,
+            description: chosen === 'veteran'
+              ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+              : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
           },
         },
-      ];
+      }];
 
   const { success, cancel } = getCheckoutReturnUrls({ type: 'subscription' });
 
@@ -1428,11 +1174,9 @@ async function createMembershipCheckoutSession(
   if (promoCode && typeof promoCode === 'string' && promoCode.trim()) {
     try {
       // Stripe accepts promotion codes directly in checkout sessions
-      sessionConfig.discounts = [
-        {
-          promotion_code: promoCode.trim(),
-        },
-      ];
+      sessionConfig.discounts = [{
+        promotion_code: promoCode.trim(),
+      }];
       debugLog(`[payments] Applying promo code to subscription: ${promoCode.trim()}`);
     } catch (promoErr) {
       console.warn('[payments] Failed to apply promo code:', promoErr);
@@ -1444,9 +1188,7 @@ async function createMembershipCheckoutSession(
   // Do NOT cancel here — if user abandons checkout, they'd lose their current subscription
   const existingSubId = prefs.subscription_id;
   if (existingSubId && currentPlan !== 'rookie') {
-    debugLog(
-      `[payments] User has existing subscription ${existingSubId} — will cancel after new payment completes`
-    );
+    debugLog(`[payments] User has existing subscription ${existingSubId} — will cancel after new payment completes`);
   }
 
   // v1.0.2 audit fix: idempotency key was drifting every 60s via Math.floor(Date.now()/60000).
@@ -1455,24 +1197,19 @@ async function createMembershipCheckoutSession(
   // meaningful retry protection without blocking legitimate new upgrades.
   const clientKey = (req.headers['x-idempotency-key'] as string) || '';
   if (!clientKey && process.env.NODE_ENV !== 'production') {
-    console.warn(
-      '[payments] No x-idempotency-key header on /payments/checkout — using 1h fallback window. Client should supply a UUID per checkout attempt.'
-    );
+    console.warn('[payments] No x-idempotency-key header on /payments/checkout — using 1h fallback window. Client should supply a UUID per checkout attempt.');
   }
-  const idempotencyKey =
-    clientKey ||
-    `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+  const idempotencyKey = clientKey || `membership_${req.user!.id}_${chosen}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
   const session = await stripe.checkout.sessions.create(sessionConfig, { idempotencyKey });
 
   // Log subscription transaction
-  const currentUser = await prisma.user.findUnique({
+  const currentUser = await prisma.user.findUnique({ 
     where: { id: req.user!.id },
-    select: { email: true },
+    select: { email: true }
   });
-  const amount =
-    chosen === 'veteran'
-      ? SERVER_VETERAN_PRICE_CENTS * billableQuantity
-      : SERVER_LEGEND_PRICE_CENTS;
+  const amount = chosen === 'veteran'
+    ? SERVER_VETERAN_PRICE_CENTS * billableQuantity
+    : SERVER_LEGEND_PRICE_CENTS;
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -1530,860 +1267,483 @@ async function getOrCreateStripeCustomer(userId: string, email?: string | null) 
 }
 
 // Create a Stripe Checkout Session for ad reservations
-paymentsRouter.post(
-  '/checkout',
-  expressPkg.json(),
-  requireAuth as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const checkoutSchema = z.object({
-      ad_id: z.string().optional(),
-      dates: z.array(z.string()).optional(),
-      promo_code: z.string().optional(),
-      plan: z.string().optional(),
-      team_count: z.number().optional(),
-      organization_id: z.string().optional(),
-      checkout_mode: z.enum(['app', 'web']).optional(),
+paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  const checkoutSchema = z.object({
+    ad_id: z.string().optional(),
+    dates: z.array(z.string()).optional(),
+    promo_code: z.string().optional(),
+    plan: z.string().optional(),
+    team_count: z.number().optional(),
+    organization_id: z.string().optional(),
+    checkout_mode: z.enum(['app', 'web']).optional(),
+  });
+  const parsed = checkoutSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+  const { ad_id, dates, promo_code, plan, team_count, organization_id, checkout_mode } = parsed.data;
+  if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
+  if (typeof plan === 'string' && plan.trim()) {
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+    try {
+      const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code, team_count, organization_id);
+      return res.json({ url, session_id: sessionId });
+    } catch (err: any) {
+      const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+      captureException(err, { context: 'stripe_checkout_error', plan });
+      return res.status(status).json({ error: err?.message || 'Unable to start subscription checkout' });
+    }
+  }
+  if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
+  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+  const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
+  const quote = await buildAdQuote({
+    adId: String(ad_id),
+    userId: req.user!.id,
+    isoDates,
+    promoCode: promo_code,
+  });
+  if ('error' in quote) {
+    return res.status(quote.status!).json({
+      error: quote.error!,
+      ...(quote.dates ? { dates: quote.dates } : {}),
     });
-    const parsed = checkoutSchema.safeParse(req.body || {});
-    if (!parsed.success)
-      return res
-        .status(400)
-        .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-    const { ad_id, dates, promo_code, plan, team_count, organization_id, checkout_mode } =
-      parsed.data;
-    if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
-    if (typeof plan === 'string' && plan.trim()) {
-      if (!process.env.STRIPE_SECRET_KEY)
-        return res.status(500).json({ error: 'Stripe not configured' }); // error-envelope-exempt
-      try {
-        const { url, sessionId } = await createMembershipCheckoutSession(
-          req,
-          plan,
-          promo_code,
-          team_count,
-          organization_id
-        );
-        return res.json({ url, session_id: sessionId });
-      } catch (err: any) {
-        const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-        captureException(err, { context: 'stripe_checkout_error', plan });
-        return res
-          .status(status)
-          .json({ error: err?.message || 'Unable to start subscription checkout' });
-      }
-    }
-    if (!ad_id || !Array.isArray(dates) || dates.length === 0)
-      return res.status(400).json({ error: 'ad_id and dates[] are required' }); // error-envelope-exempt
-    if (!process.env.STRIPE_SECRET_KEY)
-      return res.status(500).json({ error: 'Stripe not configured' }); // error-envelope-exempt
-    const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-    const quote = await buildAdQuote({
-      adId: String(ad_id),
-      userId: req.user!.id,
-      isoDates,
-      promoCode: promo_code,
+  }
+  const { ad } = quote;
+
+  // No charge until approved — archived campaigns can be re-booked
+  // without re-approval because the media was already approved once.
+  if (ad.status !== 'approved' && ad.status !== 'active' && ad.status !== 'archived') {
+    return res.status(403).json({
+      error: 'APPROVAL_REQUIRED',
+      message: 'Your ad must be approved before payment. An admin will review it and notify you when you can pay.',
     });
-    if ('error' in quote) {
-      return res.status(quote.status!).json({
-        // error-envelope-exempt
-        error: quote.error!,
-        ...(quote.dates ? { dates: quote.dates } : {}),
-      });
-    }
-    const { ad } = quote;
+  }
 
-    // No charge until approved — match PaymentSheet route behavior
-    if (ad.status !== 'approved' && ad.status !== 'active') {
-      return res.status(403).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
-        error: 'APPROVAL_REQUIRED',
-        message:
-          'Your ad must be approved before payment. An admin will review it and notify you when you can pay.',
+  // Slot availability check — reject before Stripe if any date is already full.
+  // Up to MAX_AD_SLOTS different ads may run per date per zip.
+  if (ad.target_zip_code) {
+    // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
+    const reservedAdsInZip = await prisma.ad.findMany({
+      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
+      select: { id: true },
+      take: 100,
+    });
+    if (reservedAdsInZip.length > 0) {
+      const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+      const bookedSlots = await prisma.adReservation.groupBy({
+        by: ['date'],
+        where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+        _count: { date: true },
       });
-    }
-
-    // Slot availability check — reject before Stripe if any date is already full.
-    // Up to MAX_AD_SLOTS different ads may run per date per zip.
-    if (ad.target_zip_code) {
-      // Include paid, hold, and pending_approval — align with PaymentSheet to prevent overfilling zip
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
-      });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
-        });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
-      }
-    }
-
-    const subtotal = quote.subtotalCents;
-    if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' }); // error-envelope-exempt
-    const taxCents = quote.taxCents;
-    const discount = quote.discountCents;
-    const appliedCode = quote.appliedPromoCode;
-    const total = quote.totalCents;
-    // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
-    const isFullyComped = discount >= subtotal;
-    if (total === 0 || isFullyComped) {
-      // Record redemption and create reservations
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId: req.user!.id,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
+      const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+      if (fullDates.length > 0) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)),
         });
       }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (e) {
-        if ((e as any)?.slotFull) {
-          return res.status(409).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
-            error: 'One or more selected dates are fully booked',
-            dates: (e as any).dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' }); // error-envelope-exempt
-      }
-      // v1.0.2 audit fix: await so financial audit trail can't silently drop.
-      // On DB failure, the user-facing response succeeds but we capture to Sentry at error level.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId: req.user!.id,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log',
+    }
+  }
+
+  const subtotal = quote.subtotalCents;
+  if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
+  const taxCents = quote.taxCents;
+  const discount = quote.discountCents;
+  const appliedCode = quote.appliedPromoCode;
+  const total = quote.totalCents;
+  // If promo covers 100% of the base price, treat as free (absorb tax on complimentary orders)
+  const isFullyComped = discount >= subtotal;
+  if (total === 0 || isFullyComped) {
+    // Record redemption and create reservations
+    if (appliedCode) {
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
+    }
+    try {
+      await prisma.$transaction(async (tx) => {
+        await reserveAdSlots(tx, {
           adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'paid',
+          status: 'active',
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (e) {
+      if ((e as any)?.slotFull) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: (e as any).dates,
         });
       }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
-        userId: req.user!.id,
-        adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch(err =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+      console.error('Failed to create ad reservations for free promo:', e);
+      return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
     }
-
-    const { success, cancel } = getCheckoutReturnUrls({ type: 'ad', mode: checkout_mode });
-
-    // Check if Stripe Price IDs are configured for ads (optional, fallback to price_data)
-    const weekdayPriceId = process.env.STRIPE_PRICE_AD_WEEKDAY?.trim() || '';
-    const weekendPriceId = process.env.STRIPE_PRICE_AD_WEEKEND?.trim() || '';
-    const hasPriceIds =
-      weekdayPriceId &&
-      weekendPriceId &&
-      /^price_/.test(weekdayPriceId) &&
-      /^price_/.test(weekendPriceId);
-
-    // CRITICAL: When using Price IDs, Stripe doesn't automatically add tax/discount
-    // If tax or discount exists, we must use price_data to include them in the total
-    // Otherwise we'd underbill by charging only base price without tax/discount
-    const hasTaxOrDiscount = taxCents > 0 || discount > 0;
-
-    // Build human-readable date range description (e.g. "Ad Reservation — Feb 27 - Mar 12, 2026 (7 days)")
-    const _sd = [...isoDates].sort();
-    const _d0 = new Date(_sd[0] + 'T12:00:00Z');
-    const _d1 = new Date(_sd[_sd.length - 1] + 'T12:00:00Z');
-    const _fmt = (d: Date, yr: boolean) =>
-      d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        ...(yr ? { year: 'numeric' } : {}),
+    // v1.0.2 audit fix: await so financial audit trail can't silently drop.
+    // On DB failure, the user-facing response succeeds but we capture to Sentry at error level.
+    try {
+      await logTransaction({
+        transactionType: 'AD_PURCHASE',
+        status: 'COMPLETED',
+        userId: req.user!.id,
+        subtotalCents: subtotal,
+        taxCents: 0,
+        discountCents: discount,
+        promoCode: appliedCode || undefined,
+        promoDiscountCents: discount,
+        totalCents: 0,
+        netCents: 0,
+        currency: 'usd',
+        metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
       });
-    const adDateDesc = `Ad Reservation — ${_fmt(_d0, false)} - ${_fmt(_d1, true)} (${isoDates.length} day${isoDates.length !== 1 ? 's' : ''})`;
+    } catch (err) {
+      console.error('[payments] Failed to log free promo transaction:', err);
+      captureException(err as Error, { context: 'free_promo_transaction_log', adId: String(ad_id) });
+    }
+    // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
+    sendAdPaymentEmail({
+      userId: req.user!.id,
+      adId: String(ad_id),
+      dates: isoDates,
+      totalCents: 0,
+      businessName: ad.business_name,
+      zipCode: ad.target_zip_code,
+    }).catch((err) => console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err));
+    return res.json({ free: true });
+  }
 
-    let lineItems: any[] = [];
+  const { success, cancel } = getCheckoutReturnUrls({ type: 'ad', mode: checkout_mode });
 
-    if (hasPriceIds && !hasTaxOrDiscount) {
-      // Use Stripe Price IDs when available AND no tax/discount (can't add tax/discount to Price IDs easily)
-      debugLog('[payments] Using Stripe Price IDs for ad checkout', {
-        weekdayBlocks: quote.weekdayBlocks,
-        weekendBlocks: quote.weekendBlocks,
+  // Check if Stripe Price IDs are configured for ads (optional, fallback to price_data)
+  const weekdayPriceId = process.env.STRIPE_PRICE_AD_WEEKDAY?.trim() || '';
+  const weekendPriceId = process.env.STRIPE_PRICE_AD_WEEKEND?.trim() || '';
+  const hasPriceIds = weekdayPriceId && weekendPriceId && 
+                      /^price_/.test(weekdayPriceId) && /^price_/.test(weekendPriceId);
+
+  // CRITICAL: When using Price IDs, Stripe doesn't automatically add tax/discount
+  // If tax or discount exists, we must use price_data to include them in the total
+  // Otherwise we'd underbill by charging only base price without tax/discount
+  const hasTaxOrDiscount = taxCents > 0 || discount > 0;
+
+  // Build human-readable date range description (e.g. "Ad Reservation — Feb 27 - Mar 12, 2026 (7 days)")
+  const _sd = [...isoDates].sort();
+  const _d0 = new Date(_sd[0] + 'T12:00:00Z');
+  const _d1 = new Date(_sd[_sd.length - 1] + 'T12:00:00Z');
+  const _fmt = (d: Date, yr: boolean) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(yr ? { year: 'numeric' } : {}) });
+  const adDateDesc = `Ad Reservation — ${_fmt(_d0, false)} - ${_fmt(_d1, true)} (${isoDates.length} day${isoDates.length !== 1 ? 's' : ''})`;
+
+  let lineItems: any[] = [];
+
+  if (hasPriceIds && !hasTaxOrDiscount) {
+    // Use Stripe Price IDs when available AND no tax/discount (can't add tax/discount to Price IDs easily)
+    debugLog('[payments] Using Stripe Price IDs for ad checkout', {
+      weekdayBlocks: quote.weekdayBlocks,
+      weekendBlocks: quote.weekendBlocks,
+      tax: taxCents,
+      discount,
+    });
+    lineItems = [
+      ...(quote.weekdayBlocks > 0 ? [{
+        price: weekdayPriceId,
+        quantity: quote.weekdayBlocks,
+      }] : []),
+      ...(quote.weekendBlocks > 0 ? [{
+        price: weekendPriceId,
+        quantity: quote.weekendBlocks,
+      }] : []),
+    ];
+
+    // If no blocks selected (shouldn't happen, but defensive), fall back to price_data
+    if (lineItems.length === 0) {
+      debugLog('[payments] No blocks found, falling back to price_data');
+      lineItems = [{
+        quantity: 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount: total,
+          product_data: {
+            name: 'Ad Reservation',
+            description: adDateDesc,
+          },
+        },
+      }];
+    }
+  } else {
+    // Use dynamic price_data when:
+    // - Price IDs not configured, OR
+    // - Tax or discount exists (Price IDs can't easily include tax/discount)
+    if (hasTaxOrDiscount && hasPriceIds) {
+      debugLog('[payments] Tax/discount detected - using price_data instead of Price IDs to include tax/discount in total', {
         tax: taxCents,
         discount,
+        total,
+        subtotal,
       });
-      lineItems = [
-        ...(quote.weekdayBlocks > 0
-          ? [
-              {
-                price: weekdayPriceId,
-                quantity: quote.weekdayBlocks,
-              },
-            ]
-          : []),
-        ...(quote.weekendBlocks > 0
-          ? [
-              {
-                price: weekendPriceId,
-                quantity: quote.weekendBlocks,
-              },
-            ]
-          : []),
-      ];
-
-      // If no blocks selected (shouldn't happen, but defensive), fall back to price_data
-      if (lineItems.length === 0) {
-        debugLog('[payments] No blocks found, falling back to price_data');
-        lineItems = [
-          {
-            quantity: 1,
-            price_data: {
-              currency: 'usd',
-              unit_amount: total,
-              product_data: {
-                name: 'Ad Reservation',
-                description: adDateDesc,
-              },
-            },
-          },
-        ];
-      }
     } else {
-      // Use dynamic price_data when:
-      // - Price IDs not configured, OR
-      // - Tax or discount exists (Price IDs can't easily include tax/discount)
-      if (hasTaxOrDiscount && hasPriceIds) {
-        debugLog(
-          '[payments] Tax/discount detected - using price_data instead of Price IDs to include tax/discount in total',
-          {
-            tax: taxCents,
-            discount,
-            total,
-            subtotal,
-          }
-        );
-      } else {
-        debugLog('[payments] Using dynamic price_data for ad checkout (Price IDs not configured)');
-      }
-
-      lineItems = [
-        {
-          quantity: 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount: total, // Total includes tax and discount already calculated
-            product_data: {
-              name: 'Ad Reservation',
-              description: `${adDateDesc}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
-            },
-          },
-        },
-      ];
+      debugLog('[payments] Using dynamic price_data for ad checkout (Price IDs not configured)');
     }
-
-    const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-      mode: 'payment',
-      success_url: success,
-      cancel_url: cancel,
-      line_items: lineItems as any,
-      // Useful metadata for webhook
-      metadata: {
-        ad_id: String(ad_id),
-        dates: JSON.stringify(isoDates),
-        user_id: req.user!.id,
-        subtotal_cents: String(subtotal),
-        tax_cents: String(taxCents),
-        promo_code: appliedCode || '',
-        discount_cents: String(discount || 0),
-        weekday_blocks: String(quote.weekdayBlocks),
-        weekend_blocks: String(quote.weekendBlocks),
-      },
-    };
-
-    // If using Price IDs and there's a tax, we can't easily add it to Price ID line items
-    // Stripe's automatic_tax feature could be used if enabled, but for now we fall back to price_data
-    // This is already handled above (hasTaxOrDiscount check)
-
-    // Note: If Stripe automatic tax is enabled in your Stripe account, you could set:
-    // sessionConfig.automatic_tax = { enabled: true };
-    // This would calculate and add tax automatically for Price IDs
-
-    // v1.0.2 audit fix: same idempotency drift bug — widen fallback window to 1h.
-    const adIdemClientKey = (req.headers['x-idempotency-key'] as string) || '';
-    const adIdempotencyKey =
-      adIdemClientKey || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
-    const session = await stripe.checkout.sessions.create(sessionConfig, {
-      idempotencyKey: adIdempotencyKey,
-    });
-
-    // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
-    // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
-    try {
-      await prisma.$transaction(
-        async tx => {
-          await reserveAdSlots(tx, {
-            adId: String(ad_id),
-            targetZipCode: ad.target_zip_code,
-            isoDates,
-            paymentStatus: 'hold',
-          });
+    
+    lineItems = [{
+      quantity: 1,
+      price_data: {
+        currency: 'usd',
+        unit_amount: total, // Total includes tax and discount already calculated
+        product_data: {
+          name: 'Ad Reservation',
+          description: `${adDateDesc}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
         },
-        { isolationLevel: 'Serializable' }
-      );
-    } catch (holdErr) {
-      if ((holdErr as any)?.slotFull) {
-        return res.status(409).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
-          error: 'One or more selected dates are fully booked',
-          dates: (holdErr as any).dates,
-        });
-      }
-      console.error(
-        '[payments] Failed to create slot hold — aborting checkout:',
-        (holdErr as any)?.message
-      );
-      captureException(holdErr as Error, {
-        context: 'ad_slot_hold_failed',
+      },
+    }];
+  }
+
+  const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+    mode: 'payment',
+    success_url: success,
+    cancel_url: cancel,
+    line_items: lineItems as any,
+    // Useful metadata for webhook
+    metadata: {
+      ad_id: String(ad_id),
+      dates: JSON.stringify(isoDates),
+      user_id: req.user!.id,
+      subtotal_cents: String(subtotal),
+      tax_cents: String(taxCents),
+      promo_code: appliedCode || '',
+      discount_cents: String(discount || 0),
+      weekday_blocks: String(quote.weekdayBlocks),
+      weekend_blocks: String(quote.weekendBlocks),
+    },
+  };
+
+  // If using Price IDs and there's a tax, we can't easily add it to Price ID line items
+  // Stripe's automatic_tax feature could be used if enabled, but for now we fall back to price_data
+  // This is already handled above (hasTaxOrDiscount check)
+  
+  // Note: If Stripe automatic tax is enabled in your Stripe account, you could set:
+  // sessionConfig.automatic_tax = { enabled: true };
+  // This would calculate and add tax automatically for Price IDs
+
+  // v1.0.2 audit fix: same idempotency drift bug — widen fallback window to 1h.
+  const adIdemClientKey = (req.headers['x-idempotency-key'] as string) || '';
+  const adIdempotencyKey = adIdemClientKey || `ad_${req.user!.id}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`;
+  const session = await stripe.checkout.sessions.create(sessionConfig, { idempotencyKey: adIdempotencyKey });
+
+  // Hold slots: create temporary reservations + mark ad as 'hold' so other checkouts see them.
+  // On payment success, status moves to 'paid'. On failure/expiry, hold is released.
+  try {
+    await prisma.$transaction(async (tx) => {
+      await reserveAdSlots(tx, {
         adId: String(ad_id),
-        userId: req.user!.id,
+        targetZipCode: ad.target_zip_code,
+        isoDates,
+        paymentStatus: 'hold',
+        ...(ad.status === 'archived' ? { status: 'approved' as const } : {}),
       });
-      return res.status(500).json({ error: 'Failed to reserve ad slot. Please try again.' }); // error-envelope-exempt
+    }, { isolationLevel: 'Serializable' });
+  } catch (holdErr) {
+    if ((holdErr as any)?.slotFull) {
+      return res.status(409).json({
+        error: 'One or more selected dates are fully booked',
+        dates: (holdErr as any).dates,
+      });
     }
+    console.error('[payments] Failed to create slot hold — aborting checkout:', (holdErr as any)?.message);
+    captureException(holdErr as Error, { context: 'ad_slot_hold_failed', adId: String(ad_id), userId: req.user!.id });
+    return res.status(500).json({ error: 'Failed to reserve ad slot. Please try again.' });
+  }
 
-    // Log transaction
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user!.id },
-      select: { email: true },
-    });
-    await logTransaction({
-      transactionType: 'AD_PURCHASE',
-      status: 'PENDING',
-      stripeSessionId: session.id,
-      userId: req.user!.id,
-      userEmail: currentUser?.email || 'unknown',
-      orderId: String(ad_id),
-      subtotalCents: subtotal,
-      taxCents: taxCents,
-      stripeFeeeCents: calculateStripeFee(total),
-      discountCents: discount,
-      totalCents: total,
-      promoCode: appliedCode || undefined,
-      promoDiscountCents: discount,
-      metadata: {
-        dates: isoDates,
-        adId: ad_id,
-        zipCode: ad.target_zip_code,
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
-    });
+  // Log transaction
+  const currentUser = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: { email: true }
+  });
+  await logTransaction({
+    transactionType: 'AD_PURCHASE',
+    status: 'PENDING',
+    stripeSessionId: session.id,
+    userId: req.user!.id,
+    userEmail: currentUser?.email || 'unknown',
+    orderId: String(ad_id),
+    subtotalCents: subtotal,
+    taxCents: taxCents,
+    stripeFeeeCents: calculateStripeFee(total),
+    discountCents: discount,
+    totalCents: total,
+    promoCode: appliedCode || undefined,
+    promoDiscountCents: discount,
+    metadata: {
+      dates: isoDates,
+      adId: ad_id,
+      zipCode: ad.target_zip_code,
+    },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent'),
+  });
 
-    return res.json({ url: session.url });
-  })
-);
+  return res.json({ url: session.url });
+}));
 
 // ── In-App PaymentSheet endpoint ────────────────────────────────────────────
 // Returns client_secret, ephemeral key, customer id and publishable key
 // so the mobile app can present Stripe PaymentSheet without leaving the app.
-paymentsRouter.post(
-  '/create-payment-sheet',
-  expressPkg.json(),
-  requireAuth as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const publishableKey =
-      process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
-    const userId = req.user!.id;
-    const paymentSheetSchema = z.object({
-      ad_id: z.string().optional(),
-      dates: z.array(z.string()).optional(),
-      promo_code: z.string().optional(),
-      plan: z.string().optional(),
-      team_count: z.number().optional(),
-      organization_id: z.string().optional(),
-    });
-    const parsed = paymentSheetSchema.safeParse(req.body || {});
-    if (!parsed.success)
-      return res
-        .status(400)
-        .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-    const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
-    if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        email: true,
-        stripe_customer_id: true,
-        preferences: true,
-        plan: true,
-        pending_plan: true,
-        payment_pending: true,
-        payment_approved: true,
-      },
-    });
+paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '';
+  const userId = req.user!.id;
+  const paymentSheetSchema = z.object({
+    ad_id: z.string().optional(),
+    dates: z.array(z.string()).optional(),
+    promo_code: z.string().optional(),
+    plan: z.string().optional(),
+    team_count: z.number().optional(),
+    organization_id: z.string().optional(),
+  });
+  const parsed = paymentSheetSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+  const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
+  if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      email: true,
+      stripe_customer_id: true,
+      preferences: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+    },
+  });
 
-    // ── SUBSCRIPTION FLOW ──
-    if (typeof plan === 'string' && plan.trim()) {
-      if (!process.env.STRIPE_SECRET_KEY)
-        return res.status(500).json({ error: 'Stripe not configured' }); // error-envelope-exempt
-      const prefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-      const customerId = await getOrCreateStripeCustomer(userId, user?.email);
-      const ephemeralKey = await stripe.ephemeralKeys.create(
-        { customer: customerId },
-        { apiVersion: '2024-06-20' }
-      );
-
-      // Rule A: Fall back to pending_plan if plan param matches it, or use pending_plan directly
-      const raw = plan.trim().toLowerCase();
-      const selectedPlan = getSelectedPlan(user as any);
-      const resolvedPlan = raw === 'veteran' || raw === 'legend' ? raw : selectedPlan;
-      if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend')
-        return res.status(400).json({ error: 'Invalid plan for subscription' }); // error-envelope-exempt
-      const chosen = resolvedPlan as MembershipPlan;
-      let actualTeamCount = 0;
-      let billableQuantity = 1;
-
-      // Verify org ownership if organization_id provided
-      if (orgIdBody) {
-        const orgMem = await prisma.organizationMembership.findUnique({
-          where: { organization_id_user_id: { organization_id: orgIdBody, user_id: userId } },
-        });
-        if (!orgMem || orgMem.role !== 'owner') {
-          return res.status(403).json({
-            // error-envelope-exempt
-            error: 'Only the organization owner can purchase a subscription for the organization',
-          });
-        }
-      }
-
-      // Rule A: Block checkout if coach hasn't been approved yet
-      const approvalCheck = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { approval_status: true, role: true, preferences: true },
-      });
-      if (
-        getCanonicalUserRole(approvalCheck as any) === 'coach' &&
-        approvalCheck?.approval_status !== 'APPROVED'
-      ) {
-        return res.status(403).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
-          error: 'APPROVAL_REQUIRED',
-          message: 'Your league must be approved before you can subscribe.',
-        });
-      }
-
-      if (chosen === 'veteran') {
-        const snapshot = await getVeteranBillingSnapshot(userId, orgIdBody);
-        actualTeamCount = snapshot.teamCount;
-        billableQuantity = snapshot.billableQuantity;
-
-        if (typeof team_count === 'number' && team_count !== actualTeamCount) {
-          debugLog(
-            `[payments] Ignoring client team_count=${team_count}; using actual ${actualTeamCount} for user ${userId}${orgIdBody ? ` org ${orgIdBody}` : ''}`
-          );
-        }
-
-        if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
-          return res.status(400).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
-            error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`,
-          });
-        }
-        if (billableQuantity === 0) {
-          return res
-            .status(400)
-            .json({ error: 'Select at least one billable team (4 total) to use Veteran plan' });
-        }
-      }
-
-      // Check if user already has this plan (check active plan, not pending_plan)
-      const currentPlan = getCanonicalPlan(user as any);
-      if (currentPlan === chosen)
-        return res.status(400).json({ error: 'You already have this subscription plan' }); // error-envelope-exempt
-
-      // Build price / line items
-      const priceIdRaw = membershipPriceIds[chosen];
-      const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
-      const hasExplicitPriceId =
-        /^price_/i.test(normalizedPriceId) &&
-        !['price_xxx', 'price_yyy', 'your_price_id'].some(h =>
-          normalizedPriceId.toLowerCase().includes(h)
-        );
-
-      if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
-        return res.status(500).json({
-          // error-envelope-exempt
-          error: `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.`,
-        });
-      }
-
-      const items = hasExplicitPriceId
-        ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
-        : [
-            {
-              quantity: chosen === 'veteran' ? billableQuantity : 1,
-              price_data: {
-                currency: 'usd',
-                unit_amount:
-                  chosen === 'veteran' ? SERVER_VETERAN_PRICE_CENTS : SERVER_LEGEND_PRICE_CENTS,
-                recurring: {
-                  interval: chosen === 'veteran' ? ('month' as const) : ('year' as const),
-                },
-                product_data: {
-                  name: 'Membership - ' + chosen,
-                  description:
-                    chosen === 'veteran'
-                      ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
-                      : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
-                },
-              },
-            },
-          ];
-
-      try {
-        const subscription = await stripe.subscriptions.create({
-          customer: customerId,
-          items: items as any,
-          payment_behavior: 'default_incomplete',
-          payment_settings: { save_default_payment_method: 'on_subscription' },
-          expand: ['latest_invoice.payment_intent'],
-          metadata: {
-            membership: '1',
-            plan: chosen,
-            user_id: userId,
-            promo_code: promo_code || '',
-            team_count_total:
-              chosen === 'veteran' && actualTeamCount ? String(actualTeamCount) : '',
-            team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
-            organization_id: orgIdBody || '',
-          },
-        });
-
-        const invoice = subscription.latest_invoice as Stripe.Invoice | null;
-        const paymentIntent = invoice?.payment_intent as Stripe.PaymentIntent | null;
-        if (!invoice || !paymentIntent) {
-          return res.status(500).json({
-            // error-envelope-exempt
-            error:
-              'Subscription created but payment could not be initialized. Please contact support.',
-          });
-        }
-
-        const amount =
-          chosen === 'veteran'
-            ? SERVER_VETERAN_PRICE_CENTS * billableQuantity
-            : SERVER_LEGEND_PRICE_CENTS;
-        await logTransaction({
-          transactionType: 'SUBSCRIPTION_PURCHASE',
-          status: 'PENDING',
-          stripeSessionId: subscription.id,
-          userId,
-          userEmail: user?.email || 'unknown',
-          subtotalCents: amount,
-          taxCents: 0,
-          stripeFeeeCents: calculateStripeFee(amount),
-          discountCents: 0,
-          totalCents: amount,
-          promoCode: promo_code || undefined,
-          metadata: {
-            plan: chosen,
-            team_count_total: chosen === 'veteran' ? actualTeamCount : undefined,
-            team_count_billable: chosen === 'veteran' ? billableQuantity : undefined,
-          },
-          ipAddress: req.ip,
-          userAgent: req.get('user-agent'),
-        });
-
-        return res.json({
-          paymentIntent: paymentIntent.client_secret,
-          payment_intent_id: paymentIntent.id,
-          ephemeralKey: ephemeralKey.secret,
-          customer: customerId,
-          publishableKey,
-          subscriptionId: subscription.id,
-        });
-      } catch (err: any) {
-        captureException(err, { context: 'create_payment_sheet_subscription', plan: chosen });
-        const raw = err?.message || '';
-        const safeMsg = /prod_|price_/i.test(raw)
-          ? 'Unable to start subscription. Please try again or contact support.'
-          : raw || 'Unable to start subscription';
-        return res.status(500).json({ error: safeMsg }); // error-envelope-exempt
-      }
-    }
-
-    // ── AD PAYMENT FLOW ──
-    if (!ad_id || !Array.isArray(dates) || dates.length === 0)
-      return res
-        .status(400)
-        .json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
-    if (!process.env.STRIPE_SECRET_KEY)
-      return res.status(500).json({ error: 'Stripe not configured' }); // error-envelope-exempt
+  // ── SUBSCRIPTION FLOW ──
+  if (typeof plan === 'string' && plan.trim()) {
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
     const customerId = await getOrCreateStripeCustomer(userId, user?.email);
     const ephemeralKey = await stripe.ephemeralKeys.create(
       { customer: customerId },
       { apiVersion: '2024-06-20' }
     );
-    const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-    const quote = await buildAdQuote({
-      adId: String(ad_id),
-      userId,
-      isoDates,
-      promoCode: promo_code,
+
+    // Rule A: Fall back to pending_plan if plan param matches it, or use pending_plan directly
+    const raw = plan.trim().toLowerCase();
+    const selectedPlan = getSelectedPlan(user as any);
+    const resolvedPlan =
+      raw === 'veteran' || raw === 'legend' ? raw : selectedPlan;
+    if (resolvedPlan !== 'veteran' && resolvedPlan !== 'legend') return res.status(400).json({ error: 'Invalid plan for subscription' });
+    const chosen = resolvedPlan as MembershipPlan;
+    let actualTeamCount = 0;
+    let billableQuantity = 1;
+
+    // Verify org ownership if organization_id provided
+    if (orgIdBody) {
+      const orgMem = await getOrganizationMembership(userId, orgIdBody);
+      if (!orgMem || orgMem.role !== 'owner' || orgMem.status !== 'active') {
+        return res.status(403).json({ error: 'Only the organization owner can purchase a subscription for the organization' });
+      }
+    }
+
+    // Rule A: Block checkout if coach hasn't been approved yet
+    const approvalCheck = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { approval_status: true, role: true, preferences: true },
     });
-    if ('error' in quote) {
-      return res.status(quote.status!).json({
-        // error-envelope-exempt
-        error: quote.error!,
-        ...(quote.dates ? { dates: quote.dates } : {}),
-      });
-    }
-    const { ad } = quote;
-
-    // No charge until approved by support@varsityhub.app. Once approved, no re-approval needed for future runs.
-    if (ad.status !== 'approved' && ad.status !== 'active') {
+    if (getCanonicalUserRole(approvalCheck as any) === 'coach' && approvalCheck?.approval_status !== 'APPROVED') {
       return res.status(403).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'APPROVAL_REQUIRED',
-        message:
-          'Your ad must be approved before payment. An admin will review it and notify you when you can pay.',
+        message: 'Your league must be approved before you can subscribe.'
       });
     }
 
-    // Slot availability check — include 'hold' and 'pending_approval' ads
-    const MAX_AD_SLOTS = 2;
-    if (ad.target_zip_code) {
-      const reservedAdsInZip = await prisma.ad.findMany({
-        where: {
-          target_zip_code: ad.target_zip_code,
-          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-          NOT: { id: String(ad_id) },
-        },
-        select: { id: true },
-        take: 100,
-      });
-      if (reservedAdsInZip.length > 0) {
-        const dateObjects = isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
-        const bookedSlots = await prisma.adReservation.groupBy({
-          by: ['date'],
-          where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-          _count: { date: true },
-        });
-        const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-        if (fullDates.length > 0) {
-          return res.status(409).json({
-            // error-envelope-exempt
-            error: 'One or more selected dates are fully booked',
-            dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-          });
-        }
-      }
-    }
+    if (chosen === 'veteran') {
+      const snapshot = await getVeteranBillingSnapshot(userId, orgIdBody);
+      actualTeamCount = snapshot.teamCount;
+      billableQuantity = snapshot.billableQuantity;
 
-    const subtotal = quote.subtotalCents;
-    if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' }); // error-envelope-exempt
-    const taxCents = quote.taxCents;
-    const discount = quote.discountCents;
-    const appliedCode = quote.appliedPromoCode;
-    const total = quote.totalCents;
-    const isFullyComped = discount >= subtotal;
-    if (total === 0 || isFullyComped) {
-      // Free via promo — only if already approved (approval required before any charge/activation)
-      if (appliedCode) {
-        await redeemPromo({
-          code: appliedCode,
-          subtotalCents: subtotal,
-          userId,
-          service: 'booking',
-          orderId: `FREE-${crypto.randomUUID()}`,
-        });
-      }
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'paid',
-              status: 'active',
-            });
-          },
-          { isolationLevel: 'Serializable' }
+      if (typeof team_count === 'number' && team_count !== actualTeamCount) {
+        debugLog(
+          `[payments] Ignoring client team_count=${team_count}; using actual ${actualTeamCount} for user ${userId}${orgIdBody ? ` org ${orgIdBody}` : ''}`
         );
-      } catch (e: any) {
-        if (e?.slotFull) {
-          return res.status(409).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
-            error: 'One or more selected dates are fully booked',
-            dates: e.dates,
-          });
-        }
-        console.error('Failed to create ad reservations for free promo:', e);
-        return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' }); // error-envelope-exempt
       }
-      // v1.0.2 audit fix: await to preserve audit trail on PaymentSheet free-promo path.
-      try {
-        await logTransaction({
-          transactionType: 'AD_PURCHASE',
-          status: 'COMPLETED',
-          userId,
-          subtotalCents: subtotal,
-          taxCents: 0,
-          discountCents: discount,
-          promoCode: appliedCode || undefined,
-          promoDiscountCents: discount,
-          totalCents: 0,
-          netCents: 0,
-          currency: 'usd',
-          metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
-        });
-      } catch (err) {
-        console.error('[payments] Failed to log free promo transaction:', err);
-        captureException(err as Error, {
-          context: 'free_promo_transaction_log_pi',
-          adId: String(ad_id),
+
+      if (actualTeamCount < SERVER_VETERAN_MIN_TOTAL_TEAMS) {
+        return res.status(400).json({
+          error: `Veteran plan requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams (first ${SERVER_ROOKIE_TEAM_LIMIT} are free)`,
         });
       }
-      // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
-      sendAdPaymentEmail({
-        userId,
-        adId: String(ad_id),
-        dates: isoDates,
-        totalCents: 0,
-        businessName: ad.business_name,
-        zipCode: ad.target_zip_code,
-      }).catch(err =>
-        console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err)
-      );
-      return res.json({ free: true });
+      if (billableQuantity === 0) {
+        return res.status(400).json({ error: 'Select at least one billable team (4 total) to use Veteran plan' });
+      }
     }
+
+    // Check if user already has this plan (check active plan, not pending_plan)
+    const currentPlan = getCanonicalPlan(user as any);
+    if (currentPlan === chosen) return res.status(400).json({ error: 'You already have this subscription plan' });
+
+    // Build price / line items
+    const priceIdRaw = membershipPriceIds[chosen];
+    const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
+    const hasExplicitPriceId = /^price_/i.test(normalizedPriceId) && !['price_xxx', 'price_yyy', 'your_price_id'].some((h) => normalizedPriceId.toLowerCase().includes(h));
+
+    if (!hasExplicitPriceId && process.env.NODE_ENV === 'production') {
+      return res.status(500).json({ error: `Stripe price ID not configured for ${chosen} plan. Set STRIPE_PRICE_${chosen.toUpperCase()} env var.` });
+    }
+
+    const items = hasExplicitPriceId
+      ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
+      : [{
+          quantity: chosen === 'veteran' ? billableQuantity : 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount:
+              chosen === 'veteran' ? SERVER_VETERAN_PRICE_CENTS : SERVER_LEGEND_PRICE_CENTS,
+            recurring: { interval: chosen === 'veteran' ? ('month' as const) : ('year' as const) },
+            product_data: {
+              name: 'Membership - ' + chosen,
+              description: chosen === 'veteran'
+                ? `Veteran plan - ${SERVER_VETERAN_PRICE_LABEL} (${billableQuantity} billable of ${actualTeamCount} total, ${SERVER_ROOKIE_TEAM_LIMIT} free)`
+                : `Legend plan - ${SERVER_LEGEND_PRICE_LABEL} unlimited`,
+            },
+          },
+        }];
 
     try {
-      const paymentIntent = await stripe.paymentIntents.create(
-        {
-          amount: total,
-          currency: 'usd',
-          customer: customerId,
-          automatic_payment_methods: { enabled: true },
-          metadata: {
-            ad_id: String(ad_id),
-            dates: JSON.stringify(isoDates),
-            user_id: userId,
-            subtotal_cents: String(subtotal),
-            tax_cents: String(taxCents),
-            promo_code: appliedCode || '',
-            discount_cents: String(discount || 0),
-            weekday_blocks: String(quote.weekdayBlocks),
-            weekend_blocks: String(quote.weekendBlocks),
-          },
+      const subscription = await stripe.subscriptions.create({
+        customer: customerId,
+        items: items as any,
+        payment_behavior: 'default_incomplete',
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        expand: ['latest_invoice.payment_intent'],
+        metadata: {
+          membership: '1',
+          plan: chosen,
+          user_id: userId,
+          promo_code: promo_code || '',
+          team_count_total: chosen === 'veteran' && actualTeamCount ? String(actualTeamCount) : '',
+          team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
+          organization_id: orgIdBody || '',
         },
-        {
-          // v1.0.2 audit fix: widen fallback window from 60s to 1h to prevent duplicate payment intents on retry
-          idempotencyKey:
-            (req.headers['x-idempotency-key'] as string) ||
-            `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`,
-        }
-      );
+      });
 
-      // Hold slots atomically — re-check capacity inside transaction to prevent race conditions
-      try {
-        await prisma.$transaction(
-          async tx => {
-            await reserveAdSlots(tx, {
-              adId: String(ad_id),
-              targetZipCode: ad.target_zip_code,
-              isoDates,
-              paymentStatus: 'hold',
-            });
-          },
-          { isolationLevel: 'Serializable' }
-        );
-      } catch (holdErr: any) {
-        // Cancel the payment intent since we can't hold the slots
-        try {
-          await stripe.paymentIntents.cancel(paymentIntent.id);
-        } catch (cancelErr) {
-          console.warn(
-            '[payments] Failed to cancel payment intent after hold failure:',
-            (cancelErr as Error)?.message
-          );
-        }
-        console.error(
-          '[payments] Failed to hold ad slots, cancelled payment:',
-          (holdErr as any)?.message
-        );
-        return res
-          .status(409)
-          .json({ error: 'Ad slots are no longer available. Please try different dates.' });
+      const invoice = subscription.latest_invoice as Stripe.Invoice | null;
+      const paymentIntent = invoice?.payment_intent as Stripe.PaymentIntent | null;
+      if (!invoice || !paymentIntent) {
+        return res.status(500).json({ error: 'Subscription created but payment could not be initialized. Please contact support.' });
       }
 
-      // Log transaction
+      const amount = chosen === 'veteran'
+        ? SERVER_VETERAN_PRICE_CENTS * billableQuantity
+        : SERVER_LEGEND_PRICE_CENTS;
       await logTransaction({
-        transactionType: 'AD_PURCHASE',
+        transactionType: 'SUBSCRIPTION_PURCHASE',
         status: 'PENDING',
-        stripeSessionId: paymentIntent.id,
+        stripeSessionId: subscription.id,
         userId,
         userEmail: user?.email || 'unknown',
-        orderId: String(ad_id),
-        subtotalCents: subtotal,
-        taxCents,
-        stripeFeeeCents: calculateStripeFee(total),
-        discountCents: discount,
-        totalCents: total,
-        promoCode: appliedCode || undefined,
-        promoDiscountCents: discount,
-        metadata: { dates: isoDates, adId: ad_id, zipCode: ad.target_zip_code },
+        subtotalCents: amount,
+        taxCents: 0,
+        stripeFeeeCents: calculateStripeFee(amount),
+        discountCents: 0,
+        totalCents: amount,
+        promoCode: promo_code || undefined,
+        metadata: { plan: chosen, team_count_total: chosen === 'veteran' ? actualTeamCount : undefined, team_count_billable: chosen === 'veteran' ? billableQuantity : undefined },
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
       });
@@ -2394,275 +1754,590 @@ paymentsRouter.post(
         ephemeralKey: ephemeralKey.secret,
         customer: customerId,
         publishableKey,
-        amount_cents: total,
+        subscriptionId: subscription.id,
       });
     } catch (err: any) {
-      captureException(err, { context: 'create_payment_sheet_ad', ad_id });
-      return res.status(500).json({ error: err?.message || 'Unable to create payment' }); // error-envelope-exempt
+      captureException(err, { context: 'create_payment_sheet_subscription', plan: chosen });
+      const raw = err?.message || '';
+      const safeMsg = /prod_|price_/i.test(raw) ? 'Unable to start subscription. Please try again or contact support.' : (raw || 'Unable to start subscription');
+      return res.status(500).json({ error: safeMsg });
     }
-  })
-);
+  }
+
+  // ── AD PAYMENT FLOW ──
+  if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required (or plan for subscription)' });
+  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+  const customerId = await getOrCreateStripeCustomer(userId, user?.email);
+  const ephemeralKey = await stripe.ephemeralKeys.create(
+    { customer: customerId },
+    { apiVersion: '2024-06-20' }
+  );
+  const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
+  const quote = await buildAdQuote({
+    adId: String(ad_id),
+    userId,
+    isoDates,
+    promoCode: promo_code,
+  });
+  if ('error' in quote) {
+    return res.status(quote.status!).json({
+      error: quote.error!,
+      ...(quote.dates ? { dates: quote.dates } : {}),
+    });
+  }
+  const { ad } = quote;
+
+  // No charge until approved by emancero@varsityhub.app. Once approved,
+  // archived campaigns can be booked again without another approval cycle.
+  if (ad.status !== 'approved' && ad.status !== 'active' && ad.status !== 'archived') {
+    return res.status(403).json({
+      error: 'APPROVAL_REQUIRED',
+      message: 'Your ad must be approved before payment. An admin will review it and notify you when you can pay.',
+    });
+  }
+
+  // Slot availability check — include 'hold' and 'pending_approval' ads
+  const MAX_AD_SLOTS = 2;
+  if (ad.target_zip_code) {
+    const reservedAdsInZip = await prisma.ad.findMany({
+      where: { target_zip_code: ad.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: String(ad_id) } },
+      select: { id: true },
+      take: 100,
+    });
+    if (reservedAdsInZip.length > 0) {
+      const dateObjects = isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+      const bookedSlots = await prisma.adReservation.groupBy({
+        by: ['date'],
+        where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+        _count: { date: true },
+      });
+      const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+      if (fullDates.length > 0) {
+        return res.status(409).json({ error: 'One or more selected dates are fully booked', dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)) });
+      }
+    }
+  }
+
+  const subtotal = quote.subtotalCents;
+  if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
+  const taxCents = quote.taxCents;
+  const discount = quote.discountCents;
+  const appliedCode = quote.appliedPromoCode;
+  const total = quote.totalCents;
+  const isFullyComped = discount >= subtotal;
+  if (total === 0 || isFullyComped) {
+    // Free via promo — only if already approved (approval required before any charge/activation)
+    if (appliedCode) {
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId, service: 'booking', orderId: `FREE-${crypto.randomUUID()}` });
+    }
+    try {
+      await prisma.$transaction(async (tx) => {
+        await reserveAdSlots(tx, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'paid',
+          status: 'active',
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (e: any) {
+      if (e?.slotFull) {
+        return res.status(409).json({
+          error: 'One or more selected dates are fully booked',
+          dates: e.dates,
+        });
+      }
+      console.error('Failed to create ad reservations for free promo:', e);
+      return res.status(500).json({ error: 'Failed to reserve ad dates. Please try again.' });
+    }
+    // v1.0.2 audit fix: await to preserve audit trail on PaymentSheet free-promo path.
+    try {
+      await logTransaction({
+        transactionType: 'AD_PURCHASE',
+        status: 'COMPLETED',
+        userId,
+        subtotalCents: subtotal,
+        taxCents: 0,
+        discountCents: discount,
+        promoCode: appliedCode || undefined,
+        promoDiscountCents: discount,
+        totalCents: 0,
+        netCents: 0,
+        currency: 'usd',
+        metadata: { free_promo: true, ad_id: String(ad_id), dates: isoDates },
+      });
+    } catch (err) {
+      console.error('[payments] Failed to log free promo transaction:', err);
+      captureException(err as Error, { context: 'free_promo_transaction_log_pi', adId: String(ad_id) });
+    }
+    // Send payment receipt for free-promo ad (PDF Note 8 — restored from 87aeafa0)
+    sendAdPaymentEmail({
+      userId,
+      adId: String(ad_id),
+      dates: isoDates,
+      totalCents: 0,
+      businessName: ad.business_name,
+      zipCode: ad.target_zip_code,
+    }).catch((err) => console.warn('[payments] Free promo ad receipt failed:', (err as any)?.message || err));
+    return res.json({ free: true });
+  }
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: total,
+      currency: 'usd',
+      customer: customerId,
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        ad_id: String(ad_id),
+        dates: JSON.stringify(isoDates),
+        user_id: userId,
+        subtotal_cents: String(subtotal),
+        tax_cents: String(taxCents),
+        promo_code: appliedCode || '',
+        discount_cents: String(discount || 0),
+        weekday_blocks: String(quote.weekdayBlocks),
+        weekend_blocks: String(quote.weekendBlocks),
+      },
+    }, {
+      // v1.0.2 audit fix: widen fallback window from 60s to 1h to prevent duplicate payment intents on retry
+      idempotencyKey: (req.headers['x-idempotency-key'] as string) || `ad_pi_${userId}_${ad_id}_${Math.floor(Date.now() / (60 * 60 * 1000))}`,
+    });
+
+    // Hold slots atomically — re-check capacity inside transaction to prevent race conditions
+    try {
+      await prisma.$transaction(async (tx) => {
+        await reserveAdSlots(tx, {
+          adId: String(ad_id),
+          targetZipCode: ad.target_zip_code,
+          isoDates,
+          paymentStatus: 'hold',
+          ...(ad.status === 'archived' ? { status: 'approved' as const } : {}),
+        });
+      }, { isolationLevel: 'Serializable' });
+    } catch (holdErr: any) {
+      // Cancel the payment intent since we can't hold the slots
+      try {
+        await stripe.paymentIntents.cancel(paymentIntent.id);
+      } catch (cancelErr) {
+        console.warn('[payments] Failed to cancel payment intent after hold failure:', (cancelErr as Error)?.message);
+      }
+      console.error('[payments] Failed to hold ad slots, cancelled payment:', (holdErr as any)?.message);
+      return res.status(409).json({ error: 'Ad slots are no longer available. Please try different dates.' });
+    }
+
+    // Log transaction
+    await logTransaction({
+      transactionType: 'AD_PURCHASE',
+      status: 'PENDING',
+      stripeSessionId: paymentIntent.id,
+      userId,
+      userEmail: user?.email || 'unknown',
+      orderId: String(ad_id),
+      subtotalCents: subtotal,
+      taxCents,
+      stripeFeeeCents: calculateStripeFee(total),
+      discountCents: discount,
+      totalCents: total,
+      promoCode: appliedCode || undefined,
+      promoDiscountCents: discount,
+      metadata: { dates: isoDates, adId: ad_id, zipCode: ad.target_zip_code },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    return res.json({
+      paymentIntent: paymentIntent.client_secret,
+      payment_intent_id: paymentIntent.id,
+      ephemeralKey: ephemeralKey.secret,
+      customer: customerId,
+      publishableKey,
+      amount_cents: total,
+    });
+  } catch (err: any) {
+    captureException(err, { context: 'create_payment_sheet_ad', ad_id });
+    return res.status(500).json({ error: err?.message || 'Unable to create payment' });
+  }
+}));
 
 // Stripe webhook to finalize reservations on successful payment.
 // IMPORTANT: The raw body parser is registered at the app level (server/src/index.ts)
 // for route /payments/webhook BEFORE express.json(). Do not add parsers here.
-paymentsRouter.post(
-  '/webhook',
-  asyncHandler(async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    if (!sig) {
-      return res.status(400).json({ error: 'Missing stripe-signature header' }); // error-envelope-exempt
-    }
+paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  if (!sig) {
+    return res.status(400).json({ error: 'Missing stripe-signature header' });
+  }
 
-    const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
-    if (!webhookSecret) {
-      console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
-      captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), {
-        context: 'webhook_secret_missing',
-        provider: 'stripe',
-      });
-      return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' }); // error-envelope-exempt
-    }
+  const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+  if (!webhookSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
+    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), {
+      context: 'webhook_secret_missing',
+      provider: 'stripe',
+    });
+    return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' });
+  }
 
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
-    } catch (err: any) {
-      console.error('Stripe webhook signature verification failed:', err?.message || err);
-      captureException(err, { context: 'stripe_webhook_verification_failed', provider: 'stripe' });
-      return res.status(400).send('Webhook Error: Invalid signature');
-    }
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
+  } catch (err: any) {
+    console.error('Stripe webhook signature verification failed:', err?.message || err);
+    captureException(err, { context: 'stripe_webhook_verification_failed', provider: 'stripe' });
+    return res.status(400).send('Webhook Error: Invalid signature');
+  }
 
-    try {
-      const response = await withDistributedLock(
-        {
-          namespace: 'payments:webhook-event',
-          key: event.id,
-          ttlMs: 10 * 60 * 1000,
-          acquireTimeoutMs: 15 * 1000,
-          retryDelayMs: 100,
-          localLocks: webhookEventLocks,
-        },
-        () => processStripeWebhookEvent(event)
-      );
-      return res.status(response.status).json(response.body); // error-envelope-exempt
-    } catch (lockErr: any) {
-      const existing = await prisma.processedStripeEvent
-        .findUnique({
-          where: { event_id: event.id },
-          select: { processed: true },
-        })
-        .catch(() => null);
-      if (existing?.processed) {
-        debugLog('[webhook] Duplicate event skipped after lock wait', {
-          event_id: event.id,
-          event_type: event.type,
-        });
-        return res.json({ received: true, deduplicated: true });
-      }
-      console.error(
-        '[webhook] Failed to acquire event lock, rejecting for retry:',
-        lockErr?.message || lockErr
-      );
-      captureException(lockErr as Error, {
-        context: 'stripe_webhook_lock_failed',
-        provider: 'stripe',
-        eventType: event.type,
-        eventId: event.id,
-      });
-      return res.status(500).json({ error: 'Webhook lock acquisition failed' }); // error-envelope-exempt
+  try {
+    const response = await withDistributedLock(
+      {
+        namespace: 'payments:webhook-event',
+        key: event.id,
+        ttlMs: 10 * 60 * 1000,
+        acquireTimeoutMs: 15 * 1000,
+        retryDelayMs: 100,
+        localLocks: webhookEventLocks,
+      },
+      () => processStripeWebhookEvent(event)
+    );
+    return res.status(response.status).json(response.body);
+  } catch (lockErr: any) {
+    const existing = await prisma.processedStripeEvent.findUnique({
+      where: { event_id: event.id },
+      select: { processed: true },
+    }).catch(() => null);
+    if (existing?.processed) {
+      debugLog('[webhook] Duplicate event skipped after lock wait', { event_id: event.id, event_type: event.type });
+      return res.json({ received: true, deduplicated: true });
     }
-  })
-);
+    console.error('[webhook] Failed to acquire event lock, rejecting for retry:', lockErr?.message || lockErr);
+    captureException(lockErr as Error, {
+      context: 'stripe_webhook_lock_failed',
+      provider: 'stripe',
+      eventType: event.type,
+      eventId: event.id,
+    });
+    return res.status(500).json({ error: 'Webhook lock acquisition failed' });
+  }
+}));
 
 // Legacy webhook handler retained only for diff safety while the locked path above
 // owns /payments/webhook. Do not reuse this route.
-paymentsRouter.post(
-  '/webhook-legacy-disabled',
-  asyncHandler(async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    if (!sig) {
-      // No signature = not from Stripe (bot, crawler, health check). Reject silently.
-      return res.status(400).json({ error: 'Missing stripe-signature header' }); // error-envelope-exempt
-    }
-    // PAY-2: Explicit check for missing/empty webhook secret (falsy OR whitespace-only)
-    const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
-    if (!webhookSecret) {
-      console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
-      captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), {
-        context: 'webhook_secret_missing',
-        provider: 'stripe',
-      });
-      return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' }); // error-envelope-exempt
-    }
-    let event: Stripe.Event;
-    try {
-      // req.body must be the raw Buffer provided by express.raw at app level
-      event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
-    } catch (err: any) {
-      console.error('Stripe webhook signature verification failed:', err?.message || err);
-      captureException(err, { context: 'stripe_webhook_verification_failed', provider: 'stripe' });
-      return res.status(400).send('Webhook Error: Invalid signature');
-    }
+paymentsRouter.post('/webhook-legacy-disabled', asyncHandler(async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  if (!sig) {
+    // No signature = not from Stripe (bot, crawler, health check). Reject silently.
+    return res.status(400).json({ error: 'Missing stripe-signature header' });
+  }
+  // PAY-2: Explicit check for missing/empty webhook secret (falsy OR whitespace-only)
+  const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+  if (!webhookSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET is not set or is empty!');
+    captureException(new Error('STRIPE_WEBHOOK_SECRET missing or empty'), {
+      context: 'webhook_secret_missing',
+      provider: 'stripe',
+    });
+    return res.status(500).json({ error: 'Webhook verification failed — server misconfigured' });
+  }
+  let event: Stripe.Event;
+  try {
+    // req.body must be the raw Buffer provided by express.raw at app level
+    event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
+  } catch (err: any) {
+    console.error('Stripe webhook signature verification failed:', err?.message || err);
+    captureException(err, { context: 'stripe_webhook_verification_failed', provider: 'stripe' });
+    return res.status(400).send('Webhook Error: Invalid signature');
+  }
 
-    // Event-level deduplication: retain the row and mark it processed only after success.
-    // Failed events remain retryable instead of deleting the dedup row and risking partial-work replays.
-    try {
-      const existing = await prisma.processedStripeEvent.findUnique({
-        where: { event_id: event.id },
-        select: { processed: true },
-      });
-      if (existing?.processed) {
-        debugLog('[webhook] Duplicate event skipped', {
+  // Event-level deduplication: retain the row and mark it processed only after success.
+  // Failed events remain retryable instead of deleting the dedup row and risking partial-work replays.
+  try {
+    const existing = await prisma.processedStripeEvent.findUnique({
+      where: { event_id: event.id },
+      select: { processed: true },
+    });
+    if (existing?.processed) {
+      debugLog('[webhook] Duplicate event skipped', { event_id: event.id, event_type: event.type });
+      return res.json({ received: true, deduplicated: true });
+    }
+    if (!existing) {
+      await prisma.processedStripeEvent.create({
+        data: {
           event_id: event.id,
           event_type: event.type,
-        });
-        return res.json({ received: true, deduplicated: true });
+          processed: false,
+          processing_started_at: new Date(),
+        },
+      });
+    } else {
+      await prisma.processedStripeEvent.update({
+        where: { event_id: event.id },
+        data: {
+          event_type: event.type,
+          processing_started_at: new Date(),
+          last_error: null,
+        },
+      });
+    }
+  } catch (dedupErr: any) {
+    console.error('[webhook] Failed to record event state for dedup, rejecting for retry:', dedupErr?.message || dedupErr);
+    return res.status(500).json({ error: 'Dedup recording failed, will retry' });
+  }
+
+  try {
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    if (!session?.id) {
+      console.error('[webhook] Malformed checkout.session.completed — missing session.id', { eventId: event.id });
+      await markStripeEventFailed(event.id, new Error('Invalid session object'));
+      return res.status(400).json({ error: 'Invalid session object' });
+    }
+    try {
+      await finalizeFromSession(session);
+    } catch (e) {
+      await markStripeEventFailed(event.id, e);
+      console.error('[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:', (e as any)?.message || e);
+      captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
+      return res.status(500).json({ error: 'Finalization failed' });
+    }
+  }
+  
+  // Send billing notification emails for subscription events
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object as Stripe.Invoice;
+    // Log renewal transaction
+    if (invoice.customer && invoice.subscription) {
+      const renewalUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) }, select: { id: true } });
+      if (renewalUser) {
+        // v1.0.2 audit fix: await so renewal audit trail is never silently dropped.
+        try {
+          await logTransaction({
+            transactionType: 'SUBSCRIPTION_RENEWAL',
+            status: 'COMPLETED',
+            userId: renewalUser.id,
+            totalCents: invoice.amount_paid || 0,
+            stripeSessionId: String(invoice.id),
+            stripeSubscriptionId: String(invoice.subscription),
+            metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
+          });
+        } catch (err) {
+          captureException(err as Error, { context: 'renewal_transaction_log' });
+        }
       }
-      if (!existing) {
-        await prisma.processedStripeEvent.create({
-          data: {
-            event_id: event.id,
-            event_type: event.type,
-            processed: false,
-            processing_started_at: new Date(),
-          },
+    }
+  }
+  
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice;
+    // Mark user's subscription as past_due so the app can prompt for payment update
+    if (invoice.customer && invoice.subscription) {
+      const failedUser = await prisma.user.findFirst({ where: { stripe_customer_id: String(invoice.customer) } });
+      if (failedUser) {
+        await prisma.user.update({
+          where: { id: failedUser.id },
+          data: { subscription_status: 'past_due' },
         });
-      } else {
-        await prisma.processedStripeEvent.update({
-          where: { event_id: event.id },
-          data: {
-            event_type: event.type,
-            processing_started_at: new Date(),
-            last_error: null,
-          },
-        });
+        await invalidateMeCacheForUser(failedUser.id);
+        console.warn('[webhook] invoice.payment_failed — marked user as past_due', { userId: failedUser.id, invoiceId: invoice.id });
       }
-    } catch (dedupErr: any) {
-      console.error(
-        '[webhook] Failed to record event state for dedup, rejecting for retry:',
-        dedupErr?.message || dedupErr
-      );
-      return res.status(500).json({ error: 'Dedup recording failed, will retry' }); // error-envelope-exempt
+    }
+    if (invoice.customer_email) {
+      await sendBillingNoticeEmail({
+        to: invoice.customer_email,
+        type: 'payment_failed',
+        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
+    }
+  }
+  
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!customerId) {
+      console.error('[webhook] customer.subscription.deleted: subscription.customer is null');
+      return res.status(400).json({ error: 'Missing customer ID' });
+    }
+    const customer = await stripe.customers.retrieve(customerId).catch(() => null);
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
+    void customerEmail;
+
+    // Downgrade user to rookie plan now that subscription period has ended
+    const canceledUser = await prisma.user.findFirst({ where: { stripe_customer_id: customerId } });
+    if (canceledUser) {
+      const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
+      const previousPlan = getCanonicalPlan(canceledUser as any);
+      delete prefs.subscription_id;
+      delete prefs.subscription_period_end;
+      const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      });
+      // ATOMIC: downgrade + cancellation log must succeed or fail together
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: canceledUser.id },
+          data: {
+            preferences: nextPrefs,
+            ...buildBillingStateColumns({
+              plan: 'rookie',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_CANCEL',
+            status: 'COMPLETED',
+            stripe_subscription_id: subscription.id,
+            user_id: canceledUser.id,
+            metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
+            subtotal_cents: 0,
+            tax_cents: 0,
+            stripe_fee_cents: 0,
+            discount_cents: 0,
+            total_cents: 0,
+            net_cents: 0,
+            promo_discount_cents: 0,
+            currency: 'usd',
+          },
+        }),
+      ]);
+      await invalidateMeCacheForUser(canceledUser.id);
+    }
+  }
+  
+  if (event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const subCustomerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+    if (!subCustomerId) {
+      console.error('[webhook] customer.subscription.updated: subscription.customer is null');
+      return res.status(400).json({ error: 'Missing customer ID' });
+    }
+    const customer = await stripe.customers.retrieve(subCustomerId).catch(() => null);
+    const customerEmail = customer && !customer.deleted ? customer.email : null;
+
+    // Sync subscription state to database (independent of email availability)
+    const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subCustomerId } });
+    if (subUser) {
+      const priceId = subscription.items?.data?.[0]?.price?.id;
+      // Map Stripe price ID back to plan tier
+      let newTier: string = subUser.subscription_tier || 'free';
+      if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
+      else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
+
+      const statusMap: Record<string, string> = {
+        active: 'active', past_due: 'past_due', unpaid: 'unpaid',
+        canceled: 'canceled', incomplete: 'incomplete', incomplete_expired: 'canceled',
+        trialing: 'active', paused: 'paused',
+      };
+      const newStatus = statusMap[subscription.status] || subscription.status;
+
+      // Also update preferences.plan to keep it in sync with subscription_tier
+      const planFromTier = newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
+      const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
+      if (planFromTier && (newStatus === 'active')) {
+        const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
+        updateData.preferences = mergeBillingStateIntoPreferences(existingPrefs, {
+          plan: planFromTier as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        });
+        Object.assign(updateData, buildBillingStateColumns({
+          plan: planFromTier as 'veteran' | 'legend',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }));
+      }
+
+      await prisma.user.update({
+        where: { id: subUser.id },
+        data: updateData,
+      });
+      await invalidateMeCacheForUser(subUser.id);
+      console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
+
+      // Update any PENDING transaction log created by PaymentSheet flow
+      updateTransactionStatus(subscription.id, 'COMPLETED', {
+        metadata: { event: 'subscription.updated', status: subscription.status },
+      }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
     }
 
+    void customerEmail;
+  }
+
+  // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
+  // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
+  // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
+  // affect the user's plan or ad — they kept access without paying.
+  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+    const charge = event.data.object as Stripe.Charge;
+    const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+    const refundAmount = charge.amount_refunded || charge.amount;
     try {
-      if (event.type === 'checkout.session.completed') {
-        const session = event.data.object as Stripe.Checkout.Session;
-        if (!session?.id) {
-          console.error('[webhook] Malformed checkout.session.completed — missing session.id', {
-            eventId: event.id,
-          });
-          await markStripeEventFailed(event.id, new Error('Invalid session object'));
-          return res.status(400).json({ error: 'Invalid session object' }); // error-envelope-exempt
-        }
-        try {
-          await finalizeFromSession(session);
-        } catch (e) {
-          await markStripeEventFailed(event.id, e);
-          console.error(
-            '[webhook] CRITICAL: Error finalizing session — returning 500 for Stripe retry:',
-            (e as any)?.message || e
+      // Find the original transaction by payment intent
+      const tx = piId
+        ? await prisma.transactionLog.findFirst({ where: { stripe_payment_intent_id: piId }, orderBy: { created_at: 'desc' } })
+        : null;
+      if (!tx) {
+        console.error('[webhook] charge.refunded without matching transactionLog', { charge_id: charge.id, pi: piId });
+        captureException(new Error('charge.refunded: no matching transaction'), { context: 'refund_no_tx', chargeId: charge.id });
+      } else {
+        const promoRollbackRefs = Array.from(
+          new Set(
+            [tx.stripe_payment_intent_id, tx.stripe_session_id]
+              .map((value) => String(value || '').trim())
+              .filter(Boolean)
+          )
+        );
+
+        const { promoRollback } = await prisma.$transaction(async (db) => {
+          const promoRollbackResult = await reversePromoRedemption(
+            { orderReferences: promoRollbackRefs },
+            db
           );
-          captureException(e as Error, {
-            context: 'stripe_webhook_finalize_failed',
-            sessionId: session.id,
-          });
-          return res.status(500).json({ error: 'Finalization failed' }); // error-envelope-exempt
-        }
-      }
 
-      // Send billing notification emails for subscription events
-      if (event.type === 'invoice.payment_succeeded') {
-        const invoice = event.data.object as Stripe.Invoice;
-        // Log renewal transaction
-        if (invoice.customer && invoice.subscription) {
-          const renewalUser = await prisma.user.findFirst({
-            where: { stripe_customer_id: String(invoice.customer) },
-            select: { id: true },
+          await db.transactionLog.update({
+            where: { id: tx.id },
+            data: {
+              status: 'REFUNDED' as any,
+              metadata: {
+                ...(tx.metadata as any || {}),
+                refund_source: event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
+                refunded_amount_cents: refundAmount,
+                stripe_charge_id: charge.id,
+                refunded_at: new Date().toISOString(),
+                promo_redemption_reversed: promoRollbackResult.reversed,
+                promo_reversal_count: promoRollbackResult.count,
+                promo_reversal_refs: promoRollbackResult.orderReferences,
+              },
+            },
           });
-          if (renewalUser) {
-            // v1.0.2 audit fix: await so renewal audit trail is never silently dropped.
-            try {
-              await logTransaction({
-                transactionType: 'SUBSCRIPTION_RENEWAL',
-                status: 'COMPLETED',
-                userId: renewalUser.id,
-                totalCents: invoice.amount_paid || 0,
-                stripeSessionId: String(invoice.id),
-                stripeSubscriptionId: String(invoice.subscription),
-                metadata: { event: 'invoice.payment_succeeded', period_end: invoice.period_end },
-              });
-            } catch (err) {
-              captureException(err as Error, { context: 'renewal_transaction_log' });
-            }
-          }
-        }
-      }
 
-      if (event.type === 'invoice.payment_failed') {
-        const invoice = event.data.object as Stripe.Invoice;
-        // Mark user's subscription as past_due so the app can prompt for payment update
-        if (invoice.customer && invoice.subscription) {
-          const failedUser = await prisma.user.findFirst({
-            where: { stripe_customer_id: String(invoice.customer) },
-          });
-          if (failedUser) {
-            await prisma.user.update({
-              // cache-invalidation-exempt
-              where: { id: failedUser.id },
-              data: { subscription_status: 'past_due' },
-            });
-            await invalidateMeCacheForUser(failedUser.id);
-            console.warn('[webhook] invoice.payment_failed — marked user as past_due', {
-              userId: failedUser.id,
-              invoiceId: invoice.id,
-            });
-          }
-        }
-        if (invoice.customer_email) {
-          await sendBillingNoticeEmail({
-            to: invoice.customer_email,
-            type: 'payment_failed',
-            planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
-          }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
-        }
-      }
-
-      if (event.type === 'customer.subscription.deleted') {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
-        if (!customerId) {
-          console.error('[webhook] customer.subscription.deleted: subscription.customer is null');
-          return res.status(400).json({ error: 'Missing customer ID' }); // error-envelope-exempt
-        }
-        const customer = await stripe.customers.retrieve(customerId).catch(() => null);
-        const customerEmail = customer && !customer.deleted ? customer.email : null;
-        void customerEmail;
-
-        // Downgrade user to rookie plan now that subscription period has ended
-        const canceledUser = await prisma.user.findFirst({
-          where: { stripe_customer_id: customerId },
-        });
-        if (canceledUser) {
-          const prefs =
-            canceledUser.preferences && typeof canceledUser.preferences === 'object'
-              ? (canceledUser.preferences as any)
-              : {};
-          const previousPlan = getCanonicalPlan(canceledUser as any);
-          delete prefs.subscription_id;
-          delete prefs.subscription_period_end;
-          const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
-            plan: 'rookie',
-            pending_plan: null,
-            payment_pending: false,
-            payment_approved: false,
-          });
-          // ATOMIC: downgrade + cancellation log must succeed or fail together
-          await prisma.$transaction([
-            prisma.user.update({
-              // cache-invalidation-exempt
-              where: { id: canceledUser.id },
+          // Cascade based on transaction type:
+          // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
+          // - AD_PURCHASE → mark ad refunded + release reservations
+          if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+            const u = await db.user.findUnique({ where: { id: tx.user_id }, select: { preferences: true } });
+            const prefs = (u?.preferences as any) || {};
+            const nextPrefs = mergeBillingStateIntoPreferences(
+              { ...prefs, subscription_id: null, subscription_period_end: null },
+              {
+                plan: 'rookie',
+                pending_plan: null,
+                payment_pending: false,
+                payment_approved: false,
+              }
+            );
+            await db.user.update({
+              where: { id: tx.user_id },
               data: {
                 preferences: nextPrefs,
                 ...buildBillingStateColumns({
@@ -2672,1282 +2347,840 @@ paymentsRouter.post(
                   payment_approved: false,
                 }),
                 subscription_tier: 'free',
-                subscription_status: 'canceled',
+                subscription_status: 'cancelled',
+                max_teams: 3,
               },
-            }),
-            prisma.transactionLog.create({
-              data: {
-                transaction_type: 'SUBSCRIPTION_CANCEL',
-                status: 'COMPLETED',
-                stripe_subscription_id: subscription.id,
-                user_id: canceledUser.id,
-                metadata: { reason: 'subscription_deleted', previous_plan: previousPlan },
-                subtotal_cents: 0,
-                tax_cents: 0,
-                stripe_fee_cents: 0,
-                discount_cents: 0,
-                total_cents: 0,
-                net_cents: 0,
-                promo_discount_cents: 0,
-                currency: 'usd',
-              },
-            }),
-          ]);
-          await invalidateMeCacheForUser(canceledUser.id);
-        }
-      }
-
-      if (event.type === 'customer.subscription.updated') {
-        const subscription = event.data.object as Stripe.Subscription;
-        const subCustomerId =
-          typeof subscription.customer === 'string' ? subscription.customer : null;
-        if (!subCustomerId) {
-          console.error('[webhook] customer.subscription.updated: subscription.customer is null');
-          return res.status(400).json({ error: 'Missing customer ID' }); // error-envelope-exempt
-        }
-        const customer = await stripe.customers.retrieve(subCustomerId).catch(() => null);
-        const customerEmail = customer && !customer.deleted ? customer.email : null;
-
-        // Sync subscription state to database (independent of email availability)
-        const subUser = await prisma.user.findFirst({
-          where: { stripe_customer_id: subCustomerId },
-        });
-        if (subUser) {
-          const priceId = subscription.items?.data?.[0]?.price?.id;
-          // Map Stripe price ID back to plan tier
-          let newTier: string = subUser.subscription_tier || 'free';
-          if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
-          else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
-
-          const statusMap: Record<string, string> = {
-            active: 'active',
-            past_due: 'past_due',
-            unpaid: 'unpaid',
-            canceled: 'canceled',
-            incomplete: 'incomplete',
-            incomplete_expired: 'canceled',
-            trialing: 'active',
-            paused: 'paused',
-          };
-          const newStatus = statusMap[subscription.status] || subscription.status;
-
-          // Also update preferences.plan to keep it in sync with subscription_tier
-          const planFromTier =
-            newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
-          const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
-          if (planFromTier && newStatus === 'active') {
-            const existingPrefs =
-              subUser.preferences && typeof subUser.preferences === 'object'
-                ? (subUser.preferences as any)
-                : {};
-            updateData.preferences = mergeBillingStateIntoPreferences(existingPrefs, {
-              plan: planFromTier as 'veteran' | 'legend',
-              pending_plan: null,
-              payment_pending: false,
-              payment_approved: false,
             });
-            Object.assign(
-              updateData,
-              buildBillingStateColumns({
-                plan: planFromTier as 'veteran' | 'legend',
-                pending_plan: null,
-                payment_pending: false,
-                payment_approved: false,
-              })
-            );
+          } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+            await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
+            await db.ad.updateMany({
+              where: { id: tx.order_id },
+              data: { status: 'draft', payment_status: 'refunded' },
+            });
           }
 
-          await prisma.user.update({
-            // cache-invalidation-exempt
-            where: { id: subUser.id },
-            data: updateData,
+          return { promoRollback: promoRollbackResult };
+        });
+
+        if (tx.user_id && (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' || tx.transaction_type === 'SUBSCRIPTION_RENEWAL')) {
+          await invalidateMeCacheForUser(tx.user_id);
+          console.warn('[webhook] User downgraded to rookie after Stripe refund', { user_id: tx.user_id });
+        } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
+          console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
+        }
+
+        if (promoRollback.reversed) {
+          console.warn('[webhook] Promo redemption reversed after refund', {
+            transaction_id: tx.id,
+            refs: promoRollback.orderReferences,
+            count: promoRollback.count,
           });
-          await invalidateMeCacheForUser(subUser.id);
-          console.log(
-            `[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`
-          );
-
-          // Update any PENDING transaction log created by PaymentSheet flow
-          updateTransactionStatus(subscription.id, 'COMPLETED', {
-            metadata: { event: 'subscription.updated', status: subscription.status },
-          }).catch(err =>
-            captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' })
-          );
         }
-
-        void customerEmail;
       }
+    } catch (refundErr: any) {
+      console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
+      captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
+    }
+  }
 
-      // Handle expired checkout sessions — mark PENDING transactions as FAILED and release holds
-      // v1.0.2 pass 8: handle Stripe-side refunds (admin or dispute) so the user's access
-      // is correctly downgraded. Previously a refund issued via Stripe dashboard would not
-      // affect the user's plan or ad — they kept access without paying.
-      if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
-        const charge = event.data.object as Stripe.Charge;
-        const piId =
-          typeof charge.payment_intent === 'string'
-            ? charge.payment_intent
-            : charge.payment_intent?.id;
-        const refundAmount = charge.amount_refunded || charge.amount;
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await updateTransactionStatus(session.id, 'FAILED', {
+      metadata: { reason: 'checkout_expired' },
+    }).catch(err => { console.error('[transaction-log] expired session update failed:', err); captureException(err as Error, { context: 'transaction_log_expired_session' }); });
+
+    // Release ad slot holds if this was an ad checkout
+    const expiredAdId = session.metadata?.ad_id;
+    if (expiredAdId) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: expiredAdId }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
+            prisma.ad.update({ where: { id: expiredAdId }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on checkout expiry', { ad_id: expiredAdId });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on expiry:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_expired', adId: expiredAdId });
+      }
+    }
+  }
+
+  // Handle failed payment intents
+  if (event.type === 'payment_intent.payment_failed') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    await logTransaction({
+      transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+      status: 'FAILED',
+      stripePaymentIntentId: pi.id,
+      userId: meta.user_id || undefined,
+      totalCents: pi.amount,
+      metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
+    }).catch(err => { console.error('[transaction-log] failed payment log failed:', err); captureException(err as Error, { context: 'transaction_log_failed_payment' }); });
+
+    // Release ad slot holds on payment failure
+    if (meta.ad_id) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: meta.ad_id }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
+            prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on payment failure:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_failed_pi', adId: meta.ad_id });
+      }
+    }
+
+    // Notify user of failed payment
+    if (meta.user_id) {
+      const failedUser = await prisma.user.findUnique({ where: { id: meta.user_id } });
+      if (failedUser?.email) {
+        await sendBillingNoticeEmail({
+          to: failedUser.email,
+          type: 'payment_failed',
+          amount: `$${(pi.amount / 100).toFixed(2)}`,
+          planName: meta.ad_id ? 'Ad Purchase' : 'VarsityHub Subscription',
+        }).catch(err => console.warn('[billing-email] payment_intent.failed notification failed:', err));
+      }
+    }
+  }
+
+  // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
+  if (event.type === 'payment_intent.succeeded') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    if (meta.ad_id) {
+      const adId = meta.ad_id;
+      let piDates: string[] = [];
+      try { piDates = JSON.parse(String(meta.dates || '[]')); } catch { /* ignore */ }
+      if (piDates.length > 0) {
         try {
-          // Find the original transaction by payment intent
-          const tx = piId
-            ? await prisma.transactionLog.findFirst({
-                where: { stripe_payment_intent_id: piId },
-                orderBy: { created_at: 'desc' },
-              })
-            : null;
-          if (!tx) {
-            console.error('[webhook] charge.refunded without matching transactionLog', {
-              charge_id: charge.id,
-              pi: piId,
-            });
-            captureException(new Error('charge.refunded: no matching transaction'), {
-              context: 'refund_no_tx',
-              chargeId: charge.id,
-            });
-          } else {
-            const promoRollbackRefs = Array.from(
-              new Set(
-                [tx.stripe_payment_intent_id, tx.stripe_session_id]
-                  .map(value => String(value || '').trim())
-                  .filter(Boolean)
-              )
-            );
-
-            const { promoRollback } = await prisma.$transaction(async db => {
-              const promoRollbackResult = await reversePromoRedemption(
-                { orderReferences: promoRollbackRefs },
-                db
-              );
-
-              await db.transactionLog.update({
-                where: { id: tx.id },
-                data: {
-                  status: 'REFUNDED' as any,
-                  metadata: {
-                    ...((tx.metadata as any) || {}),
-                    refund_source:
-                      event.type === 'charge.dispute.created' ? 'dispute' : 'stripe_dashboard',
-                    refunded_amount_cents: refundAmount,
-                    stripe_charge_id: charge.id,
-                    refunded_at: new Date().toISOString(),
-                    promo_redemption_reversed: promoRollbackResult.reversed,
-                    promo_reversal_count: promoRollbackResult.count,
-                    promo_reversal_refs: promoRollbackResult.orderReferences,
-                  },
-                },
+          await prisma.$transaction(async (tx) => {
+            const MAX_AD_SLOTS = 2;
+            const adRecord = await tx.ad.findUnique({ where: { id: adId }, select: { target_zip_code: true } });
+            if (adRecord?.target_zip_code) {
+              // Count paid and held ads (excluding this one) to check slot availability
+              const reservedAdsInZip = await tx.ad.findMany({
+                where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: adId } },
+                select: { id: true },
+                take: 100,
               });
-
-              // Cascade based on transaction type:
-              // - SUBSCRIPTION_PURCHASE/RENEWAL → downgrade user to rookie immediately
-              // - AD_PURCHASE → mark ad refunded + release reservations
-              if (
-                tx.user_id &&
-                (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
-                  tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
-              ) {
-                const u = await db.user.findUnique({
-                  where: { id: tx.user_id },
-                  select: { preferences: true },
+              if (reservedAdsInZip.length > 0) {
+                const dateObjects = piDates.map((s) => new Date(s + 'T00:00:00.000Z'));
+                const bookedSlots = await tx.adReservation.groupBy({
+                  by: ['date'],
+                  where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+                  _count: { date: true },
                 });
-                const prefs = (u?.preferences as any) || {};
-                const nextPrefs = mergeBillingStateIntoPreferences(
-                  { ...prefs, subscription_id: null, subscription_period_end: null },
-                  {
-                    plan: 'rookie',
-                    pending_plan: null,
-                    payment_pending: false,
-                    payment_approved: false,
-                  }
-                );
-                await db.user.update({
-                  // cache-invalidation-exempt
-                  where: { id: tx.user_id },
-                  data: {
-                    preferences: nextPrefs,
-                    ...buildBillingStateColumns({
-                      plan: 'rookie',
-                      pending_plan: null,
-                      payment_pending: false,
-                      payment_approved: false,
-                    }),
-                    subscription_tier: 'free',
-                    subscription_status: 'cancelled',
-                    max_teams: SERVER_ROOKIE_TEAM_LIMIT,
-                  },
-                });
-              } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-                await db.adReservation.deleteMany({ where: { ad_id: tx.order_id } });
-                await db.ad.updateMany({
-                  where: { id: tx.order_id },
-                  data: { status: 'draft', payment_status: 'refunded' },
-                });
+                const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+                if (fullDates.length > 0) {
+                  const err = new Error('SLOT_FULL') as any;
+                  err.slotFull = true;
+                  err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+                  throw err;
+                }
               }
+            }
+            // SECURITY: Only activate ads that have been approved by admin
+            const adCheck = await tx.ad.findUnique({ where: { id: adId }, select: { status: true } });
+            if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
+              throw new Error(`AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`);
+            }
 
-              return { promoRollback: promoRollbackResult };
+            await tx.ad.update({ where: { id: adId }, data: { payment_status: 'paid', status: 'active' } });
+            await tx.adReservation.createMany({
+              data: piDates.map((s) => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
+              skipDuplicates: true,
             });
+          }, { isolationLevel: 'Serializable' });
 
-            if (
-              tx.user_id &&
-              (tx.transaction_type === 'SUBSCRIPTION_PURCHASE' ||
-                tx.transaction_type === 'SUBSCRIPTION_RENEWAL')
-            ) {
-              await invalidateMeCacheForUser(tx.user_id);
-              console.warn('[webhook] User downgraded to rookie after Stripe refund', {
-                user_id: tx.user_id,
+          // Update transaction
+          await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
+          // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
+          const adForEmail = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+          sendAdPaymentEmail({
+            userId: meta.user_id || null,
+            adId,
+            dates: piDates,
+            totalCents: pi.amount,
+            businessName: adForEmail?.business_name,
+            zipCode: adForEmail?.target_zip_code,
+          }).catch((err) => console.warn('[webhook] ad payment receipt failed:', (err as any)?.message || err));
+          // Ad was already approved before payment — no admin review needed
+
+          // Redeem promo code if one was used — retry up to 3 times to prevent reuse
+          if (meta.promo_code && meta.user_id) {
+            const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
+            let promoRedeemed = false;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                await redeemPromo({ code: meta.promo_code, subtotalCents: promoSubtotal, userId: meta.user_id || '', service: 'booking', orderId: pi.id });
+                promoRedeemed = true;
+                break;
+              } catch (e) {
+                console.warn(`[webhook] promo redeem attempt ${attempt}/3 failed:`, (e as any)?.message);
+                if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
+              }
+            }
+            if (!promoRedeemed) {
+              // PAY-5: Payment succeeded but promo usage wasn't decremented — promo can be reused.
+              // Use NEEDS_REVIEW (not FAILED — the payment completed) so the admin
+              // dashboard surfaces it without misrepresenting the payment outcome.
+              console.error('[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable', { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id });
+              captureException(new Error('Promo redemption failed after retries — revenue leak risk'), {
+                context: 'promo_redeem_failed',
+                promoCode: meta.promo_code,
+                piId: pi.id,
+                userId: meta.user_id,
+                level: 'fatal',
               });
-            } else if (tx.order_id && tx.transaction_type === 'AD_PURCHASE') {
-              console.warn('[webhook] Ad refunded + reservations released', { ad_id: tx.order_id });
-            }
-
-            if (promoRollback.reversed) {
-              console.warn('[webhook] Promo redemption reversed after refund', {
-                transaction_id: tx.id,
-                refs: promoRollback.orderReferences,
-                count: promoRollback.count,
-              });
+              updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
+                metadata: { promo_redemption_failed: true, promo_code: meta.promo_code, needs_review: true },
+              }).catch((err) => console.warn('[webhook] failed to flag promo redemption failure:', err));
             }
           }
-        } catch (refundErr: any) {
-          console.error('[webhook] charge.refunded handler failed:', refundErr?.message);
-          captureException(refundErr as Error, { context: 'webhook_charge_refunded' });
-        }
-      }
-
-      if (event.type === 'checkout.session.expired') {
-        const session = event.data.object as Stripe.Checkout.Session;
-        await updateTransactionStatus(session.id, 'FAILED', {
-          metadata: { reason: 'checkout_expired' },
-        }).catch(err => {
-          console.error('[transaction-log] expired session update failed:', err);
-          captureException(err as Error, { context: 'transaction_log_expired_session' });
-        });
-
-        // Release ad slot holds if this was an ad checkout
-        const expiredAdId = session.metadata?.ad_id;
-        if (expiredAdId) {
-          try {
-            const heldAd = await prisma.ad.findUnique({
-              where: { id: expiredAdId },
-              select: { payment_status: true },
-            });
-            if (heldAd?.payment_status === 'hold') {
-              await prisma.$transaction([
-                prisma.adReservation.deleteMany({ where: { ad_id: expiredAdId } }),
-                prisma.ad.update({
-                  where: { id: expiredAdId },
-                  data: { payment_status: 'unpaid' },
-                }),
-              ]);
-              debugLog('[webhook] Released ad slot hold on checkout expiry', {
-                ad_id: expiredAdId,
-              });
-            }
-          } catch (releaseErr) {
-            console.error(
-              '[webhook] Failed to release ad hold on expiry:',
-              (releaseErr as any)?.message
-            );
-            captureException(releaseErr as Error, {
-              context: 'release_ad_hold_expired',
-              adId: expiredAdId,
-            });
-          }
-        }
-      }
-
-      // Handle failed payment intents
-      if (event.type === 'payment_intent.payment_failed') {
-        const pi = event.data.object as Stripe.PaymentIntent;
-        const meta = pi.metadata || {};
-        await logTransaction({
-          transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
-          status: 'FAILED',
-          stripePaymentIntentId: pi.id,
-          userId: meta.user_id || undefined,
-          totalCents: pi.amount,
-          metadata: { reason: pi.last_payment_error?.message || 'payment_failed', ...meta },
-        }).catch(err => {
-          console.error('[transaction-log] failed payment log failed:', err);
-          captureException(err as Error, { context: 'transaction_log_failed_payment' });
-        });
-
-        // Release ad slot holds on payment failure
-        if (meta.ad_id) {
-          try {
-            const heldAd = await prisma.ad.findUnique({
-              where: { id: meta.ad_id },
-              select: { payment_status: true },
-            });
-            if (heldAd?.payment_status === 'hold') {
-              await prisma.$transaction([
-                prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
-                prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
-              ]);
-              debugLog('[webhook] Released ad slot hold on payment failure', { ad_id: meta.ad_id });
-            }
-          } catch (releaseErr) {
-            console.error(
-              '[webhook] Failed to release ad hold on payment failure:',
-              (releaseErr as any)?.message
-            );
-            captureException(releaseErr as Error, {
-              context: 'release_ad_hold_failed_pi',
-              adId: meta.ad_id,
-            });
-          }
-        }
-
-        // Notify user of failed payment
-        if (meta.user_id) {
-          const failedUser = await prisma.user.findUnique({ where: { id: meta.user_id } });
-          if (failedUser?.email) {
-            await sendBillingNoticeEmail({
-              to: failedUser.email,
-              type: 'payment_failed',
-              amount: `$${(pi.amount / 100).toFixed(2)}`,
-              planName: meta.ad_id ? 'Ad Purchase' : 'VarsityHub Subscription',
-            }).catch(err =>
-              console.warn('[billing-email] payment_intent.failed notification failed:', err)
-            );
-          }
-        }
-      }
-
-      // Handle PaymentSheet ad payments (PaymentIntent-based, no Checkout Session)
-      if (event.type === 'payment_intent.succeeded') {
-        const pi = event.data.object as Stripe.PaymentIntent;
-        const meta = pi.metadata || {};
-        if (meta.ad_id) {
-          const adId = meta.ad_id;
-          let piDates: string[] = [];
-          try {
-            piDates = JSON.parse(String(meta.dates || '[]'));
-          } catch {
-            /* ignore */
-          }
-          if (piDates.length > 0) {
+        } catch (e: any) {
+          if (e?.slotFull) {
+            console.error('[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund', { ad_id: adId, dates: e.dates, pi_id: pi.id });
+            // Auto-refund: charge the user's card back immediately
             try {
-              await prisma.$transaction(
-                async tx => {
-                  const MAX_AD_SLOTS = 2;
-                  const adRecord = await tx.ad.findUnique({
-                    where: { id: adId },
-                    select: { target_zip_code: true },
-                  });
-                  if (adRecord?.target_zip_code) {
-                    // Count paid and held ads (excluding this one) to check slot availability
-                    const reservedAdsInZip = await tx.ad.findMany({
-                      where: {
-                        target_zip_code: adRecord.target_zip_code,
-                        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-                        NOT: { id: adId },
-                      },
-                      select: { id: true },
-                      take: 100,
-                    });
-                    if (reservedAdsInZip.length > 0) {
-                      const dateObjects = piDates.map(s => new Date(s + 'T00:00:00.000Z'));
-                      const bookedSlots = await tx.adReservation.groupBy({
-                        by: ['date'],
-                        where: {
-                          ad_id: { in: reservedAdsInZip.map(a => a.id) },
-                          date: { in: dateObjects },
-                        },
-                        _count: { date: true },
-                      });
-                      const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-                      if (fullDates.length > 0) {
-                        const err = new Error('SLOT_FULL') as any;
-                        err.slotFull = true;
-                        err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-                        throw err;
-                      }
-                    }
-                  }
-                  // SECURITY: Only activate ads that have been approved by admin
-                  const adCheck = await tx.ad.findUnique({
-                    where: { id: adId },
-                    select: { status: true },
-                  });
-                  if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
-                    throw new Error(
-                      `AD_NOT_APPROVED: Ad ${adId} status is ${adCheck?.status}, cannot activate`
-                    );
-                  }
-
-                  await tx.ad.update({
-                    where: { id: adId },
-                    data: { payment_status: 'paid', status: 'active' },
-                  });
-                  await tx.adReservation.createMany({
-                    data: piDates.map(s => ({ ad_id: adId, date: new Date(s + 'T00:00:00.000Z') })),
-                    skipDuplicates: true,
-                  });
-                },
-                { isolationLevel: 'Serializable' }
-              );
-
-              // Update transaction
-              await updateTransactionStatus(pi.id, 'COMPLETED', { stripePaymentIntentId: pi.id });
-              // Send payment receipt (PDF Note 8 — restored from 87aeafa0)
-              const adForEmail = await prisma.ad.findUnique({
-                where: { id: adId },
-                select: { business_name: true, target_zip_code: true },
-              });
-              sendAdPaymentEmail({
-                userId: meta.user_id || null,
-                adId,
-                dates: piDates,
-                totalCents: pi.amount,
-                businessName: adForEmail?.business_name,
-                zipCode: adForEmail?.target_zip_code,
-              }).catch(err =>
-                console.warn('[webhook] ad payment receipt failed:', (err as any)?.message || err)
-              );
-              // Ad was already approved before payment — no admin review needed
-
-              // Redeem promo code if one was used — retry up to 3 times to prevent reuse
-              if (meta.promo_code && meta.user_id) {
-                const promoSubtotal = Number(meta.subtotal_cents || 0) || 0;
-                let promoRedeemed = false;
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                  try {
-                    await redeemPromo({
-                      code: meta.promo_code,
-                      subtotalCents: promoSubtotal,
-                      userId: meta.user_id || '',
-                      service: 'booking',
-                      orderId: pi.id,
-                    });
-                    promoRedeemed = true;
-                    break;
-                  } catch (e) {
-                    console.warn(
-                      `[webhook] promo redeem attempt ${attempt}/3 failed:`,
-                      (e as any)?.message
-                    );
-                    if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
-                  }
-                }
-                if (!promoRedeemed) {
-                  // PAY-5: Payment succeeded but promo usage wasn't decremented — promo can be reused.
-                  // Use NEEDS_REVIEW (not FAILED — the payment completed) so the admin
-                  // dashboard surfaces it without misrepresenting the payment outcome.
-                  console.error(
-                    '[webhook] ⛔ PROMO REDEEM FAILED after 3 attempts — promo code may be reusable',
-                    { code: meta.promo_code, pi_id: pi.id, userId: meta.user_id }
-                  );
-                  captureException(
-                    new Error('Promo redemption failed after retries — revenue leak risk'),
-                    {
-                      context: 'promo_redeem_failed',
-                      promoCode: meta.promo_code,
-                      piId: pi.id,
-                      userId: meta.user_id,
-                      level: 'fatal',
-                    }
-                  );
-                  updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
-                    metadata: {
-                      promo_redemption_failed: true,
-                      promo_code: meta.promo_code,
-                      needs_review: true,
-                    },
-                  }).catch(err =>
-                    console.warn('[webhook] failed to flag promo redemption failure:', err)
-                  );
-                }
-              }
-            } catch (e: any) {
-              if (e?.slotFull) {
-                console.error(
-                  '[payments] SLOT_FULL on payment_intent.succeeded — issuing auto-refund',
-                  { ad_id: adId, dates: e.dates, pi_id: pi.id }
-                );
-                // Auto-refund: charge the user's card back immediately
-                try {
-                  const refund = await stripe.refunds.create({
-                    payment_intent: pi.id,
-                    reason: 'requested_by_customer',
-                  });
-                  try {
-                    await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
-                    await updateTransactionStatus(pi.id, 'REFUNDED', {
-                      metadata: {
-                        reason: 'slot_full',
-                        overbooked_dates: e.dates,
-                        stripe_refund_id: refund.id,
-                        refunded_amount_cents: refund.amount ?? pi.amount,
-                        refund_currency: refund.currency || 'usd',
-                        refund_status: refund.status || 'pending',
-                        refunded_at: new Date().toISOString(),
-                      },
-                    });
-                  } catch (releaseErr: any) {
-                    console.error(
-                      '[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED',
-                      {
-                        ad_id: adId,
-                        pi_id: pi.id,
-                        error: releaseErr?.message,
-                      }
-                    );
-                    captureException(releaseErr as Error, {
-                      context: 'slot_full_release_after_refund_failed',
-                      adId,
-                      piId: pi.id,
-                      refundId: refund.id,
-                    });
-                    await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
-                      metadata: {
-                        reason: 'slot_full_release_failed',
-                        overbooked_dates: e.dates,
-                        stripe_refund_id: refund.id,
-                        refunded_amount_cents: refund.amount ?? pi.amount,
-                        refund_currency: refund.currency || 'usd',
-                        refund_status: refund.status || 'pending',
-                        refunded_at: new Date().toISOString(),
-                        release_pending: true,
-                        release_error: releaseErr?.message || 'release_failed',
-                      },
-                    });
-                  }
-                  // Notify user their dates were unavailable and they've been refunded
-                  const adForRefund = await prisma.ad.findUnique({
-                    where: { id: adId },
-                    select: { business_name: true, target_zip_code: true },
-                  });
-                  const refundUser = meta.user_id
-                    ? await prisma.user.findUnique({
-                        where: { id: meta.user_id },
-                        select: { email: true },
-                      })
-                    : null;
-                  if (refundUser?.email) {
-                    sendBillingNoticeEmail({
-                      to: refundUser.email,
-                      type: 'payment_failed',
-                      planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
-                      amount: `$${(pi.amount / 100).toFixed(2)}`,
-                      perks: [
-                        `Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(pi.amount / 100).toFixed(2)}.`,
-                      ],
-                    }).catch(err => {
-                      console.error('[payments] Failed to send refund email:', err);
-                      captureException(err as Error, {
-                        context: 'slot_full_refund_email',
-                        adId,
-                        piId: pi.id,
-                      });
-                    });
-                  }
-                } catch (refundErr: any) {
-                  // Refund failed — this is critical, requires manual intervention
-                  console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', {
-                    ad_id: adId,
-                    pi_id: pi.id,
-                    error: refundErr?.message,
-                  });
-                  captureException(refundErr as Error, {
-                    context: 'slot_full_auto_refund_failed',
-                    adId,
-                    piId: pi.id,
-                    amount: pi.amount,
-                  });
-                  await updateTransactionStatus(pi.id, 'FAILED', {
-                    metadata: {
-                      reason: 'slot_full_refund_failed',
-                      overbooked_dates: e.dates,
-                      refund_failed: true,
-                    },
-                  }).catch(err => {
-                    console.error('[transaction-log] PI slot-full status update failed:', err);
-                    captureException(err as Error, { context: 'transaction_log_slot_full_pi' });
-                  });
-                  await markStripeEventFailed(event.id, refundErr);
-                  return res.status(500).json({ error: 'Auto-refund failed; retrying webhook' }); // error-envelope-exempt
-                }
-              } else {
-                await markStripeEventFailed(event.id, e);
-                console.error(
-                  '[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry',
-                  { ad_id: adId, pi_id: pi.id, error: e }
-                );
-                captureException(e as Error, {
-                  context: 'payment_intent_succeeded_ad',
+              const refund = await stripe.refunds.create({ payment_intent: pi.id, reason: 'requested_by_customer' });
+              try {
+                await releaseAdInventoryAfterSlotFullRefundWithRetry(adId);
+                await updateTransactionStatus(pi.id, 'REFUNDED', {
+                  metadata: {
+                    reason: 'slot_full',
+                    overbooked_dates: e.dates,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                  },
+                });
+              } catch (releaseErr: any) {
+                console.error('[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED', {
+                  ad_id: adId,
+                  pi_id: pi.id,
+                  error: releaseErr?.message,
+                });
+                captureException(releaseErr as Error, {
+                  context: 'slot_full_release_after_refund_failed',
                   adId,
                   piId: pi.id,
+                  refundId: refund.id,
                 });
-                return res.status(500).json({ error: 'Ad processing failed' }); // error-envelope-exempt
+                await updateTransactionStatus(pi.id, 'NEEDS_REVIEW', {
+                  metadata: {
+                    reason: 'slot_full_release_failed',
+                    overbooked_dates: e.dates,
+                    stripe_refund_id: refund.id,
+                    refunded_amount_cents: refund.amount ?? pi.amount,
+                    refund_currency: refund.currency || 'usd',
+                    refund_status: refund.status || 'pending',
+                    refunded_at: new Date().toISOString(),
+                    release_pending: true,
+                    release_error: releaseErr?.message || 'release_failed',
+                  },
+                });
               }
+              // Notify user their dates were unavailable and they've been refunded
+              const adForRefund = await prisma.ad.findUnique({ where: { id: adId }, select: { business_name: true, target_zip_code: true } });
+              const refundUser = meta.user_id ? await prisma.user.findUnique({ where: { id: meta.user_id }, select: { email: true } }) : null;
+              if (refundUser?.email) {
+                sendBillingNoticeEmail({
+                  to: refundUser.email,
+                  type: 'payment_failed',
+                  planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
+                  amount: `$${(pi.amount / 100).toFixed(2)}`,
+                  perks: [`Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(pi.amount / 100).toFixed(2)}.`],
+                }).catch(err => {
+                  console.error('[payments] Failed to send refund email:', err);
+                  captureException(err as Error, { context: 'slot_full_refund_email', adId, piId: pi.id });
+                });
+              }
+            } catch (refundErr: any) {
+              // Refund failed — this is critical, requires manual intervention
+              console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { ad_id: adId, pi_id: pi.id, error: refundErr?.message });
+              captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed', adId, piId: pi.id, amount: pi.amount });
+              await updateTransactionStatus(pi.id, 'FAILED', {
+                metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
+              }).catch(err => { console.error('[transaction-log] PI slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full_pi' }); });
+              await markStripeEventFailed(event.id, refundErr);
+              return res.status(500).json({ error: 'Auto-refund failed; retrying webhook' });
+            }
+          } else {
+              await markStripeEventFailed(event.id, e);
+              console.error('[payments] CRITICAL: Error processing ad PI succeeded — returning 500 for Stripe retry', { ad_id: adId, pi_id: pi.id, error: e });
+              captureException(e as Error, { context: 'payment_intent_succeeded_ad', adId, piId: pi.id });
+              return res.status(500).json({ error: 'Ad processing failed' });
             }
           }
-        }
       }
-    } catch (eventErr: any) {
-      await markStripeEventFailed(event.id, eventErr);
-      console.error(
-        '[webhook] CRITICAL: Unhandled webhook processing failure:',
-        eventErr?.message || eventErr
-      );
-      captureException(eventErr as Error, {
-        context: 'stripe_webhook_unhandled_processing_error',
-        eventType: event.type,
-        eventId: event.id,
-      });
-      return res.status(500).json({ error: 'Webhook processing failed' }); // error-envelope-exempt
     }
+  }
 
-    await markStripeEventProcessed(event.id);
-    return res.json({ received: true });
-  })
-);
+  } catch (eventErr: any) {
+    await markStripeEventFailed(event.id, eventErr);
+    console.error('[webhook] CRITICAL: Unhandled webhook processing failure:', eventErr?.message || eventErr);
+    captureException(eventErr as Error, { context: 'stripe_webhook_unhandled_processing_error', eventType: event.type, eventId: event.id });
+    return res.status(500).json({ error: 'Webhook processing failed' });
+  }
+
+  await markStripeEventProcessed(event.id);
+  return res.json({ received: true });
+}));
+
 
 // Cancel an abandoned PaymentIntent and mark transaction as FAILED
-paymentsRouter.post(
-  '/cancel-intent',
-  expressPkg.json(),
-  requireAuth as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const cancelIntentSchema = z.object({
-      payment_intent_id: z.string().min(1),
-    });
-    const parsed = cancelIntentSchema.safeParse(req.body || {});
-    if (!parsed.success)
-      return res
-        .status(400)
-        .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-    const { payment_intent_id } = parsed.data;
-    try {
-      const pi = await stripe.paymentIntents.retrieve(payment_intent_id);
-      // Only cancel if the PI belongs to this user and is still cancelable
-      if (pi.metadata?.user_id !== req.user!.id) {
-        return res.status(403).json({ error: 'Unauthorized' }); // error-envelope-exempt
-      }
-      if (
-        ['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status)
-      ) {
-        await stripe.paymentIntents.cancel(payment_intent_id);
-      }
-      await updateTransactionStatus(payment_intent_id, 'FAILED', {
-        metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
-      }).catch(err => {
-        console.error('[transaction-log] cancel-intent log failed:', err);
-        captureException(err as Error, { context: 'cancel_intent_log' });
-      });
-
-      // Cancel incomplete subscription if this PI belongs to one (prevents orphaned subscriptions in Stripe)
-      if (pi.invoice) {
-        try {
-          const invoice = await stripe.invoices.retrieve(String(pi.invoice));
-          if (invoice.subscription) {
-            const sub = await stripe.subscriptions.retrieve(String(invoice.subscription));
-            if (sub.status === 'incomplete') {
-              await stripe.subscriptions.cancel(sub.id);
-              debugLog('[payments] Canceled incomplete subscription on cancel-intent', {
-                sub_id: sub.id,
-              });
-            }
-          }
-        } catch (subErr) {
-          console.warn(
-            '[payments] Failed to cancel incomplete subscription:',
-            (subErr as any)?.message
-          );
-        }
-      }
-
-      // Release ad slot holds if this was an ad payment
-      const cancelAdId = pi.metadata?.ad_id;
-      if (cancelAdId) {
-        const heldAd = await prisma.ad.findUnique({
-          where: { id: cancelAdId },
-          select: { payment_status: true },
-        });
-        if (heldAd?.payment_status === 'hold') {
-          await prisma
-            .$transaction([
-              prisma.adReservation.deleteMany({ where: { ad_id: cancelAdId } }),
-              prisma.ad.update({ where: { id: cancelAdId }, data: { payment_status: 'unpaid' } }),
-            ])
-            .catch(releaseErr => {
-              console.error(
-                '[payments] Failed to release hold on cancel-intent:',
-                (releaseErr as any)?.message
-              );
-            });
-        }
-      }
-
-      return res.json({ canceled: true });
-    } catch (err: any) {
-      console.warn('[payments] cancel-intent error:', err?.message);
-      return res.json({ canceled: false });
+paymentsRouter.post('/cancel-intent', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  const cancelIntentSchema = z.object({
+    payment_intent_id: z.string().min(1),
+  });
+  const parsed = cancelIntentSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+  const { payment_intent_id } = parsed.data;
+  try {
+    const pi = await stripe.paymentIntents.retrieve(payment_intent_id);
+    // Only cancel if the PI belongs to this user and is still cancelable
+    if (pi.metadata?.user_id !== req.user!.id) {
+      return res.status(403).json({ error: 'Unauthorized' });
     }
-  })
-);
+    if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status)) {
+      await stripe.paymentIntents.cancel(payment_intent_id);
+    }
+    await updateTransactionStatus(payment_intent_id, 'FAILED', {
+      metadata: { reason: 'user_abandoned', canceled_at: new Date().toISOString() },
+    }).catch(err => { console.error('[transaction-log] cancel-intent log failed:', err); captureException(err as Error, { context: 'cancel_intent_log' }); });
+
+    // Cancel incomplete subscription if this PI belongs to one (prevents orphaned subscriptions in Stripe)
+    if (pi.invoice) {
+      try {
+        const invoice = await stripe.invoices.retrieve(String(pi.invoice));
+        if (invoice.subscription) {
+          const sub = await stripe.subscriptions.retrieve(String(invoice.subscription));
+          if (sub.status === 'incomplete') {
+            await stripe.subscriptions.cancel(sub.id);
+            debugLog('[payments] Canceled incomplete subscription on cancel-intent', { sub_id: sub.id });
+          }
+        }
+      } catch (subErr) {
+        console.warn('[payments] Failed to cancel incomplete subscription:', (subErr as any)?.message);
+      }
+    }
+
+    // Release ad slot holds if this was an ad payment
+    const cancelAdId = pi.metadata?.ad_id;
+    if (cancelAdId) {
+      const heldAd = await prisma.ad.findUnique({ where: { id: cancelAdId }, select: { payment_status: true } });
+      if (heldAd?.payment_status === 'hold') {
+        await prisma.$transaction([
+          prisma.adReservation.deleteMany({ where: { ad_id: cancelAdId } }),
+          prisma.ad.update({ where: { id: cancelAdId }, data: { payment_status: 'unpaid' } }),
+        ]).catch(releaseErr => {
+          console.error('[payments] Failed to release hold on cancel-intent:', (releaseErr as any)?.message);
+        });
+      }
+    }
+
+    return res.json({ canceled: true });
+  } catch (err: any) {
+    console.warn('[payments] cancel-intent error:', err?.message);
+    return res.json({ canceled: false });
+  }
+}));
 
 // Create a subscription Checkout Session for recurring membership plans
-paymentsRouter.post(
-  '/subscribe',
-  expressPkg.json(),
-  requireVerified as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const subscribeSchema = z.object({
-        plan: z.string().min(1),
-        promo_code: z.string().optional(),
-      });
-      const parsed = subscribeSchema.safeParse(req.body || {});
-      if (!parsed.success)
-        return res
-          .status(400)
-          .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-      const { plan, promo_code } = parsed.data;
-      const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
-      return res.json({ url, session_id: sessionId });
-    } catch (err: any) {
-      const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-      return res
-        .status(status)
-        .json({ error: err?.message || 'Unable to start subscription checkout' });
-    }
-  })
-);
+paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const subscribeSchema = z.object({
+      plan: z.string().min(1),
+      promo_code: z.string().optional(),
+    });
+    const parsed = subscribeSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { plan, promo_code } = parsed.data;
+    const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
+    return res.json({ url, session_id: sessionId });
+  } catch (err: any) {
+    const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+    return res.status(status).json({ error: err?.message || 'Unable to start subscription checkout' });
+  }
+}));
 
 // Cancel an active membership subscription
-paymentsRouter.post(
-  '/subscription/cancel',
-  expressPkg.json(),
-  requireVerified as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true, stripe_customer_id: true },
-      });
-      const prefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
+paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
 
-      let subscriptionId: string | undefined =
-        typeof prefs.subscription_id === 'string' ? prefs.subscription_id : undefined;
+    let subscriptionId: string | undefined = typeof prefs.subscription_id === 'string' ? prefs.subscription_id : undefined;
 
-      if (!subscriptionId) {
-        try {
-          const sessions = await stripe.checkout.sessions.list({ limit: 50 });
-          const found = sessions.data.find(
-            s =>
-              s.metadata &&
-              String(s.metadata.user_id) === String(userId) &&
-              typeof s.subscription === 'string' &&
-              s.subscription
-          );
+    if (!subscriptionId) {
+      try {
+        const sessions = await stripe.checkout.sessions.list({ limit: 50 });
+        const found = sessions.data.find((s) => s.metadata && String(s.metadata.user_id) === String(userId) && typeof s.subscription === 'string' && s.subscription);
 
-          if (found && found.subscription) {
-            subscriptionId = String(found.subscription);
-          }
-        } catch (err) {
-          console.warn(
-            'Failed to lookup checkout sessions while cancelling subscription:',
-            (err as any)?.message || err
-          );
+        if (found && found.subscription) {
+          subscriptionId = String(found.subscription);
         }
-      }
-
-      if (!subscriptionId) {
-        return res.status(400).json({ error: 'No active subscription found' }); // error-envelope-exempt
-      }
-
-      // Verify the subscription belongs to this user's Stripe customer before
-      // mutating it. preferences.subscription_id is server-owned but lives in a
-      // mutable JSON blob; without the customer check, an attacker who can
-      // poison preferences could cancel another user's subscription.
-      let stripeSub: Stripe.Subscription;
-      try {
-        stripeSub = await stripe.subscriptions.retrieve(subscriptionId);
       } catch (err) {
-        console.warn(
-          'Failed to retrieve Stripe subscription before cancel:',
-          (err as any)?.message || err
-        );
-        return res.status(404).json({ error: 'Subscription not found in Stripe' }); // error-envelope-exempt
+        console.warn('Failed to lookup checkout sessions while cancelling subscription:', (err as any)?.message || err);
       }
-      const subCustomerId =
-        typeof stripeSub.customer === 'string' ? stripeSub.customer : stripeSub.customer?.id || '';
-      if (user?.stripe_customer_id && String(subCustomerId) !== String(user.stripe_customer_id)) {
-        console.warn(
-          '[payments] cancel: refusing to mutate subscription owned by another customer',
-          {
-            user_id: userId,
-            user_customer: user.stripe_customer_id,
-            sub_customer: subCustomerId,
-          }
-        );
-        return res.status(403).json({ error: 'Subscription does not belong to this account' }); // error-envelope-exempt
-      }
-
-      try {
-        await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
-      } catch (err) {
-        console.warn('Failed to cancel Stripe subscription:', (err as any)?.message || err);
-        return res.status(500).json({ error: 'Failed to cancel subscription with Stripe' }); // error-envelope-exempt
-      }
-
-      // Log the cancellation request
-      await logTransaction({
-        transactionType: 'SUBSCRIPTION_CANCEL',
-        status: 'COMPLETED',
-        stripeSubscriptionId: subscriptionId,
-        userId,
-        metadata: { action: 'cancel_at_period_end', plan: getCanonicalPlan(user as any) },
-      }).catch(err => {
-        console.error('[transaction-log] cancel request log failed:', err);
-        captureException(err as Error, { context: 'transaction_log_cancel_request' });
-      });
-
-      return res.json({ ok: true });
-    } catch (err) {
-      console.error('Error cancelling subscription:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
     }
-  })
-);
+
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No active subscription found' });
+    }
+
+    try {
+      await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
+    } catch (err) {
+      console.warn('Failed to cancel Stripe subscription:', (err as any)?.message || err);
+      return res.status(500).json({ error: 'Failed to cancel subscription with Stripe' });
+    }
+
+    // Log the cancellation request
+    await logTransaction({
+      transactionType: 'SUBSCRIPTION_CANCEL',
+      status: 'COMPLETED',
+      stripeSubscriptionId: subscriptionId,
+      userId,
+      metadata: { action: 'cancel_at_period_end', plan: getCanonicalPlan(user as any) },
+    }).catch(err => { console.error('[transaction-log] cancel request log failed:', err); captureException(err as Error, { context: 'transaction_log_cancel_request' }); });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Error cancelling subscription:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
 
 // v1.0.2 pass 9: resume a cancel-at-period-end subscription before period actually ends.
 // Mirrors /subscription/cancel; just sets cancel_at_period_end back to false.
 // v1.0.2 pass 10: explicit requireAuth for defense-in-depth (matches pattern set in earlier passes).
 // Logged as SUBSCRIPTION_CANCEL with metadata.action='resume_cancel_at_period_end' since
 // SUBSCRIPTION_RESUME isn't in the TransactionType enum (would need a migration).
-paymentsRouter.post(
-  '/subscription/resume',
-  expressPkg.json(),
-  requireAuth as any,
-  requireVerified as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true, stripe_customer_id: true },
-      });
-      const prefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-      const subscriptionId: string | undefined =
-        typeof prefs.subscription_id === 'string' ? prefs.subscription_id : undefined;
-      if (!subscriptionId) {
-        return res.status(400).json({ error: 'No subscription to resume' }); // error-envelope-exempt
-      }
-      let sub: Stripe.Subscription;
-      try {
-        sub = await stripe.subscriptions.retrieve(subscriptionId);
-      } catch (err: any) {
-        return res
-          .status(404)
-          .json({ error: 'Subscription not found in Stripe', detail: err?.message });
-      }
-      // Same customer-ownership check as /subscription/cancel — refuse to
-      // mutate a subscription that belongs to a different Stripe customer.
-      const resumeSubCustomerId =
-        typeof sub.customer === 'string' ? sub.customer : sub.customer?.id || '';
-      if (
-        user?.stripe_customer_id &&
-        String(resumeSubCustomerId) !== String(user.stripe_customer_id)
-      ) {
-        console.warn(
-          '[payments] resume: refusing to mutate subscription owned by another customer',
-          {
-            user_id: userId,
-            user_customer: user.stripe_customer_id,
-            sub_customer: resumeSubCustomerId,
-          }
-        );
-        return res.status(403).json({ error: 'Subscription does not belong to this account' }); // error-envelope-exempt
-      }
-      if (!sub.cancel_at_period_end) {
-        return res.json({
-          ok: true,
-          message: 'Subscription is already active',
-          already_active: true,
-        });
-      }
-      if (sub.status === 'canceled' || sub.status === 'incomplete_expired') {
-        return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
-          error: 'Subscription has already ended. Please subscribe again.',
-          code: 'SUBSCRIPTION_ENDED',
-        });
-      }
-      try {
-        await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
-      } catch (err: any) {
-        console.warn('Failed to resume subscription:', err?.message || err);
-        return res.status(500).json({ error: 'Failed to resume subscription with Stripe' }); // error-envelope-exempt
-      }
-      await logTransaction({
-        transactionType: 'SUBSCRIPTION_CANCEL',
-        status: 'COMPLETED',
-        stripeSubscriptionId: subscriptionId,
-        userId,
-        metadata: { action: 'resume_cancel_at_period_end', plan: getCanonicalPlan(user as any) },
-      }).catch(err => {
-        console.error('[transaction-log] resume log failed:', err);
-        captureException(err as Error, { context: 'transaction_log_resume' });
-      });
-      return res.json({ ok: true, resumed: true });
-    } catch (err) {
-      console.error('Error resuming subscription:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
+paymentsRouter.post('/subscription/resume', expressPkg.json(), requireAuth as any, requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const subscriptionId: string | undefined = typeof prefs.subscription_id === 'string' ? prefs.subscription_id : undefined;
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No subscription to resume' });
     }
-  })
-);
+    let sub: Stripe.Subscription;
+    try {
+      sub = await stripe.subscriptions.retrieve(subscriptionId);
+    } catch (err: any) {
+      return res.status(404).json({ error: 'Subscription not found in Stripe', detail: err?.message });
+    }
+    if (!sub.cancel_at_period_end) {
+      return res.json({ ok: true, message: 'Subscription is already active', already_active: true });
+    }
+    if (sub.status === 'canceled' || sub.status === 'incomplete_expired') {
+      return res.status(400).json({
+        error: 'Subscription has already ended. Please subscribe again.',
+        code: 'SUBSCRIPTION_ENDED',
+      });
+    }
+    try {
+      await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false });
+    } catch (err: any) {
+      console.warn('Failed to resume subscription:', err?.message || err);
+      return res.status(500).json({ error: 'Failed to resume subscription with Stripe' });
+    }
+    await logTransaction({
+      transactionType: 'SUBSCRIPTION_CANCEL',
+      status: 'COMPLETED',
+      stripeSubscriptionId: subscriptionId,
+      userId,
+      metadata: { action: 'resume_cancel_at_period_end', plan: getCanonicalPlan(user as any) },
+    }).catch(err => { console.error('[transaction-log] resume log failed:', err); captureException(err as Error, { context: 'transaction_log_resume' }); });
+    return res.json({ ok: true, resumed: true });
+  } catch (err) {
+    console.error('Error resuming subscription:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
 
 // Update subscription quantity for Veteran plan
-paymentsRouter.post(
-  '/update-subscription-quantity',
-  expressPkg.json(),
-  requireVerified as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      if (!process.env.STRIPE_SECRET_KEY)
-        return res.status(500).json({ error: 'Stripe not configured' }); // error-envelope-exempt
+paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
 
-      const userId = req.user!.id;
-      const updateQuantitySchema = z.object({
-        team_count: z.number().int().min(4, 'Minimum 4 total teams required for Veteran plan.'),
-      });
-      const parsed = updateQuantitySchema.safeParse(req.body);
-      if (!parsed.success)
-        return res
-          .status(400)
-          .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-      const { team_count } = parsed.data;
-      const billable = Math.max(0, team_count - 3); // Only teams beyond first three are billed
-      if (billable === 0) {
-        return res
-          .status(400)
-          .json({ error: 'No billable teams (only 3). Remain on Rookie plan instead.' });
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          preferences: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
-        },
-      });
-      const prefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-      const plan = getCanonicalPlan(user as any);
-      const subscriptionId = prefs.subscription_id;
-
-      if (plan !== 'veteran') {
-        return res
-          .status(400)
-          .json({ error: 'This endpoint is only for Veteran plan subscribers' });
-      }
-
-      if (!subscriptionId) {
-        return res.status(400).json({ error: 'No active subscription found' }); // error-envelope-exempt
-      }
-
-      // CRITICAL: Verify user actually owns this many teams before updating payment
-      const actualTeamCount = await prisma.teamMembership.count({
-        where: {
-          user_id: userId,
-          role: 'owner',
-          status: 'active',
-        },
-      });
-
-      if (team_count !== actualTeamCount) {
-        return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
-          error: 'Team count mismatch',
-          message: `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''} but requested to pay for ${team_count}. You can only pay for teams you own.`,
-          owned_teams: actualTeamCount,
-          requested_teams: team_count,
-        });
-      }
-
-      try {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-        if (subscription.status !== 'active' && subscription.status !== 'trialing') {
-          return res.status(400).json({ error: 'Subscription is not active' }); // error-envelope-exempt
-        }
-
-        // Update the quantity of the subscription item
-        const subscriptionItem = subscription.items.data[0];
-        if (!subscriptionItem) {
-          return res.status(400).json({ error: 'No subscription item found' }); // error-envelope-exempt
-        }
-
-        await stripe.subscriptionItems.update(subscriptionItem.id, {
-          quantity: billable,
-        });
-
-        // Log the quantity update
-        logTransaction({
-          transactionType: 'SUBSCRIPTION_PURCHASE',
-          status: 'COMPLETED',
-          userId,
-          stripeSubscriptionId: subscriptionId,
-          metadata: {
-            event: 'quantity_update',
-            new_quantity: billable,
-            total_teams: team_count,
-            subscription_id: subscriptionId,
-          },
-        }).catch(err =>
-          captureException(err as Error, { context: 'quantity_update_transaction_log' })
-        );
-
-        debugLog(
-          `[payments] Updated subscription ${subscriptionId} billable quantity to ${billable} (total teams ${team_count})`
-        );
-
-        return res.json({
-          ok: true,
-          subscription_id: subscriptionId,
-          total_teams: team_count,
-          billable_teams: billable,
-          monthly_cost: billable * 1.0,
-        });
-      } catch (err: any) {
-        console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
-        return res.status(500).json({ error: 'Failed to update subscription quantity' }); // error-envelope-exempt
-      }
-    } catch (err) {
-      console.error('Error updating subscription quantity:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
+    const userId = req.user!.id;
+    const updateQuantitySchema = z.object({
+      team_count: z.number().int().min(4, 'Minimum 4 total teams required for Veteran plan.'),
+    });
+    const parsed = updateQuantitySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { team_count } = parsed.data;
+    const billable = Math.max(0, team_count - 3); // Only teams beyond first three are billed
+    if (billable === 0) {
+      return res.status(400).json({ error: 'No billable teams (only 3). Remain on Rookie plan instead.' });
     }
-  })
-);
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const plan = getCanonicalPlan(user as any);
+    const subscriptionId = prefs.subscription_id;
+    
+    if (plan !== 'veteran') {
+      return res.status(400).json({ error: 'This endpoint is only for Veteran plan subscribers' });
+    }
+    
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No active subscription found' });
+    }
 
-// Debug endpoint to check and fix subscription status discrepancies
-paymentsRouter.get(
-  '/debug/subscription-status',
-  requireVerified as any,
-  requireAdmin as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          preferences: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
-        },
+    // CRITICAL: Verify user actually owns this many teams before updating payment
+    const actualTeamCount = await prisma.teamMembership.count({
+      where: {
+        user_id: userId,
+        role: 'owner',
+        status: 'active'
+      }
+    });
+
+    if (team_count !== actualTeamCount) {
+      return res.status(400).json({
+        error: 'Team count mismatch',
+        message: `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''} but requested to pay for ${team_count}. You can only pay for teams you own.`,
+        owned_teams: actualTeamCount,
+        requested_teams: team_count
       });
-      const prefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
+    }
 
-      const storedPlan = getCanonicalPlan(user as any);
-      const storedSubscriptionId = prefs.subscription_id;
-      const storedPeriodEnd = prefs.subscription_period_end;
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
-      let stripeSubscription = null;
-      let stripeStatus = null;
-
-      // Check actual Stripe subscription status if we have a subscription ID
-      if (storedSubscriptionId && process.env.STRIPE_SECRET_KEY) {
-        try {
-          stripeSubscription = await stripe.subscriptions.retrieve(storedSubscriptionId);
-          stripeStatus = stripeSubscription.status;
-        } catch (err) {
-          console.warn('Failed to retrieve Stripe subscription:', (err as any)?.message || err);
-        }
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+        return res.status(400).json({ error: 'Subscription is not active' });
       }
 
-      // Check if there's a mismatch
-      const hasPaidPlan = storedPlan !== 'rookie';
-      const hasValidStripeSubscription = stripeStatus === 'active' || stripeStatus === 'trialing';
-      const mismatch = hasPaidPlan && !hasValidStripeSubscription;
+      // Update the quantity of the subscription item
+      const subscriptionItem = subscription.items.data[0];
+      if (!subscriptionItem) {
+        return res.status(400).json({ error: 'No subscription item found' });
+      }
+
+      await stripe.subscriptionItems.update(subscriptionItem.id, {
+        quantity: billable,
+      });
+
+      // Log the quantity update
+      logTransaction({
+        transactionType: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+        userId,
+        stripeSubscriptionId: subscriptionId,
+        metadata: { event: 'quantity_update', new_quantity: billable, total_teams: team_count, subscription_id: subscriptionId },
+      }).catch(err => captureException(err as Error, { context: 'quantity_update_transaction_log' }));
+
+      debugLog(`[payments] Updated subscription ${subscriptionId} billable quantity to ${billable} (total teams ${team_count})`);
 
       return res.json({
-        userId,
-        stored: {
-          plan: storedPlan,
-          subscription_id: storedSubscriptionId,
-          subscription_period_end: storedPeriodEnd,
-        },
-        stripe: {
-          subscription_id: stripeSubscription?.id,
-          status: stripeStatus,
-          current_period_end: stripeSubscription?.current_period_end
-            ? new Date(stripeSubscription.current_period_end * 1000).toISOString()
-            : null,
-        },
-        mismatch,
-        recommendation: mismatch
-          ? 'Reset to rookie plan - no valid Stripe subscription found'
-          : 'Status looks correct',
+        ok: true,
+        subscription_id: subscriptionId,
+        total_teams: team_count,
+        billable_teams: billable,
+        monthly_cost: billable * 1.00
       });
-    } catch (err) {
-      console.error('Error checking subscription status:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
+    } catch (err: any) {
+      console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
+      return res.status(500).json({ error: 'Failed to update subscription quantity' });
     }
-  })
-);
+  } catch (err) {
+    console.error('Error updating subscription quantity:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
+
+// Debug endpoint to check and fix subscription status discrepancies
+paymentsRouter.get('/debug/subscription-status', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+
+    const storedPlan = getCanonicalPlan(user as any);
+    const storedSubscriptionId = prefs.subscription_id;
+    const storedPeriodEnd = prefs.subscription_period_end;
+
+    let stripeSubscription = null;
+    let stripeStatus = null;
+
+    // Check actual Stripe subscription status if we have a subscription ID
+    if (storedSubscriptionId && process.env.STRIPE_SECRET_KEY) {
+      try {
+        stripeSubscription = await stripe.subscriptions.retrieve(storedSubscriptionId);
+        stripeStatus = stripeSubscription.status;
+      } catch (err) {
+        console.warn('Failed to retrieve Stripe subscription:', (err as any)?.message || err);
+      }
+    }
+
+    // Check if there's a mismatch
+    const hasPaidPlan = storedPlan !== 'rookie';
+    const hasValidStripeSubscription = stripeStatus === 'active' || stripeStatus === 'trialing';
+    const mismatch = hasPaidPlan && !hasValidStripeSubscription;
+
+    return res.json({
+      userId,
+      stored: {
+        plan: storedPlan,
+        subscription_id: storedSubscriptionId,
+        subscription_period_end: storedPeriodEnd
+      },
+      stripe: {
+        subscription_id: stripeSubscription?.id,
+        status: stripeStatus,
+        current_period_end: stripeSubscription?.current_period_end ? new Date(stripeSubscription.current_period_end * 1000).toISOString() : null
+      },
+      mismatch,
+      recommendation: mismatch ? 'Reset to rookie plan - no valid Stripe subscription found' : 'Status looks correct'
+    });
+  } catch (err) {
+    console.error('Error checking subscription status:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
 
 // Subscription summary for Billing screen
 // v1.0.2: GET /payments/history — list user's own billing transactions (most recent first).
 // Backs the new manage-subscription billing history view.
-paymentsRouter.get(
-  '/history',
-  requireAuth as any,
-  requireVerified as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
+paymentsRouter.get('/history', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const userId = req.user!.id;
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const rows = await prisma.transactionLog.findMany({
+    where: { user_id: userId },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+    select: {
+      id: true,
+      transaction_type: true,
+      status: true,
+      total_cents: true,
+      currency: true,
+      promo_code: true,
+      promo_discount_cents: true,
+      created_at: true,
+      metadata: true,
+    },
+  });
+  return res.json({
+    transactions: rows.map(r => ({
+      id: r.id,
+      type: r.transaction_type,
+      status: r.status,
+      amount_cents: r.total_cents,
+      currency: r.currency,
+      promo_code: r.promo_code,
+      promo_discount_cents: r.promo_discount_cents,
+      created_at: r.created_at.toISOString(),
+    })),
+  });
+}));
+
+paymentsRouter.get('/subscription/summary', requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
     const userId = req.user!.id;
-    const limit = Math.min(Number(req.query.limit) || 50, 100);
-    const rows = await prisma.transactionLog.findMany({
-      where: { user_id: userId },
-      orderBy: { created_at: 'desc' },
-      take: limit,
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
       select: {
-        id: true,
-        transaction_type: true,
-        status: true,
-        total_cents: true,
-        currency: true,
-        promo_code: true,
-        promo_discount_cents: true,
-        created_at: true,
-        metadata: true,
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
       },
     });
-    return res.json({
-      transactions: rows.map(r => ({
-        id: r.id,
-        type: r.transaction_type,
-        status: r.status,
-        amount_cents: r.total_cents,
-        currency: r.currency,
-        promo_code: r.promo_code,
-        promo_discount_cents: r.promo_discount_cents,
-        created_at: r.created_at.toISOString(),
-      })),
-    });
-  })
-);
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const plan = getCanonicalPlan(user as any);
+    const subscriptionId = prefs.subscription_id || null;
 
-paymentsRouter.get(
-  '/subscription/summary',
-  requireVerified as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          preferences: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
-        },
-      });
-      const prefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-      const plan = getCanonicalPlan(user as any);
-      const subscriptionId = prefs.subscription_id || null;
+    let quantity: number | null = null;
+    let status: string | null = null;
+    let current_period_end: string | null = null;
+    let monthly_cost: number | null = null;
+    let annual_cost: number | null = null;
+    const free_teams = 2;
 
-      let quantity: number | null = null;
-      let status: string | null = null;
-      let current_period_end: string | null = null;
-      let monthly_cost: number | null = null;
-      let annual_cost: number | null = null;
-      const free_teams = SERVER_ROOKIE_TEAM_LIMIT;
-
-      if (plan === 'veteran' && subscriptionId && process.env.STRIPE_SECRET_KEY) {
+    if (plan === 'veteran' && subscriptionId && process.env.STRIPE_SECRET_KEY) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        status = sub.status;
+        if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
+        const item = sub.items.data[0];
+        quantity = item?.quantity ?? null;
+        if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.0).toFixed(2));
+      } catch (err) {
+        console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
+      }
+    } else if (plan === 'legend') {
+      annual_cost = Number((SERVER_LEGEND_PRICE_CENTS / 100).toFixed(2));
+      // status can be determined if subscription id exists
+      if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           status = sub.status;
-          if (sub.current_period_end)
-            current_period_end = new Date(sub.current_period_end * 1000).toISOString();
-          const item = sub.items.data[0];
-          quantity = item?.quantity ?? null;
-          if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.0).toFixed(2));
+          if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
         } catch (err) {
-          console.warn(
-            '[payments] Failed to retrieve summary subscription:',
-            (err as any)?.message || err
-          );
-        }
-      } else if (plan === 'legend') {
-        annual_cost = Number((SERVER_LEGEND_PRICE_CENTS / 100).toFixed(2));
-        // status can be determined if subscription id exists
-        if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
-          try {
-            const sub = await stripe.subscriptions.retrieve(subscriptionId);
-            status = sub.status;
-            if (sub.current_period_end)
-              current_period_end = new Date(sub.current_period_end * 1000).toISOString();
-          } catch (err) {
-            console.warn(
-              '[payments] Failed to retrieve Legend subscription:',
-              (err as any)?.message || err
-            );
-          }
+          console.warn('[payments] Failed to retrieve Legend subscription:', (err as any)?.message || err);
         }
       }
-
-      return res.json({
-        plan,
-        subscription_id: subscriptionId,
-        status,
-        quantity,
-        free_teams,
-        monthly_cost,
-        annual_cost,
-        current_period_end,
-      });
-    } catch (err) {
-      console.error('Error building subscription summary:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
     }
-  })
-);
+
+    return res.json({
+      plan,
+      subscription_id: subscriptionId,
+      status,
+      quantity,
+      free_teams,
+      monthly_cost,
+      annual_cost,
+      current_period_end,
+    });
+  } catch (err) {
+    console.error('Error building subscription summary:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
 
 // Endpoint to reset subscription status to rookie (for fixing invalid states)
-paymentsRouter.post(
-  '/debug/reset-to-rookie',
-  requireVerified as any,
-  requireAdmin as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          preferences: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
-        },
-      });
-      const prefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
+paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    
+    // Reset subscription-related preferences
+    const nextPrefs: any = { ...prefs };
+    delete nextPrefs.pending_plan;
+    delete nextPrefs.subscription_id;
+    delete nextPrefs.subscription_period_end;
+    delete nextPrefs.stripe_customer_id;
+    delete nextPrefs.payment_pending;
+    delete nextPrefs.payment_approved;
+    const normalizedPrefs = mergeBillingStateIntoPreferences(nextPrefs, {
+      plan: 'rookie',
+      pending_plan: null,
+      payment_pending: false,
+      payment_approved: false,
+    });
+    delete (normalizedPrefs as any).pending_plan;
+    delete (normalizedPrefs as any).payment_pending;
+    delete (normalizedPrefs as any).payment_approved;
 
-      // Reset subscription-related preferences
-      const nextPrefs: any = { ...prefs };
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        preferences: normalizedPrefs,
+        ...buildBillingStateColumns({
+          plan: 'rookie',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }),
+      },
+    });
+    await invalidateMeCacheForUser(userId);
+
+    debugLog(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
+    
+    return res.json({ 
+      ok: true, 
+      message: 'Successfully reset to rookie plan',
+      newPlan: 'rookie'
+    });
+  } catch (err) {
+    console.error('Error resetting to rookie plan:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
+
+// Admin endpoint to reset all users with unpaid subscriptions
+paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any, requireAdmin as any, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+
+    debugLog('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
+
+    // Find users with paid plans — filter subscription_id in JavaScript (JSON null detection is Prisma-version-specific)
+    const paidPlanUsers = await prisma.user.findMany({
+      where: {
+        OR: [{ plan: 'veteran' }, { plan: 'legend' }],
+      },
+      select: {
+        id: true,
+        email: true,
+        display_name: true,
+        preferences: true,
+        plan: true,
+      },
+      take: 5000,
+    });
+    // Filter out users who DO have a subscription_id — these are legitimate paid users
+    const usersToReset = paidPlanUsers.filter(user => {
+      const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+      return !prefs.subscription_id;
+    });
+
+    debugLog(`Found ${usersToReset.length} users with paid plans but no subscription ID`);
+
+    if (usersToReset.length === 0) {
+      return res.json({ 
+        ok: true, 
+        message: 'No users needed to be reset',
+        usersReset: 0,
+        usersFound: 0
+      });
+    }
+
+    // Reset users
+    let resetCount = 0;
+    const resetUsers: Array<{ email: string; name: string | null; previousPlan: string }> = [];
+
+    // Batch update: build all update operations, then execute in a single transaction
+    const updateOps = usersToReset.map((user) => {
+      const currentPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+      const nextPrefs: any = { ...currentPrefs };
       delete nextPrefs.pending_plan;
       delete nextPrefs.subscription_id;
       delete nextPrefs.subscription_period_end;
@@ -3964,9 +3197,14 @@ paymentsRouter.post(
       delete (normalizedPrefs as any).payment_pending;
       delete (normalizedPrefs as any).payment_approved;
 
-      await prisma.user.update({
-        // cache-invalidation-exempt
-        where: { id: userId },
+      resetUsers.push({
+        email: user.email,
+        name: user.display_name,
+        previousPlan: user.plan,
+      });
+
+      return prisma.user.update({
+        where: { id: user.id },
         data: {
           preferences: normalizedPrefs,
           ...buildBillingStateColumns({
@@ -3977,221 +3215,94 @@ paymentsRouter.post(
           }),
         },
       });
-      await invalidateMeCacheForUser(userId);
+    });
 
-      debugLog(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
-
-      return res.json({
-        ok: true,
-        message: 'Successfully reset to rookie plan',
-        newPlan: 'rookie',
-      });
-    } catch (err) {
-      console.error('Error resetting to rookie plan:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
-    }
-  })
-);
-
-// Admin endpoint to reset all users with unpaid subscriptions
-paymentsRouter.post(
-  '/admin/reset-unpaid-subscriptions',
-  requireVerified as any,
-  requireAdmin as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      debugLog('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
-
-      // Find users with paid plans — filter subscription_id in JavaScript (JSON null detection is Prisma-version-specific)
-      const paidPlanUsers = await prisma.user.findMany({
-        where: {
-          OR: [{ plan: 'veteran' }, { plan: 'legend' }],
-        },
-        select: {
-          id: true,
-          email: true,
-          display_name: true,
-          preferences: true,
-          plan: true,
-        },
-        take: 5000,
-      });
-      // Filter out users who DO have a subscription_id — these are legitimate paid users
-      const usersToReset = paidPlanUsers.filter(user => {
-        const prefs =
-          user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-        return !prefs.subscription_id;
-      });
-
-      debugLog(`Found ${usersToReset.length} users with paid plans but no subscription ID`);
-
-      if (usersToReset.length === 0) {
-        return res.json({
-          ok: true,
-          message: 'No users needed to be reset',
-          usersReset: 0,
-          usersFound: 0,
-        });
+      await prisma.$transaction(updateOps);
+      await invalidateMeCacheForUsers(usersToReset.map((user) => user.id));
+      resetCount = usersToReset.length;
+      for (const u of resetUsers) {
+        debugLog(`✅ Admin reset: ${u.email} to rookie plan`);
       }
-
-      // Reset users
-      let resetCount = 0;
-      const resetUsers: Array<{ email: string; name: string | null; previousPlan: string }> = [];
-
-      // Batch update: build all update operations, then execute in a single transaction
-      const updateOps = usersToReset.map(user => {
-        const currentPrefs =
-          user.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-        const nextPrefs: any = { ...currentPrefs };
-        delete nextPrefs.pending_plan;
-        delete nextPrefs.subscription_id;
-        delete nextPrefs.subscription_period_end;
-        delete nextPrefs.stripe_customer_id;
-        delete nextPrefs.payment_pending;
-        delete nextPrefs.payment_approved;
-        const normalizedPrefs = mergeBillingStateIntoPreferences(nextPrefs, {
-          plan: 'rookie',
-          pending_plan: null,
-          payment_pending: false,
-          payment_approved: false,
-        });
-        delete (normalizedPrefs as any).pending_plan;
-        delete (normalizedPrefs as any).payment_pending;
-        delete (normalizedPrefs as any).payment_approved;
-
-        resetUsers.push({
-          email: user.email,
-          name: user.display_name,
-          previousPlan: user.plan,
-        });
-
-        return prisma.user.update({
-          // cache-invalidation-exempt
-          where: { id: user.id },
-          data: {
-            preferences: normalizedPrefs,
-            ...buildBillingStateColumns({
-              plan: 'rookie',
-              pending_plan: null,
-              payment_pending: false,
-              payment_approved: false,
-            }),
-          },
-        });
-      });
-
-      try {
-        await prisma.$transaction(updateOps);
-        await invalidateMeCacheForUsers(usersToReset.map(user => user.id));
-        resetCount = usersToReset.length;
-        for (const u of resetUsers) {
-          debugLog(`✅ Admin reset: ${u.email} to rookie plan`);
-        }
-      } catch (error) {
-        console.error('[payments] Failed to batch reset users:', (error as any)?.message || error);
-        // Partial failure info not available with $transaction, report total attempted
-      }
-
-      debugLog(`[payments] Admin bulk reset completed: ${resetCount}/${usersToReset.length} users`);
-
-      return res.json({
-        ok: true,
-        message: `Successfully reset ${resetCount} users to rookie plan`,
-        usersReset: resetCount,
-        usersFound: usersToReset.length,
-        resetUsers,
-      });
-    } catch (err) {
-      console.error('Error in admin bulk reset:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
+    } catch (error) {
+      console.error('[payments] Failed to batch reset users:', (error as any)?.message || error);
+      // Partial failure info not available with $transaction, report total attempted
     }
-  })
-);
+
+    debugLog(`[payments] Admin bulk reset completed: ${resetCount}/${usersToReset.length} users`);
+    
+    return res.json({ 
+      ok: true, 
+      message: `Successfully reset ${resetCount} users to rookie plan`,
+      usersReset: resetCount,
+      usersFound: usersToReset.length,
+      resetUsers
+    });
+  } catch (err) {
+    console.error('Error in admin bulk reset:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
 
 // Authenticated helper to finalize a Checkout Session by id when webhooks are unavailable
-paymentsRouter.post(
-  '/finalize-session',
-  expressPkg.json(),
-  requireVerified as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
+paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const finalizeSchema = z.object({
+      session_id: z.string().min(1),
+    });
+    const parsed = finalizeSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { session_id } = parsed.data;
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     try {
-      const finalizeSchema = z.object({
-        session_id: z.string().min(1),
-      });
-      const parsed = finalizeSchema.safeParse(req.body || {});
-      if (!parsed.success)
-        return res
-          .status(400)
-          .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-      const { session_id } = parsed.data;
-      if (!process.env.STRIPE_SECRET_KEY)
-        return res.status(500).json({ error: 'Stripe not configured' }); // error-envelope-exempt
-      try {
-        const session = await stripe.checkout.sessions.retrieve(session_id);
+      const session = await stripe.checkout.sessions.retrieve(session_id);
 
-        if (!session) return res.status(404).json({ error: 'Session not found' }); // error-envelope-exempt
-        const metaUserId = session.metadata?.user_id;
-        if (!metaUserId) {
-          return res.status(403).json({ error: 'Session metadata missing user' }); // error-envelope-exempt
-        }
-        if (String(metaUserId) !== String(req.user!.id)) {
-          return res.status(403).json({ error: 'Session does not belong to this user' }); // error-envelope-exempt
-        }
-        if (session.payment_status !== 'paid') {
-          return res.status(202).json({
-            // error-envelope-exempt
-            pending: true,
-            payment_status: session.payment_status,
-            status: session.status,
-          });
-        }
-        await finalizeFromSession(session as Stripe.Checkout.Session);
-
-        // Return ad details for the confirmation screen
-        const sessionMeta = session.metadata || {};
-        const adId = sessionMeta.ad_id || '';
-        let adDates: string[] = [];
-        try {
-          adDates = JSON.parse(String(sessionMeta.dates || '[]'));
-        } catch {
-          /* ignore */
-        }
-        let adDetails: any = null;
-        if (adId) {
-          const ad = await prisma.ad.findUnique({
-            where: { id: adId },
-            select: {
-              id: true,
-              business_name: true,
-              status: true,
-              payment_status: true,
-              target_zip_code: true,
-            },
-          });
-          if (ad) {
-            adDetails = {
-              id: ad.id,
-              business_name: ad.business_name,
-              status: ad.status,
-              payment_status: ad.payment_status,
-              zip_code: ad.target_zip_code,
-              dates: adDates,
-            };
-          }
-        }
-        const amountPaid = typeof session.amount_total === 'number' ? session.amount_total : 0;
-        return res.json({ ok: true, ad: adDetails, amount_cents: amountPaid });
-      } catch (err) {
-        console.error('Failed to finalize session:', (err as any)?.message || err);
-        return res.status(500).json({ error: 'Failed to finalize session' }); // error-envelope-exempt
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      const metaUserId = session.metadata?.user_id;
+      if (!metaUserId) {
+        return res.status(403).json({ error: 'Session metadata missing user' });
       }
+      if (String(metaUserId) !== String(req.user!.id)) {
+        return res.status(403).json({ error: 'Session does not belong to this user' });
+      }
+      if (session.payment_status !== 'paid') {
+        return res.status(202).json({ pending: true, payment_status: session.payment_status, status: session.status });
+      }
+      await finalizeFromSession(session as Stripe.Checkout.Session);
+
+      // Return ad details for the confirmation screen
+      const sessionMeta = session.metadata || {};
+      const adId = sessionMeta.ad_id || '';
+      let adDates: string[] = [];
+      try { adDates = JSON.parse(String(sessionMeta.dates || '[]')); } catch { /* ignore */ }
+      let adDetails: any = null;
+      if (adId) {
+        const ad = await prisma.ad.findUnique({
+          where: { id: adId },
+          select: { id: true, business_name: true, status: true, payment_status: true, target_zip_code: true },
+        });
+        if (ad) {
+          adDetails = {
+            id: ad.id,
+            business_name: ad.business_name,
+            status: ad.status,
+            payment_status: ad.payment_status,
+            zip_code: ad.target_zip_code,
+            dates: adDates,
+          };
+        }
+      }
+      const amountPaid = typeof session.amount_total === 'number' ? session.amount_total : 0;
+      return res.json({ ok: true, ad: adDetails, amount_cents: amountPaid });
     } catch (err) {
-      console.error('Finalize-session error:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' }); // error-envelope-exempt
+      console.error('Failed to finalize session:', (err as any)?.message || err);
+      return res.status(500).json({ error: 'Failed to finalize session' });
     }
-  })
-);
+  } catch (err) {
+    console.error('Finalize-session error:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
 
 // Per-session lock to prevent concurrent finalization (H2 — client/webhook race).
 // Uses local promise dedupe + Redis distributed lock (when REDIS_URL is configured).
@@ -4219,132 +3330,98 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
     session_id: session.id,
     payment_status: session.payment_status,
     status: session.status,
-    metadata: session.metadata,
+    metadata: session.metadata
   });
 
   const meta = session.metadata || {};
   const transactionLog = await getTransactionBySession(session.id);
   if (transactionLog?.status === 'COMPLETED') {
-    debugLog('[payments] finalizeFromSession skipped — already COMPLETED', {
-      session_id: session.id,
-    });
+    debugLog('[payments] finalizeFromSession skipped — already COMPLETED', { session_id: session.id });
     return;
   }
   const metadataUserId = meta.user_id ? String(meta.user_id) : null;
-  const inferredUserId =
-    metadataUserId || (transactionLog?.user_id ? String(transactionLog.user_id) : null);
-  const fallbackEmail =
-    transactionLog?.user?.email ||
-    transactionLog?.user_email ||
-    (session.customer_details?.email ?? null);
-  const totalCents =
-    typeof session.amount_total === 'number'
-      ? session.amount_total
-      : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
+  const inferredUserId = metadataUserId || (transactionLog?.user_id ? String(transactionLog.user_id) : null);
+  const fallbackEmail = transactionLog?.user?.email || transactionLog?.user_email || (session.customer_details?.email ?? null);
+  const totalCents = typeof session.amount_total === 'number'
+    ? session.amount_total
+    : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
-  try {
-    dates = JSON.parse(String(meta.dates || '[]'));
-  } catch (err) {
-    console.warn(
-      '[payments] Failed to parse ad dates from session metadata:',
-      (err as any)?.message || err
-    );
+  try { dates = JSON.parse(String(meta.dates || '[]')); } catch (err) {
+    console.warn('[payments] Failed to parse ad dates from session metadata:', (err as any)?.message || err);
   }
   if (ad_id && Array.isArray(dates) && dates.length) {
     debugLog('[payments] Processing ad reservation payment', {
       ad_id,
       dates,
       session_id: session.id,
-      payment_status: session.payment_status,
+      payment_status: session.payment_status
     });
     try {
-      await prisma.$transaction(
-        async tx => {
-          // Re-check slot availability under serializable isolation.
-          // This is the second line of defence after the pre-checkout check —
-          // it catches the race where two sessions were created before either paid.
-          const MAX_AD_SLOTS = 2;
-          const adRecord = await tx.ad.findUnique({
-            where: { id: ad_id },
-            select: { target_zip_code: true },
+      await prisma.$transaction(async (tx) => {
+        // Re-check slot availability under serializable isolation.
+        // This is the second line of defence after the pre-checkout check —
+        // it catches the race where two sessions were created before either paid.
+        const MAX_AD_SLOTS = 2;
+        const adRecord = await tx.ad.findUnique({ where: { id: ad_id }, select: { target_zip_code: true } });
+        if (adRecord?.target_zip_code) {
+          const reservedAdsInZip = await tx.ad.findMany({
+            where: { target_zip_code: adRecord.target_zip_code, payment_status: { in: ['paid', 'hold', 'pending_approval'] }, NOT: { id: ad_id } },
+            select: { id: true },
+            take: 100,
           });
-          if (adRecord?.target_zip_code) {
-            const reservedAdsInZip = await tx.ad.findMany({
-              where: {
-                target_zip_code: adRecord.target_zip_code,
-                payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-                NOT: { id: ad_id },
-              },
-              select: { id: true },
-              take: 100,
+          if (reservedAdsInZip.length > 0) {
+            const dateObjects = dates.map((s) => new Date(s + 'T00:00:00.000Z'));
+            const bookedSlots = await tx.adReservation.groupBy({
+              by: ['date'],
+              where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+              _count: { date: true },
             });
-            if (reservedAdsInZip.length > 0) {
-              const dateObjects = dates.map(s => new Date(s + 'T00:00:00.000Z'));
-              const bookedSlots = await tx.adReservation.groupBy({
-                by: ['date'],
-                where: {
-                  ad_id: { in: reservedAdsInZip.map(a => a.id) },
-                  date: { in: dateObjects },
-                },
-                _count: { date: true },
-              });
-              const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-              if (fullDates.length > 0) {
-                const err = new Error('SLOT_FULL') as any;
-                err.slotFull = true;
-                err.dates = fullDates.map(s => s.date.toISOString().slice(0, 10));
-                throw err;
-              }
+            const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+            if (fullDates.length > 0) {
+              const err = new Error('SLOT_FULL') as any;
+              err.slotFull = true;
+              err.dates = fullDates.map((s) => s.date.toISOString().slice(0, 10));
+              throw err;
             }
           }
+        }
 
-          // SECURITY: Only activate ads that have been approved by admin.
-          // Prevents paying for pending/rejected ads to bypass approval.
-          const adCheck = await tx.ad.findUnique({
-            where: { id: ad_id },
-            select: { status: true, payment_status: true },
-          });
-          // Idempotency: if already paid (duplicate webhook), exit cleanly
-          if (adCheck?.payment_status === 'paid') {
-            console.log(
-              `[payments] Idempotent: ad ${ad_id} already paid, skipping duplicate activation`
-            );
-            return;
-          }
-          if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
-            throw new Error(
-              `AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`
-            );
-          }
+        // SECURITY: Only activate ads that have been approved by admin.
+        // Prevents paying for pending/rejected ads to bypass approval.
+        const adCheck = await tx.ad.findUnique({ where: { id: ad_id }, select: { status: true, payment_status: true } });
+        // Idempotency: if already paid (duplicate webhook), exit cleanly
+        if (adCheck?.payment_status === 'paid') {
+          console.log(`[payments] Idempotent: ad ${ad_id} already paid, skipping duplicate activation`);
+          return;
+        }
+        if (!adCheck || (adCheck.status !== 'approved' && adCheck.status !== 'active')) {
+          throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} status is ${adCheck?.status}, cannot activate`);
+        }
 
-          // v1.0.2 audit hardening: use conditional updateMany so we fail if admin rejected
-          // the ad between our read above and the write below. updateMany with status filter
-          // returns count:0 if the row is no longer in an activatable state.
-          const updated = await tx.ad.updateMany({
-            where: { id: ad_id, status: { in: ['approved', 'active'] } },
-            data: { payment_status: 'paid', status: 'active' },
-          });
-          if (updated.count === 0) {
-            throw new Error(
-              `AD_NOT_APPROVED: Ad ${ad_id} was no longer approved at activation time`
-            );
-          }
-          await tx.adReservation.createMany({
-            data: dates.map(s => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
-            skipDuplicates: true,
-          });
-        },
-        { isolationLevel: 'Serializable' }
-      );
+        // v1.0.2 audit hardening: use conditional updateMany so we fail if admin rejected
+        // the ad between our read above and the write below. updateMany with status filter
+        // returns count:0 if the row is no longer in an activatable state.
+        const updated = await tx.ad.updateMany({
+          where: { id: ad_id, status: { in: ['approved', 'active'] } },
+          data: { payment_status: 'paid', status: 'active' },
+        });
+        if (updated.count === 0) {
+          throw new Error(`AD_NOT_APPROVED: Ad ${ad_id} was no longer approved at activation time`);
+        }
+        await tx.adReservation.createMany({
+          data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })),
+          skipDuplicates: true,
+        });
+      }, { isolationLevel: 'Serializable' });
 
       debugLog('[payments] Ad reservation payment completed successfully', {
         ad_id,
         dates,
         session_id: session.id,
-        status: 'active',
+        status: 'active'
       });
-
+      
       // Update transaction log to COMPLETED
       await updateTransactionStatus(session.id, 'COMPLETED', {
         stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
@@ -4358,44 +3435,25 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
       sendAdPaymentEmail({
         userId: adForEmail?.user_id || null,
         adId: String(ad_id),
-        dates: Array.isArray(meta?.dates)
-          ? meta.dates
-          : (() => {
-              try {
-                return JSON.parse(String(session.metadata?.dates || '[]'));
-              } catch {
-                return [];
-              }
-            })(),
+        dates: Array.isArray(meta?.dates) ? meta.dates : (() => { try { return JSON.parse(String(session.metadata?.dates || '[]')); } catch { return []; } })(),
         totalCents: session.amount_total ?? null,
         businessName: adForEmail?.business_name,
         zipCode: adForEmail?.target_zip_code,
-      }).catch(err =>
-        console.warn(
-          '[payments] Stripe webhook ad payment receipt failed:',
-          (err as any)?.message || err
-        )
-      );
+      }).catch((err) => console.warn('[payments] Stripe webhook ad payment receipt failed:', (err as any)?.message || err));
       // Ad was already approved before payment — no admin review needed
     } catch (e: any) {
       if (e?.slotFull) {
         // Expected: another payment beat this one to the last slot(s).
         // Auto-refund immediately instead of requiring manual intervention.
-        console.error(
-          '[payments] SLOT_FULL: ad dates overbooked after payment — issuing auto-refund',
-          {
-            ad_id,
-            full_dates: e.dates,
-            session_id: session.id,
-          }
-        );
+        console.error('[payments] SLOT_FULL: ad dates overbooked after payment — issuing auto-refund', {
+          ad_id,
+          full_dates: e.dates,
+          session_id: session.id,
+        });
         try {
           const piId = session.payment_intent ? String(session.payment_intent) : '';
           if (piId) {
-            const refund = await stripe.refunds.create({
-              payment_intent: piId,
-              reason: 'requested_by_customer',
-            });
+            const refund = await stripe.refunds.create({ payment_intent: piId, reason: 'requested_by_customer' });
             try {
               await releaseAdInventoryAfterSlotFullRefundWithRetry(ad_id);
               // v1.0.2 audit fix: persist refunded amount in metadata for audit trail.
@@ -4412,14 +3470,11 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
                 },
               });
             } catch (releaseErr: any) {
-              console.error(
-                '[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED',
-                {
-                  ad_id,
-                  session_id: session.id,
-                  error: releaseErr?.message,
-                }
-              );
+              console.error('[payments] CRITICAL: Auto-refund succeeded but ad inventory release FAILED', {
+                ad_id,
+                session_id: session.id,
+                error: releaseErr?.message,
+              });
               captureException(releaseErr as Error, {
                 context: 'slot_full_release_after_refund_failed_session',
                 adId: ad_id,
@@ -4442,66 +3497,33 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             }
             // Notify user
             if (fallbackEmail) {
-              const adForRefund = await prisma.ad.findUnique({
-                where: { id: ad_id },
-                select: { business_name: true, target_zip_code: true },
-              });
+              const adForRefund = await prisma.ad.findUnique({ where: { id: ad_id }, select: { business_name: true, target_zip_code: true } });
               sendBillingNoticeEmail({
                 to: fallbackEmail,
                 type: 'payment_failed',
                 planName: `Ad Reservation for ${adForRefund?.business_name || 'your ad'}`,
                 amount: `$${(totalCents / 100).toFixed(2)}`,
-                perks: [
-                  `Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(totalCents / 100).toFixed(2)}.`,
-                ],
+                perks: [`Your selected dates in zip code ${adForRefund?.target_zip_code || 'N/A'} were fully booked. You have been fully refunded $${(totalCents / 100).toFixed(2)}.`],
               }).catch(err => {
                 console.error('[payments] Failed to send refund email:', err);
-                captureException(err as Error, {
-                  context: 'slot_full_refund_email_session',
-                  sessionId: session.id,
-                });
+                captureException(err as Error, { context: 'slot_full_refund_email_session', sessionId: session.id });
               });
             }
           } else {
             // No payment_intent to refund from session — mark for manual refund
-            console.error('[payments] CRITICAL: No payment_intent on session for auto-refund', {
-              session_id: session.id,
-            });
-            captureException(new Error('SLOT_FULL: no payment_intent for refund'), {
-              context: 'slot_full_no_pi',
-              sessionId: session.id,
-            });
+            console.error('[payments] CRITICAL: No payment_intent on session for auto-refund', { session_id: session.id });
+            captureException(new Error('SLOT_FULL: no payment_intent for refund'), { context: 'slot_full_no_pi', sessionId: session.id });
             await updateTransactionStatus(session.id, 'FAILED', {
-              metadata: {
-                reason: 'slot_full_refund_missing_payment_intent',
-                overbooked_dates: e.dates,
-                refund_failed: true,
-              },
-            }).catch(err => {
-              console.error('[transaction-log] slot-full status update failed:', err);
-              captureException(err as Error, { context: 'transaction_log_slot_full' });
-            });
+              metadata: { reason: 'slot_full_refund_missing_payment_intent', overbooked_dates: e.dates, refund_failed: true },
+            }).catch(err => { console.error('[transaction-log] slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full' }); });
             throw new Error('SLOT_FULL_REFUND_MISSING_PAYMENT_INTENT');
           }
         } catch (refundErr: any) {
-          console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', {
-            session_id: session.id,
-            error: refundErr?.message,
-          });
-          captureException(refundErr as Error, {
-            context: 'slot_full_auto_refund_failed_session',
-            sessionId: session.id,
-          });
+          console.error('[payments] CRITICAL: Auto-refund FAILED for SLOT_FULL', { session_id: session.id, error: refundErr?.message });
+          captureException(refundErr as Error, { context: 'slot_full_auto_refund_failed_session', sessionId: session.id });
           await updateTransactionStatus(session.id, 'FAILED', {
-            metadata: {
-              reason: 'slot_full_refund_failed',
-              overbooked_dates: e.dates,
-              refund_failed: true,
-            },
-          }).catch(err => {
-            console.error('[transaction-log] slot-full status update failed:', err);
-            captureException(err as Error, { context: 'transaction_log_slot_full' });
-          });
+            metadata: { reason: 'slot_full_refund_failed', overbooked_dates: e.dates, refund_failed: true },
+          }).catch(err => { console.error('[transaction-log] slot-full status update failed:', err); captureException(err as Error, { context: 'transaction_log_slot_full' }); });
           throw refundErr;
         }
         return;
@@ -4526,22 +3548,22 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
   if (isMembership && userId && plan.length > 0) {
     // Only finalize if payment was actually successful
     const paid = session.payment_status === 'paid';
-    debugLog('[payments] finalize membership check', {
-      session_id: session.id,
-      payment_status: session.payment_status,
-      status: session.status,
+    debugLog('[payments] finalize membership check', { 
+      session_id: session.id, 
+      payment_status: session.payment_status, 
+      status: session.status, 
       paid,
       userId,
-      plan,
+      plan 
     });
-
+    
     if (!paid) {
-      console.warn('[payments] finalize membership skipped (unpaid session)', {
-        session_id: session.id,
-        status: session.status,
+      console.warn('[payments] finalize membership skipped (unpaid session)', { 
+        session_id: session.id, 
+        status: session.status, 
         payment_status: session.payment_status,
         userId,
-        plan,
+        plan
       });
       return; // Critical fix: don't continue processing unpaid sessions
     } else {
@@ -4564,14 +3586,11 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             // drop the payment record. User already paid (that's how we got here with paid=true from
             // the webhook payload). Mark the transaction for manual reconciliation instead of
             // proceeding blindly — the ops team can decide whether to trust the webhook.
-            console.error(
-              '[payments] finalize aborted — session re-verify failed (transaction marked NEEDS_REVIEW)',
-              {
-                session_id: session.id,
-                err: reverifyErr?.message || reverifyErr,
-                userId,
-              }
-            );
+            console.error('[payments] finalize aborted — session re-verify failed (transaction marked NEEDS_REVIEW)', {
+              session_id: session.id,
+              err: reverifyErr?.message || reverifyErr,
+              userId,
+            });
             captureException(reverifyErr as Error, {
               context: 'finalize_reverify_failed',
               sessionId: String(session.id),
@@ -4592,25 +3611,11 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             return;
           }
         }
-        const current = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { preferences: true },
-        });
-        if (!current) {
-          console.error('[payments] finalizeFromSession: user not found', userId);
-          return;
-        }
-        const existingPrefs =
-          current?.preferences && typeof current.preferences === 'object'
-            ? (current.preferences as any)
-            : {};
+        const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+        if (!current) { console.error('[payments] finalizeFromSession: user not found', userId); return; }
+        const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
         // Rule A: Clear pending_plan and payment flags on successful payment
-        const {
-          pending_plan: _pp,
-          payment_approved: _pa,
-          join_request_pending: _jrp,
-          ...cleanPrefs
-        } = existingPrefs;
+        const { pending_plan: _pp, payment_approved: _pa, join_request_pending: _jrp, ...cleanPrefs } = existingPrefs;
         const prefs: any = mergeBillingStateIntoPreferences(cleanPrefs, {
           plan: plan as 'rookie' | 'veteran' | 'legend',
           pending_plan: null,
@@ -4623,9 +3628,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
             if (sub && sub.id) {
               prefs.subscription_id = String(sub.id);
               if (sub.current_period_end) {
-                prefs.subscription_period_end = new Date(
-                  Number(sub.current_period_end) * 1000
-                ).toISOString();
+                prefs.subscription_period_end = new Date(Number(sub.current_period_end) * 1000).toISOString();
               }
             }
           } catch (err) {
@@ -4638,14 +3641,12 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 
         // Update max_teams and subscription_tier based on plan
         const maxTeams = getMaxTeamsForPlan(plan);
-        const subscriptionTier =
-          plan === 'rookie' ? 'free' : plan === 'veteran' ? 'premium' : 'pro';
+        const subscriptionTier = plan === 'rookie' ? 'free' : plan === 'veteran' ? 'premium' : 'pro';
 
         // ATOMIC: user update + transaction log must succeed or fail together
         // Cancel old subscription AFTER DB commit — if cancel-first fails, user loses access
         await prisma.$transaction([
           prisma.user.update({
-            // cache-invalidation-exempt
             where: { id: userId },
             data: {
               preferences: prefs,
@@ -4657,20 +3658,16 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
               }),
               max_teams: maxTeams ?? 999,
               subscription_tier: subscriptionTier,
-              subscription_status: 'active',
-            },
+              subscription_status: 'active'
+            }
           }),
           prisma.transactionLog.update({
             where: { stripe_session_id: session.id },
             data: {
               status: 'COMPLETED',
               updated_at: new Date(),
-              stripe_payment_intent_id: session.payment_intent
-                ? String(session.payment_intent)
-                : undefined,
-              stripe_subscription_id: session.subscription
-                ? String(session.subscription)
-                : undefined,
+              stripe_payment_intent_id: session.payment_intent ? String(session.payment_intent) : undefined,
+              stripe_subscription_id: session.subscription ? String(session.subscription) : undefined,
             },
           }),
         ]);
@@ -4680,26 +3677,14 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         // Order matters: new sub verified (line above) → DB updated → old sub canceled.
         // If we canceled first and the DB write failed, the user would lose access entirely.
         const oldSubId = existingPrefs.subscription_id;
-        if (
-          oldSubId &&
-          prefs.subscription_id &&
-          oldSubId !== prefs.subscription_id &&
-          String(oldSubId).startsWith('sub_')
-        ) {
+        if (oldSubId && prefs.subscription_id && oldSubId !== prefs.subscription_id && String(oldSubId).startsWith('sub_')) {
           try {
             await stripe.subscriptions.cancel(String(oldSubId));
-            console.info('[payments] Canceled old subscription on upgrade', {
-              old_sub: oldSubId,
-              new_sub: prefs.subscription_id,
-              userId,
-            });
+            console.info('[payments] Canceled old subscription on upgrade', { old_sub: oldSubId, new_sub: prefs.subscription_id, userId });
           } catch (cancelErr: any) {
             // Log but don't block — old sub may already be canceled/expired.
             // Worst case: user gets double-billed briefly, but new sub is active and old will expire.
-            console.warn(
-              '[payments] Failed to cancel old subscription (may already be inactive):',
-              cancelErr?.message || cancelErr
-            );
+            console.warn('[payments] Failed to cancel old subscription (may already be inactive):', cancelErr?.message || cancelErr);
           }
         }
         console.info('[payments] membership finalize', {
@@ -4708,7 +3693,7 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           max_teams: maxTeams ?? 999,
           subscription_tier: subscriptionTier,
           subscription_id: prefs.subscription_id,
-          subscription_period_end: prefs.subscription_period_end,
+          subscription_period_end: prefs.subscription_period_end
         });
 
         // Email is non-critical — fire after atomic commit
@@ -4717,20 +3702,10 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
           fallbackEmail,
           plan,
           totalCents,
-        }).catch(err =>
-          console.warn('[payments] subscription email failed:', (err as any)?.message || err)
-        );
+        }).catch(err => console.warn('[payments] subscription email failed:', (err as any)?.message || err));
       } catch (err) {
-        console.error(
-          '[payments] Failed to finalize membership from session:',
-          (err as any)?.message || err
-        );
-        captureException(err as Error, {
-          context: 'finalize_membership_from_session',
-          sessionId: session.id,
-          userId,
-          plan,
-        });
+        console.error('[payments] Failed to finalize membership from session:', (err as any)?.message || err);
+        captureException(err as Error, { context: 'finalize_membership_from_session', sessionId: session.id, userId, plan });
         throw err;
       }
     }
@@ -4744,30 +3719,18 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
         redeemed = true;
         break;
       } catch (e) {
-        console.warn(
-          `[payments] Promo redemption attempt ${attempt}/3 failed:`,
-          (e as any)?.message
-        );
+        console.warn(`[payments] Promo redemption attempt ${attempt}/3 failed:`, (e as any)?.message);
         if (attempt < 3) await new Promise(r => setTimeout(r, 500 * attempt));
       }
     }
     if (!redeemed) {
       // PAY-5: Flag for admin review instead of silently completing
-      console.error('[payments] Promo redemption FAILED after 3 attempts — flagging for review', {
-        code,
-        userId,
-        session_id: session.id,
-      });
-      captureException(new Error('Promo redemption failed after retries (session)'), {
-        context: 'promo_redeem_failed_session',
-        promoCode: code,
-        sessionId: session.id,
-        userId,
-      });
+      console.error('[payments] Promo redemption FAILED after 3 attempts — flagging for review', { code, userId, session_id: session.id });
+      captureException(new Error('Promo redemption failed after retries (session)'), { context: 'promo_redeem_failed_session', promoCode: code, sessionId: session.id, userId });
       // Mark any associated transaction as needing review
       updateTransactionStatus(session.id, 'NEEDS_REVIEW', {
         metadata: { promo_redemption_failed: true, promo_code: code, needs_review: true },
-      }).catch(err => console.warn('[payments] failed to flag session promo failure:', err));
+      }).catch((err) => console.warn('[payments] failed to flag session promo failure:', err));
     }
   }
 }
@@ -4776,61 +3739,37 @@ async function runFinalizeFromSession(session: Stripe.Checkout.Session) {
 // v1.0.2 pass 11: /success is a PUBLIC GET that triggers Stripe + DB writes via finalizeFromSession.
 // Without a rate limit, an attacker spamming arbitrary session_id values forces real Stripe API
 // calls per request. paymentLimiter caps abuse without breaking legitimate post-checkout redirects.
-paymentsRouter.get(
-  '/success',
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';
-    const appReturnPath = process.env.APP_RETURN_PATH || '';
-    const returnUrl = `${appScheme}://${appReturnPath}`;
-    const sessionId = typeof req.query.session_id === 'string' ? req.query.session_id : undefined;
-    // PAY-3: Validate session_id format before hitting Stripe API (prevent enumeration)
-    if (
-      req.user?.id &&
-      sessionId &&
-      process.env.STRIPE_SECRET_KEY &&
-      /^cs_(test_|live_)[a-zA-Z0-9]+$/.test(sessionId)
-    ) {
-      try {
-        // Dedup: only finalize if not already processed by webhook
-        const alreadyProcessed = await prisma.processedStripeEvent.findFirst({
-          where: { event_id: `success_page_${sessionId}` },
-        });
-        if (!alreadyProcessed) {
-          const session = await stripe.checkout.sessions.retrieve(sessionId);
-          // PAY-3: Verify session metadata contains a valid user_id before finalizing
-          const sessionUserId = (session.metadata as any)?.user_id;
-          if (!sessionUserId) {
-            console.warn('[payments] Success page: session has no user_id in metadata', {
-              session_id: sessionId,
-            });
-          } else if (String(sessionUserId) !== String(req.user.id)) {
-            console.warn('[payments] Success page: refusing to finalize session for non-owner', {
-              session_id: sessionId,
-              requester_user_id: req.user.id,
-              session_user_id: sessionUserId,
-            });
-          } else if (session.payment_status === 'paid') {
-            await finalizeFromSession(session);
-            await prisma.processedStripeEvent
-              .create({
-                data: {
-                  event_id: `success_page_${sessionId}`,
-                  event_type: 'success_page_finalize',
-                },
-              })
-              .catch(() => {}); // Ignore duplicate key
-          }
+paymentsRouter.get('/success', paymentLimiter, asyncHandler(async (req, res) => {
+  const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';
+  const appReturnPath = process.env.APP_RETURN_PATH || '';
+  const returnUrl = `${appScheme}://${appReturnPath}`;
+  const sessionId = typeof req.query.session_id === 'string' ? req.query.session_id : undefined;
+  // PAY-3: Validate session_id format before hitting Stripe API (prevent enumeration)
+  if (sessionId && process.env.STRIPE_SECRET_KEY && /^cs_(test_|live_)[a-zA-Z0-9]+$/.test(sessionId)) {
+    try {
+      // Dedup: only finalize if not already processed by webhook
+      const alreadyProcessed = await prisma.processedStripeEvent.findFirst({
+        where: { event_id: `success_page_${sessionId}` },
+      });
+      if (!alreadyProcessed) {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        // PAY-3: Verify session metadata contains a valid user_id before finalizing
+        const sessionUserId = (session.metadata as any)?.user_id;
+        if (!sessionUserId) {
+          console.warn('[payments] Success page: session has no user_id in metadata', { session_id: sessionId });
+        } else if (session.payment_status === 'paid') {
+          await finalizeFromSession(session);
+          await prisma.processedStripeEvent.create({
+            data: { event_id: `success_page_${sessionId}`, event_type: 'success_page_finalize' },
+          }).catch(() => {}); // Ignore duplicate key
         }
-      } catch (e) {
-        console.error('[payments] Post-payment finalization failed:', {
-          session_id: sessionId,
-          error: (e as any)?.message || e,
-        });
       }
+    } catch (e) {
+      console.error('[payments] Post-payment finalization failed:', { session_id: sessionId, error: (e as any)?.message || e });
     }
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(`<!doctype html>
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send(`<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -4857,8 +3796,7 @@ paymentsRouter.get(
     </script>
   </body>
 </html>`);
-  })
-);
+}));
 
 // ── Apple IAP Receipt Verification ──────────────────────────────────
 const APPLE_SHARED_SECRET = process.env.APPLE_IAP_SHARED_SECRET || '';
@@ -4903,10 +3841,13 @@ function buildAppleReceiptReuseError() {
 }
 
 function normalizeAppleTransactionIds(ids: Array<string | null | undefined>) {
-  return Array.from(new Set(ids.map(id => String(id || '').trim()).filter(Boolean))).sort();
+  return Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))).sort();
 }
 
-function mergeTransactionMetadata(existing: unknown, next: Record<string, unknown>) {
+function mergeTransactionMetadata(
+  existing: unknown,
+  next: Record<string, unknown>,
+) {
   return {
     ...(existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {}),
     ...next,
@@ -4952,8 +3893,7 @@ async function ensureApplePendingTransactionLog(params: {
       data: {
         status: 'PENDING',
         user_email: params.userEmail ?? undefined,
-        apple_transaction_id:
-          existingPending.apple_transaction_id || normalizedAppleTransactionId || undefined,
+        apple_transaction_id: existingPending.apple_transaction_id || normalizedAppleTransactionId || undefined,
         metadata: mergeTransactionMetadata(existingPending.metadata, params.metadata),
       } as any,
     });
@@ -4991,10 +3931,7 @@ async function ensureApplePendingTransactionLog(params: {
         existing.user_id === params.userId &&
         existing.order_id === params.orderId
       ) {
-        return {
-          id: existing.id,
-          status: existing.status as 'PENDING' | 'COMPLETED' | 'NEEDS_REVIEW',
-        };
+        return { id: existing.id, status: existing.status as 'PENDING' | 'COMPLETED' | 'NEEDS_REVIEW' };
       }
       throw params.transactionType === 'SUBSCRIPTION_PURCHASE'
         ? buildAppleReceiptReuseError()
@@ -5044,10 +3981,10 @@ async function finalizeAppleSubscriptionPurchase(params: {
     where: { id: params.userId },
     select: { preferences: true },
   });
-  const currentPrefs =
-    user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-  const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } =
-    currentPrefs;
+  const currentPrefs = (user?.preferences && typeof user.preferences === 'object')
+    ? user.preferences as any
+    : {};
+  const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
   void payment_pending;
   void payment_approved;
   void pending_plan;
@@ -5067,7 +4004,7 @@ async function finalizeAppleSubscriptionPurchase(params: {
   });
 
   try {
-    await prisma.$transaction(async tx => {
+    await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: params.userId },
         data: {
@@ -5167,7 +4104,7 @@ function claimMatchesPurchase(
     userId: string;
     adId?: string | null;
     orderId?: string | null;
-  }
+  },
 ) {
   return (
     claim.transaction_type === expected.transactionType &&
@@ -5186,18 +4123,13 @@ async function reserveAppleTransactionClaims(
     adId: string;
     orderId: string;
     metadata?: Record<string, unknown>;
-  }
+  },
 ) {
-  const normalizedIds = Array.from(
-    new Set(params.appleTransactionIds.map(id => String(id).trim()).filter(Boolean))
-  ).sort();
+  const normalizedIds = Array.from(new Set(params.appleTransactionIds.map((id) => String(id).trim()).filter(Boolean))).sort();
   if (normalizedIds.length === 0) {
     const error = new Error('APPLE_TRANSACTION_IDS_REQUIRED');
     (error as any).statusCode = 400;
-    (error as any).body = {
-      error: 'APPLE_TRANSACTION_IDS_REQUIRED',
-      message: 'Missing Apple transaction ids.',
-    };
+    (error as any).body = { error: 'APPLE_TRANSACTION_IDS_REQUIRED', message: 'Missing Apple transaction ids.' };
     throw error;
   }
 
@@ -5212,13 +4144,13 @@ async function reserveAppleTransactionClaims(
     },
   });
 
-  const conflictingClaim = existingClaims.find(claim => !claimMatchesPurchase(claim, params));
+  const conflictingClaim = existingClaims.find((claim) => !claimMatchesPurchase(claim, params));
   if (conflictingClaim) {
     throw buildAppleTransactionClaimConflictError();
   }
 
-  const existingIds = new Set(existingClaims.map(claim => claim.apple_transaction_id));
-  const missingIds = normalizedIds.filter(id => !existingIds.has(id));
+  const existingIds = new Set(existingClaims.map((claim) => claim.apple_transaction_id));
+  const missingIds = normalizedIds.filter((id) => !existingIds.has(id));
 
   for (const appleTransactionId of missingIds) {
     try {
@@ -5266,102 +4198,93 @@ async function finalizeAppleAdPurchase(params: {
   appleTransactionIds: string[];
   receiptsCount: number;
 }) {
-  return prisma.$transaction(
-    async tx => {
-      const orderId = String(params.adId);
-      const claimResult = await reserveAppleTransactionClaims(tx, {
-        appleTransactionIds: params.appleTransactionIds,
-        transactionType: 'AD_PURCHASE',
-        userId: params.userId,
-        adId: String(params.adId),
-        orderId,
-        metadata: {
-          source: 'apple_iap',
-          receipts_count: params.receiptsCount,
-        },
+  return prisma.$transaction(async (tx) => {
+    const orderId = String(params.adId);
+    const claimResult = await reserveAppleTransactionClaims(tx, {
+      appleTransactionIds: params.appleTransactionIds,
+      transactionType: 'AD_PURCHASE',
+      userId: params.userId,
+      adId: String(params.adId),
+      orderId,
+      metadata: {
+        source: 'apple_iap',
+        receipts_count: params.receiptsCount,
+      },
+    });
+
+    const existingTx = await tx.transactionLog.findFirst({
+      where: {
+        user_id: params.userId,
+        order_id: orderId,
+        transaction_type: 'AD_PURCHASE',
+        status: 'COMPLETED',
+      } as any,
+      select: { id: true },
+    });
+    const pendingTx = await tx.transactionLog.findFirst({
+      where: {
+        user_id: params.userId,
+        order_id: orderId,
+        transaction_type: 'AD_PURCHASE',
+        status: { in: ['PENDING', 'NEEDS_REVIEW'] },
+      } as any,
+      select: { id: true, metadata: true },
+      orderBy: { created_at: 'desc' },
+    });
+
+    const adRecord = await tx.ad.findUnique({
+      where: { id: String(params.adId) },
+      select: { target_zip_code: true },
+    });
+
+    await reserveAdSlots(tx, {
+      adId: String(params.adId),
+      targetZipCode: adRecord?.target_zip_code,
+      isoDates: params.dates,
+      paymentStatus: 'paid',
+      status: 'active',
+    });
+
+    if (!existingTx) {
+      const metadata = mergeTransactionMetadata(pendingTx?.metadata, {
+        source: 'apple_iap',
+        ad_id: String(params.adId),
+        dates: params.dates,
+        receipts_count: params.receiptsCount,
+        apple_transaction_ids: claimResult.appleTransactionIds,
       });
 
-      const existingTx = await tx.transactionLog.findFirst({
-        where: {
-          user_id: params.userId,
-          order_id: orderId,
-          transaction_type: 'AD_PURCHASE',
-          status: 'COMPLETED',
-        } as any,
-        select: { id: true },
-      });
-      const pendingTx = await tx.transactionLog.findFirst({
-        where: {
-          user_id: params.userId,
-          order_id: orderId,
-          transaction_type: 'AD_PURCHASE',
-          status: { in: ['PENDING', 'NEEDS_REVIEW'] },
-        } as any,
-        select: { id: true, metadata: true },
-        orderBy: { created_at: 'desc' },
-      });
-
-      const adRecord = await tx.ad.findUnique({
-        where: { id: String(params.adId) },
-        select: { target_zip_code: true },
-      });
-
-      await reserveAdSlots(tx, {
-        adId: String(params.adId),
-        targetZipCode: adRecord?.target_zip_code,
-        isoDates: params.dates,
-        paymentStatus: 'paid',
-        status: 'active',
-      });
-
-      if (!existingTx) {
-        const metadata = mergeTransactionMetadata(pendingTx?.metadata, {
-          source: 'apple_iap',
-          ad_id: String(params.adId),
-          dates: params.dates,
-          receipts_count: params.receiptsCount,
-          apple_transaction_ids: claimResult.appleTransactionIds,
+      if (pendingTx) {
+        await tx.transactionLog.update({
+          where: { id: pendingTx.id },
+          data: {
+            status: 'COMPLETED',
+            user_email: params.userEmail ?? undefined,
+            apple_transaction_id: claimResult.appleTransactionIds.length === 1 ? claimResult.appleTransactionIds[0] : undefined,
+            metadata: metadata as any,
+          } as any,
         });
-
-        if (pendingTx) {
-          await tx.transactionLog.update({
-            where: { id: pendingTx.id },
-            data: {
-              status: 'COMPLETED',
-              user_email: params.userEmail ?? undefined,
-              apple_transaction_id:
-                claimResult.appleTransactionIds.length === 1
-                  ? claimResult.appleTransactionIds[0]
-                  : undefined,
-              metadata: metadata as any,
-            } as any,
-          });
-        } else {
-          await tx.transactionLog.create({
-            data: {
-              transaction_type: 'AD_PURCHASE',
-              status: 'COMPLETED',
-              user_id: params.userId,
-              user_email: params.userEmail ?? undefined,
-              order_id: orderId,
-              apple_transaction_id:
-                claimResult.appleTransactionIds.length === 1
-                  ? claimResult.appleTransactionIds[0]
-                  : null,
-              metadata: metadata as any,
-            } as any,
-          });
-        }
+      } else {
+        await tx.transactionLog.create({
+          data: {
+            transaction_type: 'AD_PURCHASE',
+            status: 'COMPLETED',
+            user_id: params.userId,
+            user_email: params.userEmail ?? undefined,
+            order_id: orderId,
+            apple_transaction_id: claimResult.appleTransactionIds.length === 1 ? claimResult.appleTransactionIds[0] : null,
+            metadata: metadata as any,
+          } as any,
+        });
       }
+    }
 
-      return {
-        ok: true,
-        idempotent: !!existingTx && claimResult.idempotent,
-        appleTransactionIds: claimResult.appleTransactionIds,
-      };
-    },
-    { isolationLevel: 'Serializable' }
-  );
+    return {
+      ok: true,
+      idempotent: !!existingTx && claimResult.idempotent,
+      appleTransactionIds: claimResult.appleTransactionIds,
+    };
+  }, { isolationLevel: 'Serializable' });
 }
 
 function verifyAppleSignedJws(token: string): any {
@@ -5428,7 +4351,7 @@ async function reserveAdSlots(
     isoDates: string[];
     paymentStatus: 'hold' | 'paid';
     status?: AdStatus;
-  }
+  },
 ) {
   if (params.targetZipCode) {
     const competingAds = await tx.ad.findMany({
@@ -5441,15 +4364,15 @@ async function reserveAdSlots(
       take: 100,
     });
     if (competingAds.length > 0) {
-      const dateObjects = params.isoDates.map(s => new Date(s + 'T00:00:00.000Z'));
+      const dateObjects = params.isoDates.map((s) => new Date(s + 'T00:00:00.000Z'));
       const bookedSlots = await tx.adReservation.groupBy({
         by: ['date'],
-        where: { ad_id: { in: competingAds.map(a => a.id) }, date: { in: dateObjects } },
+        where: { ad_id: { in: competingAds.map((a) => a.id) }, date: { in: dateObjects } },
         _count: { date: true },
       });
       const fullDates = bookedSlots
-        .filter(slot => slot._count.date >= MAX_AD_SLOTS)
-        .map(slot => slot.date.toISOString().slice(0, 10));
+        .filter((slot) => slot._count.date >= MAX_AD_SLOTS)
+        .map((slot) => slot.date.toISOString().slice(0, 10));
       if (fullDates.length > 0) {
         throw buildSlotFullError(fullDates);
       }
@@ -5464,7 +4387,7 @@ async function reserveAdSlots(
     },
   });
   await tx.adReservation.createMany({
-    data: params.isoDates.map(s => ({ ad_id: params.adId, date: new Date(s + 'T00:00:00.000Z') })),
+    data: params.isoDates.map((s) => ({ ad_id: params.adId, date: new Date(s + 'T00:00:00.000Z') })),
     skipDuplicates: true,
   });
 }
@@ -5482,21 +4405,16 @@ async function markStripeEventProcessed(eventId: string) {
 }
 
 async function markStripeEventFailed(eventId: string, error: unknown) {
-  await prisma.processedStripeEvent
-    .update({
-      where: { event_id: eventId },
-      data: {
-        processed: false,
-        processing_started_at: null,
-        last_error: String((error as any)?.message || error || 'unknown_error').slice(0, 2000),
-      },
-    })
-    .catch(updateErr => {
-      console.warn(
-        '[webhook] Failed to record event processing error:',
-        (updateErr as any)?.message || updateErr
-      );
-    });
+  await prisma.processedStripeEvent.update({
+    where: { event_id: eventId },
+    data: {
+      processed: false,
+      processing_started_at: null,
+      last_error: String((error as any)?.message || error || 'unknown_error').slice(0, 2000),
+    },
+  }).catch((updateErr) => {
+    console.warn('[webhook] Failed to record event processing error:', (updateErr as any)?.message || updateErr);
+  });
 }
 
 async function verifyAppleReceipt(receiptData: string, useSandbox = false): Promise<any> {
@@ -5522,838 +4440,704 @@ async function verifyAppleReceipt(receiptData: string, useSandbox = false): Prom
 }
 
 // Apple IAP receipt validation
-paymentsRouter.post(
-  '/apple/verify-receipt',
-  expressPkg.json(),
-  requireVerified as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const appleReceiptSchema = z.object({
+paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const appleReceiptSchema = z.object({
+      jws: z.string().min(1).optional().nullable(),
+      receipt: z.string().min(1).optional(),
+      productId: z.string().min(1),
+    });
+    const parsed = appleReceiptSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { jws, receipt, productId } = parsed.data;
+
+    if (!jws && !receipt) {
+      return res.status(400).json({ error: 'Apple verification requires a signed transaction or receipt' });
+    }
+    if (!jws && process.env.NODE_ENV === 'production') {
+      return res.status(400).json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
+    }
+    if (!jws && !APPLE_SHARED_SECRET) {
+      console.warn('[apple-iap] APPLE_IAP_SHARED_SECRET not configured — cannot verify receipts');
+      return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
+    }
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
+
+    const plan = APPLE_PRODUCT_TO_PLAN[productId];
+    if (!plan) {
+      return res.status(400).json({ error: `Unknown product: ${productId}` });
+    }
+
+    let originalTransactionId = '';
+    let expiresMs = 0;
+    let appleTransactionId = '';
+
+    if (jws) {
+      let signedTransaction: any;
+      try {
+        signedTransaction = verifyAppleSignedJws(jws);
+      } catch (error: any) {
+        return res.status(400).json({ error: error?.message || 'Invalid Apple transaction signature' });
+      }
+
+      const signedProductId = String(signedTransaction.productId || signedTransaction.product_id || '').trim();
+      if (signedProductId !== productId) {
+        return res.status(400).json({ error: 'Signed Apple transaction does not match requested product' });
+      }
+
+      originalTransactionId = String(
+        signedTransaction.originalTransactionId ||
+        signedTransaction.originalTransactionIdentifierIOS ||
+        signedTransaction.original_transaction_id ||
+        signedTransaction.transactionId ||
+        ''
+      ).trim();
+      appleTransactionId = String(signedTransaction.transactionId || signedTransaction.id || originalTransactionId).trim();
+      expiresMs = Number(
+        signedTransaction.expiresDate ||
+        signedTransaction.expires_date_ms ||
+        signedTransaction.expirationDateIOS ||
+        0
+      );
+    } else {
+      let result = await verifyAppleReceipt(receipt!, false);
+      if (result.status === 21007) {
+        result = await verifyAppleReceipt(receipt!, true);
+      }
+
+      if (result.status !== 0) {
+        console.error('[apple-iap] Verification failed, status:', result.status);
+        return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
+      }
+
+      const latestReceipts = result.latest_receipt_info || [];
+      const matchingReceipt = latestReceipts.find((r: any) => r.product_id === productId);
+
+      if (!matchingReceipt) {
+        return res.status(400).json({ error: 'No matching subscription found in receipt' });
+      }
+
+      originalTransactionId = String(matchingReceipt.original_transaction_id || '').trim();
+      appleTransactionId = String(matchingReceipt.transaction_id || matchingReceipt.original_transaction_id || '').trim();
+      expiresMs = parseInt(matchingReceipt.expires_date_ms, 10);
+    }
+
+    if (expiresMs < Date.now()) {
+      return res.status(400).json({ error: 'Subscription has expired' });
+    }
+
+    if (!originalTransactionId) {
+      return res.status(400).json({ error: 'Missing original transaction id' });
+    }
+    const existingApplePurchase = await prisma.transactionLog.findFirst({
+      where: {
+        order_id: originalTransactionId,
+        transaction_type: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+      } as any,
+      select: { user_id: true },
+    });
+    if (existingApplePurchase?.user_id && existingApplePurchase.user_id !== userId) {
+      return res.status(409).json({ error: 'Receipt already used by another account' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
+    const expiresAtIso = new Date(expiresMs).toISOString();
+    await ensureApplePendingTransactionLog({
+      transactionType: 'SUBSCRIPTION_PURCHASE',
+      userId,
+      userEmail: user?.email,
+      orderId: originalTransactionId,
+      appleTransactionId: appleTransactionId || null,
+      metadata: {
+        source: jws ? 'apple_iap_jws' : 'apple_iap_receipt',
+        productId,
+        plan,
+        apple_expires_date: expiresAtIso,
+      },
+    });
+
+    const result = await finalizeAppleSubscriptionPurchase({
+      userId,
+      userEmail: user?.email,
+      productId,
+      originalTransactionId,
+      appleTransactionId: appleTransactionId || null,
+      expiresAtIso,
+      source: jws ? 'apple_iap_jws' : 'apple_iap_receipt',
+    });
+
+    debugLog('apple-iap', `User ${userId} subscribed to ${plan} via Apple IAP`);
+
+    return res.json(result);
+  } catch (err: any) {
+    if (err?.statusCode && err?.body) {
+      return res.status(err.statusCode).json(err.body);
+    }
+    console.error('[apple-iap] verify-receipt error:', err);
+    captureException(err, { context: 'apple-iap-verify', provider: 'apple_iap' });
+    return res.status(500).json({ error: 'Receipt verification failed' });
+  }
+}));
+
+// Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
+paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
+
+    const appleAdReceiptSchema = z.object({
+      ad_id: z.string().min(1),
+      dates: z.array(z.string()).min(1),
+      receipts: z.array(z.object({
         jws: z.string().min(1).optional().nullable(),
         receipt: z.string().min(1).optional(),
         productId: z.string().min(1),
-      });
-      const parsed = appleReceiptSchema.safeParse(req.body);
-      if (!parsed.success)
-        return res
-          .status(400)
-          .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-      const { jws, receipt, productId } = parsed.data;
+        quantity: z.number().optional(),
+      })).min(1),
+    });
+    const parsed = appleAdReceiptSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { ad_id, dates, receipts } = parsed.data;
+    if (receipts.some((entry) => !entry.jws && !entry.receipt)) {
+      return res.status(400).json({ error: 'Each Apple purchase must include a signed transaction or receipt' });
+    }
+    if (receipts.some((entry) => !entry.jws) && process.env.NODE_ENV === 'production') {
+      return res.status(400).json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
+    }
+    if (receipts.some((entry) => !entry.jws) && !APPLE_SHARED_SECRET) {
+      return res.status(503).json({ error: 'IAP verification not configured. Please contact support.' });
+    }
 
-      if (!jws && !receipt) {
-        return res
-          .status(400)
-          .json({ error: 'Apple verification requires a signed transaction or receipt' });
+    const isoDateStrings: string[] = dates.map((d: any) => String(d));
+    // Enforce booking horizon — no dates beyond 56 days from today
+    const MAX_BOOKING_HORIZON_DAYS = 56;
+    const pastHorizon = getDatesPastBookingHorizon(isoDateStrings, new Date(), MAX_BOOKING_HORIZON_DAYS);
+    if (pastHorizon.length > 0) {
+      return res.status(400).json({ error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`, dates: pastHorizon });
+    }
+
+    const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    if (ad.user_id !== userId) return res.status(403).json({ error: 'Not authorized' });
+    if (ad.status !== 'approved' && ad.status !== 'active' && ad.status !== 'archived') {
+      return res.status(403).json({ error: 'Ad must be approved before payment' });
+    }
+
+    const expectedPricing = calculateAdPriceCents(dates);
+    let verifiedCents = 0;
+    const appleTransactionIds: string[] = [];
+
+    for (const r of receipts) {
+      const { jws, receipt, productId } = r;
+      if ((!jws && !receipt) || !productId || !(APPLE_AD_PRODUCTS as readonly string[]).includes(productId)) {
+        return res.status(400).json({ error: `Invalid receipt: unknown product ${productId}` });
       }
       if (!jws && process.env.NODE_ENV === 'production') {
-        return res
-          .status(400)
-          .json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
+        return res.status(400).json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
       }
-      if (!jws && !APPLE_SHARED_SECRET) {
-        console.warn('[apple-iap] APPLE_IAP_SHARED_SECRET not configured — cannot verify receipts');
-        return res
-          .status(503)
-          .json({ error: 'IAP verification not configured. Please contact support.' });
-      }
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' }); // error-envelope-exempt
-
-      const plan = APPLE_PRODUCT_TO_PLAN[productId];
-      if (!plan) {
-        return res.status(400).json({ error: `Unknown product: ${productId}` }); // error-envelope-exempt
-      }
-
-      let originalTransactionId = '';
-      let expiresMs = 0;
-      let appleTransactionId = '';
+      const unitCents = AD_PRODUCT_CENTS[productId];
+      if (!unitCents) return res.status(400).json({ error: `Unknown ad product: ${productId}` });
 
       if (jws) {
         let signedTransaction: any;
         try {
           signedTransaction = verifyAppleSignedJws(jws);
         } catch (error: any) {
-          return res
-            .status(400)
-            .json({ error: error?.message || 'Invalid Apple transaction signature' });
+          return res.status(400).json({ error: error?.message || 'Invalid Apple transaction signature' });
         }
-
-        const signedProductId = String(
-          signedTransaction.productId || signedTransaction.product_id || ''
-        ).trim();
+        const signedProductId = String(signedTransaction.productId || signedTransaction.product_id || '').trim();
         if (signedProductId !== productId) {
-          return res
-            .status(400)
-            .json({ error: 'Signed Apple transaction does not match requested product' });
+          return res.status(400).json({ error: 'Signed Apple transaction does not match requested product' });
         }
-
-        originalTransactionId = String(
-          signedTransaction.originalTransactionId ||
-            signedTransaction.originalTransactionIdentifierIOS ||
-            signedTransaction.original_transaction_id ||
-            signedTransaction.transactionId ||
-            ''
-        ).trim();
-        appleTransactionId = String(
-          signedTransaction.transactionId || signedTransaction.id || originalTransactionId
-        ).trim();
-        expiresMs = Number(
-          signedTransaction.expiresDate ||
-            signedTransaction.expires_date_ms ||
-            signedTransaction.expirationDateIOS ||
-            0
+        const purchasedQty = Math.max(
+          1,
+          Number(signedTransaction.quantity || signedTransaction.quantityIOS || 1)
         );
+        verifiedCents += unitCents * purchasedQty;
+        const txId = String(
+          signedTransaction.transactionId ||
+          signedTransaction.id ||
+          signedTransaction.originalTransactionId ||
+          signedTransaction.originalTransactionIdentifierIOS ||
+          ''
+        ).trim();
+        if (txId) appleTransactionIds.push(txId);
       } else {
         let result = await verifyAppleReceipt(receipt!, false);
-        if (result.status === 21007) {
-          result = await verifyAppleReceipt(receipt!, true);
-        }
-
+        if (result.status === 21007) result = await verifyAppleReceipt(receipt!, true);
         if (result.status !== 0) {
-          console.error('[apple-iap] Verification failed, status:', result.status);
-          return res
-            .status(400)
-            .json({ error: 'Receipt verification failed', appleStatus: result.status });
+          return res.status(400).json({ error: 'Receipt verification failed', appleStatus: result.status });
         }
 
-        const latestReceipts = result.latest_receipt_info || [];
-        const matchingReceipt = latestReceipts.find((r: any) => r.product_id === productId);
-
-        if (!matchingReceipt) {
-          return res.status(400).json({ error: 'No matching subscription found in receipt' }); // error-envelope-exempt
+        const inApp = result.receipt?.in_app || [];
+        const matching = inApp.filter((t: any) => t.product_id === productId);
+        if (matching.length === 0) {
+          return res.status(400).json({ error: 'No matching transactions in receipt for product', product_id: productId });
         }
+        const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
+        verifiedCents += unitCents * purchasedQty;
 
-        originalTransactionId = String(matchingReceipt.original_transaction_id || '').trim();
-        appleTransactionId = String(
-          matchingReceipt.transaction_id || matchingReceipt.original_transaction_id || ''
-        ).trim();
-        expiresMs = parseInt(matchingReceipt.expires_date_ms, 10);
+        const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
+        if (txId) appleTransactionIds.push(String(txId));
       }
+    }
 
-      if (expiresMs < Date.now()) {
-        return res.status(400).json({ error: 'Subscription has expired' }); // error-envelope-exempt
-      }
+    if (verifiedCents < expectedPricing.totalCents) {
+      return res.status(400).json({ error: 'Receipt total does not match expected amount' });
+    }
+    if (Array.from(new Set(appleTransactionIds.filter(Boolean))).length === 0) {
+      return res.status(400).json({ error: 'Missing Apple transaction ids in purchase data' });
+    }
 
-      if (!originalTransactionId) {
-        return res.status(400).json({ error: 'Missing original transaction id' }); // error-envelope-exempt
-      }
-      const existingApplePurchase = await prisma.transactionLog.findFirst({
+    const MAX_AD_SLOTS = 2;
+    if (ad.target_zip_code) {
+      const reservedAdsInZip = await prisma.ad.findMany({
         where: {
-          order_id: originalTransactionId,
-          transaction_type: 'SUBSCRIPTION_PURCHASE',
-          status: 'COMPLETED',
-        } as any,
-        select: { user_id: true },
+          target_zip_code: ad.target_zip_code,
+          payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+          NOT: { id: String(ad_id) },
+        },
+        select: { id: true },
+        take: 100,
       });
-      if (existingApplePurchase?.user_id && existingApplePurchase.user_id !== userId) {
-        return res.status(409).json({ error: 'Receipt already used by another account' }); // error-envelope-exempt
+      if (reservedAdsInZip.length > 0) {
+        const dateObjects = dates.map((s: string) => new Date(s + 'T00:00:00.000Z'));
+        const bookedSlots = await prisma.adReservation.groupBy({
+          by: ['date'],
+          where: { ad_id: { in: reservedAdsInZip.map((a) => a.id) }, date: { in: dateObjects } },
+          _count: { date: true },
+        });
+        const fullDates = bookedSlots.filter((s) => s._count.date >= MAX_AD_SLOTS);
+        if (fullDates.length > 0) {
+          return res.status(409).json({ error: 'One or more dates are fully booked', dates: fullDates.map((s) => s.date.toISOString().slice(0, 10)) });
+        }
       }
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true, email: true },
-      });
-      const expiresAtIso = new Date(expiresMs).toISOString();
+    }
+
+    // SECURITY: Only activate ads that have been approved by admin
+    if (ad.status !== 'approved' && ad.status !== 'active' && ad.status !== 'archived') {
+      return res.status(403).json({ error: 'Ad must be approved before payment', current_status: ad.status });
+    }
+
+    try {
       await ensureApplePendingTransactionLog({
-        transactionType: 'SUBSCRIPTION_PURCHASE',
+        transactionType: 'AD_PURCHASE',
         userId,
-        userEmail: user?.email,
-        orderId: originalTransactionId,
-        appleTransactionId: appleTransactionId || null,
+        userEmail: ad.contact_email || null,
+        orderId: String(ad_id),
+        appleTransactionId: appleTransactionIds.length === 1 ? appleTransactionIds[0] : null,
         metadata: {
-          source: jws ? 'apple_iap_jws' : 'apple_iap_receipt',
-          productId,
-          plan,
-          apple_expires_date: expiresAtIso,
+          source: 'apple_iap',
+          ad_id: String(ad_id),
+          dates,
+          receipts_count: receipts.length,
+          apple_transaction_ids: normalizeAppleTransactionIds(appleTransactionIds),
         },
       });
 
-      const result = await finalizeAppleSubscriptionPurchase({
+      const finalizeResult = await finalizeAppleAdPurchase({
         userId,
-        userEmail: user?.email,
-        productId,
-        originalTransactionId,
-        appleTransactionId: appleTransactionId || null,
-        expiresAtIso,
-        source: jws ? 'apple_iap_jws' : 'apple_iap_receipt',
+        userEmail: ad.contact_email,
+        adId: String(ad_id),
+        dates,
+        appleTransactionIds,
+        receiptsCount: receipts.length,
       });
-
-      debugLog('apple-iap', `User ${userId} subscribed to ${plan} via Apple IAP`);
-
-      return res.json(result);
-    } catch (err: any) {
-      if (err?.statusCode && err?.body) {
-        return res.status(err.statusCode).json(err.body); // error-envelope-exempt
+      debugLog('apple-iap-ad', `User ${userId} paid for ad ${ad_id} via Apple IAP`);
+      return res.json(finalizeResult);
+    } catch (error: any) {
+      if (error?.statusCode && error?.body) {
+        return res.status(error.statusCode).json(error.body);
       }
-      console.error('[apple-iap] verify-receipt error:', err);
-      captureException(err, { context: 'apple-iap-verify', provider: 'apple_iap' });
-      return res.status(500).json({ error: 'Receipt verification failed' }); // error-envelope-exempt
+      if (isUniqueConstraintError(error, 'apple_transaction_id')) {
+        return res.status(409).json({
+          error: 'APPLE_TRANSACTION_ALREADY_CLAIMED',
+          message: 'One or more Apple purchase receipts were already used by a different purchase.',
+        });
+      }
+      throw error;
     }
-  })
-);
-
-// Apple IAP ad receipt verification (consumable products: MOND_THURS, FRI_SUN)
-paymentsRouter.post(
-  '/apple/verify-ad-receipt',
-  expressPkg.json(),
-  requireAuth as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' }); // error-envelope-exempt
-
-      const appleAdReceiptSchema = z.object({
-        ad_id: z.string().min(1),
-        dates: z.array(z.string()).min(1),
-        receipts: z
-          .array(
-            z.object({
-              jws: z.string().min(1).optional().nullable(),
-              receipt: z.string().min(1).optional(),
-              productId: z.string().min(1),
-              quantity: z.number().optional(),
-            })
-          )
-          .min(1),
-      });
-      const parsed = appleAdReceiptSchema.safeParse(req.body);
-      if (!parsed.success)
-        return res
-          .status(400)
-          .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-      const { ad_id, dates, receipts } = parsed.data;
-      if (receipts.some(entry => !entry.jws && !entry.receipt)) {
-        return res
-          .status(400)
-          .json({ error: 'Each Apple purchase must include a signed transaction or receipt' });
-      }
-      if (receipts.some(entry => !entry.jws) && process.env.NODE_ENV === 'production') {
-        return res
-          .status(400)
-          .json({ error: 'Legacy Apple receipts are no longer accepted. Please update the app.' });
-      }
-      if (receipts.some(entry => !entry.jws) && !APPLE_SHARED_SECRET) {
-        return res
-          .status(503)
-          .json({ error: 'IAP verification not configured. Please contact support.' });
-      }
-
-      const isoDateStrings: string[] = dates.map((d: any) => String(d));
-      // Enforce booking horizon — no dates beyond 56 days from today
-      const MAX_BOOKING_HORIZON_DAYS = 56;
-      const pastHorizon = getDatesPastBookingHorizon(
-        isoDateStrings,
-        new Date(),
-        MAX_BOOKING_HORIZON_DAYS
-      );
-      if (pastHorizon.length > 0) {
-        return res.status(400).json({
-          // error-envelope-exempt
-          error: `Dates must be within ${MAX_BOOKING_HORIZON_DAYS} days from today`,
-          dates: pastHorizon,
-        });
-      }
-
-      const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
-      if (!ad) return res.status(404).json({ error: 'Ad not found' }); // error-envelope-exempt
-      if (ad.user_id !== userId) return res.status(403).json({ error: 'Not authorized' }); // error-envelope-exempt
-      if (ad.status !== 'approved' && ad.status !== 'active') {
-        return res.status(403).json({ error: 'Ad must be approved before payment' }); // error-envelope-exempt
-      }
-
-      const expectedPricing = calculateAdPriceCents(dates);
-      let verifiedCents = 0;
-      const appleTransactionIds: string[] = [];
-
-      for (const r of receipts) {
-        const { jws, receipt, productId } = r;
-        if (
-          (!jws && !receipt) ||
-          !productId ||
-          !(APPLE_AD_PRODUCTS as readonly string[]).includes(productId)
-        ) {
-          return res.status(400).json({ error: `Invalid receipt: unknown product ${productId}` }); // error-envelope-exempt
-        }
-        if (!jws && process.env.NODE_ENV === 'production') {
-          return res.status(400).json({
-            // error-envelope-exempt
-            error: 'Legacy Apple receipts are no longer accepted. Please update the app.',
-          });
-        }
-        const unitCents = AD_PRODUCT_CENTS[productId];
-        if (!unitCents) return res.status(400).json({ error: `Unknown ad product: ${productId}` }); // error-envelope-exempt
-
-        if (jws) {
-          let signedTransaction: any;
-          try {
-            signedTransaction = verifyAppleSignedJws(jws);
-          } catch (error: any) {
-            return res
-              .status(400)
-              .json({ error: error?.message || 'Invalid Apple transaction signature' });
-          }
-          const signedProductId = String(
-            signedTransaction.productId || signedTransaction.product_id || ''
-          ).trim();
-          if (signedProductId !== productId) {
-            return res
-              .status(400)
-              .json({ error: 'Signed Apple transaction does not match requested product' });
-          }
-          const purchasedQty = Math.max(
-            1,
-            Number(signedTransaction.quantity || signedTransaction.quantityIOS || 1)
-          );
-          verifiedCents += unitCents * purchasedQty;
-          const txId = String(
-            signedTransaction.transactionId ||
-              signedTransaction.id ||
-              signedTransaction.originalTransactionId ||
-              signedTransaction.originalTransactionIdentifierIOS ||
-              ''
-          ).trim();
-          if (txId) appleTransactionIds.push(txId);
-        } else {
-          let result = await verifyAppleReceipt(receipt!, false);
-          if (result.status === 21007) result = await verifyAppleReceipt(receipt!, true);
-          if (result.status !== 0) {
-            return res
-              .status(400)
-              .json({ error: 'Receipt verification failed', appleStatus: result.status });
-          }
-
-          const inApp = result.receipt?.in_app || [];
-          const matching = inApp.filter((t: any) => t.product_id === productId);
-          if (matching.length === 0) {
-            return res.status(400).json({
-              // error-envelope-exempt
-              error: 'No matching transactions in receipt for product',
-              product_id: productId,
-            });
-          }
-          const purchasedQty = parseInt(matching[0]?.quantity || '1', 10) || 1;
-          verifiedCents += unitCents * purchasedQty;
-
-          const txId = matching[0]?.transaction_id || matching[0]?.original_transaction_id;
-          if (txId) appleTransactionIds.push(String(txId));
-        }
-      }
-
-      if (verifiedCents < expectedPricing.totalCents) {
-        return res.status(400).json({ error: 'Receipt total does not match expected amount' }); // error-envelope-exempt
-      }
-      if (Array.from(new Set(appleTransactionIds.filter(Boolean))).length === 0) {
-        return res.status(400).json({ error: 'Missing Apple transaction ids in purchase data' }); // error-envelope-exempt
-      }
-
-      const MAX_AD_SLOTS = 2;
-      if (ad.target_zip_code) {
-        const reservedAdsInZip = await prisma.ad.findMany({
-          where: {
-            target_zip_code: ad.target_zip_code,
-            payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-            NOT: { id: String(ad_id) },
-          },
-          select: { id: true },
-          take: 100,
-        });
-        if (reservedAdsInZip.length > 0) {
-          const dateObjects = dates.map((s: string) => new Date(s + 'T00:00:00.000Z'));
-          const bookedSlots = await prisma.adReservation.groupBy({
-            by: ['date'],
-            where: { ad_id: { in: reservedAdsInZip.map(a => a.id) }, date: { in: dateObjects } },
-            _count: { date: true },
-          });
-          const fullDates = bookedSlots.filter(s => s._count.date >= MAX_AD_SLOTS);
-          if (fullDates.length > 0) {
-            return res.status(409).json({
-              // error-envelope-exempt
-              error: 'One or more dates are fully booked',
-              dates: fullDates.map(s => s.date.toISOString().slice(0, 10)),
-            });
-          }
-        }
-      }
-
-      // SECURITY: Only activate ads that have been approved by admin
-      if (ad.status !== 'approved' && ad.status !== 'active') {
-        return res
-          .status(403)
-          .json({ error: 'Ad must be approved before payment', current_status: ad.status });
-      }
-
-      try {
-        await ensureApplePendingTransactionLog({
-          transactionType: 'AD_PURCHASE',
-          userId,
-          userEmail: ad.contact_email || null,
-          orderId: String(ad_id),
-          appleTransactionId: appleTransactionIds.length === 1 ? appleTransactionIds[0] : null,
-          metadata: {
-            source: 'apple_iap',
-            ad_id: String(ad_id),
-            dates,
-            receipts_count: receipts.length,
-            apple_transaction_ids: normalizeAppleTransactionIds(appleTransactionIds),
-          },
-        });
-
-        const finalizeResult = await finalizeAppleAdPurchase({
-          userId,
-          userEmail: ad.contact_email,
-          adId: String(ad_id),
-          dates,
-          appleTransactionIds,
-          receiptsCount: receipts.length,
-        });
-        debugLog('apple-iap-ad', `User ${userId} paid for ad ${ad_id} via Apple IAP`);
-        return res.json(finalizeResult);
-      } catch (error: any) {
-        if (error?.statusCode && error?.body) {
-          return res.status(error.statusCode).json(error.body); // error-envelope-exempt
-        }
-        if (isUniqueConstraintError(error, 'apple_transaction_id')) {
-          return res.status(409).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
-            error: 'APPLE_TRANSACTION_ALREADY_CLAIMED',
-            message:
-              'One or more Apple purchase receipts were already used by a different purchase.',
-          });
-        }
-        throw error;
-      }
-    } catch (err: any) {
-      console.error('[apple-iap] verify-ad-receipt error:', err);
-      captureException(err, { context: 'apple-iap-verify-ad', provider: 'apple_iap' });
-      return res.status(500).json({ error: 'Receipt verification failed' }); // error-envelope-exempt
-    }
-  })
-);
+  } catch (err: any) {
+    console.error('[apple-iap] verify-ad-receipt error:', err);
+    captureException(err, { context: 'apple-iap-verify-ad', provider: 'apple_iap' });
+    return res.status(500).json({ error: 'Receipt verification failed' });
+  }
+}));
 
 // ── Apple Server-to-Server (S2S) Notifications V2 ──────────────────
 // Apple sends JWS-signed payloads for subscription lifecycle events.
 // Configure this URL in App Store Connect → App → App Store Server Notifications.
-paymentsRouter.post(
-  ['/apple/notifications', '/apple/server-notifications'],
-  expressPkg.json(),
-  asyncHandler(async (req, res) => {
+paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], expressPkg.json(), asyncHandler(async (req, res) => {
+  try {
+    const { signedPayload } = req.body || {};
+    if (!signedPayload) {
+      console.warn('[apple-s2s] Missing signedPayload');
+      return res.sendStatus(200); // Always 200 to Apple
+    }
+
+    // Verify JWS signature using the x5c certificate chain from the header.
+    // The leaf cert signs the payload; we verify the chain against Apple's root CA.
+    let payload: any;
     try {
-      const { signedPayload } = req.body || {};
-      if (!signedPayload) {
-        console.warn('[apple-s2s] Missing signedPayload');
-        return res.sendStatus(200); // Always 200 to Apple
+      // Step 1: Decode header WITHOUT verification to inspect x5c chain
+      const decoded = jwt.decode(signedPayload, { complete: true });
+      const header = decoded?.header as any;
+      if (!header?.x5c?.length) {
+        console.error('[apple-s2s] No x5c certificate chain in JWS header — rejecting unverified payload');
+        return res.status(400).json({ error: 'Missing certificate chain' });
       }
 
-      // Verify JWS signature using the x5c certificate chain from the header.
-      // The leaf cert signs the payload; we verify the chain against Apple's root CA.
-      let payload: any;
+      // Step 2: Enforce ES256 algorithm — reject anything else
+      if (header.alg !== 'ES256') {
+        console.error('[apple-s2s] Unexpected algorithm:', header.alg, '— only ES256 is accepted');
+        return res.status(403).json({ error: 'Invalid algorithm' });
+      }
+
+      // Step 3: Build PEM certs from x5c chain
+      const x5cCerts = (header.x5c as string[]).map(
+        (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
+      );
+      const leafCertPem = x5cCerts[0];
+
+      // Step 4: Pin root cert to Apple Root CA - G3
+      // Apple's App Store S2S notifications always chain to "Apple Root CA - G3"
+      const rootCert = x5cCerts[x5cCerts.length - 1];
+      const rootX509 = new crypto.X509Certificate(rootCert);
+      // Check CN and O fields for Apple Root CA identity
+      if (!rootX509.subject.includes('Apple Root CA') || !rootX509.issuer.includes('Apple Root CA')) {
+        console.error('[apple-s2s] Root cert is NOT Apple Root CA — rejecting. Subject:', rootX509.subject, 'Issuer:', rootX509.issuer);
+        return res.status(403).json({ error: 'Invalid certificate chain' });
+      }
+      // Verify root is self-signed
+      if (!rootX509.checkIssued(rootX509)) {
+        console.error('[apple-s2s] Root cert is not self-signed — rejecting');
+        return res.status(403).json({ error: 'Invalid root certificate' });
+      }
+
+      // Step 5: Verify full chain — each cert issued by the next
+      for (let i = 0; i < x5cCerts.length - 1; i++) {
+        const cert = new crypto.X509Certificate(x5cCerts[i]);
+        const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
+        if (!cert.checkIssued(issuerCert)) {
+          console.error(`[apple-s2s] Certificate chain broken at index ${i} — rejecting`);
+          return res.status(403).json({ error: 'Broken certificate chain' });
+        }
+      }
+
+      // Step 6: Verify JWS signature with leaf cert public key — strict ES256 only
+      const leafCert = crypto.createPublicKey(leafCertPem);
+      payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
+    } catch (decodeErr) {
+      console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
+      return res.sendStatus(200);
+    }
+
+    if (!payload) {
+      console.error('[apple-s2s] Decoded payload is null');
+      return res.sendStatus(200);
+    }
+
+    // Step 7: Validate payload claims — bundleId and environment
+    const EXPECTED_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'com.varsithub.varsityhub-ios';
+    const data = payload.data || {};
+    const notificationType: string = payload.notificationType || '';
+    const subtype: string = payload.subtype || '';
+    const notificationUUID: string = payload.notificationUUID || '';
+
+    // Verify bundleId matches our app (prevents cross-app replay)
+    if (data.bundleId && data.bundleId !== EXPECTED_BUNDLE_ID) {
+      console.error('[apple-s2s] bundleId mismatch:', data.bundleId, 'expected:', EXPECTED_BUNDLE_ID);
+      return res.status(403).json({ error: 'Bundle ID mismatch' });
+    }
+
+    // Reject sandbox notifications in production (optional safety check)
+    const environment: string = data.environment || payload.environment || 'Production';
+    if (process.env.NODE_ENV === 'production' && environment === 'Sandbox') {
+      console.warn('[apple-s2s] Rejecting sandbox notification in production');
+      return res.sendStatus(200);
+    }
+
+    // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).
+    // Falls back to jwt.decode if verification fails — the outer payload was already verified.
+    const verifyInnerJWS = (token: string): any => {
       try {
-        // Step 1: Decode header WITHOUT verification to inspect x5c chain
-        const decoded = jwt.decode(signedPayload, { complete: true });
-        const header = decoded?.header as any;
-        if (!header?.x5c?.length) {
-          console.error(
-            '[apple-s2s] No x5c certificate chain in JWS header — rejecting unverified payload'
-          );
-          return res.status(400).json({ error: 'Missing certificate chain' }); // error-envelope-exempt
-        }
-
-        // Step 2: Enforce ES256 algorithm — reject anything else
-        if (header.alg !== 'ES256') {
-          console.error(
-            '[apple-s2s] Unexpected algorithm:',
-            header.alg,
-            '— only ES256 is accepted'
-          );
-          return res.status(403).json({ error: 'Invalid algorithm' }); // error-envelope-exempt
-        }
-
-        // Step 3: Build PEM certs from x5c chain
-        const x5cCerts = (header.x5c as string[]).map(
-          (c: string) => `-----BEGIN CERTIFICATE-----\n${c}\n-----END CERTIFICATE-----`
-        );
-        const leafCertPem = x5cCerts[0];
-
-        // Step 4: Pin root cert to Apple Root CA - G3
-        // Apple's App Store S2S notifications always chain to "Apple Root CA - G3"
-        const rootCert = x5cCerts[x5cCerts.length - 1];
-        const rootX509 = new crypto.X509Certificate(rootCert);
-        // Check CN and O fields for Apple Root CA identity
-        if (
-          !rootX509.subject.includes('Apple Root CA') ||
-          !rootX509.issuer.includes('Apple Root CA')
-        ) {
-          console.error(
-            '[apple-s2s] Root cert is NOT Apple Root CA — rejecting. Subject:',
-            rootX509.subject,
-            'Issuer:',
-            rootX509.issuer
-          );
-          return res.status(403).json({ error: 'Invalid certificate chain' }); // error-envelope-exempt
-        }
-        // Verify root is self-signed
-        if (!rootX509.checkIssued(rootX509)) {
-          console.error('[apple-s2s] Root cert is not self-signed — rejecting');
-          return res.status(403).json({ error: 'Invalid root certificate' }); // error-envelope-exempt
-        }
-
-        // Step 5: Verify full chain — each cert issued by the next
-        for (let i = 0; i < x5cCerts.length - 1; i++) {
-          const cert = new crypto.X509Certificate(x5cCerts[i]);
-          const issuerCert = new crypto.X509Certificate(x5cCerts[i + 1]);
-          if (!cert.checkIssued(issuerCert)) {
-            console.error(`[apple-s2s] Certificate chain broken at index ${i} — rejecting`);
-            return res.status(403).json({ error: 'Broken certificate chain' }); // error-envelope-exempt
-          }
-        }
-
-        // Step 6: Verify JWS signature with leaf cert public key — strict ES256 only
-        const leafCert = crypto.createPublicKey(leafCertPem);
-        payload = jwt.verify(signedPayload, leafCert, { algorithms: ['ES256'] });
-      } catch (decodeErr) {
-        console.error('[apple-s2s] Failed to verify/decode signedPayload:', decodeErr);
-        return res.sendStatus(503);
-      }
-
-      if (!payload) {
-        console.error('[apple-s2s] Decoded payload is null');
-        return res.sendStatus(503);
-      }
-
-      // Step 7: Validate payload claims — bundleId and environment
-      const EXPECTED_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'com.varsithub.varsityhub-ios';
-      const data = payload.data || {};
-      const notificationType: string = payload.notificationType || '';
-      const subtype: string = payload.subtype || '';
-      const notificationUUID: string = payload.notificationUUID || '';
-
-      // Verify bundleId matches our app (prevents cross-app replay)
-      if (data.bundleId && data.bundleId !== EXPECTED_BUNDLE_ID) {
-        console.error(
-          '[apple-s2s] bundleId mismatch:',
-          data.bundleId,
-          'expected:',
-          EXPECTED_BUNDLE_ID
-        );
-        return res.status(403).json({ error: 'Bundle ID mismatch' }); // error-envelope-exempt
-      }
-
-      // Reject sandbox notifications in production (optional safety check)
-      const environment: string = data.environment || payload.environment || 'Production';
-      if (process.env.NODE_ENV === 'production' && environment === 'Sandbox') {
-        console.warn('[apple-s2s] Rejecting sandbox notification in production');
-        return res.sendStatus(200);
-      }
-
-      // Verify inner JWS tokens using their own x5c certificate chains.
-      // Reject on verification failure so Apple retries instead of silently dropping state changes.
-      const verifyInnerJWS = (token: string): any => {
         const innerHeader = jwt.decode(token, { complete: true })?.header as any;
-        if (!innerHeader?.x5c?.length) {
-          throw new Error('Missing x5c certificate chain on inner JWS');
+        if (innerHeader?.x5c?.length) {
+          const innerCertPem = `-----BEGIN CERTIFICATE-----\n${innerHeader.x5c[0]}\n-----END CERTIFICATE-----`;
+          const innerKey = crypto.createPublicKey(innerCertPem);
+          return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
         }
-        const innerCertPem = `-----BEGIN CERTIFICATE-----\n${innerHeader.x5c[0]}\n-----END CERTIFICATE-----`;
-        const innerKey = crypto.createPublicKey(innerCertPem);
-        return jwt.verify(token, innerKey, { algorithms: ['ES256'] });
-      };
+      } catch { /* fall through to decode */ }
+      return jwt.decode(token) || {};
+    };
 
-      let transactionInfo: any = {};
-      let renewalInfo: any = {};
-      try {
-        if (data.signedTransactionInfo) {
-          transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
-        }
-        if (data.signedRenewalInfo) {
-          renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
-        }
-      } catch (innerErr) {
-        console.error('[apple-s2s] Failed to verify inner JWS payload:', innerErr);
-        return res.sendStatus(503);
-      }
+    let transactionInfo: any = {};
+    if (data.signedTransactionInfo) {
+      transactionInfo = verifyInnerJWS(data.signedTransactionInfo);
+    }
 
-      const appleTransactionId: string = transactionInfo.transactionId || '';
-      const originalTransactionId: string = transactionInfo.originalTransactionId || '';
-      const productId: string = transactionInfo.productId || '';
-      const expiresDate: number = transactionInfo.expiresDate || 0; // ms timestamp
+    let renewalInfo: any = {};
+    if (data.signedRenewalInfo) {
+      renewalInfo = verifyInnerJWS(data.signedRenewalInfo);
+    }
 
-      console.log('[apple-s2s] Notification received:', {
-        notificationUUID: redactIdentifier(notificationUUID),
-        notificationType,
-        subtype,
-        originalTransactionId: redactIdentifier(originalTransactionId),
-        productId,
-        environment,
+    const appleTransactionId: string = transactionInfo.transactionId || '';
+    const originalTransactionId: string = transactionInfo.originalTransactionId || '';
+    const productId: string = transactionInfo.productId || '';
+    const expiresDate: number = transactionInfo.expiresDate || 0; // ms timestamp
+
+    console.log('[apple-s2s] Notification received:', {
+      notificationUUID: redactIdentifier(notificationUUID),
+      notificationType,
+      subtype,
+      originalTransactionId: redactIdentifier(originalTransactionId),
+      productId,
+      environment,
+    });
+
+    const receiptState = await recordAppleNotificationReceipt(prisma, {
+      notificationUUID,
+      originalTransactionId,
+      productId,
+      environment,
+      expiresDate,
+      notificationType,
+      subtype,
+    }).catch((err) => {
+      console.error('[apple-s2s] Failed to record notification receipt:', err);
+      return null;
+    });
+
+    if (receiptState === 'duplicate') {
+      addBreadcrumb('Apple server notification duplicate skipped', 'payments.apple_s2s', 'info', {
+        notification_type: notificationType,
+        notification_uuid: redactIdentifier(notificationUUID),
       });
+      return res.sendStatus(200);
+    }
 
-      const receiptState = await recordAppleNotificationReceipt(prisma, {
-        notificationUUID,
-        originalTransactionId,
-        productId,
-        environment,
-        expiresDate,
-        notificationType,
-        subtype,
-      }).catch(err => {
-        console.error('[apple-s2s] Failed to record notification receipt:', err);
-        return null;
-      });
+    if (receiptState === 'missing_uuid') {
+      console.warn('[apple-s2s] Missing notificationUUID; continuing without dedup');
+    }
 
-      if (receiptState === 'duplicate') {
-        addBreadcrumb('Apple server notification duplicate skipped', 'payments.apple_s2s', 'info', {
-          notification_type: notificationType,
-          notification_uuid: redactIdentifier(notificationUUID),
-        });
-        return res.sendStatus(200);
-      }
+    if (!originalTransactionId) {
+      console.warn('[apple-s2s] No originalTransactionId — cannot match user');
+      return res.sendStatus(200);
+    }
 
-      if (receiptState === 'missing_uuid') {
-        console.warn('[apple-s2s] Missing notificationUUID; continuing without dedup');
-      }
-
-      if (!originalTransactionId) {
-        console.warn('[apple-s2s] No originalTransactionId — cannot match user');
-        return res.sendStatus(200);
-      }
-
-      // Find user by apple_original_transaction_id stored in preferences JSON
-      // Uses PostgreSQL JSON path query — exact match, indexed, no LIKE needed
-      const matchedUser = await prisma.user.findFirst({
-        where: {
-          preferences: {
-            path: ['apple_original_transaction_id'],
-            equals: originalTransactionId,
-          },
+    // Find user by apple_original_transaction_id stored in preferences JSON
+    // Uses PostgreSQL JSON path query — exact match, indexed, no LIKE needed
+    const matchedUser = await prisma.user.findFirst({
+      where: {
+        preferences: {
+          path: ['apple_original_transaction_id'],
+          equals: originalTransactionId,
         },
-        select: {
-          id: true,
-          preferences: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
+      },
+      select: {
+        id: true,
+        preferences: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+      },
+    });
+
+    if (!matchedUser) {
+      console.warn(
+        '[apple-s2s] No user found for originalTransactionId:',
+        redactIdentifier(originalTransactionId)
+      );
+      return res.sendStatus(200);
+    }
+
+    const userId: string = matchedUser.id;
+    const prefs = (matchedUser.preferences && typeof matchedUser.preferences === 'object')
+      ? matchedUser.preferences as any
+      : {};
+
+    debugLog('apple-s2s', `Processing ${notificationType}/${subtype} for user ${userId}`);
+
+    // ── Handle notification types ──
+    if (
+      notificationType === 'DID_RENEW' ||
+      notificationType === 'SUBSCRIBED'
+    ) {
+      // Renewal or new subscription — activate and extend expiry
+      const plan = APPLE_PRODUCT_TO_PLAN[productId] || getCanonicalPlan(matchedUser as any) || 'veteran';
+      const newExpiry = expiresDate ? new Date(expiresDate).toISOString() : prefs.apple_expires_date;
+      const nextPrefs = mergeBillingStateIntoPreferences(
+        {
+          ...prefs,
+          apple_expires_date: newExpiry,
+          apple_original_transaction_id: originalTransactionId,
         },
-      });
-
-      if (!matchedUser) {
-        console.warn(
-          '[apple-s2s] No user found for originalTransactionId:',
-          redactIdentifier(originalTransactionId)
-        );
-        return res.sendStatus(200);
-      }
-
-      const userId: string = matchedUser.id;
-      const prefs =
-        matchedUser.preferences && typeof matchedUser.preferences === 'object'
-          ? (matchedUser.preferences as any)
-          : {};
-
-      debugLog('apple-s2s', `Processing ${notificationType}/${subtype} for user ${userId}`);
-
-      // ── Handle notification types ──
-      if (notificationType === 'DID_RENEW' || notificationType === 'SUBSCRIBED') {
-        // Renewal or new subscription — activate and extend expiry
-        const plan =
-          APPLE_PRODUCT_TO_PLAN[productId] || getCanonicalPlan(matchedUser as any) || 'veteran';
-        const newExpiry = expiresDate
-          ? new Date(expiresDate).toISOString()
-          : prefs.apple_expires_date;
-        const nextPrefs = mergeBillingStateIntoPreferences(
-          {
-            ...prefs,
-            apple_expires_date: newExpiry,
-            apple_original_transaction_id: originalTransactionId,
-          },
-          {
-            plan: plan as 'veteran' | 'legend',
-            pending_plan: null,
-            payment_pending: false,
-            payment_approved: false,
-          }
-        );
-
-        await prisma.$transaction([
-          prisma.user.update({
-            // cache-invalidation-exempt
-            where: { id: userId },
-            data: {
-              subscription_tier: plan === 'legend' ? 'pro' : 'premium',
-              subscription_status: 'active',
-              preferences: nextPrefs as any,
-              ...buildBillingStateColumns({
-                plan: plan as 'veteran' | 'legend',
-                pending_plan: null,
-                payment_pending: false,
-                payment_approved: false,
-              }),
-            },
-          }),
-          prisma.transactionLog.create({
-            data: {
-              transaction_type: 'SUBSCRIPTION_RENEWAL',
-              status: 'COMPLETED',
-              user_id: userId,
-              order_id: originalTransactionId,
-              apple_transaction_id: appleTransactionId || null,
-              metadata: { source: 'apple_s2s', notificationType, subtype, productId, plan },
-            } as any,
-          }),
-        ]);
-        await invalidateMeCacheForUser(userId);
-        debugLog('apple-s2s', `User ${userId} renewed/subscribed — plan: ${plan}`);
-      } else if (
-        notificationType === 'DID_FAIL_TO_RENEW' ||
-        notificationType === 'GRACE_PERIOD' ||
-        subtype === 'GRACE_PERIOD'
-      ) {
-        // v1.0.2 pass 8: previously we marked past_due but never recorded WHEN the grace period
-        // expires. If Apple's EXPIRED notification was lost (network failure, missed delivery),
-        // the user kept Premium access indefinitely. Now we record an explicit cutoff so a
-        // safety net check (in requireOnboarded or middleware) can downgrade users whose
-        // grace period has elapsed without an EXPIRED arriving.
-        const APPLE_GRACE_PERIOD_MS = 16 * 24 * 60 * 60 * 1000; // Apple billing grace ≈ 16 days
-        const graceExpiresAt = new Date(Date.now() + APPLE_GRACE_PERIOD_MS);
-        const updatedPrefs = { ...prefs, grace_period_expires_at: graceExpiresAt.toISOString() };
-        await prisma.$transaction([
-          prisma.user.update({
-            // cache-invalidation-exempt
-            where: { id: userId },
-            data: {
-              subscription_status: 'past_due',
-              preferences: updatedPrefs,
-            },
-          }),
-          prisma.transactionLog.create({
-            data: {
-              transaction_type: 'SUBSCRIPTION_RENEWAL_FAILED',
-              status: 'FAILED',
-              user_id: userId,
-              order_id: originalTransactionId,
-              metadata: {
-                source: 'apple_s2s',
-                notificationType,
-                subtype,
-                grace_expires_at: graceExpiresAt.toISOString(),
-              },
-            },
-          }),
-        ]);
-        await invalidateMeCacheForUser(userId);
-        console.warn('[apple-s2s] Marked user as past_due with grace period expiry:', {
-          userId,
-          graceExpiresAt,
-        });
-      } else if (
-        notificationType === 'EXPIRED' ||
-        notificationType === 'GRACE_PERIOD_EXPIRED' ||
-        notificationType === 'REVOKE' ||
-        notificationType === 'REFUND'
-      ) {
-        // Expired, revoked, or refunded — downgrade to rookie
-        const previousPlan = getCanonicalPlan(matchedUser as any);
-        const downgradedPrefs = { ...prefs };
-        delete downgradedPrefs.apple_product_id;
-        delete downgradedPrefs.apple_expires_date;
-        // Keep apple_original_transaction_id for audit trail
-        const nextPrefs = mergeBillingStateIntoPreferences(downgradedPrefs, {
-          plan: 'rookie',
+        {
+          plan: plan as 'veteran' | 'legend',
           pending_plan: null,
           payment_pending: false,
           payment_approved: false,
-        });
+        }
+      );
 
-        await prisma.$transaction([
-          prisma.user.update({
-            // cache-invalidation-exempt
-            where: { id: userId },
-            data: {
-              subscription_tier: 'free',
-              subscription_status: 'canceled',
-              preferences: nextPrefs as any,
-              ...buildBillingStateColumns({
-                plan: 'rookie',
-                pending_plan: null,
-                payment_pending: false,
-                payment_approved: false,
-              }),
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+            subscription_status: 'active',
+            preferences: nextPrefs as any,
+            ...buildBillingStateColumns({
+              plan: plan as 'veteran' | 'legend',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_RENEWAL',
+            status: 'COMPLETED',
+            user_id: userId,
+            order_id: originalTransactionId,
+            apple_transaction_id: appleTransactionId || null,
+            metadata: { source: 'apple_s2s', notificationType, subtype, productId, plan },
+          } as any,
+        }),
+      ]);
+      await invalidateMeCacheForUser(userId);
+      debugLog('apple-s2s', `User ${userId} renewed/subscribed — plan: ${plan}`);
+
+    } else if (
+      notificationType === 'DID_FAIL_TO_RENEW' ||
+      (notificationType === 'GRACE_PERIOD' || subtype === 'GRACE_PERIOD')
+    ) {
+      // v1.0.2 pass 8: previously we marked past_due but never recorded WHEN the grace period
+      // expires. If Apple's EXPIRED notification was lost (network failure, missed delivery),
+      // the user kept Premium access indefinitely. Now we record an explicit cutoff so a
+      // safety net check (in requireOnboarded or middleware) can downgrade users whose
+      // grace period has elapsed without an EXPIRED arriving.
+      const APPLE_GRACE_PERIOD_MS = 16 * 24 * 60 * 60 * 1000; // Apple billing grace ≈ 16 days
+      const graceExpiresAt = new Date(Date.now() + APPLE_GRACE_PERIOD_MS);
+      const updatedPrefs = { ...prefs, grace_period_expires_at: graceExpiresAt.toISOString() };
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription_status: 'past_due',
+            preferences: updatedPrefs,
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_RENEWAL_FAILED',
+            status: 'FAILED',
+            user_id: userId,
+            order_id: originalTransactionId,
+            metadata: { source: 'apple_s2s', notificationType, subtype, grace_expires_at: graceExpiresAt.toISOString() },
+          },
+        }),
+      ]);
+      await invalidateMeCacheForUser(userId);
+      console.warn('[apple-s2s] Marked user as past_due with grace period expiry:', { userId, graceExpiresAt });
+
+    } else if (
+      notificationType === 'EXPIRED' ||
+      notificationType === 'GRACE_PERIOD_EXPIRED' ||
+      notificationType === 'REVOKE' ||
+      notificationType === 'REFUND'
+    ) {
+      // Expired, revoked, or refunded — downgrade to rookie
+      const previousPlan = getCanonicalPlan(matchedUser as any);
+      const downgradedPrefs = { ...prefs };
+      delete downgradedPrefs.apple_product_id;
+      delete downgradedPrefs.apple_expires_date;
+      // Keep apple_original_transaction_id for audit trail
+      const nextPrefs = mergeBillingStateIntoPreferences(downgradedPrefs, {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      });
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: {
+            subscription_tier: 'free',
+            subscription_status: 'canceled',
+            preferences: nextPrefs as any,
+            ...buildBillingStateColumns({
+              plan: 'rookie',
+              pending_plan: null,
+              payment_pending: false,
+              payment_approved: false,
+            }),
+          },
+        }),
+        prisma.transactionLog.create({
+          data: {
+            transaction_type: 'SUBSCRIPTION_CANCEL',
+            status: 'COMPLETED',
+            user_id: userId,
+            order_id: originalTransactionId,
+            metadata: {
+              source: 'apple_s2s',
+              notificationType,
+              subtype,
+              reason: notificationType.toLowerCase(),
+              previous_plan: previousPlan,
             },
-          }),
-          prisma.transactionLog.create({
-            data: {
-              transaction_type: 'SUBSCRIPTION_CANCEL',
-              status: 'COMPLETED',
-              user_id: userId,
-              order_id: originalTransactionId,
-              metadata: {
-                source: 'apple_s2s',
-                notificationType,
-                subtype,
-                reason: notificationType.toLowerCase(),
-                previous_plan: previousPlan,
-              },
-            } as any,
-          }),
-        ]);
-        await invalidateMeCacheForUser(userId);
-        debugLog('apple-s2s', `User ${userId} downgraded to rookie — reason: ${notificationType}`);
-      } else {
-        debugLog(
-          'apple-s2s',
-          `Unhandled notification type: ${notificationType}/${subtype} for user ${userId}`
-        );
-      }
+          } as any,
+        }),
+      ]);
+      await invalidateMeCacheForUser(userId);
+      debugLog('apple-s2s', `User ${userId} downgraded to rookie — reason: ${notificationType}`);
 
-      return res.sendStatus(200);
-    } catch (err: any) {
-      console.error('[apple-s2s] Error processing notification:', err);
-      captureException(err, { context: 'apple-s2s-notification', provider: 'apple_iap' });
-      // Always return 200 so Apple doesn't retry indefinitely
-      return res.sendStatus(200);
+    } else {
+      debugLog('apple-s2s', `Unhandled notification type: ${notificationType}/${subtype} for user ${userId}`);
     }
-  })
-);
+
+    return res.sendStatus(200);
+  } catch (err: any) {
+    console.error('[apple-s2s] Error processing notification:', err);
+    captureException(err, { context: 'apple-s2s-notification', provider: 'apple_iap' });
+    // Always return 200 so Apple doesn't retry indefinitely
+    return res.sendStatus(200);
+  }
+}));
 
 // ── Google Play Billing verification ────────────────────────────────
 const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
   MIDTIER: 'veteran',
   TOPTIER: 'legend',
 };
-const GOOGLE_ALLOWED_PACKAGES = (
-  process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub'
-)
+const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub')
   .split(',')
-  .map(value => value.trim())
+  .map((value) => value.trim())
   .filter(Boolean);
 const GOOGLE_PLAY_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_PLAY_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
 const GOOGLE_PLAY_API_BASE = 'https://androidpublisher.googleapis.com/androidpublisher/v3';
-const GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL = (
-  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || ''
-).trim();
-const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (
-  process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY || ''
-)
+const GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL = (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || '').trim();
+const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY || '')
   .replace(/\\n/g, '\n')
   .trim();
 const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
-const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK =
-  process.env.GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK === '1';
+const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = process.env.GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK === '1';
 
 // M3: Fail loud in production if Google Play verification is not configured and fallback is enabled.
 // A missing env var + fallback flag = anyone can claim a purchase without store verification.
 if (process.env.NODE_ENV === 'production' && GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK) {
-  console.error(
-    '[SECURITY] GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK=1 is set in production. ' +
-      'This allows unverified purchase claims. Remove this env var or set GOOGLE_PLAY_STRICT_VERIFY=1.'
-  );
+  console.error('[SECURITY] GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK=1 is set in production. ' +
+    'This allows unverified purchase claims. Remove this env var or set GOOGLE_PLAY_STRICT_VERIFY=1.');
   if (!GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY) {
-    throw new Error(
-      '[FATAL] Google Play fallback mode enabled in production without service account credentials. ' +
-        'Either configure GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL + GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY, ' +
-        'or remove GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK.'
-    );
+    throw new Error('[FATAL] Google Play fallback mode enabled in production without service account credentials. ' +
+      'Either configure GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL + GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY, ' +
+      'or remove GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK.');
   }
 }
 
@@ -6387,9 +5171,7 @@ async function getGooglePlayAccessToken(): Promise<string | null> {
   });
   if (!response.ok) {
     const text = await response.text().catch(() => '');
-    throw new Error(
-      `Google token exchange failed (${response.status}): ${text || 'no response body'}`
-    );
+    throw new Error(`Google token exchange failed (${response.status}): ${text || 'no response body'}`);
   }
   const payload: any = await response.json();
   return typeof payload?.access_token === 'string' ? payload.access_token : null;
@@ -6440,169 +5222,130 @@ async function verifyGooglePurchaseWithPlayApi(params: {
 }
 
 // Google Play purchase verification
-paymentsRouter.post(
-  '/google/verify-purchase',
-  expressPkg.json(),
-  requireVerified as any,
-  paymentLimiter,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' }); // error-envelope-exempt
+paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
 
-      const googlePurchaseSchema = z.object({
-        purchase_token: z.string().min(16, 'Invalid purchase_token'),
-        product_id: z.string().min(1),
-        package_name: z.string().optional(),
+    const googlePurchaseSchema = z.object({
+      purchase_token: z.string().min(16, 'Invalid purchase_token'),
+      product_id: z.string().min(1),
+      package_name: z.string().optional(),
+    });
+    const parsed = googlePurchaseSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    const { purchase_token, product_id, package_name } = parsed.data;
+
+    const plan = GOOGLE_PRODUCT_TO_PLAN[product_id];
+    if (!plan) {
+      return res.status(400).json({ error: `Unknown product: ${product_id}` });
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      if (!package_name) {
+        return res.status(400).json({ error: 'Missing package_name' });
+      }
+      if (GOOGLE_ALLOWED_PACKAGES.length > 0 && !GOOGLE_ALLOWED_PACKAGES.includes(String(package_name))) {
+        return res.status(400).json({ error: 'Package mismatch for Google Play purchase' });
+      }
+    }
+
+    const orderId = String(purchase_token).substring(0, 40);
+    const existingCompletedPurchase = await prisma.transactionLog.findFirst({
+      where: {
+        order_id: orderId,
+        transaction_type: 'SUBSCRIPTION_PURCHASE',
+        status: 'COMPLETED',
+      } as any,
+      select: { id: true, user_id: true },
+    });
+    if (existingCompletedPurchase) {
+      if (existingCompletedPurchase.user_id === userId) {
+        return res.json({ ok: true, plan, idempotent: true, verified: false });
+      }
+      return res.status(409).json({ error: 'Purchase token already used by another account' });
+    }
+
+    const packageForVerification = String(package_name || GOOGLE_ALLOWED_PACKAGES[0] || '').trim();
+    let verifiedByStore = false;
+    let verificationMode: 'google_play_api' | 'client_fallback' = 'client_fallback';
+    if (hasGooglePlayVerifierConfig()) {
+      const verifyResult = await verifyGooglePurchaseWithPlayApi({
+        packageName: packageForVerification,
+        productId: String(product_id),
+        purchaseToken: String(purchase_token),
       });
-      const parsed = googlePurchaseSchema.safeParse(req.body || {});
-      if (!parsed.success)
-        return res
-          .status(400)
-          .json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
-      const { purchase_token, product_id, package_name } = parsed.data;
-
-      const plan = GOOGLE_PRODUCT_TO_PLAN[product_id];
-      if (!plan) {
-        return res.status(400).json({ error: `Unknown product: ${product_id}` }); // error-envelope-exempt
+      if (!verifyResult.verified) {
+        return res.status(400).json({
+          error: 'Google Play purchase verification failed',
+          reason: verifyResult.reason,
+        });
       }
+      verifiedByStore = true;
+      verificationMode = 'google_play_api';
+    } else if (GOOGLE_PLAY_STRICT_VERIFY || (process.env.NODE_ENV === 'production' && !GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK)) {
+      return res.status(503).json({ error: 'Google Play verification not configured on server' });
+    } else {
+      console.warn('[google-iap] Proceeding without Play API verification (fallback mode enabled)');
+    }
 
-      if (process.env.NODE_ENV === 'production') {
-        if (!package_name) {
-          return res.status(400).json({ error: 'Missing package_name' }); // error-envelope-exempt
-        }
-        if (
-          GOOGLE_ALLOWED_PACKAGES.length > 0 &&
-          !GOOGLE_ALLOWED_PACKAGES.includes(String(package_name))
-        ) {
-          return res.status(400).json({ error: 'Package mismatch for Google Play purchase' }); // error-envelope-exempt
-        }
+    // Update user's plan in database
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
+    const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
+
+    // Clear pending flags after successful payment (same as Apple flow)
+    const { payment_pending, payment_approved, pending_plan, join_request_pending, ...restPrefs } = currentPrefs;
+    const nextPrefs = mergeBillingStateIntoPreferences(
+      {
+        ...restPrefs,
+        google_purchase_token: purchase_token,
+        google_product_id: product_id,
+        subscription_platform: 'google',
+      },
+      {
+        plan: plan as 'veteran' | 'legend',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
       }
+    );
 
-      const orderId = String(purchase_token).substring(0, 40);
-      const existingCompletedPurchase = await prisma.transactionLog.findFirst({
-        where: {
-          order_id: orderId,
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          subscription_tier: plan === 'legend' ? 'pro' : 'premium',
+          subscription_status: 'active',
+          preferences: nextPrefs as any,
+          ...buildBillingStateColumns({
+            plan: plan as 'veteran' | 'legend',
+            pending_plan: null,
+            payment_pending: false,
+            payment_approved: false,
+          }),
+        },
+      }),
+      prisma.transactionLog.create({
+        data: {
           transaction_type: 'SUBSCRIPTION_PURCHASE',
           status: 'COMPLETED',
+          user_id: userId,
+          order_id: orderId,
+          metadata: { source: 'google_play', product_id, plan, package_name, verified_by_store: verifiedByStore, verification_mode: verificationMode },
         } as any,
-        select: { id: true, user_id: true },
-      });
-      if (existingCompletedPurchase) {
-        if (existingCompletedPurchase.user_id === userId) {
-          return res.json({ ok: true, plan, idempotent: true, verified: false });
-        }
-        return res.status(409).json({ error: 'Purchase token already used by another account' }); // error-envelope-exempt
-      }
+      }),
+    ]);
+    await invalidateMeCacheForUser(userId);
 
-      const packageForVerification = String(
-        package_name || GOOGLE_ALLOWED_PACKAGES[0] || ''
-      ).trim();
-      let verifiedByStore = false;
-      let verificationMode: 'google_play_api' | 'client_fallback' = 'client_fallback';
-      if (hasGooglePlayVerifierConfig()) {
-        const verifyResult = await verifyGooglePurchaseWithPlayApi({
-          packageName: packageForVerification,
-          productId: String(product_id),
-          purchaseToken: String(purchase_token),
-        });
-        if (!verifyResult.verified) {
-          return res.status(400).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
-            error: 'Google Play purchase verification failed',
-            reason: verifyResult.reason,
-          });
-        }
-        verifiedByStore = true;
-        verificationMode = 'google_play_api';
-      } else if (
-        GOOGLE_PLAY_STRICT_VERIFY ||
-        (process.env.NODE_ENV === 'production' && !GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK)
-      ) {
-        return res.status(503).json({ error: 'Google Play verification not configured on server' }); // error-envelope-exempt
-      } else {
-        console.warn(
-          '[google-iap] Proceeding without Play API verification (fallback mode enabled)'
-        );
-      }
+    debugLog('google-iap', `User ${userId} subscribed to ${plan} via Google Play Billing`);
 
-      // Update user's plan in database
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true, email: true },
-      });
-      const currentPrefs =
-        user?.preferences && typeof user.preferences === 'object' ? (user.preferences as any) : {};
-
-      // Clear pending flags after successful payment (same as Apple flow)
-      const {
-        payment_pending,
-        payment_approved,
-        pending_plan,
-        join_request_pending,
-        ...restPrefs
-      } = currentPrefs;
-      const nextPrefs = mergeBillingStateIntoPreferences(
-        {
-          ...restPrefs,
-          google_purchase_token: purchase_token,
-          google_product_id: product_id,
-          subscription_platform: 'google',
-        },
-        {
-          plan: plan as 'veteran' | 'legend',
-          pending_plan: null,
-          payment_pending: false,
-          payment_approved: false,
-        }
-      );
-
-      await prisma.$transaction([
-        prisma.user.update({
-          // cache-invalidation-exempt
-          where: { id: userId },
-          data: {
-            subscription_tier: plan === 'legend' ? 'pro' : 'premium',
-            subscription_status: 'active',
-            preferences: nextPrefs as any,
-            ...buildBillingStateColumns({
-              plan: plan as 'veteran' | 'legend',
-              pending_plan: null,
-              payment_pending: false,
-              payment_approved: false,
-            }),
-          },
-        }),
-        prisma.transactionLog.create({
-          data: {
-            transaction_type: 'SUBSCRIPTION_PURCHASE',
-            status: 'COMPLETED',
-            user_id: userId,
-            order_id: orderId,
-            metadata: {
-              source: 'google_play',
-              product_id,
-              plan,
-              package_name,
-              verified_by_store: verifiedByStore,
-              verification_mode: verificationMode,
-            },
-          } as any,
-        }),
-      ]);
-      await invalidateMeCacheForUser(userId);
-
-      debugLog('google-iap', `User ${userId} subscribed to ${plan} via Google Play Billing`);
-
-      return res.json({ ok: true, plan, verified: verifiedByStore });
-    } catch (err: any) {
-      console.error('[google-iap] verify-purchase error:', err);
-      captureException(err, { context: 'google-iap-verify', provider: 'google_iap' });
-      return res.status(500).json({ error: 'Verification failed' }); // error-envelope-exempt
-    }
-  })
-);
+    return res.json({ ok: true, plan, verified: verifiedByStore });
+  } catch (err: any) {
+    console.error('[google-iap] verify-purchase error:', err);
+    captureException(err, { context: 'google-iap-verify', provider: 'google_iap' });
+    return res.status(500).json({ error: 'Verification failed' });
+  }
+}));
 
 paymentsRouter.get('/cancel', (_req, res) => {
   const appScheme = process.env.APP_SCHEME || 'varsityhubmobile';

@@ -354,6 +354,11 @@ export const auth = {
       new_password: newPassword,
     });
   },
+  async deleteAccount(payload?: { password?: string; delete_confirmation?: string }) {
+    invalidateMeCache();
+    await loadToken();
+    return httpPost('/auth/account/delete', payload || {});
+  },
   async refreshToken(): Promise<RefreshTokenResult> {
     const stored = await loadRefreshToken();
     if (!stored) return { accessToken: null, reason: 'missing' };

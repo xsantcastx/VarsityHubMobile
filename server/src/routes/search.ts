@@ -12,7 +12,7 @@ export const searchRouter = Router();
 
 /**
  * GET /search?q=...
- * Unified search across users, teams, and organizations.
+ * Unified search across users, teams, organizations, games, and events.
  * Returns results grouped by type with is_following when authenticated.
  * Auth is optional; unauthenticated requests return results with is_following: false.
  */
@@ -31,7 +31,7 @@ searchRouter.get(
     const currentUserId = req.user?.id ?? null;
 
     if (!q || q.length < 1) {
-      return res.json({ users: [], teams: [], organizations: [] });
+      return res.json({ users: [], teams: [], organizations: [], games: [], events: [] });
     }
     // Cap query length to bound the cost of `contains` scans across users,
     // teams, and organizations. A 10k-char q would force three full-table
@@ -100,7 +100,10 @@ searchRouter.get(
     const userExcludeIds = Array.from(new Set([...blockedIds, ...privateExcludeIds]))
       .filter(id => id !== currentUserId);
 
-    const [users, teams, organizations] = await Promise.all([
+    const todayUtcStart = new Date();
+    todayUtcStart.setUTCHours(0, 0, 0, 0);
+
+    const [users, teams, organizations, games, events] = await Promise.all([
       prisma.user.findMany({
         where: {
           AND: [
@@ -147,7 +150,14 @@ searchRouter.get(
         },
         take: limit,
         orderBy: { created_at: 'desc' },
-        include: { _count: { select: { memberships: true } } },
+        select: {
+          id: true,
+          name: true,
+          sport: true,
+          logo_url: true,
+          avatar_url: true,
+          _count: { select: { memberships: true } },
+        },
       }),
       prisma.organization.findMany({
         where: {
@@ -169,6 +179,57 @@ searchRouter.get(
           description: true,
           sport: true,
           _count: { select: { memberships: true, teams: true } },
+        },
+      }),
+      prisma.game.findMany({
+        where: {
+          approval_status: 'approved',
+          date: { gte: todayUtcStart },
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { location: { contains: q, mode: 'insensitive' } },
+            { home_team: { contains: q, mode: 'insensitive' } },
+            { away_team: { contains: q, mode: 'insensitive' } },
+            { away_team_name: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        take: limit,
+        orderBy: [{ date: 'asc' }, { created_at: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          date: true,
+          location: true,
+          home_team: true,
+          away_team: true,
+          away_team_name: true,
+          event_type: true,
+          banner_url: true,
+          cover_image_url: true,
+        },
+      }),
+      prisma.event.findMany({
+        where: {
+          approval_status: 'approved',
+          status: 'approved',
+          date: { gte: todayUtcStart },
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { location: { contains: q, mode: 'insensitive' } },
+            { description: { contains: q, mode: 'insensitive' } },
+            { event_type: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        take: limit,
+        orderBy: [{ date: 'asc' }, { created_at: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          date: true,
+          location: true,
+          event_type: true,
+          banner_url: true,
+          game_id: true,
         },
       }),
     ]);
@@ -277,10 +338,33 @@ searchRouter.get(
       is_following: orgFollowSet.has(o.id),
     }));
 
+    const gamesPayload = games.map((game) => ({
+      id: game.id,
+      title: game.title,
+      date: game.date instanceof Date ? game.date.toISOString() : game.date,
+      location: game.location,
+      home_team: game.home_team,
+      away_team: game.away_team || game.away_team_name,
+      event_type: game.event_type,
+      banner_url: game.banner_url || game.cover_image_url,
+    }));
+
+    const eventsPayload = events.map((event) => ({
+      id: event.id,
+      title: event.title,
+      date: event.date instanceof Date ? event.date.toISOString() : event.date,
+      location: event.location,
+      event_type: event.event_type,
+      banner_url: event.banner_url,
+      game_id: event.game_id,
+    }));
+
     return res.json({
       users: usersPayload,
       teams: teamsPayload,
       organizations: organizationsPayload,
+      games: gamesPayload,
+      events: eventsPayload,
     });
   })
 );

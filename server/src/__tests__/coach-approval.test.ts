@@ -15,6 +15,8 @@ import { app as fullApp } from '../app.js';
 
 let prisma: any;
 let signJwt: any;
+let getOrganizationJoinRequestState: any;
+let getOrganizationJoinRequestStateForUser: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -34,6 +36,9 @@ describe('Coach Approval Workflow', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
+    ({ getOrganizationJoinRequestState, getOrganizationJoinRequestStateForUser } = await import(
+      '../lib/organizationWorkflowState.js'
+    ));
 
     // Pending coach (role=coach, approval_status=PENDING)
     const pendingHash = await bcrypt.hash(PASSWORD, 10);
@@ -120,10 +125,12 @@ describe('Coach Approval Workflow', () => {
         league_owner_id: leagueOwnerId,
         supporting_document_url: 'https://example.com/doc.pdf',
       },
+      select: { id: true },
     });
     orgId = org.id;
     await prisma.organizationMembership.create({
       data: { organization_id: orgId, user_id: leagueOwnerId, role: 'owner', status: 'active' },
+      select: { id: true },
     });
 
     // Create org for approved coach (so they can create teams)
@@ -136,9 +143,11 @@ describe('Coach Approval Workflow', () => {
         league_owner_id: approvedCoachId,
         supporting_document_url: 'https://example.com/doc.pdf',
       },
+      select: { id: true },
     });
     await prisma.organizationMembership.create({
       data: { organization_id: approvedOrg.id, user_id: approvedCoachId, role: 'owner', status: 'active' },
+      select: { id: true },
     });
   });
 
@@ -148,6 +157,7 @@ describe('Coach Approval Workflow', () => {
       const orgIds = [orgId, orgIdFromCreate];
       const approvedOrg = await prisma.organization.findFirst({
         where: { league_owner_id: approvedCoachId },
+        select: { id: true },
       });
       if (approvedOrg) orgIds.push(approvedOrg.id);
       await prisma.coachApplication.deleteMany({ where: { user_id: { in: ids } } });
@@ -251,11 +261,22 @@ describe('Coach Approval Workflow', () => {
     });
 
     it('PENDING coach proceeding as fan can comment, vote, and manage their own post', async () => {
+      const competitiveGame = await prisma.game.create({
+        data: {
+          title: `Competitive discussion ${ts}`,
+          date: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          location: 'Test Arena',
+          event_type: 'game',
+          approval_status: 'approved',
+          created_by_id: approvedCoachId,
+        },
+      });
       const discussionPost = await prisma.post.create({
         data: {
           author_id: approvedCoachId,
           content: `Discussion post ${ts}`,
           type: 'post',
+          game_id: competitiveGame.id,
         },
       });
       const poll = await prisma.poll.create({
@@ -313,6 +334,7 @@ describe('Coach Approval Workflow', () => {
       expect(String(deleteRes.body?.message || '')).toMatch(/deleted successfully/i);
 
       await prisma.post.delete({ where: { id: discussionPost.id } }).catch(() => {});
+      await prisma.game.delete({ where: { id: competitiveGame.id } }).catch(() => {});
     });
 
     it('PENDING coach proceeding as fan is still blocked from coach-only team creation', async () => {
@@ -367,6 +389,7 @@ describe('Coach Approval Workflow', () => {
     it('APPROVED coach can create team', async () => {
       const approvedOrg = await prisma.organization.findFirst({
         where: { league_owner_id: approvedCoachId },
+        select: { id: true },
       });
       expect(approvedOrg).toBeTruthy();
       const res = await request(app)
@@ -395,6 +418,7 @@ describe('Coach Approval Workflow', () => {
 
       const approvedOrg = await prisma.organization.findFirst({
         where: { league_owner_id: approvedCoachId },
+        select: { id: true },
       });
       expect(approvedOrg).toBeTruthy();
 
@@ -422,6 +446,7 @@ describe('Coach Approval Workflow', () => {
     it('APPROVED coach with coach_agreement_accepted_at can create team', async () => {
       const approvedOrg = await prisma.organization.findFirst({
         where: { league_owner_id: approvedCoachId },
+        select: { id: true },
       });
       expect(approvedOrg).toBeTruthy();
 
@@ -490,8 +515,8 @@ describe('Coach Approval Workflow', () => {
       expect(userAfter?.approval_status).toBe('PENDING');
 
       await prisma.organizationMembership.deleteMany({ where: { organization_id: createdOrgId } });
-      await prisma.organization.delete({ where: { id: createdOrgId } });
-      await prisma.user.delete({ where: { id: creator.id } });
+      await prisma.organization.deleteMany({ where: { id: createdOrgId } });
+      await prisma.user.deleteMany({ where: { id: creator.id } });
     });
 
     it('approved coach application creator stays APPROVED after POST /organizations', async () => {
@@ -557,9 +582,9 @@ describe('Coach Approval Workflow', () => {
       expect(orgAfter?.approved_at).toBeTruthy();
 
       await prisma.organizationMembership.deleteMany({ where: { organization_id: createdOrgId } });
-      await prisma.organization.delete({ where: { id: createdOrgId } });
+      await prisma.organization.deleteMany({ where: { id: createdOrgId } });
       await prisma.coachApplication.deleteMany({ where: { user_id: creator.id } });
-      await prisma.user.delete({ where: { id: creator.id } });
+      await prisma.user.deleteMany({ where: { id: creator.id } });
     });
   });
 
@@ -606,8 +631,8 @@ describe('Coach Approval Workflow', () => {
       expect((userAfter?.preferences as any)?.join_request_pending).toBe(false);
 
       await prisma.organizationMembership.deleteMany({ where: { organization_id: orgIdFromCreate } });
-      await prisma.organization.delete({ where: { id: orgIdFromCreate } });
-      await prisma.user.delete({ where: { id: creator.id } });
+      await prisma.organization.deleteMany({ where: { id: orgIdFromCreate } });
+      await prisma.user.deleteMany({ where: { id: creator.id } });
       orgIdFromCreate = '';
     });
 
@@ -678,9 +703,9 @@ describe('Coach Approval Workflow', () => {
       expect(orgAfter?.approved_at).toBeTruthy();
 
       await prisma.organizationMembership.deleteMany({ where: { organization_id: createdOrgId } });
-      await prisma.organization.delete({ where: { id: createdOrgId } });
+      await prisma.organization.deleteMany({ where: { id: createdOrgId } });
       await prisma.coachApplication.deleteMany({ where: { user_id: creator.id } });
-      await prisma.user.delete({ where: { id: creator.id } });
+      await prisma.user.deleteMany({ where: { id: creator.id } });
     });
   });
 
@@ -707,9 +732,11 @@ describe('Coach Approval Workflow', () => {
           updated_at: new Date(),
           league_owner_id: owner.id,
         },
+        select: { id: true },
       });
       await prisma.organizationMembership.create({
         data: { organization_id: org.id, user_id: owner.id, role: 'owner' },
+        select: { id: true },
       });
 
       const token = signJwt({ orgId: org.id, action: 'approve_league' }, '48h');
@@ -729,8 +756,8 @@ describe('Coach Approval Workflow', () => {
         expect(userAfter?.approval_status).toBe('APPROVED');
       } finally {
         await prisma.organizationMembership.deleteMany({ where: { organization_id: org.id } });
-        await prisma.organization.delete({ where: { id: org.id } });
-        await prisma.user.delete({ where: { id: owner.id } });
+        await prisma.organization.deleteMany({ where: { id: org.id } });
+        await prisma.user.deleteMany({ where: { id: owner.id } });
       }
     });
   });
@@ -991,9 +1018,7 @@ describe('Coach Approval Workflow', () => {
       expect((userAfter?.preferences as any)?.join_request_pending).toBe(true);
       expect(userAfter?.paid_by_owner).toBe(false);
 
-      const joinReq = await prisma.organizationJoinRequest.findFirst({
-        where: { user_id: coach.id, organization_id: orgId },
-      });
+      const joinReq = await getOrganizationJoinRequestStateForUser(orgId, coach.id);
       expect(joinReq).toBeTruthy();
 
       await prisma.organizationJoinRequest.deleteMany({
@@ -1027,9 +1052,7 @@ describe('Coach Approval Workflow', () => {
       expect(res.status).toBe(403);
       expect(String(res.body?.error || '')).toMatch(/coach account/i);
 
-      const joinReq = await prisma.organizationJoinRequest.findFirst({
-        where: { user_id: fan.id, organization_id: orgId },
-      });
+      const joinReq = await getOrganizationJoinRequestStateForUser(orgId, fan.id);
       expect(joinReq).toBeNull();
 
       await prisma.user.delete({ where: { id: fan.id } });
@@ -1064,9 +1087,7 @@ describe('Coach Approval Workflow', () => {
       expect(res.body?.code).toBe('REJECTION_COOLDOWN');
       expect(Number(res.body?.retry_after_ms)).toBeGreaterThan(0);
 
-      const joinReq = await prisma.organizationJoinRequest.findFirst({
-        where: { user_id: coach.id, organization_id: orgId },
-      });
+      const joinReq = await getOrganizationJoinRequestStateForUser(orgId, coach.id);
       expect(joinReq).toBeNull();
 
       await prisma.user.delete({ where: { id: coach.id } });
@@ -1095,6 +1116,7 @@ describe('Coach Approval Workflow', () => {
       managerToken = signJwt({ id: managerId });
       await prisma.organizationMembership.create({
         data: { organization_id: orgId, user_id: managerId, role: 'manager', status: 'active' },
+        select: { id: true },
       });
     });
 
@@ -1117,6 +1139,7 @@ describe('Coach Approval Workflow', () => {
       });
       await prisma.organizationJoinRequest.create({
         data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
+        select: { id: true },
       });
 
       const res = await request(app)
@@ -1144,6 +1167,7 @@ describe('Coach Approval Workflow', () => {
       });
       await prisma.organizationJoinRequest.create({
         data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
+        select: { id: true },
       });
 
       const res = await request(app)
@@ -1177,6 +1201,7 @@ describe('Coach Approval Workflow', () => {
       });
       await prisma.organizationJoinRequest.create({
         data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
+        select: { id: true },
       });
 
       const res = await request(app)
@@ -1185,9 +1210,7 @@ describe('Coach Approval Workflow', () => {
         .send({ reason: 'Not a fit' });
 
       expect(res.status).toBe(403);
-      const reqAfter = await prisma.organizationJoinRequest.findFirst({
-        where: { user_id: coach.id, organization_id: orgId },
-      });
+      const reqAfter = await getOrganizationJoinRequestStateForUser(orgId, coach.id);
       expect(reqAfter?.status).toBe('pending');
  
       await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
@@ -1208,6 +1231,7 @@ describe('Coach Approval Workflow', () => {
       });
       const joinRequest = await prisma.organizationJoinRequest.create({
         data: { organization_id: orgId, user_id: coach.id, status: 'pending' },
+        select: { id: true },
       });
 
       const listRes = await request(app)
@@ -1248,6 +1272,7 @@ describe('Coach Approval Workflow', () => {
       const memberToken = signJwt({ id: member.id });
       await prisma.organizationMembership.create({
         data: { organization_id: orgId, user_id: member.id, role: 'coach', status: 'active' },
+        select: { id: true },
       });
 
       const listRes = await request(app)
@@ -1286,6 +1311,7 @@ describe('Coach Approval Workflow', () => {
           user_id: coach.id,
           status: 'pending',
         },
+        select: { id: true },
       });
 
       const res = await request(app)

@@ -13,16 +13,15 @@ import {
   alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
-import {
-  consumeReviewToken,
-  getReviewTokenReplayState,
-  verifyReviewToken,
-} from '../lib/reviewTokens.js';
+import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
   approveAd as approveAdService,
   rejectAd as rejectAdService,
 } from '../lib/approvalService.js';
+import {
+  releaseExpiredPendingApprovalReservationsForAd,
+} from '../lib/adReservationLifecycle.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -104,6 +103,34 @@ async function getZipCoordinatesWithFallback(
 
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
+
+async function normalizePendingApprovalAdsForResponse<T extends { id: string; status?: string | null; payment_status?: string | null }>(
+  list: T[],
+): Promise<T[]> {
+  const candidates = list.filter((ad) => ad.payment_status === 'pending_approval');
+  if (candidates.length === 0) return list;
+
+  const cleanupById = new Map(
+    (
+      await Promise.all(
+        candidates.map(async (ad) => [
+          ad.id,
+          await releaseExpiredPendingApprovalReservationsForAd(prisma, ad.id),
+        ] as const)
+      )
+    ).map(([id, result]) => [id, result])
+  );
+
+  return list.map((ad) => {
+    const cleanup = cleanupById.get(ad.id);
+    if (!cleanup || !cleanup.changed) return ad;
+    return {
+      ...ad,
+      status: cleanup.status,
+      payment_status: cleanup.paymentStatus,
+    };
+  });
+}
 
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
@@ -196,7 +223,7 @@ adsRouter.post(
         payment_status: 'unpaid',
       },
     });
-    return res.status(201).json(ad); // error-envelope-exempt
+    return res.status(201).json(ad);
   })
 );
 
@@ -205,21 +232,30 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id).trim();
     if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
-      return res.status(400).json({ error: 'Invalid ad ID' }); // error-envelope-exempt
+      return res.status(400).json({ error: 'Invalid ad ID' });
     }
     const ad = await prisma.ad.findUnique({ where: { id } });
-    if (!ad) return res.status(404).json({ error: 'Ad not found' }); // error-envelope-exempt
-    if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' }); // error-envelope-exempt
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
     if (ad.status !== 'draft') {
       return res
         .status(400)
         .json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
     }
 
-    await prisma.ad.update({
-      where: { id },
-      data: { status: 'pending', payment_status: 'pending_approval' },
-    });
+    // Review is now content-only. Dates belong to booking/checkout after the
+    // media has been approved, so clear any legacy reservations here instead of
+    // carrying stale dates through the moderation workflow.
+    await prisma.$transaction(
+      async tx => {
+        await tx.ad.update({
+          where: { id },
+          data: { status: 'pending', payment_status: 'pending_approval' },
+        });
+        await tx.adReservation.deleteMany({ where: { ad_id: id } });
+      },
+      { isolationLevel: 'Serializable' as any }
+    );
 
     let updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     if (updated?.banner_url) {
@@ -231,7 +267,7 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
     const { getAllAdminEmails } = await import('../lib/adminEmails.js');
     const adminEmails = getAllAdminEmails();
     void Promise.all(
-      adminEmails.map(to =>
+      adminEmails.map((to) =>
         sendAdPendingReviewEmail({
           to,
           businessName: updated?.business_name || ad.business_name || undefined,
@@ -240,7 +276,7 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
           zipCode: updated?.target_zip_code || ad.target_zip_code || undefined,
           bannerUrl: updated?.banner_url || ad.banner_url || undefined,
           adId: id,
-        }).then(sent => {
+        }).then((sent) => {
           if (!sent) {
             console.error(
               '[ads] submit-for-approval email returned false — email NOT delivered for ad',
@@ -253,348 +289,277 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
       console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
     );
 
-    return res.status(200).json(updated); // error-envelope-exempt
+    return res.status(200).json(updated);
   } catch (err) {
     console.error('[ads] POST /:id/submit-for-approval error:', err);
-    return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-adsRouter.post('/:id/submit-for-approval', requireAuth as any, handleAdSubmitForApproval);
+adsRouter.post(
+  '/:id/submit-for-approval',
+  requireAuth as any,
+  handleAdSubmitForApproval
+);
 
 // List Ads. If mine=1, returns ads for the authenticated user. If contact_email is provided, returns by email.
-adsRouter.get(
-  '/',
-  requireAuth as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const mine = String(req.query.mine || '') === '1';
-    const contactEmail = req.query.contact_email ? String(req.query.contact_email) : undefined;
-    const all = String(req.query.all || '') === '1';
-    const where: any = {};
+adsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const mine = String(req.query.mine || '') === '1';
+  const contactEmail = req.query.contact_email ? String(req.query.contact_email) : undefined;
+  const all = String(req.query.all || '') === '1';
+  const where: any = {};
 
-    debugLog('[ads] GET / query params:', {
-      mine,
-      contactEmail,
-      all,
-      userId: req.user?.id,
-      queryMine: req.query.mine,
-    });
+  debugLog('[ads] GET / query params:', {
+    mine,
+    contactEmail,
+    all,
+    userId: req.user?.id,
+    queryMine: req.query.mine,
+  });
 
-    if (mine) {
-      if (!req.user?.id) {
-        console.warn('[ads] GET / mine=1 but no user authenticated');
-        return res.status(401).json({ error: 'Auth required' }); // error-envelope-exempt
-      }
-      where.user_id = req.user.id;
-      debugLog('[ads] GET / filtering by user_id:', req.user.id);
-    } else if (contactEmail) {
-      // SECURITY: Only allow querying by contact_email if the user is an admin
-      // or if the email belongs to the authenticated user. This prevents IDOR
-      // where any user could enumerate ads by guessing email addresses.
-      const isAdmin = await getIsAdmin(req as any);
-      if (!isAdmin) {
-        // Non-admins can only see their own ads (by user_id), not query by arbitrary email
-        if (!req.user?.id) return res.status(401).json({ error: 'Auth required' }); // error-envelope-exempt
-        where.user_id = req.user.id;
-        where.contact_email = contactEmail;
-      } else {
-        where.contact_email = contactEmail;
-      }
-    } else if (all) {
-      const isAdmin = await getIsAdmin(req as any);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' }); // error-envelope-exempt
-      // return all ads
-      const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
-      debugLog('[ads] GET / admin all ads count:', list.length);
-      return res.json(list);
-    } else {
-      // SECURITY: Default to requiring authentication and returning user's ads only
-      debugLog('[ads] GET / no filter provided, defaulting to user ads only');
-      if (!req.user?.id) {
-        console.warn('[ads] GET / no filter and no user authenticated, returning empty');
-        return res.json([]);
-      }
-      // Default to showing only the authenticated user's ads
-      where.user_id = req.user.id;
+  if (mine) {
+    if (!req.user?.id) {
+      console.warn('[ads] GET / mine=1 but no user authenticated');
+      return res.status(401).json({ error: 'Auth required' });
     }
+    where.user_id = req.user.id;
+    debugLog('[ads] GET / filtering by user_id:', req.user.id);
+  } else if (contactEmail) {
+    // SECURITY: Only allow querying by contact_email if the user is an admin
+    // or if the email belongs to the authenticated user. This prevents IDOR
+    // where any user could enumerate ads by guessing email addresses.
+    const isAdmin = await getIsAdmin(req as any);
+    if (!isAdmin) {
+      // Non-admins can only see their own ads (by user_id), not query by arbitrary email
+      if (!req.user?.id) return res.status(401).json({ error: 'Auth required' });
+      where.user_id = req.user.id;
+      where.contact_email = contactEmail;
+    } else {
+      where.contact_email = contactEmail;
+    }
+  } else if (all) {
+    const isAdmin = await getIsAdmin(req as any);
+    if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+    // return all ads
+    const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
+    const normalizedList = await normalizePendingApprovalAdsForResponse(list);
+    debugLog('[ads] GET / admin all ads count:', list.length);
+    return res.json(normalizedList);
+  } else {
+    // SECURITY: Default to requiring authentication and returning user's ads only
+    debugLog('[ads] GET / no filter provided, defaulting to user ads only');
+    if (!req.user?.id) {
+      console.warn('[ads] GET / no filter and no user authenticated, returning empty');
+      return res.json([]);
+    }
+    // Default to showing only the authenticated user's ads
+    where.user_id = req.user.id;
+  }
 
-    const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' }, take: 100 });
-    debugLog('[ads] GET / returning ads:', {
-      count: list.length,
-      where,
-      adIds: list.map(a => a.id),
-      userIds: list.map(a => a.user_id),
-    });
-    return res.json(list);
-  })
-);
+  const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' }, take: 100 });
+  const normalizedList = await normalizePendingApprovalAdsForResponse(list);
+  debugLog('[ads] GET / returning ads:', {
+    count: normalizedList.length,
+    where,
+    adIds: normalizedList.map(a => a.id),
+    userIds: normalizedList.map(a => a.user_id),
+  });
+  return res.json(normalizedList);
+}));
 
 // Ads for feed: return ads with a reservation for a specific date (default: today), filtered by location radius
-adsRouter.get(
-  '/for-feed',
-  requireAuth as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    // Age gate — under-18 users never see ads. Reads the canonical DOB column
-    // with fallback to preferences.dob for users whose backfill hasn't run.
-    // requireAuth above guarantees req.user is populated, so we can always
-    // resolve an age — no anonymous bypass.
-    if (req.user?.id) {
-      const me = await prisma.user.findUnique({
-        where: { id: req.user.id },
-        select: { date_of_birth: true, preferences: true },
-      });
-      if (me) {
-        const { isMinor } = await import('../lib/userAge.js');
-        if (isMinor(me)) {
-          return res.json({ date: new Date().toISOString().slice(0, 10), ads: [] });
-        }
+adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  // Age gate — under-18 users never see ads. Reads the canonical DOB column
+  // with fallback to preferences.dob for users whose backfill hasn't run.
+  // requireAuth above guarantees req.user is populated, so we can always
+  // resolve an age — no anonymous bypass.
+  if (req.user?.id) {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { date_of_birth: true, preferences: true },
+    });
+    if (me) {
+      const { isMinor } = await import('../lib/userAge.js');
+      if (isMinor(me)) {
+        return res.json({ date: new Date().toISOString().slice(0, 10), ads: [] });
       }
     }
-
-    const dateParam = req.query.date ? String(req.query.date) : undefined; // yyyy-MM-dd
-    const zip = req.query.zip ? String(req.query.zip) : undefined;
-    const lat = req.query.lat ? Number(req.query.lat) : undefined;
-    const lng = req.query.lng ? Number(req.query.lng) : undefined;
-    const limit = Math.max(1, Math.min(Number(req.query.limit || 1) || 1, 5));
-    // Build date range [start, next)
-    const dateISO = dateParam || new Date().toISOString().slice(0, 10);
-    const start = new Date(dateISO + 'T00:00:00.000Z');
-    const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-
-    debugLog('[ads] for-feed query:', { dateParam, dateISO, zip, lat, lng, limit, start, next });
-
-    // Validate zip format if provided (supports international postal codes)
-    if (zip && !/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/.test(zip)) {
-      return res.status(400).json({ error: 'Invalid postal code format' }); // error-envelope-exempt
-    }
-
-    // Resolve user coordinates from zip or lat/lng
-    let userCoords: { lat: number; lon: number } | null = null;
-    if (zip) {
-      userCoords = await getZipCoordinatesWithFallback(zip);
-    } else if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
-      userCoords = { lat, lon: lng };
-    }
-
-    debugLog('[ads] for-feed user coordinates:', userCoords);
-
-    // If no user location, return empty — no untargeted/national ads
-    if (!userCoords) {
-      return res.json({ date: dateISO, ads: [] });
-    }
-
-    // DB-level bounding box: ~9 miles in each direction (0.13° lat ≈ 9mi, 0.15° lng ≈ 9mi at US latitudes)
-    // This dramatically reduces rows fetched before the precise Haversine JS filter below.
-    // Ads created before this column was added (target_lat IS NULL) fall back to JS-only filtering.
-    const BBOX_LAT = 0.13;
-    const BBOX_LNG = 0.15;
-    const whereAd: any = {
-      payment_status: 'paid',
-      status: 'active',
-      target_zip_code: { not: null },
-      OR: [
-        {
-          target_lat: { gte: userCoords.lat - BBOX_LAT, lte: userCoords.lat + BBOX_LAT },
-          target_lng: { gte: userCoords.lon - BBOX_LNG, lte: userCoords.lon + BBOX_LNG },
-        },
-        { target_lat: null }, // legacy ads without pre-computed coords
-      ],
-    };
-
-    debugLog('[ads] for-feed where clause for ads:', whereAd);
-
-    // Reservations are used only in `where: { reservations: { some: ... } }`
-    // to filter ads with at least one matching booking. We do NOT include the
-    // full reservation rows: with up to 56 days of reservations per ad and 20
-    // ads returned, that was ~1100 row Cartesian product on every feed load.
-    // The for-feed response shape (below) does not surface reservations to
-    // clients; the per-ad detail endpoint hydrates them on demand.
-    const ads = await prisma.ad.findMany({
-      where: {
-        ...whereAd,
-        reservations: {
-          some: { date: { gte: start, lt: next } },
-        },
-      },
-      orderBy: { created_at: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        business_name: true,
-        banner_url: true,
-        banner_fit_mode: true,
-        target_url: true,
-        target_zip_code: true,
-        target_lat: true,
-        target_lng: true,
-        radius: true,
-        description: true,
-        status: true,
-        payment_status: true,
-        created_at: true,
-      },
-    });
-
-    // Precise Haversine filter on the smaller bounding-box result set.
-    // Modern ads have target_lat/target_lng pre-computed at create time and
-    // do NOT need a geocoding lookup. Only legacy ads (target_lat IS NULL)
-    // require an on-the-fly ZIP lookup. Filtering the unique-zip set to
-    // those legacy rows means the geocoding loop is a no-op in the common
-    // case (everything backfilled), instead of N requests per feed mount.
-    const adZipCoords = new Map<string, { lat: number; lon: number }>();
-    const legacyZips = [
-      ...new Set(
-        ads
-          .filter(a => a.target_zip_code && (a.target_lat == null || a.target_lng == null))
-          .map(a => a.target_zip_code!)
-      ),
-    ];
-    if (legacyZips.length > 0) {
-      await Promise.all(
-        legacyZips.map(async zip => {
-          const coords = await getZipCoordinatesWithFallback(zip);
-          if (coords) adZipCoords.set(zip, coords);
-        })
-      );
-    }
-
-    const filtered = ads.filter(ad => {
-      if (!ad.target_zip_code) return false;
-      // Prefer stored coords; fall back to ZIP lookup for legacy ads
-      const adCoords =
-        ad.target_lat != null && ad.target_lng != null
-          ? { lat: ad.target_lat, lon: ad.target_lng }
-          : adZipCoords.get(ad.target_zip_code);
-      if (!adCoords) return false;
-      const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
-      return dist <= 5.59; // 9km radius (5.59 miles)
-    });
-
-    const result = filtered.slice(0, limit);
-
-    debugLog('[ads] for-feed found ads:', {
-      totalFetched: ads.length,
-      afterFilter: filtered.length,
-      returned: result.length,
-      ads: result.map(ad => ({
-        id: ad.id,
-        payment_status: ad.payment_status,
-        banner_url: !!ad.banner_url,
-        target_zip_code: ad.target_zip_code,
-        radius: ad.radius,
-      })),
-    });
-
-    return res.json({
-      date: dateISO,
-      ads: result.map(ad => ({
-        id: ad.id,
-        business_name: ad.business_name,
-        banner_url: ad.banner_url,
-        banner_fit_mode: ad.banner_fit_mode,
-        target_url: ad.target_url,
-        target_zip_code: ad.target_zip_code,
-        radius: ad.radius,
-        description: ad.description,
-        status: ad.status,
-        payment_status: ad.payment_status,
-        created_at: ad.created_at,
-      })),
-    });
-  })
-);
-
-async function trackAdEngagement(
-  req: AuthedRequest,
-  res: Response,
-  type: 'impression' | 'click'
-) {
-  const id = String(req.params.id || '').trim();
-  if (!id || id.length < 10 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
-    return res.status(400).json({ error: 'Invalid ad ID' });
   }
 
-  const ad = await prisma.ad.findUnique({
-    where: { id },
+  const dateParam = req.query.date ? String(req.query.date) : undefined; // yyyy-MM-dd
+  const zip = req.query.zip ? String(req.query.zip) : undefined;
+  const lat = req.query.lat ? Number(req.query.lat) : undefined;
+  const lng = req.query.lng ? Number(req.query.lng) : undefined;
+  const limit = Math.max(1, Math.min(Number(req.query.limit || 1) || 1, 5));
+  // Build date range [start, next)
+  const dateISO = dateParam || new Date().toISOString().slice(0, 10);
+  const start = new Date(dateISO + 'T00:00:00.000Z');
+  const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  debugLog('[ads] for-feed query:', { dateParam, dateISO, zip, lat, lng, limit, start, next });
+
+  // Validate zip format if provided (supports international postal codes)
+  if (zip && !/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/.test(zip)) {
+    return res.status(400).json({ error: 'Invalid postal code format' });
+  }
+
+  // Resolve user coordinates from zip or lat/lng
+  let userCoords: { lat: number; lon: number } | null = null;
+  if (zip) {
+    userCoords = await getZipCoordinatesWithFallback(zip);
+  } else if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+    userCoords = { lat, lon: lng };
+  }
+
+  debugLog('[ads] for-feed user coordinates:', userCoords);
+
+  // If no user location, return empty — no untargeted/national ads
+  if (!userCoords) {
+    return res.json({ date: dateISO, ads: [] });
+  }
+
+  // DB-level bounding box: ~9 miles in each direction (0.13° lat ≈ 9mi, 0.15° lng ≈ 9mi at US latitudes)
+  // This dramatically reduces rows fetched before the precise Haversine JS filter below.
+  // Ads created before this column was added (target_lat IS NULL) fall back to JS-only filtering.
+  const BBOX_LAT = 0.13;
+  const BBOX_LNG = 0.15;
+  const whereAd: any = {
+    payment_status: 'paid',
+    status: 'active',
+    target_zip_code: { not: null },
+    OR: [
+      {
+        target_lat: { gte: userCoords.lat - BBOX_LAT, lte: userCoords.lat + BBOX_LAT },
+        target_lng: { gte: userCoords.lon - BBOX_LNG, lte: userCoords.lon + BBOX_LNG },
+      },
+      { target_lat: null }, // legacy ads without pre-computed coords
+    ],
+  };
+
+  debugLog('[ads] for-feed where clause for ads:', whereAd);
+
+  // Reservations are used only in `where: { reservations: { some: ... } }`
+  // to filter ads with at least one matching booking. We do NOT include the
+  // full reservation rows: with up to 56 days of reservations per ad and 20
+  // ads returned, that was ~1100 row Cartesian product on every feed load.
+  // The for-feed response shape (below) does not surface reservations to
+  // clients; the per-ad detail endpoint hydrates them on demand.
+  const ads = await prisma.ad.findMany({
+    where: {
+      ...whereAd,
+      reservations: {
+        some: { date: { gte: start, lt: next } },
+      },
+    },
+    orderBy: { created_at: 'desc' },
+    take: 20,
     select: {
       id: true,
+      business_name: true,
+      banner_url: true,
+      banner_fit_mode: true,
+      target_url: true,
+      target_zip_code: true,
+      target_lat: true,
+      target_lng: true,
+      radius: true,
+      description: true,
       status: true,
       payment_status: true,
-      impression_count: true,
-      click_count: true,
+      created_at: true,
     },
   });
 
-  if (!ad || ad.status !== 'active' || ad.payment_status !== 'paid') {
-    return res.status(404).json({ error: 'Ad not found' });
+  // Precise Haversine filter on the smaller bounding-box result set.
+  // Modern ads have target_lat/target_lng pre-computed at create time and
+  // do NOT need a geocoding lookup. Only legacy ads (target_lat IS NULL)
+  // require an on-the-fly ZIP lookup. Filtering the unique-zip set to
+  // those legacy rows means the geocoding loop is a no-op in the common
+  // case (everything backfilled), instead of N requests per feed mount.
+  const adZipCoords = new Map<string, { lat: number; lon: number }>();
+  const legacyZips = [
+    ...new Set(
+      ads
+        .filter(a => a.target_zip_code && (a.target_lat == null || a.target_lng == null))
+        .map(a => a.target_zip_code!)
+    ),
+  ];
+  if (legacyZips.length > 0) {
+    await Promise.all(
+      legacyZips.map(async zip => {
+        const coords = await getZipCoordinatesWithFallback(zip);
+        if (coords) adZipCoords.set(zip, coords);
+      })
+    );
   }
 
-  const now = new Date();
-  const update =
-    type === 'impression'
-      ? {
-          impression_count: { increment: 1 },
-          last_impression_at: now,
-        }
-      : {
-          click_count: { increment: 1 },
-          last_click_at: now,
-        };
-
-  const updated = await prisma.ad.update({
-    where: { id },
-    data: update,
-    select: {
-      id: true,
-      impression_count: true,
-      click_count: true,
-      last_impression_at: true,
-      last_click_at: true,
-    },
+  const filtered = ads.filter(ad => {
+    if (!ad.target_zip_code) return false;
+    // Prefer stored coords; fall back to ZIP lookup for legacy ads
+    const adCoords =
+      ad.target_lat != null && ad.target_lng != null
+        ? { lat: ad.target_lat, lon: ad.target_lng }
+        : adZipCoords.get(ad.target_zip_code);
+    if (!adCoords) return false;
+    const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
+    return dist <= 5.59; // 9km radius (5.59 miles)
   });
 
-  addBreadcrumb('Ad engagement recorded', 'ads.engagement', 'info', {
-    adId: id,
-    type,
-    userId: req.user?.id || null,
-    impressionCount: updated.impression_count,
-    clickCount: updated.click_count,
+  const result = filtered.slice(0, limit);
+
+  debugLog('[ads] for-feed found ads:', {
+    totalFetched: ads.length,
+    afterFilter: filtered.length,
+    returned: result.length,
+    ads: result.map(ad => ({
+      id: ad.id,
+      payment_status: ad.payment_status,
+      banner_url: !!ad.banner_url,
+      target_zip_code: ad.target_zip_code,
+      radius: ad.radius,
+    })),
   });
 
-  return res.status(200).json({ ok: true, type, ...updated });
-}
-
-adsRouter.post(
-  '/:id([a-zA-Z0-9_-]{10,100})/impression',
-  requireAuth as any,
-  asyncHandler(async (req: AuthedRequest, res) => trackAdEngagement(req, res, 'impression'))
-);
-
-adsRouter.post(
-  '/:id([a-zA-Z0-9_-]{10,100})/click',
-  requireAuth as any,
-  asyncHandler(async (req: AuthedRequest, res) => trackAdEngagement(req, res, 'click'))
-);
+  return res.json({
+    date: dateISO,
+    ads: result.map(ad => ({
+      id: ad.id,
+      business_name: ad.business_name,
+      banner_url: ad.banner_url,
+      banner_fit_mode: ad.banner_fit_mode,
+      target_url: ad.target_url,
+      target_zip_code: ad.target_zip_code,
+      radius: ad.radius,
+      description: ad.description,
+      status: ad.status,
+      payment_status: ad.payment_status,
+      created_at: ad.created_at,
+    })),
+  });
+}));
 
 // Get a single Ad with its reservations (dates)
-adsRouter.get(
-  '/:id([a-z0-9]{15,50})',
-  requireAuth as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const id = String(req.params.id);
-    const ad = await prisma.ad.findUnique({ where: { id } });
-    if (!ad) return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
-    const isAdmin = await getIsAdmin(req);
-    const isOwner = !!ad.user_id && ad.user_id === req.user!.id;
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' }); // error-envelope-exempt
-    const dates = await prisma.adReservation.findMany({
-      where: { ad_id: id },
-      orderBy: { date: 'asc' },
-      take: 1000,
-    });
-    return res.json({ ...ad, dates: dates.map(r => r.date.toISOString().slice(0, 10)) });
-  })
-);
+adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  let ad = await prisma.ad.findUnique({ where: { id } });
+  if (!ad) return res.status(404).json({ error: 'Not found' });
+  const isAdmin = await getIsAdmin(req);
+  const isOwner = !!ad.user_id && ad.user_id === req.user!.id;
+  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  if (ad.payment_status === 'pending_approval') {
+    const cleanup = await releaseExpiredPendingApprovalReservationsForAd(prisma, id);
+    if (cleanup.changed) {
+      ad = await prisma.ad.findUnique({ where: { id } });
+      if (!ad) return res.status(404).json({ error: 'Not found' });
+    }
+  }
+  const dates = await prisma.adReservation.findMany({
+    where: { ad_id: id },
+    orderBy: { date: 'asc' },
+    take: 1000,
+  });
+  return res.json({ ...ad, dates: dates.map(r => r.date.toISOString().slice(0, 10)) });
+}));
 
 // Update an Ad (owner-only if authenticated)
 adsRouter.put(
@@ -603,8 +568,8 @@ adsRouter.put(
   asyncHandler(async (req: AuthedRequest, res) => {
     const id = String(req.params.id);
     const ad = await prisma.ad.findUnique({ where: { id } });
-    if (!ad) return res.status(404).json({ error: 'Ad not found' }); // error-envelope-exempt
-    if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' }); // error-envelope-exempt
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
     const { payment_status, status: _status, ...safeBody } = req.body || {};
     const parsed = adUpdateSchema.safeParse(safeBody);
     if (!parsed.success) {
@@ -618,8 +583,10 @@ adsRouter.put(
       if (k in safeBody) data[k] = v;
     }
 
-    const businessNameChanged = 'business_name' in data && data.business_name !== ad.business_name;
-    const descriptionChanged = 'description' in data && data.description !== ad.description;
+    const businessNameChanged =
+      'business_name' in data && data.business_name !== ad.business_name;
+    const descriptionChanged =
+      'description' in data && data.description !== ad.description;
     const textChanged = businessNameChanged || descriptionChanged;
 
     // (Content filtering removed — admin approval is the moderation gate.)
@@ -664,7 +631,7 @@ adsRouter.put(
       const { getAllAdminEmails } = await import('../lib/adminEmails.js');
       const adminEmails = getAllAdminEmails();
       void Promise.all(
-        adminEmails.map(to =>
+        adminEmails.map((to) =>
           sendAdPendingReviewEmail({
             to,
             businessName: updated.business_name || undefined,
@@ -675,10 +642,10 @@ adsRouter.put(
             adId: updated.id,
           }).then(sent => {
             if (!sent) {
-              console.error('[ads] review email returned false — email NOT delivered for ad', {
-                adId: updated.id,
-                to,
-              });
+              console.error(
+                '[ads] review email returned false — email NOT delivered for ad',
+                { adId: updated.id, to }
+              );
             }
           })
         )
@@ -702,7 +669,7 @@ adsRouter.delete(
     const existing = await prisma.ad.findUnique({ where: { id } });
     if (!existing) {
       console.warn('[ads] DELETE /:id - Ad not found', { id });
-      return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
+      return res.status(404).json({ error: 'Not found' });
     }
 
     const isAdmin = await getIsAdmin(req);
@@ -715,7 +682,7 @@ adsRouter.delete(
         adUserId: existing.user_id,
         requestUserId: req.user?.id,
       });
-      return res.status(403).json({ error: 'Forbidden' }); // error-envelope-exempt
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
     // Capture ad details for audit before deletion
@@ -757,8 +724,9 @@ adsRouter.delete(
     if (bannerUrl) {
       void (async () => {
         try {
-          const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
-            await import('../lib/cloudinary.js');
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
+            '../lib/cloudinary.js'
+          );
           const parsed = extractCloudinaryPublicId(bannerUrl);
           if (!parsed) return;
           const result = await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
@@ -781,58 +749,60 @@ adsRouter.delete(
 );
 
 // List reserved dates. Supports optional range and/or specific ad_id.
-adsRouter.get(
-  '/reservations',
-  requireAuth as any,
-  asyncHandler(async (req: AuthedRequest, res) => {
-    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
-    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
-    const adId = req.query.ad_id ? String(req.query.ad_id) : undefined;
+adsRouter.get('/reservations', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+  const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+  const adId = req.query.ad_id ? String(req.query.ad_id) : undefined;
 
-    // IDOR fix: when ad_id provided, verify ownership (or admin)
-    if (adId) {
-      const ad = await prisma.ad.findUnique({ where: { id: adId }, select: { user_id: true } });
-      if (!ad) return res.status(404).json({ error: 'Ad not found' }); // error-envelope-exempt
-      const isAdmin = await getIsAdmin(req as any);
-      if (ad.user_id !== req.user?.id && !isAdmin) {
-        return res.status(403).json({ error: 'You can only view reservations for your own ads' }); // error-envelope-exempt
-      }
-    }
-
-    const where: any = {};
-    if (from || to) where.date = {};
-    if (from) where.date.gte = from;
-    if (to) where.date.lte = to;
-    if (adId) {
-      where.ad_id = adId;
-    } else {
-      // No ad_id: scope to the requesting user's own ads only
-      const isAdmin = await getIsAdmin(req as any);
-      if (!isAdmin) {
-        where.ad = { user_id: req.user!.id };
-      }
-    }
-
-    debugLog('[ads] GET /reservations query:', { from, to, adId, where });
-
-    const list = await prisma.adReservation.findMany({
-      where,
-      orderBy: { date: 'asc' },
-      take: 1000,
+  // IDOR fix: when ad_id provided, verify ownership (or admin)
+  if (adId) {
+    const ad = await prisma.ad.findUnique({
+      where: { id: adId },
+      select: { user_id: true, payment_status: true },
     });
-    const dates = list.map(r => r.date.toISOString().slice(0, 10));
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    const isAdmin = await getIsAdmin(req as any);
+    if (ad.user_id !== req.user?.id && !isAdmin) {
+      return res.status(403).json({ error: 'You can only view reservations for your own ads' });
+    }
+    if (ad.payment_status === 'pending_approval') {
+      await releaseExpiredPendingApprovalReservationsForAd(prisma, adId);
+    }
+  }
 
-    debugLog('[ads] Found reservations:', {
-      adId,
-      count: list.length,
-      rawDates: list.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() })),
-      formattedDates: dates,
-    });
+  const where: any = {};
+  if (from || to) where.date = {};
+  if (from) where.date.gte = from;
+  if (to) where.date.lte = to;
+  if (adId) {
+    where.ad_id = adId;
+  } else {
+    // No ad_id: scope to the requesting user's own ads only
+    const isAdmin = await getIsAdmin(req as any);
+    if (!isAdmin) {
+      where.ad = { user_id: req.user!.id };
+    }
+  }
 
-    if (adId) return res.json({ ad_id: adId, dates });
-    return res.json({ dates });
-  })
-);
+  debugLog('[ads] GET /reservations query:', { from, to, adId, where });
+
+  const list = await prisma.adReservation.findMany({
+    where,
+    orderBy: { date: 'asc' },
+    take: 1000,
+  });
+  const dates = list.map(r => r.date.toISOString().slice(0, 10));
+
+  debugLog('[ads] Found reservations:', {
+    adId,
+    count: list.length,
+    rawDates: list.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() })),
+    formattedDates: dates,
+  });
+
+  if (adId) return res.json({ ad_id: adId, dates });
+  return res.json({ dates });
+}));
 
 /**
  * GET /ads/availability?zip=12345&from=2025-01-15&to=2025-01-31
@@ -840,116 +810,108 @@ adsRouter.get(
  * Returns availability status for each date in the range.
  * Each date can have up to 2 ads (slots). If 2 ads already exist, date is full.
  */
-adsRouter.get(
-  '/availability',
-  asyncHandler(async (req, res) => {
-    const zipCode = req.query.zip
-      ? String(req.query.zip)
-      : req.query.zip_code
-        ? String(req.query.zip_code)
-        : undefined;
-    const from = req.query.from ? String(req.query.from) : undefined;
-    const to = req.query.to ? String(req.query.to) : undefined;
-    const excludeAdId = req.query.exclude_ad_id ? String(req.query.exclude_ad_id) : undefined;
+adsRouter.get('/availability', asyncHandler(async (req, res) => {
+  const zipCode = req.query.zip
+    ? String(req.query.zip)
+    : req.query.zip_code
+      ? String(req.query.zip_code)
+      : undefined;
+  const from = req.query.from ? String(req.query.from) : undefined;
+  const to = req.query.to ? String(req.query.to) : undefined;
+  const excludeAdId = req.query.exclude_ad_id ? String(req.query.exclude_ad_id) : undefined;
 
-    if (!zipCode || !from || !to) {
-      return res.status(400).json({ error: 'zip, from, and to are required' }); // error-envelope-exempt
-    }
+  if (!zipCode || !from || !to) {
+    return res.status(400).json({ error: 'zip, from, and to are required' });
+  }
 
-    const MAX_ADS_PER_DATE = 2; // Maximum ad slots per date
+  const MAX_ADS_PER_DATE = 2; // Maximum ad slots per date
 
-    // Parse date range
-    const fromDate = new Date(from + 'T00:00:00.000Z');
-    const toDate = new Date(to + 'T00:00:00.000Z');
+  // Parse date range
+  const fromDate = new Date(from + 'T00:00:00.000Z');
+  const toDate = new Date(to + 'T00:00:00.000Z');
 
-    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' }); // error-envelope-exempt
-    }
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid date format' });
+  }
 
-    // Get all ads for this zip code (paid, hold, pending_approval all hold slots)
-    // Optionally exclude a specific ad (so editing an ad doesn't block its own dates)
-    const adsInZip = await prisma.ad.findMany({
-      where: {
-        target_zip_code: zipCode,
-        payment_status: { in: ['paid', 'hold', 'pending_approval'] },
-        ...(excludeAdId ? { id: { not: excludeAdId } } : {}),
+  // Get all ads for this zip code (paid, hold, pending_approval all hold slots)
+  // Optionally exclude a specific ad (so editing an ad doesn't block its own dates)
+  const adsInZip = await prisma.ad.findMany({
+    where: {
+      target_zip_code: zipCode,
+      payment_status: { in: ['paid', 'hold', 'pending_approval'] },
+      ...(excludeAdId ? { id: { not: excludeAdId } } : {}),
+    },
+    select: { id: true },
+    take: 500,
+  });
+
+  const adIds = adsInZip.map(a => a.id);
+
+  // Get all reservations for these ads in the date range
+  const reservations = await prisma.adReservation.findMany({
+    where: {
+      ad_id: { in: adIds },
+      date: {
+        gte: fromDate,
+        lte: toDate,
       },
-      select: { id: true },
-      take: 500,
-    });
+    },
+    select: {
+      date: true,
+      ad_id: true,
+    },
+  });
 
-    const adIds = adsInZip.map(a => a.id);
+  // Count ads per date
+  const adCountByDate: Record<string, number> = {};
 
-    // Get all reservations for these ads in the date range
-    const reservations = await prisma.adReservation.findMany({
-      where: {
-        ad_id: { in: adIds },
-        date: {
-          gte: fromDate,
-          lte: toDate,
-        },
-      },
-      select: {
-        date: true,
-        ad_id: true,
-      },
-    });
+  reservations.forEach(r => {
+    const dateISO = r.date.toISOString().slice(0, 10);
+    adCountByDate[dateISO] = (adCountByDate[dateISO] || 0) + 1;
+  });
 
-    // Count ads per date
-    const adCountByDate: Record<string, number> = {};
+  // Generate all dates in range and check availability
+  const availability: Record<
+    string,
+    { available: boolean; slotsUsed: number; slotsRemaining: number }
+  > = {};
 
-    reservations.forEach(r => {
-      const dateISO = r.date.toISOString().slice(0, 10);
-      adCountByDate[dateISO] = (adCountByDate[dateISO] || 0) + 1;
-    });
+  let currentDate = new Date(fromDate);
+  while (currentDate <= toDate) {
+    const dateISO = currentDate.toISOString().slice(0, 10);
+    const slotsUsed = adCountByDate[dateISO] || 0;
+    const slotsRemaining = MAX_ADS_PER_DATE - slotsUsed;
 
-    // Generate all dates in range and check availability
-    const availability: Record<
-      string,
-      { available: boolean; slotsUsed: number; slotsRemaining: number }
-    > = {};
+    availability[dateISO] = {
+      available: slotsRemaining > 0,
+      slotsUsed,
+      slotsRemaining: Math.max(0, slotsRemaining),
+    };
 
-    let currentDate = new Date(fromDate);
-    while (currentDate <= toDate) {
-      const dateISO = currentDate.toISOString().slice(0, 10);
-      const slotsUsed = adCountByDate[dateISO] || 0;
-      const slotsRemaining = MAX_ADS_PER_DATE - slotsUsed;
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
 
-      availability[dateISO] = {
-        available: slotsRemaining > 0,
-        slotsUsed,
-        slotsRemaining: Math.max(0, slotsRemaining),
-      };
-
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-    }
-
-    return res.json({
-      zip: zipCode,
-      from,
-      to,
-      maxSlotsPerDate: MAX_ADS_PER_DATE,
-      availability,
-    });
-  })
-);
+  return res.json({
+    zip: zipCode,
+    from,
+    to,
+    maxSlotsPerDate: MAX_ADS_PER_DATE,
+    availability,
+  });
+}));
 
 // Create reservation for a set of dates (yyyy-MM-dd strings)
 // SECURITY: Reservations must be created via payment flow (checkout/webhook). This endpoint
 // previously allowed adding free dates to paid ads. Use 403 (not 410) so clients don't cache
 // a permanent "gone" — endpoint may be repurposed; test-email-queue.sh previously used it.
-adsRouter.post(
-  '/reservations',
-  requireVerified as any,
-  asyncHandler(async (_req: AuthedRequest, res) => {
-    return res.status(403).json({
-      // error-envelope-exempt
-      error: 'RESERVATIONS_VIA_CHECKOUT_ONLY',
-      message:
-        'Ad reservations must be created through the payment checkout flow. Use the Ad Calendar to select dates and pay.',
-    });
-  })
-);
+adsRouter.post('/reservations', requireVerified as any, asyncHandler(async (_req: AuthedRequest, res) => {
+  return res.status(403).json({
+    error: 'RESERVATIONS_VIA_CHECKOUT_ONLY',
+    message:
+      'Ad reservations must be created through the payment checkout flow. Use the Ad Calendar to select dates and pay.',
+  });
+}));
 
 /**
  * GET /ads/alternative-zips?zip=12345&dates=2025-01-15,2025-01-16
@@ -965,7 +927,7 @@ adsRouter.get(
     const { zip, dates } = req.query;
 
     if (!zip || !dates) {
-      return res.status(400).json({ error: 'Missing required params: zip, dates' }); // error-envelope-exempt
+      return res.status(400).json({ error: 'Missing required params: zip, dates' });
     }
 
     const zipCode = String(zip);
@@ -976,10 +938,11 @@ adsRouter.get(
     // Get coordinates for the requested zip (with Google Geocoding fallback)
     const originCoords = await getZipCoordinatesWithFallback(zipCode);
     if (!originCoords) {
-      return res.status(400).json({
-        // error-envelope-exempt
-        error: 'Could not find coordinates for ZIP code. Please verify the ZIP code is valid.',
-      });
+      return res
+        .status(400)
+        .json({
+          error: 'Could not find coordinates for ZIP code. Please verify the ZIP code is valid.',
+        });
     }
 
     const MAX_ADS_PER_DATE = 2;
@@ -1002,7 +965,9 @@ adsRouter.get(
     const zipDistances: Map<string, number> = new Map();
 
     // Pre-resolve unique ad ZIP coordinates (with Google fallback)
-    const uniqueZips = [...new Set(allAds.map(a => a.target_zip_code).filter(Boolean))] as string[];
+    const uniqueZips = [
+      ...new Set(allAds.map(a => a.target_zip_code).filter(Boolean)),
+    ] as string[];
     const adZipMap = new Map<string, { lat: number; lon: number }>();
     await Promise.all(
       uniqueZips.map(async z => {
@@ -1049,8 +1014,8 @@ adsRouter.get(
           })
         : [];
 
-    const nearbyAdIds = allNearbyAds.map(ad => ad.id);
-    const requestedDateObjects = dateList.map(date => new Date(`${date}T00:00:00.000Z`));
+    const nearbyAdIds = allNearbyAds.map((ad) => ad.id);
+    const requestedDateObjects = dateList.map((date) => new Date(`${date}T00:00:00.000Z`));
     const reservations =
       nearbyAdIds.length > 0
         ? await prisma.adReservation.findMany({
@@ -1065,7 +1030,7 @@ adsRouter.get(
           })
         : [];
 
-    const zipByAdId = new Map(allNearbyAds.map(ad => [ad.id, ad.target_zip_code || '']));
+    const zipByAdId = new Map(allNearbyAds.map((ad) => [ad.id, ad.target_zip_code || '']));
     const reservationCountsByZipDate = new Map<string, number>();
 
     for (const reservation of reservations) {
@@ -1080,7 +1045,7 @@ adsRouter.get(
     const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
 
     for (const [nearbyZip, distance] of zipDistances.entries()) {
-      const hasAvailability = dateList.every(date => {
+      const hasAvailability = dateList.every((date) => {
         const key = `${nearbyZip}:${date}`;
         return (reservationCountsByZipDate.get(key) || 0) < MAX_ADS_PER_DATE;
       });
@@ -1111,7 +1076,7 @@ async function approveAd(
   id: string,
   note?: string | null,
   adminId?: string | null,
-  bannerOverride?: { reason: string }
+  bannerOverride?: { reason: string },
 ) {
   return approveAdService(id, adminId || null, prisma, {
     note: note || undefined,
@@ -1153,14 +1118,6 @@ function confirmationPage(safeTitle: string, safeMessage: string, success: boole
 </body></html>`;
 }
 
-async function isModerationTokenReplay(
-  token: string,
-  payload: { jti?: string; exp?: number; iat?: number }
-) {
-  const replayState = await getReviewTokenReplayState(token, payload);
-  return replayState === 'already_used';
-}
-
 function buildNativeAdReviewUrl(id: string, action?: 'approve' | 'reject'): string {
   const appScheme = (process.env.APP_SCHEME || 'varsityhubmobile').replace(/:.*$/, '');
   const url = new URL(`${appScheme}://admin-ads`);
@@ -1184,7 +1141,7 @@ function adReviewHandoffPage(id: string, action?: 'approve' | 'reject') {
   const safeSubcopy =
     safeAction === 'approve' || safeAction === 'reject'
       ? `You'll be taken to the admin ad review screen with the ${safeAction} action preselected.`
-      : "You'll be taken to the admin ad review screen.";
+      : 'You\'ll be taken to the admin ad review screen.';
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeHeadline}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:540px;margin:60px auto;padding:20px;text-align:center;background:#F9FAFB;color:#111827;">
@@ -1200,32 +1157,6 @@ window.setTimeout(function () {
 }, 75);
 </script>
 </body></html>`;
-}
-
-function describeAdModerationState(
-  status: string | null | undefined,
-  action: 'approve' | 'reject'
-): { title: string; message: string; success: boolean } | null {
-  if (!status || status === 'pending') return null;
-  if (status === 'approved' || status === 'active' || status === 'archived') {
-    return {
-      title: 'Already Approved',
-      message: 'This ad was already approved and is no longer pending review.',
-      success: action === 'approve',
-    };
-  }
-  if (status === 'draft' || status === 'rejected') {
-    return {
-      title: 'Already Rejected',
-      message: 'This ad was already rejected and returned for edits.',
-      success: action === 'reject',
-    };
-  }
-  return {
-    title: 'Already Reviewed',
-    message: `This ad is no longer pending review (current status: ${escapeHtml(status)}).`,
-    success: false,
-  };
 }
 
 /** HTML confirmation form — safeName must be pre-escaped via escapeHtml() before calling.
@@ -1244,7 +1175,7 @@ function confirmationForm(
     labels: Array<{ name: string; confidence: number }>;
     error?: string | null;
   } | null,
-  errorBanner?: string
+  errorBanner?: string,
 ) {
   const color = action === 'approve' ? '#16A34A' : '#DC2626';
   const verb = action === 'approve' ? 'Approve' : 'Reject';
@@ -1255,14 +1186,12 @@ function confirmationForm(
   const flaggedHtml = isFlagged
     ? `<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:12px 16px;margin:16px 0;text-align:left;">
   <p style="margin:0 0 8px;color:#991B1B;font-weight:600;">⚠️ Banner flagged by automated review</p>
-  ${
-    moderation!.labels.length > 0
-      ? `<p style="margin:0;color:#7F1D1D;font-size:13px;">${moderation!.labels
-          .slice(0, 5)
-          .map(l => `${escapeHtml(l.name)} (${Math.round(l.confidence)}%)`)
-          .join(', ')}</p>`
-      : `<p style="margin:0;color:#7F1D1D;font-size:13px;">No label detail captured.</p>`
-  }
+  ${moderation!.labels.length > 0
+    ? `<p style="margin:0;color:#7F1D1D;font-size:13px;">${moderation!.labels
+        .slice(0, 5)
+        .map((l) => `${escapeHtml(l.name)} (${Math.round(l.confidence)}%)`)
+        .join(', ')}</p>`
+    : `<p style="margin:0;color:#7F1D1D;font-size:13px;">No label detail captured.</p>`}
   <p style="margin:8px 0 0;color:#7F1D1D;font-size:12px;">Approving this ad requires a written override reason.</p>
 </div>
 <label for="override_reason" style="display:block;text-align:left;margin:12px 0 4px;font-size:14px;color:#374151;">Override reason (required, 10–2000 chars)</label>
@@ -1344,7 +1273,6 @@ async function loadAdModerationSummary(id: string) {
     where: { id },
     select: {
       business_name: true,
-      status: true,
       banner_moderation_status: true,
       banner_moderation_labels: true,
       banner_moderation_score: true,
@@ -1363,7 +1291,6 @@ async function loadAdModerationSummary(id: string) {
     : [];
   return {
     businessName: ad.business_name || 'Unknown',
-    status: ad.status,
     moderation: {
       status: (ad.banner_moderation_status as 'clean' | 'flagged' | 'error' | null) || null,
       score: ad.banner_moderation_score,
@@ -1389,7 +1316,11 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
         return res
           .status(401)
           .send(
-            confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false)
+            confirmationPage(
+              'Invalid Link',
+              'This approval link is invalid or has expired.',
+              false
+            )
           );
       }
       addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
@@ -1399,12 +1330,6 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       const summary = await loadAdModerationSummary(id);
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
-      }
-      const currentState = describeAdModerationState(summary.status, 'approve');
-      if (currentState) {
-        return res.send(
-          confirmationPage(currentState.title, currentState.message, currentState.success)
-        );
       }
       return res.send(
         confirmationForm(
@@ -1426,34 +1351,32 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
         });
         return res
           .status(401)
-          .send(
-            confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false)
-          );
+          .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
+      }
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult === 'already_used') {
+        return res
+          .status(409)
+          .send(confirmationPage('Link Already Used', 'This approval link has already been used.', false));
+      }
+      if (consumeResult === 'store_unavailable') {
+        return res
+          .status(503)
+          .send(confirmationPage('Temporarily Unavailable', 'This approval link cannot be completed right now. Please use the admin dashboard instead.', false));
       }
     } else {
       const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' }); // error-envelope-exempt
-    }
-
-    if (token && tokenPayload && (await isModerationTokenReplay(token, tokenPayload))) {
-      return res
-        .status(409)
-        .send(
-          confirmationPage(
-            'Link Already Used',
-            'This approval link was already used. Open the latest email if you need a fresh review link.',
-            false
-          )
-        );
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const body = req.body || {};
     const note = typeof body.note === 'string' ? body.note.trim() : null;
     const overrideRequested = isTruthyFlag(body.override_banner_flag);
-    const overrideReasonRaw =
-      typeof body.override_reason === 'string' ? body.override_reason.trim() : '';
+    const overrideReasonRaw = typeof body.override_reason === 'string' ? body.override_reason.trim() : '';
     const bannerOverride =
-      overrideRequested && overrideReasonRaw ? { reason: overrideReasonRaw } : undefined;
+      overrideRequested && overrideReasonRaw
+        ? { reason: overrideReasonRaw }
+        : undefined;
 
     const result = await approveAd(id, note, req.user?.id || null, bannerOverride);
     if (result.error) {
@@ -1466,35 +1389,16 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
         token
       ) {
         const summary = await loadAdModerationSummary(id);
-        return res
-          .status(409)
-          .send(
-            confirmationForm(
-              'approve',
-              id,
-              token,
-              escapeHtml(summary?.businessName || 'Unknown'),
-              (result as any).moderation,
-              'This banner was flagged. Provide an override reason to approve.'
-            )
-          );
-      }
-      const currentAd = await prisma.ad.findUnique({
-        where: { id },
-        select: { status: true },
-      });
-      const currentState = describeAdModerationState(currentAd?.status, 'approve');
-      if (currentState) {
-        return req.method === 'POST' && token
-          ? res.send(
-              confirmationPage(currentState.title, currentState.message, currentState.success)
-            )
-          : res.status(409).json({
-              // error-envelope-exempt
-              error: currentState.message,
-              current_status: currentAd?.status,
-              already_final: true,
-            });
+        return res.status(409).send(
+          confirmationForm(
+            'approve',
+            id,
+            token,
+            escapeHtml(summary?.businessName || 'Unknown'),
+            (result as any).moderation,
+            'This banner was flagged. Provide an override reason to approve.'
+          )
+        );
       }
       return req.method === 'POST' && token
         ? res
@@ -1504,16 +1408,6 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
             error: result.error,
             ...((result as any).moderation ? { moderation: (result as any).moderation } : {}),
           });
-    }
-
-    if (token && tokenPayload) {
-      const consumeResult = await consumeReviewToken(token, tokenPayload);
-      if (consumeResult !== 'consumed') {
-        console.warn('[ads] approve token could not be marked consumed after success:', {
-          ad_id: id,
-          consumeResult,
-        });
-      }
     }
 
     return req.method === 'POST' && token
@@ -1527,12 +1421,20 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       : res.json(result.ad);
   } catch (err) {
     console.error('[ads] approve error:', err);
-    return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-adsRouter.get('/:id([a-z0-9]{15,50})/approve', adModerationLimiter as any, handleAdApprove as any);
-adsRouter.post('/:id([a-z0-9]{15,50})/approve', adModerationLimiter as any, handleAdApprove as any);
+adsRouter.get(
+  '/:id([a-z0-9]{15,50})/approve',
+  adModerationLimiter as any,
+  handleAdApprove as any
+);
+adsRouter.post(
+  '/:id([a-z0-9]{15,50})/approve',
+  adModerationLimiter as any,
+  handleAdApprove as any
+);
 
 // Admin: Reject a pending ad (same confirmation-form pattern as approve).
 // See handleAdApprove for the full security rationale — POST always requires
@@ -1569,12 +1471,6 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
       }
-      const currentState = describeAdModerationState(summary.status, 'reject');
-      if (currentState) {
-        return res.send(
-          confirmationPage(currentState.title, currentState.message, currentState.success)
-        );
-      }
       return res.send(
         confirmationForm('reject', id, token, escapeHtml(summary.businessName || 'Unknown'))
       );
@@ -1589,65 +1485,31 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
         });
         return res
           .status(401)
-          .send(
-            confirmationPage(
-              'Invalid Link',
-              'This rejection link is invalid or has expired.',
-              false
-            )
-          );
+          .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
+      }
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult === 'already_used') {
+        return res
+          .status(409)
+          .send(confirmationPage('Link Already Used', 'This rejection link has already been used.', false));
+      }
+      if (consumeResult === 'store_unavailable') {
+        return res
+          .status(503)
+          .send(confirmationPage('Temporarily Unavailable', 'This rejection link cannot be completed right now. Please use the admin dashboard instead.', false));
       }
     } else {
       const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' }); // error-envelope-exempt
-    }
-
-    if (token && tokenPayload && (await isModerationTokenReplay(token, tokenPayload))) {
-      return res
-        .status(409)
-        .send(
-          confirmationPage(
-            'Link Already Used',
-            'This rejection link was already used. Open the latest email if you need a fresh review link.',
-            false
-          )
-        );
+      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
     if (result.error) {
-      const currentAd = await prisma.ad.findUnique({
-        where: { id },
-        select: { status: true },
-      });
-      const currentState = describeAdModerationState(currentAd?.status, 'reject');
-      if (currentState) {
-        return req.method === 'POST' && token
-          ? res.send(
-              confirmationPage(currentState.title, currentState.message, currentState.success)
-            )
-          : res.status(409).json({
-              // error-envelope-exempt
-              error: currentState.message,
-              current_status: currentAd?.status,
-              already_final: true,
-            });
-      }
       return req.method === 'POST' && token
         ? res
             .status(result.status!)
             .send(confirmationPage('Error', escapeHtml(result.error), false))
         : res.status(result.status!).json({ error: result.error });
-    }
-
-    if (token && tokenPayload) {
-      const consumeResult = await consumeReviewToken(token, tokenPayload);
-      if (consumeResult !== 'consumed') {
-        console.warn('[ads] reject token could not be marked consumed after success:', {
-          ad_id: id,
-          consumeResult,
-        });
-      }
     }
 
     return req.method === 'POST' && token
@@ -1661,12 +1523,20 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
       : res.json(result.ad);
   } catch (err) {
     console.error('[ads] reject error:', err);
-    return res.status(500).json({ error: 'Internal server error' }); // error-envelope-exempt
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
-adsRouter.get('/:id([a-z0-9]{15,50})/reject', adModerationLimiter as any, handleAdReject as any);
-adsRouter.post('/:id([a-z0-9]{15,50})/reject', adModerationLimiter as any, handleAdReject as any);
+adsRouter.get(
+  '/:id([a-z0-9]{15,50})/reject',
+  adModerationLimiter as any,
+  handleAdReject as any
+);
+adsRouter.post(
+  '/:id([a-z0-9]{15,50})/reject',
+  adModerationLimiter as any,
+  handleAdReject as any
+);
 
 // Admin: Review an ad (approve or reject) — used by admin-ads screen.
 adsRouter.get(
@@ -1703,7 +1573,7 @@ adsRouter.post(
     });
     const parsed = reviewSchema.safeParse(req.body);
     if (!parsed.success)
-      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues }); // error-envelope-exempt
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
     const { action, note: rawNote, override_banner_flag, override_reason } = parsed.data;
     const note = rawNote?.trim() || null;
 

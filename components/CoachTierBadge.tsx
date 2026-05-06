@@ -26,7 +26,8 @@ interface CoachTierBadgeProps {
  * Visual badge component for coach subscription tiers
  */
 export function CoachTierBadge({ tier, size = 'medium', showLabel = true }: CoachTierBadgeProps) {
-  const config = getTierConfig(tier);
+  const colorScheme = useColorScheme() ?? 'light';
+  const config = getTierConfig(tier, colorScheme);
   const sizeStyles = getSizeStyles(size);
 
   return (
@@ -46,23 +47,23 @@ export function CoachTierBadge({ tier, size = 'medium', showLabel = true }: Coac
 /**
  * Tier configuration with colors and icons
  */
-function getTierConfig(tier: CoachTier) {
+function getTierConfig(tier: CoachTier, colorScheme: keyof typeof Colors) {
   switch (tier) {
     case 'legend':
       return {
         label: 'Legend',
         icon: 'trophy' as const,
         backgroundColor: '#FCD34D', // Gold
-        iconColor: '#92400E', // Dark gold
-        textColor: '#92400E',
+        iconColor: Colors.light.text,
+        textColor: Colors.light.text,
       };
     case 'veteran':
       return {
         label: 'Veteran',
         icon: 'shield-checkmark' as const,
         backgroundColor: '#C0C0C0', // Silver
-        iconColor: '#374151',
-        textColor: '#374151',
+        iconColor: Colors[colorScheme].text,
+        textColor: Colors[colorScheme].text,
       };
     case 'rookie':
     default:
@@ -70,8 +71,8 @@ function getTierConfig(tier: CoachTier) {
         label: 'Rookie',
         icon: 'medal' as const,
         backgroundColor: '#CD7F32', // Bronze
-        iconColor: '#FFFFFF',
-        textColor: '#8B5A2B',
+        iconColor: Colors.dark.text,
+        textColor: Colors.light.text,
       };
   }
 }
@@ -116,7 +117,7 @@ export function CoachTierBenefits({ tier, compact = false }: TierBenefitsProps) 
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const benefits = getTierBenefits(tier);
-  const config = getTierConfig(tier);
+  const config = getTierConfig(tier, colorScheme);
 
   return (
     <View style={styles.benefitsContainer}>

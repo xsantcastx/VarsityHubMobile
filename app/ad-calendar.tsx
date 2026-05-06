@@ -15,7 +15,6 @@ import { safeGoBack } from '@/utils/navigation';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
-import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { usePaymentSheet } from '@/utils/stripe';
@@ -119,6 +118,24 @@ function getBookableSlotDates(dateISO: string, today: string, maxDate: string): 
   return getWeekSlotDates(dateISO).filter((slotDate) => slotDate >= today && slotDate <= maxDate);
 }
 
+function getCurrentBookableDates(datesISO: Iterable<string>): string[] {
+  const today = todayISO();
+  const maxDate = maxDateISO();
+  return Array.from(new Set(Array.from(datesISO)))
+    .filter((date) => date >= today && date <= maxDate)
+    .sort((a, b) => (a < b ? -1 : 1));
+}
+
+function getDatesOutsideBookingWindow(datesISO: Iterable<string>): { past: string[]; future: string[] } {
+  const today = todayISO();
+  const maxDate = maxDateISO();
+  const dates = Array.from(new Set(Array.from(datesISO)));
+  return {
+    past: dates.filter((date) => date < today).sort((a, b) => (a < b ? -1 : 1)),
+    future: dates.filter((date) => date > maxDate).sort((a, b) => (a < b ? -1 : 1)),
+  };
+}
+
 function AdCalendarScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ adId?: string }>();
@@ -190,7 +207,8 @@ function AdCalendarScreen() {
               await loadAvailability(adDetails.target_zip_code, String(adId));
             }
             if (mounted && adDetails?.status === 'approved' && dates.length > 0) {
-              setSelected(new Set(dates));
+              const bookableDates = getCurrentBookableDates(dates);
+              setSelected(new Set(bookableDates));
             }
           } catch {
             // Non-critical — calendar still works without availability
@@ -274,54 +292,27 @@ function AdCalendarScreen() {
   };
 
   const localSubtotal = useMemo(() => calculatePrice(selected), [selected]);
-  const estimatedSubtotalCents = Math.round(localSubtotal * 100);
-  const isAppleAdCheckout = Platform.OS === 'ios';
+  const subtotalCents = quote?.subtotal_cents ?? Math.round(localSubtotal * 100);
+  const taxCents = quote?.tax_cents ?? 0;
+  const discountCents = quote?.discount_cents ?? (preview?.valid ? (preview.discount_cents || 0) : 0);
+  const totalCents = quote?.total_cents ?? Math.max(0, subtotalCents - discountCents);
+  const effective = useMemo(() => totalCents / 100, [totalCents]);
+  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
+  const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
+  const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
+  const submitForApprovalDisabled = submitting;
   const isPending = adStatus === 'pending';
   const isApproved = adStatus === 'approved';
   const isDraft = adStatus === 'draft' || adStatus === null;
   const isActive = adStatus === 'active';
   const isRejected = adStatus === 'rejected';
   const isArchived = adStatus === 'archived';
-  const canPay = isApproved || isActive; // Once approved, no re-approval for future runs
-  const requiresAuthoritativeQuote =
-    !isAppleAdCheckout && !!adId && !adId.startsWith('local-') && selected.size > 0;
-  const subtotalCents = quote?.subtotal_cents ?? (requiresAuthoritativeQuote ? null : estimatedSubtotalCents);
-  const taxCents = isAppleAdCheckout ? null : (quote?.tax_cents ?? null);
-  const discountCents =
-    isAppleAdCheckout
-      ? null
-      : quote?.discount_cents ??
-        (preview?.valid && !requiresAuthoritativeQuote ? (preview.discount_cents || 0) : null);
-  const totalCents =
-    isAppleAdCheckout
-      ? estimatedSubtotalCents
-      : quote?.total_cents ??
-        (requiresAuthoritativeQuote ? null : Math.max(0, estimatedSubtotalCents - (discountCents || 0)));
-  const effective = useMemo(() => (totalCents == null ? null : totalCents / 100), [totalCents]);
-  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
-  const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
-  const quoteUnavailable = requiresAuthoritativeQuote && !quoteLoading && quote == null;
-  const checkoutPricePending = canPay && (quoteLoading || quoteUnavailable);
-  const payButtonLabel = paymentsTemporarilyDisabled
-    ? 'Checkout unavailable'
-    : isAppleAdCheckout
-      ? `Buy $${(effective ?? 0).toFixed(2)} in App Store`
-    : quoteLoading
-      ? 'Confirming final total...'
-      : quoteUnavailable
-        ? 'Final total unavailable'
-        : `Pay $${(effective ?? 0).toFixed(2)}`;
-  const payButtonDisabled =
-    submitting ||
-    selected.size === 0 ||
-    paymentsTemporarilyDisabled ||
-    checkoutPricePending;
-  const submitForApprovalDisabled = submitting || selected.size === 0;
+  const canPay = isApproved || isActive || isArchived; // Once approved, no re-approval for future runs
 
   const theme = Colors[colorScheme];
   React.useEffect(() => {
     let cancelled = false;
-    if (isAppleAdCheckout || !adId || adId.startsWith('local-') || selected.size === 0) {
+    if (!adId || adId.startsWith('local-') || selected.size === 0) {
       setQuote(null);
       setQuoteLoading(false);
       return;
@@ -329,7 +320,6 @@ function AdCalendarScreen() {
 
     const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
     setQuoteLoading(true);
-    setQuote(null);
     void (async () => {
       try {
         const data: any = await httpPost('/payments/ad-quote', {
@@ -351,7 +341,7 @@ function AdCalendarScreen() {
     return () => {
       cancelled = true;
     };
-  }, [adId, isAppleAdCheckout, selected, preview?.valid, preview?.code]);
+  }, [adId, selected, preview?.valid, preview?.code]);
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
     
@@ -413,13 +403,24 @@ function AdCalendarScreen() {
     const minDate = todayISO();
     const maxDate = maxDateISO();
 
-    if (adStatus === 'rejected') {
-      Alert.alert('Edit Required', 'This ad was rejected. Update it and resubmit before scheduling dates.');
+    if (isDraft) {
+      Alert.alert(
+        'Submit for Review First',
+        'Your ad creative must be approved before you can pick campaign dates.'
+      );
       return;
     }
 
-    if (adStatus === 'archived') {
-      Alert.alert('Campaign Ended', 'This campaign has ended. Edit the ad to run it again.');
+    if (isPending) {
+      Alert.alert(
+        'Awaiting Approval',
+        'This ad is still under review. Dates unlock after the ad is approved.'
+      );
+      return;
+    }
+
+    if (adStatus === 'rejected') {
+      Alert.alert('Edit Required', 'This ad was rejected. Update it and resubmit before scheduling dates.');
       return;
     }
 
@@ -475,13 +476,6 @@ function AdCalendarScreen() {
   };
 
   const applyPromo = async () => {
-    if (isAppleAdCheckout) {
-      Alert.alert(
-        'Promo Codes Unavailable',
-        'iPhone ad purchases use fixed App Store slot pricing, so promo codes are not available on this checkout path.'
-      );
-      return;
-    }
     setPromoError(null);
     setPromoBusy(true);
     try {
@@ -513,30 +507,22 @@ function AdCalendarScreen() {
   };
 
   const handleSubmitForApproval = async () => {
-    if (!adId || selected.size === 0) {
-      Alert.alert('Select at least one date');
+    if (!adId) {
+      Alert.alert('Ad Not Saved', 'This ad was not saved to the server. Please go back and re-submit your ad.');
       return;
     }
     if (adId.startsWith('local-')) {
       Alert.alert('Ad Not Saved', 'This ad was not saved to the server. Please go back and re-submit your ad.');
       return;
     }
-    const maxDate = maxDateISO();
-    const invalidDates = Array.from(selected).filter((date) => date > maxDate);
-    if (invalidDates.length > 0) {
-      Alert.alert('Booking Limit Exceeded', 'Some selected dates are beyond the 8-week booking window. Please remove them and try again.');
-      return;
-    }
     setSubmitting(true);
     try {
-      const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
       await Advertisement.submitForApproval(String(adId));
       setAdStatus('pending');
-      setReserved(new Set(dates));
       setSelected(new Set());
       Alert.alert(
         'Submitted for Approval',
-        'Your ad has been submitted for review. You\'ll be notified when approved — no charge until then.'
+        'Your ad creative has been submitted for review. Once approved, you can return here to choose dates and pay.'
       );
     } catch (err: any) {
       if (__DEV__) console.error('Submit for approval failed:', err);
@@ -561,14 +547,6 @@ function AdCalendarScreen() {
       return;
     }
 
-    if (requiresAuthoritativeQuote && (quoteLoading || !quote || totalCents == null)) {
-      Alert.alert(
-        'Final Total Pending',
-        'We are still confirming the final checkout total with the server. Please wait a moment and try again.'
-      );
-      return;
-    }
-
     // Guard against local-only ad IDs that were never persisted to the server
     if (adId.startsWith('local-')) {
       Alert.alert('Ad Not Saved', 'This ad was not saved to the server. Please go back and re-submit your ad.');
@@ -576,9 +554,12 @@ function AdCalendarScreen() {
     }
     
     // Validate 8-week limit on selected dates
-    const maxDate = maxDateISO();
-    const invalidDates = Array.from(selected).filter(date => date > maxDate);
-    if (invalidDates.length > 0) {
+    const invalidDates = getDatesOutsideBookingWindow(selected);
+    if (invalidDates.past.length > 0) {
+      Alert.alert('Date Unavailable', 'Ad dates must be today or in the future.');
+      return;
+    }
+    if (invalidDates.future.length > 0) {
       Alert.alert(
         'Booking Limit Exceeded', 
         'Some selected dates are beyond the 8-week booking window. Please remove them and try again.'
@@ -668,13 +649,7 @@ function AdCalendarScreen() {
           if (result.error) Alert.alert('Payment Error', result.error);
           return;
         }
-        analytics.track(ANALYTICS_EVENTS.AD_PAYMENT_COMPLETED, {
-          ad_id: String(adId),
-          amount_cents: totalCents ?? 0,
-          num_dates: dates.length,
-          method: 'apple_iap',
-        });
-        const paidAmount = `$${((totalCents ?? 0) / 100).toFixed(2)}`;
+        const paidAmount = `$${(totalCents / 100).toFixed(2)}`;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), totalAmount: paidAmount } });
         return;
       }
@@ -761,12 +736,6 @@ function AdCalendarScreen() {
         captureBreadcrumb('Ad payment sheet completed', 'payments.ad', {
           ad_id: String(adId),
           amount_cents: data.amount_cents,
-        });
-        analytics.track(ANALYTICS_EVENTS.AD_PAYMENT_COMPLETED, {
-          ad_id: String(adId),
-          amount_cents: data.amount_cents,
-          num_dates: dates.length,
-          method: 'stripe',
         });
         const paidAmount = data.amount_cents ? `$${(data.amount_cents / 100).toFixed(2)}` : undefined;
         router.replace({ pathname: '/ad-confirmation', params: { ad_id: String(adId), selectedDates: dates.join(', '), purchasedHours: String(purchasedHours), purchasedDays: String(dates.length), ...(paidAmount ? { totalAmount: paidAmount } : {}) } });
@@ -939,7 +908,11 @@ function AdCalendarScreen() {
         
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Select Ad Campaign Dates</Text>
-          <Text style={[styles.cardDesc, { color: Colors[colorScheme].mutedText }]}>Choose one or more dates to run your ad. Selecting a date books the remaining days in that week slot only.</Text>
+          <Text style={[styles.cardDesc, { color: Colors[colorScheme].mutedText }]}>
+            {canPay
+              ? 'Choose one or more dates to run your ad. Selecting a date books the remaining days in that week slot only.'
+              : 'Ad dates unlock after the creative is approved. Submit the ad for review first, then return here to book dates.'}
+          </Text>
 
           {/* Color Legend */}
           <View style={styles.legendContainer}>
@@ -1019,52 +992,46 @@ function AdCalendarScreen() {
             <Text style={{ color: Colors[colorScheme].text, fontSize: 15 }}>Weekend Slot (Fri-Sun):</Text>
             <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekendRate.toFixed(2)}</Text>
           </View>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>
-            {isAppleAdCheckout
-              ? 'Select dates to see the fixed App Store slot total for this purchase.'
-              : 'Select dates to see your final server-confirmed total.'}
-          </Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Select dates to see your total.</Text>
           
         </View>
 
-        {!isAppleAdCheckout && (
-          <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
-            <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Promo Code</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TextInput
-                placeholder="Enter code"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                autoCapitalize="characters"
-                value={promo}
-                onChangeText={setPromo}
-                accessibilityLabel="Promo code"
-                style={{
-                  flex: 1,
-                  height: 44,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: Colors[colorScheme].border,
-                  paddingHorizontal: 12,
-                  backgroundColor: Colors[colorScheme].surface,
-                  color: Colors[colorScheme].text
-                }}
-              />
-              <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint, width: 120, height: 44 }]} disabled={promoBusy} accessibilityRole="button" accessibilityLabel="Apply promo code">
-                {promoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Apply</Text>}
-              </Pressable>
-            </View>
-            {promoError ? <Text style={{ color: '#EF4444' }}>Not valid: {promoError}</Text> : null}
-            {preview?.valid ? (
-              <View style={{ marginTop: 8, gap: 4 }}>
-                <Text style={{ fontWeight: '600', color: Colors[colorScheme].text }}>✅ Promo Applied: {preview.code}</Text>
-                <Text style={{ color: Colors[colorScheme].text }}>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
-                <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
-                  ⚠️ Limited offer: First 8 users only
-                </Text>
-              </View>
-            ) : null}
+        <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
+          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Promo Code</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              placeholder="Enter code"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              autoCapitalize="characters"
+              value={promo}
+              onChangeText={setPromo}
+              accessibilityLabel="Promo code"
+              style={{
+                flex: 1, 
+                height: 44, 
+                borderRadius: 10, 
+                borderWidth: 1, 
+                borderColor: Colors[colorScheme].border, 
+                paddingHorizontal: 12,
+                backgroundColor: Colors[colorScheme].surface,
+                color: Colors[colorScheme].text
+              }}
+            />
+            <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint, width: 120, height: 44 }]} disabled={promoBusy} accessibilityRole="button" accessibilityLabel="Apply promo code">
+              {promoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Apply</Text>}
+            </Pressable>
           </View>
-        )}
+          {promoError ? <Text style={{ color: '#EF4444' }}>Not valid: {promoError}</Text> : null}
+          {preview?.valid ? (
+            <View style={{ marginTop: 8, gap: 4 }}>
+              <Text style={{ fontWeight: '600', color: Colors[colorScheme].text }}>✅ Promo Applied: {preview.code}</Text>
+              <Text style={{ color: Colors[colorScheme].text }}>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+              <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
+                ⚠️ Limited offer: First 8 users only
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -1173,48 +1140,34 @@ function AdCalendarScreen() {
           <View style={[styles.sep, { backgroundColor: Colors[colorScheme].border }]} />
 
           <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>
-              {isAppleAdCheckout ? 'App Store Block Total:' : 'Subtotal:'}
-            </Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: subtotalCents == null ? Colors[colorScheme].mutedText : Colors[colorScheme].text }}>
-              {subtotalCents == null ? (quoteLoading ? 'Calculating...' : 'Unavailable') : `$${(subtotalCents / 100).toFixed(2)}`}
-            </Text>
+            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Subtotal:</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: Colors[colorScheme].text }}>${(subtotalCents / 100).toFixed(2)}</Text>
           </View>
-          {!isAppleAdCheckout && (quoteLoading || taxCents == null) ? (
+          {quoteLoading ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Tax:</Text>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].mutedText }}>
-                {quoteLoading ? 'Calculating...' : 'Unavailable'}
-              </Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].mutedText }}>Calculating...</Text>
             </View>
-          ) : !isAppleAdCheckout && typeof taxCents === 'number' && taxCents > 0 ? (
+          ) : taxCents > 0 ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Tax:</Text>
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           ) : null}
-          {!isAppleAdCheckout && (discountCents || 0) > 0 ? (
+          {preview?.valid ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Promo Discount:</Text>
               <Text style={{ fontSize: 16, color: '#10B981', fontWeight: '700' }}>- ${((discountCents || 0) / 100).toFixed(2)}</Text>
             </View>
           ) : null}
-          {!isAppleAdCheckout && (
-            <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
-              <Text style={{ fontSize: 22, fontWeight: '800', color: totalCents == null ? Colors[colorScheme].mutedText : Colors[colorScheme].text }}>
-                {totalCents == null ? (quoteLoading ? 'Calculating...' : 'Unavailable') : `$${effective?.toFixed(2)}`}
-              </Text>
-            </View>
-          )}
-          {sortedDates.length > 0 && (
-            <Text style={{ fontSize: 11, color: quoteUnavailable ? '#B91C1C' : Colors[colorScheme].mutedText, marginTop: 2 }}>
-              {isAppleAdCheckout
-                ? 'iPhone purchases use fixed App Store block pricing for the selected slots shown above.'
-                : quoteUnavailable
-                  ? 'We could not confirm the final checkout total. Refresh this screen or reselect dates before paying.'
-                  : 'Checkout uses the server-confirmed total shown here.'}
+          <View style={styles.rowBetween}>
+            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>
+              {quoteLoading ? 'Calculating...' : `$${effective.toFixed(2)}`}
             </Text>
+          </View>
+          {!quoteLoading && quote == null && (
+            <Text style={{ fontSize: 11, color: Colors[colorScheme].mutedText, marginTop: 2 }}>Tax is confirmed at checkout.</Text>
           )}
 
           {isPending && (
@@ -1223,40 +1176,36 @@ function AdCalendarScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>Pending Approval</Text>
                 <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
-                  Your ad has been submitted for review. You'll be notified when approved — no charge until then.
+                  Your ad creative is under review. You can book dates here once an admin approves it.
                 </Text>
               </View>
             </View>
           )}
-          {(isRejected || isArchived) && (
+          {isRejected && (
             <>
               <View style={[styles.pendingBanner, { backgroundColor: colorScheme === 'dark' ? '#3F1D1D' : '#FEF2F2', borderColor: colorScheme === 'dark' ? '#B91C1C' : '#FCA5A5' }]}>
                 <MaterialIcons
-                  name={isRejected ? 'error-outline' : 'history'}
+                  name="error-outline"
                   size={24}
                   color={colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C'}
                 />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>
-                    {isRejected ? 'Edit Before Scheduling' : 'Edit to Run Again'}
-                  </Text>
+                  <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>Edit Before Scheduling</Text>
                   <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#FECACA' : '#991B1B' }]}>
-                    {isRejected
-                      ? 'This ad was rejected. Update the content and resubmit it before choosing dates.'
-                      : 'This campaign has ended. Update the ad to start a new run.'}
+                    This ad was rejected. Update the content and resubmit it before choosing dates.
                   </Text>
                 </View>
               </View>
               <Pressable
                 onPress={() => { void router.push({ pathname: '/edit-ad', params: { id: String(adId) } }); }}
                 accessibilityRole="button"
-                accessibilityLabel={isRejected ? 'Edit ad to resubmit' : 'Edit ad to run again'}
+                accessibilityLabel="Edit ad to resubmit"
                 style={[
                   styles.payBtn,
                   { backgroundColor: Colors[colorScheme].tint },
                 ]}
               >
-                <Text style={styles.payBtnText}>{isRejected ? 'Edit Ad to Resubmit' : 'Edit Ad to Run Again'}</Text>
+                <Text style={styles.payBtnText}>Edit Ad to Resubmit</Text>
               </Pressable>
             </>
           )}
@@ -1272,7 +1221,7 @@ function AdCalendarScreen() {
                 disabled={payButtonDisabled}
                 onPress={handlePayment}
                 accessibilityRole="button"
-                accessibilityLabel={payButtonLabel}
+                accessibilityLabel={paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
                 style={[
                   styles.payBtn,
                   { backgroundColor: Colors[colorScheme].tint },
@@ -1282,7 +1231,9 @@ function AdCalendarScreen() {
                 {submitting ? (
                   <ActivityIndicator />
                 ) : (
-                  <Text style={styles.payBtnText}>{payButtonLabel}</Text>
+                  <Text style={styles.payBtnText}>
+                    {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
+                  </Text>
                 )}
               </Pressable>
               {paymentsTemporarilyDisabled && (
@@ -1314,7 +1265,7 @@ function AdCalendarScreen() {
                 )}
               </Pressable>
               <Text style={[styles.paymentBannerHelp, { color: Colors[colorScheme].mutedText }]}>
-                No charge until your ad is approved.
+                This submits the ad creative for review. Dates and payment unlock after approval.
               </Text>
             </>
           )}
@@ -1329,6 +1280,17 @@ function AdCalendarScreen() {
                 <Pressable onPress={() => router.push('/my-ads')} style={{ marginTop: 8 }} accessibilityRole="link" accessibilityLabel="View My Ads">
                   <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>View My Ads →</Text>
                 </Pressable>
+              </View>
+            </View>
+          )}
+          {isArchived && selected.size === 0 && (
+            <View style={[styles.pendingBanner, { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#DBEAFE', borderColor: colorScheme === 'dark' ? '#2563EB' : '#60A5FA' }]}>
+              <MaterialIcons name="history" size={24} color={colorScheme === 'dark' ? '#93C5FD' : '#1D4ED8'} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.pendingBannerTitle, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1D4ED8' }]}>Approved Media Ready to Run Again</Text>
+                <Text style={[styles.pendingBannerText, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF' }]}>
+                  This campaign finished, but the ad creative is still approved. Select new dates above to book it again.
+                </Text>
               </View>
             </View>
           )}
@@ -1365,14 +1327,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderBottomWidth: 1,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-        }),
+    // Add shadow for depth (iOS)
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    // Add elevation for depth (Android)
     elevation: 2,
   },
   iconBtn: {

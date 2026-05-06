@@ -27,6 +27,7 @@ import {
   ROOKIE_TEAM_LIMIT,
   VETERAN_MONTHLY_TEAM_PRICE_LABEL,
 } from '@/constants/plans';
+import { getCoachUpgradeCta } from '@/utils/coachUpgradeCta';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -200,6 +201,22 @@ function RoleOnboardingScreenInner() {
     } catch (e: any) {
       if (__DEV__) console.error('Failed to set coach tier', e);
       logTelemetry('coach-tier-error', { message: e?.message });
+      if (
+        e?.data?.code === 'COACH_UPGRADE_IN_PROGRESS' ||
+        e?.data?.code === 'COACH_REAPPLICATION_REQUIRED' ||
+        e?.data?.code === 'COACH_ALREADY_APPROVED'
+      ) {
+        const fresh = (await User.refresh().catch(() => null)) as any;
+        const nextCta = getCoachUpgradeCta({
+          ...fresh,
+          role: fresh?.preferences?.role || fresh?.role || null,
+          preferences: fresh?.preferences || {},
+        });
+        if (nextCta?.route) {
+          router.replace(nextCta.route as any);
+          return;
+        }
+      }
       Alert.alert(
         'Error',
         e?.data?.error || e?.message || 'Failed to upgrade to coach. Please try again.'

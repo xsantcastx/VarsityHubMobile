@@ -58,6 +58,23 @@ async function createPasswordUser(): Promise<{ id: string; email: string; token:
   return { id: user.id, email, token };
 }
 
+async function createUnverifiedPasswordUser(): Promise<{ id: string; email: string; token: string }> {
+  const email = `delete-acct-unverified-${randomUUID()}@example.com`;
+  const password_hash = await bcrypt.hash(PASSWORD, 10);
+  const user = await prisma.user.create({
+    data: {
+      email,
+      password_hash,
+      display_name: 'Delete-Test Unverified User',
+      email_verified: false,
+      approval_status: 'APPROVED',
+      preferences: { role: 'fan', onboarding_completed: false },
+    },
+  });
+  createdUserIds.add(user.id);
+  return { id: user.id, email, token: signJwt({ id: user.id }) };
+}
+
 async function createOAuthOnlyUser(): Promise<{ id: string; email: string; token: string }> {
   const email = `delete-acct-oauth-${randomUUID()}@example.com`;
   const user = await prisma.user.create({
@@ -140,6 +157,25 @@ describe('POST /auth/account/delete', () => {
       // the email may have been anonymized or the password_hash cleared.
       const reLogin = await request(app).post('/auth/login').send({ email, password: PASSWORD });
       expect(reLogin.status).not.toBe(200);
+    });
+
+    it('allows an unverified password account to self-delete', async () => {
+      const { id, token } = await createUnverifiedPasswordUser();
+
+      const res = await request(app)
+        .post('/auth/account/delete')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: PASSWORD });
+
+      expect(res.status).toBe(200);
+      expect(res.body?.ok).toBe(true);
+
+      const after = await prisma.user.findUnique({
+        where: { id },
+        select: { deleted_at: true, deletion_anonymized: true },
+      });
+      expect(after?.deleted_at).toBeTruthy();
+      expect(after?.deletion_anonymized).toBe(true);
     });
   });
 

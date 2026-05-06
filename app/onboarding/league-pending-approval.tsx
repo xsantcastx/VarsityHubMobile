@@ -1,6 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import type { Href } from 'expo-router';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,44 +12,18 @@ import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { User, Notification as NotificationApi } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import { captureException } from '@/utils/sentry';
-
-type LeaguePendingUser = {
-  account_state?: string | null;
-  organization_id?: string | null;
-  role?: string | null;
-  approval_status?: string | null;
-  coach_application?: {
-    organization_name?: string | null;
-  } | null;
-  preferences?: {
-    organization_id?: string | null;
-    role?: string | null;
-    proceeding_as_fan?: boolean | null;
-  } | null;
-};
-
-type OrganizationApprovalResponse = {
-  id?: string | null;
-  status?: string | null;
-  admin_approved?: boolean | null;
-};
-
-type ApprovalNotification = {
-  type?: string | null;
-  meta?: {
-    reason?: string | null;
-  } | null;
-};
-
-type ApiErrorLike = {
-  message?: string;
-  data?: {
-    error?: string;
-    code?: string;
-    retry_after_hours?: number;
-    retry_at?: string;
-  };
-};
+import {
+  CoachSetupActions,
+  FanFallbackActions,
+  InfoCardRow,
+  PendingApprovalShell,
+  PollingStatus,
+  PrimaryButton,
+  ReasonCard,
+  SecondaryButton,
+  SupportText,
+  pendingApprovalStyles as styles,
+} from '@/components/onboarding/pendingApprovalUi';
 
 function LeaguePendingApproval() {
   const router = useRouter();
@@ -99,7 +72,7 @@ function LeaguePendingApproval() {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
     stopPolling();
-    router.replace('/onboarding/coach-application');
+    router.replace('/onboarding/coach-application' as any);
   }, [router, stopPolling]);
 
   useEffect(() => () => {
@@ -113,12 +86,12 @@ function LeaguePendingApproval() {
   useEffect(() => {
     if (orgId) {
       setHydrating(false);
-      return undefined;
+      return;
     }
     let cancelled = false;
-    void (async () => {
+    (async () => {
       try {
-        const me = (await User.refresh()) as LeaguePendingUser;
+        const me: any = await User.refresh();
         if (cancelled) return;
         const applicationName = String(me?.coach_application?.organization_name || '').trim();
         if (applicationName) setLeagueName(applicationName);
@@ -167,7 +140,7 @@ function LeaguePendingApproval() {
     try {
       approvalCheckInFlightRef.current = true;
       setChecking(true);
-      const me = ((await User.refresh().catch(() => null)) as LeaguePendingUser | null) ?? null;
+      const me: any = await User.refresh().catch(() => null);
       const accountState = String(me?.account_state || '').trim();
       const applicationName = String(me?.coach_application?.organization_name || '').trim();
       if (applicationName) setLeagueName(applicationName);
@@ -187,11 +160,7 @@ function LeaguePendingApproval() {
         try {
           const page = await NotificationApi.listPage(null, 20, false);
           const rejectionNotif = Array.isArray(page?.items)
-            ? page.items.find(
-                (n: ApprovalNotification) =>
-                  (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') &&
-                  n.meta?.reason
-              )
+            ? page.items.find((n: any) => (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') && n.meta?.reason)
             : null;
           if (rejectionNotif?.meta?.reason) {
             setRejectionReason(rejectionNotif.meta.reason);
@@ -216,7 +185,7 @@ function LeaguePendingApproval() {
         return;
       }
 
-      const org = (await httpGet(`/organizations/${orgId}`)) as OrganizationApprovalResponse;
+      const org: any = await httpGet(`/organizations/${orgId}`);
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
       const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
@@ -244,11 +213,7 @@ function LeaguePendingApproval() {
         try {
           const page = await NotificationApi.listPage(null, 20, false);
           const rejectionNotif = Array.isArray(page?.items)
-            ? page.items.find(
-                (n: ApprovalNotification) =>
-                  (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') &&
-                  n.meta?.reason
-              )
+            ? page.items.find((n: any) => (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') && n.meta?.reason)
             : null;
           if (rejectionNotif?.meta?.reason) {
             setRejectionReason(rejectionNotif.meta.reason);
@@ -263,7 +228,7 @@ function LeaguePendingApproval() {
         setApproved(true);
         stopPolling();
         // Approval only unlocks real coach setup. Do not mark onboarding complete here.
-        void registerPushToken().catch(() => {});
+        registerPushToken().catch(() => {});
       }
     } catch {
       // ignore polling errors
@@ -271,7 +236,7 @@ function LeaguePendingApproval() {
       approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
-  }, [orgId, redirectToLeagueSetup, registerPushToken, stopPolling]);
+  }, [orgId, redirectToLeagueSetup, stopPolling]);
 
   useEffect(() => {
     void checkApproval('initial');
@@ -323,7 +288,7 @@ function LeaguePendingApproval() {
       await User.updatePreferences({ proceeding_as_fan: true });
       const freshUser = await checkAuth();
       const decision = getPostAuthRouteDecision(freshUser ?? null);
-      router.replace(decision.route as Href);
+      router.replace(decision.route as any);
     } catch (err) {
       proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[league-pending-approval] Failed to proceed as fan:', err);
@@ -342,9 +307,9 @@ function LeaguePendingApproval() {
       const freshUser = await checkAuth();
       const decision = getPostAuthRouteDecision(freshUser ?? null);
       if (decision.route === '/onboarding/coach-agreement') {
-        router.replace({ pathname: decision.route, params: { redirect } } as Href);
+        router.replace({ pathname: decision.route, params: { redirect } } as any);
       } else {
-        router.replace(decision.route as Href);
+        router.replace(decision.route as any);
       }
     } catch {
       Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
@@ -362,288 +327,162 @@ function LeaguePendingApproval() {
         contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo */}
-        <View style={styles.logoRow}>
-          <Image source={require('../../assets/images/logo.png')} style={{ width: 32, height: 32 }} contentFit="contain" />
-          <Text style={[styles.logoText, { color: isDark ? '#F9FAFB' : '#111827' }]}>VarsityHub</Text>
-        </View>
-
-        {/* Status checkmark */}
-        <View style={[styles.iconCircle, {
-          backgroundColor: rejected
-            ? (isDark ? 'rgba(220,38,38,0.15)' : '#FEE2E2')
-            : approved
-              ? (isDark ? 'rgba(218,165,32,0.15)' : '#FFF7ED')
-              : (isDark ? 'rgba(156,163,175,0.15)' : '#F3F4F6')
-        }]}>
-          <MaterialIcons
-            name={rejected ? 'close' : 'verified'}
-            size={56}
-            color={rejected ? '#DC2626' : approved ? '#D4A017' : '#9CA3AF'}
-          />
-        </View>
-
-        {/* Heading */}
-        <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>
-          {rejected ? (isApplicationFlow ? 'Application Not Approved' : 'League Not Approved') : approved ? 'Application Approved' : 'Submitted to VarsityHub for Review'}
-        </Text>
-
-        {/* Subheading */}
-        <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-          {rejected
-            ? isApplicationFlow
-              ? `Your coach application for "${leagueName}" was not approved.${rejectionReason ? '' : ' You can try again later or continue as a fan. Contact support@varsityhub.app for questions.'}`
-              : `"${leagueName}" was not approved.${rejectionReason ? '' : ' You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.'}`
-            : approved
+        <PendingApprovalShell
+          isDark={isDark}
+          status={rejected ? 'rejected' : approved ? 'approved' : 'pending'}
+          heading={
+            rejected
               ? isApplicationFlow
-                ? `Your application for "${leagueName}" was approved. Continue to accept the coach agreement and finish setting up your real organization.`
-                : `"${leagueName}" is approved. Continue to accept the coach agreement and finish coach setup.`
-              : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
+                ? 'Application Not Approved'
+                : 'League Not Approved'
+              : approved
+                ? 'Application Approved'
+                : 'Submitted to VarsityHub for Review'
           }
-        </Text>
+          subheading={
+            rejected
+              ? isApplicationFlow
+                ? `Your coach application for "${leagueName}" was not approved.${rejectionReason ? '' : ' You can try again later or continue as a fan. Contact support@varsityhub.app for questions.'}`
+                : `"${leagueName}" was not approved.${rejectionReason ? '' : ' You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.'}`
+              : approved
+                ? isApplicationFlow
+                  ? `Your application for "${leagueName}" was approved. Continue to accept the coach agreement and finish setting up your real organization.`
+                  : `"${leagueName}" is approved. Continue to accept the coach agreement and finish coach setup.`
+                : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
+          }
+        >
 
-        {/* Show rejection reason if available */}
-        {rejected && rejectionReason ? (
-          <View style={[styles.reasonCard, { backgroundColor: isDark ? 'rgba(220,38,38,0.1)' : '#FEF2F2', borderColor: isDark ? '#7F1D1D' : '#FECACA' }]}>
-            <Text style={[styles.reasonLabel, { color: isDark ? '#FCA5A5' : '#991B1B' }]}>Reason:</Text>
-            <Text style={[styles.reasonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>{rejectionReason}</Text>
-            <Text style={[styles.reasonText, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 8, fontSize: 13 }]}>
-              You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.
-            </Text>
-          </View>
-        ) : null}
+          {rejected && rejectionReason ? (
+            <ReasonCard
+              isDark={isDark}
+              body={rejectionReason}
+              footer="You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions."
+            />
+          ) : null}
 
-        {!orgId && hydrating ? (
-          // v1.0.3: while we're hydrating orgId from /me, show a spinner
-          // instead of the red "missing" error. Prevents the flash of
-          // "please return to league setup" on cold-start before the
-          // server data loads.
-          <View style={{ marginTop: 12, alignItems: 'center' }}>
-            <ActivityIndicator />
-            <Text style={[styles.supportText, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 8 }]}>
-              Loading your application…
-            </Text>
-          </View>
-        ) : null}
-
-        {!orgId && !hydrating && !isApplicationFlow && !approved && !rejected ? (
-          <>
-            <Text style={[styles.supportText, { color: '#EF4444', marginTop: 0, marginBottom: 12 }]}>
-              Organization ID is missing for this account. You can retry the setup or continue as a fan for now.
-            </Text>
-            <Pressable
-              style={[styles.primaryButton, { marginBottom: 12 }]}
-              onPress={handleProceedAsFan}
-            >
-              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
-              onPress={() => router.replace('/onboarding/coach-application')}
-            >
-              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Back to Organization Setup</Text>
-            </Pressable>
-          </>
-        ) : null}
-
-        {rejected && (
-          <>
-            <Pressable
-              style={[styles.primaryButton, { marginBottom: 12 }]}
-              onPress={async () => {
-                if (isApplicationFlow) {
-                  try {
-                    setChecking(true);
-                    await User.reapplyCoach();
-                    setRejected(false);
-                    setRejectionReason(null);
-                    Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
-                    router.replace('/onboarding/coach-application');
-                  } catch (e) {
-                    const error = e as ApiErrorLike | null | undefined;
-                    const msg = error?.data?.error || error?.message || 'Failed to re-apply.';
-                    const code = error?.data?.code;
-                    const hrs = error?.data?.retry_after_hours;
-                    const retryAt = error?.data?.retry_at;
-                    if (code === 'REJECTION_COOLDOWN') {
-                      let msgText = 'You can try again once the cooldown expires.';
-                      if (typeof retryAt === 'string') {
-                        const when = new Date(retryAt);
-                        if (!isNaN(when.getTime())) {
-                          msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
-                        }
-                      } else if (hrs) {
-                        msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
-                      }
-                      Alert.alert('Please wait', msgText);
-                    } else {
-                      Alert.alert('Failed', msg);
-                    }
-                  } finally {
-                    setChecking(false);
-                  }
-                  return;
-                }
-
-                router.replace('/onboarding/coach-application');
-              }}
-              disabled={checking}
-            >
-              <Text style={styles.primaryButtonText}>{isApplicationFlow ? 'Try Again' : 'Back to Organization Setup'}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]}
-              onPress={handleProceedAsFan}
-            >
-              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Continue as Fan</Text>
-            </Pressable>
-            <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
-              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
-            </Pressable>
-            <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
-              Questions? Contact support@varsityhub.app
-            </Text>
-          </>
-        )}
-
-        {timedOut && !approved && !rejected && (orgId || isApplicationFlow) && (
-          <>
-            <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}>
-              This is taking longer than usual. We'll email you when your league is approved. You can continue as a fan in the meantime.
-            </Text>
-            <Pressable
-              style={[styles.primaryButton, { marginBottom: 12 }]}
-              onPress={handleProceedAsFan}
-            >
-              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
-            </Pressable>
-            <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
-              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
-            </Pressable>
-            <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
-              Questions? Contact support@varsityhub.app
-            </Text>
-          </>
-        )}
-
-        {!approved && !rejected && !timedOut && (orgId || isApplicationFlow) && (
-          <>
-            <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#D1D5DB' }]}>
-              <View style={styles.infoRow}>
-                <MaterialIcons name="business" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
-                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-                  {isApplicationFlow ? 'Application:' : 'Organization:'}
-                </Text>
-                <Text style={[styles.infoValue, { color: isDark ? '#F9FAFB' : '#111827' }]}>{leagueName}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <MaterialIcons name="schedule" size={18} color={isDark ? '#60A5FA' : '#2563EB'} />
-                <Text style={[styles.infoLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Estimated:</Text>
-                <Text style={[styles.infoValue, { color: isDark ? '#F9FAFB' : '#111827' }]}>Within 24 hours</Text>
-              </View>
+          {!orgId && hydrating ? (
+            <View style={{ marginTop: 12, alignItems: 'center' }}>
+              <ActivityIndicator />
+              <Text style={[styles.supportText, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 8 }]}>
+                Loading your application…
+              </Text>
             </View>
+          ) : null}
 
-            {/* Buttons */}
-            <Pressable
-              style={[styles.primaryButton, { marginBottom: 12 }]}
-              onPress={handleProceedAsFan}
-            >
-              <Text style={styles.primaryButtonText}>Continue as Fan</Text>
-            </Pressable>
-            <Pressable style={[styles.secondaryButton, { borderColor: isDark ? '#374151' : '#D1D5DB' }]} onPress={handleLogout}>
-              <Text style={[styles.secondaryButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Log Out</Text>
-            </Pressable>
+          {!orgId && !hydrating && !isApplicationFlow && !approved && !rejected ? (
+            <>
+              <Text style={[styles.supportText, { color: '#EF4444', marginTop: 0, marginBottom: 12 }]}>
+                Organization ID is missing for this account. You can retry the setup or continue as a fan for now.
+              </Text>
+              <PrimaryButton label="Continue as Fan" onPress={handleProceedAsFan} style={{ marginBottom: 12 }} />
+              <SecondaryButton
+                label="Back to Organization Setup"
+                onPress={() => router.replace('/onboarding/coach-application' as any)}
+                borderColor={isDark ? '#374151' : '#D1D5DB'}
+                color={isDark ? '#9CA3AF' : '#6B7280'}
+              />
+            </>
+          ) : null}
 
-            {/* Polling indicator */}
-            {checking && (
-              <View style={styles.pollingRow}>
-                <ActivityIndicator size="small" color={isDark ? '#6B7280' : '#9CA3AF'} />
-                <Text style={[styles.pollingText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>Checking status...</Text>
+          {rejected && (
+            <>
+              <PrimaryButton
+                label={isApplicationFlow ? 'Try Again' : 'Back to Organization Setup'}
+                onPress={() => {
+                  void (async () => {
+                    if (isApplicationFlow) {
+                      try {
+                        setChecking(true);
+                        await User.reapplyCoach();
+                        setRejected(false);
+                        setRejectionReason(null);
+                        Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
+                        router.replace('/onboarding/coach-application' as any);
+                      } catch (e: any) {
+                        const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
+                        const code = e?.data?.code;
+                        const hrs = e?.data?.retry_after_hours;
+                        const retryAt = e?.data?.retry_at;
+                        if (code === 'REJECTION_COOLDOWN') {
+                          let msgText = 'You can try again once the cooldown expires.';
+                          if (typeof retryAt === 'string') {
+                            const when = new Date(retryAt);
+                            if (!isNaN(when.getTime())) {
+                              msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+                            }
+                          } else if (hrs) {
+                            msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
+                          }
+                          Alert.alert('Please wait', msgText);
+                        } else {
+                          Alert.alert('Failed', msg);
+                        }
+                      } finally {
+                        setChecking(false);
+                      }
+                      return;
+                    }
+
+                    router.replace('/onboarding/coach-application' as any);
+                  })();
+                }}
+                disabled={checking}
+                style={{ marginBottom: 12 }}
+              />
+              <FanFallbackActions isDark={isDark} onProceedAsFan={handleProceedAsFan} onLogout={handleLogout} />
+            </>
+          )}
+
+          {timedOut && !approved && !rejected && (orgId || isApplicationFlow) && (
+            <>
+              <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280', marginBottom: 20 }]}>
+                This is taking longer than usual. We'll email you when your league is approved. You can continue as a fan in the meantime.
+              </Text>
+              <FanFallbackActions isDark={isDark} onProceedAsFan={handleProceedAsFan} onLogout={handleLogout} />
+            </>
+          )}
+
+          {!approved && !rejected && !timedOut && (orgId || isApplicationFlow) && (
+            <>
+              <View style={[styles.infoCard, { backgroundColor: isDark ? '#1F2937' : '#FFFFFF', borderColor: isDark ? '#374151' : '#D1D5DB' }]}>
+                <InfoCardRow
+                  isDark={isDark}
+                  icon="business"
+                  label={isApplicationFlow ? 'Application:' : 'Organization:'}
+                  value={leagueName}
+                />
+                <InfoCardRow isDark={isDark} icon="schedule" label="Estimated:" value="Within 24 hours" />
               </View>
-            )}
 
-            {/* Support */}
-            <Text style={[styles.supportText, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
-              Questions? Contact support@varsityhub.app
-            </Text>
-          </>
-        )}
+              <FanFallbackActions
+                isDark={isDark}
+                onProceedAsFan={handleProceedAsFan}
+                onLogout={handleLogout}
+                checking={checking}
+              />
+            </>
+          )}
 
-        {approved && (
-          <>
-            <Pressable
-              style={[
-                styles.primaryButton,
-                { backgroundColor: '#1B3A6B', marginTop: 24 },
-                navigationTarget && { opacity: 0.6 },
-              ]}
-              onPress={() => { void handleApprovedNavigation('organization'); }}
+          {approved && (
+            <CoachSetupActions
+              onContinueSetup={() => {
+                void handleApprovedNavigation('organization');
+              }}
+              onCreateTeam={
+                orgId
+                  ? () => {
+                      void handleApprovedNavigation('create-team');
+                    }
+                  : undefined
+              }
               disabled={navigationTarget !== null}
-            >
-              <MaterialIcons name={orgId ? 'business' : 'arrow-forward'} size={20} color="#fff" />
-              <Text style={styles.primaryButtonText}>Continue Coach Setup</Text>
-            </Pressable>
-            {orgId ? (
-              <Pressable
-                style={[
-                    styles.secondaryButton,
-                    { borderColor: '#1B3A6B', marginTop: 0 },
-                    navigationTarget && { opacity: 0.6 },
-                  ]}
-                onPress={() => { void handleApprovedNavigation('create-team'); }}
-                disabled={navigationTarget !== null}
-              >
-                <Text style={[styles.secondaryButtonText, { color: '#1B3A6B' }]}>Create Your First Team</Text>
-              </Pressable>
-            ) : null}
-          </>
-        )}
+              primaryIcon={<MaterialIcons name={orgId ? 'business' : 'arrow-forward'} size={20} color="#fff" />}
+            />
+          )}
+        </PendingApprovalShell>
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 24, paddingTop: 40, alignItems: 'center' },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 },
-  logoText: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
-  iconCircle: {
-    width: 100, height: 100, borderRadius: 50,
-    justifyContent: 'center', alignItems: 'center', marginBottom: 24,
-  },
-  heading: { fontSize: 26, fontWeight: '800', textAlign: 'center', marginBottom: 12, letterSpacing: -0.5 },
-  subheading: { fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 28, paddingHorizontal: 12 },
-  infoCard: {
-    width: '100%', borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 16, gap: 10,
-  },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  infoLabel: { fontSize: 13, fontWeight: '600' },
-  infoValue: { fontSize: 13, fontWeight: '700', flex: 1 },
-  waitSection: {
-    width: '100%', borderRadius: 12, padding: 16, borderWidth: 1, marginBottom: 28, gap: 12,
-  },
-  waitTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bulletText: { fontSize: 14, lineHeight: 20 },
-  primaryButton: {
-    width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#1B3A6B', paddingVertical: 14, borderRadius: 10, gap: 8, marginBottom: 12,
-  },
-  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  secondaryButton: {
-    width: '100%', alignItems: 'center', paddingVertical: 12, borderRadius: 10,
-    borderWidth: 1, marginBottom: 20,
-  },
-  secondaryButtonText: { fontSize: 14, fontWeight: '600' },
-  pollingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  pollingText: { fontSize: 12 },
-  supportText: { fontSize: 12, textAlign: 'center', marginTop: 'auto', marginBottom: 16 },
-  reasonCard: {
-    width: '100%', borderRadius: 10, padding: 14, borderWidth: 1, marginBottom: 20, gap: 4,
-  },
-  reasonLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  reasonText: { fontSize: 14, lineHeight: 20 },
-});
 
 export default LeaguePendingApproval;

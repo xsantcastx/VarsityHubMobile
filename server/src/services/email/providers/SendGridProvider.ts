@@ -71,38 +71,7 @@ export class SendGridProvider implements EmailProvider {
 
     try {
       const mailData = this.buildMailData(options);
-      
-      // Add timeout protection
-      const sendPromise = sgMail.send(mailData);
-      const timeoutPromise = new Promise<EmailResult>((resolve) => {
-        setTimeout(
-          () =>
-            resolve({
-              success: false,
-              error: 'SendGrid request timed out locally; delivery status is unknown',
-              errorCode: EmailErrorCode.DELIVERY_STATUS_UNKNOWN,
-              provider: this.name,
-            }),
-          this.timeout
-        );
-      });
-
-      const result = await Promise.race([sendPromise, timeoutPromise]);
-
-      if ('success' in result) {
-        return result; // Timeout result
-      }
-
-      // Extract message ID from SendGrid response
-      const messageId = Array.isArray(result)
-        ? result[0]?.headers?.['x-message-id'] || undefined
-        : undefined;
-
-      return {
-        success: true,
-        messageId,
-        provider: this.name,
-      };
+      return await this.sendMailData(mailData);
     } catch (error: any) {
       return this.handleError(error);
     }
@@ -132,41 +101,42 @@ export class SendGridProvider implements EmailProvider {
         templateId: options.templateId,
         dynamicTemplateData: options.templateData,
       });
-
-      // Add timeout protection
-      const sendPromise = sgMail.send(mailData);
-      const timeoutPromise = new Promise<EmailResult>((resolve) => {
-        setTimeout(
-          () =>
-            resolve({
-              success: false,
-              error: 'SendGrid request timed out locally; delivery status is unknown',
-              errorCode: EmailErrorCode.DELIVERY_STATUS_UNKNOWN,
-              provider: this.name,
-            }),
-          this.timeout
-        );
-      });
-
-      const result = await Promise.race([sendPromise, timeoutPromise]);
-
-      if ('success' in result) {
-        return result; // Timeout result
-      }
-
-      // Extract message ID from SendGrid response
-      const messageId = Array.isArray(result)
-        ? result[0]?.headers?.['x-message-id'] || undefined
-        : undefined;
-
-      return {
-        success: true,
-        messageId,
-        provider: this.name,
-      };
+      return await this.sendMailData(mailData);
     } catch (error: any) {
       return this.handleError(error);
     }
+  }
+
+  private async sendMailData(mailData: MailDataRequired): Promise<EmailResult> {
+    const sendPromise = sgMail.send(mailData);
+    const timeoutPromise = new Promise<EmailResult>((resolve) => {
+      setTimeout(
+        () =>
+          resolve({
+            success: false,
+            error: 'SendGrid request timed out locally; delivery status is unknown',
+            errorCode: EmailErrorCode.DELIVERY_STATUS_UNKNOWN,
+            provider: this.name,
+          }),
+        this.timeout
+      );
+    });
+
+    const result = await Promise.race([sendPromise, timeoutPromise]);
+
+    if ('success' in result) {
+      return result;
+    }
+
+    const messageId = Array.isArray(result)
+      ? result[0]?.headers?.['x-message-id'] || undefined
+      : undefined;
+
+    return {
+      success: true,
+      messageId,
+      provider: this.name,
+    };
   }
 
   private buildMailData(

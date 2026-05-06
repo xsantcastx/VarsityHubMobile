@@ -125,6 +125,41 @@ const serializePoll = (poll: any, postContent: string | null, userVote: string |
   };
 };
 
+const POLL_CONTEXT_UNAVAILABLE = {
+  error: 'Polls are only available for competitive game/event posts.',
+  code: 'POLL_NOT_AVAILABLE',
+};
+
+async function getPostPollEligibility(post: { game_id?: string | null }) {
+  if (!post.game_id) {
+    return {
+      ok: false as const,
+      status: 409,
+      body: POLL_CONTEXT_UNAVAILABLE,
+    };
+  }
+
+  const game = await prisma.game.findUnique({
+    where: { id: post.game_id },
+    select: { id: true, event_type: true },
+  });
+
+  if (!game) {
+    return { ok: false as const, status: 404, body: { error: 'Linked game not found' } };
+  }
+
+  const normalizedEventType = String(game.event_type || 'game').trim().toLowerCase();
+  if (normalizedEventType !== 'game') {
+    return {
+      ok: false as const,
+      status: 409,
+      body: POLL_CONTEXT_UNAVAILABLE,
+    };
+  }
+
+  return { ok: true as const, gameId: game.id };
+}
+
 /** Check if user is coach/owner of any team associated with the post (team_id or game's teams) */
 async function isCoachOfPostTeam(
   userId: string,
@@ -1036,13 +1071,21 @@ postsRouter.post(
 
     const { options, expires_at } = parsed.data;
 
-    const post = await prisma.post.findFirst({ where: { id: postId, deleted_at: null } });
+    const post = await prisma.post.findFirst({
+      where: { id: postId, deleted_at: null },
+      select: { id: true, author_id: true, game_id: true },
+    });
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
     if (post.author_id !== userId) {
       return res.status(403).json({ error: 'Only the post author can create a poll' });
+    }
+
+    const eligibility = await getPostPollEligibility(post);
+    if (!eligibility.ok) {
+      return res.status(eligibility.status).json(eligibility.body);
     }
 
     try {
@@ -1096,10 +1139,15 @@ postsRouter.post(
 
     const postExists = await prisma.post.findFirst({
       where: { id: postId, deleted_at: null },
-      select: { id: true },
+      select: { id: true, game_id: true },
     });
     if (!postExists) {
       return res.status(404).json({ error: 'Post not found' });
+    }
+
+    const eligibility = await getPostPollEligibility(postExists);
+    if (!eligibility.ok) {
+      return res.status(eligibility.status).json(eligibility.body);
     }
 
     let poll: any;

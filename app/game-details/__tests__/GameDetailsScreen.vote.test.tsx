@@ -52,11 +52,12 @@ import GameDetailsScreen from '../GameDetailsScreen';
 // Disable setInterval and setTimeout in tests to prevent polling loops
 // Remove global setTimeout/setInterval mocks; rely on jest fake timers
 
+let mockParams: { id?: string; eventId?: string } = { id: 'game-1', eventId: 'event-1' };
 
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
-  useLocalSearchParams: () => ({ id: 'game-1', eventId: 'event-1' }),
+  useLocalSearchParams: () => mockParams,
 }));
 
 jest.mock('@react-navigation/native', () => ({
@@ -120,6 +121,10 @@ jest.mock('@/hooks/useThemeColor', () => ({
   useThemeColor: () => '#111111',
 }));
 
+jest.mock('@/context/AuthProvider', () => ({
+  useAuth: () => ({ user: null }),
+}));
+
 jest.mock('@/utils/retryWithBackoff', () => ({
   retryWithBackoff: (fn: any) => fn(),
 }));
@@ -138,7 +143,13 @@ jest.mock('../../components/MatchBanner', () => {
 
 jest.mock('../GameVerticalFeedScreen', () => {
   const React = require('react');
-  return (props: any) => React.createElement('GameVerticalFeedScreen', props, props.children);
+  const MockScreen = (props: any) =>
+    React.createElement('GameVerticalFeedScreen', props, props.children);
+  return {
+    __esModule: true,
+    default: MockScreen,
+    mapHighlightToFeedPost: (post: any) => post,
+  };
 });
 
 jest.mock('@/api/entities', () => ({
@@ -186,12 +197,14 @@ const baseSummary = {
   userRsvped: false,
   reviewsCount: 0,
   userVote: null,
+  event_type: 'game',
   // Add any other fields your GameVM expects
 };
 
 describe('GameDetailsScreen voting UI', () => {
   beforeEach(() => {
     jest.setTimeout(15000);
+    mockParams = { id: 'game-1', eventId: 'event-1' };
     (Game.summary as jest.Mock).mockResolvedValue(baseSummary);
     (Game.get as jest.Mock).mockResolvedValue(baseSummary);
     (Game.posts as jest.Mock).mockResolvedValue([]);

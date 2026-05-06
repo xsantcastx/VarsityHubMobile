@@ -634,7 +634,7 @@ const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Password is required').optional(),
   delete_confirmation: z.string().optional(),
 });
-usersRouter.delete('/me', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+usersRouter.delete('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = req.user!.id;
   const parsed = deleteAccountSchema.safeParse(req.body || {});
   if (!parsed.success) {

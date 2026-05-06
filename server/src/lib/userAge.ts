@@ -144,13 +144,18 @@ export function isVerifiedAdult(user: AgeSource | null | undefined, now: Date = 
 }
 
 /**
- * True for users 13-17 inclusive — the range that requires parental consent
- * under COPPA state extensions and GDPR-K. Under-13 users should have been
- * rejected at registration; this helper is specifically for the consent flow.
+ * VarsityHub no longer uses a parental-consent flow for teen accounts.
+ * Product policy is:
+ *   - under 13: reject / deny access
+ *   - 13+: allowed on-platform
+ *
+ * Keep this helper as the single semantic switch so legacy call sites collapse
+ * onto the new contract instead of each re-implementing age windows.
  */
 export function requiresParentalConsent(user: AgeSource | null | undefined, now: Date = new Date()): boolean {
-  const age = getUserAge(user, now);
-  return age !== null && age >= 13 && age < 18;
+  void user;
+  void now;
+  return false;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

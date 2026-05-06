@@ -16,12 +16,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 
 type SavedPost = {
   id: string;
   caption?: string | null;
   media_url?: string | null;
+  preview_url?: string | null;
   media_type?: 'image' | 'video';
   created_at?: string | null;
   author?: {
@@ -33,27 +35,19 @@ type SavedPost = {
   comments_count?: number;
 };
 
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-
 const mapSavedPost = (raw: any): SavedPost | null => {
   if (!raw) return null;
   const id = raw.id ?? raw.post_id;
   if (!id) return null;
 
   const mediaUrl = typeof raw.media_url === 'string' ? raw.media_url : null;
-  const mediaType =
-    typeof raw.media_type === 'string'
-      ? (raw.media_type as 'image' | 'video')
-      : mediaUrl && VIDEO_EXT.test(mediaUrl)
-      ? 'video'
-      : mediaUrl
-      ? 'image'
-      : undefined;
+  const mediaType = resolveMediaType(raw.media_url, raw.media_type) ?? undefined;
 
   return {
     id: String(id),
     caption: raw.caption ?? raw.content ?? null,
     media_url: mediaUrl,
+    preview_url: typeof raw.preview_url === 'string' ? raw.preview_url : null,
     media_type: mediaType,
     created_at: typeof raw.created_at === 'string' ? raw.created_at : null,
     author: raw.author
@@ -195,52 +189,63 @@ function FavoritesScreen() {
   }, [loading, palette.mutedText, palette.text]);
 
   const renderItem = useCallback(
-    ({ item }: { item: SavedPost }) => (
-      <Pressable
-        style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}
-        onPress={() => void router.push(`/post-detail?id=${item.id}`)}
-      >
-        <View style={styles.media}>
-          {item.media_url ? (
-            <Image source={{ uri: item.media_url }} style={styles.thumbnail} contentFit="cover" />
-          ) : (
-            <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-              <MaterialIcons name="image" size={28} color={palette.mutedText} />
-            </View>
-          )}
-          {item.media_type === 'video' ? (
-            <View style={styles.playBadge}>
-              <MaterialIcons name="play-arrow" size={14} color="#fff" />
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={2}>
-            {item.caption || 'Saved highlight'}
-          </Text>
-          {item.author?.display_name ? (
-            <Text style={[styles.cardMeta, { color: palette.mutedText }]} numberOfLines={1}>
-              by {item.author.display_name}
+    ({ item }: { item: SavedPost }) => {
+      const media = resolvePostMedia(item);
+      return (
+        <Pressable
+          style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}
+          onPress={() => void router.push(`/post-detail?id=${item.id}`)}
+        >
+          <View style={styles.media}>
+            {media.displayImageUrl ? (
+              <Image
+                source={{ uri: media.displayImageUrl }}
+                style={styles.thumbnail}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
+                <MaterialIcons
+                  name={media.isVideo ? 'play-arrow' : 'image'}
+                  size={28}
+                  color={palette.mutedText}
+                />
+              </View>
+            )}
+            {media.isVideo ? (
+              <View style={styles.playBadge}>
+                <MaterialIcons name="play-arrow" size={14} color="#fff" />
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={[styles.cardTitle, { color: palette.text }]} numberOfLines={2}>
+              {item.caption || 'Saved highlight'}
             </Text>
-          ) : null}
-          <View style={styles.cardStats}>
-            <View style={styles.statRow}>
-              <MaterialIcons name="arrow-upward" size={14} color={palette.mutedText} />
-              <Text style={[styles.statText, { color: palette.mutedText }]}>
-                {item.upvotes_count != null ? item.upvotes_count : 0}
+            {item.author?.display_name ? (
+              <Text style={[styles.cardMeta, { color: palette.mutedText }]} numberOfLines={1}>
+                by {item.author.display_name}
               </Text>
-            </View>
-            <View style={styles.statRow}>
-              <MaterialIcons name="chat-bubble" size={14} color={palette.mutedText} />
-              <Text style={[styles.statText, { color: palette.mutedText }]}>
-                {item.comments_count != null ? item.comments_count : 0}
-              </Text>
+            ) : null}
+            <View style={styles.cardStats}>
+              <View style={styles.statRow}>
+                <MaterialIcons name="arrow-upward" size={14} color={palette.mutedText} />
+                <Text style={[styles.statText, { color: palette.mutedText }]}>
+                  {item.upvotes_count != null ? item.upvotes_count : 0}
+                </Text>
+              </View>
+              <View style={styles.statRow}>
+                <MaterialIcons name="chat-bubble" size={14} color={palette.mutedText} />
+                <Text style={[styles.statText, { color: palette.mutedText }]}>
+                  {item.comments_count != null ? item.comments_count : 0}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-        <MaterialIcons name="chevron-right" size={18} color={palette.mutedText} />
-      </Pressable>
-    ),
+          <MaterialIcons name="chevron-right" size={18} color={palette.mutedText} />
+        </Pressable>
+      );
+    },
     [palette.border, palette.mutedText, palette.surface, palette.text, router],
   );
 

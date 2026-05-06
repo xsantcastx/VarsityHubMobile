@@ -35,6 +35,17 @@ export interface UploadOptions {
   formFields?: Record<string, string | number | boolean | null | undefined>;
 }
 
+interface UploadFetchConfig {
+  target: string;
+  uri: string;
+  filename: string;
+  mimeType: string;
+  options?: UploadOptions;
+  timeoutMs: number;
+  debugLabel?: string;
+  coerceFinal401ToUnauthorized?: boolean;
+}
+
 async function resolveUploadToken(): Promise<string | null> {
   const fromSession = await auth.getToken();
   if (fromSession) return fromSession;
@@ -57,6 +68,162 @@ function detectMime(mimeType?: string, filename?: string, uri?: string): string 
   const name = filename || uri || '';
   const ext = name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|heic|heif|mp4|mov|avi|mkv)$/)?.[1];
   return (ext && MIME_MAP[ext]) || 'image/jpeg';
+}
+
+function buildUploadFormData(
+  uri: string,
+  filename: string,
+  mimeType: string,
+  formFields?: Record<string, string | number | boolean | null | undefined>,
+): FormData {
+  const form = new FormData();
+  form.append('file', { uri, name: filename, type: mimeType } as any);
+  for (const [key, value] of Object.entries(formFields || {})) {
+    if (value == null) continue;
+    form.append(key, String(value));
+  }
+  return form;
+}
+
+function buildUploadNetworkError(error: any, coerceFinal401ToUnauthorized = false): Error {
+  if (error?.name === 'AbortError') {
+    return new Error('Upload timed out. Please check your connection and try again.');
+  }
+  if (error instanceof TypeError && error.message === 'Network request failed') {
+    return new Error('Network error: unable to reach upload endpoint.');
+  }
+  if (coerceFinal401ToUnauthorized && error?.status === 401) {
+    const unauthorized: any = new Error('Unauthorized');
+    unauthorized.status = 401;
+    return unauthorized;
+  }
+  return error;
+}
+
+async function resolveUploadHeaders(): Promise<Record<string, string>> {
+  const token = await resolveUploadToken();
+  if (!token) {
+    const err: any = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
+  }
+  return { Authorization: `Bearer ${token}` };
+}
+
+async function handleUploadAccessBoundary(
+  error: any,
+  headers: Record<string, string>,
+  verificationPromptedRef: { current: boolean },
+  refreshAttemptedRef: { current: boolean },
+): Promise<boolean> {
+  if (error?.status === 401 && !refreshAttemptedRef.current) {
+    refreshAttemptedRef.current = true;
+    const refreshed = await auth.refreshToken();
+    if (refreshed?.accessToken) {
+      headers.Authorization = `Bearer ${refreshed.accessToken}`;
+      return true;
+    }
+    try { await auth.clearTokensOnly?.(); } catch {}
+    error.isSessionExpired = true;
+    emitSessionExpired(
+      refreshed?.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+    );
+  }
+
+  if (
+    isEmailVerificationRequiredError(error?.status, error?.data) &&
+    !verificationPromptedRef.current
+  ) {
+    verificationPromptedRef.current = true;
+    const verified = await openVerificationGate();
+    if (verified) {
+      const refreshedToken = await resolveUploadToken();
+      if (refreshedToken) {
+        headers.Authorization = `Bearer ${refreshedToken}`;
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+async function uploadViaFetchWithRetries({
+  target,
+  uri,
+  filename,
+  mimeType,
+  options,
+  timeoutMs,
+  debugLabel,
+  coerceFinal401ToUnauthorized = false,
+}: UploadFetchConfig): Promise<any> {
+  const form = buildUploadFormData(uri, filename, mimeType, options?.formFields);
+  const headers = await resolveUploadHeaders();
+  const retries = Math.max(0, options?.retries ?? 2);
+  const backoffMs = Math.max(50, options?.backoffMs ?? 500);
+  const refreshAttemptedRef = { current: false };
+  const verificationPromptedRef = { current: false };
+  let attempt = 0;
+  let lastErr: any = null;
+
+  while (attempt <= retries) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      if (__DEV__ && debugLabel) {
+        console.log('[upload]', debugLabel, attempt + 1, '/', retries + 1, '| file:', filename);
+      }
+      const res = await fetch(target, {
+        method: 'POST',
+        headers,
+        body: form as any,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const text = await res.text();
+      if (!text) throw new Error(`Empty response (HTTP ${res.status})`);
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}`);
+      }
+      if (!res.ok) {
+        const err: any = new Error((data?.error || data?.message) || `HTTP ${res.status}`);
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
+      return data;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastErr = err;
+
+      if (
+        await handleUploadAccessBoundary(
+          err,
+          headers,
+          verificationPromptedRef,
+          refreshAttemptedRef,
+        )
+      ) {
+        continue;
+      }
+
+      const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
+      const isTimeout = err?.name === 'AbortError' || /timeout|timed out/i.test(String(err?.message || ''));
+      if (attempt < retries && (isNetwork || isTimeout)) {
+        await new Promise((resolve) => setTimeout(resolve, backoffMs * Math.pow(2, attempt)));
+        attempt++;
+        continue;
+      }
+      break;
+    }
+  }
+
+  throw buildUploadNetworkError(lastErr, coerceFinal401ToUnauthorized);
 }
 
 // -----------------------------------------------
@@ -287,104 +454,15 @@ async function uploadRawViaServer(
   options?: UploadOptions,
 ): Promise<any> {
   const target = buildUploadUrl(`${base}/uploads/files`, options?.formFields);
-  const token = await resolveUploadToken();
-  if (!token) {
-    const err: any = new Error('Unauthorized');
-    err.status = 401;
-    throw err;
-  }
-
-  const form = new FormData();
-  form.append('file', { uri, name: filename, type: mimeType } as any);
-  for (const [key, value] of Object.entries(options?.formFields || {})) {
-    if (value == null) continue;
-    form.append(key, String(value));
-  }
-
   const timeoutMs = options?.timeoutMs ?? 180000;
-  const retries = Math.max(0, options?.retries ?? 2);
-  const backoffMs = Math.max(50, options?.backoffMs ?? 500);
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  let refreshAttempted = false;
-  let verificationPrompted = false;
-
-  let attempt = 0;
-  let lastErr: any = null;
-
-  while (attempt <= retries) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(target, {
-        method: 'POST',
-        headers,
-        body: form as any,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      const text = await res.text();
-      if (!text) throw new Error(`Empty response (HTTP ${res.status})`);
-      let data: any;
-      try { data = JSON.parse(text); } catch {
-        throw new Error(`Non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}`);
-      }
-      if (!res.ok) {
-        const err: any = new Error((data?.error || data?.message) || `HTTP ${res.status}`);
-        err.status = res.status;
-        err.data = data;
-        throw err;
-      }
-      return data;
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      lastErr = err;
-      if (err?.status === 401 && !refreshAttempted) {
-        refreshAttempted = true;
-        const refreshed = await auth.refreshToken();
-        if (refreshed?.accessToken) {
-          headers.Authorization = `Bearer ${refreshed.accessToken}`;
-          continue;
-        }
-        // Refresh failed on an upload — session is dead. Clear tokens and
-        // emit so AuthProvider routes to /sign-in. Flag the error so the
-        // caller's upload-error alert suppresses the misleading "please
-        // sign out and sign back in" copy.
-        try { await auth.clearTokensOnly?.(); } catch {}
-        err.isSessionExpired = true;
-        emitSessionExpired(
-          refreshed?.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
-        );
-      }
-      if (
-        isEmailVerificationRequiredError(err?.status, err?.data) &&
-        !verificationPrompted
-      ) {
-        verificationPrompted = true;
-        const verified = await openVerificationGate();
-        if (verified) {
-          const refreshedToken = await resolveUploadToken();
-          if (refreshedToken) {
-            headers.Authorization = `Bearer ${refreshedToken}`;
-            continue;
-          }
-        }
-      }
-      const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
-      const isTimeout = err?.name === 'AbortError' || /timeout|timed out/i.test(String(err?.message || ''));
-      if (attempt < retries && (isNetwork || isTimeout)) {
-        await new Promise(r => setTimeout(r, backoffMs * Math.pow(2, attempt)));
-        attempt++;
-        continue;
-      }
-      break;
-    }
-  }
-
-  if (lastErr?.name === 'AbortError') throw new Error('Upload timed out. Please check your connection and try again.');
-  if (lastErr instanceof TypeError && lastErr.message === 'Network request failed') {
-    throw new Error('Network error: unable to reach upload endpoint.');
-  }
-  throw lastErr;
+  return uploadViaFetchWithRetries({
+    target,
+    uri,
+    filename,
+    mimeType,
+    options,
+    timeoutMs,
+  });
 }
 
 // -----------------------------------------------
@@ -483,110 +561,18 @@ async function uploadViaServer(
   options?: UploadOptions,
 ): Promise<any> {
   const target = buildUploadUrl(`${base}/uploads`, options?.formFields);
-
-  const form = new FormData();
-  form.append('file', { uri, name: filename, type: mimeType } as any);
-  for (const [key, value] of Object.entries(options?.formFields || {})) {
-    if (value == null) continue;
-    form.append(key, String(value));
-  }
-
-  const headers: any = {};
-  const token = await resolveUploadToken();
-  if (!token) {
-    const err: any = new Error('Unauthorized');
-    err.status = 401;
-    throw err;
-  }
-  headers.Authorization = `Bearer ${token}`;
-
-  const retries = Math.max(0, options?.retries ?? 2);
-  const backoffMs = Math.max(50, options?.backoffMs ?? 500);
   const isVideo = mimeType.startsWith('video/');
   const timeoutMs = options?.timeoutMs ?? (isVideo ? 300000 : 120000);
-  let attempt = 0;
-  let lastErr: any = null;
-  let refreshAttempted = false;
-  let verificationPrompted = false;
-
-  while (attempt <= retries) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      if (__DEV__) console.log('[upload] Server proxy attempt', attempt + 1, '/', retries + 1, '| file:', filename);
-      const res = await fetch(target, {
-        method: 'POST',
-        headers,
-        body: form as any,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      const text = await res.text();
-      if (!text) throw new Error(`Empty response (HTTP ${res.status})`);
-      let data;
-      try { data = JSON.parse(text); } catch {
-        throw new Error(`Non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}`);
-      }
-      if (!res.ok) {
-        const err: any = new Error((data?.error || data?.message) || `HTTP ${res.status}`);
-        err.status = res.status;
-        err.data = data;
-        throw err;
-      }
-      return data;
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      lastErr = err;
-      const isAbort = err.name === 'AbortError';
-      const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
-      const isTimeout = isAbort || /timeout|timed out/i.test(String(err?.message || ''));
-      if (err?.status === 401 && !refreshAttempted) {
-        refreshAttempted = true;
-        const refreshed = await auth.refreshToken();
-        if (refreshed?.accessToken) {
-          headers.Authorization = `Bearer ${refreshed.accessToken}`;
-          continue;
-        }
-        // Refresh failed on an upload — session is dead. Clear tokens and
-        // emit so AuthProvider routes to /sign-in. Flag the error so the
-        // caller's upload-error alert suppresses the misleading "please
-        // sign out and sign back in" copy.
-        try { await auth.clearTokensOnly?.(); } catch {}
-        err.isSessionExpired = true;
-        emitSessionExpired(
-          refreshed?.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
-        );
-      }
-      if (
-        isEmailVerificationRequiredError(err?.status, err?.data) &&
-        !verificationPrompted
-      ) {
-        verificationPrompted = true;
-        const verified = await openVerificationGate();
-        if (verified) {
-          const refreshedToken = await resolveUploadToken();
-          if (refreshedToken) {
-            headers.Authorization = `Bearer ${refreshedToken}`;
-            continue;
-          }
-        }
-      }
-      if (attempt < retries && (isNetwork || isTimeout)) {
-        await new Promise((r) => setTimeout(r, backoffMs * Math.pow(2, attempt)));
-        attempt++;
-        continue;
-      }
-      break;
-    }
-  }
-
-  if (lastErr?.name === 'AbortError') throw new Error('Upload timed out. Please check your connection and try again.');
-  if (lastErr instanceof TypeError && lastErr.message === 'Network request failed') {
-    throw new Error('Network error: unable to reach upload endpoint.');
-  }
-  if (lastErr?.status === 401) { const err: any = new Error('Unauthorized'); err.status = 401; throw err; }
-  throw lastErr;
+  return uploadViaFetchWithRetries({
+    target,
+    uri,
+    filename,
+    mimeType,
+    options,
+    timeoutMs,
+    debugLabel: 'Server proxy attempt',
+    coerceFinal401ToUnauthorized: true,
+  });
 }
 
 export default { uploadFile, uploadFileWithProgress };

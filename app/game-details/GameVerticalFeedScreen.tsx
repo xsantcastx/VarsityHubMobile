@@ -38,6 +38,7 @@ import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { httpGet } from '@/api/http';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
+import { resolveMediaType } from '@/utils/media';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
@@ -89,8 +90,6 @@ type FeedRailNavButtonsProps = {
   onNext: () => void;
 };
 
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-
 export function FeedRailNavButtons({
   show,
   canPrev,
@@ -134,17 +133,14 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
   const id = String(idValue);
   const mediaUrl = typeof item?.media_url === 'string' ? item.media_url : null;
   if (!mediaUrl) return null;
-  const explicitType = typeof item?.media_type === 'string' ? item.media_type.toLowerCase() : null;
-  const mediaType: 'video' | 'image' =
-    explicitType === 'video' || explicitType === 'image'
-      ? (explicitType as 'video' | 'image')
-      : VIDEO_EXT.test(mediaUrl)
-        ? 'video'
-        : 'image';
+  const mediaType = (resolveMediaType(item?.media_url, item?.media_type) ?? 'image') as
+    | 'video'
+    | 'image';
   return {
     id,
     media_url: mediaUrl,
     media_type: mediaType,
+    preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
     caption: item?.caption ?? sanitizeTitle(item?.title) ?? null,
     upvotes_count: typeof item?.upvotes_count === 'number' ? item.upvotes_count : 0,
     comments_count:

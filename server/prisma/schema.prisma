@@ -79,6 +79,11 @@ enum TeamRole {
   health_wellness
 }
 
+enum TeamStatus {
+  active
+  archived
+}
+
 enum MembershipStatus {
   active
   invited
@@ -117,6 +122,24 @@ enum InviteStatus {
   accepted
   declined
   revoked
+}
+
+enum OrganizationStatus {
+  active
+  rejected
+}
+
+enum OrganizationRole {
+  owner
+  manager
+  member
+  coach
+}
+
+enum OrganizationJoinRequestStatus {
+  pending
+  approved
+  denied
 }
 
 // ===========================

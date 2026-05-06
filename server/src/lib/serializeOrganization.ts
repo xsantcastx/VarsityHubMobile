@@ -31,6 +31,89 @@ export interface SerializeOrganizationOptions {
 
   /** Whether the current viewer follows this organization. */
   isFollowing?: boolean | null;
+
+  /** Viewer's org role (pre-resolved). */
+  viewerRole?: string | null;
+
+  /** Whether the viewer is an active member of the org. */
+  isMember?: boolean;
+
+  /** Whether the viewer owns the org. */
+  isOwner?: boolean;
+
+  /** Whether the viewer can edit the org. */
+  canEdit?: boolean;
+
+  /** Whether the viewer can review coach requests for this org. */
+  canReviewCoaches?: boolean;
+}
+
+// `Organization.status` is still used as a write/filter field in some legacy
+// flows, but returning it from Prisma-backed organization payloads is unsafe in
+// the current database shape. Keep organization API responses on an explicit
+// projection so routes don't accidentally decode the legacy column.
+export const ORGANIZATION_SERIALIZE_SAFE_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  logo_url: true,
+  profile_picture_url: true,
+  background_url: true,
+  sport: true,
+  org_type: true,
+  location: true,
+  zip_code: true,
+  season_start: true,
+  season_end: true,
+  created_at: true,
+  admin_approved: true,
+  contact_info: true,
+} as const;
+
+type BuildOrganizationSerializeSelectOptions = {
+  includeCounts?: boolean;
+  includeFollowersCount?: boolean;
+  includeTeams?: boolean;
+};
+
+export function buildOrganizationSerializeSelect(
+  opts: BuildOrganizationSerializeSelectOptions = {},
+) {
+  const countSelect: Record<string, true> = {};
+  if (opts.includeCounts) {
+    countSelect.memberships = true;
+    countSelect.teams = true;
+    if (opts.includeFollowersCount) countSelect.followers = true;
+  }
+
+  return {
+    ...ORGANIZATION_SERIALIZE_SAFE_SELECT,
+    ...(opts.includeCounts ? { _count: { select: countSelect } } : {}),
+    ...(opts.includeTeams
+      ? {
+          teams: {
+            orderBy: { name: 'asc' as const },
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              sport: true,
+              season_start: true,
+              season_end: true,
+              status: true,
+              logo_url: true,
+              avatar_url: true,
+              created_at: true,
+              _count: {
+                select: {
+                  memberships: true,
+                },
+              },
+            },
+          },
+        }
+      : {}),
+  };
 }
 
 function toIso(value: unknown): string | null {
@@ -116,6 +199,11 @@ export function serializeOrganization(organization: any, opts: SerializeOrganiza
 
   if (opts.includeViewerState) {
     base.is_following = opts.isFollowing ?? null;
+    base.viewer_role = opts.viewerRole ?? null;
+    base.is_member = opts.isMember === true;
+    base.is_owner = opts.isOwner === true;
+    base.can_edit = opts.canEdit === true;
+    base.can_review_coaches = opts.canReviewCoaches === true;
   }
 
   return base;

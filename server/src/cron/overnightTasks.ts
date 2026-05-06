@@ -5,6 +5,7 @@ import { runPostUpvoteReconciliation } from '../lib/postUpvoteReconciliation.js'
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../jobs/queues.js';
 import { captureException } from '../lib/sentry.js';
+import { releaseExpiredPendingApprovalReservations } from '../lib/adReservationLifecycle.js';
 import {
   hardDeleteAnonymizedUsers,
   ANONYMIZED_USER_RETENTION_DAYS_DEFAULT,
@@ -295,7 +296,20 @@ export function startAdGoLiveCheck() {
         );
       }
 
-      // 5. Recover refunded slot-full transactions whose inventory release failed after refund.
+      // 5. Release expired dates from approved ads that are still awaiting payment.
+      // Without this, an approved ad can keep past `pending_approval` reservations
+      // forever, which makes the UI treat never-paid dates like completed runs.
+      const expiredPendingApprovalReservations = await releaseExpiredPendingApprovalReservations(
+        prisma,
+        now,
+      );
+      if (expiredPendingApprovalReservations.adsTouched > 0) {
+        debugLog(
+          `[ad-lifecycle] Released ${expiredPendingApprovalReservations.releasedDates} expired pending-approval reservation dates across ${expiredPendingApprovalReservations.adsTouched} ads`
+        );
+      }
+
+      // 6. Recover refunded slot-full transactions whose inventory release failed after refund.
       const recoveredSlotFullReleaseFailures = await recoverSlotFullRefundReleaseFailures(now);
       if (recoveredSlotFullReleaseFailures > 0) {
         debugLog(
@@ -303,7 +317,7 @@ export function startAdGoLiveCheck() {
         );
       }
 
-      // 6. Archive approved ads that were never paid (older than 30 days)
+      // 7. Archive approved ads that were never paid (older than 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const unpaidAds = await prisma.ad.findMany({
         where: {
@@ -326,7 +340,7 @@ export function startAdGoLiveCheck() {
         debugLog(`[ad-lifecycle] Archived ${unpaidAds.length} unpaid approved ads (>30 days)`);
       }
 
-      // 7. Clean up old ProcessedStripeEvent records (older than 30 days)
+      // 8. Clean up old ProcessedStripeEvent records (older than 30 days)
       const deletedEvents = await prisma.processedStripeEvent.deleteMany({
         where: { created_at: { lt: thirtyDaysAgo } },
       });

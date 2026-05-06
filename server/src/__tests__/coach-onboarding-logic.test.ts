@@ -90,18 +90,18 @@ describe('coach onboarding logic — universal suite', () => {
       expect(requiresParentalConsent(kid, NOW)).toBe(false);
     });
 
-    it('exactly 13 — not a child but still a minor (requires parental consent)', () => {
+    it('exactly 13 — not a child, still a minor, but no parental consent is required', () => {
       const teen = makeUser('2013-04-23');
       expect(isChild(teen, NOW)).toBe(false);
       expect(isMinor(teen, NOW)).toBe(true);
-      expect(requiresParentalConsent(teen, NOW)).toBe(true);
+      expect(requiresParentalConsent(teen, NOW)).toBe(false);
       expect(isVerifiedAdult(teen, NOW)).toBe(false);
     });
 
     it('17 years old — still a minor, cannot become coach', () => {
       const almostAdult = makeUser('2008-06-01');
       expect(isMinor(almostAdult, NOW)).toBe(true);
-      expect(requiresParentalConsent(almostAdult, NOW)).toBe(true);
+      expect(requiresParentalConsent(almostAdult, NOW)).toBe(false);
       expect(isVerifiedAdult(almostAdult, NOW)).toBe(false);
     });
 

@@ -170,7 +170,7 @@ test.describe('Authentication Flow', () => {
 
     await waitForVerificationScreen(page);
 
-    await page.getByLabel('Sign out and use a different account').click();
+    await page.getByRole('button', { name: /wrong account\? sign out/i }).click();
     await recoverFromOfflineBanner(page);
     await expect(page.getByText('Welcome back')).toBeVisible();
 

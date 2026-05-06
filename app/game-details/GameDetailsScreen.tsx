@@ -7,6 +7,12 @@ import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { safeGoBack } from '@/utils/navigation';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
+import {
+  canShowGamePoll,
+  EVENT_LIVE_WINDOW_MS,
+  getEventPresentationPhase,
+  isEventPastEndOfDay,
+} from '@/utils/eventPresentation';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -61,7 +67,6 @@ const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] =
   '#38bdf8',
 ];
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-const GAME_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours live window
 const isSampleId = (id?: string | null) => !!id && /^sample-/i.test(String(id));
 
 type MediaItem = {
@@ -422,6 +427,7 @@ type GameVM = {
   media: MediaItem[];
   reviewsCount?: number | null;
   isPast: boolean;
+  eventType?: string | null;
   home_score?: number | null;
   away_score?: number | null;
   winner?: string | null;
@@ -452,10 +458,7 @@ const formatTimeLabel = (iso?: string | null) => {
 };
 
 const computeIsPast = (iso?: string | null) => {
-  if (!iso) return false;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return false;
-  return d.getTime() < Date.now();
+  return isEventPastEndOfDay(iso);
 };
 
 // Kept in sync with server/scripts/seed-demo-matchups.ts DEMO_TAG and the
@@ -792,26 +795,25 @@ const GameDetailsScreen = () => {
   // Derive game phase from date and now
   const { phase: gamePhase, diffMs: startsInMs } = useMemo(() => {
     const iso = vm?.date;
-    if (!iso) return { phase: 'final' as 'upcoming' | 'live' | 'final', diffMs: 0 };
+    if (!iso)
+      return { phase: 'final' as 'upcoming' | 'live' | 'active' | 'final', diffMs: 0 };
     const startMs = new Date(iso).getTime();
     if (!Number.isFinite(startMs)) return { phase: 'final' as const, diffMs: 0 };
     const diff = startMs - nowTs;
-    if (diff > 0) return { phase: 'upcoming' as const, diffMs: diff };
-    const elapsed = nowTs - startMs;
-    if (elapsed < GAME_WINDOW_MS) return { phase: 'live' as const, diffMs: 0 };
-    return { phase: 'final' as const, diffMs: 0 };
+    return {
+      phase: getEventPresentationPhase(iso, nowTs),
+      diffMs: diff > 0 ? diff : 0,
+    };
   }, [vm?.date, nowTs]);
 
-  // Poll stays open until midnight UTC the day after the event (covers all US timezones)
+  const canShowVoteSection = useMemo(
+    () => canShowGamePoll({ gameId: vm?.gameId, eventType: vm?.eventType }),
+    [vm?.eventType, vm?.gameId]
+  );
+
+  // Keep event-page interactions active through the end of the event day.
   const isVoteOpen = useMemo(() => {
-    const iso = vm?.date;
-    if (!iso) return false;
-    const eventDate = new Date(iso);
-    if (!Number.isFinite(eventDate.getTime())) return false;
-    const endOfEventDay = new Date(
-      Date.UTC(eventDate.getUTCFullYear(), eventDate.getUTCMonth(), eventDate.getUTCDate() + 1)
-    );
-    return nowTs < endOfEventDay.getTime();
+    return !isEventPastEndOfDay(vm?.date, nowTs);
   }, [vm?.date, nowTs]);
 
   // Countdown to when "Add Story" unlocks (12h before event start).
@@ -1147,6 +1149,7 @@ const GameDetailsScreen = () => {
       let homeTeam: string | null = null;
       let awayTeam: string | null = null;
       let appearance: string | null = null;
+      let eventType: string | null = null;
 
       if (summary) {
         eventIdValue = summary.eventId ?? summary.event_id ?? summary.event?.id ?? null;
@@ -1174,6 +1177,7 @@ const GameDetailsScreen = () => {
           typeof summaryAway === 'string' ? summaryAway : (summaryAway as any)?.name || null;
         // Appearance field surfaced from backend
         appearance = (summary as any)?.appearance ?? (summary.event as any)?.appearance ?? null;
+        eventType = (summary as any)?.event_type ?? (summary.event as any)?.event_type ?? null;
       }
 
       let homeScore: number | null = null;
@@ -1225,6 +1229,7 @@ const GameDetailsScreen = () => {
         teams = teamsArray;
         // Appearance from game record if present
         appearance = (gameRecord as any)?.appearance ?? null;
+        eventType = (gameRecord as any)?.event_type ?? eventType;
         homeScore =
           typeof (gameRecord as any).home_score === 'number'
             ? (gameRecord as any).home_score
@@ -1318,6 +1323,7 @@ const GameDetailsScreen = () => {
         media: mediaData,
         reviewsCount,
         isPast,
+        eventType,
         home_score: homeScore,
         away_score: awayScore,
         can_edit_result: canEditResult,
@@ -1417,7 +1423,7 @@ const GameDetailsScreen = () => {
         title: event?.title || 'Event',
         date: dateIso,
         location: event?.location || null,
-        description: null,
+        description: event?.description || null,
         bannerUrl: event?.banner_url || event?.cover_image_url || null,
         coverImageUrl: event?.cover_image_url || null,
         homeTeam: null,
@@ -1430,6 +1436,7 @@ const GameDetailsScreen = () => {
         media: [],
         reviewsCount: null,
         isPast: computeIsPast(dateIso),
+        eventType: event?.event_type ?? null,
       };
       setVm(vmPayload);
 
@@ -1799,14 +1806,8 @@ const GameDetailsScreen = () => {
   ]);
 
   const _refreshVotes = useCallback(async () => {
-    // Event-only pages (no gameId) get local vote state
-    if (!vm?.gameId) {
-      // If we have an eventId, show poll with local state
-      if (vm?.eventId) {
-        setVoteSummary(buildVoteSummary(0, 0, null));
-      } else {
-        setVoteSummary(null);
-      }
+    if (!canShowVoteSection || !vm?.gameId) {
+      setVoteSummary(null);
       return;
     }
     // For sample games, don't make API call
@@ -1824,7 +1825,7 @@ const GameDetailsScreen = () => {
     } catch (err) {
       if (__DEV__) console.warn('Failed to load game votes', err);
     }
-  }, [vm?.gameId, vm?.eventId]);
+  }, [canShowVoteSection, vm?.gameId]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -2207,8 +2208,7 @@ const GameDetailsScreen = () => {
   // inline StoriesViewer removed; using top-level component below
 
   const renderVoteSection = () => {
-    // Show poll if we have a gameId OR an eventId
-    if (!vm?.gameId && !vm?.eventId) return null;
+    if (!canShowVoteSection) return null;
     const summary = _voteSummary ?? buildVoteSummary(0, 0, null);
     const total = summary.total ?? 0;
     const hasVotes = total > 0;
@@ -2456,6 +2456,10 @@ const GameDetailsScreen = () => {
                   ]}
                 />
                 <Text style={styles.statusText}>LIVE</Text>
+              </View>
+            ) : gamePhase === 'active' ? (
+              <View style={[styles.statusChip, styles.statusUpcoming]}>
+                <Text style={styles.statusText}>TODAY</Text>
               </View>
             ) : (
               <View style={[styles.statusChip, styles.statusFinal]}>

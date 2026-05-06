@@ -5,8 +5,8 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  *
  * These tests follow the current server contract:
  * - verification and onboarding gates run before most coach tooling
- * - onboarding team/org creation routes have a narrow verification bypass
- * - that bypass does not grant coach privileges to fan accounts
+ * - verification remains the first gate on these onboarding mutation routes
+ * - that means fan and coach accounts can still be stopped before role/onboarding checks
  * - non-admin users cannot access admin-only routes
  */
 
@@ -81,7 +81,7 @@ test.describe('RBAC Permissions', () => {
     );
   });
 
-  test('Regular organization creation still requires verification for fresh coach accounts', async ({ request }) => {
+  test('Coach onboarding organization creation still respects the verification-first contract', async ({ request }) => {
     const coach = await createTestUser(request, 'coach');
     const response = await createAuthRequest(request, coach.token).post(`${API_BASE_URL}/organizations`, {
       data: {

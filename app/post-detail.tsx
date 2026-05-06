@@ -3,6 +3,7 @@ import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
+import { resolvePostMedia } from '@/utils/media';
 import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { safeGoBack } from '@/utils/navigation';
 import { Image as ExpoImage } from 'expo-image';
@@ -977,14 +978,16 @@ export default function PostDetailScreen() {
   }
 
   const hasMultiplePosts = postIdsArray.length > 1;
-  const currentIsImage = post.media_url && !post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
-  const currentIsVideo = post.media_url && post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
+  const currentMedia = resolvePostMedia(post);
+  const currentIsImage = currentMedia.mediaType === 'image';
+  const currentIsVideo = currentMedia.mediaType === 'video';
 
   // Render single post content (reusable for both single and multi-post views)
   const renderPostContent = (postData: any, commentsData: any[], isInsidePager = false) => {
-    const isImage = postData.media_url && !postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
-    const isVideo = postData.media_url && postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
-    const hasMedia = isImage || isVideo;
+    const media = resolvePostMedia(postData);
+    const isImage = media.mediaType === 'image';
+    const isVideo = media.mediaType === 'video';
+    const hasMedia = media.hasMedia;
     const category = getSportCategory(postData.title, postData.content);
     const localComments = Array.isArray(commentsData) ? commentsData : [];
     const isActivePost = String(postData.id) === String(currentPostId);
@@ -1028,14 +1031,14 @@ export default function PostDetailScreen() {
             <Pressable style={styles.mediaContainer} onPress={() => setFullscreenMedia(true)}>
               {isImage && (
                 <ExpoImage
-                  source={{ uri: postData.media_url }}
+                  source={{ uri: media.mediaUrl! }}
                   style={styles.heroImage}
                   contentFit="cover"
                 />
               )}
               {isVideo && (
                 <View style={styles.videoContainer}>
-                  <VideoPlayer uri={postData.media_url} style={styles.heroVideo} />
+                  <VideoPlayer uri={media.mediaUrl!} style={styles.heroVideo} />
                 </View>
               )}
 

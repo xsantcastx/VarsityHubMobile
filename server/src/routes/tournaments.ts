@@ -1,6 +1,9 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
+import { buildOrganizationSerializeSelect, serializeOrganization } from '../lib/serializeOrganization.js';
+import { getOrganizationState } from '../lib/organizationState.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -68,6 +71,7 @@ tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, asyncHa
         location: location ?? undefined,
         updated_at: new Date(),
       },
+      select: buildOrganizationSerializeSelect(),
     });
 
     // Add creator as org owner
@@ -77,9 +81,10 @@ tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, asyncHa
         user_id: req.user!.id,
         role: 'owner',
       },
+      select: { id: true },
     });
 
-    return res.status(201).json(tournament);
+    return res.status(201).json(serializeOrganization(tournament));
   } catch (error: any) {
     console.error('Failed to create tournament:', error);
     return res.status(500).json({ error: 'Failed to create tournament' });
@@ -95,7 +100,8 @@ tournamentsRouter.get('/', asyncHandler(async (_req: Request, res: Response) => 
     const tournaments = await prisma.organization.findMany({
       where: { org_type: 'tournament' },
       take: 200,
-      include: {
+      select: {
+        ...buildOrganizationSerializeSelect(),
         teams: {
           select: {
             id: true,
@@ -106,7 +112,7 @@ tournamentsRouter.get('/', asyncHandler(async (_req: Request, res: Response) => 
       },
     });
 
-    return res.json(tournaments);
+    return res.json(tournaments.map(tournament => serializeOrganization(tournament, { includeTeams: true })));
   } catch (error: any) {
     console.error('Failed to fetch tournaments:', error);
     return res.status(500).json({ error: 'Failed to fetch tournaments' });
@@ -123,7 +129,8 @@ tournamentsRouter.get('/:id', asyncHandler(async (req: Request, res: Response) =
 
     const tournament = await prisma.organization.findUnique({
       where: { id },
-      include: {
+      select: {
+        ...buildOrganizationSerializeSelect(),
         teams: {
           select: {
             id: true,
@@ -142,7 +149,7 @@ tournamentsRouter.get('/:id', asyncHandler(async (req: Request, res: Response) =
       return res.status(404).json({ error: 'Tournament not found' });
     }
 
-    return res.json(tournament);
+    return res.json(serializeOrganization(tournament, { includeTeams: true }));
   } catch (error: any) {
     console.error('Failed to fetch tournament:', error);
     return res.status(500).json({ error: 'Failed to fetch tournament' });
@@ -160,10 +167,8 @@ tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asy
     const parsed = updateTournamentSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
 
-    const membership = await prisma.organizationMembership.findUnique({
-      where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } },
-    });
-    if (!membership || !['owner', 'manager'].includes(membership.role)) {
+    const membership = await getOrganizationMembership(req.user!.id, id);
+    if (!membership || membership.status !== 'active' || !['owner', 'manager'].includes(String(membership.role))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -177,9 +182,10 @@ tournamentsRouter.patch('/:id', requireAuth as any, requireOnboarded as any, asy
     const tournament = await prisma.organization.update({
       where: { id },
       data,
+      select: buildOrganizationSerializeSelect(),
     });
 
-    return res.json(tournament);
+    return res.json(serializeOrganization(tournament));
   } catch (error: any) {
     console.error('Failed to update tournament:', error);
     return res.status(500).json({ error: 'Failed to update tournament' });
@@ -199,10 +205,8 @@ tournamentsRouter.post('/:id/teams', requireAuth as any, requireOnboarded as any
       return res.status(400).json({ error: 'team_id is required' });
     }
 
-    const membership = await prisma.organizationMembership.findUnique({
-      where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } },
-    });
-    if (!membership || !['owner', 'manager'].includes(membership.role)) {
+    const membership = await getOrganizationMembership(req.user!.id, id);
+    if (!membership || membership.status !== 'active' || !['owner', 'manager'].includes(String(membership.role))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -254,15 +258,13 @@ tournamentsRouter.post('/:id/games', requireAuth as any, requireOnboarded as any
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
     const { title, home_team, away_team, date, location, latitude, longitude } = parsed.data;
 
-    const tournament = await prisma.organization.findUnique({ where: { id } });
+    const tournament = await getOrganizationState(id);
     if (!tournament) {
       return res.status(404).json({ error: 'Tournament not found' });
     }
 
-    const membership = await prisma.organizationMembership.findUnique({
-      where: { organization_id_user_id: { organization_id: id, user_id: req.user!.id } },
-    });
-    if (!membership || !['owner', 'manager'].includes(membership.role)) {
+    const membership = await getOrganizationMembership(req.user!.id, id);
+    if (!membership || membership.status !== 'active' || !['owner', 'manager'].includes(String(membership.role))) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 

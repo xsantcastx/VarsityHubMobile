@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    FlatList,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -16,7 +17,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import { Event, Game, Team } from '@/api/entities';
+import EventPreviewImageField from '@/components/EventPreviewImageField';
+// @ts-ignore
+import { httpPost } from '@/api/http';
+import { Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { safeGoBack } from '@/utils/navigation';
 import { sanitizeText } from '@/utils/formUtils';
@@ -34,32 +38,6 @@ const EVENT_TYPES = [
 ];
 
 type TeamResult = { id: string; name: string; sport?: string; logo_url?: string | null };
-type TeamListResponse = TeamResult[] | { items?: TeamResult[] };
-type EventCreatePayload = {
-  title: string;
-  description: string;
-  event_type: string;
-  location: string;
-  venue_address: string;
-  venue_place_id?: string;
-  date: string;
-  autoGeocode: boolean;
-  home_team_id?: string;
-  home_team?: string;
-  away_team_id?: string;
-  away_team?: string;
-  away_team_name?: string;
-};
-type EventCreateError = {
-  message?: string;
-  data?: {
-    error?: string;
-    issues?: Array<{
-      path?: Array<string | number> | string;
-      message?: string;
-    }>;
-  };
-};
 
 function CreateEventScreen() {
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
@@ -77,6 +55,7 @@ function CreateEventScreen() {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -106,9 +85,7 @@ function CreateEventScreen() {
     timerRef.current = setTimeout(async () => {
       try {
         const res = await Team.list(query, false, { limit: 8 });
-        const parsed = res as TeamListResponse;
-        const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.items) ? parsed.items : []);
-        setResults(list);
+        setResults(res.teams || res.data || []);
       } catch { setResults([]); }
       finally { setSearching(false); }
     }, 300);
@@ -139,13 +116,10 @@ function CreateEventScreen() {
   }, []);
 
   useEffect(() => {
-    const locationTimer = locationTimerRef.current;
-    const homeTimer = homeTimerRef.current;
-    const awayTimer = awayTimerRef.current;
     return () => {
-      if (locationTimer) clearTimeout(locationTimer);
-      if (homeTimer) clearTimeout(homeTimer);
-      if (awayTimer) clearTimeout(awayTimer);
+      if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
+      if (homeTimerRef.current) clearTimeout(homeTimerRef.current);
+      if (awayTimerRef.current) clearTimeout(awayTimerRef.current);
     };
   }, []);
 
@@ -163,7 +137,9 @@ function CreateEventScreen() {
 
     setSubmitting(true);
     try {
-      const payload: EventCreatePayload = {
+      // All admin events go through /games so they get a full event page
+      // with stories, polls, RSVP, and appear as cards in the feed
+      const gameData: Record<string, any> = {
         title: sanitizeText(title),
         description: sanitizeText(description),
         event_type: eventType,
@@ -174,31 +150,31 @@ function CreateEventScreen() {
         autoGeocode: !selectedPlace,
       };
 
+      if (previewImageUrl) {
+        gameData.banner_url = previewImageUrl;
+        gameData.cover_image_url = previewImageUrl;
+      }
+
       // Add team info only if provided
       if (homeTeam) {
-        payload.home_team_id = homeTeam.id;
-        payload.home_team = homeTeam.name;
+        gameData.home_team_id = homeTeam.id;
+        gameData.home_team = homeTeam.name;
       }
       if (awayTeam) {
-        payload.away_team_id = awayTeam.id;
-        payload.away_team = awayTeam.name;
+        gameData.away_team_id = awayTeam.id;
+        gameData.away_team = awayTeam.name;
       }
       if (!awayTeam && awayTeamName.trim()) {
-        payload.away_team_name = awayTeamName.trim();
-        payload.away_team = awayTeamName.trim();
+        gameData.away_team_name = awayTeamName.trim();
+        gameData.away_team = awayTeamName.trim();
       }
 
-      if (isGameType) {
-        await Game.create(payload);
-      } else {
-        await Event.create(payload as never);
-      }
+      await httpPost('/games', gameData);
 
-      Alert.alert('Event Created!', 'Your event has been saved successfully.', [
+      Alert.alert('Event Created!', 'Your event has been published and is visible to all users.', [
         { text: 'OK', onPress: () => { safeGoBack(router); } },
       ]);
-    } catch (error: unknown) {
-      const e = error as EventCreateError;
+    } catch (e: any) {
       if (isSessionExpiryError(e)) {
         return;
       }
@@ -206,12 +182,7 @@ function CreateEventScreen() {
       // Surface Zod validation details if available
       const issues = e?.data?.issues;
       if (issues && Array.isArray(issues)) {
-        errorMsg = issues
-          .map((issue) => {
-            const issuePath = Array.isArray(issue.path) ? issue.path.join('.') : issue.path;
-            return `${issuePath || 'field'}: ${issue.message || 'Invalid value'}`;
-          })
-          .join('\n');
+        errorMsg = issues.map((i: any) => `${i.path?.join?.('.') || i.path}: ${i.message}`).join('\n');
       }
       Alert.alert('Error', errorMsg);
     } finally {
@@ -436,6 +407,13 @@ function CreateEventScreen() {
             multiline
           />
         </View>
+
+        <EventPreviewImageField
+          value={previewImageUrl}
+          onChange={setPreviewImageUrl}
+          disabled={submitting}
+          helperText="Upload the event preview image that should appear on the feed card and event page."
+        />
 
         {/* Location */}
         <View style={[styles.section, { zIndex: 10 }]}>

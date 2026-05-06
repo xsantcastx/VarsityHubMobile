@@ -136,6 +136,7 @@ export interface CreateEventPayload {
   latitude?: number;
   longitude?: number;
   banner_url?: string;
+  cover_image_url?: string;
   game_id?: string;
   event_type?: 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'team_meal' | 'tryout' | 'bbq' | 'team_meeting' | 'host_request' | 'other';
   description?: string;

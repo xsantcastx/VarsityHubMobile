@@ -1,14 +1,12 @@
-import { Prisma } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
-import { Router, type Response } from 'express';
+import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
 import {
   buildCoachApplicationReviewUrl,
   sendCoachApplicationAdminEmail,
-  sendPasswordChangedEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '../lib/email.js';
@@ -144,7 +142,11 @@ function parseResetFailureRecord(raw: string | null): ResetFailureRecord | null 
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.attempts === 'number' && typeof parsed.lockedUntil === 'number') {
+    if (
+      parsed &&
+      typeof parsed.attempts === 'number' &&
+      typeof parsed.lockedUntil === 'number'
+    ) {
       return parsed as ResetFailureRecord;
     }
     return null;
@@ -172,7 +174,8 @@ async function checkResetAttempt(
 async function recordResetFailure(email: string): Promise<void> {
   const key = `resetfail:${email}`;
   const raw = await rlGet(key);
-  let record: ResetFailureRecord = parseResetFailureRecord(raw) ?? { attempts: 0, lockedUntil: 0 };
+  let record: ResetFailureRecord =
+    parseResetFailureRecord(raw) ?? { attempts: 0, lockedUntil: 0 };
 
   record.attempts++;
   if (record.attempts >= MAX_RESET_FAILURES) {
@@ -184,16 +187,6 @@ async function recordResetFailure(email: string): Promise<void> {
 
 async function clearResetFailures(email: string): Promise<void> {
   await rlDel(`resetfail:${email}`);
-}
-
-function sendAuthError(
-  res: Response,
-  status: number,
-  error: string,
-  code: string,
-  extra: Record<string, unknown> = {}
-) {
-  return res.status(status).json({ error, code, ...extra }); // error-envelope-exempt
 }
 
 // ── Per-account login lockout ──
@@ -308,12 +301,7 @@ async function verifyGoogleIdentityToken(idToken: string) {
     ticket = await googleOAuthClient.verifyIdToken({
       idToken,
       ...(GOOGLE_ALLOWED_AUDIENCES.length
-        ? {
-            audience:
-              GOOGLE_ALLOWED_AUDIENCES.length === 1
-                ? GOOGLE_ALLOWED_AUDIENCES[0]
-                : GOOGLE_ALLOWED_AUDIENCES,
-          }
+        ? { audience: GOOGLE_ALLOWED_AUDIENCES.length === 1 ? GOOGLE_ALLOWED_AUDIENCES[0] : GOOGLE_ALLOWED_AUDIENCES }
         : {}),
     });
   } catch (err: any) {
@@ -470,15 +458,13 @@ function isUnder13(dob: string | null | undefined): boolean {
 
 function deriveParentalConsentFields(dob: Date | null) {
   if (!dob) return {};
-  return requiresParentalConsent({ date_of_birth: dob })
-    ? { parental_consent_status: 'pending' as const, parental_consent_at: null }
-    : { parental_consent_status: 'not_required' as const, parental_consent_at: null };
+  return { parental_consent_status: 'not_required' as const, parental_consent_at: null };
 }
 
 function resolveEffectiveDob(
   currentDob: Date | string | null | undefined,
   currentPrefs: Record<string, any>,
-  incomingDob?: string | null
+  incomingDob?: string | null,
 ): Date | null {
   if (incomingDob) return parseDobLocal(incomingDob);
   return getCanonicalDob({
@@ -677,7 +663,7 @@ authRouter.post(
     };
     if (shouldExposeDevCodes) payload.dev_verification_code = code;
     debugLog('[register] Completed in', Date.now() - start, 'ms');
-    res.status(201).json(payload); // error-envelope-exempt
+    res.status(201).json(payload);
   })
 );
 
@@ -687,7 +673,7 @@ authRouter.post(
   '/login',
   asyncHandler(async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' }); // error-envelope-exempt
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
     const { email, password } = parsed.data;
     const sanitizedEmail = email.trim().toLowerCase();
 
@@ -696,8 +682,6 @@ authRouter.post(
     const lockCheck = await checkLoginAttempt(sanitizedEmail);
     if (!lockCheck.allowed) {
       return res.status(429).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Too many failed login attempts. Please try again later.',
         retry_after_ms: lockCheck.retryAfterMs,
       });
@@ -705,7 +689,7 @@ authRouter.post(
 
     // Velocity limiter — counts every call (success or fail) per email.
     if (!(await checkAuthRateLimit(sanitizedEmail))) {
-      return res.status(429).json({ error: 'Too many login attempts. Please try again later.' }); // error-envelope-exempt
+      return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
     }
 
     const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
@@ -717,16 +701,16 @@ authRouter.post(
 
     if (!user) {
       await recordLoginFailure(sanitizedEmail);
-      return res.status(401).json({ error: 'Invalid credentials' }); // error-envelope-exempt
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (user.banned) return res.status(403).json({ error: 'Account banned' }); // error-envelope-exempt
+    if (user.banned) return res.status(403).json({ error: 'Account banned' });
     if (!user.password_hash) {
       await recordLoginFailure(sanitizedEmail);
-      return res.status(401).json({ error: 'Invalid credentials' }); // error-envelope-exempt
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!passwordMatches) {
       await recordLoginFailure(sanitizedEmail);
-      return res.status(401).json({ error: 'Invalid credentials' }); // error-envelope-exempt
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
     // Success — clear the failure counter so this account isn't half-locked.
     await clearLoginFailures(sanitizedEmail);
@@ -768,12 +752,12 @@ authRouter.post(
       typeof req.body.refresh_token !== 'string' ||
       !req.body.refresh_token.trim()
     ) {
-      return res.status(401).json({ error: 'Invalid refresh token' }); // error-envelope-exempt
+      return res.status(401).json({ error: 'Invalid refresh token' });
     }
 
     try {
       const parsed = refreshSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(401).json({ error: 'Invalid refresh token' }); // error-envelope-exempt
+      if (!parsed.success) return res.status(401).json({ error: 'Invalid refresh token' });
 
       const { refresh_token } = parsed.data;
 
@@ -789,15 +773,11 @@ authRouter.post(
         const tokenHash = hashRefreshToken(refresh_token);
         stored = await prisma.refreshToken.findUnique({ where: { token_hash: tokenHash } });
       }
-      if (!stored) return res.status(401).json({ error: 'Invalid refresh token' }); // error-envelope-exempt
+      if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
 
       // Constant-time verification against the stored hash.
-      const matches = await verifyRefreshTokenHash(
-        refresh_token,
-        stored.token_hash,
-        stored.hash_version
-      );
-      if (!matches) return res.status(401).json({ error: 'Invalid refresh token' }); // error-envelope-exempt
+      const matches = await verifyRefreshTokenHash(refresh_token, stored.token_hash, stored.hash_version);
+      if (!matches) return res.status(401).json({ error: 'Invalid refresh token' });
 
       if (stored.expires_at < new Date()) {
         await mustSucceed(
@@ -809,7 +789,7 @@ authRouter.post(
           },
           () => prisma.refreshToken.delete({ where: { id: stored.id } })
         );
-        return res.status(401).json({ error: 'Refresh token expired' }); // error-envelope-exempt
+        return res.status(401).json({ error: 'Refresh token expired' });
       }
 
       // Check user still valid
@@ -824,7 +804,7 @@ authRouter.post(
           },
           () => prisma.refreshToken.delete({ where: { id: stored.id } })
         );
-        return res.status(401).json({ error: 'Account not found or banned' }); // error-envelope-exempt
+        return res.status(401).json({ error: 'Account not found or banned' });
       }
 
       // Reject tokens issued before a password change
@@ -838,7 +818,7 @@ authRouter.post(
           },
           () => prisma.refreshToken.delete({ where: { id: stored.id } })
         );
-        return res.status(401).json({ error: 'Token invalidated by password change' }); // error-envelope-exempt
+        return res.status(401).json({ error: 'Token invalidated by password change' });
       }
 
       // AUTH-4: Validate device fingerprint (warn-only for now to avoid breaking existing sessions)
@@ -877,7 +857,7 @@ authRouter.post(
       } catch (txErr: any) {
         // Token was already deleted by a concurrent request — treat as invalid
         if (txErr?.code === 'P2025') {
-          return res.status(401).json({ error: 'Token already used' }); // error-envelope-exempt
+          return res.status(401).json({ error: 'Token already used' });
         }
         throw txErr;
       }
@@ -889,7 +869,7 @@ authRouter.post(
       const access_token = signAccessTokenForSession(user.id, (user as any).session_epoch ?? 0);
       return res.json({ access_token, refresh_token: newRawRefresh });
     } catch (err) {
-      return res.status(401).json({ error: 'Invalid refresh token' }); // error-envelope-exempt
+      return res.status(401).json({ error: 'Invalid refresh token' });
     }
   })
 );
@@ -903,20 +883,9 @@ authRouter.post(
   '/revoke-all-tokens',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
-    const revoked = await prisma.$transaction(async tx => {
-      await tx.user.update({
-        where: { id: req.user!.id },
-        data: {
-          // Force every currently-issued access token to fail authMiddleware
-          // immediately, not just refresh tokens minted afterward.
-          session_epoch: { increment: 1 },
-        },
-      });
-      const { count } = await tx.refreshToken.deleteMany({ where: { user_id: req.user!.id } });
-      return count;
-    });
-    return res.json({ ok: true, revoked });
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { count } = await prisma.refreshToken.deleteMany({ where: { user_id: req.user!.id } });
+    return res.json({ ok: true, revoked: count });
   })
 );
 
@@ -1000,7 +969,10 @@ authRouter.post(
           // user keeps receiving pushes after signing out. Failure here
           // means the token wasn't cleared; surfacing to Sentry so it
           // gets triaged instead of buried in container stdout.
-          console.warn('[auth] logout push_token clear failed:', (err as any)?.message || err);
+          console.warn(
+            '[auth] logout push_token clear failed:',
+            (err as any)?.message || err
+          );
           captureException(err instanceof Error ? err : new Error(String(err)), {
             context: 'logout_push_token_clear_failed',
             userId: row.user_id,
@@ -1043,7 +1015,7 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = deleteAccountSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid payload' }); // error-envelope-exempt
+      return res.status(400).json({ error: 'Invalid payload' });
     }
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({
@@ -1055,7 +1027,7 @@ authRouter.post(
         deletion_anonymized: true,
       },
     });
-    if (!user) return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
+    if (!user) return res.status(404).json({ error: 'Not found' });
 
     // Idempotent: already deleted → return 200 with already_deleted flag.
     if (user.deleted_at || user.deletion_anonymized) {
@@ -1073,8 +1045,6 @@ authRouter.post(
       const suppliedPassword = parsed.data.password;
       if (!suppliedPassword) {
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'PASSWORD_REQUIRED',
           message: 'Password is required to delete your account.',
         });
@@ -1082,8 +1052,6 @@ authRouter.post(
       const ok = await bcrypt.compare(suppliedPassword, user.password_hash);
       if (!ok) {
         return res.status(401).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'INVALID_PASSWORD',
           message: 'Password does not match.',
         });
@@ -1095,10 +1063,7 @@ authRouter.post(
     } catch (err) {
       if ((err as any)?.code === 'SOLE_ORG_OWNER') {
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
-          error:
-            'You are the sole owner of an organization. Transfer ownership before deleting your account.',
+          error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
           code: 'SOLE_ORG_OWNER',
           organization_id: (err as any).organization_id,
         });
@@ -1129,13 +1094,13 @@ authRouter.post(
   oauthLimiter,
   asyncHandler(async (req, res) => {
     const parsed = googleAuthSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' }); // error-envelope-exempt
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
     if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
       console.error(
         '[auth/google] rejecting Google sign-in because GOOGLE_OAUTH_CLIENT_IDS is not configured'
       );
-      return res.status(503).json({ error: 'Google sign-in is temporarily unavailable' }); // error-envelope-exempt
+      return res.status(503).json({ error: 'Google sign-in is temporarily unavailable' });
     }
 
     const { id_token } = parsed.data;
@@ -1146,9 +1111,12 @@ authRouter.post(
       // signed for a different Google OAuth client (e.g. some random third-party
       // app) would successfully authenticate a user in our app. In dev/test we
       // accept any audience so local sign-in works without client-id config.
-      if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
+      if (
+        process.env.NODE_ENV === 'production' &&
+        GOOGLE_ALLOWED_AUDIENCES.length === 0
+      ) {
         console.error('[auth/google] Rejecting token: GOOGLE_OAUTH_CLIENT_IDS not configured');
-        return res.status(503).json({ error: 'Google Sign-In is not configured' }); // error-envelope-exempt
+        return res.status(503).json({ error: 'Google Sign-In is not configured' });
       }
 
       const {
@@ -1200,15 +1168,15 @@ authRouter.post(
         });
 
         if (existingByEmail) {
-          return res.status(409).json(
-            // error-envelope-exempt
-            // error-envelope-exempt
-            buildOAuthExistingAccountConflict({
-              email,
-              user: existingByEmail,
-              providerLabel: 'Google',
-            })
-          );
+          return res
+            .status(409)
+            .json(
+              buildOAuthExistingAccountConflict({
+                email,
+                user: existingByEmail,
+                providerLabel: 'Google',
+              })
+            );
         } else {
           stage = 'create-user';
           const randomSecret = crypto.randomBytes(32).toString('hex');
@@ -1222,13 +1190,10 @@ authRouter.post(
                 display_name: displayNameSource,
                 avatar_url: avatarUrl,
                 email_verified: true,
-                preferences: mergeAuthStateIntoPreferences(
-                  {},
-                  {
-                    role: 'fan',
-                    onboarding_completed: false,
-                  }
-                ),
+                preferences: mergeAuthStateIntoPreferences({}, {
+                  role: 'fan',
+                  onboarding_completed: false,
+                }),
                 role: 'fan',
                 onboarding_completed: false,
               },
@@ -1239,15 +1204,15 @@ authRouter.post(
                 where: { email: { equals: email, mode: 'insensitive' } },
               });
               if (existingUser) {
-                return res.status(409).json(
-                  // error-envelope-exempt
-                  // error-envelope-exempt
-                  buildOAuthExistingAccountConflict({
-                    email,
-                    user: existingUser,
-                    providerLabel: 'Google',
-                  })
-                );
+                return res
+                  .status(409)
+                  .json(
+                    buildOAuthExistingAccountConflict({
+                      email,
+                      user: existingUser,
+                      providerLabel: 'Google',
+                    })
+                  );
               }
             }
             throw createErr;
@@ -1273,7 +1238,7 @@ authRouter.post(
       const sanitized = sanitizeUser(user);
       const { access_token, refresh_token: rawRefresh } = await startNewSession(
         sanitized.id,
-        req.headers['user-agent'] || null
+        req.headers['user-agent'] || null,
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
 
@@ -1293,7 +1258,7 @@ authRouter.post(
       });
     } catch (err: any) {
       if (err instanceof AppError) {
-        return res.status(err.statusCode).json(err.toJSON()); // error-envelope-exempt
+        return res.status(err.statusCode).json(err.toJSON());
       }
       console.error(`[auth/google] error at stage="${stage}"`, {
         message: err?.message,
@@ -1305,7 +1270,7 @@ authRouter.post(
         stage,
         context: 'google-auth',
       });
-      return res.status(500).json({ error: 'Failed to authenticate with Google' }); // error-envelope-exempt
+      return res.status(500).json({ error: 'Failed to authenticate with Google' });
     }
   })
 );
@@ -1320,11 +1285,11 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
     if (!APPLE_CLIENT_ID) {
-      return res.status(503).json({ error: 'Apple Sign-In is not configured' }); // error-envelope-exempt
+      return res.status(503).json({ error: 'Apple Sign-In is not configured' });
     }
 
     const parsed = appleAuthSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' }); // error-envelope-exempt
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
     const { identity_token } = parsed.data;
 
@@ -1345,15 +1310,15 @@ authRouter.post(
         }
 
         if (existingByEmail) {
-          return res.status(409).json(
-            // error-envelope-exempt
-            // error-envelope-exempt
-            buildOAuthExistingAccountConflict({
-              email: email || existingByEmail.email,
-              user: existingByEmail,
-              providerLabel: 'Apple',
-            })
-          );
+          return res
+            .status(409)
+            .json(
+              buildOAuthExistingAccountConflict({
+                email: email || existingByEmail.email,
+                user: existingByEmail,
+                providerLabel: 'Apple',
+              })
+            );
         } else {
           // Create new user
           const randomSecret = crypto.randomBytes(32).toString('hex');
@@ -1371,13 +1336,10 @@ authRouter.post(
                 apple_id: appleId,
                 display_name: null,
                 email_verified: true,
-                preferences: mergeAuthStateIntoPreferences(
-                  {},
-                  {
-                    role: 'fan',
-                    onboarding_completed: false,
-                  }
-                ),
+                preferences: mergeAuthStateIntoPreferences({}, {
+                  role: 'fan',
+                  onboarding_completed: false,
+                }),
                 role: 'fan',
                 onboarding_completed: false,
               },
@@ -1392,15 +1354,15 @@ authRouter.post(
                 where: { email: { equals: userEmail, mode: 'insensitive' } },
               });
               if (existingUser) {
-                return res.status(409).json(
-                  // error-envelope-exempt
-                  // error-envelope-exempt
-                  buildOAuthExistingAccountConflict({
-                    email: userEmail,
-                    user: existingUser,
-                    providerLabel: 'Apple',
-                  })
-                );
+                return res
+                  .status(409)
+                  .json(
+                    buildOAuthExistingAccountConflict({
+                      email: userEmail,
+                      user: existingUser,
+                      providerLabel: 'Apple',
+                    })
+                  );
               } else {
                 throw createErr; // Re-throw if we still can't find the user
               }
@@ -1417,7 +1379,7 @@ authRouter.post(
       // Mint a fresh pair for this login without invalidating other devices.
       const { access_token, refresh_token: appleRawRefresh } = await startNewSession(
         sanitized.id,
-        req.headers['user-agent'] || null
+        req.headers['user-agent'] || null,
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
       const isAppleOAuthAdmin = isAdminEmail(sanitized.email);
@@ -1435,10 +1397,10 @@ authRouter.post(
       });
     } catch (err: any) {
       if (err instanceof AppError) {
-        return res.status(err.statusCode).json(err.toJSON()); // error-envelope-exempt
+        return res.status(err.statusCode).json(err.toJSON());
       }
       console.error('[auth/apple] unexpected error', err);
-      return res.status(500).json({ error: 'Failed to authenticate with Apple' }); // error-envelope-exempt
+      return res.status(500).json({ error: 'Failed to authenticate with Apple' });
     }
   })
 );
@@ -1449,7 +1411,7 @@ authRouter.post(
   oauthLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = googleAuthSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' }); // error-envelope-exempt
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -1463,18 +1425,14 @@ authRouter.post(
         display_name: true,
       },
     });
-    if (!currentUser) return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
+    if (!currentUser) return res.status(404).json({ error: 'Not found' });
 
     const { googleId, email, displayName, avatarUrl } = await verifyGoogleIdentityToken(
       parsed.data.id_token
     );
-    const normalizedCurrentEmail = String(currentUser.email || '')
-      .trim()
-      .toLowerCase();
+    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
     if (normalizedCurrentEmail !== email) {
       return res.status(409).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         code: 'OAUTH_EMAIL_MISMATCH',
         email,
         error: `Google returned ${email}, which does not match your signed-in account.`,
@@ -1484,16 +1442,12 @@ authRouter.post(
     const linkedUser = await prisma.user.findUnique({ where: { google_id: googleId } });
     if (linkedUser && linkedUser.id !== currentUser.id) {
       return res.status(409).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         code: 'OAUTH_PROVIDER_ALREADY_LINKED',
         error: 'This Google account is already linked to another VarsityHub account.',
       });
     }
     if (currentUser.google_id && currentUser.google_id !== googleId) {
       return res.status(409).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         code: 'OAUTH_PROVIDER_ALREADY_LINKED',
         error: 'Your VarsityHub account is already linked to a different Google account.',
       });
@@ -1531,11 +1485,11 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID;
     if (!APPLE_CLIENT_ID) {
-      return res.status(503).json({ error: 'Apple Sign-In is not configured' }); // error-envelope-exempt
+      return res.status(503).json({ error: 'Apple Sign-In is not configured' });
     }
 
     const parsed = appleAuthSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' }); // error-envelope-exempt
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user!.id },
@@ -1547,29 +1501,19 @@ authRouter.post(
         apple_id: true,
       },
     });
-    if (!currentUser) return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
+    if (!currentUser) return res.status(404).json({ error: 'Not found' });
 
-    const { appleId, email } = await verifyAppleIdentityToken(
-      parsed.data.identity_token,
-      APPLE_CLIENT_ID
-    );
+    const { appleId, email } = await verifyAppleIdentityToken(parsed.data.identity_token, APPLE_CLIENT_ID);
     if (!email) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         code: 'APPLE_EMAIL_REQUIRED_FOR_LINK',
-        error:
-          'Apple did not provide an email address for this sign-in. Try again and share your email with Apple Sign-In enabled.',
+        error: 'Apple did not provide an email address for this sign-in. Try again and share your email with Apple Sign-In enabled.',
       });
     }
 
-    const normalizedCurrentEmail = String(currentUser.email || '')
-      .trim()
-      .toLowerCase();
+    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
     if (normalizedCurrentEmail !== String(email).trim().toLowerCase()) {
       return res.status(409).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         code: 'OAUTH_EMAIL_MISMATCH',
         email,
         error: `Apple returned ${email}, which does not match your signed-in account.`,
@@ -1579,16 +1523,12 @@ authRouter.post(
     const linkedUser = await prisma.user.findUnique({ where: { apple_id: appleId } });
     if (linkedUser && linkedUser.id !== currentUser.id) {
       return res.status(409).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         code: 'OAUTH_PROVIDER_ALREADY_LINKED',
         error: 'This Apple account is already linked to another VarsityHub account.',
       });
     }
     if (currentUser.apple_id && currentUser.apple_id !== appleId) {
       return res.status(409).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         code: 'OAUTH_PROVIDER_ALREADY_LINKED',
         error: 'Your VarsityHub account is already linked to a different Apple account.',
       });
@@ -1622,7 +1562,7 @@ authRouter.post(
   passwordResetLimiter as any,
   asyncHandler(async (req, res) => {
     const parsed = passwordResetRequestSchema.safeParse(req.body);
-    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
     const email = parsed.data.email.trim().toLowerCase();
 
     // SECURITY: Rate limiting to prevent password reset abuse / enumeration
@@ -1690,35 +1630,19 @@ authRouter.post(
   '/password/reset',
   asyncHandler(async (req, res) => {
     const parsed = passwordResetSchema.safeParse(req.body);
-    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
     const { email, code, password } = parsed.data;
     const sanitizedEmail = email.trim().toLowerCase();
 
     // SECURITY: Check dedicated failure-based lockout before anything else
     const attemptCheck = await checkResetAttempt(sanitizedEmail);
     if (!attemptCheck.allowed) {
-      return sendAuthError(
-        res,
-        429,
-        'Too many attempts. Try again in 15 minutes.',
-        'RESET_LOCKED',
-        {
-          retryAfter: Math.max(
-            1,
-            Math.ceil((attemptCheck.retryAfterMs ?? RESET_LOCKOUT_MS) / 1000)
-          ),
-        }
-      );
+      return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
     }
 
     // Also keep the general rate limit as a secondary guard
     if (!(await checkAuthRateLimit(`reset:${sanitizedEmail}`))) {
-      return sendAuthError(
-        res,
-        429,
-        'Too many reset attempts. Please request a new code.',
-        'RESET_RATE_LIMITED'
-      );
+      return res.status(429).json({ error: 'Too many reset attempts. Please request a new code.' });
     }
 
     const user = await prisma.user.findFirst({
@@ -1726,11 +1650,11 @@ authRouter.post(
     });
     if (!user || !user.password_reset_code || !user.password_reset_expires) {
       await recordResetFailure(sanitizedEmail);
-      return sendAuthError(res, 400, 'Invalid or expired reset code', 'RESET_CODE_INVALID');
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
     if (new Date() > user.password_reset_expires) {
       await recordResetFailure(sanitizedEmail);
-      return sendAuthError(res, 400, 'Invalid or expired reset code', 'RESET_CODE_EXPIRED');
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
     // AUTH-5: stored value is now a SHA-256 hash (see /password/forgot), so we hash
     // the submitted code with the same function and compare hash-to-hash.
@@ -1746,7 +1670,7 @@ authRouter.post(
     })();
     if (!codesMatch) {
       await recordResetFailure(sanitizedEmail);
-      return sendAuthError(res, 400, 'Invalid or expired reset code', 'RESET_CODE_INVALID');
+      return res.status(400).json({ error: 'Invalid or expired reset code' });
     }
 
     // Success — clear failure tracking and reset the code
@@ -1768,9 +1692,7 @@ authRouter.post(
       prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
     ]);
 
-    sendPasswordChangedEmail(user.email, user.display_name || undefined).catch(err =>
-      console.warn('[auth] sendPasswordChangedEmail (reset) failed:', err?.message ?? err)
-    );
+    // Security alert: password changed notification removed as part of email cleanup
 
     return res.json({ ok: true });
   })
@@ -1787,12 +1709,12 @@ authRouter.post(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = passwordChangeSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' }); // error-envelope-exempt
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
     const { current_password, new_password } = parsed.data;
 
     // Get user with password hash
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user) return res.status(404).json({ error: 'User not found' }); // error-envelope-exempt
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Verify current password
     if (!user.password_hash)
@@ -1800,7 +1722,7 @@ authRouter.post(
         .status(400)
         .json({ error: 'No password set. Use OAuth login or set a password first.' });
     const isValid = await bcrypt.compare(current_password, user.password_hash);
-    if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' }); // error-envelope-exempt
+    if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });
 
     // Hash new password
     const password_hash = await bcrypt.hash(new_password, 10);
@@ -1818,9 +1740,7 @@ authRouter.post(
       prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
     ]);
 
-    sendPasswordChangedEmail(user.email, user.display_name || undefined).catch(err =>
-      console.warn('[auth] sendPasswordChangedEmail (change) failed:', err?.message ?? err)
-    );
+    // Password changed notification removed as part of email cleanup
 
     return res.json({ ok: true });
   })
@@ -1841,7 +1761,7 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const parsed = upgradeToCoachSchema.safeParse(req.body);
     if (!parsed.success)
-      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues }); // error-envelope-exempt
+      return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
     const { plan } = parsed.data;
 
     const user = await prisma.user.findUnique({
@@ -1849,19 +1769,46 @@ authRouter.post(
       select: {
         id: true,
         preferences: true,
+        role: true,
         approval_status: true,
         rejected_at: true,
         rejection_reason: true,
         date_of_birth: true,
+        onboarding_completed: true,
+        organization_id: true,
+        proceeding_as_fan: true,
+        coach_agreement_accepted_at: true,
+        coach_agreement_version: true,
       },
     });
-    if (!user) return res.status(404).json({ error: 'User not found' }); // error-envelope-exempt
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     const currentPrefs = (user.preferences as any) || {};
     const currentRole = getCanonicalUserRole(user as any);
     // If already a coach, reject
     if (currentRole === 'coach') {
-      return res.status(400).json({ error: 'Account is already a coach account.' }); // error-envelope-exempt
+      const latestApplication = await getLatestCoachApplication(prisma, user.id);
+      const flowState = getCoachFlowState(user as any, latestApplication);
+      const approvalStatus = String(user.approval_status || '').toUpperCase();
+      const code =
+        approvalStatus === 'APPROVED'
+          ? 'COACH_ALREADY_APPROVED'
+          : approvalStatus === 'REJECTED'
+            ? 'COACH_REAPPLICATION_REQUIRED'
+            : 'COACH_UPGRADE_IN_PROGRESS';
+      const error =
+        approvalStatus === 'APPROVED'
+          ? 'Account is already an approved coach account.'
+          : approvalStatus === 'REJECTED'
+            ? 'Your coach application needs to be resumed from the approval flow.'
+            : 'Coach upgrade is already in progress for this account.';
+      return res.status(409).json({
+        error,
+        code,
+        account_state: flowState.account_state,
+        next_step: flowState.next_step,
+        coach_application: serializeCoachApplication(latestApplication),
+      });
     }
 
     // v1.0.2: enforce 48hr cooldown on rejected applicants to prevent admin spam.
@@ -1886,8 +1833,6 @@ authRouter.post(
         // from now when the real cooldown started from the prior rejection).
         // Clients should prefer `retry_at` for a concrete date/time display.
         return res.status(429).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'Your previous coach application was declined. Please wait before trying again.',
           code: 'REJECTION_COOLDOWN',
           retry_after_ms: retryAfterMs,
@@ -1905,8 +1850,6 @@ authRouter.post(
     const dob = resolveEffectiveDob(user.date_of_birth, currentPrefs);
     if (!dob) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Date of birth required to upgrade to a coach account.',
         code: 'DOB_REQUIRED',
       });
@@ -1919,8 +1862,6 @@ authRouter.post(
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
       if (age < 18) {
         return res.status(403).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'You must be at least 18 years old to become a coach.',
           code: 'AGE_REQUIREMENT',
         });
@@ -1992,7 +1933,7 @@ authRouter.post(
         payment_approved: true,
       },
     });
-    if (!user) return res.status(404).json({ error: 'User not found' }); // error-envelope-exempt
+    if (!user) return res.status(404).json({ error: 'User not found' });
     const prefs = (user.preferences as any) || {};
 
     if (!isPaymentPending(user as any)) {
@@ -2027,6 +1968,148 @@ authRouter.post(
   })
 );
 
+authRouter.post(
+  '/downgrade-to-fan',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        preferences: true,
+        role: true,
+        approval_status: true,
+        onboarding_completed: true,
+        organization_id: true,
+        proceeding_as_fan: true,
+        coach_agreement_accepted_at: true,
+        coach_agreement_version: true,
+        plan: true,
+        pending_plan: true,
+        payment_pending: true,
+        payment_approved: true,
+        paid_by_owner: true,
+      },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const currentRole = getCanonicalUserRole(user as any);
+    if (currentRole !== 'coach') {
+      return res.status(400).json({
+        error: 'Only coach accounts can downgrade to fan.',
+        code: 'NOT_COACH',
+      });
+    }
+
+    const billingState = getCanonicalBillingState(user as any);
+    if (
+      billingState.plan !== 'rookie' ||
+      billingState.pending_plan !== null ||
+      billingState.payment_pending
+    ) {
+      return res.status(409).json({
+        error: 'Move your subscription back to the free Rookie plan before downgrading.',
+        code: 'SUBSCRIPTION_DOWNGRADE_REQUIRED',
+      });
+    }
+
+    const ownedOrganizations = await prisma.organization.count({
+      where: { league_owner_id: user.id },
+    });
+    if (ownedOrganizations > 0) {
+      return res.status(409).json({
+        error: 'Transfer organization ownership before downgrading to fan.',
+        code: 'ORG_OWNERSHIP_TRANSFER_REQUIRED',
+        organization_count: ownedOrganizations,
+      });
+    }
+
+    const managedOrganizations = await prisma.organizationMembership.count({
+      where: {
+        user_id: user.id,
+        status: 'active',
+        role: { in: ['owner', 'manager'] },
+      },
+    });
+    if (managedOrganizations > 0) {
+      return res.status(409).json({
+        error: 'Leave or transfer your organization leadership roles before downgrading.',
+        code: 'ORG_ROLE_TRANSFER_REQUIRED',
+        organization_role_count: managedOrganizations,
+      });
+    }
+
+    const staffedTeams = await prisma.teamMembership.count({
+      where: {
+        user_id: user.id,
+        status: 'active',
+        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      },
+    });
+    if (staffedTeams > 0) {
+      return res.status(409).json({
+        error: 'Transfer team ownership or leave team staff roles before downgrading.',
+        code: 'TEAM_ROLE_TRANSFER_REQUIRED',
+        team_role_count: staffedTeams,
+      });
+    }
+
+    const currentPrefs = getPreferencesObject(user.preferences);
+    delete currentPrefs.organization_name;
+    delete currentPrefs.team_id;
+    delete currentPrefs.team_name;
+    delete currentPrefs.join_request_pending;
+    delete currentPrefs.coach_application_id;
+    delete currentPrefs.coach_application_status;
+
+    const downgradedPreferences = mergeBillingStateIntoPreferences(
+      mergeAuthStateIntoPreferences(currentPrefs, {
+        role: 'fan',
+        onboarding_completed: true,
+        organization_id: null,
+        proceeding_as_fan: false,
+        coach_agreement_accepted_at: null,
+        coach_agreement_version: null,
+      }),
+      {
+        plan: 'rookie',
+        pending_plan: null,
+        payment_pending: false,
+        payment_approved: false,
+      }
+    );
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        preferences: downgradedPreferences,
+        ...buildAuthStateColumns({
+          role: 'fan',
+          onboarding_completed: true,
+          organization_id: null,
+          proceeding_as_fan: false,
+          coach_agreement_accepted_at: null,
+          coach_agreement_version: null,
+        }),
+        ...buildBillingStateColumns({
+          plan: 'rookie',
+          pending_plan: null,
+          payment_pending: false,
+          payment_approved: false,
+        }),
+        approval_status: 'APPROVED',
+        rejected_at: null,
+        rejection_reason: null,
+        paid_by_owner: false,
+      },
+    });
+    await invalidateMeCacheForUser(updated.id);
+
+    return res.json({ ok: true, preferences: updated.preferences });
+  })
+);
+
 // v1.0.2: POST /auth/coach/reapply
 // Rejected coaches can re-apply after 48hr cooldown. Resets approval_status to PENDING
 // and clears rejection tracking. Does not touch role (already coach). Protected by REJECTION_COOLDOWN_MS.
@@ -2045,13 +2128,11 @@ authRouter.post(
         rejection_reason: true,
       },
     });
-    if (!user) return res.status(404).json({ error: 'User not found' }); // error-envelope-exempt
+    if (!user) return res.status(404).json({ error: 'User not found' });
     const prefs = (user.preferences as any) || {};
     const currentRole = getCanonicalUserRole(user as any);
     if (currentRole !== 'coach') {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Only coach accounts can re-apply. Upgrade to coach first.',
         code: 'NOT_COACH',
       });
@@ -2076,8 +2157,6 @@ authRouter.post(
     if (Number.isFinite(elapsed) && elapsed < REJECTION_COOLDOWN_MS) {
       const retryAfterMs = REJECTION_COOLDOWN_MS - elapsed;
       return res.status(429).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Please wait before re-applying.',
         code: 'REJECTION_COOLDOWN',
         retry_after_ms: retryAfterMs,
@@ -2089,11 +2168,7 @@ authRouter.post(
     // Strip the dead organization pointer so step-3-league starts fresh — otherwise
     // the coach's /me keeps pointing at the rejected org and the onboarding UI
     // shows stale league info.
-    const {
-      organization_id: _oid,
-      organization_name: _oname,
-      ...scrubbedPrefs
-    } = prefs as Record<string, unknown>;
+    const { organization_id: _oid, organization_name: _oname, ...scrubbedPrefs } = prefs as Record<string, unknown>;
     const merged = { ...scrubbedPrefs, onboarding_completed: false, join_request_pending: false };
     const updated = await prisma.user.update({
       where: { id: user.id },
@@ -2138,8 +2213,6 @@ authRouter.post(
     const parsed = submitCoachApplicationSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(issue => ({
           path: issue.path.map(String),
@@ -2165,29 +2238,23 @@ authRouter.post(
         proceeding_as_fan: true,
       },
     });
-    if (!user) return res.status(404).json({ error: 'User not found' }); // error-envelope-exempt
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     const currentRole = getCanonicalUserRole(user as any);
     if (currentRole !== 'coach') {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Upgrade to coach before submitting an application.',
         code: 'NOT_COACH',
       });
     }
     if (user.approval_status !== 'PENDING') {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Your account is not eligible for a new coach application submission.',
         code: 'INVALID_APPROVAL_STATE',
       });
     }
     if (user.organization_id) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Your coach account already has an organization attached.',
         code: 'ORG_ALREADY_EXISTS',
       });
@@ -2262,8 +2329,7 @@ authRouter.post(
     for (const adminEmail of adminEmails) {
       sendCoachApplicationAdminEmail({
         to: adminEmail,
-        applicantName:
-          result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
+        applicantName: result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
         applicantEmail: result.updatedUser.email,
         applicantUserId: result.updatedUser.id,
         organizationName: data.organization_name,
@@ -2301,8 +2367,6 @@ authRouter.post(
     }
 
     return res.status(201).json({
-      // error-envelope-exempt
-      // error-envelope-exempt
       ok: true,
       application: serializedApplication,
       user: {
@@ -2317,9 +2381,8 @@ authRouter.post(
 
 authRouter.get(
   '/me',
-  requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
     // Cache-aside: check Redis first (TTL 60s)
     const cacheKey = `me:${req.user.id}`;
@@ -2344,7 +2407,7 @@ authRouter.get(
       getLatestCoachApplication(prisma, req.user!.id),
     ]);
     const user = await ensureOAuthUserVerified(rawUser);
-    if (!user) return res.status(404).json({ error: 'Not found' }); // error-envelope-exempt
+    if (!user) return res.status(404).json({ error: 'Not found' });
     const is_admin = isAdminEmail(user.email);
     const defaults = {
       notifications: {
@@ -2365,7 +2428,9 @@ authRouter.get(
     const userPrefs = ((safe as any).preferences || {}) as Record<string, unknown>;
     const prefs = mergePreferences(userPrefs, defaults);
     const normalizedRole = getCanonicalUserRole(user as any);
-    const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
+    const requiredCoachAgreementVersion = Number(
+      process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
+    );
     const serializedApplication = serializeCoachApplication(coachApplication);
     const flowState = getCoachFlowState(
       {
@@ -2452,13 +2517,10 @@ const updateMeSchema = z.object({
 authRouter.put(
   '/me',
   requireAuth as any,
-  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Invalid payload',
         message: 'Use PATCH /me/preferences to update preferences.',
       });
@@ -2466,8 +2528,6 @@ authRouter.put(
     const parsed = updateMeSchema.safeParse(body);
     if (!parsed.success) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
@@ -2492,8 +2552,6 @@ authRouter.put(
       });
       if (exists) {
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'Username taken',
           message: 'This username is already in use.',
         });
@@ -2514,8 +2572,8 @@ authRouter.put(
     await invalidateMeCacheForUser(req.user!.id);
 
     // v1.0.2 pass 9: rewrite @mentions in existing posts + comments so old @oldname becomes @newname.
-    // Fire-and-forget so the user's response isn't blocked. Keep the SQL text static and
-    // pass both handles as bound parameters so this request path never needs executeRawUnsafe.
+    // Fire-and-forget so the user's response isn't blocked. Uses raw SQL for case-insensitive
+    // word-boundary replace; safe because both names are validated against /^[a-z0-9_.]+$/.
     if (
       priorUsername &&
       data.username &&
@@ -2525,13 +2583,19 @@ authRouter.put(
       const newHandle = '@' + data.username;
       (async () => {
         try {
-          const mentionRewriteSql = (tableName: 'Post' | 'Comment') => Prisma.sql`
-            UPDATE ${Prisma.raw(`"${tableName}"`)}
-            SET content = regexp_replace(content, '\\m' || ${oldHandle} || '\\M', ${newHandle}, 'g')
-            WHERE content ILIKE '%' || ${oldHandle} || '%'
-          `;
-          await prisma.$executeRaw(mentionRewriteSql('Post'));
-          await prisma.$executeRaw(mentionRewriteSql('Comment'));
+          // Postgres regexp_replace with word boundaries — safe (no user-controlled regex)
+          await prisma.$executeRawUnsafe(
+            `UPDATE "Post" SET content = regexp_replace(content, '\\m' || $1 || '\\M', $2, 'g')
+           WHERE content ILIKE '%' || $1 || '%'`,
+            oldHandle,
+            newHandle
+          );
+          await prisma.$executeRawUnsafe(
+            `UPDATE "Comment" SET content = regexp_replace(content, '\\m' || $1 || '\\M', $2, 'g')
+           WHERE content ILIKE '%' || $1 || '%'`,
+            oldHandle,
+            newHandle
+          );
         } catch (err: any) {
           console.error(
             '[auth] mention rewrite after username change failed:',
@@ -2549,13 +2613,10 @@ authRouter.put(
 authRouter.patch(
   '/me',
   requireAuth as any,
-  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Invalid payload',
         message: 'Use PATCH /me/preferences to update preferences.',
       });
@@ -2563,8 +2624,6 @@ authRouter.patch(
     const parsed = updateMeSchema.safeParse(body);
     if (!parsed.success) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
@@ -2587,8 +2646,6 @@ authRouter.patch(
       });
       if (exists) {
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'Username taken',
           message: 'This username is already in use.',
         });
@@ -2663,7 +2720,6 @@ function stripProtectedKeys(obj: Record<string, unknown>): Record<string, unknow
 authRouter.patch(
   '/me/preferences',
   requireAuth as any,
-  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const schema = z
       .object({
@@ -2731,8 +2787,6 @@ authRouter.patch(
     const parsed = schema.safeParse(req.body || {});
     if (!parsed.success) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
@@ -2744,8 +2798,6 @@ authRouter.patch(
     // COPPA: Reject if DOB indicates under 13 - do not store
     if (incoming.dob !== undefined && isUnder13(incoming.dob)) {
       return res.status(403).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'COPPA_UNDER_13',
         message:
           'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
@@ -2780,10 +2832,11 @@ authRouter.patch(
     // write at the endpoint boundary instead of relying on downstream reads
     // to ignore it. Only after passing the gate do we stamp the version.
     if (incoming.coach_agreement_accepted_at !== undefined) {
-      if (currentAuthState.role !== 'coach' || current?.approval_status !== 'APPROVED') {
+      if (
+        currentAuthState.role !== 'coach' ||
+        current?.approval_status !== 'APPROVED'
+      ) {
         return res.status(403).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'You must be an approved coach to accept the coach agreement.',
           code: 'COACH_AGREEMENT_NOT_ELIGIBLE',
         });
@@ -2792,7 +2845,9 @@ authRouter.patch(
       // stamp the CURRENT required version alongside it so the client never
       // has to know the version number. Without this, bumping
       // REQUIRED_COACH_AGREEMENT_VERSION would loop coaches in re-accept.
-      incoming.coach_agreement_version = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
+      incoming.coach_agreement_version = Number(
+        process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
+      );
     }
 
     // Canonical DOB gate: once the column is set and the 24h grace window has
@@ -2809,16 +2864,12 @@ authRouter.patch(
       if (!decision.ok) {
         if (decision.reason === 'dob_locked') {
           return res.status(403).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
             error: 'DOB_LOCKED',
             message:
               'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
           });
         }
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'INVALID_DOB',
           message: 'Date of birth is not a valid date.',
         });
@@ -2839,8 +2890,6 @@ authRouter.patch(
       incoming.role !== currentAuthState.role
     ) {
       return res.status(403).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error:
           'Cannot change role after onboarding is complete. Use the upgrade-to-coach endpoint.',
       });
@@ -2867,8 +2916,6 @@ authRouter.patch(
         );
         if (!hasUsername || !hasOrgOrTeam) {
           return res.status(400).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
             error:
               'Cannot mark onboarding complete — required coach fields missing. Use POST /auth/complete-onboarding.',
             code: 'ONBOARDING_VALIDATION_REQUIRED',
@@ -2878,8 +2925,6 @@ authRouter.patch(
         // Fan minimum: must have a username on record
         if (!currentUserRec?.username) {
           return res.status(400).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
             error:
               'Cannot mark onboarding complete — username missing. Use POST /auth/complete-onboarding.',
             code: 'ONBOARDING_VALIDATION_REQUIRED',
@@ -2894,8 +2939,6 @@ authRouter.patch(
       const effectiveDob = resolveEffectiveDob(current?.date_of_birth, currentPrefs, incoming.dob);
       if (!effectiveDob) {
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'Date of birth required to set coach role.',
           code: 'DOB_REQUIRED',
         });
@@ -2907,8 +2950,6 @@ authRouter.patch(
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
       if (age < 18) {
         return res.status(403).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'You must be at least 18 years old to become a coach.',
           code: 'AGE_REQUIREMENT',
         });
@@ -2950,8 +2991,7 @@ authRouter.patch(
     if (incoming.onboarding_completed !== undefined) {
       authStatePatch.onboarding_completed = incoming.onboarding_completed;
     }
-    if (incoming.organization_id !== undefined)
-      authStatePatch.organization_id = incoming.organization_id;
+    if (incoming.organization_id !== undefined) authStatePatch.organization_id = incoming.organization_id;
     if (incoming.proceeding_as_fan !== undefined) {
       authStatePatch.proceeding_as_fan = incoming.proceeding_as_fan;
     }
@@ -3145,13 +3185,11 @@ authRouter.post(
   requireAuth as any,
   requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' }); // error-envelope-exempt
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const parsed = completeOnboardingSchema.safeParse(req.body);
     if (!parsed.success) {
       console.error('[Onboarding] Validation failed:', parsed.error);
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'Invalid payload',
         issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })),
       });
@@ -3162,8 +3200,6 @@ authRouter.post(
     // COPPA: Reject if DOB indicates under 13 - do not store
     if (data.dob !== undefined && isUnder13(data.dob)) {
       return res.status(403).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'COPPA_UNDER_13',
         message:
           'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
@@ -3201,8 +3237,6 @@ authRouter.post(
       current?.date_of_birth !== null;
     if (!willHaveDob) {
       return res.status(400).json({
-        // error-envelope-exempt
-        // error-envelope-exempt
         error: 'DOB_REQUIRED',
         message: 'Date of birth is required to complete onboarding.',
       });
@@ -3219,16 +3253,12 @@ authRouter.post(
       if (!decision.ok) {
         if (decision.reason === 'dob_locked') {
           return res.status(403).json({
-            // error-envelope-exempt
-            // error-envelope-exempt
             error: 'DOB_LOCKED',
             message:
               'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
           });
         }
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'INVALID_DOB',
           message: 'Date of birth is not a valid date.',
         });
@@ -3264,8 +3294,6 @@ authRouter.post(
       const effectiveParentEmail = providedParentEmail || existingParentEmail || null;
       if (!effectiveParentEmail) {
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'PARENT_EMAIL_REQUIRED',
           message:
             'A parent or guardian email is required to complete onboarding for users under 18.',
@@ -3283,8 +3311,6 @@ authRouter.post(
       const effectiveDob = resolveEffectiveDob(current?.date_of_birth, currentPrefs, data.dob);
       if (!effectiveDob) {
         return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'Date of birth required to complete coach onboarding.',
           code: 'DOB_REQUIRED',
         });
@@ -3296,8 +3322,6 @@ authRouter.post(
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
       if (age < 18) {
         return res.status(403).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
           error: 'You must be at least 18 years old to become a coach.',
           code: 'AGE_REQUIREMENT',
         });
@@ -3315,22 +3339,22 @@ authRouter.post(
       const effectiveOrgId = data.organization_id || currentAuthState.organization_id;
       const effectiveTeamId = data.team_id || currentPrefs.team_id;
       if (!effectiveUsername) {
-        return res.status(400).json({ error: 'Username required for coach onboarding' }); // error-envelope-exempt
+        return res.status(400).json({ error: 'Username required for coach onboarding' });
       }
       if (!effectivePlan) {
-        return res.status(400).json({ error: 'Plan selection required for coach onboarding' }); // error-envelope-exempt
+        return res.status(400).json({ error: 'Plan selection required for coach onboarding' });
       }
       if (!effectiveTeamId && !effectiveOrgId) {
         // v1.0.3: add explicit error code so the client can render a
         // path-specific message instead of a generic 400. Previously users
         // hitting this branch (e.g. via a deep-link that skipped step-3) saw
         // "Failed to complete onboarding" with no direction.
-        return res.status(400).json({
-          // error-envelope-exempt
-          // error-envelope-exempt
-          error: 'Team or organization required for coach onboarding',
-          code: 'ORG_TEAM_REQUIRED',
-        });
+        return res
+          .status(400)
+          .json({
+            error: 'Team or organization required for coach onboarding',
+            code: 'ORG_TEAM_REQUIRED',
+          });
       }
       // Use DB values as fallback if not in payload
       if (!data.username && effectiveUsername) data.username = effectiveUsername;
@@ -3552,24 +3576,17 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const rawUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
     const user = await ensureOAuthUserVerified(rawUser);
-    if (!user) return sendAuthError(res, 404, 'Not found', 'VERIFY_NOT_FOUND');
+    if (!user) return res.status(404).json({ error: 'Not found' });
     if (user.email_verified) return res.json({ ok: true, already_verified: true });
     // Redis-backed verification rate limiting: 1 per 30s, 5 per hour
     const verifyLastKey = `verify:last:${user.id}`;
     const verifyHourKey = `verify:hour:${user.id}`;
     const lastSent = await rlGet(verifyLastKey);
     if (lastSent && Date.now() - parseInt(lastSent, 10) < 30_000) {
-      return sendAuthError(
-        res,
-        429,
-        'Please wait before requesting another code',
-        'VERIFY_REQUEST_COOLDOWN'
-      );
+      return res.status(429).json({ error: 'Please wait before requesting another code' });
     }
     const hourCount = await rlIncr(verifyHourKey, 3600_000); // 1 hour TTL
-    if (hourCount > 5) {
-      return sendAuthError(res, 429, 'Too many requests', 'VERIFY_REQUEST_RATE_LIMITED');
-    }
+    if (hourCount > 5) return res.status(429).json({ error: 'Too many requests' });
     const code = String(crypto.randomInt(100000, 999999));
     if (process.env.NODE_ENV === 'development')
       console.log(
@@ -3642,18 +3659,18 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const schema = z.object({ code: z.string().min(4).max(8) });
     const parsed = schema.safeParse(req.body);
-    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
     const { code } = parsed.data;
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user) return sendAuthError(res, 404, 'Not found', 'VERIFY_NOT_FOUND');
+    if (!user) return res.status(404).json({ error: 'Not found' });
     if (user.email_verified) return res.json({ ok: true, already_verified: true });
     if (!user.email_verification_code || !user.email_verification_expires)
-      return sendAuthError(res, 400, 'No verification in progress', 'VERIFY_NO_CODE');
+      return res.status(400).json({ error: 'No verification in progress' });
     if (new Date() > user.email_verification_expires)
-      return sendAuthError(res, 400, 'Code expired', 'VERIFY_CODE_EXPIRED');
+      return res.status(400).json({ error: 'Code expired' });
     // AUTH-5: Compare hash of submitted code against stored hash
     if (hashRefreshToken(String(code)) !== String(user.email_verification_code))
-      return sendAuthError(res, 400, 'Invalid code', 'VERIFY_CODE_INVALID');
+      return res.status(400).json({ error: 'Invalid code' });
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -3678,10 +3695,10 @@ function sanitizeUser(u: any) {
     ...rest
   } = u as any;
   const normalizedDob = formatDobYmd(getCanonicalDob(rest));
-  const normalizedPreferences =
-    rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
-      ? { ...(rest.preferences as Record<string, unknown>) }
-      : {};
+    const normalizedPreferences =
+      rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
+        ? { ...(rest.preferences as Record<string, unknown>) }
+        : {};
   const canonicalAuthState = getCanonicalAuthState(rest);
   const canonicalBillingState = getCanonicalBillingState(rest);
   normalizedPreferences.role = canonicalAuthState.role;
@@ -3752,24 +3769,24 @@ authRouter.post(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({ error: 'Test endpoint not available in production' }); // error-envelope-exempt
+      return res.status(403).json({ error: 'Test endpoint not available in production' });
     }
 
     const { email } = req.body;
     if (!email) {
-      return res.status(400).json({ error: 'Email required' }); // error-envelope-exempt
+      return res.status(400).json({ error: 'Email required' });
     }
 
     try {
       debugLog('[email-test] Testing email functionality...');
       const sent = await sendVerificationEmail(email, '123456', 'VarsityHub Tester');
       if (!sent) {
-        return res.status(503).json({ success: false, error: 'SendGrid not configured' }); // error-envelope-exempt
+        return res.status(503).json({ success: false, error: 'SendGrid not configured' });
       }
       res.json({ success: true, message: 'Test email sent successfully' });
     } catch (error) {
       console.error('[email-test] Test email failed:', error);
-      res.status(500).json({ success: false, error: (error as any).message || 'Unknown error' }); // error-envelope-exempt
+      res.status(500).json({ success: false, error: (error as any).message || 'Unknown error' });
     }
   })
 );

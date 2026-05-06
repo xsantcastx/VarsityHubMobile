@@ -6,12 +6,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { canManageOrgAsCoach } from '@/utils/roleChecks';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Organization, User } from '@/api/entities';
+import { Organization } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 import { sanitizeText } from '@/utils/formUtils';
@@ -55,32 +54,9 @@ export default function EditOrganizationScreen() {
       setLoading(true);
       const org: any = await Organization.get(params.id);
 
-      // Verify current user is an owner or manager before allowing edits
-      const currentUser: any = await User.me();
-      if (!currentUser?.id) {
-        Alert.alert('Error', 'Could not verify edit permissions.');
-        safeGoBack(router);
-        return;
-      }
-      let members: any[] = [];
-      try {
-        members = await Organization.members(params.id);
-      } catch {
-        // 403 = not a member, so no edit permission
-        Alert.alert('Error', 'Only organization admins can edit this organization.');
-        safeGoBack(router);
-        return;
-      }
-      if (!Array.isArray(members) || members.length === 0) {
-        Alert.alert('Error', 'Could not verify edit permissions.');
-        safeGoBack(router);
-        return;
-      }
-      if (!canManageOrgAsCoach(currentUser, members)) {
-        // Either the user is not an org owner/manager, or they ARE but
-        // their coach access is currently revoked (pending/rejected with
-        // no admin override). Either way, the edit UI must not load.
-        Alert.alert('Error', 'Only organization admins can edit this organization.');
+      // The detail payload now carries the canonical org access flags.
+      if (!org?.can_edit && !org?.is_owner) {
+        Alert.alert('Error', 'Only the organization owner can edit this organization.');
         safeGoBack(router);
         return;
       }
@@ -145,7 +121,7 @@ export default function EditOrganizationScreen() {
 
   const handleSave = async () => {
     if (!hasPermission) {
-      Alert.alert('Error', 'Only organization admins can edit this organization.');
+      Alert.alert('Error', 'Only the organization owner can edit this organization.');
       return;
     }
     if (!name.trim()) {

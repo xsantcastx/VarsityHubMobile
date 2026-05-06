@@ -54,7 +54,10 @@ teamMembershipsRouter.post('/', requireAuth as any, requireOnboarded as any, req
       return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
     }
 
-    const team = await prisma.team.findUnique({ where: { id: String(team_id) }, include: { organization: true } });
+    const team = await prisma.team.findUnique({
+      where: { id: String(team_id) },
+      select: { id: true },
+    });
     if (!team) return res.status(404).json({ error: 'Team not found' });
     const user = await prisma.user.findUnique({ where: { id: String(user_id) } });
     if (!user) return res.status(404).json({ error: 'User not found' });

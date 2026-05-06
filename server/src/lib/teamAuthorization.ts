@@ -88,6 +88,7 @@ export async function isOrgAdmin(userId: string | null | undefined, orgId: strin
       role: { in: [...ORG_ADMIN_ROLES] },
       status: 'active',
     },
+    select: { id: true },
   });
   return Boolean(membership);
 }
@@ -161,6 +162,7 @@ export async function isAdminOfAnyOrg(userId: string | null | undefined, orgIds:
       role: { in: [...ORG_ADMIN_ROLES] },
       status: 'active',
     },
+    select: { id: true },
   });
   return Boolean(membership);
 }

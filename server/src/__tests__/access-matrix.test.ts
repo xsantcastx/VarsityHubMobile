@@ -36,6 +36,8 @@ import { messagesRouter } from '../routes/messages.js';
 import { notificationsRouter } from '../routes/notifications.js';
 import { reportsRouter } from '../routes/reports.js';
 import { supportRouter } from '../routes/support.js';
+import { prisma } from '../lib/prisma.js';
+import { signJwt } from '../lib/jwt.js';
 
 const fullApp = express();
 fullApp.use(express.json());
@@ -57,12 +59,6 @@ fullApp.use((err: any, _req: express.Request, res: express.Response, _next: expr
   if (typeof err?.toJSON === 'function') return res.status(status).json(err.toJSON());
   return res.status(status).json({ error: err?.message || 'Internal server error' });
 });
-
-/* ──────────────────────────────────────────── */
-/*  Lazy ESM imports                            */
-/* ──────────────────────────────────────────── */
-let prisma: any;
-let signJwt: any;
 
 /* ──────────────────────────────────────────── */
 /*  Test data identifiers                       */
@@ -148,9 +144,6 @@ function classify(status: number, body: any): Verdict {
 /*  SETUP / TEARDOWN                            */
 /* ──────────────────────────────────────────── */
 beforeAll(async () => {
-  ({ prisma } = await import('../lib/prisma.js'));
-  ({ signJwt } = await import('../lib/jwt.js'));
-
   // Create users
   ({ id: fanId, token: fanToken } = await createUser(FAN_EMAIL, 'Matrix Fan', 'fan'));
   ({ id: rookieId, token: rookieToken } = await createUser(ROOKIE_EMAIL, 'Matrix Rookie', 'coach', 'rookie'));

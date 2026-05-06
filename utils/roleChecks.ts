@@ -122,9 +122,126 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
 
 type OrgMembershipLike = {
   role?: string | null;
+  status?: string | null;
   user_id?: string | null;
   user?: { id?: string | null } | null;
 };
+
+type TeamMembershipLike = {
+  role?: string | null;
+  status?: string | null;
+  user_id?: string | null;
+  user?: { id?: string | null } | null;
+};
+
+export const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
+
+function getMatchingOrgMembership(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined,
+): OrgMembershipLike | null {
+  if (!user?.id || !Array.isArray(memberships)) return null;
+
+  return (
+    memberships.find((m) => {
+      const memberUserId = m?.user?.id || m?.user_id;
+      if (!memberUserId || memberUserId !== user.id) return false;
+      const status = String(m?.status || 'active').toLowerCase();
+      return status === 'active';
+    }) || null
+  );
+}
+
+function getMatchingTeamMembership(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: TeamMembershipLike[] | null | undefined,
+): TeamMembershipLike | null {
+  if (!user?.id || !Array.isArray(memberships)) return null;
+
+  return (
+    memberships.find((m) => {
+      const memberUserId = m?.user?.id || m?.user_id;
+      if (!memberUserId || memberUserId !== user.id) return false;
+      const status = String(m?.status || 'active').toLowerCase();
+      return status === 'active';
+    }) || null
+  );
+}
+
+export function getOrganizationAccess(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined,
+) {
+  if (user?.is_admin === true) {
+    return {
+      membership: null,
+      role: 'owner' as const,
+      isMember: true,
+      isOwner: true,
+      isAdmin: true,
+    };
+  }
+
+  const membership = getMatchingOrgMembership(user, memberships);
+  const role = String(membership?.role || '').toLowerCase();
+  const isMember = Boolean(membership);
+  const isOwner = role === 'owner';
+  const isAdmin = isOwner || role === 'manager';
+
+  return {
+    membership,
+    role,
+    isMember,
+    isOwner,
+    isAdmin,
+  };
+}
+
+export function getTeamManagementAccess(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  teamMemberships: TeamMembershipLike[] | null | undefined,
+  orgMemberships: OrgMembershipLike[] | null | undefined,
+) {
+  if (user?.is_admin === true) {
+    return {
+      teamMembership: null,
+      teamRole: 'owner' as const,
+      isTeamStaff: true,
+      isTeamOwner: true,
+      isOrgAdmin: true,
+      canManageTeam: true,
+    };
+  }
+
+  const teamMembership = getMatchingTeamMembership(user, teamMemberships);
+  const teamRole = String(teamMembership?.role || '').toLowerCase();
+  const isTeamStaff = TEAM_STAFF_ROLES.includes(teamRole as (typeof TEAM_STAFF_ROLES)[number]);
+  const isTeamOwner = teamRole === 'owner';
+  const orgAccess = getOrganizationAccess(user, orgMemberships);
+
+  return {
+    teamMembership,
+    teamRole,
+    isTeamStaff,
+    isTeamOwner,
+    isOrgAdmin: orgAccess.isAdmin,
+    canManageTeam: isTeamStaff || orgAccess.isAdmin,
+  };
+}
+
+export function isOrganizationOwner(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined,
+): boolean {
+  return getOrganizationAccess(user, memberships).isOwner;
+}
+
+export function isOrganizationAdminMember(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined,
+): boolean {
+  return getOrganizationAccess(user, memberships).isAdmin;
+}
 
 /**
  * Single source of truth for "is this user allowed to use org-admin UI."
@@ -151,15 +268,7 @@ export function canManageOrgAsCoach(
   const access = getCoachAccessState(user);
   if (!access.canAccessCoachTools) return false;
 
-  const userId = user.id;
-  if (!userId || !Array.isArray(memberships)) return false;
-
-  return memberships.some((m) => {
-    const memberUserId = m?.user?.id || m?.user_id;
-    if (!memberUserId || memberUserId !== userId) return false;
-    const role = String(m?.role || '').toLowerCase();
-    return role === 'owner' || role === 'manager';
-  });
+  return isOrganizationAdminMember(user, memberships);
 }
 
 export function canReviewCoachRequests(
@@ -171,15 +280,7 @@ export function canReviewCoachRequests(
   const access = getCoachAccessState(user);
   if (!access.canAccessCoachTools) return false;
 
-  const userId = user.id;
-  if (!userId || !Array.isArray(memberships)) return false;
-
-  return memberships.some((m) => {
-    const memberUserId = m?.user?.id || m?.user_id;
-    if (!memberUserId || memberUserId !== userId) return false;
-    const role = String(m?.role || '').toLowerCase();
-    return role === 'owner';
-  });
+  return isOrganizationOwner(user, memberships);
 }
 
 export function getPendingCoachRoute(user: CoachUserLike | null | undefined): string {

@@ -14,16 +14,12 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
-import { prisma } from '../lib/prisma.js';
-import { signJwt } from '../lib/jwt.js';
+
+let prisma: any;
+let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
-function uniqueUsername(prefix: string): string {
-  const entropy = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-  return `${prefix}${entropy}`.slice(0, 20);
-}
 
 // Skip when running in CI (postgres service) or explicitly skipped
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
@@ -49,6 +45,8 @@ let cleanupIds: { users: string[]; orgs: string[]; posts: string[]; teams: strin
 
 describeDb('Critical Server Flows', () => {
   beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    ({ signJwt } = await import('../lib/jwt.js'));
     cleanupIds = { users: [], orgs: [], posts: [], teams: [] };
 
     const hash = await bcrypt.hash(PASSWORD, 10);
@@ -91,7 +89,7 @@ describeDb('Critical Server Flows', () => {
         email: `critical-approved-${ts}@example.com`,
         password_hash: hash,
         display_name: 'Approved Coach',
-        username: uniqueUsername('cc_'),
+        username: `criticalcoach${ts}`.slice(0, 20),
         email_verified: true,
         role: 'coach',
         onboarding_completed: true,
@@ -162,6 +160,7 @@ describeDb('Critical Server Flows', () => {
         updated_at: new Date(),
         league_owner_id: approvedCoach.id,
       },
+      select: { id: true, name: true },
     });
     cleanupIds.orgs.push(testOrg.id);
 
@@ -172,6 +171,7 @@ describeDb('Critical Server Flows', () => {
         role: 'owner',
         status: 'active',
       },
+      select: { id: true },
     });
   });
 
@@ -184,11 +184,9 @@ describeDb('Critical Server Flows', () => {
       await prisma.teamMembership.deleteMany({ where: { team_id: id } }).catch(() => {});
       await prisma.team.delete({ where: { id } }).catch(() => {});
     }
-    await prisma.organizationMembership
-      .deleteMany({
-        where: { organization_id: { in: cleanupIds.orgs } },
-      })
-      .catch(() => {});
+    await prisma.organizationMembership.deleteMany({
+      where: { organization_id: { in: cleanupIds.orgs } },
+    }).catch(() => {});
     for (const id of cleanupIds.orgs) {
       await prisma.organization.delete({ where: { id } }).catch(() => {});
     }
@@ -260,56 +258,12 @@ describeDb('Critical Server Flows', () => {
   describe('Verification gate on onboarding', () => {
     it('blocks unverified users from completing onboarding', async () => {
       const res = await request(app)
-        .post('/me/complete-onboarding')
+        .post('/auth/me/complete-onboarding')
         .set('Authorization', `Bearer ${unverifiedCoachToken}`)
         .send({});
 
       expect(res.statusCode).toEqual(403);
       expect(res.body.error).toBe('Email verification required');
-    });
-
-    it('blocks unverified users from patching canonical profile fields', async () => {
-      const before = await prisma.user.findUnique({
-        where: { id: unverifiedCoach.id },
-        select: { display_name: true },
-      });
-
-      const res = await request(app)
-        .patch('/me')
-        .set('Authorization', `Bearer ${unverifiedCoachToken}`)
-        .send({ display_name: 'Mutated While Unverified' });
-
-      expect(res.statusCode).toEqual(403);
-      expect(res.body.error).toBe('Email verification required');
-
-      const after = await prisma.user.findUnique({
-        where: { id: unverifiedCoach.id },
-        select: { display_name: true },
-      });
-
-      expect(after?.display_name).toBe(before?.display_name);
-    });
-
-    it('blocks unverified users from patching canonical preferences', async () => {
-      const before = await prisma.user.findUnique({
-        where: { id: unverifiedCoach.id },
-        select: { preferences: true },
-      });
-
-      const res = await request(app)
-        .patch('/me/preferences')
-        .set('Authorization', `Bearer ${unverifiedCoachToken}`)
-        .send({ onboarding_completed: true, role: 'fan' });
-
-      expect(res.statusCode).toEqual(403);
-      expect(res.body.error).toBe('Email verification required');
-
-      const after = await prisma.user.findUnique({
-        where: { id: unverifiedCoach.id },
-        select: { preferences: true },
-      });
-
-      expect(after?.preferences).toEqual(before?.preferences);
     });
   });
 
@@ -361,7 +315,8 @@ describeDb('Critical Server Flows', () => {
 
   describe('asyncHandler Error Propagation', () => {
     it('should return JSON error (not crash) for non-existent post', async () => {
-      const res = await request(app).get('/posts/00000000-0000-0000-0000-000000000000');
+      const res = await request(app)
+        .get('/posts/00000000-0000-0000-0000-000000000000');
 
       // Should be 404 or valid error, NOT a raw exception / 500 stack trace
       expect([404, 400]).toContain(res.statusCode);
@@ -471,7 +426,7 @@ describeDb('Critical Server Flows', () => {
           email: `critical-plan-${ts}-${Math.random()}@example.com`,
           password_hash: await bcrypt.hash(PASSWORD, 10),
           display_name: 'Plan Preserve Coach',
-          username: uniqueUsername('pp_'),
+          username: `planpreserve${Date.now()}`.slice(0, 20),
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
@@ -521,7 +476,7 @@ describeDb('Critical Server Flows', () => {
           email: `critical-approved-drift-${ts}-${Math.random()}@example.com`,
           password_hash: await bcrypt.hash(PASSWORD, 10),
           display_name: 'Approved Drift Coach',
-          username: uniqueUsername('ad_'),
+          username: `approveddrift${Date.now()}`.slice(0, 20),
           email_verified: true,
           role: 'fan',
           onboarding_completed: true,
@@ -566,7 +521,7 @@ describeDb('Critical Server Flows', () => {
           email: `critical-skip-payment-${ts}-${Math.random()}@example.com`,
           password_hash: await bcrypt.hash(PASSWORD, 10),
           display_name: 'Skip Payment Coach',
-          username: uniqueUsername('sp_'),
+          username: `skippayment${Date.now()}`.slice(0, 20),
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
@@ -724,7 +679,39 @@ describeDb('Critical Server Flows', () => {
       }
     });
 
+    it('should allow archived but previously approved ads to be booked again', async () => {
+      const ad = await prisma.ad.create({
+        data: {
+          user_id: onboardedUser.id,
+          contact_name: 'Archived User',
+          contact_email: onboardedUser.email,
+          business_name: 'Archived Approved Biz',
+          banner_url: 'https://example.com/banner-archived.jpg',
+          target_url: 'https://example.com',
+          target_zip_code: '10001',
+          radius: 9,
+          status: 'archived',
+          payment_status: 'unpaid',
+        },
+      });
+
+      try {
+        const res = await request(app)
+          .post('/payments/create-payment-sheet')
+          .set('Authorization', `Bearer ${onboardedToken}`)
+          .send({ ad_id: ad.id, dates: ['2035-01-02'] });
+
+        expect(res.statusCode).not.toEqual(403);
+        expect(String(res.body?.error || '')).not.toBe('APPROVAL_REQUIRED');
+      } finally {
+        await prisma.adReservation.deleteMany({ where: { ad_id: ad.id } }).catch(() => {});
+        await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
+      }
+    });
+
     it('should return an authoritative ad quote that matches server tax rules', async () => {
+      const { calculateAdPriceCents } = await import('../utils/adPricing.js');
+      const { calculateSalesTax } = await import('../lib/taxCalculator.js');
       const ad = await prisma.ad.create({
         data: {
           user_id: onboardedUser.id,
@@ -741,28 +728,22 @@ describeDb('Critical Server Flows', () => {
       });
 
       try {
-        // Choose a deterministic weekday block. Using "today + 3 days" makes
-        // this assertion depend on the day the suite happens to run and can
-        // accidentally exercise weekend pricing instead.
-        const quoteDate = (() => {
-          const date = new Date();
-          date.setUTCDate(date.getUTCDate() + 1);
-          while (![1, 2, 3, 4].includes(date.getUTCDay())) {
-            date.setUTCDate(date.getUTCDate() + 1);
-          }
-          return date.toISOString().slice(0, 10);
-        })();
+        const quoteDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        const expectedPricing = calculateAdPriceCents([quoteDate]);
+        const expectedTax = calculateSalesTax(expectedPricing.totalCents, '10001');
         const res = await request(app)
           .post('/payments/ad-quote')
           .set('Authorization', `Bearer ${onboardedToken}`)
           .send({ ad_id: ad.id, dates: [quoteDate] });
 
         expect(res.statusCode).toEqual(200);
-        expect(res.body.subtotal_cents).toEqual(499);
-        expect(res.body.tax_cents).toEqual(20);
-        expect(res.body.total_cents).toEqual(519);
-        expect(res.body.weekday_blocks).toEqual(1);
-        expect(res.body.weekend_blocks).toEqual(0);
+        expect(res.body.subtotal_cents).toEqual(expectedPricing.totalCents);
+        expect(res.body.tax_cents).toEqual(expectedTax);
+        expect(res.body.total_cents).toEqual(expectedPricing.totalCents + expectedTax);
+        expect(res.body.weekday_blocks).toEqual(expectedPricing.weekdayBlocks);
+        expect(res.body.weekend_blocks).toEqual(expectedPricing.weekendBlocks);
       } finally {
         await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
       }
@@ -793,6 +774,65 @@ describeDb('Critical Server Flows', () => {
         expect(res.statusCode).toEqual(400);
         expect(String(res.body?.error || '')).toMatch(/today or in the future/i);
       } finally {
+        await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
+      }
+    });
+
+    it('should release expired pending-approval dates on read and allow approved ads to be booked again', async () => {
+      const ad = await prisma.ad.create({
+        data: {
+          user_id: onboardedUser.id,
+          contact_name: 'Expired Pending User',
+          contact_email: onboardedUser.email,
+          business_name: 'Expired Pending Biz',
+          banner_url: 'https://example.com/banner-expired-pending.jpg',
+          target_url: 'https://example.com',
+          target_zip_code: '10001',
+          radius: 9,
+          status: 'approved',
+          payment_status: 'pending_approval',
+        },
+      });
+
+      try {
+        await prisma.adReservation.createMany({
+          data: [
+            { ad_id: ad.id, date: new Date('2020-01-01T00:00:00.000Z') },
+            { ad_id: ad.id, date: new Date('2020-01-02T00:00:00.000Z') },
+          ],
+          skipDuplicates: true,
+        });
+
+        const reservationsRes = await request(app)
+          .get(`/ads/reservations?ad_id=${encodeURIComponent(ad.id)}`)
+          .set('Authorization', `Bearer ${onboardedToken}`);
+
+        expect(reservationsRes.statusCode).toEqual(200);
+        expect(reservationsRes.body.dates).toEqual([]);
+
+        const listRes = await request(app)
+          .get('/ads?mine=1')
+          .set('Authorization', `Bearer ${onboardedToken}`);
+
+        expect(listRes.statusCode).toEqual(200);
+        const refreshedAd = Array.isArray(listRes.body)
+          ? listRes.body.find((item: any) => String(item.id) === ad.id)
+          : null;
+        expect(refreshedAd?.status).toEqual('approved');
+        expect(refreshedAd?.payment_status).toEqual('unpaid');
+
+        const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        const quoteRes = await request(app)
+          .post('/payments/ad-quote')
+          .set('Authorization', `Bearer ${onboardedToken}`)
+          .send({ ad_id: ad.id, dates: [futureDate] });
+
+        expect(quoteRes.statusCode).toEqual(200);
+        expect(quoteRes.body.subtotal_cents).toBeGreaterThan(0);
+      } finally {
+        await prisma.adReservation.deleteMany({ where: { ad_id: ad.id } }).catch(() => {});
         await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
       }
     });

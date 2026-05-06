@@ -21,13 +21,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Event, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
-import { useAppleAuth } from '@/hooks/useAppleAuth';
-import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { getLinkedProvidersSnapshot } from '@/utils/authState';
+import { getCoachUpgradeCta, type CoachUpgradeCta } from '@/utils/coachUpgradeCta';
 import { safeGoBack } from '@/utils/navigation';
-import { getOAuthLinkErrorMessage } from '@/utils/oauthErrors';
-import { getCanonicalBillingState } from '@/utils/billingState';
-import { getCoachAccessState } from '@/utils/roleChecks';
 
 interface PendingHostRequest {
   id: string;
@@ -39,9 +35,9 @@ interface PendingHostRequest {
 interface UserMeResponse {
   email?: string;
   role?: string;
-  approval_status?: string | null;
-  required_coach_agreement_version?: number | null;
-  paid_by_owner?: boolean;
+  approval_status?: string;
+  account_state?: string | null;
+  next_step?: string | null;
   display_name?: string;
   affiliation?: string;
   dob?: string | null;
@@ -189,13 +185,6 @@ export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
-  const {
-    linkWithGoogle,
-    loading: googleAuthLoading,
-    ready: googleReady,
-    isConfigured: googleConfigured,
-  } = useGoogleAuth();
-  const { linkWithApple, loading: appleAuthLoading, ready: appleReady } = useAppleAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
 
@@ -217,13 +206,12 @@ export default function SettingsScreen() {
   });
   const [plan, setPlan] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [showCoachBilling, setShowCoachBilling] = useState(false);
+  const [coachUpgradeCta, setCoachUpgradeCta] = useState<CoachUpgradeCta | null>(null);
   const [_pendingHostRequests, setPendingHostRequests] = useState<PendingHostRequest[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
   const [_pendingError, setPendingError] = useState<string | null>(null);
   const [deleteWarningVisible, setDeleteWarningVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(true);
   const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>({
@@ -233,6 +221,7 @@ export default function SettingsScreen() {
   });
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
+  const [downgradingToFan, setDowngradingToFan] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Clear all debounce timers on unmount to prevent memory leaks
@@ -315,68 +304,28 @@ export default function SettingsScreen() {
           ? serverPrefs.comment_permission
           : 'everyone',
     });
-    setPlan(getCanonicalBillingState(me).selected_plan);
+    setPlan(serverPrefs?.plan ?? null);
     const effectiveRole = (serverPrefs?.role || me?.role || null) as
       | string
       | null;
     setRole(effectiveRole);
-    const coachAccess = getCoachAccessState({
-      ...me,
-      role: effectiveRole,
-      preferences: serverPrefs,
-    });
-    setShowCoachBilling(coachAccess.isApprovedCoach);
+    setCoachUpgradeCta(
+      getCoachUpgradeCta({
+        ...me,
+        role: effectiveRole,
+        preferences: serverPrefs,
+      } as any)
+    );
     const linkedProviders = getLinkedProvidersSnapshot(me);
     setDeleteRequiresPassword(linkedProviders.password);
     setLinkedProviders(linkedProviders);
   };
 
-  const refreshSettingsUser = async (): Promise<UserMeResponse> => {
-    const me = (await User.me({ force: true })) as UserMeResponse;
-    applyMeSnapshot(me, true);
-    await checkAuth().catch(() => {});
-    return me;
-  };
-
-  const connectGoogleProvider = async () => {
-    if (!googleReady || !googleConfigured) {
-      Alert.alert('Google unavailable', 'Google Sign-In is not configured on this build.');
-      return;
-    }
-    try {
-      await linkWithGoogle();
-      await refreshSettingsUser();
-      Alert.alert('Google connected', 'This account can now be used with Google Sign-In.');
-    } catch (error: any) {
-      const message =
-        getOAuthLinkErrorMessage(error, 'Google') ||
-        error?.message ||
-        'Unable to connect Google right now.';
-      Alert.alert('Google connection failed', message);
-    }
-  };
-
-  const connectAppleProvider = async () => {
-    if (Platform.OS !== 'ios') {
-      Alert.alert('Apple unavailable', 'Apple Sign-In can only be linked from an iPhone or iPad.');
-      return;
-    }
-    if (!appleReady) {
-      Alert.alert('Apple unavailable', 'Apple Sign-In is still initializing. Try again in a moment.');
-      return;
-    }
-    try {
-      await linkWithApple();
-      await refreshSettingsUser();
-      Alert.alert('Apple connected', 'This account can now be used with Apple Sign-In.');
-    } catch (error: any) {
-      const message =
-        getOAuthLinkErrorMessage(error, 'Apple') ||
-        error?.message ||
-        'Unable to connect Apple right now.';
-      Alert.alert('Apple connection failed', message);
-    }
-  };
+  const visibleAuthProviders = [
+    linkedProviders.google ? 'google' : null,
+    linkedProviders.apple ? 'apple' : null,
+  ].filter(Boolean) as Array<'google' | 'apple'>;
+  const canDowngradeCoach = String(role || '').trim().toLowerCase() === 'coach';
 
   const _restartOnboarding = async () => {
     try {
@@ -393,6 +342,7 @@ export default function SettingsScreen() {
         bio: me?.bio ?? prefsFromServer.bio ?? '',
         sports_interests: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
         primary_intents: prefsFromServer.primary_intents ?? [],
+        authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
       };
 
       // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
@@ -437,10 +387,6 @@ export default function SettingsScreen() {
 
   const performDeleteAccount = async () => {
     if (deletingAccount) return;
-    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
-      Alert.alert('Confirmation required', 'Type DELETE to confirm account deletion.');
-      return;
-    }
     const pwd = deletePassword.trim();
     if (deleteRequiresPassword && !pwd) {
       Alert.alert('Password required', 'Enter your password to confirm account deletion.');
@@ -451,7 +397,7 @@ export default function SettingsScreen() {
       if (deleteRequiresPassword) {
         await User.deleteAccount({ password: pwd });
       } else {
-        await User.deleteAccount({ delete_confirmation: 'DELETE' });
+        await User.deleteAccount();
       }
     } catch (error: any) {
       if (__DEV__) console.error('[settings] Account deletion failed:', error);
@@ -462,7 +408,6 @@ export default function SettingsScreen() {
     }
 
     setDeleteModalVisible(false);
-    setDeleteConfirmText('');
     setDeletePassword('');
     setDeletingAccount(false);
     await performSignOut();
@@ -474,7 +419,6 @@ export default function SettingsScreen() {
 
   const proceedToDeleteConfirm = () => {
     setDeleteWarningVisible(false);
-    setDeleteConfirmText('');
     setDeletePassword('');
     setDeleteModalVisible(true);
   };
@@ -580,55 +524,30 @@ export default function SettingsScreen() {
               title="Edit Username"
               onPress={() => void router.push('/settings/edit-username')}
             />
-            <NavRow
-              title="Reset Password"
-              onPress={() => void router.push('/settings/reset-password')}
-            />
+            {linkedProviders.password && (
+              <NavRow
+                title="Reset Password"
+                onPress={() => void router.push('/settings/reset-password')}
+              />
+            )}
             <NavRow
               title="RSVP History"
               onPress={() => void router.push('/settings/rsvp-history')}
             />
             <NavRow
               title="Followed Teams"
+              isLast={visibleAuthProviders.length === 0}
               onPress={() => void router.push('/settings/followed-teams')}
             />
-            <NavRow
-              title="Google Sign-In"
-              subtitle={
-                linkedProviders.google
-                  ? 'Connected'
-                  : googleAuthLoading
-                    ? 'Connecting...'
-                    : googleConfigured
-                      ? 'Connect Google to this account'
-                      : 'Google is unavailable on this build'
-              }
-              onPress={() => {
-                if (!linkedProviders.google && !googleAuthLoading && googleConfigured) {
-                  void connectGoogleProvider();
-                }
-              }}
-            />
-            <NavRow
-              title="Apple Sign-In"
-              subtitle={
-                linkedProviders.apple
-                  ? 'Connected'
-                  : appleAuthLoading
-                    ? 'Connecting...'
-                    : Platform.OS !== 'ios'
-                      ? 'Link from an iPhone or iPad'
-                      : appleReady
-                        ? 'Connect Apple to this account'
-                        : 'Apple Sign-In is unavailable right now'
-              }
-              isLast
-              onPress={() => {
-                if (!linkedProviders.apple && !appleAuthLoading) {
-                  void connectAppleProvider();
-                }
-              }}
-            />
+            {visibleAuthProviders.map((provider, index) => (
+              <NavRow
+                key={provider}
+                title={provider === 'google' ? 'Google Sign-In' : 'Apple Sign-In'}
+                subtitle={`Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`}
+                isLast={index === visibleAuthProviders.length - 1}
+                onPress={() => {}}
+              />
+            ))}
           </SectionCard>
 
           {/* Notifications */}
@@ -768,7 +687,7 @@ export default function SettingsScreen() {
           </SectionCard>
 
           {/* Billing (coaches only) */}
-          {showCoachBilling && (
+          {role === 'coach' && (
             <SectionCard title="Billing">
               <NavRow
                 title="Manage Subscription"
@@ -903,24 +822,98 @@ export default function SettingsScreen() {
             <NavRow
               title="Delete Account"
               destructive
-              isLast={role === 'coach'}
+              isLast={!coachUpgradeCta && !canDowngradeCoach && !downgradingToFan}
               onPress={confirmDeleteAccount}
             />
-            {role !== 'coach' && role !== null && (
+            {canDowngradeCoach && (
               <NavRow
-                title="Upgrade to Coach Account"
-                isLast
+                title="Downgrade to Fan Account"
+                subtitle="Removes coach access after ownership and staff roles are cleared"
+                isLast={!coachUpgradeCta && !downgradingToFan}
                 onPress={() => {
                   Alert.alert(
+                    'Downgrade to Fan Account',
+                    'This changes your account back to fan access. You must transfer any organization ownership and leave team staff roles before continuing.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Continue',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            setDowngradingToFan(true);
+                            await User.downgradeToFan();
+                            const fresh = (await User.refresh().catch(() => null)) as UserMeResponse | null;
+                            if (fresh) {
+                              applyMeSnapshot(fresh, true);
+                            }
+                            setRole('fan');
+                            setPlan('rookie');
+                            await checkAuth().catch(() => {});
+                            Alert.alert('Account updated', 'Your account is now a fan account.');
+                          } catch (e: any) {
+                            const code = e?.data?.code;
+                            const msg = e?.data?.error || e?.message || 'Failed to downgrade account.';
+                            if (code === 'SUBSCRIPTION_DOWNGRADE_REQUIRED') {
+                              Alert.alert(
+                                'Downgrade subscription first',
+                                'Move your subscription back to the free Rookie plan before downgrading this account.'
+                              );
+                            } else if (code === 'ORG_OWNERSHIP_TRANSFER_REQUIRED') {
+                              Alert.alert(
+                                'Transfer organization ownership first',
+                                'You still own an organization. Transfer ownership before downgrading to fan.'
+                              );
+                            } else if (code === 'ORG_ROLE_TRANSFER_REQUIRED') {
+                              Alert.alert(
+                                'Leave organization leadership roles',
+                                'You still have active organization owner or manager roles. Reassign or leave those roles first.'
+                              );
+                            } else if (code === 'TEAM_ROLE_TRANSFER_REQUIRED') {
+                              Alert.alert(
+                                'Leave team staff roles',
+                                'You still have active team owner, manager, coach, or assistant coach roles. Reassign or leave those roles first.'
+                              );
+                            } else {
+                              Alert.alert('Error', msg);
+                            }
+                          } finally {
+                            setDowngradingToFan(false);
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              />
+            )}
+            {coachUpgradeCta && (
+              <NavRow
+                title={coachUpgradeCta.title}
+                subtitle={coachUpgradeCta.subtitle}
+                isLast
+                onPress={() => {
+                  if (coachUpgradeCta.kind === 'resume') {
+                    router.push(coachUpgradeCta.route as any);
+                    return;
+                  }
+                  Alert.alert(
                     'Upgrade to Coach Account',
-                    "Your account will be upgraded to a coach account. You'll complete the coach setup steps next.",
+                    coachUpgradeCta.subtitle,
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Continue',
                         onPress: async () => {
-                          const routeCoachOnboarding = async (freshUser?: any) => {
+                          const routeCoachOnboarding = async (
+                            freshUser?: any,
+                            preferredRoute?: string | null
+                          ) => {
                             try {
+                              if (preferredRoute && preferredRoute !== '/(tabs)') {
+                                router.push(preferredRoute as any);
+                                return;
+                              }
                               const fresh = freshUser ?? ((await User.refresh().catch(() => null)) as any);
                               const prefs = fresh?.preferences || {};
                               const hasUsername = !!(
@@ -932,11 +925,10 @@ export default function SettingsScreen() {
                               const hasZip = !!zip && String(zip).trim().length > 0;
                               const hasCompletedBasicStep = hasUsername && hasDob && hasZip;
                               if (setOB) {
-                                const billing = getCanonicalBillingState(fresh);
                                 setOB(prev => ({
                                   ...prev,
                                   role: 'coach',
-                                  plan: billing.selected_plan,
+                                  plan: (prefs.plan as any) || 'rookie',
                                   username: fresh?.username ?? prev?.username,
                                   dob: (dob as string | undefined) ?? prev?.dob,
                                   zip: (zip as string | undefined) ?? prev?.zip,
@@ -945,7 +937,7 @@ export default function SettingsScreen() {
                                   step_3_visited: false,
                                 }));
                               }
-                              setPlan(getCanonicalBillingState(fresh).selected_plan);
+                              setPlan((prefs.plan as string | null) ?? 'rookie');
                               if (hasUsername && hasDob && hasZip) {
                                 router.push('/onboarding/coach-application' as any);
                               } else {
@@ -967,11 +959,29 @@ export default function SettingsScreen() {
                           } catch (e: any) {
                             const msg = e?.data?.error || e?.message || '';
                             const code = e?.data?.code;
-                            if (msg.toLowerCase().includes('already a coach')) {
-                              setRole('coach');
-                              setPlan('rookie');
+                            if (
+                              code === 'COACH_UPGRADE_IN_PROGRESS' ||
+                              code === 'COACH_REAPPLICATION_REQUIRED' ||
+                              code === 'COACH_ALREADY_APPROVED' ||
+                              msg.toLowerCase().includes('already a coach')
+                            ) {
+                              const fresh = (await User.refresh().catch(() => null)) as any;
+                              const nextCta = getCoachUpgradeCta({
+                                ...fresh,
+                                role:
+                                  fresh?.preferences?.role ||
+                                  fresh?.role ||
+                                  null,
+                                preferences: fresh?.preferences || {},
+                              });
+                              if (fresh) {
+                                applyMeSnapshot(fresh, true);
+                              }
                               await checkAuth().catch(() => {});
-                              await routeCoachOnboarding();
+                              await routeCoachOnboarding(
+                                fresh,
+                                e?.data?.next_step || nextCta?.route || null
+                              );
                               return;
                             }
                             // v1.0.3: surface the specific server error codes that
@@ -1016,6 +1026,13 @@ export default function SettingsScreen() {
               <View style={[styles.rowBetween, { opacity: 0.75 }]}>
                 <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
                   Upgrading your account...
+                </Text>
+              </View>
+            )}
+            {downgradingToFan && (
+              <View style={[styles.rowBetween, { opacity: 0.75 }]}>
+                <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                  Downgrading your account...
                 </Text>
               </View>
             )}
@@ -1121,25 +1138,9 @@ export default function SettingsScreen() {
                   ]}
                 >
                   {deleteRequiresPassword
-                    ? 'This permanently deletes your account. Type DELETE and enter your password to confirm.'
-                    : 'This permanently deletes your account. Type DELETE to confirm.'}
+                    ? 'This permanently deletes your account. Enter your password to confirm.'
+                    : 'This permanently deletes your account and signs you out immediately.'}
                 </Text>
-                <TextInput
-                  value={deleteConfirmText}
-                  onChangeText={setDeleteConfirmText}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  editable={!deletingAccount}
-                  placeholder="DELETE"
-                  placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
-                  style={[
-                    styles.deleteInput,
-                    {
-                      color: Colors[colorScheme ?? 'light'].text,
-                      borderColor: Colors[colorScheme ?? 'light'].border,
-                    },
-                  ]}
-                />
                 {deleteRequiresPassword && (
                   <TextInput
                     value={deletePassword}
@@ -1178,13 +1179,11 @@ export default function SettingsScreen() {
                     style={[
                       styles.deleteActionBtn,
                       styles.deleteConfirmBtn,
-                      (deleteConfirmText.trim().toUpperCase() !== 'DELETE' ||
-                        (deleteRequiresPassword && !deletePassword.trim()) ||
+                      ((deleteRequiresPassword && !deletePassword.trim()) ||
                         deletingAccount) &&
                         styles.deleteConfirmBtnDisabled,
                     ]}
                     disabled={
-                      deleteConfirmText.trim().toUpperCase() !== 'DELETE' ||
                       (deleteRequiresPassword && !deletePassword.trim()) ||
                       deletingAccount
                     }

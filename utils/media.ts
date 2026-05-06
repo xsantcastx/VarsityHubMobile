@@ -1,23 +1,31 @@
 import { getApiBaseUrl } from '@/api/http';
 
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '10.0.2.2']);
 
-export function normalizeMediaUrl(input?: string | null): string | null {
-  if (!input) return null;
-  let url = input.trim();
-  if (!url) return null;
+export type ResolvedMediaType = 'image' | 'video' | null;
+
+type MediaLike = {
+  media_url?: string | null;
+  preview_url?: string | null;
+  media_type?: string | null;
+};
+
+export const normalizeMediaUrl = (value?: string | null): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
 
   const base = getApiBaseUrl();
-
-  if (url.startsWith('/uploads/')) {
-    return `${base}${url}`;
+  if (trimmed.startsWith('/uploads/')) {
+    return `${base}${trimmed}`;
   }
-  if (url.startsWith('uploads/')) {
-    return `${base}/${url}`;
+  if (trimmed.startsWith('uploads/')) {
+    return `${base}/${trimmed}`;
   }
 
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(trimmed);
     if (LOCAL_HOSTS.has(parsed.hostname)) {
       const baseParsed = new URL(base);
       parsed.protocol = baseParsed.protocol;
@@ -26,6 +34,41 @@ export function normalizeMediaUrl(input?: string | null): string | null {
     }
     return parsed.toString();
   } catch {
-    return url;
+    return trimmed;
   }
-}
+};
+
+const sanitizeForExtensionCheck = (url: string) => url.split('?')[0].split('#')[0].toLowerCase();
+
+export const resolveMediaType = (
+  mediaUrl?: string | null,
+  explicitType?: string | null,
+): ResolvedMediaType => {
+  const normalizedMediaUrl = normalizeMediaUrl(mediaUrl);
+  if (!normalizedMediaUrl) return null;
+
+  const normalizedExplicitType =
+    typeof explicitType === 'string' ? explicitType.trim().toLowerCase() : null;
+  if (normalizedExplicitType === 'video' || normalizedExplicitType === 'image') {
+    return normalizedExplicitType;
+  }
+
+  const sanitized = sanitizeForExtensionCheck(normalizedMediaUrl);
+  return VIDEO_EXTENSIONS.some(ext => sanitized.endsWith(ext)) ? 'video' : 'image';
+};
+
+export const resolvePostMedia = (item: MediaLike | null | undefined) => {
+  const mediaUrl = normalizeMediaUrl(item?.media_url);
+  const previewUrl = normalizeMediaUrl(item?.preview_url);
+  const mediaType = resolveMediaType(mediaUrl, item?.media_type);
+  const isVideo = mediaType === 'video';
+
+  return {
+    mediaUrl,
+    previewUrl,
+    mediaType,
+    isVideo,
+    hasMedia: Boolean(mediaUrl),
+    displayImageUrl: isVideo ? previewUrl : mediaUrl,
+  };
+};

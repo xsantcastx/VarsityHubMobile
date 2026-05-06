@@ -197,10 +197,16 @@ export const User = {
   },
   // v1.0.2: rejected coaches can re-apply after 48hr cooldown
   reapplyCoach: () => httpPost('/auth/coach/reapply', {}),
+  downgradeToFan: async () => {
+    invalidateMeCache();
+    const response = await httpPost('/auth/downgrade-to-fan', {});
+    invalidateMeCache();
+    return response;
+  },
   // v1.0.2: escape paywall loop by downgrading to free rookie plan
   skipPayment: () => httpPost('/auth/skip-payment', {}),
   deleteAccount: (payload?: { password?: string; delete_confirmation?: string }) =>
-    httpDelete('/users/me', payload || {}),
+    auth.deleteAccount(payload),
   acceptFollow: (userId: string) =>
     httpPost(`/users/${encodeURIComponent(userId)}/accept-follow`, {}),
   rejectFollow: (userId: string) =>
@@ -926,8 +932,8 @@ export const Advertisement = {
     if (lng != null) q.push('lng=' + String(lng));
     return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
   },
-  submitForApproval: (adId: string) =>
-    httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, {}),
+  submitForApproval: (adId: string, dates?: string[]) =>
+    httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, dates?.length ? { dates } : {}),
   trackImpression: (adId: string) =>
     httpPost(`/ads/${encodeURIComponent(adId)}/impression`, {}),
   trackClick: (adId: string) =>

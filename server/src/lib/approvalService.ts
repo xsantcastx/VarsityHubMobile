@@ -32,6 +32,7 @@ import {
 } from './userAuthState.js';
 import { buildBillingStateColumns } from './userBillingState.js';
 import { getLatestCoachApplication } from './coachApplications.js';
+import { getOrganizationJoinRequestStateForUser } from './organizationWorkflowState.js';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -244,7 +245,14 @@ export async function approveOrganization(
 ) {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    include: { leagueOwner: { select: { id: true, display_name: true, email: true, preferences: true } } },
+    select: {
+      id: true,
+      name: true,
+      admin_approved: true,
+      leagueOwner: {
+        select: { id: true, display_name: true, email: true, preferences: true },
+      },
+    },
   });
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { error: 'Organization already rejected', status: 409 as const, finalState: 'rejected' as const };
@@ -354,7 +362,13 @@ export async function rejectOrganization(
 ) {
   const org = await prisma.organization.findUnique({
     where: { id: orgId },
-    include: { leagueOwner: { select: { id: true, display_name: true, email: true, preferences: true } } },
+    select: {
+      id: true,
+      name: true,
+      leagueOwner: {
+        select: { id: true, display_name: true, email: true, preferences: true },
+      },
+    },
   });
   if (!org) return { error: 'Organization not found', status: 404 };
   if (org.status === 'rejected') return { already: true };
@@ -375,9 +389,10 @@ export async function rejectOrganization(
         rejection_reason: reason,
         league_owner_id: owner?.id || org.league_owner_id || null,
       },
+      select: { id: true },
     });
     if (updated.count === 0) return false;
-    // organization_id is non-nullable — soft-delete teams by setting status instead
+    // organization_id is non-nullable — soft-delete teams by archiving them.
     await tx.team.updateMany({
       where: { organization_id: orgId },
       data: { status: 'archived' },
@@ -550,17 +565,16 @@ export async function approveCoach(
         where: { organization_id_user_id: { organization_id: orgId, user_id: userId } as any },
         update: { role: 'coach', status: 'active' },
         create: { organization_id: orgId, user_id: userId, role: 'coach', status: 'active' },
+        select: { id: true },
       }),
     );
 
     // If there's a pending join request, mark it approved
-    const pendingJoinRequest = await prisma.organizationJoinRequest.findFirst({
-      where: { organization_id: orgId, user_id: userId, status: 'pending' },
-    });
-    if (pendingJoinRequest) {
+    const pendingJoinRequest = await getOrganizationJoinRequestStateForUser(orgId, userId);
+    if (pendingJoinRequest?.status === 'pending') {
       txOps.push(
-        prisma.organizationJoinRequest.update({
-          where: { id: pendingJoinRequest.id },
+        prisma.organizationJoinRequest.updateMany({
+          where: { id: pendingJoinRequest.id, status: 'pending' },
           data: { status: 'approved', reviewed_at: new Date(), reviewed_by: adminId },
         }),
       );
@@ -790,7 +804,7 @@ export async function approveAd(
     where: { id: adId, status: 'pending' },
     data: {
       status: 'approved',
-      payment_status: ad.payment_status === 'paid' ? 'paid' : 'pending_approval',
+      payment_status: ad.payment_status === 'paid' ? 'paid' : 'unpaid',
       ...(derivedAdminNote ? { admin_note: derivedAdminNote } : {}),
     },
   });

@@ -932,6 +932,7 @@ const createEventSchema = z.object({
   max_attendees: z.number().optional(),
   contact_info: z.string().trim().optional(),
   banner_url: z.string().optional(),
+  cover_image_url: z.string().optional(),
   game_id: z.string().optional(),
   home_team_id: z.string().optional(),
   team_id: z.string().optional(), // Alias for home_team_id — frontend may send either
@@ -1093,7 +1094,7 @@ eventsRouter.post(
             capacity: capacity,
             max_attendees: data.max_attendees, // Keep for backward compatibility
             contact_info: data.contact_info || data.requested_email,
-            banner_url: data.banner_url,
+            banner_url: data.banner_url ?? data.cover_image_url,
             game_id: data.game_id,
             team_id: data.home_team_id || null,
             creator_id: userId,
@@ -1323,6 +1324,7 @@ const updateEventSchema = z.object({
   max_attendees: z.number().optional(),
   contact_info: z.string().optional(),
   banner_url: z.string().optional(),
+  cover_image_url: z.string().optional(),
   // Opponent (updates linked Game when event has game_id)
   opponent: z.string().trim().optional(), // Alias for away_team_name (manual opponent name)
   away_team_id: z.string().trim().nullable().optional(),
@@ -1400,6 +1402,9 @@ eventsRouter.patch(
       // Normalize opponent -> away_team_name
       if (data.opponent !== undefined) {
         data.away_team_name = data.opponent;
+      }
+      if (data.banner_url === undefined && data.cover_image_url !== undefined) {
+        data.banner_url = data.cover_image_url;
       }
 
       // Coaches/team owners can only edit approved events with limited fields

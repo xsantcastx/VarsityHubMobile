@@ -27,7 +27,7 @@ export default function PrivacyPolicyScreen() {
           body={'You can access, correct, delete, or export your data. Delete your account in Settings — we anonymize your data immediately. Contact customerservice@varsityhub.app for account requests or support@varsityhub.app to report content.'} />
 
         <PolicySection colorScheme={colorScheme} title="Children"
-          body={'You must be 13+ to use VarsityHub. Users 13-17 need parental consent. We delete data from under-13 users immediately upon discovery.'} />
+          body={'You must be 13+ to use VarsityHub. We deny accounts for users under 13 and delete under-13 data immediately upon discovery.'} />
 
         <PolicySection colorScheme={colorScheme} title="Security & Storage"
           body={'Data encrypted in transit (HTTPS), stored on Railway (PostgreSQL). We use industry-standard security. VarsityHub is US-based; by using the app you consent to US data transfer.'} />

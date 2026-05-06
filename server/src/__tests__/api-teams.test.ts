@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
+import { getTeamState } from '../lib/teamState.js';
 
 let prisma: any;
 let signJwt: any;
@@ -60,10 +61,12 @@ describe('API Team Endpoints', () => {
         league_owner_id: coachUserId,
         updated_at: new Date(),
       },
+      select: { id: true },
     });
     testOrgId = org.id;
     await prisma.organizationMembership.create({
       data: { organization_id: testOrgId, user_id: coachUserId, role: 'owner' },
+      select: { id: true },
     });
 
     // Create fan user
@@ -251,6 +254,7 @@ describe('API Team Endpoints', () => {
           organization_id: testOrgId,
           status: 'active',
         },
+        select: { id: true, name: true },
       });
 
       await prisma.teamMembership.create({
@@ -303,10 +307,7 @@ describe('API Team Endpoints', () => {
       expect(response.body.ok).toBe(true);
       expect(response.body.archived).toBe(true);
 
-      const refreshedTeam = await prisma.team.findUnique({
-        where: { id: team.id },
-        select: { status: true },
-      });
+      const refreshedTeam = await getTeamState(team.id, prisma);
       const refreshedGame = await prisma.game.findUnique({
         where: { id: game.id },
         select: { home_team_id: true },
@@ -398,6 +399,7 @@ describe('API Team Endpoints', () => {
           venue_lng: -84.388,
           venue_place_id: 'managed-place-id',
         },
+        select: { id: true },
       });
       await prisma.teamMembership.create({
         data: { team_id: team.id, user_id: coachUserId, role: 'owner', status: 'active' },
@@ -440,6 +442,7 @@ describe('API Team Endpoints', () => {
           venue_place_id: 'list-place-id',
           is_private: false,
         },
+        select: { id: true },
       });
       await prisma.teamMembership.create({
         data: { team_id: team.id, user_id: coachUserId, role: 'owner', status: 'active' },
@@ -483,6 +486,7 @@ describe('API Team Endpoints', () => {
           venue_lng: -86.7816,
           venue_place_id: 'detail-place-id',
         },
+        select: { id: true },
       });
       await prisma.teamMembership.create({
         data: { team_id: team.id, user_id: coachUserId, role: 'owner', status: 'active' },
@@ -812,6 +816,7 @@ describe('API Team Endpoints', () => {
           status: 'active',
           is_private: true,
         },
+        select: { id: true },
       });
       await prisma.teamMembership.create({
         data: {
@@ -891,6 +896,7 @@ describe('API Team Endpoints', () => {
           organization_id: testOrgId,
           status: 'active',
         },
+        select: { id: true },
       });
       await prisma.teamMembership.create({
         data: { team_id: team.id, user_id: separateOwner.id, role: 'owner', status: 'active' },
@@ -904,10 +910,55 @@ describe('API Team Endpoints', () => {
 
       expect(res.status).toBe(200);
 
-      const archived = await prisma.team.findUnique({ where: { id: team.id } });
+      const archived = await getTeamState(team.id, prisma);
       expect(archived?.status).not.toBe('active');
 
       // Cleanup
+      await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
+      await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
+      await prisma.user.delete({ where: { id: separateOwner.id } }).catch(() => {});
+    });
+
+    it('GET /teams/:id exposes can_manage_team for org admins without direct team membership', async () => {
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const separateOwner = await prisma.user.create({
+        data: {
+          email: `test-team-view-${Date.now()}@example.com`,
+          password_hash: passwordHash,
+          display_name: 'Team Detail Owner',
+          email_verified: true,
+          approval_status: 'APPROVED',
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      const team = await prisma.team.create({
+        data: {
+          name: `Org-admin-view-${Date.now()}`,
+          sport: 'soccer',
+          organization_id: testOrgId,
+          status: 'active',
+        },
+        select: { id: true },
+      });
+      await prisma.teamMembership.create({
+        data: { team_id: team.id, user_id: separateOwner.id, role: 'owner', status: 'active' },
+      });
+
+      const res = await request(app)
+        .get(`/teams/${team.id}`)
+        .set('Authorization', `Bearer ${coachToken}`)
+        .expect(200);
+
+      expect(res.body.my_role).toBeNull();
+      expect(res.body.is_org_admin).toBe(true);
+      expect(res.body.can_manage_team).toBe(true);
+
       await prisma.teamMembership.deleteMany({ where: { team_id: team.id } }).catch(() => {});
       await prisma.team.delete({ where: { id: team.id } }).catch(() => {});
       await prisma.user.delete({ where: { id: separateOwner.id } }).catch(() => {});
@@ -955,6 +1006,7 @@ describe('API Team Endpoints', () => {
           organization_id: testOrgId,
           status: 'active',
         },
+        select: { id: true },
       });
       await prisma.teamMembership.createMany({
         data: [

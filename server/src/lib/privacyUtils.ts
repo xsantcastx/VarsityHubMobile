@@ -1,4 +1,5 @@
 import { prisma } from './prisma.js';
+import { getTeamState } from './teamState.js';
 
 // Cache private user IDs for 60s to avoid querying all users on every feed request
 let _privateIdsCache: { ids: string[]; expires: number } | null = null;
@@ -213,10 +214,7 @@ export async function isAuthorHiddenFromViewer(authorId: string, viewerId: strin
  * Team members, followers, and org admins can still see it.
  */
 export async function isTeamHiddenFromViewer(teamId: string, viewerId: string | null): Promise<boolean> {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { is_private: true, status: true, organization_id: true },
-  });
+  const team = await getTeamState(teamId, prisma);
   if (!team || team.status !== 'active') return true;
   if (!team.is_private) return false;
   if (!viewerId) return true;

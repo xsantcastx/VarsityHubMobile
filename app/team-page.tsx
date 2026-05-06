@@ -1,22 +1,18 @@
-import { Post, Team } from '@/api/entities';
-import type { TeamScreenSummaryResponse } from '@/api/schemas/team';
+import { Game, Post, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
-import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { useShareLink } from '@/hooks/useShareLink';
-import { goBackToTrackedRoute, safeGoBack } from '@/utils/navigation';
+import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { getGradientForColor } from '@/utils/theme';
-import { canShareTeamQr } from '@/utils/teamShare';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
-import { sanitizePublicDescription } from '@/utils/publicDescriptions';
+import { safeGoBack } from '@/utils/navigation';
 
 type LeagueTeam = {
   id: string;
@@ -26,15 +22,7 @@ type LeagueTeam = {
   logo_url?: string;
   description?: string;
   organization_id?: string;
-  venue_address?: string | null;
   created_at?: string;
-  is_private?: boolean;
-  followers_count?: number;
-  is_following?: boolean | null;
-  organization?: {
-    id?: string;
-    name?: string;
-  } | null;
   _count?: {
     members?: number;
     games?: number;
@@ -86,7 +74,6 @@ type TeamMember = {
   };
 };
 
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 const HEADER_IMAGE_DRAG_LIMIT = 120;
 const _clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -94,14 +81,14 @@ const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
   if (!id) return null;
   const media = typeof item?.media_url === 'string' ? item.media_url : null;
-  const explicit = typeof item?.media_type === 'string' ? String(item.media_type).toLowerCase() : null;
-  const media_type: 'video' | 'image' = media
-    ? (explicit === 'video' || explicit === 'image' ? (explicit as any) : (VIDEO_EXT.test(media) ? 'video' : 'image'))
-    : 'image';
+  const media_type = (resolveMediaType(item?.media_url, item?.media_type) ?? 'image') as
+    | 'video'
+    | 'image';
   return {
     id,
     media_url: media,
     media_type,
+    preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
     caption: item?.caption ?? item?.content ?? '',
     upvotes_count: item?.upvotes_count ?? 0,
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
@@ -118,13 +105,10 @@ function TeamScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const navHistory = useContext(NavigationHistoryContext);
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; name?: string; from?: string; gameId?: string }>();
-  const href = useUnstableGlobalHref();
   const { from, gameId } = params;
   const navigation = useNavigation();
-  const currentHref = typeof href === 'string' ? href : null;
   
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<LeagueTeam | null>(null);
@@ -171,17 +155,9 @@ function TeamScreen() {
         router.push({ pathname: '/game/[id]', params: { id: gameId } } as any);
       }
     } else {
-      const explicitFallback = team?.organization_id
-        ? `/organizations/${encodeURIComponent(team.organization_id)}`
-        : '/(tabs)/discover';
-      goBackToTrackedRoute(
-        router,
-        currentHref,
-        navHistory?.getFallbackRoute?.(),
-        explicitFallback
-      );
+      safeGoBack(router);
     }
-  }, [currentHref, from, gameId, navHistory, navigation, router, team?.organization_id]);
+  }, [from, gameId, navigation, router]);
 
   // Mounted guard to prevent state updates after unmount
   const mounted = useRef(true);
@@ -191,14 +167,24 @@ function TeamScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (_teamId: string, sourceGames?: GameItem[]) => {
+  const refreshPosts = useCallback(async (_teamId: string) => {
     if (postsRequestInFlight.current || !mounted.current) return;
     postsRequestInFlight.current = true;
     if (mounted.current) setPostsLoading(true);
     try {
-      const gameIds = (Array.isArray(sourceGames) ? sourceGames : games)
-        .map((g: GameItem) => g.id)
-        .filter(Boolean);
+      // Fetch posts for team games
+      const teamNameLower = (team?.name || '').toLowerCase();
+      const allGamesData = await Game.list('-date');
+      if (!mounted.current) return;
+      const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
+
+      const teamGames = allGames.filter((g: GameItem) => {
+            const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+            const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+            return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
+          });
+      
+      const gameIds = teamGames.map((g: GameItem) => g.id);
       if (!mounted.current) return;
       
       if (gameIds.length === 0) {
@@ -246,7 +232,7 @@ function TeamScreen() {
       postsRequestInFlight.current = false;
       if (mounted.current) setPostsLoading(false);
     }
-  }, [games]);
+  }, [team?.name]);
 
   const refreshReplies = useCallback(async (_teamId: string) => {
     if (repliesRequestInFlight.current || !mounted.current) return;
@@ -308,27 +294,39 @@ function TeamScreen() {
         return;
       }
 
-      let summary: TeamScreenSummaryResponse | null = null;
       let teamData: LeagueTeam | null = null;
 
       try {
+        // If we have a team ID, use Team.get() to get full details including organization_id
         if (teamId) {
-          summary = (await Team.screenSummary(teamId)) as TeamScreenSummaryResponse;
-          teamData = (summary?.team as LeagueTeam | undefined) ?? null;
+          try {
+            const fullTeamData = await Team.get(teamId);
+            if (fullTeamData) {
+              teamData = fullTeamData as LeagueTeam;
+            }
+          } catch (getErr: any) {
+            if (__DEV__) console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
+          }
         }
-
-        if (!summary && teamName) {
-          const teamsList = await Team.list(teamName, undefined, { limit: 20 });
-          const exactMatch = (Array.isArray(teamsList) ? teamsList : []).find(
-            (entry: LeagueTeam) => entry.name?.toLowerCase() === teamName.toLowerCase()
-          );
-          if (exactMatch?.id) {
-            summary = (await Team.screenSummary(String(exactMatch.id))) as TeamScreenSummaryResponse;
-            teamData = (summary?.team as LeagueTeam | undefined) ?? exactMatch;
+        
+        // Fallback to list if get() didn't work or we only have teamName
+        if (!teamData) {
+          const allTeams = await Team.list(undefined, undefined, { limit: 100 });
+          const teamsList = Array.isArray(allTeams) ? allTeams : [];
+          
+          if (teamId && !teamData) {
+            teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
+          }
+          
+          if (!teamData && teamName) {
+            teamData = teamsList.find((t: LeagueTeam) => 
+              t.name?.toLowerCase() === teamName.toLowerCase()
+            ) || null;
           }
         }
       } catch (apiErr: any) {
         if (__DEV__) console.error('[team-page] Failed to fetch teams from API:', apiErr);
+        // Continue to try fallback logic
       }
 
       if (!teamData && teamName) {
@@ -353,28 +351,61 @@ function TeamScreen() {
       
       setTeam(teamData);
       setIsFollowing(!!(teamData as any).is_following);
-      setIsTeamAdmin(!!summary?.permissions?.can_manage);
+
+      if (mounted.current) {
+        setIsTeamAdmin((teamData as any)?.can_manage_team === true);
+      }
 
       // Use default theme color (teams don't have preferences field yet)
       if (mounted.current) setTeamThemeColor('#3B82F6');
 
-      const gamesResult: GameItem[] = Array.isArray(summary?.games)
-        ? ([...summary.games] as GameItem[]).sort((a: GameItem, b: GameItem) => {
-            const dateA = new Date(a.date || a.created_at || 0).getTime();
-            const dateB = new Date(b.date || b.created_at || 0).getTime();
-            return dateA - dateB;
+      // Fetch games, posts, and members
+      const [gamesResult, membersResult] = await Promise.all([
+        Game.list('-date')
+          .then(allGamesData => {
+            if (!mounted.current) return [];
+            const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
+            const teamNameLower = (teamData!.name || '').toLowerCase();
+            return allGames
+              .filter((g: GameItem) => {
+                  const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+                  const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+                  return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
+                })
+              .sort((a: GameItem, b: GameItem) => {
+                  const dateA = new Date(a.date || a.created_at || 0).getTime();
+                  const dateB = new Date(b.date || b.created_at || 0).getTime();
+                  return dateA - dateB;
+                });
           })
-        : [];
-      const membersResult: TeamMember[] = Array.isArray(summary?.members)
-        ? ([...summary.members] as TeamMember[]).sort((a: TeamMember, b: TeamMember) => {
-            const aJersey = parseInt(String(a.jersey_number || 999), 10);
-            const bJersey = parseInt(String(b.jersey_number || 999), 10);
-            if (aJersey !== bJersey) return aJersey - bJersey;
-            const aName = a.user?.display_name || '';
-            const bName = b.user?.display_name || '';
-            return aName.localeCompare(bName);
-          })
-        : [];
+          .catch((err: any) => {
+            if (__DEV__) console.error('[team-page] Failed to load games:', err);
+            return [];
+          }),
+        
+        (async () => {
+          try {
+            if (!teamData?.id || !mounted.current) return [];
+            const teamMembers = await Team.members(teamData.id);
+            if (!mounted.current) return [];
+            
+            const memberList = Array.isArray(teamMembers) ? teamMembers : [];
+            return memberList
+              .filter((m: TeamMember) => m.team_id === teamData!.id)
+              .sort((a: TeamMember, b: TeamMember) => {
+                const aJersey = parseInt(String(a.jersey_number || 999), 10);
+                const bJersey = parseInt(String(b.jersey_number || 999), 10);
+                if (aJersey !== bJersey) return aJersey - bJersey;
+                const aName = a.user?.display_name || '';
+                const bName = b.user?.display_name || '';
+                return aName.localeCompare(bName);
+              });
+          } catch (err: any) {
+            if (__DEV__) console.error('[team-page] Failed to load members:', err);
+            return [];
+          }
+        })(),
+      ]);
 
       if (!mounted.current) return;
       setGames(gamesResult);
@@ -382,7 +413,7 @@ function TeamScreen() {
       
       // Load initial posts
       if (teamData.id) {
-        await refreshPosts(teamData.id, gamesResult);
+        await refreshPosts(teamData.id);
       }
     } catch (err: any) {
       if (!mounted.current) return;
@@ -469,23 +500,6 @@ function TeamScreen() {
   
   const teamName = team?.name || 'Team';
   const teamHandle = `@${(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}`;
-  const teamDescription = sanitizePublicDescription(team?.description);
-  const teamVenue = typeof team?.venue_address === 'string' ? team.venue_address.trim() : '';
-  const teamOrganizationName =
-    typeof team?.organization?.name === 'string' && team.organization.name.trim().length > 0
-      ? team.organization.name.trim()
-      : null;
-  const isShareableTeam = canShareTeamQr(team);
-  const { share: shareTeamLink } = useShareLink({
-    kind: 'team',
-    id: isShareableTeam ? team?.id : null,
-    title: teamName,
-    contextLines: [team?.sport ? `${team.sport} team` : null],
-  });
-
-  const handleShareLink = useCallback(async () => {
-    await shareTeamLink();
-  }, [shareTeamLink]);
 
   const renderHeader = () => (
     <>
@@ -536,41 +550,18 @@ function TeamScreen() {
           </Pressable>
         </View>
 
-        {/* Share / Settings Buttons - Top Right */}
-        {(isShareableTeam || isTeamAdmin) && (
+        {/* Settings Button - Top Right */}
+        {isTeamAdmin && (
           <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
-            {isShareableTeam && (
-              <Pressable
-                testID="team-page-share-button"
-                onPress={() => void handleShareLink()}
-                style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
-                accessibilityRole="button"
-                accessibilityLabel="Share team"
-              >
-                <Ionicons name="share-social-outline" size={18} color={theme.text} />
-              </Pressable>
-            )}
-            {isTeamAdmin && (
-              <Pressable
-                testID="team-page-settings-button"
-                onPress={() =>
-                  void router.push({
-                    pathname: '/team-admin',
-                    params: {
-                      teamId: team?.id,
-                      orgId: team?.organization_id,
-                      orgTab: 'teams',
-                      tab: 'overview',
-                    },
-                  } as any)
-                }
-                style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
-                accessibilityRole="button"
-                accessibilityLabel="Team settings"
-              >
-                <Ionicons name="settings-outline" size={18} color={theme.text} />
-              </Pressable>
-            )}
+            <Pressable
+              testID="team-page-settings-button"
+              onPress={() => void router.push(`/edit-team?id=${team?.id}` as any)}
+              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+              accessibilityRole="button"
+              accessibilityLabel="Edit team profile"
+            >
+              <Ionicons name="settings-outline" size={18} color={theme.text} />
+            </Pressable>
           </View>
         )}
         
@@ -613,16 +604,7 @@ function TeamScreen() {
               <Pressable
                 testID="team-page-edit-button"
                 style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
-                onPress={() =>
-                  void router.push({
-                    pathname: '/edit-team',
-                    params: {
-                      id: team?.id,
-                      orgId: team?.organization_id,
-                      orgTab: 'teams',
-                    },
-                  } as any)
-                }
+                onPress={() => void router.push(`/edit-team?id=${team?.id}` as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Edit team profile"
               >
@@ -691,39 +673,9 @@ function TeamScreen() {
 
         {/* Team Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
-          {teamDescription ? (
-            <Text style={[styles.userBio, { color: theme.text }]}>{teamDescription}</Text>
-          ) : null}
-
-          {teamVenue ? (
-            <View style={styles.metaItem}>
-              <Ionicons name="location-outline" size={14} color={theme.mutedText} />
-              <Text style={[styles.metaText, { color: theme.mutedText }]}>{teamVenue}</Text>
-            </View>
-          ) : null}
-
-          {teamOrganizationName ? (
-            <Pressable
-              onPress={() => {
-                if (!team?.organization_id) return;
-                void router.push({
-                  pathname: '/organizations/[id]',
-                  params: { id: team.organization_id },
-                } as any);
-              }}
-              style={styles.metaItem}
-              accessibilityRole="button"
-              accessibilityLabel={`Open organization page for ${teamOrganizationName}`}
-            >
-              <Ionicons name="business-outline" size={14} color={theme.mutedText} />
-              <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                {teamOrganizationName}
-              </Text>
-              {team?.organization_id ? (
-                <Ionicons name="chevron-forward" size={12} color={theme.mutedText} />
-              ) : null}
-            </Pressable>
-          ) : null}
+          {team?.description && (
+            <Text style={[styles.userBio, { color: theme.text }]}>{team.description}</Text>
+          )}
           
           {/* Created Date */}
           {team?.created_at && (
@@ -807,10 +759,7 @@ function TeamScreen() {
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push({
-                  pathname: '/organization',
-                  params: { id: orgId, tab: 'overview' },
-                } as any);
+                router.push({ pathname: '/league', params: { id: orgId } } as any);
               }
             }}
             disabled={!team?.organization_id}
@@ -824,7 +773,7 @@ function TeamScreen() {
               styles.orgButtonText,
               { color: team?.organization_id ? theme.text : theme.mutedText }
             ]}>
-              {team?.organization_id ? 'Organization' : 'No Organization'}
+              {team?.organization_id ? 'My League' : 'No Organization'}
             </Text>
             {team?.organization_id && (
               <Ionicons name="chevron-forward" size={14} color={theme.text} />
@@ -961,8 +910,7 @@ function TeamScreen() {
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
-            const thumb = item.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const media = resolvePostMedia(item);
             const likes = item.upvotes_count ?? 0;
             const comments = item.comments_count ?? item?._count?.comments ?? 0;
             return (
@@ -978,9 +926,25 @@ function TeamScreen() {
                   setViewerOpen(true);
                 }}
               >
-                {thumb ? (
+                {media.hasMedia ? (
                   <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    {media.displayImageUrl ? (
+                      <Image
+                        source={{ uri: media.displayImageUrl }}
+                        style={styles.gridImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={[styles.gridImage, styles.gridImageFallback]}>
+                        <LinearGradient
+                          colors={['#0f172a', '#1e293b']}
+                          style={StyleSheet.absoluteFillObject as any}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        />
+                        <Ionicons name="play-circle" size={34} color="#fff" />
+                      </View>
+                    )}
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
@@ -1007,7 +971,11 @@ function TeamScreen() {
                   </View>
                 </View>
                 <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                  <Ionicons
+                    name={media.hasMedia ? (media.isVideo ? 'play-circle-outline' : 'camera-outline') : 'text'}
+                    size={14}
+                    color="#fff"
+                  />
                 </View>
               </Pressable>
             );
@@ -1031,8 +999,7 @@ function TeamScreen() {
           onEndReached={onEndReachedReplies}
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
-            const thumb = postItem?.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const media = resolvePostMedia(postItem);
             const likes = postItem?.upvotes_count ?? 0;
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
             return (
@@ -1048,9 +1015,25 @@ function TeamScreen() {
                   setViewerOpen(true);
                 }}
               >
-                {thumb ? (
+                {media.hasMedia ? (
                   <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    {media.displayImageUrl ? (
+                      <Image
+                        source={{ uri: media.displayImageUrl }}
+                        style={styles.gridImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={[styles.gridImage, styles.gridImageFallback]}>
+                        <LinearGradient
+                          colors={['#0f172a', '#1e293b']}
+                          style={StyleSheet.absoluteFillObject as any}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        />
+                        <Ionicons name="play-circle" size={34} color="#fff" />
+                      </View>
+                    )}
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
@@ -1077,7 +1060,11 @@ function TeamScreen() {
                   </View>
                 </View>
                 <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                  <Ionicons
+                    name={media.hasMedia ? (media.isVideo ? 'play-circle-outline' : 'camera-outline') : 'text'}
+                    size={14}
+                    color="#fff"
+                  />
                 </View>
               </Pressable>
             );
@@ -1101,8 +1088,7 @@ function TeamScreen() {
           onEndReached={onEndReachedUpvotes}
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
-            const thumb = postItem?.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const media = resolvePostMedia(postItem);
             const likes = postItem?.upvotes_count ?? 0;
             const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
             return (
@@ -1118,9 +1104,25 @@ function TeamScreen() {
                   setViewerOpen(true);
                 }}
               >
-                {thumb ? (
+                {media.hasMedia ? (
                   <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    {media.displayImageUrl ? (
+                      <Image
+                        source={{ uri: media.displayImageUrl }}
+                        style={styles.gridImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={[styles.gridImage, styles.gridImageFallback]}>
+                        <LinearGradient
+                          colors={['#0f172a', '#1e293b']}
+                          style={StyleSheet.absoluteFillObject as any}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        />
+                        <Ionicons name="play-circle" size={34} color="#fff" />
+                      </View>
+                    )}
                     <View style={styles.gridImageOverlay} />
                   </View>
                 ) : (
@@ -1147,7 +1149,11 @@ function TeamScreen() {
                   </View>
                 </View>
                 <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                  <Ionicons
+                    name={media.hasMedia ? (media.isVideo ? 'play-circle-outline' : 'camera-outline') : 'text'}
+                    size={14}
+                    color="#fff"
+                  />
                 </View>
               </Pressable>
             );
@@ -1211,9 +1217,6 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1
   },
-  disabledButton: {
-    opacity: 0.6,
-  },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center', marginBottom: 16 },
   retryButton: {
@@ -1265,14 +1268,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.2)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.2,
-          shadowRadius: 3,
-        }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
     elevation: 2,
   },
   profileContent: {
@@ -1297,14 +1296,10 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 4,
     borderColor: '#ffffff',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.2)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.2,
-          shadowRadius: 8,
-        }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
     elevation: 99999,
     backgroundColor: '#ffffff',
     zIndex: 99999,
@@ -1354,14 +1349,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#7c3aed',
     gap: 3,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.15)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.15,
-          shadowRadius: 2,
-        }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
     elevation: 2,
   },
   teamBadge: { backgroundColor: '#10B981' },
@@ -1498,14 +1489,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden', 
     backgroundColor: '#F3F4F6',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
   },
   gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
@@ -1534,13 +1521,9 @@ const styles = StyleSheet.create({
     fontWeight: '700', 
     fontSize: 12, 
     lineHeight: 16,
-    ...(Platform.OS === 'web'
-      ? { textShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
-      : {
-          textShadowColor: 'rgba(0,0,0,0.3)',
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 2,
-        })
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2
   },
   gridIconBadge: { 
     position: 'absolute', 
@@ -1552,14 +1535,10 @@ const styles = StyleSheet.create({
     height: 28, 
     alignItems: 'center', 
     justifyContent: 'center',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.3,
-          shadowRadius: 2,
-        })
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2
   },
   gridCounts: { 
     position: 'absolute', 
@@ -1572,14 +1551,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 6,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.3)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.3,
-          shadowRadius: 2,
-        })
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
@@ -1617,138 +1592,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginLeft: 12,
-  },
-  shareModalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(2, 6, 23, 0.68)',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  shareModalCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 20,
-    gap: 14,
-  },
-  shareModalTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  shareModalSubtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  qrCaptureWrap: {
-    alignSelf: 'center',
-  },
-  qrExportCard: {
-    width: 280,
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    overflow: 'hidden',
-    paddingBottom: 20,
-  },
-  qrExportHeader: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-  },
-  qrExportIdentity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  qrExportIdentityText: {
-    flex: 1,
-  },
-  qrExportLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
-  },
-  qrExportLogoFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrExportTeamName: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  qrExportTeamHandle: {
-    color: 'rgba(255,255,255,0.82)',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  qrCodeBlock: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 22,
-    paddingBottom: 14,
-  },
-  qrExportFooter: {
-    textAlign: 'center',
-    color: '#334155',
-    fontSize: 13,
-    fontWeight: '600',
-    paddingHorizontal: 18,
-  },
-  shareUrlText: {
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  shareActionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  shareActionButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-  },
-  shareActionButtonSecondary: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-  },
-  shareActionPrimaryText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  shareActionSecondaryText: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  saveQrButton: {
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-  },
-  saveQrButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
   },
   orgButton: {
     flexDirection: 'row',

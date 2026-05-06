@@ -17,9 +17,8 @@ import {
   getCoachAccessState,
   getCoachRecoveryRoute,
   getPendingCoachRoute,
-  getCanonicalCoachRole,
-  getCoachOrganizationId,
-  isCoachOnboardingComplete,
+  isOrganizationAdminMember,
+  isOrganizationOwner,
 } from '../utils/roleChecks';
 
 describe('getCoachAccessState — identity', () => {
@@ -42,17 +41,13 @@ describe('getCoachAccessState — identity', () => {
     expect(s.canAccessCoachTools).toBe(false);
   });
 
-  it('prefers top-level role over stale preferences.role', () => {
+  it('reads role from preferences.role over user.role', () => {
     const s = getCoachAccessState({
-      role: 'coach',
-      preferences: { role: 'fan' },
+      role: 'fan',
+      preferences: { role: 'coach' },
     });
     expect(s.isCoach).toBe(true);
     expect(s.role).toBe('coach');
-  });
-
-  it('falls back to preferences.role when top-level role is missing', () => {
-    expect(getCanonicalCoachRole({ preferences: { role: 'coach' } } as any)).toBe('coach');
   });
 });
 
@@ -218,47 +213,53 @@ describe('getPendingCoachRoute', () => {
     ).toBe('/onboarding/league-pending-approval');
   });
 
-  it('uses top-level organization_id when preferences are stale', () => {
-    expect(
-      getPendingCoachRoute({
-        organization_id: 'org_top_level',
-        preferences: { organization_id: '' },
-      } as any)
-    ).toBe('/onboarding/league-pending-approval');
-  });
-
   it('defaults to /onboarding/pending-approval for missing preferences', () => {
     expect(getPendingCoachRoute({} as any)).toBe('/onboarding/pending-approval');
     expect(getPendingCoachRoute(null)).toBe('/onboarding/pending-approval');
   });
 });
 
-describe('canonical onboarding helpers', () => {
-  it('prefers top-level onboarding_completed over stale preferences', () => {
-    expect(
-      isCoachOnboardingComplete({
-        onboarding_completed: true,
-        preferences: { onboarding_completed: false },
-      } as any)
-    ).toBe(true);
-  });
+describe('organization membership helpers', () => {
+  const baseUser = { id: 'user-1', approval_status: 'PENDING', preferences: { role: 'coach' } };
 
-  it('treats top-level onboarding_completed=false as authoritative', () => {
+  it('isOrganizationOwner only returns true for active owner membership', () => {
     expect(
-      isCoachOnboardingComplete({
-        onboarding_completed: false,
-        preferences: { onboarding_completed: true },
-      } as any)
+      isOrganizationOwner(baseUser as any, [
+        { user_id: 'user-1', role: 'owner', status: 'active' },
+      ])
+    ).toBe(true);
+
+    expect(
+      isOrganizationOwner(baseUser as any, [
+        { user_id: 'user-1', role: 'manager', status: 'active' },
+      ])
+    ).toBe(false);
+
+    expect(
+      isOrganizationOwner(baseUser as any, [
+        { user_id: 'user-1', role: 'owner', status: 'inactive' },
+      ])
     ).toBe(false);
   });
 
-  it('prefers top-level organization_id over stale preferences', () => {
+  it('isOrganizationAdminMember returns true for active owner or manager membership', () => {
     expect(
-      getCoachOrganizationId({
-        organization_id: 'org_123',
-        preferences: { organization_id: '' },
-      } as any)
-    ).toBe('org_123');
+      isOrganizationAdminMember(baseUser as any, [
+        { user_id: 'user-1', role: 'owner', status: 'active' },
+      ])
+    ).toBe(true);
+
+    expect(
+      isOrganizationAdminMember(baseUser as any, [
+        { user_id: 'user-1', role: 'manager', status: 'active' },
+      ])
+    ).toBe(true);
+
+    expect(
+      isOrganizationAdminMember(baseUser as any, [
+        { user_id: 'user-1', role: 'member', status: 'active' },
+      ])
+    ).toBe(false);
   });
 });
 

@@ -1,21 +1,17 @@
 /**
- * Parental consent firewall.
+ * Legacy minor firewall.
  *
- * Runs after auth but before route dispatch. For 13–17 minors whose
- * `parental_consent_status` is `pending` or `denied`, blocks every request
- * EXCEPT a small allowlist that lets them keep using the auth/status surface
- * and request a fresh consent email.
+ * VarsityHub no longer requires parental consent for 13–17 users. The only
+ * age-based hard block is under-13 access, which should already be rejected at
+ * signup. This middleware remains as a defense-in-depth backstop for any
+ * legacy under-13 accounts that still exist in the database.
  *
  * Allowlist (matched by path prefix on `req.path` — note this runs after
  * `/v1` is stripped by the parent app.use mount):
  *   - /auth/me, /auth/refresh, /auth/logout, /auth/sign-out
  *   - /me  (the meProxy that forwards to /auth/me — same surface)
- *   - /me/consent/resend
- *   - /consent/...
+ *   - /auth/verify/*
  *   - /health
- *
- * Anything else returns 403 with a categorical error code so the mobile
- * client can route to a "waiting for parent" screen instead of guessing.
  *
  * Admins (god-admin emails) bypass the gate entirely so support staff can
  * still investigate a minor's account on their behalf.
@@ -25,23 +21,14 @@ import type { Response, NextFunction } from 'express';
 import type { AuthedRequest } from './auth.js';
 import { prisma } from '../lib/prisma.js';
 import { isEmailAdmin } from './requireAdmin.js';
-import { isMinor } from '../lib/userAge.js';
+import { isChild } from '../lib/userAge.js';
 
 const ALLOWED_PREFIXES = [
   '/auth/me',
   '/auth/refresh',
   '/auth/logout',
   '/auth/sign-out',
-  // Email verification MUST stay reachable regardless of consent state.
-  // Without this, a minor who provided DOB at registration (so consent
-  // flipped to pending) gets a JWT but is firewall-blocked from
-  // /auth/verify/confirm — they can never verify their email and are
-  // permanently locked out of onboarding. The verify endpoints already
-  // require auth + rate-limit + check email_verified independently, so
-  // allowlisting adds no new attack surface.
   '/auth/verify',
-  '/me/consent/resend',
-  '/consent',
   '/health',
 ];
 
@@ -90,22 +77,14 @@ export async function requireParentalConsent(
   // God-admins always pass.
   if (isEmailAdmin(u.email)) return next();
 
-  // Adult or under-13-blocked-at-signup → no consent gate.
-  if (!isMinor({ date_of_birth: u.date_of_birth, preferences: u.preferences })) {
+  // Only legacy under-13 users are blocked here. Teen accounts are allowed.
+  if (!isChild({ date_of_birth: u.date_of_birth, preferences: u.preferences })) {
     return next();
   }
 
-  // Approved or not-required → pass.
-  if (u.parental_consent_status === 'approved' || u.parental_consent_status === 'not_required') {
-    return next();
-  }
-
-  // Pending or denied → block with a categorical error code.
-  const isDenied = u.parental_consent_status === 'denied';
   return res.status(403).json({
-    error: isDenied ? 'PARENTAL_CONSENT_DENIED' : 'PARENTAL_CONSENT_PENDING',
-    message: isDenied
-      ? 'A parent or guardian denied this account. Contact support@varsityhub.app if this was in error.'
-      : 'Waiting for your parent or guardian to approve this account.',
+    error: 'COPPA_UNDER_13',
+    message:
+      'VarsityHub is not available for users under 13. Please have a parent or guardian contact support@varsityhub.app.',
   });
 }

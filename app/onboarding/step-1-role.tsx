@@ -5,6 +5,7 @@ import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -48,6 +49,7 @@ function RoleCard({
 }) {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const theme = Colors[colorScheme];
 
   // Silver for Fan, gold for Coach
   const isFan = roleType === 'fan';
@@ -60,7 +62,7 @@ function RoleCard({
     cardBorder: isDark
       ? selected
         ? accentColorLight
-        : '#374151'
+        : '#374151' // audit: intentional border color, not text color
       : selected
         ? accentColor
         : '#D1D5DB',
@@ -73,7 +75,7 @@ function RoleCard({
         : '#6B7280',
     titleColor: isDark ? '#F9FAFB' : '#111827',
     descColor: isDark ? '#9CA3AF' : '#6B7280',
-    featureText: isDark ? '#D1D5DB' : '#374151',
+    featureText: isDark ? '#D1D5DB' : theme.text,
     buttonBg: buttonBg,
   };
 

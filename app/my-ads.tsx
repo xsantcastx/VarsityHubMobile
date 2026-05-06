@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 import settings from '@/api/settings';
-import { getAdScheduleBucket, getCompositeAdBadge } from '@/utils/adStatusBadge';
+import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { safeGoBack } from '@/utils/navigation';
 
 type ManagedAd = {
@@ -23,8 +23,6 @@ type ManagedAd = {
   created_at: string;
   status?: string;
   payment_status?: string;
-  impression_count?: number;
-  click_count?: number;
   owner_id?: string | null;
   isLocal?: boolean;
 };
@@ -94,8 +92,6 @@ function MyAdsScreen() {
           created_at: a.created_at || new Date().toISOString(),
           status: a.status,
           payment_status: a.payment_status,
-          impression_count: typeof a.impression_count === 'number' ? a.impression_count : 0,
-          click_count: typeof a.click_count === 'number' ? a.click_count : 0,
           owner_id: a.owner_id,
         });
       };
@@ -237,30 +233,21 @@ function MyAdsScreen() {
     const hasUpcoming = future.length > 0;
     const hasDates = dates.length > 0;
     const isPaid = item.payment_status === 'paid';
-    const scheduleBucket = getAdScheduleBucket(dates);
-    const badge = getCompositeAdBadge(item.status, item.payment_status, dates);
-    const requiresEditBeforeScheduling = item.status === 'rejected' || item.status === 'archived';
-    const isAwaitingPayment = (item.status === 'approved' || item.status === 'active') && !isPaid;
-    const impressions = item.impression_count || 0;
-    const clicks = item.click_count || 0;
-    const ctr = impressions > 0 ? Math.round((clicks / impressions) * 1000) / 10 : 0;
+    const badge = getCompositeAdBadge(item.status, item.payment_status);
+    const requiresEditBeforeScheduling = item.status === 'rejected';
     const primaryActionLabel = item.status === 'rejected'
       ? 'Edit to Resubmit'
-      : item.status === 'archived'
-        ? 'Edit to Run Again'
-        : item.status === 'draft'
-          ? 'Submit for Review'
+      : item.status === 'draft'
+        ? 'Submit for Review'
         : item.status === 'pending'
-          ? 'View Review Status'
-          : isAwaitingPayment
-            ? 'Complete Checkout'
-            : scheduleBucket === 'live'
-              ? 'Schedule More'
-              : scheduleBucket === 'scheduled'
-                ? 'View Schedule'
-                : scheduleBucket === 'completed'
-                  ? 'Run Again'
-                  : 'Schedule Dates';
+          ? 'Awaiting Review'
+      : item.status === 'archived'
+        ? 'Run Again'
+        : isPaid && hasDates
+          ? '✓ Paid - Schedule More'
+          : hasDates
+            ? 'Schedule More'
+            : 'Schedule Dates';
     
     return (
       <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
@@ -301,23 +288,6 @@ function MyAdsScreen() {
               <Text style={[styles.badgeText, badgeTextStyleForTone(badge.tone)]}>
                 {badge.label.toUpperCase()}
               </Text>
-            </View>
-          </View>
-
-          <View style={[styles.metricsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-            <View style={styles.metricBlock}>
-              <Text style={[styles.metricValue, { color: Colors[colorScheme].text }]}>{impressions}</Text>
-              <Text style={[styles.metricLabel, { color: Colors[colorScheme].mutedText }]}>Impressions</Text>
-            </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricBlock}>
-              <Text style={[styles.metricValue, { color: Colors[colorScheme].text }]}>{clicks}</Text>
-              <Text style={[styles.metricLabel, { color: Colors[colorScheme].mutedText }]}>Clicks</Text>
-            </View>
-            <View style={styles.metricDivider} />
-            <View style={styles.metricBlock}>
-              <Text style={[styles.metricValue, { color: Colors[colorScheme].text }]}>{ctr}%</Text>
-              <Text style={[styles.metricLabel, { color: Colors[colorScheme].mutedText }]}>CTR</Text>
             </View>
           </View>
         </View>
@@ -538,8 +508,6 @@ function MyAdsScreen() {
 
 function badgeStyleForTone(tone: string, colorScheme: 'light' | 'dark' = 'light') {
   if (tone === 'live') return { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC' };
-  if (tone === 'scheduled') return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#DBEAFE', borderColor: colorScheme === 'dark' ? '#60A5FA' : '#93C5FD' };
-  if (tone === 'completed') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#D1D5DB' };
   if (tone === 'approved') return { backgroundColor: colorScheme === 'dark' ? '#064E3B' : '#D1FAE5', borderColor: colorScheme === 'dark' ? '#34D399' : '#6EE7B7' };
   if (tone === 'pending') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3', borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A' };
   if (tone === 'rejected') return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5' };
@@ -548,8 +516,6 @@ function badgeStyleForTone(tone: string, colorScheme: 'light' | 'dark' = 'light'
 }
 function badgeTextStyleForTone(tone: string) {
   if (tone === 'live') return { color: '#10B981' };
-  if (tone === 'scheduled') return { color: '#2563EB' };
-  if (tone === 'completed') return { color: '#6B7280' };
   if (tone === 'approved') return { color: '#059669' };
   if (tone === 'pending') return { color: '#F59E0B' };
   if (tone === 'rejected') return { color: '#EF4444' };
@@ -591,14 +557,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-        }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
   },
   bannerContainer: {
@@ -645,36 +607,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexWrap: 'wrap',
     gap: 8,
-  },
-  metricsCard: {
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metricBlock: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  metricValue: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  metricLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  metricDivider: {
-    width: 1,
-    alignSelf: 'stretch',
-    backgroundColor: '#D1D5DB',
-    opacity: 0.8,
   },
   badge: {
     paddingHorizontal: 12,

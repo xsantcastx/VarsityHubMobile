@@ -5,6 +5,8 @@ import request from 'supertest';
 let prisma: any;
 let signReviewToken: any;
 let app: import('express').Express;
+let getOrganizationJoinRequestState: any;
+let getOrganizationMembership: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -19,6 +21,8 @@ describe('Coach join request email-token review routes', () => {
     ({ app } = await import('../testApp.js'));
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signReviewToken } = await import('../lib/reviewTokens.js'));
+    ({ getOrganizationJoinRequestState } = await import('../lib/organizationWorkflowState.js'));
+    ({ getOrganizationMembership } = await import('../lib/organizationAuthorization.js'));
 
     const hash = await bcrypt.hash(PASSWORD, 10);
 
@@ -58,11 +62,13 @@ describe('Coach join request email-token review routes', () => {
         updated_at: new Date(),
         league_owner_id: owner.id,
       },
+      select: { id: true },
     });
     orgId = org.id;
 
     await prisma.organizationMembership.create({
       data: { organization_id: orgId, user_id: owner.id, role: 'owner', status: 'active' },
+      select: { id: true },
     });
 
     const joinRequest = await prisma.organizationJoinRequest.create({
@@ -71,6 +77,7 @@ describe('Coach join request email-token review routes', () => {
         user_id: coach.id,
         status: 'pending',
       },
+      select: { id: true },
     });
     requestId = joinRequest.id;
   });
@@ -141,17 +148,11 @@ describe('Coach join request email-token review routes', () => {
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Coach Approved/i);
 
-    const requestAfter = await prisma.organizationJoinRequest.findUnique({
-      where: { id: requestId },
-      select: { status: true, reviewed_by: true },
-    });
+    const requestAfter = await getOrganizationJoinRequestState(requestId);
     expect(requestAfter?.status).toBe('approved');
     expect(requestAfter?.reviewed_by).toBe(ownerId);
 
-    const membership = await prisma.organizationMembership.findFirst({
-      where: { organization_id: orgId, user_id: coachId, status: 'active' },
-      select: { role: true },
-    });
+    const membership = await getOrganizationMembership(coachId, orgId);
     expect(membership?.role).toBe('coach');
 
     const coachAfter = await prisma.user.findUnique({

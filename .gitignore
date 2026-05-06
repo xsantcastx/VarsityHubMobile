@@ -50,6 +50,7 @@ android/app/*.keystore
 
 # Metro
 .metro-health-check*
+metro.pid
 
 # debug
 npm-debug.*
@@ -114,6 +115,14 @@ test-results/
 overnight.log
 midnight-health.json
 overnight-audit.sh
+.jscpd-report/
+.jscpd-report-after/
+.jscpd-report-final/
+.jscpd-report-pass2/
+.jscpd-report-pass3/
+.jscpd-report-pass4/
+.jscpd-report-pass5/
+.jscpd-report-pass6/
 
 # Overnight automation directories
 overnight-*/

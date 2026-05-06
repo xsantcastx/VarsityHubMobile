@@ -17,11 +17,12 @@ describe('upload guardrails', () => {
   });
 
   it('edit-ad materializes iCloud assets before banner manipulation', () => {
-    const source = readRepoFile('app/edit-ad.tsx');
+    const source = readRepoFile('components/EditAdScreenBase.tsx');
 
     expect(source).toContain("import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';");
-    expect(source).toContain('const localUri = await materializeICloudAssetIfNeeded(a.uri);');
-    expect(source).toContain('ImageManipulator.manipulateAsync(localUri');
+    expect(source).toContain('const localUri = await materializeICloudAssetIfNeeded(asset.uri);');
+    expect(source).toContain('ImageManipulator.manipulateAsync(');
+    expect(source).toContain('localUri,');
   });
 });
 

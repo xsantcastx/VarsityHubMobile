@@ -213,7 +213,8 @@ describe('coach flow structural invariants', () => {
 
   describe('upgrade-to-coach guardrails', () => {
     it('POST /upgrade-to-coach rejects users already in coach role', () => {
-      expect(/Account is already a coach/.test(auth)).toBe(true);
+      expect(/COACH_ALREADY_APPROVED/.test(auth)).toBe(true);
+      expect(/already an approved coach account/i.test(auth)).toBe(true);
     });
 
     it('POST /upgrade-to-coach enforces DOB required (no silent bypass)', () => {

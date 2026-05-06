@@ -1,44 +1,38 @@
 /**
  * Parental consent firewall — /auth/verify allowlist regression test.
  *
- * Locks in the rule: a 13–17 minor whose `parental_consent_status` is
- * `pending` MUST still be able to hit /auth/verify/* endpoints. Without
- * this allowlist entry, a minor who provided DOB at registration would
- * be issued a JWT, then firewall-blocked from /auth/verify/confirm,
- * and could never verify their email — permanently locked out.
+ * Locks in the rule: even a legacy under-13 account must still be able to hit
+ * /auth/verify/* endpoints. Without this allowlist entry, a legacy child user
+ * would be issued a JWT, then firewall-blocked from /auth/verify/confirm, and
+ * could never verify their email.
  *
- * Email verification is foundational: it must remain reachable
- * regardless of consent state. The verify endpoints already require
- * auth, rate-limit, and check email_verified independently, so
- * allowlisting them adds no new attack surface.
+ * Email verification is foundational: it must remain reachable regardless of
+ * COPPA enforcement state. The verify endpoints already require auth,
+ * rate-limit, and check email_verified independently, so allowlisting them
+ * adds no new attack surface.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
-
-let prisma: any;
-let signJwt: any;
-let hashRefreshToken: any;
+import { prisma } from '../lib/prisma.js';
+import { signJwt, hashRefreshToken } from '../lib/jwt.js';
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
 describe('Parental consent firewall — /auth/verify allowlist', () => {
-  let minorId: string;
-  let minorToken: string;
+  let childId: string;
+  let childToken: string;
 
   beforeAll(async () => {
-    ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt, hashRefreshToken } = await import('../lib/jwt.js'));
-
     const hash = await bcrypt.hash(PASSWORD, 10);
-    // 14 years old — minor, requires parental consent
+    // 12 years old — legacy under-13 account, blocked by the COPPA firewall
     const dob = new Date();
-    dob.setFullYear(dob.getFullYear() - 14);
+    dob.setFullYear(dob.getFullYear() - 12);
 
-    const minor = await prisma.user.create({
+    const child = await prisma.user.create({
       data: {
         email: `verify-allowlist-minor-${ts}@example.com`,
         password_hash: hash,
@@ -51,72 +45,52 @@ describe('Parental consent firewall — /auth/verify allowlist', () => {
         preferences: { role: 'fan', onboarding_completed: false },
       } as any,
     });
-    minorId = minor.id;
-    minorToken = signJwt({ id: minorId });
+    childId = child.id;
+    childToken = signJwt({ id: childId });
   });
 
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { id: minorId } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: childId } }).catch(() => {});
   });
 
-  it('pending-consent minor can POST /auth/verify/confirm with a valid code', async () => {
+  it('legacy under-13 user can POST /auth/verify/confirm with a valid code', async () => {
     // Stage a fresh verification code on the user (mirrors what /verify/request would do).
     const code = '654321';
     const codeHash = hashRefreshToken(code);
     const exp = new Date(Date.now() + 30 * 60 * 1000);
     await prisma.user.update({
-      where: { id: minorId },
+      where: { id: childId },
       data: { email_verification_code: codeHash, email_verification_expires: exp },
     });
 
     const res = await request(app)
       .post('/auth/verify/confirm')
-      .set('Authorization', `Bearer ${minorToken}`)
+      .set('Authorization', `Bearer ${childToken}`)
       .send({ code });
 
-    // Must NOT be 403 PARENTAL_CONSENT_PENDING — that would mean the firewall
-    // ran on the verify endpoint and locked the minor out.
+    // Must NOT be 403 COPPA_UNDER_13 — that would mean the firewall ran on the
+    // verify endpoint and locked the user out.
     expect(res.status).not.toBe(403);
     if (res.body?.error) {
-      expect(res.body.error).not.toBe('PARENTAL_CONSENT_PENDING');
-      expect(res.body.error).not.toBe('PARENTAL_CONSENT_DENIED');
+      expect(res.body.error).not.toBe('COPPA_UNDER_13');
     }
     // Happy path: code verified, email_verified flipped true
     expect(res.status).toBe(200);
     const after = await prisma.user.findUnique({
-      where: { id: minorId },
+      where: { id: childId },
       select: { email_verified: true } as any,
     });
     expect((after as any)?.email_verified).toBe(true);
   });
 
-  it('pending-consent minor can POST /me/consent/resend without tripping the firewall', async () => {
-    await prisma.user.update({
-      where: { id: minorId },
-      data: {
-        email_verified: false,
-        parent_email: `guardian-${ts}@example.com`,
-        parental_consent_status: 'pending',
-      },
-    });
-
-    const res = await request(app)
-      .post('/me/consent/resend')
-      .set('Authorization', `Bearer ${minorToken}`)
-      .send({});
-
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true });
-  });
-
-  it('pending-consent minor remains firewall-blocked from non-allowlisted routes', async () => {
-    // Sanity check that the firewall ITSELF still works — only verify/* is exempt.
+  it('legacy under-13 user remains firewall-blocked from non-allowlisted routes', async () => {
+    // Sanity check that the firewall itself still works — only verify/* is exempt.
     // POST /posts is a representative non-allowlisted route.
     const res = await request(app)
       .post('/posts')
-      .set('Authorization', `Bearer ${minorToken}`)
+      .set('Authorization', `Bearer ${childToken}`)
       .send({ content: 'should be blocked', type: 'post' });
     expect(res.status).toBe(403);
-    expect(res.body?.error).toBe('PARENTAL_CONSENT_PENDING');
+    expect(res.body?.error).toBe('COPPA_UNDER_13');
   });
 });

@@ -1,10 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
-
-let prisma: any;
-let signJwt: any;
-let app: import('express').Express;
+import { app } from '../teamGateTestApp.js';
+import { prisma } from '../lib/prisma.js';
+import { signJwt } from '../lib/jwt.js';
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -37,12 +36,6 @@ describeDb('requireOnboarded coach gate matrix', () => {
     orgs: [] as string[],
     teams: [] as string[],
   };
-
-  beforeAll(async () => {
-    ({ app } = await import('../teamGateTestApp.js'));
-    ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt } = await import('../lib/jwt.js'));
-  });
 
   afterAll(async () => {
     if (!prisma) return;
