@@ -57,6 +57,7 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 .eslintcache
+.snyk-cache/
 *.log
 *.tmp
 
