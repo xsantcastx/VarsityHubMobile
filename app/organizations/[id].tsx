@@ -352,7 +352,7 @@ function OrganizationDetailScreen() {
                   ) : null}
                 </View>
 
-                <Text style={{ paddingHorizontal: 20, paddingBottom: 20, textAlign: 'center', color: '#374151' }}>
+                <Text style={{ paddingHorizontal: 20, paddingBottom: 20, textAlign: 'center', color: theme.mutedText }}>
                   Scan to open this organization page on VarsityHub
                 </Text>
               </View>

@@ -110,12 +110,6 @@ async function getVerifyHandoffState(req: Request): Promise<VerifyHandoffState> 
 
   const user = await prisma.user.findFirst({
     where: { email: { equals: email, mode: 'insensitive' } },
-    select: {
-      email: true,
-      email_verified: true,
-      email_verification_code: true,
-      email_verification_expires: true,
-    },
   });
 
   if (!user) return { kind: 'invalid', email };
@@ -141,11 +135,6 @@ async function getResetHandoffState(req: Request): Promise<ResetHandoffState> {
 
   const user = await prisma.user.findFirst({
     where: { email: { equals: email, mode: 'insensitive' } },
-    select: {
-      email: true,
-      password_reset_code: true,
-      password_reset_expires: true,
-    },
   });
 
   if (!user || !user.password_reset_code || !user.password_reset_expires) {

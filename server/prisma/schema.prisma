@@ -108,11 +108,6 @@ enum OrganizationJoinRequestStatus {
   denied
 }
 
-enum TeamStatus {
-  active
-  archived
-}
-
 // ===========================
 // Team Invite Enums
 // ===========================
@@ -122,24 +117,6 @@ enum InviteStatus {
   accepted
   declined
   revoked
-}
-
-enum OrganizationStatus {
-  active
-  rejected
-}
-
-enum OrganizationRole {
-  owner
-  manager
-  member
-  coach
-}
-
-enum OrganizationJoinRequestStatus {
-  pending
-  approved
-  denied
 }
 
 // ===========================

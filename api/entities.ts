@@ -197,12 +197,6 @@ export const User = {
   },
   // v1.0.2: rejected coaches can re-apply after 48hr cooldown
   reapplyCoach: () => httpPost('/auth/coach/reapply', {}),
-  downgradeToFan: async () => {
-    invalidateMeCache();
-    const response = await httpPost('/auth/downgrade-to-fan', {});
-    invalidateMeCache();
-    return response;
-  },
   // v1.0.2: escape paywall loop by downgrading to free rookie plan
   skipPayment: () => httpPost('/auth/skip-payment', {}),
   deleteAccount: (payload?: { password?: string; delete_confirmation?: string }) =>

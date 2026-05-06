@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { sendTeamInviteEmail } from '../lib/email.js';
+import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -1863,6 +1863,26 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, requireVerifie
           { type: 'team_invite_accepted', team_id: invite.team_id, screen: 'team-page' }
         )
       ));
+
+      const managerUsers = await prisma.user.findMany({
+        where: { id: { in: managers.map((mgr) => mgr.user_id) } },
+        select: { email: true, display_name: true },
+        take: managers.length,
+      });
+      await Promise.allSettled(
+        managerUsers
+          .filter((manager) => typeof manager.email === 'string' && manager.email.trim().length > 0)
+          .map((manager) =>
+            sendStaffMemberJoinedEmail({
+              to: String(manager.email).trim(),
+              ownerName: manager.display_name || undefined,
+              newMember: accepterName,
+              newMemberRole: invite.role,
+              scope: 'team',
+              scopeName: teamName,
+            })
+          )
+      );
     }
   } catch (notifErr) {
     console.error('[teams] Failed to send invite accepted notification:', notifErr);
