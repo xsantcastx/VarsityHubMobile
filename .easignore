@@ -42,3 +42,7 @@ server/tests/
 server/uploads/
 server/.keys/
 server/web-bundler-output.log
+ios/Pods/
+ios/build/
+server/ios/Pods/
+server/ios/build/
