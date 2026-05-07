@@ -4,8 +4,9 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useCallback, useMemo, useState } from 'react';
+import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
 import { captureBreadcrumb } from '@/utils/sentry';
@@ -27,6 +28,10 @@ if (!isExpoGo && isNativeMobile) {
 }
 
 const isIOS = Platform.OS === 'ios';
+const IOS_BUNDLE_ID =
+  Application.applicationId ||
+  Constants.expoConfig?.ios?.bundleIdentifier ||
+  'com.varsithub.varsityhub-ios';
 
 export const AD_IAP_PRODUCT_IDS = {
   weekday: 'MOND_THURS',
@@ -125,6 +130,8 @@ export async function flushPendingAdVerifications(onError?: (message: string) =>
 export function useAdIAP() {
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const availableProductIdsRef = useRef<string[]>([]);
+  const fetchProductsPromiseRef = useRef<Promise<void> | null>(null);
 
   const {
     connected,
@@ -269,29 +276,42 @@ export function useAdIAP() {
     },
   });
 
-  const availableProductIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (products || [])
-            .map((product: any) => (typeof product?.productId === 'string' ? product.productId : ''))
-            .filter(Boolean)
-        )
-      ).sort(),
-    [products]
-  );
+  const availableProductIds = useMemo<string[]>(() => {
+    const productIds: string[] = (products || [])
+      .map((product: any) => (typeof product?.productId === 'string' ? product.productId : ''))
+      .filter((productId: string) => productId.length > 0);
+    return [...new Set<string>(productIds)].sort();
+  }, [products]);
+
+  useEffect(() => {
+    availableProductIdsRef.current = availableProductIds;
+  }, [availableProductIds]);
+
+  const refreshProducts = useCallback(async () => {
+    if (isExpoGo || !isIOS || !connected) return;
+    if (!fetchProductsPromiseRef.current) {
+      fetchProductsPromiseRef.current = fetchProducts({ skus: AD_SKUS, type: 'in-app' })
+        .catch((err: unknown) => {
+          if (__DEV__) console.warn('[useAdIAP] fetchProducts failed:', err);
+          captureBreadcrumb('Ad products load failed', 'payments.ad', {
+            error: err instanceof Error ? err.message : 'unknown_error',
+            bundle_id: IOS_BUNDLE_ID,
+          }, 'warning');
+          setError(err instanceof Error ? err.message : 'Failed to load ad products');
+          throw err;
+        })
+        .finally(() => {
+          fetchProductsPromiseRef.current = null;
+        });
+    }
+    return fetchProductsPromiseRef.current;
+  }, [connected, fetchProducts]);
 
   useEffect(() => {
     if (isExpoGo || !isIOS) return;
     if (!connected) return;
-    fetchProducts({ skus: AD_SKUS, type: 'in-app' }).catch((err: unknown) => {
-      if (__DEV__) console.warn('[useAdIAP] fetchProducts failed:', err);
-      captureBreadcrumb('Ad products load failed', 'payments.ad', {
-        error: err instanceof Error ? err.message : 'unknown_error',
-      }, 'warning');
-      setError(err instanceof Error ? err.message : 'Failed to load ad products');
-    });
-  }, [connected, fetchProducts]);
+    refreshProducts().catch(() => {});
+  }, [connected, refreshProducts]);
 
   useEffect(() => {
     if (isExpoGo || !isIOS || !connected) return;
@@ -299,6 +319,7 @@ export function useAdIAP() {
       available_product_ids: availableProductIds.join(','),
       missing_product_ids: AD_SKUS.filter((sku) => !availableProductIds.includes(sku)).join(','),
       product_count: availableProductIds.length,
+      bundle_id: IOS_BUNDLE_ID,
     });
     if (__DEV__) {
       console.log('[useAdIAP] available App Store products:', availableProductIds);
@@ -331,16 +352,25 @@ export function useAdIAP() {
         ...(weekdayBlocks > 0 ? [AD_IAP_PRODUCT_IDS.weekday] : []),
         ...(weekendBlocks > 0 ? [AD_IAP_PRODUCT_IDS.weekend] : []),
       ];
-      const missingSkus = requiredSkus.filter((sku) => !availableProductIds.includes(sku));
+      if (!requiredSkus.every((sku) => availableProductIdsRef.current.includes(sku))) {
+        await refreshProducts().catch(() => {});
+        const deadline = Date.now() + 3000;
+        while (Date.now() < deadline && !requiredSkus.every((sku) => availableProductIdsRef.current.includes(sku))) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      }
+
+      const missingSkus = requiredSkus.filter((sku) => !availableProductIdsRef.current.includes(sku));
       if (missingSkus.length > 0) {
         const errMsg =
           `Apple ad products unavailable for this build: ${missingSkus.join(', ')}. ` +
-          'App Store Connect must expose these exact product IDs for bundle com.varsithub.varsityhub-ios.';
+          `App Store Connect must expose these exact product IDs for bundle ${IOS_BUNDLE_ID}.`;
         captureBreadcrumb('Ad purchase blocked: missing store products', 'payments.ad', {
           requested_product_ids: requiredSkus.join(','),
-          available_product_ids: availableProductIds.join(','),
+          available_product_ids: availableProductIdsRef.current.join(','),
           missing_product_ids: missingSkus.join(','),
           ad_id: adId,
+          bundle_id: IOS_BUNDLE_ID,
         }, 'error');
         setError(errMsg);
         return { ok: false, error: errMsg };
@@ -401,7 +431,7 @@ export function useAdIAP() {
         run();
       });
     },
-    [availableProductIds, connected, rnRequestPurchase]
+    [connected, refreshProducts, rnRequestPurchase]
   );
 
   const getProduct = useCallback(
