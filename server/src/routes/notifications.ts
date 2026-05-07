@@ -136,6 +136,7 @@ notificationsRouter.get(
       };
 
       // Execute query with timeout
+      // audit-allow unbounded: query object already carries the page take bound
       const queryPromise = prisma.notification.findMany(query);
       let timeoutHandle: ReturnType<typeof setTimeout>;
       const timeoutPromise = new Promise((_, reject) => {

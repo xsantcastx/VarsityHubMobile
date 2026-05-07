@@ -52,9 +52,7 @@ const safeDisplayName = (user: any): string => {
 const safeUsername = (user: any): string | null => {
   // Show @username as subtitle only when display_name (not username) is the primary text
   const uname = user?.username;
-  const name = user?.display_name;
   const hasRealUsername = uname && !isInternalId(uname);
-  const hasRealDisplayName = name && !isInternalId(name);
   // Username is already shown as the main display name — no need to repeat it
   if (hasRealUsername) return null;
   // display_name is shown as main, but no real username to show as subtitle
@@ -487,7 +485,7 @@ function CommunityDiscoverScreen() {
       mounted = false;
       clearTimeout(t);
     };
-  }, [query]);
+  }, [query, saveRecentSearch]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

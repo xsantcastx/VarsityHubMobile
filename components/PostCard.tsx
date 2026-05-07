@@ -62,8 +62,9 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
 
   // Cleanup delete timer on unmount to prevent memory leak
   useEffect(() => {
+    const deleteTimer = deleteTimerRef.current;
     return () => {
-      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      if (deleteTimer) clearTimeout(deleteTimer);
     };
   }, []);
 
@@ -522,7 +523,7 @@ function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated
                     style={styles.actionItem}
                     disabled={reportSubmitting}
                     onPress={() => {
-                      handleReportPost(r.value).then(() => setShowReportMenu(false));
+                      void handleReportPost(r.value).then(() => setShowReportMenu(false));
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={`Report for ${r.label}`}

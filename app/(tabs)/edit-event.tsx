@@ -32,8 +32,6 @@ export default function EditEventScreen() {
   const [dateStr, setDateStr] = useState('');
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [uploadingBanner, setUploadingBanner] = useState(false);
-  const [event, setEvent] = useState<any>(null);
-
   const loadEvent = useCallback(async () => {
     if (!id || coachLoading || !canAccessCoachTools) return;
     setLoading(true);
@@ -49,7 +47,6 @@ export default function EditEventScreen() {
         safeGoBack(router);
         return;
       }
-      setEvent(data);
       setTitle(data.title || '');
       setDescription(data.description || '');
       setLocation(data.location || '');

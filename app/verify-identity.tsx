@@ -70,14 +70,15 @@ function VerifyScreen() {
       }
     },
   });
+  const setGateCode = gate.setCode;
 
   useEffect(() => {
     const fromParams = toSingleValue(params.devCode);
     if (fromParams) {
       setDevCode(fromParams);
-      gate.setCode(fromParams);
+      setGateCode(fromParams);
     }
-  }, [gate.setCode, params.devCode]);
+  }, [params.devCode, setGateCode]);
 
   const onVerify = async () => {
     setScreenError(null);

@@ -19,7 +19,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
-import { safeGoBack } from '@/utils/navigation';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
 import { Image } from 'expo-image';

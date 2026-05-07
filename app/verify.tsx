@@ -129,6 +129,7 @@ export default function VerifyScreen() {
       }
     },
   });
+  const setGateCode = gate.setCode;
 
   useEffect(() => {
     const deliveryStatus = typeof params.delivery === 'string' ? params.delivery : '';
@@ -148,9 +149,9 @@ export default function VerifyScreen() {
 
   useEffect(() => {
     if (__DEV__ && typeof params.devCode === 'string') {
-      gate.setCode(String(params.devCode).slice(0, 6));
+      setGateCode(String(params.devCode).slice(0, 6));
     }
-  }, [gate.setCode, params.devCode]);
+  }, [params.devCode, setGateCode]);
 
   const onVerify = async () => {
     setScreenError(null);

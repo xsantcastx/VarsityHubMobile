@@ -68,7 +68,9 @@ if (Platform.OS === 'web' && __DEV__ && !(globalThis as any).__VH_WEB_WARNING_FI
     'Animated: `useNativeDriver` is not supported because the native animated module is missing.',
   ];
   const filterConsole = (method: 'warn' | 'error') => {
+    // eslint-disable-next-line no-console -- intentional wrapper for targeted warning suppression
     const original = console[method].bind(console);
+    // eslint-disable-next-line no-console -- intentional wrapper for targeted warning suppression
     console[method] = (...args: unknown[]) => {
       const firstArg = typeof args[0] === 'string' ? args[0] : '';
       if (suppressedMessages.some(message => firstArg.includes(message))) {

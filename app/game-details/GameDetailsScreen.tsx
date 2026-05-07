@@ -9,7 +9,6 @@ import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import {
   canShowGamePoll,
-  EVENT_LIVE_WINDOW_MS,
   getEventPresentationPhase,
   isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
@@ -815,38 +814,6 @@ const GameDetailsScreen = () => {
   const isVoteOpen = useMemo(() => {
     return !isEventPastEndOfDay(vm?.date, nowTs);
   }, [vm?.date, nowTs]);
-
-  // Countdown to when "Add Story" unlocks (12h before event start).
-  // Derives from the already-ticking `nowTs` — no extra interval needed.
-  const storyUnlockCountdown = useMemo(() => {
-    if (!vm?.date || !vm?.gameId || isSampleId(vm.gameId)) return null;
-    const eventDate = new Date(vm.date);
-    if (!Number.isFinite(eventDate.getTime())) return null;
-
-    // Stories unlock at midnight UTC on the day of the event (matches server)
-    const eventDayUTC = Date.UTC(
-      eventDate.getUTCFullYear(),
-      eventDate.getUTCMonth(),
-      eventDate.getUTCDate()
-    );
-    const now = new Date(nowTs);
-    const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-
-    // If the event is today or in the past, no countdown needed
-    if (eventDayUTC <= todayUTC) return null;
-
-    const msUntil = eventDayUTC - nowTs;
-    if (msUntil <= 0) return null;
-    const totalSecs = Math.ceil(msUntil / 1000);
-    const days = Math.floor(totalSecs / 86400);
-    const hours = Math.floor((totalSecs % 86400) / 3600);
-    const mins = Math.floor((totalSecs % 3600) / 60);
-    const secs = totalSecs % 60;
-    if (days > 0) return `Opens in ${days}d ${hours}h`;
-    if (hours > 0) return `Opens in ${hours}h ${mins}m ${secs}s`;
-    if (mins > 0) return `Opens in ${mins}m ${secs}s`;
-    return `Opens in ${secs}s`;
-  }, [vm?.date, vm?.gameId, nowTs]);
 
   // RSVP only shown before the game starts
   const hasEvent = !!vm?.eventId;
@@ -1691,7 +1658,9 @@ const GameDetailsScreen = () => {
   }, [
     loadGameById,
     storyBusy,
+    vm?.description,
     vm?.gameId,
+    vm?.title,
     vm?.venueLat,
     vm?.venueLng,
     location?.latitude,
@@ -1700,7 +1669,6 @@ const GameDetailsScreen = () => {
     requestPermission,
     needsPreciseAccuracy,
     openSettings,
-    router,
   ]);
 
   const confirmStoryUpload = useCallback(async () => {
@@ -1799,10 +1767,10 @@ const GameDetailsScreen = () => {
     storyPreview,
     storyTrimmedUri,
     vm?.gameId,
+    vm?.title,
     location?.latitude,
     location?.longitude,
     loadGameById,
-    router,
   ]);
 
   const _refreshVotes = useCallback(async () => {
@@ -1831,9 +1799,8 @@ const GameDetailsScreen = () => {
     async (isRefresh = false) => {
       const gameIdValue = id ? String(id) : null;
       const eventIdValue = eventId ? String(eventId) : null;
-      // eslint-disable-next-line no-console
       if (__DEV__)
-        console.log('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
+        console.warn('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
       if (!gameIdValue && !eventIdValue) {
         if (__DEV__) console.warn('[GameDetails] load() — no id or eventId, aborting');
         setError('Missing game or event id.');
@@ -1880,7 +1847,7 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     void load();
     analytics.track(ANALYTICS_EVENTS.EVENT_PAGE_VIEWED, { gameId: id, eventId });
-  }, [load]);
+  }, [eventId, id, load]);
 
   // Reset per-event UI state immediately when navigating to a different event
   useEffect(() => {
@@ -2030,9 +1997,6 @@ const GameDetailsScreen = () => {
   const handleVote = useCallback(
     async (team: VoteOption) => {
       if (!isVoteOpen) return;
-      // Event-only pages (no gameId) only update local state
-      const isEventOnly = !vm?.gameId && vm?.eventId;
-
       let rollback: VoteSummary | null = null;
       setVoteSummary(prev => {
         rollback = prev ? { ...prev } : null;
@@ -2073,7 +2037,7 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [vm?.gameId, vm?.eventId, isVoteOpen, router]
+    [isVoteOpen, router, vm?.eventId, vm?.gameId]
   );
 
   const handleClearVote = useCallback(async () => {
@@ -2123,7 +2087,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [vm?.gameId, vm?.eventId, vm?.isPast, router]);
+  }, [isVoteOpen, router, vm?.eventId, vm?.gameId]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map(m => ({

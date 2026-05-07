@@ -861,6 +861,11 @@ adsRouter.get('/availability', asyncHandler(async (req, res) => {
       date: true,
       ad_id: true,
     },
+    take: Math.max(
+      adIds.length *
+        (Math.floor((toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000)) + 1),
+      1
+    ),
   });
 
   // Count ads per date
@@ -1027,6 +1032,7 @@ adsRouter.get(
               ad_id: true,
               date: true,
             },
+            take: Math.max(nearbyAdIds.length * requestedDateObjects.length, 1),
           })
         : [];
 

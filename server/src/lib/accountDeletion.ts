@@ -172,10 +172,12 @@ export async function softDeleteUserAccount(userId: string): Promise<{
   // destroying the assets happens AFTER the DB is committed so a Cloudinary
   // hiccup cannot rollback the user's deletion.
   const [userAdsForCleanup, userStoriesForCleanup] = await Promise.all([
+    // audit-allow unbounded: account deletion must enumerate all user-owned ads for cleanup
     prisma.ad.findMany({
       where: { user_id: userId },
       select: { id: true, banner_url: true },
     }),
+    // audit-allow unbounded: account deletion must enumerate all user-owned stories for cleanup
     prisma.story.findMany({
       where: { user_id: userId },
       select: { id: true, media_url: true },

@@ -1,9 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, ScrollView, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
+import { Alert, AppState, ScrollView, Text, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User, Notification as NotificationApi } from '@/api/entities';
@@ -14,11 +13,8 @@ import {
   CoachSetupActions,
   FanFallbackActions,
   PendingApprovalShell,
-  PollingStatus,
   PrimaryButton,
   ReasonCard,
-  SecondaryButton,
-  SupportText,
   pendingApprovalStyles as styles,
 } from '@/components/onboarding/pendingApprovalUi';
 
@@ -35,7 +31,7 @@ function PendingApproval() {
   const [rejected, setRejected] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [orgId, setOrgId] = useState<string | null>(null);
+  const [, setOrgId] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,7 +110,7 @@ function PendingApproval() {
         stopPolling();
         // Do not auto-complete coach onboarding here. Approval only unlocks
         // the real coach setup flow; the user still needs agreement + setup.
-        registerPushToken().catch(() => {});
+        void registerPushToken().catch(() => {});
       }
     } catch {
       // ignore polling errors
@@ -122,7 +118,7 @@ function PendingApproval() {
       approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
-  }, [ob.organization_id, redirectToOnboarding, stopPolling]);
+  }, [ob.organization_id, redirectToOnboarding, registerPushToken, stopPolling]);
 
   useEffect(() => {
     // Initial check

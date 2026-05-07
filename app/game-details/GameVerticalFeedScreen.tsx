@@ -195,7 +195,7 @@ const FeedCard = memo(
     onToggleBookmark,
     onOpenComments,
     onSharePost,
-    onToggleFollow,
+    onToggleFollow: _onToggleFollow,
     onOpenAuthorProfile,
     onDoubleTap,
     onDeletePost,
@@ -246,12 +246,13 @@ const FeedCard = memo(
     const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const videoSource = useMemo(
       () => (post.media_url ? { uri: post.media_url } : null),
-      [post.media_url, videoRetryKey]
+      [post.media_url]
     );
 
     useEffect(() => {
+      const deleteTimer = deleteTimerRef.current;
       return () => {
-        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+        if (deleteTimer) clearTimeout(deleteTimer);
       };
     }, []);
 
@@ -744,7 +745,6 @@ function GameVerticalFeedScreen({
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
   const [commentTarget, setCommentTarget] = useState<FeedPost | null>(null);
-  const [isMuted] = useState(false); // videos play with audio by default per product direction
   const [meInfo, setMeInfo] = useState<{
     id?: string;
     display_name?: string | null;

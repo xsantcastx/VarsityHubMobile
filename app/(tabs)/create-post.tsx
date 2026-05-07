@@ -442,7 +442,7 @@ function CreatePostScreen() {
         setPicked({ uri, type: media, mime: mimeType });
         // Generate thumbnail for video preview immediately
         if (media === 'video') {
-          generateVideoThumbnail(uri, setVideoThumbnailUri);
+          void generateVideoThumbnail(uri, setVideoThumbnailUri);
         }
       }
     } catch (error: any) {
@@ -538,7 +538,7 @@ function CreatePostScreen() {
         }
         setPicked({ uri, type: media, mime: mimeType });
         if (media === 'video') {
-          generateVideoThumbnail(uri, setVideoThumbnailUri);
+          void generateVideoThumbnail(uri, setVideoThumbnailUri);
         }
       }
     } catch (error: any) {
@@ -601,7 +601,7 @@ function CreatePostScreen() {
       }
     }
     return null;
-  }, [suggestedGame, selectedGameId, locationReady, location?.latitude, location?.longitude]);
+  }, [suggestedGame, selectedGameId, isDemoMatchupGame, locationReady, location?.latitude, location?.longitude]);
 
   const onSubmit = async () => {
     // First, show preview

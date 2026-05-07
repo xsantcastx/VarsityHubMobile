@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    FlatList,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -116,10 +115,13 @@ function CreateEventScreen() {
   }, []);
 
   useEffect(() => {
+    const locationTimer = locationTimerRef.current;
+    const homeTimer = homeTimerRef.current;
+    const awayTimer = awayTimerRef.current;
     return () => {
-      if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
-      if (homeTimerRef.current) clearTimeout(homeTimerRef.current);
-      if (awayTimerRef.current) clearTimeout(awayTimerRef.current);
+      if (locationTimer) clearTimeout(locationTimer);
+      if (homeTimer) clearTimeout(homeTimer);
+      if (awayTimer) clearTimeout(awayTimer);
     };
   }, []);
 

@@ -54,11 +54,6 @@ function AdminMetricsScreen() {
     ...(daily?.messages || []).map((d: any) => d.count),
   );
 
-  const growthPct = (current: number, total: number) => {
-    if (total === 0) return 0;
-    return Math.round((current / total) * 100);
-  };
-
   if (adminLoading) {
     return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></SafeAreaView>;
   }
@@ -67,7 +62,6 @@ function AdminMetricsScreen() {
   }
 
   const StatCard = ({ title, total, recent, color, icon }: { title: string; total: number; recent: number; color: string; icon: string }) => {
-    const pct = growthPct(recent, total);
     return (
       <View style={[styles.statCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

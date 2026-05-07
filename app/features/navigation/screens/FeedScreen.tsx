@@ -21,10 +21,8 @@ import {
   Event,
   Feed,
   Game,
-  Highlights,
   Message,
   Notification as NotificationApi,
-  Post as PostApi,
   User,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
@@ -40,7 +38,6 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
-import { useAuth } from '@/context/AuthProvider';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
   getNotificationHref,
@@ -264,7 +261,6 @@ const buildVotePreviewEntry = (
 };
 
 export default function FeedScreen() {
-  const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -1752,12 +1748,11 @@ export default function FeedScreen() {
     [
       colorScheme,
       router,
-      onRefresh,
       followedPosts,
       followedTeamsPosts,
-      voteSummaries,
       renderGameCard,
       renderEmailReminder,
+      showAdReportOptions,
       renderLocationPrompt,
       verticalFeedTitle,
       verticalFeedPreviewImage,

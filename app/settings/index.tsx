@@ -226,8 +226,9 @@ export default function SettingsScreen() {
 
   // Clear all debounce timers on unmount to prevent memory leaks
   useEffect(() => {
+    const activeTimers = timers.current;
     return () => {
-      Object.values(timers.current).forEach(clearTimeout);
+      Object.values(activeTimers).forEach(clearTimeout);
     };
   }, []);
 

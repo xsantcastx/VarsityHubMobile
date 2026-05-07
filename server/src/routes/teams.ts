@@ -70,6 +70,7 @@ async function ensureTeamGroupChatMembership(teamId: string, userId: string) {
         const allMembers = await prisma.teamMembership.findMany({
           where: { team_id: teamId, status: 'active' },
           select: { user_id: true },
+          take: 500,
         });
 
         groupChat = await prisma.groupChat.create({
@@ -153,6 +154,7 @@ teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedR
   const followedTeamRows = await prisma.teamFollow.findMany({
     where: { user_id: userId, team_id: { in: visibleRows.map((team) => team.id) } },
     select: { team_id: true },
+    take: Math.max(visibleRows.length, 1),
   });
   const followedTeamIds = new Set(followedTeamRows.map((row) => row.team_id));
 
@@ -279,7 +281,7 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
   const rows = await prisma.team.findMany({
     where,
     orderBy: { created_at: 'desc' },
-    take,
+    take: take,
     select: buildTeamSerializeSelect({
       includeCounts: true,
       includeOrganization: true,
@@ -294,12 +296,14 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
       ? prisma.teamMembership.findMany({
           where: { user_id: currentUserId, status: 'active', team_id: { in: teamIds } },
           select: { team_id: true, role: true },
+          take: Math.max(teamIds.length, 1),
         })
       : Promise.resolve([]),
     currentUserId
       ? prisma.teamFollow.findMany({
           where: { user_id: currentUserId, team_id: { in: teamIds } },
           select: { team_id: true },
+          take: Math.max(teamIds.length, 1),
         })
       : Promise.resolve([]),
   ]);
@@ -354,6 +358,7 @@ teamsRouter.post('/:id/follow', requireAuth as any, followLimiter, asyncHandler(
             user_id: { not: userId },
           },
           select: { user_id: true },
+          take: 100,
         });
 
         // Batch: create all notifications in one query, send push in parallel
@@ -588,8 +593,8 @@ teamsRouter.get('/members/all', requireAuth as any, asyncHandler(async (req: Aut
   const mems = await prisma.teamMembership.findMany({
     where,
     orderBy: { created_at: 'desc' },
-    skip,
-    take,
+    skip: skip,
+    take: take,
     select: {
       id: true,
       role: true,
@@ -1492,6 +1497,7 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
               prisma.teamInvite.findMany({
                 where: { team_id: team.id, email: { in: invites.map(i => i.email) } },
                 select: { id: true, email: true },
+                take: invites.length,
               }),
             ]);
             const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
@@ -1844,6 +1850,7 @@ teamsRouter.post('/invites/:inviteId/accept', requireAuth as any, requireVerifie
         user_id: { not: req.user!.id },
       },
       select: { user_id: true },
+      take: 100,
     });
 
     if (managers.length > 0) {
@@ -1923,6 +1930,7 @@ teamsRouter.post('/invites/:inviteId/decline', requireAuth as any, requireVerifi
         status: 'active',
       },
       select: { user_id: true },
+      take: 100,
     });
 
     if (managers.length > 0) {

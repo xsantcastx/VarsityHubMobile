@@ -232,12 +232,12 @@ function ManageSeasonScreen() {
     } finally {
       setLoading(false);
     }
-  }, [currentTeam?.id]);
+  }, [currentTeam?.id, router]);
 
   // Load team and then games
   useEffect(() => {
     void loadTeam().catch(() => {});
-  }, [loadTeam]);
+  }, [loadTeam, router]);
 
   useEffect(() => {
     if (currentTeam?.id) {

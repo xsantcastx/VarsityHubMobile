@@ -293,6 +293,7 @@ groupChatsRouter.post('/', requireAuth as any, requireVerified as any, asyncHand
     const teamMembers = await prisma.teamMembership.findMany({
       where: { team_id: teamId, user_id: { in: memberIds }, status: 'active' },
       select: { user_id: true },
+      take: memberIds.length,
     });
     const teamMemberIds = new Set(teamMembers.map(m => m.user_id));
     const invalidMembers = memberIds.filter(

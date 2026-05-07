@@ -134,26 +134,7 @@ function OrganizationJoinRequestsScreen() {
     void loadRequests();
   }, [loadRequests]);
 
-  useEffect(() => {
-    const requestId = String(params.request_id || '').trim();
-    const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
-    if (!requestId || !action || requests.length === 0) return;
-
-    const signature = `${requestId}|${action}`;
-    if (lastHandledLinkRef.current === signature) return;
-
-    const request = requests.find(item => item.id === requestId && item.status === 'pending');
-    lastHandledLinkRef.current = signature;
-    if (!request) return;
-
-    if (action === 'approve') {
-      void handleApprove(request);
-      return;
-    }
-    handleReject(request);
-  }, [params.action, params.request_id, requests]);
-
-  const handleApprove = async (request: JoinRequest) => {
+  const handleApprove = useCallback(async (request: JoinRequest) => {
     Alert.alert(
       'Approve Request',
       `Allow ${request.requester_name} to join ${params.organization_name || 'this organization'}?`,
@@ -184,11 +165,30 @@ function OrganizationJoinRequestsScreen() {
         },
       ]
     );
-  };
+  }, [loadRequests, params.organization_name]);
 
-  const handleReject = (request: JoinRequest) => {
+  const handleReject = useCallback((request: JoinRequest) => {
     setRejectModal({ visible: true, request, reason: '' });
-  };
+  }, []);
+
+  useEffect(() => {
+    const requestId = String(params.request_id || '').trim();
+    const action = params.action === 'approve' || params.action === 'reject' ? params.action : null;
+    if (!requestId || !action || requests.length === 0) return;
+
+    const signature = `${requestId}|${action}`;
+    if (lastHandledLinkRef.current === signature) return;
+
+    const request = requests.find(item => item.id === requestId && item.status === 'pending');
+    lastHandledLinkRef.current = signature;
+    if (!request) return;
+
+    if (action === 'approve') {
+      void handleApprove(request);
+      return;
+    }
+    handleReject(request);
+  }, [handleApprove, handleReject, params.action, params.request_id, requests]);
 
   const submitReject = () => {
     void (async () => {

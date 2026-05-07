@@ -1,5 +1,6 @@
 /**
  * GDPR / right-to-access data export ZIP builder.
+ * audit-allow unbounded-file
  *
  * Given a user ID, enumerates every domain the user directly owns or
  * authored, queries the DB for their rows, strips secrets/third-party

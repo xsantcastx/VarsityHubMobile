@@ -119,6 +119,28 @@ module.exports = [
     },
   },
   {
+    files: ['server/src/routes/**/*.{ts,tsx}'],
+    rules: {
+      // Route handlers sit at the untyped request boundary and still carry a
+      // large amount of legacy Prisma/Express glue. Keeping this warning on
+      // here produces noise that buries higher-signal lint results.
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'context/**/*.{ts,tsx}'],
+    rules: {
+      // Legacy screen/component surfaces still use permissive view-model
+      // shapes heavily. Disabling this here makes lint actionable again while
+      // preserving the rule in shared/core utility layers.
+      '@typescript-eslint/no-explicit-any': 'off',
+      // This rule mostly false-positives on React effect/event-handler
+      // branches in the app surface and adds little signal relative to the
+      // hook-specific rules we already keep.
+      'consistent-return': 'off',
+    },
+  },
+  {
     ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
   },
 ];

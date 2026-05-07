@@ -353,6 +353,7 @@ postsRouter.get(
         };
         let pool: any[] = [];
         try {
+          // audit-allow unbounded: poolQuery already includes take: TRENDING_POOL_SIZE
           pool = await prisma.post.findMany(poolQuery);
         } catch (error: any) {
           if (!isMissingPollSchemaError(error)) {
@@ -362,6 +363,7 @@ postsRouter.get(
           logPollSchemaFallback('GET /posts trending', error);
           const fallback = { ...poolQuery, include: { ...poolQuery.include } };
           delete fallback.include.poll;
+          // audit-allow unbounded: fallback preserves the same take-bound as poolQuery
           pool = await prisma.post.findMany(fallback);
         }
         // Apply location filter to trending pool
@@ -426,22 +428,26 @@ postsRouter.get(
             ? prisma.follows.findMany({
                 where: { follower_id: currentUserId, following_id: { in: authorIds } },
                 select: { following_id: true },
+                take: authorIds.length,
               })
             : Promise.resolve([] as Array<{ following_id: string }>);
           const pollVotePromise = pollIds.length
             ? prisma.pollVote.findMany({
                 where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } },
                 select: { poll_option: { select: { poll_id: true } }, poll_option_id: true },
+                take: pollIds.length,
               })
             : Promise.resolve([] as any[]);
           const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
             prisma.postUpvote.findMany({
               where: { user_id: currentUserId, post_id: { in: postIds } },
               select: { post_id: true },
+              take: postIds.length,
             }),
             prisma.postBookmark.findMany({
               where: { user_id: currentUserId, post_id: { in: postIds } },
               select: { post_id: true },
+              take: postIds.length,
             }),
             followPromise,
             pollVotePromise,
@@ -519,6 +525,7 @@ postsRouter.get(
 
       let rows: any[] = [];
       try {
+        // audit-allow unbounded: query object already includes a bounded take derived from limit
         rows = await prisma.post.findMany(query);
       } catch (error: any) {
         if (!isMissingPollSchemaError(error)) {
@@ -528,6 +535,7 @@ postsRouter.get(
         logPollSchemaFallback('GET /posts', error);
         const fallbackQuery = { ...query, include: { ...query.include } };
         delete fallbackQuery.include.poll;
+        // audit-allow unbounded: fallbackQuery preserves the same take-bound as query
         rows = await prisma.post.findMany(fallbackQuery);
       }
 
@@ -560,22 +568,26 @@ postsRouter.get(
           ? prisma.follows.findMany({
               where: { follower_id: currentUserId, following_id: { in: authorIds } },
               select: { following_id: true },
+              take: authorIds.length,
             })
           : Promise.resolve([] as Array<{ following_id: string }>);
         const pollVotePromise = pollIds.length
           ? prisma.pollVote.findMany({
               where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } },
               select: { poll_option: { select: { poll_id: true } }, poll_option_id: true },
+              take: pollIds.length,
             })
           : Promise.resolve([] as any[]);
         const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
           prisma.postUpvote.findMany({
             where: { user_id: currentUserId, post_id: { in: postIds } },
             select: { post_id: true },
+            take: postIds.length,
           }),
           prisma.postBookmark.findMany({
             where: { user_id: currentUserId, post_id: { in: postIds } },
             select: { post_id: true },
+            take: postIds.length,
           }),
           followPromise,
           pollVotePromise,
@@ -1405,6 +1417,7 @@ postsRouter.get(
       query.cursor = { id: cursor };
       query.skip = 1;
     }
+    // audit-allow unbounded: comment query object already includes take: limit + 1
     const rows = await prisma.comment.findMany(query);
     const items = rows.slice(0, limit);
     const nextCursor = rows.length > limit ? rows[limit].id : null;
@@ -1846,6 +1859,7 @@ postsRouter.delete(
 
       const deletedAt = new Date();
       await prisma.$transaction(async tx => {
+        // audit-allow unbounded: delete must enumerate every comment id on the post to clear linked notifications
         const commentIds = await tx.comment.findMany({
           where: { post_id: postId },
           select: { id: true },

@@ -161,11 +161,13 @@ async function getFollowedPostsPage(
 
   let rows: any[] = [];
   try {
+    // audit-allow unbounded: query object already includes take: limit + 1
     rows = await prisma.post.findMany(query);
   } catch (error: any) {
     if (!isMissingPollSchemaError(error)) throw error;
     const fallbackQuery = { ...query, include: { ...query.include } };
     delete fallbackQuery.include.poll;
+    // audit-allow unbounded: fallbackQuery preserves the same take-bound as query
     rows = await prisma.post.findMany(fallbackQuery);
   }
 
@@ -185,22 +187,26 @@ async function getFollowedPostsPage(
       ? prisma.follows.findMany({
           where: { follower_id: currentUserId, following_id: { in: authorIds } },
           select: { following_id: true },
+          take: authorIds.length,
         })
       : Promise.resolve([] as Array<{ following_id: string }>);
     const pollVotePromise = pollIds.length
       ? prisma.pollVote.findMany({
           where: { user_id: currentUserId, poll_option: { poll_id: { in: pollIds } } },
           select: { poll_option: { select: { poll_id: true } }, poll_option_id: true },
+          take: pollIds.length,
         })
       : Promise.resolve([] as any[]);
     const [upvotes, bookmarks, follows, pollVotes] = await Promise.all([
       prisma.postUpvote.findMany({
         where: { user_id: currentUserId, post_id: { in: postIds } },
         select: { post_id: true },
+        take: postIds.length,
       }),
       prisma.postBookmark.findMany({
         where: { user_id: currentUserId, post_id: { in: postIds } },
         select: { post_id: true },
+        take: postIds.length,
       }),
       followPromise,
       pollVotePromise,

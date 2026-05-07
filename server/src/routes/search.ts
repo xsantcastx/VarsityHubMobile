@@ -247,6 +247,7 @@ searchRouter.get(
                 following_id: { in: users.map(u => u.id) },
               },
               select: { following_id: true },
+              take: users.length,
             })
           : [],
         teams.length
@@ -256,6 +257,7 @@ searchRouter.get(
                 team_id: { in: teams.map(t => t.id) },
               },
               select: { team_id: true },
+              take: teams.length,
             })
           : [],
         organizations.length
@@ -265,6 +267,7 @@ searchRouter.get(
                 organization_id: { in: organizations.map(o => o.id) },
               },
               select: { organization_id: true },
+              take: organizations.length,
             })
           : [],
       ]);

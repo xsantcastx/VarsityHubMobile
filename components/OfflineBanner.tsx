@@ -46,7 +46,7 @@ export function OfflineBanner() {
     try {
       await checkAuth();
     } catch (error) {
-      if (__DEV__) console.log('[OfflineBanner] Retry checkAuth error:', error);
+      if (__DEV__) console.warn('[OfflineBanner] Retry checkAuth error:', error);
     } finally {
       setRetrying(false);
     }

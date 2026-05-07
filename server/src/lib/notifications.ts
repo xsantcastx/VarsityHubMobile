@@ -300,6 +300,7 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
   const dedupKeys = new Set<string>();
   for (let i = 0; i < userIdsForDedup.length; i += REMINDER_CRON_DEDUP_BATCH) {
     const batch = userIdsForDedup.slice(i, i + REMINDER_CRON_DEDUP_BATCH);
+    // audit-allow unbounded: dedup scan is bounded by a 2h window plus a fixed user batch
     const recent = await prisma.notification.findMany({
       where: {
         type: 'GAME_REMINDER',

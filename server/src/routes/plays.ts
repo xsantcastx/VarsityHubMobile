@@ -132,10 +132,10 @@ playsRouter.get('/top', requireAuth as any, asyncHandler(async (req: AuthedReque
 
   if (currentUserId && postIds.length) {
     const [upvotes, bookmarks, follows] = await Promise.all([
-      prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
-      prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
+      prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true }, take: postIds.length }),
+      prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true }, take: postIds.length }),
       authorIds.length
-        ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true } })
+        ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true }, take: authorIds.length })
         : Promise.resolve([] as Array<{ following_id: string }>),
     ]);
     upvotedIds = new Set(upvotes.map((u) => u.post_id));

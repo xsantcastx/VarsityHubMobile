@@ -100,6 +100,7 @@ async function canViewGameMedia(
   const teams = await prisma.team.findMany({
     where: { id: { in: teamIds } },
     select: { organization_id: true },
+    take: teamIds.length,
   });
   const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
   if (organizationIds.length === 0) return { allowed: false, exists: true };

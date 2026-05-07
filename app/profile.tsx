@@ -171,7 +171,7 @@ export default function ProfileScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userTeams, setUserTeams] = useState<
+  const [userTeams] = useState<
     Array<{
       id: string;
       name: string;
@@ -183,8 +183,6 @@ export default function ProfileScreen() {
     }>
   >([]);
   const [avatarViewerVisible, setAvatarViewerVisible] = useState(false);
-
-  const isOwnProfile = !viewingUserId || viewingUserId === currentUserId;
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {

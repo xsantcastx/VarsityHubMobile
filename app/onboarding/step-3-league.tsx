@@ -45,7 +45,7 @@ function Step3League() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const { user, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
-  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { state: ob, setState: setOB } = useOnboarding();
   const accountState = String(user?.account_state || '').trim();
   const canEnterStep3FromServer =
     accountState === 'coach_application_required' ||
@@ -208,7 +208,6 @@ function Step3League() {
     void (async () => {
       setChecking(true);
       try {
-        const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
         // Check for existing managed teams
         const teams = await Team.managed();
         if (teams && teams.length > 0) {

@@ -68,6 +68,7 @@ export async function canManageAnyTeam(
   const teams = await prisma.team.findMany({
     where: { id: { in: filteredTeamIds } },
     select: { organization_id: true },
+    take: filteredTeamIds.length,
   });
   const organizationIds = teams
     .map(team => team.organization_id)

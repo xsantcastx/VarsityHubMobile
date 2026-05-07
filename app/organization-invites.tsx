@@ -6,7 +6,7 @@ import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Organization } from '@/api/entities';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,7 +26,7 @@ function OrganizationInvitesScreen() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const list = await Organization.myInvites();
@@ -42,11 +42,11 @@ function OrganizationInvitesScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
 
   useEffect(() => {
     void refresh();
-  }, [params.id]);
+  }, [refresh]);
 
   const highlightedInviteName = useMemo(
     () => invites.find(invite => invite.id === params.id)?.organization?.name,

@@ -201,7 +201,7 @@ export default function SignInScreen() {
           captureException(err, { tags: { context: 'push-token-register-email-login' } });
         });
       } catch (authError) {
-        if (__DEV__) console.log('[sign-in] checkAuth after email login:', authError);
+        if (__DEV__) console.warn('[sign-in] checkAuth after email login:', authError);
         setError('Sign-in succeeded but we could not load your profile. Please try again.');
       }
     } catch (e: any) {

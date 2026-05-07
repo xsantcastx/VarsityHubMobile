@@ -1,6 +1,5 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 // @ts-ignore JS exports

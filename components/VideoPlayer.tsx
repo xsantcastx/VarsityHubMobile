@@ -31,7 +31,7 @@ export function VideoPlayer({
   const [retryKey, setRetryKey] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  const source = React.useMemo(() => ({ uri }), [uri, retryKey]);
+  const source = React.useMemo(() => ({ uri }), [uri]);
   const player = useVideoPlayer(source, p => {
     p.volume = 1.0;
     p.muted = false;

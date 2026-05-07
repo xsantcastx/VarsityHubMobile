@@ -272,20 +272,74 @@ check_middleware_coverage() {
 
   # 2b. findMany without take (unbounded query). Many legitimate user-scoped
   # queries are naturally bounded (e.g. "users this user follows"), so this is
-  # a heuristic warning, not a blocker. Add `// audit-allow unbounded` on the
-  # line above a findMany to silence it.
+  # a heuristic warning, not a blocker. The detector now inspects the whole
+  # findMany(...) call block instead of only the single source line so multiline
+  # `take:` clauses don't false-positive. Add `// audit-allow unbounded` on the
+  # line above a findMany to silence an intentional full scan, or
+  # `// audit-allow unbounded-file` anywhere in the file to skip a file whose
+  # findMany calls are all intentionally exhaustive.
   local unbounded
-  unbounded="$(grep -rnB1 "findMany" server/src --include="*.ts" 2>/dev/null \
-                 | awk '
-                     /^--$/ { prev=""; next }
-                     {
-                       if ($0 ~ /-audit-allow unbounded/) { prev=""; next }
-                       if ($0 ~ /:[0-9]+:.*findMany/ && $0 !~ /take/) print $0
-                     }
-                   ' \
-                 | grep -v "__tests__" \
-                 | grep -v "lib/prisma.ts" \
-                 || true)"
+  unbounded="$(node <<'NODE'
+const fs = require('fs');
+const path = require('path');
+
+const root = path.join(process.cwd(), 'server', 'src');
+const results = [];
+
+function walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === '__tests__') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walk(full);
+      continue;
+    }
+    if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
+    if (full.endsWith(path.join('lib', 'prisma.ts'))) continue;
+    inspect(full);
+  }
+}
+
+function inspect(filePath) {
+  const raw = fs.readFileSync(filePath, 'utf8');
+  if (raw.includes('audit-allow unbounded-file')) return;
+  const lines = raw.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!/\bfindMany\s*\(/.test(line)) continue;
+    if ((lines[index - 1] || '').includes('audit-allow unbounded')) continue;
+
+    let block = '';
+    let parenDepth = 0;
+    let started = false;
+
+    for (let j = index; j < lines.length && j < index + 120; j += 1) {
+      const current = lines[j];
+      block += `${current}\n`;
+
+      for (const ch of current) {
+        if (ch === '(') {
+          parenDepth += 1;
+          started = true;
+        } else if (ch === ')') {
+          parenDepth -= 1;
+        }
+      }
+
+      if (started && parenDepth <= 0) break;
+    }
+
+    if (/\btake\s*:/.test(block)) continue;
+
+    results.push(`${path.relative(process.cwd(), filePath)}:${index + 1}:${line.trim()}`);
+  }
+}
+
+walk(root);
+process.stdout.write(results.join('\n'));
+NODE
+  )"
   local unbounded_count
   unbounded_count=$(echo -n "$unbounded" | grep -c '^' || true)
   if [ "$unbounded_count" -gt 0 ]; then

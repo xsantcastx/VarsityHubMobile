@@ -20,10 +20,8 @@ import {
   Event,
   Feed,
   Game,
-  Highlights,
   Message,
   Notification as NotificationApi,
-  Post as PostApi,
   User,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
@@ -1756,12 +1754,11 @@ export default function FeedScreen() {
     [
       colorScheme,
       router,
-      onRefresh,
       followedPosts,
       followedTeamsPosts,
-      voteSummaries,
       renderGameCard,
       renderEmailReminder,
+      showAdReportOptions,
       renderLocationPrompt,
       verticalFeedTitle,
       verticalFeedPreviewImage,

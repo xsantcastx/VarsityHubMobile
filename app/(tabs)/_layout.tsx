@@ -1,7 +1,7 @@
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Platform, Pressable, View, Text } from 'react-native';
+import { Platform } from 'react-native';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { HapticTab } from '@/components/HapticTab';
@@ -14,7 +14,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
 
   const hiddenTab = useMemo(
     () =>

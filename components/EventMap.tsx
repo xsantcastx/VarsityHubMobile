@@ -10,7 +10,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -99,7 +99,7 @@ export default function EventMap({
   );
 
   // Center map on all events
-  const fitToEvents = () => {
+  const fitToEvents = useCallback(() => {
     if (eventsWithCoordinates.length === 0) return;
     captureBreadcrumb('Map fit to events', 'map.navigation', {
       event_count: eventsWithCoordinates.length,
@@ -114,7 +114,7 @@ export default function EventMap({
       edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
       animated: true,
     });
-  };
+  }, [eventsWithCoordinates]);
 
   // Auto-zoom to events when they first load
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function EventMap({
       const timer = setTimeout(() => fitToEvents(), 500);
       return () => clearTimeout(timer);
     }
-  }, [eventsWithCoordinates.length, dataLoaded, loading]);
+  }, [eventsWithCoordinates.length, dataLoaded, fitToEvents, loading]);
 
   // Center map on user location
   const centerOnUser = () => {

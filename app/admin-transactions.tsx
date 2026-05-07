@@ -40,7 +40,7 @@ function AdminTransactionsScreen() {
       const statusParam = filter !== 'all' ? `&status=${filter}` : '';
       const [txRes, sumRes] = await Promise.all([
         httpGet(`/admin/transactions?limit=${limit}&offset=${newOffset}${statusParam}`),
-        reset || !summary ? httpGet('/admin/transactions/summary') : Promise.resolve({ summary }),
+        reset ? httpGet('/admin/transactions/summary') : Promise.resolve(null),
       ]);
 
       const newTx = txRes?.transactions || [];
@@ -59,9 +59,9 @@ function AdminTransactionsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAdmin, filter, offset, summary]);
+  }, [isAdmin, filter, offset]);
 
-  useEffect(() => { void loadData(true); }, [isAdmin, filter]);
+  useEffect(() => { void loadData(true); }, [loadData]);
 
   const statusColor = (status: string) => {
     if (status === 'COMPLETED') return '#10B981';

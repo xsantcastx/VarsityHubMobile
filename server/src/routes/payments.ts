@@ -4142,6 +4142,7 @@ async function reserveAppleTransactionClaims(
       ad_id: true,
       order_id: true,
     },
+    take: normalizedIds.length,
   });
 
   const conflictingClaim = existingClaims.find((claim) => !claimMatchesPurchase(claim, params));

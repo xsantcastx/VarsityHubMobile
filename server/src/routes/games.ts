@@ -446,6 +446,7 @@ async function canViewGameRecord(
   const teams = await prisma.team.findMany({
     where: { id: { in: teamIds } },
     select: { organization_id: true },
+    take: teamIds.length,
   });
   const organizationIds = teams.map(team => team.organization_id).filter(Boolean) as string[];
   if (organizationIds.length === 0) return false;
@@ -569,6 +570,7 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
       if (!isAdmin) {
         // Get team IDs and org IDs the coach manages
         const [managedTeams, managedOrgs] = await Promise.all([
+          // audit-allow unbounded: access scope must include every managed team for this coach
           prisma.teamMembership.findMany({
             where: {
               user_id: authedReq.user.id,
@@ -577,6 +579,7 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
             },
             select: { team_id: true },
           }),
+          // audit-allow unbounded: access scope must include every admin org for this coach
           prisma.organizationMembership.findMany({
             where: {
               user_id: authedReq.user.id,
@@ -592,6 +595,7 @@ gamesRouter.get('/', asyncHandler(async (req, res) => {
         // Also include teams that belong to managed orgs
         let orgTeamIds: string[] = [];
         if (orgIds.length > 0) {
+          // audit-allow unbounded: org-scoped visibility requires the full team set across managed orgs
           const orgTeams = await prisma.team.findMany({
             where: { organization_id: { in: orgIds } },
             select: { id: true },
@@ -1255,6 +1259,7 @@ gamesRouter.get('/votes-summary', authMiddleware as any, asyncHandler(async (req
         OR: [{ event_type: null }, { event_type: 'game' }],
       },
       select: { id: true },
+      take: ids.length,
     });
     const eligibleIds = eligibleGames.map(game => game.id);
     if (eligibleIds.length === 0) return res.json({});
@@ -1270,6 +1275,7 @@ gamesRouter.get('/votes-summary', authMiddleware as any, asyncHandler(async (req
         ? prisma.gameVote.findMany({
             where: { game_id: { in: eligibleIds }, user_id: userId },
             select: { game_id: true, team: true },
+            take: eligibleIds.length,
           })
         : Promise.resolve([]),
     ]);
@@ -1585,6 +1591,7 @@ gamesRouter.delete(
         const gameTitle = gameForNotif?.title || 'A game';
 
         // Find events linked to this game and their RSVPs
+        // audit-allow unbounded: game deletion must notify every linked event RSVP
         const linkedEvents = await prisma.event.findMany({
           where: { game_id: id },
           select: { id: true, rsvps: { select: { user_id: true } } },
@@ -1598,6 +1605,7 @@ gamesRouter.delete(
 
         // Also notify team members of home/away teams
         if (deleteTeamIds.length > 0) {
+          // audit-allow unbounded: game cancellation must notify every active member on affected teams
           const teamMembers = await prisma.teamMembership.findMany({
             where: {
               team_id: { in: deleteTeamIds },

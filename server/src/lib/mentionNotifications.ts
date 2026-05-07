@@ -38,6 +38,7 @@ export async function notifyMentions(params: {
       banned: false,
     },
     select: { id: true, preferences: true },
+    take: usernames.length,
   });
 
   if (users.length === 0) return;
@@ -54,6 +55,7 @@ export async function notifyMentions(params: {
         ],
       },
       select: { blocker_id: true, blocked_id: true },
+      take: Math.max(users.length * 2, 1),
     }),
     Promise.resolve(users),
   ]);
@@ -99,10 +101,12 @@ export async function notifyMentions(params: {
             status: 'active',
           },
           select: { user_id: true },
+          take: recipientIds.length,
         }),
         prisma.teamFollow.findMany({
           where: { team_id: teamId, user_id: { in: recipientIds } },
           select: { user_id: true },
+          take: recipientIds.length,
         }),
         teamAny.organization_id
           ? prisma.organizationMembership.findMany({
@@ -113,6 +117,7 @@ export async function notifyMentions(params: {
                 status: 'active',
               },
               select: { user_id: true },
+              take: recipientIds.length,
             })
           : Promise.resolve([] as Array<{ user_id: string }>),
       ]);

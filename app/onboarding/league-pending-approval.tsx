@@ -1,9 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, ScrollView, StyleSheet, Text, View, useColorScheme, Pressable, ActivityIndicator } from 'react-native';
+import { Alert, AppState, ScrollView, Text, View, useColorScheme, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -17,11 +16,9 @@ import {
   FanFallbackActions,
   InfoCardRow,
   PendingApprovalShell,
-  PollingStatus,
   PrimaryButton,
   ReasonCard,
   SecondaryButton,
-  SupportText,
   pendingApprovalStyles as styles,
 } from '@/components/onboarding/pendingApprovalUi';
 
@@ -89,7 +86,7 @@ function LeaguePendingApproval() {
       return;
     }
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const me: any = await User.refresh();
         if (cancelled) return;
@@ -228,7 +225,7 @@ function LeaguePendingApproval() {
         setApproved(true);
         stopPolling();
         // Approval only unlocks real coach setup. Do not mark onboarding complete here.
-        registerPushToken().catch(() => {});
+        void registerPushToken().catch(() => {});
       }
     } catch {
       // ignore polling errors
@@ -236,7 +233,7 @@ function LeaguePendingApproval() {
       approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
-  }, [orgId, redirectToLeagueSetup, stopPolling]);
+  }, [orgId, redirectToLeagueSetup, registerPushToken, stopPolling]);
 
   useEffect(() => {
     void checkApproval('initial');

@@ -76,6 +76,7 @@ export function buildAuthorizedUserLimitError(limit: number) {
 }
 
 export async function getTeamEntitlementState(db: DbClient, teamId: string): Promise<TeamEntitlementState> {
+  // audit-allow unbounded: entitlement checks must consider every active owner on the team
   const ownerMemberships = await db.teamMembership.findMany({
     where: { team_id: teamId, role: 'owner', status: 'active' },
     select: { user_id: true },
@@ -100,6 +101,7 @@ export async function getTeamEntitlementState(db: DbClient, teamId: string): Pro
       const currentPlan = resolvePlan(await getUserPlan(ownerId, db));
       return [ownerId, currentPlan] as const;
     })),
+    // audit-allow unbounded: owner entitlement depends on the owner's full active team set
     db.teamMembership.findMany({
       where: {
         user_id: { in: ownerIds },

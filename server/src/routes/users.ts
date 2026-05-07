@@ -454,6 +454,7 @@ usersRouter.get('/:id/posts', asyncHandler(async (req: AuthedRequest, res) => {
       },
     };
     if (cursor) { query.cursor = { id: cursor }; query.skip = 1; }
+    // audit-allow unbounded: query object already includes take: limit + 1
     const rows = await prisma.post.findMany(query);
     const items = rows.slice(0, limit);
     const nextCursor = rows.length > limit ? rows[limit].id : null;
@@ -522,7 +523,7 @@ usersRouter.get('/:id/interactions', asyncHandler(async (req: AuthedRequest, res
 
   // Sorting
   if (sort === 'most_upvoted') {
-  const likeCounts = await prisma.post.findMany({ where: { id: { in: list.map(i => i.post_id) }, deleted_at: null }, select: { id: true, upvotes_count: true } });
+  const likeCounts = await prisma.post.findMany({ where: { id: { in: list.map(i => i.post_id) }, deleted_at: null }, select: { id: true, upvotes_count: true }, take: Math.max(list.length, 1) });
     const likeMap = new Map(likeCounts.map(p => [p.id, p.upvotes_count || 0]));
     list.sort((a, b) => (likeMap.get(b.post_id)! - likeMap.get(a.post_id)!));
   } else if (sort === 'most_commented') {
@@ -550,6 +551,7 @@ usersRouter.get('/:id/interactions', asyncHandler(async (req: AuthedRequest, res
   const posts = postIds.length ? await prisma.post.findMany({
     where: { id: { in: postIds }, deleted_at: null },
     include: { author: { select: { id: true, display_name: true, avatar_url: true } }, _count: { select: { comments: true, bookmarks: true } } },
+    take: postIds.length,
   }) : [];
   // Preserve order of page
   const byId = new Map(posts.map(p => [p.id, p]));
@@ -1095,6 +1097,7 @@ usersRouter.get('/:id/followers', requireAuth as any, requireVerified as any, as
           status: 'accepted',
         },
         select: { following_id: true },
+        take: Math.max(userIds.length, 1),
       })).map(f => f.following_id)
     );
     users.forEach(u => (u as any).is_following = followingSet.has(u.id));
@@ -1132,6 +1135,7 @@ usersRouter.get('/:id/following', requireAuth as any, requireVerified as any, as
           status: 'accepted',
         },
         select: { following_id: true },
+        take: Math.max(userIds.length, 1),
       })).map(f => f.following_id)
     );
     users.forEach(u => (u as any).is_following = followingSet.has(u.id));

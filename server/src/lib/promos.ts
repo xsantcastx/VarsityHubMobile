@@ -165,6 +165,7 @@ async function reversePromoRedemptionWithDb(input: ReversePromoRedemptionInput, 
   const redemptions = await db.promoRedemption.findMany({
     where: { order_id: { in: orderReferences } },
     select: { id: true, promo_id: true, order_id: true },
+    take: orderReferences.length,
   });
 
   if (redemptions.length === 0) {
