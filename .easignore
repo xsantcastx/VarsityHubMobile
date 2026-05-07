@@ -30,3 +30,15 @@ android/app/*.keystore
 server/uploads/
 docs/
 v1.0.2-runtime-test-checklist.md
+.claude/
+.codex/
+node_modules_stale/
+server/.expo/
+server/dist/
+server/coverage/
+server/android/
+server/ios/
+server/tests/
+server/uploads/
+server/.keys/
+server/web-bundler-output.log
