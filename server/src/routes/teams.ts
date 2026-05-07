@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { MembershipStatus } from '@prisma/client';
 import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import { prisma } from '../lib/prisma.js';
@@ -273,7 +274,7 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
       some: {
         user_id: userId,
         role: { in: managementRoles },
-        status: 'active'
+        status: MembershipStatus.active
       }
     };
   }
@@ -294,7 +295,7 @@ teamsRouter.get('/', asyncHandler(async (req, res) => {
   const [viewerMemberships, followedTeamRows] = await Promise.all([
     currentUserId
       ? prisma.teamMembership.findMany({
-          where: { user_id: currentUserId, status: 'active', team_id: { in: teamIds } },
+          where: { user_id: currentUserId, status: MembershipStatus.active, team_id: { in: teamIds } },
           select: { team_id: true, role: true },
           take: Math.max(teamIds.length, 1),
         })
@@ -1578,7 +1579,10 @@ teamsRouter.post('/:id/invite', requireAuth as any, requireVerified as any, requ
       valid_roles: VALID_TEAM_INVITE_ROLES,
     });
   }
-  const team = await prisma.team.findUnique({ where: { id }, select: { id: true } });
+  const team = await prisma.team.findUnique({
+    where: { id },
+    select: { id: true, name: true, logo_url: true, avatar_url: true },
+  });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   

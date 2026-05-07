@@ -248,7 +248,9 @@ export async function approveOrganization(
     select: {
       id: true,
       name: true,
+      status: true,
       admin_approved: true,
+      league_owner_id: true,
       leagueOwner: {
         select: { id: true, display_name: true, email: true, preferences: true },
       },
@@ -365,6 +367,9 @@ export async function rejectOrganization(
     select: {
       id: true,
       name: true,
+      status: true,
+      admin_approved: true,
+      league_owner_id: true,
       leagueOwner: {
         select: { id: true, display_name: true, email: true, preferences: true },
       },
@@ -389,7 +394,6 @@ export async function rejectOrganization(
         rejection_reason: reason,
         league_owner_id: owner?.id || org.league_owner_id || null,
       },
-      select: { id: true },
     });
     if (updated.count === 0) return false;
     // organization_id is non-nullable — soft-delete teams by archiving them.

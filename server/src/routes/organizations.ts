@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { OrganizationRole } from '@prisma/client';
 import {
   buildCoachJoinRequestReviewUrl,
   sendOrganizationInviteEmail,
@@ -59,6 +60,10 @@ import {
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
+
+function toOrganizationInviteRole(role?: string | null): OrganizationRole {
+  return role === OrganizationRole.manager ? OrganizationRole.manager : OrganizationRole.member;
+}
 
 function reportApprovalNotificationFailure(
   channel: 'email' | 'push' | 'in_app',
@@ -1005,7 +1010,7 @@ organizationsRouter.post(
           .map(user => ({
             organization_id: organization.id,
             email: user.email!,
-            role: user.role || 'member',
+            role: toOrganizationInviteRole(user.role),
           }));
 
         if (invites.length > 0) {
@@ -1182,12 +1187,12 @@ organizationsRouter.post(
           if (existingInvite) {
             return tx.organizationInvite.update({
               where: { id: existingInvite.id },
-              data: { email: inviteEmail, role: role || 'member', status: 'pending' },
+              data: { email: inviteEmail, role: toOrganizationInviteRole(role), status: 'pending' },
               select: { id: true },
             });
           }
           return tx.organizationInvite.create({
-            data: { organization_id: id, email: inviteEmail, role: role || 'member', status: 'pending' },
+            data: { organization_id: id, email: inviteEmail, role: toOrganizationInviteRole(role), status: 'pending' },
             select: { id: true },
           });
         },
@@ -1299,7 +1304,7 @@ organizationsRouter.post(
           create: {
             organization_id: invite.organization_id,
             user_id: user.id,
-            role: invite.role,
+            role: toOrganizationInviteRole(invite.role),
             status: 'active',
           },
           select: { id: true },
@@ -1656,8 +1661,8 @@ organizationsRouter.post(
           // v1.0.2 audit fix: search-mode join requests now send email to org owner
           // (previously only push + in-app). Uses LEAGUE_PENDING_APPROVAL template.
           sendCoachJoinRequestEmail({
-            ownerEmail: owner.user.email!,
-            ownerName: owner.user.display_name || 'League Owner',
+            ownerEmail: owner.email!,
+            ownerName: owner.display_name || 'League Owner',
             coachName: joinRequest.user.display_name || 'A coach',
             coachEmail: joinRequest.user.email || '',
             organizationName: organization.name,
@@ -1681,7 +1686,7 @@ organizationsRouter.post(
 
           // Push notification to league owner
           sendPushNotification(
-            owner.user.id,
+            owner.id,
             'New coach request',
             `${joinRequest.user.display_name || 'A coach'} wants to join ${organization.name}`,
             { type: 'coach_request', screen: 'approvals', organization_id: organization.id }
@@ -1691,7 +1696,7 @@ organizationsRouter.post(
           await prisma.notification
             .create({
               data: {
-                user_id: owner.user.id,
+                user_id: owner.id,
                 actor_id: req.user!.id,
                 type: 'TEAM_INVITE', // Closest available type for coach request
                 meta: {
@@ -1709,19 +1714,19 @@ organizationsRouter.post(
               )
             );
         } catch (err) {
-          console.error('Failed to send join request notification to admin:', err);
+          reportApprovalNotificationFailure('email', 'organization_join_request_notify_failed', err, {
+            organizationId: organization.id,
+            ownerUserId: owner.id,
+            requesterId: req.user!.id,
+          });
         }
       }
-
-      return res.status(201).json({
-        ...joinRequest,
-        status: 'pending',
-        reviewed_at: null,
-        reviewed_by: null,
-        rejection_reason: null,
-      });
-    } catch (err) {
-      console.error('[organizations] POST /join-requests error:', err);
+      return res.status(201).json(joinRequest);
+    } catch (err: any) {
+      if (err?.statusCode && err?.body) {
+        return res.status(err.statusCode).json(err.body);
+      }
+      console.error('[organizations] POST /:organizationId/join error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
   })

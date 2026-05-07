@@ -295,14 +295,28 @@ function TeamScreen() {
       }
 
       let teamData: LeagueTeam | null = null;
+      let summaryMembers: TeamMember[] = [];
+      let summaryGames: GameItem[] = [];
+      let canManageTeam = false;
 
       try {
-        // If we have a team ID, use Team.get() to get full details including organization_id
+        // Prefer the scoped summary endpoint so team page navigation and access
+        // stay aligned with the canonical team tools contracts.
         if (teamId) {
           try {
-            const fullTeamData = await Team.get(teamId);
-            if (fullTeamData) {
-              teamData = fullTeamData as LeagueTeam;
+            const summary: any = await Team.screenSummary(teamId);
+            if (summary?.team) {
+              teamData = summary.team as LeagueTeam;
+              summaryMembers = Array.isArray(summary.members) ? summary.members as TeamMember[] : [];
+              summaryGames = Array.isArray(summary.games) ? summary.games as GameItem[] : [];
+              canManageTeam =
+                summary?.permissions?.can_manage === true || summary?.team?.can_manage_team === true;
+            } else {
+              const fullTeamData = await Team.get(teamId);
+              if (fullTeamData) {
+                teamData = fullTeamData as LeagueTeam;
+                canManageTeam = (fullTeamData as any)?.can_manage_team === true;
+              }
             }
           } catch (getErr: any) {
             if (__DEV__) console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
@@ -349,63 +363,43 @@ function TeamScreen() {
         teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
       }
       
-      setTeam(teamData);
-      setIsFollowing(!!(teamData as any).is_following);
-
-      if (mounted.current) {
-        setIsTeamAdmin((teamData as any)?.can_manage_team === true);
-      }
+          setTeam(teamData);
+          setIsFollowing(!!(teamData as any).is_following);
+          
+          if (mounted.current) {
+            setIsTeamAdmin(canManageTeam);
+          }
 
       // Use default theme color (teams don't have preferences field yet)
       if (mounted.current) setTeamThemeColor('#3B82F6');
 
       // Fetch games, posts, and members
-      const [gamesResult, membersResult] = await Promise.all([
-        Game.list('-date')
-          .then(allGamesData => {
-            if (!mounted.current) return [];
-            const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
-            const teamNameLower = (teamData!.name || '').toLowerCase();
-            return allGames
-              .filter((g: GameItem) => {
-                  const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-                  const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-                  return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-                })
-              .sort((a: GameItem, b: GameItem) => {
-                  const dateA = new Date(a.date || a.created_at || 0).getTime();
-                  const dateB = new Date(b.date || b.created_at || 0).getTime();
-                  return dateA - dateB;
-                });
-          })
-          .catch((err: any) => {
-            if (__DEV__) console.error('[team-page] Failed to load games:', err);
-            return [];
-          }),
-        
-        (async () => {
-          try {
-            if (!teamData?.id || !mounted.current) return [];
-            const teamMembers = await Team.members(teamData.id);
-            if (!mounted.current) return [];
-            
-            const memberList = Array.isArray(teamMembers) ? teamMembers : [];
-            return memberList
-              .filter((m: TeamMember) => m.team_id === teamData!.id)
-              .sort((a: TeamMember, b: TeamMember) => {
-                const aJersey = parseInt(String(a.jersey_number || 999), 10);
-                const bJersey = parseInt(String(b.jersey_number || 999), 10);
-                if (aJersey !== bJersey) return aJersey - bJersey;
-                const aName = a.user?.display_name || '';
-                const bName = b.user?.display_name || '';
-                return aName.localeCompare(bName);
-              });
-          } catch (err: any) {
-            if (__DEV__) console.error('[team-page] Failed to load members:', err);
-            return [];
-          }
-        })(),
-      ]);
+          const [gamesResult, membersResult] = summaryGames.length || summaryMembers.length
+            ? [summaryGames, summaryMembers]
+            : await Promise.all([
+                Game.list('-date')
+                  .then(allGamesData => {
+                    if (!mounted.current) return [];
+                    const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
+                    const teamNameLower = (teamData!.name || '').toLowerCase();
+                    return allGames
+                      .filter((g: GameItem) => {
+                          const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+                          const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+                          return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
+                        })
+                      .sort((a: GameItem, b: GameItem) => {
+                          const dateA = new Date(a.date || a.created_at || 0).getTime();
+                          const dateB = new Date(b.date || b.created_at || 0).getTime();
+                          return dateA - dateB;
+                        });
+                  })
+                  .catch((err: any) => {
+                    if (__DEV__) console.error('[team-page] Failed to load games:', err);
+                    return [];
+                  }),
+                Promise.resolve([] as TeamMember[]),
+              ]);
 
       if (!mounted.current) return;
       setGames(gamesResult);
@@ -555,10 +549,20 @@ function TeamScreen() {
           <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
             <Pressable
               testID="team-page-settings-button"
-              onPress={() => void router.push(`/edit-team?id=${team?.id}` as any)}
+              onPress={() => {
+                if (!team?.id) return;
+                void router.push({
+                  pathname: '/team-admin',
+                  params: {
+                    teamId: team.id,
+                    orgId: team.organization_id,
+                    orgTab: 'teams',
+                  },
+                } as any);
+              }}
               style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
               accessibilityRole="button"
-              accessibilityLabel="Edit team profile"
+              accessibilityLabel="Open team tools"
             >
               <Ionicons name="settings-outline" size={18} color={theme.text} />
             </Pressable>
@@ -759,7 +763,7 @@ function TeamScreen() {
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push({ pathname: '/league', params: { id: orgId } } as any);
+                router.push({ pathname: '/organization', params: { id: orgId, tab: 'overview' } } as any);
               }
             }}
             disabled={!team?.organization_id}

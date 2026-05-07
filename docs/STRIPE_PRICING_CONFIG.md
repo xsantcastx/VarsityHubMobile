@@ -88,6 +88,9 @@ Each team beyond 2 incurs a $0.99/month charge.
 
 ## 📢 Advertisement Slots
 
+These Stripe ad prices are used by Android and non-iOS checkout paths.
+On iOS, ad booking uses Apple IAP product IDs `MOND_THURS` and `FRI_SUN` at the matching price points.
+
 ### Weekday Ads (Monday–Thursday)
 - **Price:** $5 per week
 - **Stripe Product ID:** `prod_TJtJaRjlcRrFQM`

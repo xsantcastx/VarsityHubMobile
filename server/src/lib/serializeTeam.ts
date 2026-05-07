@@ -22,6 +22,8 @@
  * org data rather than silently succeeding.
  */
 
+import { MembershipStatus } from '@prisma/client';
+
 export interface SerializeTeamOptions {
   /**
    * Include the organization embed. Requires Prisma
@@ -111,7 +113,7 @@ export function buildTeamSerializeSelect(
     ...(opts.includeMembershipsForUserId
       ? {
           memberships: {
-            where: { user_id: opts.includeMembershipsForUserId, status: 'active' },
+            where: { user_id: opts.includeMembershipsForUserId, status: MembershipStatus.active },
             select: { role: true },
           },
         }

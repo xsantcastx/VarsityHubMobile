@@ -41,13 +41,13 @@ describe('getCoachAccessState — identity', () => {
     expect(s.canAccessCoachTools).toBe(false);
   });
 
-  it('reads role from preferences.role over user.role', () => {
+  it('reads canonical top-level user.role before falling back to preferences.role', () => {
     const s = getCoachAccessState({
       role: 'fan',
       preferences: { role: 'coach' },
     });
-    expect(s.isCoach).toBe(true);
-    expect(s.role).toBe('coach');
+    expect(s.isCoach).toBe(false);
+    expect(s.role).toBe('fan');
   });
 });
 

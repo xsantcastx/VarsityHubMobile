@@ -146,8 +146,8 @@ Per the IAP code in `hooks/useIAP.ts` and the `iap-config-invariants.test.ts` re
 |---|---|---|
 | Subscriptions | `MIDTIER` | auto-renewing subscription |
 | Subscriptions | `TOPTIER` | auto-renewing subscription |
-| Apple ad IAP | `MOND_THURS` | non-consumable (weekday slot) |
-| Apple ad IAP | `FRI_SUN` | non-consumable (weekend slot) |
+| Apple ad IAP | `MOND_THURS` | consumable (weekday slot) |
+| Apple ad IAP | `FRI_SUN` | consumable (weekend slot) |
 
 | # | Step | Notes |
 |---|---|---|

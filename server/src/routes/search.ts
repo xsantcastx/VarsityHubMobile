@@ -153,6 +153,7 @@ searchRouter.get(
         select: {
           id: true,
           name: true,
+          description: true,
           sport: true,
           logo_url: true,
           avatar_url: true,

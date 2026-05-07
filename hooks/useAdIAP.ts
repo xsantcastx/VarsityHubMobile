@@ -4,7 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { httpPost } from '@/api/http';
@@ -269,6 +269,18 @@ export function useAdIAP() {
     },
   });
 
+  const availableProductIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (products || [])
+            .map((product: any) => (typeof product?.productId === 'string' ? product.productId : ''))
+            .filter(Boolean)
+        )
+      ).sort(),
+    [products]
+  );
+
   useEffect(() => {
     if (isExpoGo || !isIOS) return;
     if (!connected) return;
@@ -280,6 +292,18 @@ export function useAdIAP() {
       setError(err instanceof Error ? err.message : 'Failed to load ad products');
     });
   }, [connected, fetchProducts]);
+
+  useEffect(() => {
+    if (isExpoGo || !isIOS || !connected) return;
+    captureBreadcrumb('Ad products state updated', 'payments.ad', {
+      available_product_ids: availableProductIds.join(','),
+      missing_product_ids: AD_SKUS.filter((sku) => !availableProductIds.includes(sku)).join(','),
+      product_count: availableProductIds.length,
+    });
+    if (__DEV__) {
+      console.log('[useAdIAP] available App Store products:', availableProductIds);
+    }
+  }, [availableProductIds, connected]);
 
   useEffect(() => {
     if (isExpoGo || !isIOS) return;
@@ -297,6 +321,30 @@ export function useAdIAP() {
     }): Promise<{ ok: boolean; error?: string }> => {
       const { adId, dates, weekdayBlocks, weekendBlocks } = params;
       if ((weekdayBlocks <= 0 && weekendBlocks <= 0) || !isIOS) return { ok: false };
+      if (!connected) {
+        const errMsg = 'Apple ad payments are unavailable because the App Store connection is not ready yet.';
+        setError(errMsg);
+        return { ok: false, error: errMsg };
+      }
+
+      const requiredSkus = [
+        ...(weekdayBlocks > 0 ? [AD_IAP_PRODUCT_IDS.weekday] : []),
+        ...(weekendBlocks > 0 ? [AD_IAP_PRODUCT_IDS.weekend] : []),
+      ];
+      const missingSkus = requiredSkus.filter((sku) => !availableProductIds.includes(sku));
+      if (missingSkus.length > 0) {
+        const errMsg =
+          `Apple ad products unavailable for this build: ${missingSkus.join(', ')}. ` +
+          'App Store Connect must expose these exact product IDs for bundle com.varsithub.varsityhub-ios.';
+        captureBreadcrumb('Ad purchase blocked: missing store products', 'payments.ad', {
+          requested_product_ids: requiredSkus.join(','),
+          available_product_ids: availableProductIds.join(','),
+          missing_product_ids: missingSkus.join(','),
+          ad_id: adId,
+        }, 'error');
+        setError(errMsg);
+        return { ok: false, error: errMsg };
+      }
 
       setPurchasing(true);
       setError(null);
@@ -317,11 +365,21 @@ export function useAdIAP() {
         const run = async () => {
           try {
             if (weekdayBlocks > 0) {
+              captureBreadcrumb('Ad purchase requested', 'payments.ad', {
+                ad_id: adId,
+                product_id: AD_IAP_PRODUCT_IDS.weekday,
+                quantity: weekdayBlocks,
+              });
               await rnRequestPurchase({
                 type: 'in-app',
                 request: { apple: { sku: AD_IAP_PRODUCT_IDS.weekday, quantity: weekdayBlocks } },
               });
             } else if (weekendBlocks > 0) {
+              captureBreadcrumb('Ad purchase requested', 'payments.ad', {
+                ad_id: adId,
+                product_id: AD_IAP_PRODUCT_IDS.weekend,
+                quantity: weekendBlocks,
+              });
               await rnRequestPurchase({
                 type: 'in-app',
                 request: { apple: { sku: AD_IAP_PRODUCT_IDS.weekend, quantity: weekendBlocks } },
@@ -343,7 +401,7 @@ export function useAdIAP() {
         run();
       });
     },
-    [rnRequestPurchase]
+    [availableProductIds, connected, rnRequestPurchase]
   );
 
   const getProduct = useCallback(

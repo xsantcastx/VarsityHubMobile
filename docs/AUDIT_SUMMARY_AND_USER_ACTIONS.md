@@ -69,7 +69,7 @@
 ## Your Action Items (Bullet Points)
 
 ### App Store Connect / IAP
-- [ ] Create consumable IAP products: `ad_weekday_vhub` ($5), `ad_weekend_vhub` ($8)
+- [ ] Create Apple ad IAP products: `MOND_THURS` ($4.99), `FRI_SUN` ($7.99)
 - [ ] Set products to "Ready to Submit"
 - [ ] Create Sandbox Apple ID for testing (Settings → App Store → Sandbox Account)
 

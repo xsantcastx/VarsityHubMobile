@@ -1,12 +1,15 @@
 # Ad IAP Verification Checklist
 
+This is an iOS-only checklist.
+Android ad bookings use Stripe PaymentSheet and do not use Play in-app product IDs for ad slots.
+
 Use this before spending build credits to confirm ad IAP is correctly configured.
 
 ## 1. App Store Connect (Required)
 
 - [ ] **Products created** in App Store Connect → Your App → In-App Purchases:
-  - `ad_weekday_vhub` — Consumable, $5.00 (500¢)
-  - `ad_weekend_vhub` — Consumable, $8.00 (800¢)
+  - `MOND_THURS` — Apple ad IAP, $4.99
+  - `FRI_SUN` — Apple ad IAP, $7.99
 - [ ] Products are **Ready to Submit** (not Missing Metadata)
 - [ ] Products are in the correct app and region
 
@@ -31,7 +34,7 @@ Use this before spending build credits to confirm ad IAP is correctly configured
 
 | Component | Status |
 |-----------|--------|
-| `hooks/useAdIAP.ts` | Product IDs `ad_weekday_vhub`, `ad_weekend_vhub`; lazy-loads react-native-iap |
+| `hooks/useAdIAP.ts` | Product IDs `MOND_THURS`, `FRI_SUN`; lazy-loads react-native-iap |
 | `app/ad-calendar.tsx` | iOS → IAP; Android → Stripe; UTC date math matches server |
 | `server/routes/payments.ts` | `POST /payments/apple/verify-ad-receipt` verifies receipts, creates reservations |
 
@@ -40,6 +43,6 @@ Use this before spending build credits to confirm ad IAP is correctly configured
 | Symptom | Cause |
 |---------|-------|
 | "IAP disabled in Expo Go" | Must use EAS build, not Expo Go |
-| "Products not found" | Products not Ready in App Store Connect, or wrong product IDs |
+| "Products not found" | Products not Ready in App Store Connect, wrong product IDs, or wrong app/bundle build |
 | "Receipt verification failed" | `APPLE_IAP_SHARED_SECRET` missing or wrong |
 | "Receipt total does not match" | Client/server date math mismatch — fixed by using UTC in both |

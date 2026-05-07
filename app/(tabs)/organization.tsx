@@ -47,6 +47,13 @@ type GameItem = {
   game_type?: string;
 };
 
+type AuthorizedInvite = {
+  id: string;
+  email?: string | null;
+  role?: string | null;
+  status?: string | null;
+};
+
 export default function OrganizationScreen() {
   const { user } = useAuth();
   const colorScheme = useCustomColorScheme();
@@ -64,6 +71,8 @@ export default function OrganizationScreen() {
   const [isOrgMember, setIsOrgMember] = useState(false);
   const [pendingCoachCount, setPendingCoachCount] = useState(0);
   const [pendingCoachError, setPendingCoachError] = useState(false);
+  const [pendingAuthorizedInviteCount, setPendingAuthorizedInviteCount] = useState(0);
+  const [pendingAuthorizedInvites, setPendingAuthorizedInvites] = useState<AuthorizedInvite[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [isRequestingJoin, setIsRequestingJoin] = useState(false);
@@ -86,8 +95,8 @@ export default function OrganizationScreen() {
       // Fallback: if no orgId in params, look up the user's org from the server
       if (!orgId || orgId === 'undefined' || orgId === 'null' || !/^[a-zA-Z0-9_-]{1,128}$/.test(orgId)) {
         try {
-          const myOrgs = await Organization.mine();
-          const firstOrg = Array.isArray(myOrgs) ? myOrgs[0] : null;
+          const summaries = await Organization.reviewSummaries();
+          const firstOrg = Array.isArray(summaries) ? summaries[0]?.organization : null;
           if (firstOrg?.id) {
             orgId = firstOrg.id;
           } else if (user?.preferences?.organization_id) {
@@ -134,17 +143,28 @@ export default function OrganizationScreen() {
         setIsOrgMember(memberAccess);
       }
       if (ownerAccess) {
-        Organization.pendingCoaches(orgId as string).then((pending: any) => {
-          if (mounted.current) {
-            setPendingCoachError(false);
-            setPendingCoachCount(Array.isArray(pending) ? pending.length : 0);
-          }
+        Organization.adminSummary(orgId as string).then((summary: any) => {
+          if (!mounted.current) return;
+          setPendingCoachError(false);
+          setPendingCoachCount(Number(summary?.counts?.pending_coach_requests || 0));
+          setPendingAuthorizedInviteCount(Number(summary?.counts?.pending_authorized_invites || 0));
+          setPendingAuthorizedInvites(
+            Array.isArray(summary?.requests?.authorized_invites)
+              ? summary.requests.authorized_invites as AuthorizedInvite[]
+              : []
+          );
         }).catch(() => {
-          if (mounted.current) setPendingCoachError(true);
+          if (!mounted.current) return;
+          setPendingCoachError(true);
+          setPendingCoachCount(0);
+          setPendingAuthorizedInviteCount(0);
+          setPendingAuthorizedInvites([]);
         });
       } else if (mounted.current) {
         setPendingCoachCount(0);
         setPendingCoachError(false);
+        setPendingAuthorizedInviteCount(0);
+        setPendingAuthorizedInvites([]);
       }
 
       let allTeams: any[] = [];
@@ -557,6 +577,50 @@ export default function OrganizationScreen() {
           </Pressable>
         )}
 
+        {isOrgOwner && (
+          <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Authorized Invites</Text>
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                {pendingAuthorizedInviteCount || pendingAuthorizedInvites.length} pending
+              </Text>
+            </View>
+            {pendingAuthorizedInvites.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.mutedText }]}>No pending authorized invites.</Text>
+            ) : (
+              pendingAuthorizedInvites.map((invite) => (
+                <View
+                  key={invite.id}
+                  style={[styles.rowItem, { borderColor: theme.border, justifyContent: 'space-between' }]}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+                      {invite.email || 'Pending invite'}
+                    </Text>
+                    <Text style={[styles.rowSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                      {String(invite.role || 'member').replace(/_/g, ' ')}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={async () => {
+                      if (!organization?.id) return;
+                      try {
+                        await Organization.cancelInvite(organization.id, invite.id);
+                        await loadOrganization();
+                      } catch (err: any) {
+                        Alert.alert('Error', err?.message || 'Failed to cancel invite.');
+                      }
+                    }}
+                    style={[styles.actionBtn, { backgroundColor: 'transparent', borderColor: theme.border, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, minHeight: 0 }]}
+                  >
+                    <Text style={[styles.actionBtnText, { color: theme.text }]}>Cancel</Text>
+                  </Pressable>
+                </View>
+              ))
+            )}
+          </View>
+        )}
+
         {/* About */}
         <View style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
@@ -685,16 +749,17 @@ export default function OrganizationScreen() {
               <Pressable style={[styles.modalButton, { borderColor: theme.border }]} onPress={() => setInviteModalVisible(false)}>
                 <Text style={[styles.modalButtonText, { color: theme.mutedText }]}>Cancel</Text>
               </Pressable>
-              <Pressable
-                style={[styles.modalButton, { backgroundColor: theme.tint }]}
-                onPress={async () => {
-                  if (!inviteEmail.trim() || !organization) return;
-                  try {
-                    await Organization.invite(organization.id, inviteEmail.trim(), 'member');
-                    setInviteModalVisible(false);
-                    Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
-                  } catch (err: any) {
-                    Alert.alert('Error', err?.data?.error || err?.message || 'Failed to send invite');
+                  <Pressable
+                    style={[styles.modalButton, { backgroundColor: theme.tint }]}
+                    onPress={async () => {
+                      if (!inviteEmail.trim() || !organization) return;
+                      try {
+                        await Organization.invite(organization.id, inviteEmail.trim(), 'member');
+                        setInviteModalVisible(false);
+                        await loadOrganization();
+                        Alert.alert('Invited', `Invitation sent to ${inviteEmail.trim()}`);
+                      } catch (err: any) {
+                        Alert.alert('Error', err?.data?.error || err?.message || 'Failed to send invite');
                   }
                 }}
               >

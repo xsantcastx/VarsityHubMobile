@@ -40,6 +40,9 @@ function EditTeamScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [memberSearch, setMemberSearch] = useState('');
   const [transferring, setTransferring] = useState(false);
+  const fallbackRoute = team?.organization_id
+    ? `/organization?id=${encodeURIComponent(team.organization_id)}&tab=teams`
+    : '/organization?tab=teams';
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
   const seasons = (() => {
@@ -54,7 +57,8 @@ function EditTeamScreen() {
     try {
       setLoading(true);
       if (!params.id) return;
-      const teamData = await Team.get(params.id);
+      const summary: any = await Team.adminSummary(params.id);
+      const teamData = summary?.team ?? (await Team.get(params.id));
       setTeam(teamData);
       setName(teamData.name || '');
       setDescription(teamData.description || '');
@@ -65,41 +69,22 @@ function EditTeamScreen() {
 
       if (!teamData?.can_manage_team) {
         Alert.alert('Access Denied', 'You must be team staff or an organization admin to edit this team.');
-        safeGoBack(router);
+        safeGoBack(router, fallbackRoute);
         return;
       }
-      setIsOwner(teamData?.my_role === 'owner');
-
-      try {
-        const membersList = await Team.members(params.id);
-        const arr = Array.isArray(membersList) ? membersList : (membersList?.members || []);
-        setMembers(arr);
-      } catch (err) {
-        if (__DEV__) console.error('[EditTeam] Failed to load members:', err);
-      }
+      setIsOwner(summary?.permissions?.membership_role === 'owner' || teamData?.my_role === 'owner');
+      setMembers(Array.isArray(summary?.members) ? summary.members : []);
 
       const orgFromResponse = (teamData as any).organization;
-      if (orgFromResponse?.name) {
-        setOrganizationName(orgFromResponse.name);
-      } else if (teamData.organization_id) {
-        try {
-          const org = await Organization.get(teamData.organization_id);
-          setOrganizationName(org.name || '');
-        } catch (err) {
-          if (__DEV__) console.error('Failed to load organization:', err);
-          setOrganizationName('');
-        }
-      } else {
-        setOrganizationName('');
-      }
+      setOrganizationName(orgFromResponse?.name || '');
     } catch (error) {
       if (__DEV__) console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
-      safeGoBack(router);
+      safeGoBack(router, fallbackRoute);
     } finally {
       setLoading(false);
     }
-  }, [params.id, router]);
+  }, [fallbackRoute, params.id, router]);
 
   useEffect(() => {
     if (params?.id) {
@@ -262,7 +247,7 @@ function EditTeamScreen() {
         setOrganizationName(organizationId ? trimmedOrgName : '');
       }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
-        { text: 'OK', onPress: () => safeGoBack(router) }
+        { text: 'OK', onPress: () => safeGoBack(router, fallbackRoute) }
       ]);
     } catch (e: any) {
       if (__DEV__) console.error('Team update error:', e);
@@ -300,7 +285,7 @@ function EditTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => { safeGoBack(router); }}
+            onPress={() => { safeGoBack(router, fallbackRoute); }}
           >
             <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
@@ -584,7 +569,7 @@ function EditTeamScreen() {
                                 setMemberSearch('');
                                 setIsOwner(false);
                                 Alert.alert('Ownership Transferred', `${displayName} is now the team owner.`, [
-                                  { text: 'OK', onPress: () => { safeGoBack(router); } }
+                                  { text: 'OK', onPress: () => { safeGoBack(router, fallbackRoute); } }
                                 ]);
                               } catch (e: any) {
                                 const msg = e?.data?.error || e?.message || 'Failed to transfer ownership';

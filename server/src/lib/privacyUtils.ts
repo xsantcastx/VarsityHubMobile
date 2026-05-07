@@ -1,3 +1,4 @@
+import { MembershipStatus } from '@prisma/client';
 import { prisma } from './prisma.js';
 import { getTeamState } from './teamState.js';
 
@@ -77,7 +78,7 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
       take: Math.min(privateTeamIds.length, 50000),
     }),
     prisma.teamMembership.findMany({
-      where: { user_id: viewerId, team_id: { in: privateTeamIds }, status: 'active' },
+      where: { user_id: viewerId, team_id: { in: privateTeamIds }, status: MembershipStatus.active },
       select: { team_id: true },
       take: Math.min(privateTeamIds.length, 50000),
     }),
@@ -85,9 +86,9 @@ export async function getExcludedPrivateTeamIds(viewerId: string | null): Promis
       ? prisma.organizationMembership.findMany({
           where: {
             user_id: viewerId,
-            organization_id: { in: organizationIds },
+            organization_id: { in: organizationIds.filter((id): id is string => typeof id === 'string' && id.length > 0) },
             role: { in: ['owner', 'manager'] },
-            status: 'active',
+            status: MembershipStatus.active,
           },
           select: { organization_id: true },
           take: Math.min(organizationIds.length, 50000),
@@ -225,18 +226,20 @@ export async function isTeamHiddenFromViewer(teamId: string, viewerId: string | 
       select: { team_id: true },
     }),
     prisma.teamMembership.findFirst({
-      where: { user_id: viewerId, team_id: teamId, status: 'active' },
+      where: { user_id: viewerId, team_id: teamId, status: MembershipStatus.active },
       select: { team_id: true },
     }),
-    prisma.organizationMembership.findFirst({
-      where: {
-        user_id: viewerId,
-        organization_id: team.organization_id,
-        role: { in: ['owner', 'manager'] },
-        status: 'active',
-      },
-      select: { organization_id: true },
-    }),
+    team.organization_id
+      ? prisma.organizationMembership.findFirst({
+          where: {
+            user_id: viewerId,
+            organization_id: team.organization_id,
+            role: { in: ['owner', 'manager'] },
+            status: MembershipStatus.active,
+          },
+          select: { organization_id: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   return !follow && !membership && !orgMembership;

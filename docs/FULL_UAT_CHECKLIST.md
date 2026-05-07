@@ -238,6 +238,18 @@ Organized by user journey.
 
 ### 7.4 Subscription management (P1)
 
+### 7.5 Ad booking (P0) 📱
+
+- [ ] Draft ad can be submitted for approval and moves to pending review
+- [ ] Approved ad can be booked again without re-entering the approval flow
+- [ ] Archived but previously approved ad can be booked again
+- [ ] Past dates are rejected before checkout starts
+- [ ] Fully booked dates are blocked with a clear error
+- [ ] iOS ad checkout uses Apple IAP only for `MOND_THURS` and `FRI_SUN`
+- [ ] Android ad checkout uses Stripe PaymentSheet and does not depend on Play ad IAP SKUs
+- [ ] Successful payment activates the ad and reserves the selected dates
+- [ ] Failed or canceled payment releases held dates back to available inventory
+
 - [ ] Manage subscription shows current plan and renewal date
 - [ ] Cancel works on iOS through App Store sub page and on Android in-app
 - [ ] Resume and tier changes work

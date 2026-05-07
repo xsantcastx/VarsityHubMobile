@@ -18,9 +18,16 @@ const payments = read(SERVER_ROOT, 'src', 'routes', 'payments.ts');
 const env = read(SERVER_ROOT, 'src', 'lib', 'env.ts');
 const clientIap = read(REPO_ROOT, 'hooks', 'useIAP.ts');
 const clientIapWeb = read(REPO_ROOT, 'hooks', 'useIAP.web.ts');
+const clientAdIap = read(REPO_ROOT, 'hooks', 'useAdIAP.ts');
+const clientAdIapWeb = read(REPO_ROOT, 'hooks', 'useAdIAP.web.ts');
+const adCalendarScreen = read(REPO_ROOT, 'app', 'ad-calendar.tsx');
 const preReleaseDoc = read(REPO_ROOT, 'docs', 'PRE_RELEASE_CONFIG_VERIFICATION.md');
 const externalSetupDoc = read(REPO_ROOT, 'docs', 'EXTERNAL_SETUP_GUIDE.md');
 const appStoreDoc = read(REPO_ROOT, 'docs', 'BEFORE_APP_STORE_SUBMISSION.md');
+const adIapDoc = read(REPO_ROOT, 'docs', 'AD_IAP_VERIFICATION_CHECKLIST.md');
+const auditSummaryDoc = read(REPO_ROOT, 'docs', 'AUDIT_SUMMARY_AND_USER_ACTIONS.md');
+const fullUatDoc = read(REPO_ROOT, 'docs', 'FULL_UAT_CHECKLIST.md');
+const stripePricingDoc = read(REPO_ROOT, 'docs', 'STRIPE_PRICING_CONFIG.md');
 
 describe('IAP product configuration invariants', () => {
   it('client subscription hooks use MIDTIER/TOPTIER product IDs', () => {
@@ -37,6 +44,23 @@ describe('IAP product configuration invariants', () => {
     expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
   });
 
+  it('client and server ad IAP hooks use MOND_THURS/FRI_SUN product IDs', () => {
+    expect(clientAdIap).toMatch(/weekday:\s*'MOND_THURS'/);
+    expect(clientAdIap).toMatch(/weekend:\s*'FRI_SUN'/);
+    expect(clientAdIapWeb).toMatch(/weekday:\s*'MOND_THURS'/);
+    expect(clientAdIapWeb).toMatch(/weekend:\s*'FRI_SUN'/);
+    expect(payments).toMatch(/const APPLE_AD_PRODUCTS = \['MOND_THURS', 'FRI_SUN'\]/);
+    expect(payments).toMatch(/MOND_THURS:\s*499/);
+    expect(payments).toMatch(/FRI_SUN:\s*799/);
+  });
+
+  it('mobile ad checkout uses Apple IAP on iOS and Stripe PaymentSheet elsewhere', () => {
+    expect(adCalendarScreen).toMatch(/if \(Platform\.OS === 'ios'\)/);
+    expect(adCalendarScreen).toMatch(/const result = await purchaseAd\(\{ adId: String\(adId\), dates, weekdayBlocks, weekendBlocks \}\)/);
+    expect(adCalendarScreen).toMatch(/httpPost\('\/payments\/create-payment-sheet', \{ ad_id: String\(adId\), dates, promo_code: promo \|\| undefined \}\)/);
+    expect(adCalendarScreen).toMatch(/const \{ error \} = await presentPaymentSheet\(\)/);
+  });
+
   it('operator docs reference MIDTIER/TOPTIER and not stale legacy SKUs', () => {
     for (const doc of [preReleaseDoc, externalSetupDoc, appStoreDoc]) {
       expect(doc).toMatch(/MIDTIER/);
@@ -44,6 +68,26 @@ describe('IAP product configuration invariants', () => {
       expect(doc).not.toMatch(/veteran_vhub/i);
       expect(doc).not.toMatch(/legend_vhub/i);
     }
+  });
+
+  it('operator docs reference MOND_THURS/FRI_SUN and not stale ad SKUs', () => {
+    for (const doc of [adIapDoc, auditSummaryDoc, externalSetupDoc]) {
+      expect(doc).toMatch(/MOND_THURS/);
+      expect(doc).toMatch(/FRI_SUN/);
+      expect(doc).not.toMatch(/ad_weekday_vhub/i);
+      expect(doc).not.toMatch(/ad_weekend_vhub/i);
+    }
+  });
+
+  it('operator docs describe Android ad checkout as Stripe-based, not Play IAP', () => {
+    expect(externalSetupDoc).toMatch(/Android ad bookings use Stripe PaymentSheet/i);
+    expect(externalSetupDoc).toMatch(/Do \*\*not\*\* create `MOND_THURS` or `FRI_SUN` in Google Play Console/i);
+    expect(adIapDoc).toMatch(/iOS-only checklist/i);
+    expect(adIapDoc).toMatch(/Android ad bookings use Stripe PaymentSheet/i);
+    expect(fullUatDoc).toMatch(/iOS ad checkout uses Apple IAP only for `MOND_THURS` and `FRI_SUN`/i);
+    expect(fullUatDoc).toMatch(/Android ad checkout uses Stripe PaymentSheet and does not depend on Play ad IAP SKUs/i);
+    expect(stripePricingDoc).toMatch(/These Stripe ad prices are used by Android and non-iOS checkout paths/i);
+    expect(stripePricingDoc).toMatch(/On iOS, ad booking uses Apple IAP product IDs `MOND_THURS` and `FRI_SUN`/i);
   });
 
   it('production env validation hard-fails if Apple IAP is configured without APPLE_BUNDLE_ID', () => {

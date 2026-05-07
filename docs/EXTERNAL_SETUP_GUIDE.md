@@ -27,6 +27,7 @@ Set these in **Railway Dashboard → Your Project → Variables** (or via `railw
 ### Overview
 
 VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for subscription tiers backed by the store product IDs `MIDTIER` (Veteran) and `TOPTIER` (Legend). The server validates receipts via Apple/Google APIs.
+For ad hosting, the split is different: **iOS uses Apple IAP** for `MOND_THURS` / `FRI_SUN`, while **Android ad bookings use Stripe PaymentSheet**.
 
 ### Requirements
 
@@ -41,14 +42,19 @@ VarsityHub uses **Apple IAP** (iOS) and **Google Play Billing** (Android) for su
 2. Create **Auto-Renewable Subscriptions**:
    - Product ID: `MIDTIER` — Veteran subscription
    - Product ID: `TOPTIER` — Legend subscription
-3. Ensure products are **Ready to Submit** (linked to a subscription group).
-4. **App Store Connect** → App Information → **App-Specific Shared Secret** → Generate/Copy → set as `APPLE_IAP_SHARED_SECRET` on Railway.
+3. Create Apple ad IAP products:
+   - Product ID: `MOND_THURS` — weekday ad slot
+   - Product ID: `FRI_SUN` — weekend ad slot
+4. Ensure all Apple products are **Ready to Submit** and attached to the correct app record for bundle ID `com.varsithub.varsityhub-ios`.
+5. **App Store Connect** → App Information → **App-Specific Shared Secret** → Generate/Copy → set as `APPLE_IAP_SHARED_SECRET` on Railway.
+6. These ad slot product IDs are **iOS-only**. Android does not use Play ad IAP products.
 
 ### Android Setup (Google Play Console)
 
 1. **Google Play Console** → Your App → **Monetize** → **Subscriptions**
 2. Create products with IDs: `MIDTIER`, `TOPTIER`
 3. Use **Internal testing** track for development.
+4. Do **not** create `MOND_THURS` or `FRI_SUN` in Google Play Console. Android ad bookings use Stripe PaymentSheet instead.
 
 ### Testing
 
@@ -143,7 +149,7 @@ Cloudinary stores user-uploaded images and videos. The server signs upload reque
 
 Stripe is used for:
 - Web checkout (fallback when IAP unavailable)
-- Ad hosting payments (weekday/weekend slots)
+- Android ad hosting payments (weekday/weekend slots)
 - Subscription webhooks
 
 ### Setup
@@ -213,6 +219,7 @@ Check that critical integrations report as configured.
 |-----------|----------|--------|
 | Onboarding completion | `server/src/routes/auth.ts` (GET /me) | `onboarding_completed` defaults to `false` |
 | IAP product IDs | `hooks/useIAP.ts` | `MIDTIER`, `TOPTIER` |
+| Ad IAP product IDs | `hooks/useAdIAP.ts` | `MOND_THURS`, `FRI_SUN` |
 | IAP receipt validation | `server/src/routes/payments.ts` | Apple/Google verify endpoints |
 | Email verification | `server/src/routes/auth.ts` | `POST /auth/verify/request`, `POST /auth/verify/confirm` |
 | SendGrid templates | `server/src/lib/email.ts` | Template IDs from env |
@@ -226,6 +233,7 @@ Check that critical integrations report as configured.
 - [ ] Cloudinary configured
 - [ ] `APPLE_IAP_SHARED_SECRET` set for iOS IAP
 - [ ] App Store Connect products `MIDTIER`, `TOPTIER` Ready to Submit
+- [ ] App Store Connect ad products `MOND_THURS`, `FRI_SUN` available for the same iOS app record
 - [ ] EAS build (not Expo Go) for IAP testing
 - [ ] Sandbox Apple ID for iOS IAP testing
 - [ ] Stripe webhook URL correct and secret set
@@ -237,7 +245,7 @@ Check that critical integrations report as configured.
 | Issue | Likely Cause | Fix |
 |-------|--------------|-----|
 | IAP "Store Unavailable" | Expo Go, or store not connected | Use EAS build; check Sandbox/network |
-| IAP products empty | Product IDs mismatch, not Ready to Submit | Match `MIDTIER`, `TOPTIER` in App Store Connect |
+| IAP products empty | Product IDs mismatch, not Ready to Submit | Match `MIDTIER`, `TOPTIER`, `MOND_THURS`, `FRI_SUN` in the correct store console |
 | Verification email not sent | SendGrid key/template missing | Set `SENDGRID_API_KEY`, `SENDGRID_VERIFICATION_TEMPLATE_ID` |
 | Upload fails | Cloudinary not configured | Set all 3 Cloudinary env vars |
 | Google Sign-In fails | Client ID / bundle mismatch | Verify OAuth credentials match app.json |
