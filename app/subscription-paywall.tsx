@@ -24,20 +24,21 @@ import { usePaymentSheet } from '@/utils/stripe';
 import { useEffect, useState } from 'react';
 import { captureBreadcrumb } from '@/utils/sentry';
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
 import { getCanonicalBillingState } from '@/utils/billingState';
 
 const isIOS = Platform.OS === 'ios';
@@ -66,13 +67,22 @@ function SubscriptionPaywallScreen() {
         if (me?.paid_by_owner === true) {
           setIsNonOwnerCoach(true);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       setCheckingAccess(false);
     })();
   }, []);
   const { checkAuth } = useAuth();
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
-  const { connected: iapConnected, purchasing: iapPurchasing, purchase: iapPurchase, restore: iapRestore, getProduct, error: iapError } = useVHubIAP();
+  const {
+    connected: iapConnected,
+    purchasing: iapPurchasing,
+    purchase: iapPurchase,
+    restore: iapRestore,
+    getProduct,
+    error: iapError,
+  } = useVHubIAP();
   const [modal, setModal] = useState<{
     visible: boolean;
     title: string;
@@ -140,33 +150,63 @@ function SubscriptionPaywallScreen() {
                 planActivated = true;
                 break;
               }
-            } catch { /* ignore — keep polling */ }
+            } catch {
+              /* ignore — keep polling */
+            }
           }
           checkAuth().catch(() => {});
           if (planActivated) {
-            captureBreadcrumb('Subscription activation confirmed after native purchase', 'payments.subscription', {
-              tier: selectedTier,
-              entry: 'subscription_paywall',
-            });
+            captureBreadcrumb(
+              'Subscription activation confirmed after native purchase',
+              'payments.subscription',
+              {
+                tier: selectedTier,
+                entry: 'subscription_paywall',
+              }
+            );
             Alert.alert('Success', 'Your subscription is now active!', [
-              { text: 'OK', onPress: () => { safeGoBack(router); } },
+              {
+                text: 'OK',
+                onPress: () => {
+                  safeGoBack(router);
+                },
+              },
             ]);
           } else {
-            captureBreadcrumb('Subscription activation still pending after native purchase', 'payments.subscription', {
-              tier: selectedTier,
-              entry: 'subscription_paywall',
-            }, 'warning');
-            Alert.alert('Payment Received', 'Your subscription is being processed. You\'ll receive a confirmation email shortly.', [
-              { text: 'OK', onPress: () => { safeGoBack(router); } },
-            ]);
+            captureBreadcrumb(
+              'Subscription activation still pending after native purchase',
+              'payments.subscription',
+              {
+                tier: selectedTier,
+                entry: 'subscription_paywall',
+              },
+              'warning'
+            );
+            Alert.alert(
+              'Payment Received',
+              "Your subscription is being processed. You'll receive a confirmation email shortly.",
+              [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    safeGoBack(router);
+                  },
+                },
+              ]
+            );
           }
         }
       } catch (err: any) {
-        captureBreadcrumb('Native subscription purchase failed from paywall', 'payments.subscription', {
-          tier: selectedTier,
-          entry: 'subscription_paywall',
-          error: err?.message || 'unknown_error',
-        }, 'error');
+        captureBreadcrumb(
+          'Native subscription purchase failed from paywall',
+          'payments.subscription',
+          {
+            tier: selectedTier,
+            entry: 'subscription_paywall',
+            error: err?.message || 'unknown_error',
+          },
+          'error'
+        );
         setModal({
           visible: true,
           title: 'Purchase Failed',
@@ -183,7 +223,8 @@ function SubscriptionPaywallScreen() {
       setModal({
         visible: true,
         title: 'Web checkout unavailable',
-        message: 'Subscription checkout is currently supported in the mobile app only. Please continue on iOS or Android.',
+        message:
+          'Subscription checkout is currently supported in the mobile app only. Please continue on iOS or Android.',
         options: [{ label: 'OK', onPress: () => setModal(null), color: '#2563EB' }],
       });
       return;
@@ -199,7 +240,7 @@ function SubscriptionPaywallScreen() {
       });
       const data: any = await httpPost('/payments/create-payment-sheet', {
         plan: selectedTier,
-        promo_code: promoCode.trim() || undefined
+        promo_code: promoCode.trim() || undefined,
       });
 
       if (data?.paymentIntent && typeof data.paymentIntent === 'string') {
@@ -213,15 +254,23 @@ function SubscriptionPaywallScreen() {
           customerEphemeralKeySecret: data.ephemeralKey,
           customerId: data.customer,
           merchantDisplayName: 'Varsity Hub',
-          googlePay: (Platform.OS as string) === 'android' ? { merchantCountryCode: 'US', testEnv: __DEV__ } : undefined,
+          googlePay:
+            (Platform.OS as string) === 'android'
+              ? { merchantCountryCode: 'US', testEnv: __DEV__ }
+              : undefined,
           paymentMethodOrder: ['google_pay', 'card'],
         });
         if (initError) {
-          captureBreadcrumb('Subscription payment sheet init failed', 'payments.subscription', {
-            tier: selectedTier,
-            entry: 'subscription_paywall',
-            error: initError.message,
-          }, 'error');
+          captureBreadcrumb(
+            'Subscription payment sheet init failed',
+            'payments.subscription',
+            {
+              tier: selectedTier,
+              entry: 'subscription_paywall',
+              error: initError.message,
+            },
+            'error'
+          );
           Alert.alert('Error', initError.message);
           return;
         }
@@ -231,16 +280,24 @@ function SubscriptionPaywallScreen() {
         });
         const { error } = await presentPaymentSheet();
         if (error) {
-          captureBreadcrumb('Subscription payment sheet failed', 'payments.subscription', {
-            tier: selectedTier,
-            entry: 'subscription_paywall',
-            code: error.code,
-            error: error.message || 'unknown_error',
-          }, error.code === 'Canceled' ? 'info' : 'error');
-          if (error.code !== 'Canceled') Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
+          captureBreadcrumb(
+            'Subscription payment sheet failed',
+            'payments.subscription',
+            {
+              tier: selectedTier,
+              entry: 'subscription_paywall',
+              code: error.code,
+              error: error.message || 'unknown_error',
+            },
+            error.code === 'Canceled' ? 'info' : 'error'
+          );
+          if (error.code !== 'Canceled')
+            Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           // Clean up: cancel the incomplete PaymentIntent so the subscription doesn't linger
           if (data.payment_intent_id) {
-            httpPost('/payments/cancel-intent', { payment_intent_id: data.payment_intent_id }).catch(() => {});
+            httpPost('/payments/cancel-intent', {
+              payment_intent_id: data.payment_intent_id,
+            }).catch(() => {});
           }
           return;
         }
@@ -263,14 +320,24 @@ function SubscriptionPaywallScreen() {
               planActivated = true;
               break;
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
         if (!planActivated) {
-          captureBreadcrumb('Subscription activation pending after payment sheet', 'payments.subscription', {
-            tier: selectedTier,
-            entry: 'subscription_paywall',
-          }, 'warning');
-          Alert.alert('Payment Received', 'Your subscription is being processed. It may take a moment to activate.');
+          captureBreadcrumb(
+            'Subscription activation pending after payment sheet',
+            'payments.subscription',
+            {
+              tier: selectedTier,
+              entry: 'subscription_paywall',
+            },
+            'warning'
+          );
+          Alert.alert(
+            'Payment Received',
+            'Your subscription is being processed. It may take a moment to activate.'
+          );
         }
         safeGoBack(router);
       } else {
@@ -278,29 +345,41 @@ function SubscriptionPaywallScreen() {
       }
     } catch (error: any) {
       if (__DEV__) console.error('Subscription error:', error);
-      captureBreadcrumb('Subscription checkout failed from paywall', 'payments.subscription', {
-        tier: selectedTier,
-        entry: 'subscription_paywall',
-        error: error?.data?.error || error?.message || 'unknown_error',
-        status: error?.status,
-      }, 'error');
+      captureBreadcrumb(
+        'Subscription checkout failed from paywall',
+        'payments.subscription',
+        {
+          tier: selectedTier,
+          entry: 'subscription_paywall',
+          error: error?.data?.error || error?.message || 'unknown_error',
+          status: error?.status,
+        },
+        'error'
+      );
       const status = error?.status;
       const raw = error?.data?.error || error?.message || '';
       let title = 'Error';
       let msg: string;
       if (status === 403 && (raw === 'Email verification required' || /verification/i.test(raw))) {
         title = 'Verify Your Email';
-        msg = 'Please verify your email before subscribing. Check your inbox for the verification link.';
+        msg =
+          'Please verify your email before subscribing. Check your inbox for the verification link.';
       } else if (status === 401) {
         title = 'Session Expired';
         msg = 'Please sign in again to continue.';
-      } else if (status === 500 && (raw === 'Stripe not configured' || /stripe.*config/i.test(raw))) {
+      } else if (
+        status === 500 &&
+        (raw === 'Stripe not configured' || /stripe.*config/i.test(raw))
+      ) {
         title = 'Payments Unavailable';
         msg = 'Payments are being configured. Please try again later.';
       } else if (status === 408 || error?.name === 'AbortError') {
         title = 'Connection Timeout';
         msg = 'The request timed out. Check your connection and try again.';
-      } else if (!status && (raw?.includes('fetch') || raw?.includes('network') || raw?.includes('Network'))) {
+      } else if (
+        !status &&
+        (raw?.includes('fetch') || raw?.includes('network') || raw?.includes('Network'))
+      ) {
         title = 'Connection Error';
         msg = 'Check your internet connection and try again.';
       } else if (/prod_|price_/i.test(raw)) {
@@ -338,25 +417,43 @@ function SubscriptionPaywallScreen() {
   if (isNonOwnerCoach) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{
-          title: 'Subscription',
-          headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
-              <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
-            </Pressable>
-          ),
-          headerShown: true,
-        }} />
+        <Stack.Screen
+          options={{
+            title: 'Subscription',
+            headerLeft: () => (
+              <Pressable
+                onPress={() => {
+                  safeGoBack(router);
+                }}
+                style={{ paddingLeft: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+              </Pressable>
+            ),
+            headerShown: true,
+          }}
+        />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
           <MaterialIcons name="verified-user" size={64} color={Colors[colorScheme].tint} />
           <Text style={[styles.title, { color: Colors[colorScheme].text, marginTop: 16 }]}>
             You&apos;re Covered
           </Text>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText, marginTop: 8, textAlign: 'center' }]}>
-            Your league owner manages the subscription. Contact them if you need access to additional features.
+          <Text
+            style={[
+              styles.subtitle,
+              { color: Colors[colorScheme].mutedText, marginTop: 8, textAlign: 'center' },
+            ]}
+          >
+            Your league owner manages the subscription. Contact them if you need access to
+            additional features.
           </Text>
           <Pressable
-            style={[styles.ctaButton, { backgroundColor: Colors[colorScheme].tint, marginTop: 24, width: '80%' }]}
+            style={[
+              styles.ctaButton,
+              { backgroundColor: Colors[colorScheme].tint, marginTop: 24, width: '80%' },
+            ]}
             onPress={() => safeGoBack(router)}
             accessibilityRole="button"
             accessibilityLabel="Go back"
@@ -370,14 +467,23 @@ function SubscriptionPaywallScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen options={{
-        title: 'Choose Your Plan',
-        headerLeft: () => (
-          <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }} accessibilityRole="button" accessibilityLabel="Go back">
-            <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
-          </Pressable>
-        ),
-      }} />
+      <Stack.Screen
+        options={{
+          title: 'Choose Your Plan',
+          headerLeft: () => (
+            <Pressable
+              onPress={() => {
+                safeGoBack(router);
+              }}
+              style={{ paddingLeft: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+            </Pressable>
+          ),
+        }}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
@@ -401,27 +507,29 @@ function SubscriptionPaywallScreen() {
               },
             ]}
           >
-            <Text
-              style={[
-                styles.errorBannerText,
-                colorScheme === 'dark' && { color: '#FCA5A5' },
-              ]}
-            >
-              Subscription plans are being set up. You can continue with the free Rookie plan for now.
+            <Text style={[styles.errorBannerText, colorScheme === 'dark' && { color: '#FCA5A5' }]}>
+              Subscription plans are being set up. You can continue with the free Rookie plan for
+              now.
             </Text>
           </View>
         ) : null}
 
         {/* Tier Selection Pills */}
         <View style={styles.tierSelector}>
-          {availableTiers.map((tier) => (
+          {availableTiers.map(tier => (
             <Pressable
               key={tier}
               style={[
                 styles.tierPill,
-                { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
                 selectedTier === tier && styles.tierPillSelected,
-                selectedTier === tier && { borderColor: getTierColor(tier), backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F9FAFB' },
+                selectedTier === tier && {
+                  borderColor: getTierColor(tier),
+                  backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F9FAFB',
+                },
               ]}
               onPress={() => setSelectedTier(tier)}
               accessibilityRole="button"
@@ -434,7 +542,9 @@ function SubscriptionPaywallScreen() {
                   <Text style={styles.popularText}>BEST VALUE</Text>
                 </View>
               )}
-              {(isIOS || Platform.OS === 'android') && tier !== 'rookie' && getIAPPrice(tier as 'veteran' | 'legend') ? (
+              {(isIOS || Platform.OS === 'android') &&
+              tier !== 'rookie' &&
+              getIAPPrice(tier as 'veteran' | 'legend') ? (
                 <Text style={[styles.iapPriceText, { color: Colors[colorScheme].mutedText }]}>
                   {getIAPPrice(tier as 'veteran' | 'legend')}
                 </Text>
@@ -448,6 +558,14 @@ function SubscriptionPaywallScreen() {
           <CoachTierBenefits tier={selectedTier} compact={false} />
         </View>
 
+        <View style={styles.disclosureSection}>
+          <SubscriptionDisclosureCard
+            colorScheme={colorScheme}
+            plan={selectedTier}
+            storePrice={selectedTier === 'rookie' ? null : getIAPPrice(selectedTier)}
+          />
+        </View>
+
         {/* Comparison Table */}
         <View style={styles.comparisonSection}>
           <Text style={[styles.comparisonTitle, { color: Colors[colorScheme].text }]}>
@@ -456,18 +574,42 @@ function SubscriptionPaywallScreen() {
 
           <View style={[styles.comparisonTable, { borderColor: Colors[colorScheme].border }]}>
             {/* Header Row */}
-            <View style={[styles.comparisonRow, { borderBottomColor: Colors[colorScheme].border, backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#F3F4F6' }]}>
+            <View
+              style={[
+                styles.comparisonRow,
+                {
+                  borderBottomColor: Colors[colorScheme].border,
+                  backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#F3F4F6',
+                },
+              ]}
+            >
               <View style={styles.comparisonFeature}>
-                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Feature</Text>
+                <Text
+                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                >
+                  Feature
+                </Text>
               </View>
               <View style={styles.comparisonTier}>
-                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Rookie</Text>
+                <Text
+                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                >
+                  Rookie
+                </Text>
               </View>
               <View style={styles.comparisonTier}>
-                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Veteran</Text>
+                <Text
+                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                >
+                  Veteran
+                </Text>
               </View>
               <View style={styles.comparisonTier}>
-                <Text style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}>Legend</Text>
+                <Text
+                  style={[styles.comparisonHeaderText, { color: Colors[colorScheme].mutedText }]}
+                >
+                  Legend
+                </Text>
               </View>
             </View>
 
@@ -475,10 +617,18 @@ function SubscriptionPaywallScreen() {
             {comparisonFeatures.map((feature, index) => (
               <View
                 key={index}
-                style={[styles.comparisonRow, { borderBottomColor: Colors[colorScheme].border }, index % 2 === 0 && { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.02)' : '#F9FAFB' }]}
+                style={[
+                  styles.comparisonRow,
+                  { borderBottomColor: Colors[colorScheme].border },
+                  index % 2 === 0 && {
+                    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.02)' : '#F9FAFB',
+                  },
+                ]}
               >
                 <View style={styles.comparisonFeature}>
-                  <Text style={[styles.comparisonFeatureText, { color: Colors[colorScheme].text }]}>{feature.name}</Text>
+                  <Text style={[styles.comparisonFeatureText, { color: Colors[colorScheme].text }]}>
+                    {feature.name}
+                  </Text>
                 </View>
                 <View style={styles.comparisonTier}>
                   {renderFeatureValue(feature.rookie, colorScheme)}
@@ -496,7 +646,15 @@ function SubscriptionPaywallScreen() {
 
         {/* Promo Code Section — web/fallback only (Apple/Google don't allow promo codes through IAP) */}
         {!isIOS && Platform.OS !== 'android' && selectedTier !== 'rookie' && (
-          <View style={[styles.promoSection, { backgroundColor: Colors[colorScheme].surface || Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          <View
+            style={[
+              styles.promoSection,
+              {
+                backgroundColor: Colors[colorScheme].surface || Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              },
+            ]}
+          >
             <Text style={[styles.promoLabel, { color: Colors[colorScheme].text }]}>
               Have a promo code?
             </Text>
@@ -537,14 +695,20 @@ function SubscriptionPaywallScreen() {
             onPress={handleSubscribe}
             disabled={isProcessing}
             accessibilityRole="button"
-            accessibilityLabel={selectedTier === 'rookie' ? 'Continue with Free Plan' : `Upgrade to ${capitalize(selectedTier)}`}
+            accessibilityLabel={
+              selectedTier === 'rookie'
+                ? 'Continue with Free Plan'
+                : `Upgrade to ${capitalize(selectedTier)}`
+            }
           >
             {isProcessing ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
                 <Text style={styles.ctaButtonText}>
-                  {selectedTier === 'rookie' ? 'Continue with Free Plan' : `Upgrade to ${capitalize(selectedTier)}`}
+                  {selectedTier === 'rookie'
+                    ? 'Continue with Free Plan'
+                    : `Upgrade to ${capitalize(selectedTier)}`}
                 </Text>
                 {selectedTier !== 'rookie' && (
                   <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
@@ -561,12 +725,16 @@ function SubscriptionPaywallScreen() {
 
           {isIOS && selectedTier !== 'rookie' && (
             <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
-              Payment will be charged to your Apple ID account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Settings.
+              Payment will be charged to your Apple ID account. Subscription automatically renews
+              unless canceled at least 24 hours before the end of the current period. Manage
+              subscriptions in Settings.
             </Text>
           )}
           {Platform.OS === 'android' && selectedTier !== 'rookie' && (
             <Text style={[styles.ctaSubtext, { color: '#9CA3AF', fontSize: 11, marginTop: 4 }]}>
-              Payment will be charged to your Google Play account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Google Play.
+              Payment will be charged to your Google Play account. Subscription automatically renews
+              unless canceled at least 24 hours before the end of the current period. Manage
+              subscriptions in Google Play.
             </Text>
           )}
 
@@ -588,7 +756,10 @@ function SubscriptionPaywallScreen() {
                         { text: 'OK', onPress: () => safeGoBack(router) },
                       ]);
                     } else {
-                      Alert.alert('No Purchases Found', 'No previous subscription was found for this account.');
+                      Alert.alert(
+                        'No Purchases Found',
+                        'No previous subscription was found for this account.'
+                      );
                     }
                   } catch {
                     Alert.alert('Restore Failed', 'Unable to restore purchases. Please try again.');
@@ -598,7 +769,9 @@ function SubscriptionPaywallScreen() {
                 }}
                 disabled={isProcessing}
               >
-                <Text style={[styles.restoreButtonText, { color: Colors[colorScheme].tint }]}>Restore Purchases</Text>
+                <Text style={[styles.restoreButtonText, { color: Colors[colorScheme].tint }]}>
+                  Restore Purchases
+                </Text>
               </Pressable>
 
               <View style={styles.legalLinksRow}>
@@ -610,7 +783,9 @@ function SubscriptionPaywallScreen() {
                   accessibilityLabel="Open Terms of Service"
                   onPress={() => Linking.openURL(PUBLIC_TERMS_URL).catch(() => {})}
                 >
-                  <Text style={[styles.legalLinkText, { color: theme.tint }]}>Terms of Service</Text>
+                  <Text style={[styles.legalLinkText, { color: theme.tint }]}>
+                    Terms of Service
+                  </Text>
                 </Pressable>
                 <Text style={[styles.legalLinksIntro, { color: theme.mutedText }]}> and </Text>
                 <Pressable
@@ -666,7 +841,9 @@ function renderFeatureValue(value: string | boolean, scheme: 'light' | 'dark' = 
       <MaterialIcons name="cancel" size={20} color="#EF4444" />
     );
   }
-  return <Text style={[styles.comparisonValueText, { color: Colors[scheme].mutedText }]}>{value}</Text>;
+  return (
+    <Text style={[styles.comparisonValueText, { color: Colors[scheme].mutedText }]}>{value}</Text>
+  );
 }
 
 // Comparison table data
@@ -752,6 +929,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   comparisonSection: {
+    marginBottom: 24,
+  },
+  disclosureSection: {
     marginBottom: 24,
   },
   comparisonTitle: {

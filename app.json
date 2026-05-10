@@ -150,7 +150,6 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.app.varsityhub",
           "enableGooglePay": true
         }
       ],

@@ -4,19 +4,15 @@
   <dict>
     <key>aps-environment</key>
     <string>production</string>
-	<key>com.apple.developer.associated-domains</key>
-	<array>
-		<string>applinks:varsityhub.app</string>
-		<string>applinks:www.varsityhub.app</string>
-		<string>applinks:app.varsityhub.app</string>
-	</array>
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+      <string>applinks:varsityhub.app</string>
+      <string>applinks:www.varsityhub.app</string>
+      <string>applinks:app.varsityhub.app</string>
+    </array>
     <key>com.apple.developer.applesignin</key>
     <array>
       <string>Default</string>
-    </array>
-    <key>com.apple.developer.in-app-payments</key>
-    <array>
-      <string>merchant.app.varsityhub</string>
     </array>
   </dict>
 </plist>

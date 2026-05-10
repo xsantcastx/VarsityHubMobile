@@ -240,7 +240,6 @@ module.exports = ({ config }) => {
       [
         '@stripe/stripe-react-native',
         {
-          merchantIdentifier: 'merchant.app.varsityhub',
           enableGooglePay: true,
         },
       ],
@@ -275,7 +274,8 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_POSTHOG_HOST: process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
       EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
       EXPO_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-      EXPO_PUBLIC_ADMIN_EMAILS: process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'customerservice@varsityhub.app',
+      EXPO_PUBLIC_ADMIN_EMAILS:
+        process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'customerservice@varsityhub.app',
       EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID:
         process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
         '514463516787-bhvkja2devf8mrk204pcti7nld90d2g9.apps.googleusercontent.com',

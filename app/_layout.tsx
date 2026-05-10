@@ -1,6 +1,12 @@
 // Must be the very first import so Reactotron patches globals before anything else
-if (__DEV__ && process.env.EXPO_OS !== 'web') { require('../ReactotronConfig'); }
-import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
+if (__DEV__ && process.env.EXPO_OS !== 'web') {
+  require('../ReactotronConfig');
+}
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
+} from '@react-navigation/native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
@@ -25,7 +31,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { NotificationTapHandler } from '@/components/NotificationTapHandler';
-import { handleDeepLinkAuthAware, handleInitialDeepLink, setupDeepLinkListener } from '@/utils/deepLinks';
+import {
+  handleDeepLinkAuthAware,
+  handleInitialDeepLink,
+  setupDeepLinkListener,
+} from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
 import { initAnalytics } from '@/utils/analytics';
 import { getConfig } from '@/config/env';
@@ -125,7 +135,10 @@ function RootLayout() {
   React.useEffect(() => {
     if (__DEV__) {
       const key = getConfig().stripePublishableKey;
-      devLog('[Stripe] publishableKey:', key ? `${key.substring(0, 12)}...${key.slice(-4)}` : '(empty)');
+      devLog(
+        '[Stripe] publishableKey:',
+        key ? `${key.substring(0, 12)}...${key.slice(-4)}` : '(empty)'
+      );
     }
   }, []);
 
@@ -167,10 +180,10 @@ function RootLayout() {
   // Protected routes (post, game, team, profile) are deferred until AuthProvider
   // confirms the user is authenticated — prevents bypassing onboarding/verification.
   useEffect(() => {
-    handleInitialDeepLink((url) => {
+    handleInitialDeepLink(url => {
       handleDeepLinkAuthAware(url);
     }).catch(() => {});
-    const unsubscribe = setupDeepLinkListener((url) => {
+    const unsubscribe = setupDeepLinkListener(url => {
       handleDeepLinkAuthAware(url);
     });
     return unsubscribe;
@@ -178,7 +191,14 @@ function RootLayout() {
 
   if (!loaded) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme ?? 'light'].background }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: Colors[colorScheme ?? 'light'].background,
+        }}
+      >
         <ActivityIndicator />
       </View>
     );
@@ -188,131 +208,178 @@ function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <StripeProvider
-            publishableKey={getConfig().stripePublishableKey}
-            merchantIdentifier="merchant.app.varsityhub"
-          >
-          <ThemeProvider>
-            <PostCacheProvider>
-              <NavigationHistoryProvider>
-              <AuthProvider navReady={navReady}>
-                <NotificationTapHandler />
-                <VerificationGateHost />
-                <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-                  <OfflineBanner />
-                  <ErrorToastContainer />
-                  <View style={{ flex: 1, backgroundColor: Colors[colorScheme ?? 'light'].background }}>
-                    <View style={{ flex: 1, maxWidth: MAX_CONTENT_WIDTH, width: '100%', alignSelf: 'center' }}>
-                    <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="index" options={{ headerShown: false }} />
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    {/* Game detail at root so back returns to previous screen (Spotify-like nav) */}
-                    <Stack.Screen name="game/index" options={{ headerShown: false }} />
-                    <Stack.Screen name="game/[id]" options={{ headerShown: false }} />
-                    {/* Auth screens - lazy loaded */}
-                    <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-                    <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-                    <Stack.Screen name="verify" options={{ headerShown: false }} />
-                    <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                    <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-                    {/* Payment screens - lazy loaded */}
-                    <Stack.Screen name="payment-success" options={{ headerShown: false }} />
-                    <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
-                    {/* Onboarding - lazy loaded */}
-                    <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                    {/* Organization & league detail pages */}
-                    <Stack.Screen name="organizations/index" options={{ headerShown: false }} />
-                    <Stack.Screen name="organizations/[id]" options={{ headerShown: false }} />
-                    <Stack.Screen name="league" options={{ headerShown: false }} />
-                    {/* Settings */}
-                    <Stack.Screen name="settings" options={{ headerShown: false }} />
-                    {/* Profile */}
-                    <Stack.Screen name="profile" options={{ headerShown: false }} />
-                    {/* Admin screens */}
-                    <Stack.Screen name="admin-dashboard" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-users" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-user-detail" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-teams" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-ads" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-reports" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-messages" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-activity-log" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-create-event" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-transactions" options={{ headerShown: false }} />
-                    <Stack.Screen name="admin-metrics" options={{ headerShown: false }} />
-                    {/* Payment & billing */}
-                    <Stack.Screen name="billing" options={{ headerShown: false }} />
-                    <Stack.Screen name="subscription-paywall" options={{ headerShown: false }} />
-                    {/* Ad management */}
-                    <Stack.Screen name="submit-ad" options={{ headerShown: false }} />
-                    <Stack.Screen name="ad-calendar" options={{ headerShown: false }} />
-                    <Stack.Screen name="ad-confirmation" options={{ headerShown: false }} />
-                    <Stack.Screen name="edit-ad" options={{ headerShown: false }} />
-                    <Stack.Screen name="my-ads" options={{ headerShown: false }} />
-                    {/* Team & season management */}
-                    <Stack.Screen name="manage-season" options={{ headerShown: false }} />
-                    <Stack.Screen name="manage-users" options={{ headerShown: false }} />
-                    <Stack.Screen name="team-invites" options={{ headerShown: false }} />
-                    <Stack.Screen name="organization-invites" options={{ headerShown: false }} />
-                    <Stack.Screen name="team-viewer" options={{ headerShown: false }} />
-                    <Stack.Screen name="season-stats" options={{ headerShown: false }} />
-                    {/* Organization join flow */}
-                    <Stack.Screen name="request-join-organization" options={{ headerShown: false }} />
-                    <Stack.Screen name="organization-join-requests" options={{ headerShown: false }} />
-                    {/* Safety & moderation */}
-                    <Stack.Screen name="report-abuse" options={{ headerShown: false }} />
-                    <Stack.Screen name="dm-restrictions" options={{ headerShown: false }} />
-                    <Stack.Screen name="blocked-users" options={{ headerShown: false }} />
-                    {/* Content & discovery */}
-                    <Stack.Screen name="favorites" options={{ headerShown: false }} />
-                    <Stack.Screen name="messages" options={{ headerShown: false }} />
-                    <Stack.Screen name="game-map" options={{ headerShown: false }} />
-                    <Stack.Screen name="game-detail" options={{ headerShown: false }} />
-                    <Stack.Screen name="game-highlights" options={{ headerShown: false }} />
-                    <Stack.Screen name="game-photos" options={{ headerShown: false }} />
-                    <Stack.Screen name="game-reviews" options={{ headerShown: false }} />
-                    <Stack.Screen name="public-event" options={{ headerShown: false }} />
-                    <Stack.Screen name="rsvp-history" options={{ headerShown: false }} />
-                    {/* Help & info */}
-                    <Stack.Screen name="help" options={{ headerShown: false }} />
-                    <Stack.Screen name="core-values" options={{ headerShown: false }} />
-                    <Stack.Screen name="verify-identity" options={{ headerShown: false }} />
-                    {/* Sub-screens (root Stack for proper back navigation) */}
-                    <Stack.Screen name="post-detail" options={{ headerShown: false }} />
-                    <Stack.Screen name="create-post" options={{ headerShown: false }} />
-                    <Stack.Screen name="team-page" options={{ headerShown: false }} />
-                    <Stack.Screen name="team-profile" options={{ headerShown: false }} />
-                    <Stack.Screen name="team-hub" options={{ headerShown: false }} />
-                    <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
-                    <Stack.Screen name="user-profile" options={{ headerShown: false }} />
-                    <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-                    <Stack.Screen name="edit-team" options={{ headerShown: false }} />
-                    <Stack.Screen name="create-team" options={{ headerShown: false }} />
-                    <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
-                    <Stack.Screen name="my-team" options={{ headerShown: false }} />
-                    <Stack.Screen name="team-admin" options={{ headerShown: false }} />
-                    <Stack.Screen name="organization" options={{ headerShown: false }} />
-                    <Stack.Screen name="edit-organization" options={{ headerShown: false }} />
-                    <Stack.Screen name="event-detail" options={{ headerShown: false }} />
-                    <Stack.Screen name="edit-event" options={{ headerShown: false }} />
-                    <Stack.Screen name="event-approvals" options={{ headerShown: false }} />
-                    <Stack.Screen name="approvals" options={{ headerShown: false }} />
-                    <Stack.Screen name="create-fan-event" options={{ headerShown: false }} />
-                    <Stack.Screen name="message-thread" options={{ headerShown: false }} />
-                    <Stack.Screen name="followers" options={{ headerShown: false }} />
-                    <Stack.Screen name="following" options={{ headerShown: false }} />
-                    <Stack.Screen name="verify-email" options={{ headerShown: false }} />
-                    <Stack.Screen name="+not-found" />
-                  </Stack>
-                    </View>
-                  </View>
-                  <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-                </NavigationThemeProvider>
-              </AuthProvider>
-              </NavigationHistoryProvider>
-            </PostCacheProvider>
-          </ThemeProvider>
-        </StripeProvider>
+          <StripeProvider publishableKey={getConfig().stripePublishableKey}>
+            <ThemeProvider>
+              <PostCacheProvider>
+                <NavigationHistoryProvider>
+                  <AuthProvider navReady={navReady}>
+                    <NotificationTapHandler />
+                    <VerificationGateHost />
+                    <NavigationThemeProvider
+                      value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
+                    >
+                      <OfflineBanner />
+                      <ErrorToastContainer />
+                      <View
+                        style={{
+                          flex: 1,
+                          backgroundColor: Colors[colorScheme ?? 'light'].background,
+                        }}
+                      >
+                        <View
+                          style={{
+                            flex: 1,
+                            maxWidth: MAX_CONTENT_WIDTH,
+                            width: '100%',
+                            alignSelf: 'center',
+                          }}
+                        >
+                          <Stack screenOptions={{ headerShown: false }}>
+                            <Stack.Screen name="index" options={{ headerShown: false }} />
+                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                            {/* Game detail at root so back returns to previous screen (Spotify-like nav) */}
+                            <Stack.Screen name="game/index" options={{ headerShown: false }} />
+                            <Stack.Screen name="game/[id]" options={{ headerShown: false }} />
+                            {/* Auth screens - lazy loaded */}
+                            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+                            <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+                            <Stack.Screen name="verify" options={{ headerShown: false }} />
+                            <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                            <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                            {/* Payment screens - lazy loaded */}
+                            <Stack.Screen name="payment-success" options={{ headerShown: false }} />
+                            <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
+                            {/* Onboarding - lazy loaded */}
+                            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                            {/* Organization & league detail pages */}
+                            <Stack.Screen
+                              name="organizations/index"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                              name="organizations/[id]"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen name="league" options={{ headerShown: false }} />
+                            {/* Settings */}
+                            <Stack.Screen name="settings" options={{ headerShown: false }} />
+                            {/* Profile */}
+                            <Stack.Screen name="profile" options={{ headerShown: false }} />
+                            {/* Admin screens */}
+                            <Stack.Screen name="admin-dashboard" options={{ headerShown: false }} />
+                            <Stack.Screen name="admin-users" options={{ headerShown: false }} />
+                            <Stack.Screen
+                              name="admin-user-detail"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen name="admin-teams" options={{ headerShown: false }} />
+                            <Stack.Screen name="admin-ads" options={{ headerShown: false }} />
+                            <Stack.Screen name="admin-reports" options={{ headerShown: false }} />
+                            <Stack.Screen name="admin-messages" options={{ headerShown: false }} />
+                            <Stack.Screen
+                              name="admin-activity-log"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                              name="admin-create-event"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                              name="admin-transactions"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen name="admin-metrics" options={{ headerShown: false }} />
+                            {/* Payment & billing */}
+                            <Stack.Screen name="billing" options={{ headerShown: false }} />
+                            <Stack.Screen
+                              name="subscription-paywall"
+                              options={{ headerShown: false }}
+                            />
+                            {/* Ad management */}
+                            <Stack.Screen name="submit-ad" options={{ headerShown: false }} />
+                            <Stack.Screen name="ad-calendar" options={{ headerShown: false }} />
+                            <Stack.Screen name="ad-confirmation" options={{ headerShown: false }} />
+                            <Stack.Screen name="edit-ad" options={{ headerShown: false }} />
+                            <Stack.Screen name="my-ads" options={{ headerShown: false }} />
+                            {/* Team & season management */}
+                            <Stack.Screen name="manage-season" options={{ headerShown: false }} />
+                            <Stack.Screen name="manage-users" options={{ headerShown: false }} />
+                            <Stack.Screen name="team-invites" options={{ headerShown: false }} />
+                            <Stack.Screen
+                              name="organization-invites"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen name="team-viewer" options={{ headerShown: false }} />
+                            <Stack.Screen name="season-stats" options={{ headerShown: false }} />
+                            {/* Organization join flow */}
+                            <Stack.Screen
+                              name="request-join-organization"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen
+                              name="organization-join-requests"
+                              options={{ headerShown: false }}
+                            />
+                            {/* Safety & moderation */}
+                            <Stack.Screen name="report-abuse" options={{ headerShown: false }} />
+                            <Stack.Screen name="dm-restrictions" options={{ headerShown: false }} />
+                            <Stack.Screen name="blocked-users" options={{ headerShown: false }} />
+                            {/* Content & discovery */}
+                            <Stack.Screen name="favorites" options={{ headerShown: false }} />
+                            <Stack.Screen name="messages" options={{ headerShown: false }} />
+                            <Stack.Screen name="game-map" options={{ headerShown: false }} />
+                            <Stack.Screen name="game-detail" options={{ headerShown: false }} />
+                            <Stack.Screen name="game-highlights" options={{ headerShown: false }} />
+                            <Stack.Screen name="game-photos" options={{ headerShown: false }} />
+                            <Stack.Screen name="game-reviews" options={{ headerShown: false }} />
+                            <Stack.Screen name="public-event" options={{ headerShown: false }} />
+                            <Stack.Screen name="rsvp-history" options={{ headerShown: false }} />
+                            {/* Help & info */}
+                            <Stack.Screen name="help" options={{ headerShown: false }} />
+                            <Stack.Screen name="core-values" options={{ headerShown: false }} />
+                            <Stack.Screen name="verify-identity" options={{ headerShown: false }} />
+                            {/* Sub-screens (root Stack for proper back navigation) */}
+                            <Stack.Screen name="post-detail" options={{ headerShown: false }} />
+                            <Stack.Screen name="create-post" options={{ headerShown: false }} />
+                            <Stack.Screen name="team-page" options={{ headerShown: false }} />
+                            <Stack.Screen name="team-profile" options={{ headerShown: false }} />
+                            <Stack.Screen name="team-hub" options={{ headerShown: false }} />
+                            <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
+                            <Stack.Screen name="user-profile" options={{ headerShown: false }} />
+                            <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                            <Stack.Screen name="edit-team" options={{ headerShown: false }} />
+                            <Stack.Screen name="create-team" options={{ headerShown: false }} />
+                            <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
+                            <Stack.Screen name="my-team" options={{ headerShown: false }} />
+                            <Stack.Screen name="team-admin" options={{ headerShown: false }} />
+                            <Stack.Screen name="organization" options={{ headerShown: false }} />
+                            <Stack.Screen
+                              name="edit-organization"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen name="event-detail" options={{ headerShown: false }} />
+                            <Stack.Screen name="edit-event" options={{ headerShown: false }} />
+                            <Stack.Screen name="event-approvals" options={{ headerShown: false }} />
+                            <Stack.Screen name="approvals" options={{ headerShown: false }} />
+                            <Stack.Screen
+                              name="create-fan-event"
+                              options={{ headerShown: false }}
+                            />
+                            <Stack.Screen name="message-thread" options={{ headerShown: false }} />
+                            <Stack.Screen name="followers" options={{ headerShown: false }} />
+                            <Stack.Screen name="following" options={{ headerShown: false }} />
+                            <Stack.Screen name="verify-email" options={{ headerShown: false }} />
+                            <Stack.Screen name="+not-found" />
+                          </Stack>
+                        </View>
+                      </View>
+                      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+                    </NavigationThemeProvider>
+                  </AuthProvider>
+                </NavigationHistoryProvider>
+              </PostCacheProvider>
+            </ThemeProvider>
+          </StripeProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>
     </SafeAreaProvider>
