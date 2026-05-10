@@ -13,7 +13,12 @@ import {
   alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
-import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import {
+  consumeReviewToken,
+  getReviewTokenReplayState,
+  type ReviewTokenPayload,
+  verifyReviewToken,
+} from '../lib/reviewTokens.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
 import {
   approveAd as approveAdService,
@@ -537,6 +542,60 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
     })),
   });
 }));
+
+async function recordAdEngagement(id: string, type: 'impression' | 'click') {
+  const now = new Date();
+  const update =
+    type === 'impression'
+      ? {
+          impression_count: { increment: 1 },
+          last_impression_at: now,
+        }
+      : {
+          click_count: { increment: 1 },
+          last_click_at: now,
+        };
+
+  const updated = await prisma.ad.updateMany({
+    where: {
+      id,
+      status: 'active',
+      payment_status: 'paid',
+    },
+    data: update,
+  });
+
+  if (updated.count === 0) return null;
+
+  return prisma.ad.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      impression_count: true,
+      click_count: true,
+    },
+  });
+}
+
+adsRouter.post(
+  '/:id/impression',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const ad = await recordAdEngagement(String(req.params.id), 'impression');
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    return res.json({ ok: true, type: 'impression', ...ad });
+  })
+);
+
+adsRouter.post(
+  '/:id/click',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const ad = await recordAdEngagement(String(req.params.id), 'click');
+    if (!ad) return res.status(404).json({ error: 'Ad not found' });
+    return res.json({ ok: true, type: 'click', ...ad });
+  })
+);
 
 // Get a single Ad with its reservations (dates)
 adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
@@ -1279,6 +1338,7 @@ async function loadAdModerationSummary(id: string) {
     where: { id },
     select: {
       business_name: true,
+      status: true,
       banner_moderation_status: true,
       banner_moderation_labels: true,
       banner_moderation_score: true,
@@ -1297,6 +1357,7 @@ async function loadAdModerationSummary(id: string) {
     : [];
   return {
     businessName: ad.business_name || 'Unknown',
+    status: ad.status,
     moderation: {
       status: (ad.banner_moderation_status as 'clean' | 'flagged' | 'error' | null) || null,
       score: ad.banner_moderation_score,
@@ -1305,6 +1366,63 @@ async function loadAdModerationSummary(id: string) {
     },
   };
 }
+
+function describeAdModerationState(
+  status: string | null | undefined,
+  action: 'approve' | 'reject'
+) {
+  if (status === 'approved' || status === 'active') {
+    return {
+      title: 'Already Approved',
+      message: 'This ad was already approved.',
+      success: action === 'approve',
+      already_final: true,
+    };
+  }
+  if (status === 'rejected' || status === 'archived') {
+    return {
+      title: 'Already Rejected',
+      message: 'This ad was already rejected.',
+      success: action === 'reject',
+      already_final: true,
+    };
+  }
+  return null;
+}
+
+async function guardAdModerationReplayToken(
+  res: Response,
+  token: string,
+  tokenPayload: ReviewTokenPayload
+) {
+  const replayState = await getReviewTokenReplayState(token, tokenPayload);
+  if (replayState === 'already_used') {
+    res
+      .status(409)
+      .send(
+        confirmationPage(
+          'Link Already Used',
+          'This review link has already been used.',
+          false
+        )
+      );
+    return false;
+  }
+  if (replayState === 'store_unavailable') {
+    res
+      .status(503)
+      .send(
+        confirmationPage(
+          'Temporarily Unavailable',
+          'This review link cannot be completed right now. Please use the admin dashboard instead.',
+          false
+        )
+      );
+    return false;
+  }
+  return true;
+}
+
 async function handleAdApprove(req: AuthedRequest, res: Response) {
   try {
     const id = String(req.params.id);
@@ -1337,6 +1455,12 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
       }
+      const currentState = describeAdModerationState(summary.status, 'approve');
+      if (currentState) {
+        return res.send(
+          confirmationPage(currentState.title, currentState.message, currentState.success)
+        );
+      }
       return res.send(
         confirmationForm(
           'approve',
@@ -1359,16 +1483,8 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
       }
-      const consumeResult = await consumeReviewToken(token, tokenPayload);
-      if (consumeResult === 'already_used') {
-        return res
-          .status(409)
-          .send(confirmationPage('Link Already Used', 'This approval link has already been used.', false));
-      }
-      if (consumeResult === 'store_unavailable') {
-        return res
-          .status(503)
-          .send(confirmationPage('Temporarily Unavailable', 'This approval link cannot be completed right now. Please use the admin dashboard instead.', false));
+      if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
+        return;
       }
     } else {
       const isAdmin = await getIsAdmin(req);
@@ -1406,6 +1522,20 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           )
         );
       }
+      const summary = await loadAdModerationSummary(id);
+      if (summary) {
+        const currentState = describeAdModerationState(summary.status, 'approve');
+        if (currentState) {
+          return req.method === 'POST' && token
+            ? res.send(
+                confirmationPage(currentState.title, currentState.message, currentState.success)
+              )
+            : res.status(result.status!).json({
+                error: result.error,
+                already_final: true,
+              });
+        }
+      }
       return req.method === 'POST' && token
         ? res
             .status(result.status!)
@@ -1414,6 +1544,17 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
             error: result.error,
             ...((result as any).moderation ? { moderation: (result as any).moderation } : {}),
           });
+    }
+
+    if (token && tokenPayload) {
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult !== 'consumed') {
+        console.warn('[ads] review token could not be marked consumed after approval:', {
+          ad_id: id,
+          action: 'approve',
+          consumeResult,
+        });
+      }
     }
 
     return req.method === 'POST' && token
@@ -1477,6 +1618,12 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
       if (!summary) {
         return res.status(404).send(confirmationPage('Not Found', 'Ad not found.', false));
       }
+      const currentState = describeAdModerationState(summary.status, 'reject');
+      if (currentState) {
+        return res.send(
+          confirmationPage(currentState.title, currentState.message, currentState.success)
+        );
+      }
       return res.send(
         confirmationForm('reject', id, token, escapeHtml(summary.businessName || 'Unknown'))
       );
@@ -1493,16 +1640,8 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
       }
-      const consumeResult = await consumeReviewToken(token, tokenPayload);
-      if (consumeResult === 'already_used') {
-        return res
-          .status(409)
-          .send(confirmationPage('Link Already Used', 'This rejection link has already been used.', false));
-      }
-      if (consumeResult === 'store_unavailable') {
-        return res
-          .status(503)
-          .send(confirmationPage('Temporarily Unavailable', 'This rejection link cannot be completed right now. Please use the admin dashboard instead.', false));
+      if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
+        return;
       }
     } else {
       const isAdmin = await getIsAdmin(req);
@@ -1511,11 +1650,36 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);
     if (result.error) {
+      const summary = await loadAdModerationSummary(id);
+      if (summary) {
+        const currentState = describeAdModerationState(summary.status, 'reject');
+        if (currentState) {
+          return req.method === 'POST' && token
+            ? res.send(
+                confirmationPage(currentState.title, currentState.message, currentState.success)
+              )
+            : res.status(result.status!).json({
+                error: result.error,
+                already_final: true,
+              });
+        }
+      }
       return req.method === 'POST' && token
         ? res
             .status(result.status!)
             .send(confirmationPage('Error', escapeHtml(result.error), false))
         : res.status(result.status!).json({ error: result.error });
+    }
+
+    if (token && tokenPayload) {
+      const consumeResult = await consumeReviewToken(token, tokenPayload);
+      if (consumeResult !== 'consumed') {
+        console.warn('[ads] review token could not be marked consumed after rejection:', {
+          ad_id: id,
+          action: 'reject',
+          consumeResult,
+        });
+      }
     }
 
     return req.method === 'POST' && token

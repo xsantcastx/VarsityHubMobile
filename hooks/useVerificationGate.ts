@@ -88,15 +88,6 @@ function defaultConfirmErrorMessage(error: any): string {
   }
   if (status === 429) return 'Too many attempts. Please wait a moment and try again.';
   if (status === 401) return 'Please sign in again to verify your email.';
-  if (status === 400) {
-    if (message.includes('expired')) return 'Verification code expired. Request a new code.';
-    if (message.includes('No verification in progress')) {
-      return 'No verification code is active. Request a new code.';
-    }
-    if (message.includes('Invalid code')) {
-      return 'Invalid verification code. Check the code and try again.';
-    }
-  }
   return message;
 }
 

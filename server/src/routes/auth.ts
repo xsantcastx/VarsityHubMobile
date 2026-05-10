@@ -1,9 +1,10 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import {
   buildCoachApplicationReviewUrl,
   sendCoachApplicationAdminEmail,
@@ -25,7 +26,7 @@ import {
   REFRESH_TOKEN_EXPIRY_DAYS,
   REFRESH_TOKEN_HASH_VERSION_V2,
 } from '../lib/jwt.js';
-import { startNewSession } from '../lib/session.js';
+import { revokeAllSessions, startNewSession } from '../lib/session.js';
 import { prisma } from '../lib/prisma.js';
 import { captureException } from '../lib/sentry.js';
 import { mustSucceed } from '../lib/sideEffect.js';
@@ -80,6 +81,16 @@ import {
 } from '../lib/oauthAccountLinking.js';
 
 export const authRouter = Router();
+
+function sendAuthError(
+  res: Response,
+  status: number,
+  error: string,
+  code: string,
+  extra?: Record<string, unknown>
+) {
+  return res.status(status).json({ error, code, ...(extra || {}) });
+}
 
 async function invalidateMeCacheForUser(userId: string | null | undefined): Promise<void> {
   const { invalidateMeCacheForUser } = await import('../lib/userCache.js');
@@ -884,8 +895,9 @@ authRouter.post(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const { count } = await prisma.refreshToken.deleteMany({ where: { user_id: req.user!.id } });
-    return res.json({ ok: true, revoked: count });
+    const { revokedRefreshTokens } = await revokeAllSessions(req.user.id);
+    await invalidateMeCacheForUser(req.user.id);
+    return res.json({ ok: true, revoked: revokedRefreshTokens });
   })
 );
 
@@ -1630,19 +1642,29 @@ authRouter.post(
   '/password/reset',
   asyncHandler(async (req, res) => {
     const parsed = passwordResetSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
     const { email, code, password } = parsed.data;
     const sanitizedEmail = email.trim().toLowerCase();
 
     // SECURITY: Check dedicated failure-based lockout before anything else
     const attemptCheck = await checkResetAttempt(sanitizedEmail);
     if (!attemptCheck.allowed) {
-      return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
+      return sendAuthError(
+        res,
+        429,
+        'Too many attempts. Try again in 15 minutes.',
+        'RESET_LOCKED'
+      );
     }
 
     // Also keep the general rate limit as a secondary guard
     if (!(await checkAuthRateLimit(`reset:${sanitizedEmail}`))) {
-      return res.status(429).json({ error: 'Too many reset attempts. Please request a new code.' });
+      return sendAuthError(
+        res,
+        429,
+        'Too many reset attempts. Please request a new code.',
+        'RESET_RATE_LIMITED'
+      );
     }
 
     const user = await prisma.user.findFirst({
@@ -1650,11 +1672,21 @@ authRouter.post(
     });
     if (!user || !user.password_reset_code || !user.password_reset_expires) {
       await recordResetFailure(sanitizedEmail);
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return sendAuthError(
+        res,
+        400,
+        'Invalid reset code. Request a new code and try again.',
+        'RESET_CODE_INVALID'
+      );
     }
     if (new Date() > user.password_reset_expires) {
       await recordResetFailure(sanitizedEmail);
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return sendAuthError(
+        res,
+        400,
+        'Reset code expired. Request a new code and try again.',
+        'RESET_CODE_EXPIRED'
+      );
     }
     // AUTH-5: stored value is now a SHA-256 hash (see /password/forgot), so we hash
     // the submitted code with the same function and compare hash-to-hash.
@@ -1670,27 +1702,28 @@ authRouter.post(
     })();
     if (!codesMatch) {
       await recordResetFailure(sanitizedEmail);
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+      return sendAuthError(
+        res,
+        400,
+        'Invalid reset code. Request a new code and try again.',
+        'RESET_CODE_INVALID'
+      );
     }
 
     // Success — clear failure tracking and reset the code
     await clearResetFailures(sanitizedEmail);
 
     const password_hash = await bcrypt.hash(password, 10);
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: user.id },
-        data: {
-          password_hash,
-          password_reset_code: null,
-          password_reset_expires: null,
-          password_changed_at: new Date(),
-          session_epoch: { increment: 1 },
-        },
-      }),
-      // Revoke all refresh tokens — stolen tokens can no longer mint new access tokens
-      prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
-    ]);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password_hash,
+        password_reset_code: null,
+        password_reset_expires: null,
+        password_changed_at: new Date(),
+      },
+    });
+    await revokeAllSessions(user.id);
 
     // Security alert: password changed notification removed as part of email cleanup
 
@@ -1728,17 +1761,14 @@ authRouter.post(
     const password_hash = await bcrypt.hash(new_password, 10);
 
     // Update password and revoke all refresh tokens atomically
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: user.id },
-        data: {
-          password_hash,
-          password_changed_at: new Date(),
-          session_epoch: { increment: 1 },
-        },
-      }),
-      prisma.refreshToken.deleteMany({ where: { user_id: user.id } }),
-    ]);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password_hash,
+        password_changed_at: new Date(),
+      },
+    });
+    await revokeAllSessions(user.id);
 
     // Password changed notification removed as part of email cleanup
 
@@ -2518,6 +2548,7 @@ const updateMeSchema = z.object({
 authRouter.put(
   '/me',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
@@ -2582,21 +2613,15 @@ authRouter.put(
     ) {
       const oldHandle = '@' + priorUsername;
       const newHandle = '@' + data.username;
+      const mentionRewriteSql = (table: 'Post' | 'Comment') =>
+        Prisma.sql`UPDATE ${Prisma.raw(`"${table}"`)}
+          SET content = regexp_replace(content, '\\m' || ${oldHandle} || '\\M', ${newHandle}, 'g')
+          WHERE content ILIKE '%' || ${oldHandle} || '%'`;
       (async () => {
         try {
-          // Postgres regexp_replace with word boundaries — safe (no user-controlled regex)
-          await prisma.$executeRawUnsafe(
-            `UPDATE "Post" SET content = regexp_replace(content, '\\m' || $1 || '\\M', $2, 'g')
-           WHERE content ILIKE '%' || $1 || '%'`,
-            oldHandle,
-            newHandle
-          );
-          await prisma.$executeRawUnsafe(
-            `UPDATE "Comment" SET content = regexp_replace(content, '\\m' || $1 || '\\M', $2, 'g')
-           WHERE content ILIKE '%' || $1 || '%'`,
-            oldHandle,
-            newHandle
-          );
+          // Postgres regexp_replace with word boundaries using bound params.
+          await prisma.$executeRaw(mentionRewriteSql('Post'));
+          await prisma.$executeRaw(mentionRewriteSql('Comment'));
         } catch (err: any) {
           console.error(
             '[auth] mention rewrite after username change failed:',
@@ -2614,6 +2639,7 @@ authRouter.put(
 authRouter.patch(
   '/me',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const body = (req.body || {}) as Record<string, unknown>;
     if (Object.prototype.hasOwnProperty.call(body, 'preferences')) {
@@ -2721,6 +2747,7 @@ function stripProtectedKeys(obj: Record<string, unknown>): Record<string, unknow
 authRouter.patch(
   '/me/preferences',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     const schema = z
       .object({
@@ -3584,10 +3611,17 @@ authRouter.post(
     const verifyHourKey = `verify:hour:${user.id}`;
     const lastSent = await rlGet(verifyLastKey);
     if (lastSent && Date.now() - parseInt(lastSent, 10) < 30_000) {
-      return res.status(429).json({ error: 'Please wait before requesting another code' });
+      return sendAuthError(
+        res,
+        429,
+        'Please wait before requesting another code',
+        'VERIFY_REQUEST_COOLDOWN'
+      );
     }
     const hourCount = await rlIncr(verifyHourKey, 3600_000); // 1 hour TTL
-    if (hourCount > 5) return res.status(429).json({ error: 'Too many requests' });
+    if (hourCount > 5) {
+      return sendAuthError(res, 429, 'Too many requests', 'VERIFY_REQUEST_RATE_LIMITED');
+    }
     const code = String(crypto.randomInt(100000, 999999));
     if (process.env.NODE_ENV === 'development')
       console.log(
@@ -3660,18 +3694,23 @@ authRouter.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const schema = z.object({ code: z.string().min(4).max(8) });
     const parsed = schema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+    if (!parsed.success) return sendAuthError(res, 400, 'Invalid payload', 'INVALID_PAYLOAD');
     const { code } = parsed.data;
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) return res.status(404).json({ error: 'Not found' });
     if (user.email_verified) return res.json({ ok: true, already_verified: true });
     if (!user.email_verification_code || !user.email_verification_expires)
-      return res.status(400).json({ error: 'No verification in progress' });
+      return sendAuthError(
+        res,
+        400,
+        'No verification in progress',
+        'VERIFY_NO_CODE'
+      );
     if (new Date() > user.email_verification_expires)
-      return res.status(400).json({ error: 'Code expired' });
+      return sendAuthError(res, 400, 'Code expired', 'VERIFY_CODE_EXPIRED');
     // AUTH-5: Compare hash of submitted code against stored hash
     if (hashRefreshToken(String(code)) !== String(user.email_verification_code))
-      return res.status(400).json({ error: 'Invalid code' });
+      return sendAuthError(res, 400, 'Invalid code', 'VERIFY_CODE_INVALID');
     const updated = await prisma.user.update({
       where: { id: user.id },
       data: {

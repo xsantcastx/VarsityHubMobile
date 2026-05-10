@@ -61,6 +61,15 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(block).toMatch(/localLocks:\s*webhookEventLocks/);
     });
 
+    it('legacy webhook route is a tombstone, not a second processing implementation', () => {
+      const block =
+        payments.match(/paymentsRouter\.post\(\s*'\/webhook-legacy-disabled'[\s\S]{0,300}/)?.[0] ||
+        '';
+      expect(block).toMatch(/Legacy webhook route disabled/);
+      expect(block).not.toMatch(/stripe\.webhooks\.constructEvent/);
+      expect(block).not.toMatch(/finalizeFromSession/);
+    });
+
     it('server requires STRIPE_SECRET_KEY in production (fatal throw)', () => {
       expect(payments).toMatch(/STRIPE_SECRET_KEY must be set in production/);
     });
@@ -230,6 +239,10 @@ describe('payments & subscriptions — structural invariants', () => {
 
     it('refund and cancellation downgrades reset max_teams to the canonical Rookie allowance', () => {
       expect(payments).toMatch(/max_teams:\s*SERVER_ROOKIE_TEAM_LIMIT/);
+    });
+
+    it('subscription status writes use canonical Stripe spelling', () => {
+      expect(payments).not.toMatch(/subscription_status:\s*'cancelled'/);
     });
 
     it('the persisted User.max_teams default matches the Rookie plan allowance', () => {

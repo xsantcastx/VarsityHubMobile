@@ -19,7 +19,13 @@ import { isAdminEmail } from '../lib/adminEmails.js';
 import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
 import { sendError } from '../lib/http/sendError.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
-import { sendEventApprovedEmail, sendEventDeniedEmail } from '../lib/email.js';
+import {
+  sendEventApprovedEmail,
+  sendEventCanceledEmail,
+  sendEventDeniedEmail,
+  sendEventSubmissionReceivedEmail,
+  sendEventUpdatedEmail,
+} from '../lib/email.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 
 export const gamesRouter = Router();
@@ -51,6 +57,27 @@ function renderGameResultPage(title: string, message: string, success: boolean) 
 <h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
 <p style="color:#374151;">${escapeHtml(message)}</p>
 </body></html>`;
+}
+
+function renderGameFinalStatePage(
+  game: { title: string | null; approval_status: string | null },
+  action: 'approve' | 'reject'
+) {
+  if (game.approval_status === 'approved') {
+    return renderGameResultPage(
+      'Already Approved',
+      `${game.title || 'This game'} was already approved.`,
+      action === 'approve'
+    );
+  }
+  if (game.approval_status === 'rejected') {
+    return renderGameResultPage(
+      'Already Rejected',
+      `${game.title || 'This game'} was already rejected.`,
+      action === 'reject'
+    );
+  }
+  return null;
 }
 
 async function applyGameApprovalDecision(
@@ -111,12 +138,14 @@ async function applyGameApprovalDecision(
 
       const { sendPushNotification } = await import('../lib/notifications.js');
       if (approvalStatus === 'approved') {
-        await sendPushNotification(
+        sendPushNotification(
           updatedGame.created_by_id,
           'Event Approved!',
           `Your event "${updatedGame.title}" has been approved and is now live.`,
           { type: 'event_approved', game_id: id, event_id: eventId }
-        );
+        ).catch((err) => {
+          console.warn('[games] event approved push failed:', err);
+        });
         await prisma.notification.create({
           data: {
             user_id: updatedGame.created_by_id,
@@ -148,12 +177,14 @@ async function applyGameApprovalDecision(
           });
         }
       } else {
-        await sendPushNotification(
+        sendPushNotification(
           updatedGame.created_by_id,
           'Event Not Approved',
           `Your event "${updatedGame.title}" was not approved.${reason ? ` Reason: ${reason}` : ''}`,
           { type: 'event_rejected', game_id: id, event_id: eventId }
-        );
+        ).catch((err) => {
+          console.warn('[games] event rejected push failed:', err);
+        });
         await prisma.notification.create({
           data: {
             user_id: updatedGame.created_by_id,
@@ -207,26 +238,24 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
 
   const game = await (prisma.game.findUnique as any)({
     where: { id },
-    select: { title: true },
+    select: { title: true, approval_status: true },
   });
   if (!game) {
     return res.status(404).send(renderGameResultPage('Not Found', 'Game not found.', false));
   }
+  if (game.approval_status === 'approved') {
+    return res.send(
+      renderGameResultPage('Already Approved', `${game.title || 'This game'} was already approved.`, true)
+    );
+  }
+  if (game.approval_status === 'rejected') {
+    return res.send(
+      renderGameResultPage('Already Rejected', `${game.title || 'This game'} was already rejected.`, true)
+    );
+  }
 
   if (req.method === 'GET') {
     return res.send(renderGameReviewPage(action, game.title || 'Unknown', token));
-  }
-
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult === 'already_used') {
-    return res
-      .status(409)
-      .send(renderGameResultPage('Link Already Used', `This ${action} link has already been used.`, false));
-  }
-  if (consumeResult === 'store_unavailable') {
-    return res
-      .status(503)
-      .send(renderGameResultPage('Temporarily Unavailable', `This ${action} link cannot be completed right now. Please use the admin dashboard instead.`, false));
   }
 
   const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).trim() : undefined;
@@ -238,9 +267,26 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
     reason
   );
   if ('error' in result) {
+    const latest = await (prisma.game.findUnique as any)({
+      where: { id },
+      select: { title: true, approval_status: true },
+    });
+    const finalStatePage = latest ? renderGameFinalStatePage(latest, action) : null;
+    if (finalStatePage) {
+      return res.send(finalStatePage);
+    }
     return res
       .status(result.status!)
       .send(renderGameResultPage('Error', result.error!, false));
+  }
+
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult !== 'consumed') {
+    console.warn('[games] review token could not be marked consumed after success:', {
+      game_id: id,
+      action,
+      consumeResult,
+    });
   }
 
   return res.send(
@@ -987,6 +1033,17 @@ gamesRouter.post(
         } as any,
       });
 
+      if (currentUser?.email) {
+        sendEventSubmissionReceivedEmail({
+          to: currentUser.email,
+          submitterName: currentUser.display_name || undefined,
+          eventTitle: game.title,
+          needsApproval: gameData.approval_status !== 'approved',
+        }).catch(err =>
+          console.warn('[games] submission receipt email failed:', (err as any)?.message || err)
+        );
+      }
+
       // Games appear in the feed via the games carousel (GET /games) — no separate
       // text post needed. The game card links directly to the game detail page with
       // stories, polls, RSVP, and all features.
@@ -1554,7 +1611,15 @@ gamesRouter.delete(
       // Check if game exists
       const game = await prisma.game.findUnique({
         where: { id },
-        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+        select: {
+          id: true,
+          title: true,
+          date: true,
+          location: true,
+          created_by_id: true,
+          home_team_id: true,
+          away_team_id: true,
+        },
       });
 
       if (!game) return res.status(404).json({ error: 'Game not found' });
@@ -1586,20 +1651,65 @@ gamesRouter.delete(
       try {
         const gameForNotif = await prisma.game.findUnique({
           where: { id },
-          select: { id: true, title: true, date: true },
+          select: { id: true, title: true, date: true, location: true },
         });
         const gameTitle = gameForNotif?.title || 'A game';
+        const gameDate = gameForNotif?.date instanceof Date ? gameForNotif.date : null;
+        const eventDate = gameDate
+          ? gameDate.toLocaleDateString(undefined, {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })
+          : undefined;
+        const eventTime = gameDate
+          ? gameDate.toLocaleTimeString(undefined, {
+              hour: 'numeric',
+              minute: '2-digit',
+            })
+          : undefined;
 
         // Find events linked to this game and their RSVPs
         // audit-allow unbounded: game deletion must notify every linked event RSVP
         const linkedEvents = await prisma.event.findMany({
           where: { game_id: id },
-          select: { id: true, rsvps: { select: { user_id: true } } },
+          select: {
+            id: true,
+            rsvps: {
+              select: {
+                user_id: true,
+                user: {
+                  select: {
+                    email: true,
+                    display_name: true,
+                  },
+                },
+              },
+            },
+          },
         });
         const rsvpUserIds = new Set<string>();
+        const { cancelGameReminders } = await import('../lib/notifications.js');
         for (const evt of linkedEvents) {
           for (const rsvp of evt.rsvps) {
             if (rsvp.user_id !== req.user!.id) rsvpUserIds.add(rsvp.user_id);
+            if (rsvp.user?.email && rsvp.user_id !== req.user!.id) {
+              sendEventCanceledEmail({
+                to: rsvp.user.email,
+                recipientName: rsvp.user.display_name || 'there',
+                eventName: gameTitle,
+                eventDate,
+                eventTime,
+                eventLocation: gameForNotif?.location || undefined,
+                eventId: evt.id,
+              }).catch((err: any) =>
+                console.warn('[games] cancel email failed:', err?.message || err)
+              );
+            }
+            if (rsvp.user_id !== req.user!.id) {
+              await cancelGameReminders(evt.id, rsvp.user_id);
+            }
           }
         }
 
@@ -1628,10 +1738,12 @@ gamesRouter.delete(
             },
           });
 
-          await sendPushNotification(uid, `Game cancelled`, `${gameTitle} has been cancelled`, {
+          sendPushNotification(uid, `Game cancelled`, `${gameTitle} has been cancelled`, {
             type: 'game_cancelled',
             game_id: id,
             screen: 'games',
+          }).catch((err) => {
+            console.warn('[games] game cancelled push failed:', err);
           });
         }
       } catch (notifErr) {
@@ -1958,7 +2070,15 @@ gamesRouter.put(
     try {
       const game = await prisma.game.findUnique({
         where: { id },
-        select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
+        select: {
+          id: true,
+          title: true,
+          date: true,
+          location: true,
+          created_by_id: true,
+          home_team_id: true,
+          away_team_id: true,
+        },
       });
 
       if (!game) return res.status(404).json({ error: 'Game not found' });
@@ -2028,6 +2148,47 @@ gamesRouter.put(
         if (d.location !== undefined) eventUpdate.location = d.location;
         if (Object.keys(eventUpdate).length > 0) {
           await prisma.event.update({ where: { id: event.id }, data: eventUpdate });
+        }
+      }
+
+      const changes: string[] = [];
+      if (d.date !== undefined) {
+        changes.push(`Date: ${updated.date?.toLocaleString?.() || 'Updated'}`);
+      }
+      if (d.location !== undefined) {
+        changes.push(`Location: ${updated.location || 'TBD'}`);
+      }
+      if (d.title !== undefined && d.title !== game.title) {
+        changes.push(`Title: ${updated.title || 'Updated event'}`);
+      }
+
+      if (event && changes.length > 0) {
+        const eventRsvps = await prisma.eventRsvp.findMany({
+          where: { event_id: event.id },
+          select: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                display_name: true,
+              },
+            },
+          },
+          take: 5000,
+        });
+
+        for (const rsvp of eventRsvps) {
+          if (!rsvp.user?.email || rsvp.user.id === req.user.id) continue;
+          sendEventUpdatedEmail({
+            to: rsvp.user.email,
+            attendeeName: rsvp.user.display_name || undefined,
+            eventTitle: updated.title || game.title || 'Event',
+            changes,
+            newDate: updated.date,
+            newLocation: updated.location,
+          }).catch(err =>
+            console.warn('[games] event update email failed:', (err as any)?.message || err)
+          );
         }
       }
 
