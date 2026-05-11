@@ -16,7 +16,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { requireAdmin, getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { debugLog } from '../lib/debugLog.js';
 import escapeHtml from 'escape-html';
 import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
@@ -157,6 +157,68 @@ function buildOrganizationCreateData(
 function isOrganizationAdmin(role: string | null | undefined): boolean {
   if (!role) return false;
   return role === 'owner' || role === 'manager';
+}
+
+function toIsoDate(value: unknown): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+}
+
+function serializeOrganizationAdminMember(member: any) {
+  const user = member?.user;
+  const prefs = (user?.preferences || {}) as Record<string, unknown>;
+  return {
+    id: member.id,
+    role: member.role,
+    status: member.status,
+    created_at: toIsoDate(member.created_at),
+    user: {
+      id: user?.id || null,
+      display_name: user?.display_name || null,
+      username: user?.username || null,
+      avatar_url: user?.avatar_url || null,
+      email: user?.email || null,
+      is_parent: prefs?.is_parent === true,
+    },
+  };
+}
+
+function serializeOrganizationAdminInvite(invite: any) {
+  return {
+    id: invite.id,
+    email: invite.email || null,
+    role: invite.role || null,
+    status: invite.status || null,
+    created_at: toIsoDate(invite.created_at),
+  };
+}
+
+function serializeOrganizationAdminGame(game: any) {
+  return {
+    id: game.id,
+    title: game.title,
+    date: toIsoDate(game.date),
+    location: game.location || null,
+    approval_status: game.approval_status || null,
+    home_team_id: game.home_team_id || null,
+    away_team_id: game.away_team_id || null,
+    home_team: game.home_team || game.homeTeam?.name || null,
+    away_team: game.away_team || game.awayTeam?.name || game.away_team_name || null,
+  };
+}
+
+function serializeOrganizationAdminEvent(event: any) {
+  return {
+    id: event.id,
+    title: event.title,
+    date: toIsoDate(event.date),
+    location: event.location || null,
+    team_id: event.team_id || null,
+    event_type: event.event_type || null,
+    status: event.status || null,
+    approval_status: event.approval_status || null,
+  };
 }
 
 function buildPendingCoachPreferences(
@@ -383,6 +445,90 @@ organizationsRouter.get(
       );
     } catch (err) {
       console.error('[organizations] GET /mine error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
+
+organizationsRouter.get(
+  '/mine/review-summaries',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const memberships = await prisma.organizationMembership.findMany({
+        where: {
+          user_id: req.user!.id,
+          role: { in: ['owner', 'manager'] },
+          status: 'active',
+        },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              teams: {
+                select: { id: true },
+                orderBy: { created_at: 'asc' },
+              },
+            },
+          },
+        },
+      });
+
+      const summaries = await Promise.all(
+        memberships.map(async (membership) => {
+          const organization = membership.organization;
+          const teamIds = organization.teams.map((team) => team.id);
+
+          const [pendingCoachRequests, pendingGameReviews, pendingEventReviews] = await Promise.all([
+            prisma.organizationJoinRequest.count({
+              where: {
+                organization_id: organization.id,
+                status: 'pending',
+              },
+            }),
+            teamIds.length > 0
+              ? prisma.game.count({
+                  where: {
+                    approval_status: 'pending',
+                    OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+                  },
+                })
+              : Promise.resolve(0),
+            teamIds.length > 0
+              ? prisma.event.count({
+                  where: {
+                    approval_status: 'pending',
+                    team_id: { in: teamIds },
+                  },
+                })
+              : Promise.resolve(0),
+          ]);
+
+          return {
+            organization: {
+              id: organization.id,
+              name: organization.name,
+            },
+            permissions: {
+              can_manage: true,
+              can_review_coach_requests: membership.role === ORGANIZATION_OWNER_ROLE,
+              membership_role: membership.role,
+            },
+            counts: {
+              pending_coach_requests: pendingCoachRequests,
+              pending_game_reviews: pendingGameReviews,
+              pending_event_reviews: pendingEventReviews,
+            },
+          };
+        })
+      );
+
+      return res.json(summaries);
+    } catch (err) {
+      console.error('[organizations] GET /mine/review-summaries error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
   })
@@ -3548,6 +3694,247 @@ organizationsRouter.post(
         return res.status(400).json({ error: 'This coach request has already been reviewed' });
       }
       console.error('[organizations] POST /:id/coaches/:userId/reject error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
+
+organizationsRouter.get(
+  '/:id/admin-summary',
+  requireAuth as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const orgId = String(req.params.id);
+      const viewerId = req.user?.id || null;
+      if (!viewerId) return res.status(401).json({ error: 'Authentication required' });
+
+      const [organization, membership, isPlatformAdmin] = await Promise.all([
+        prisma.organization.findUnique({
+          where: { id: orgId },
+          select: buildOrganizationSerializeSelect({
+            includeCounts: true,
+            includeFollowersCount: true,
+            includeTeams: true,
+          }),
+        }),
+        getOrganizationMembership(viewerId, orgId),
+        getIsAdmin(req as any),
+      ]);
+
+      if (!organization) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+
+      const membershipRole =
+        membership?.status === 'active' ? String(membership.role || '') : null;
+      const canManage = isPlatformAdmin || isOrganizationAdmin(membershipRole);
+      const canReviewCoachRequests =
+        isPlatformAdmin || membershipRole === ORGANIZATION_OWNER_ROLE;
+
+      if (!canManage) {
+        return res.status(403).json({
+          error: 'Only organization admins or platform admins can view admin summary',
+        });
+      }
+
+      const teamIds = Array.isArray((organization as any).teams)
+        ? (organization as any).teams.map((team: any) => String(team.id))
+        : [];
+      const now = new Date();
+
+      const [
+        members,
+        pendingInvites,
+        pendingCoachRequests,
+        pendingGames,
+        pendingEvents,
+        upcomingGames,
+        upcomingEvents,
+        pendingInviteCount,
+        pendingCoachCount,
+        pendingGameCount,
+        pendingEventCount,
+        upcomingGameCount,
+        upcomingEventCount,
+      ] = await Promise.all([
+        prisma.organizationMembership.findMany({
+          where: { organization_id: orgId, status: 'active' },
+          orderBy: { created_at: 'asc' },
+          take: 500,
+          include: {
+            user: {
+              select: {
+                id: true,
+                display_name: true,
+                username: true,
+                avatar_url: true,
+                email: true,
+                preferences: true,
+              },
+            },
+          },
+        }),
+        prisma.organizationInvite.findMany({
+          where: { organization_id: orgId, status: 'pending' },
+          orderBy: { created_at: 'asc' },
+          take: 200,
+        }),
+        listOrganizationJoinRequestsForOrganization(orgId, 'pending'),
+        teamIds.length > 0
+          ? prisma.game.findMany({
+              where: {
+                approval_status: 'pending',
+                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              },
+              orderBy: { date: 'asc' },
+              take: 25,
+              include: {
+                homeTeam: { select: { id: true, name: true } },
+                awayTeam: { select: { id: true, name: true } },
+              },
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.event.findMany({
+              where: {
+                approval_status: 'pending',
+                team_id: { in: teamIds },
+              },
+              orderBy: { date: 'asc' },
+              take: 25,
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.game.findMany({
+              where: {
+                approval_status: 'approved',
+                date: { gte: now },
+                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              },
+              orderBy: { date: 'asc' },
+              take: 25,
+              include: {
+                homeTeam: { select: { id: true, name: true } },
+                awayTeam: { select: { id: true, name: true } },
+              },
+            })
+          : Promise.resolve([]),
+        teamIds.length > 0
+          ? prisma.event.findMany({
+              where: {
+                approval_status: 'approved',
+                date: { gte: now },
+                team_id: { in: teamIds },
+              },
+              orderBy: { date: 'asc' },
+              take: 25,
+            })
+          : Promise.resolve([]),
+        prisma.organizationInvite.count({
+          where: { organization_id: orgId, status: 'pending' },
+        }),
+        prisma.organizationJoinRequest.count({
+          where: { organization_id: orgId, status: 'pending' },
+        }),
+        teamIds.length > 0
+          ? prisma.game.count({
+              where: {
+                approval_status: 'pending',
+                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              },
+            })
+          : Promise.resolve(0),
+        teamIds.length > 0
+          ? prisma.event.count({
+              where: {
+                approval_status: 'pending',
+                team_id: { in: teamIds },
+              },
+            })
+          : Promise.resolve(0),
+        teamIds.length > 0
+          ? prisma.game.count({
+              where: {
+                approval_status: 'approved',
+                date: { gte: now },
+                OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+              },
+            })
+          : Promise.resolve(0),
+        teamIds.length > 0
+          ? prisma.event.count({
+              where: {
+                approval_status: 'approved',
+                date: { gte: now },
+                team_id: { in: teamIds },
+              },
+            })
+          : Promise.resolve(0),
+      ]);
+
+      return res.json({
+        organization: serializeOrganization(organization, {
+          includeCounts: true,
+          includeTeams: true,
+          includeViewerState: true,
+          viewerRole: membershipRole,
+          isMember: membership?.status === 'active',
+          isOwner: membershipRole === ORGANIZATION_OWNER_ROLE,
+          canEdit: canManage,
+          canReviewCoaches: canReviewCoachRequests,
+        }),
+        permissions: {
+          can_manage: canManage,
+          can_review_coach_requests: canReviewCoachRequests,
+          membership_role: membershipRole,
+          is_platform_admin: isPlatformAdmin,
+        },
+        counts: {
+          teams: Number((organization as any)?._count?.teams || teamIds.length),
+          members: members.length,
+          followers: Number((organization as any)?._count?.followers || 0),
+          pending_authorized_invites: pendingInviteCount,
+          pending_coach_requests: pendingCoachCount,
+          pending_game_reviews: pendingGameCount,
+          pending_event_reviews: pendingEventCount,
+          upcoming_games: upcomingGameCount,
+          upcoming_events: upcomingEventCount,
+        },
+        teams: Array.isArray((organization as any).teams)
+          ? (organization as any).teams.map((team: any) => ({
+              id: team.id,
+              name: team.name,
+              description: team.description ?? null,
+              sport: team.sport ?? null,
+              season_start: toIsoDate(team.season_start),
+              season_end: toIsoDate(team.season_end),
+              status: team.status ?? null,
+              logo_url: team.logo_url || team.avatar_url || null,
+              avatar_url: team.avatar_url || team.logo_url || null,
+              created_at: toIsoDate(team.created_at),
+              _count: {
+                memberships: Number(team?._count?.memberships || 0),
+              },
+            }))
+          : [],
+        members: members.map(serializeOrganizationAdminMember),
+        requests: {
+          authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite),
+          coach_requests: pendingCoachRequests.map((request) => ({
+            ...request,
+            created_at: toIsoDate(request.created_at),
+            reviewed_at: toIsoDate(request.reviewed_at),
+          })),
+          pending_games: pendingGames.map(serializeOrganizationAdminGame),
+          pending_events: pendingEvents.map(serializeOrganizationAdminEvent),
+        },
+        upcoming: {
+          games: upcomingGames.map(serializeOrganizationAdminGame),
+          events: upcomingEvents.map(serializeOrganizationAdminEvent),
+        },
+      });
+    } catch (err) {
+      console.error('[organizations] GET /:id/admin-summary error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
   })

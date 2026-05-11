@@ -930,8 +930,10 @@ gamesRouter.post(
         }
       }
 
-      // Approval workflow: Check if user is a coach/manager OR if user is admin
+      // Approval workflow: resolve which participating team the requester can manage.
+      // Away-game flows break if we hardcode everything to home_team_id.
       let isCoach = false;
+      let managedTeamId: string | null = null;
 
       // Check if user is super admin (can create events for ANY team)
       const currentUser = await prisma.user.findUnique({
@@ -941,19 +943,32 @@ gamesRouter.post(
       const isAdmin = isEmailAdmin(currentUser?.email);
 
       // Require team association for non-admin users
-      if (!parsed.data.home_team_id && !isAdmin) {
+      if (!parsed.data.home_team_id && !parsed.data.away_team_id && !isAdmin) {
         return res
           .status(400)
-          .json({ error: 'home_team_id is required. Games must be associated with a team.' });
+          .json({ error: 'A home_team_id or away_team_id is required. Games must be associated with a team.' });
       }
 
-      if (parsed.data.home_team_id && !isAdmin) {
-        isCoach = await canManageTeamScoped(req.user.id, parsed.data.home_team_id);
+      if (!isAdmin) {
+        const [canManageHomeTeam, canManageAwayTeam] = await Promise.all([
+          parsed.data.home_team_id
+            ? canManageTeamScoped(req.user.id, parsed.data.home_team_id)
+            : Promise.resolve(false),
+          parsed.data.away_team_id && parsed.data.away_team_id !== parsed.data.home_team_id
+            ? canManageTeamScoped(req.user.id, parsed.data.away_team_id)
+            : Promise.resolve(false),
+        ]);
+        managedTeamId = canManageHomeTeam
+          ? parsed.data.home_team_id || null
+          : canManageAwayTeam
+            ? parsed.data.away_team_id || null
+            : null;
+        isCoach = !!managedTeamId;
 
         // Verify the team's org is admin-approved (if team has an org)
         if (isCoach) {
           const team = await prisma.team.findUnique({
-            where: { id: parsed.data.home_team_id },
+            where: { id: managedTeamId! },
             select: { organization_id: true },
           });
           if (team?.organization_id) {
@@ -971,10 +986,14 @@ gamesRouter.post(
       } else if (isAdmin) {
         // Admin can create events for any team
         isCoach = true;
+        managedTeamId = parsed.data.home_team_id || parsed.data.away_team_id || null;
         debugLog(
-          `✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`
+          `✅ Admin ${currentUser?.email} creating event for team ${managedTeamId || 'N/A'}`
         );
       }
+
+      const associatedTeamId =
+        managedTeamId || parsed.data.home_team_id || parsed.data.away_team_id || null;
 
       // Auto-approve if coach/admin, otherwise set to pending
       gameData.approval_status = isCoach || isAdmin ? 'approved' : 'pending';
@@ -1023,7 +1042,7 @@ gamesRouter.post(
           latitude: eventLat,
           longitude: eventLng,
           game_id: game.id,
-          team_id: game.home_team_id || null,
+          team_id: associatedTeamId,
           status: gameData.approval_status || 'pending',
           approval_status: gameData.approval_status || 'pending',
           creator_id: req.user!.id,
@@ -1093,17 +1112,21 @@ gamesRouter.post(
       };
 
       if (gameData.approval_status === 'pending') {
+        const reviewTeamName =
+          managedTeamId === game.awayTeam?.id
+            ? game.awayTeam?.name
+            : game.homeTeam?.name || game.awayTeam?.name;
         void notifyPendingEventReviewers(prisma, {
           reviewId: game.id,
           reviewKind: 'game',
-          teamId: game.home_team_id || null,
+          teamId: associatedTeamId,
           requesterName: currentUser?.display_name || 'VarsityHub User',
           requesterEmail: currentUser?.email || '',
           eventTitle: game.title,
           eventType: parsed.data.event_type || 'game',
           eventDate: game.date,
           eventLocation: game.location || game.venue_address || undefined,
-          teamName: game.homeTeam?.name || undefined,
+          teamName: reviewTeamName || undefined,
         }).catch((err) => {
           console.warn('[games] pending review email failed:', (err as any)?.message || err);
         });

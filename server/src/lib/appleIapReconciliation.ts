@@ -52,7 +52,7 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
   const startedAt = Date.now();
   const pendingCutoff = new Date(Date.now() - PENDING_STALE_THRESHOLD_MIN * 60 * 1000);
   const dryspellCutoff = new Date(Date.now() - NOTIFICATION_DRYSPELL_HOURS * 60 * 60 * 1000);
-  const { __paymentsInternal } = await import('../routes/payments.js');
+  const paymentInternals = await import('./paymentInternals.js');
 
   // Recover stale, locally-visible Apple purchases. Excludes APPLE_S2S_NOTIFICATION
   // rows because those are dedup markers, not user-facing purchases.
@@ -114,7 +114,7 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
           continue;
         }
 
-        await __paymentsInternal.finalizeAppleSubscriptionPurchase({
+        await paymentInternals.finalizeAppleSubscriptionPurchase({
           userId: row.user_id,
           userEmail: row.user_email,
           productId,
@@ -153,7 +153,7 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
           continue;
         }
 
-        await __paymentsInternal.finalizeAppleAdPurchase({
+        await paymentInternals.finalizeAppleAdPurchase({
           userId: row.user_id,
           userEmail: row.user_email,
           adId: row.order_id,

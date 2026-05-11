@@ -37,14 +37,14 @@ describeDb('Checkout session finalization', () => {
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
-    const paymentsModule = await import('../routes/payments.js');
+    const paymentsModule = await import('../lib/paymentInternals.js');
     const overnightTasksModule = await import('../cron/overnightTasks.js');
-    runFinalizeFromSession = paymentsModule.__paymentsInternal.runFinalizeFromSession;
-    finalizeAppleSubscriptionPurchase = paymentsModule.__paymentsInternal.finalizeAppleSubscriptionPurchase;
-    finalizeAppleAdPurchase = paymentsModule.__paymentsInternal.finalizeAppleAdPurchase;
-    releaseAdInventoryAfterSlotFullRefund = paymentsModule.__paymentsInternal.releaseAdInventoryAfterSlotFullRefund;
+    runFinalizeFromSession = paymentsModule.runFinalizeFromSession;
+    finalizeAppleSubscriptionPurchase = paymentsModule.finalizeAppleSubscriptionPurchase;
+    finalizeAppleAdPurchase = paymentsModule.finalizeAppleAdPurchase;
+    releaseAdInventoryAfterSlotFullRefund = paymentsModule.releaseAdInventoryAfterSlotFullRefund;
     releaseAdInventoryAfterSlotFullRefundWithRetry =
-      paymentsModule.__paymentsInternal.releaseAdInventoryAfterSlotFullRefundWithRetry;
+      paymentsModule.releaseAdInventoryAfterSlotFullRefundWithRetry;
     recoverSlotFullRefundReleaseFailures =
       overnightTasksModule.recoverSlotFullRefundReleaseFailures;
     try {

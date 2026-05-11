@@ -476,6 +476,11 @@ function AdCalendarScreen() {
   };
 
   const applyPromo = async () => {
+    if (Platform.OS === 'ios') {
+      setPreview(null);
+      setPromoError('Promo codes are not available for iPhone in-app purchases.');
+      return;
+    }
     setPromoError(null);
     setPromoBusy(true);
     try {
@@ -544,6 +549,14 @@ function AdCalendarScreen() {
 
     if (!adId || selected.size === 0) {
       Alert.alert('Select at least one date');
+      return;
+    }
+
+    if (Platform.OS === 'ios' && (promo.trim().length > 0 || preview?.valid)) {
+      Alert.alert(
+        'Promo Codes Unavailable',
+        'Promo codes are not supported for iPhone in-app purchases. Remove the code and continue at the standard price.'
+      );
       return;
     }
 
@@ -996,6 +1009,7 @@ function AdCalendarScreen() {
           
         </View>
 
+        {Platform.OS !== 'ios' ? (
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Promo Code</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -1032,6 +1046,7 @@ function AdCalendarScreen() {
             </View>
           ) : null}
         </View>
+        ) : null}
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -1154,7 +1169,7 @@ function AdCalendarScreen() {
               <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           ) : null}
-          {preview?.valid ? (
+          {Platform.OS !== 'ios' && preview?.valid ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Promo Discount:</Text>
               <Text style={{ fontSize: 16, color: '#10B981', fontWeight: '700' }}>- ${((discountCents || 0) / 100).toFixed(2)}</Text>

@@ -14,8 +14,8 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
   },
 }));
 
-const paymentsModule = await import('../routes/payments.js');
-const getVeteranBillingSnapshot = paymentsModule.__paymentsInternal.getVeteranBillingSnapshot as (
+const paymentsModule = await import('../lib/paymentInternals.js');
+const getVeteranBillingSnapshot = paymentsModule.getVeteranBillingSnapshot as (
   userId: string,
   organizationId?: string | null
 ) => Promise<{ teamCount: number; billableQuantity: number }>;
