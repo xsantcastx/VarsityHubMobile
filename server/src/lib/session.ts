@@ -56,3 +56,16 @@ export async function startNewSession(
   const access_token = signAccessTokenForSession(userId, session_epoch);
   return { access_token, refresh_token: rawRefresh, session_epoch };
 }
+
+export async function revokeAllSessions(userId: string): Promise<{ revokedRefreshTokens: number }> {
+  const [, revoked] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { session_epoch: { increment: 1 } },
+      select: { id: true },
+    }),
+    prisma.refreshToken.deleteMany({ where: { user_id: userId } }),
+  ]);
+
+  return { revokedRefreshTokens: revoked.count };
+}

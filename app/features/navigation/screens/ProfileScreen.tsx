@@ -2,6 +2,7 @@ import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
+import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
@@ -422,64 +423,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleBackgroundImagePress = async () => {
-    setIsUploadingAvatar(true);
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permissionResult.granted === false) {
-        Alert.alert(
-          'Permission required',
-          "You've refused to allow this app to access your photos."
-        );
-        return;
-      }
-
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        ...pickerMediaTypesProp(),
-        allowsEditing: true,
-        aspect: [16, 9],
-        selectionLimit: 1,
-        quality: 0.9,
-        exif: false,
-      } as any);
-
-      if (pickerResult.canceled || !pickerResult.assets?.length) {
-        return;
-      }
-
-      const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
-      // v1.0.2: force iCloud download before manipulation
-      const { materializeICloudAssetIfNeeded } = await import('@/utils/materializeICloudAsset');
-      const localUri = await materializeICloudAssetIfNeeded(uri);
-      const manipulated = await ImageManipulator.manipulateAsync(
-        localUri,
-        [{ resize: { width: 1200 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      const name =
-        fileName && String(fileName).includes('.')
-          ? String(fileName)
-          : `background_${Date.now()}.jpg`;
-
-      const { url } = await uploadAvatar(null, manipulated.uri, name);
-      await User.updatePreferences({ header_image_url: url });
-      setMe((prev) =>
-        prev
-          ? { ...prev, preferences: { ...(prev.preferences || {}), header_image_url: url } }
-          : null
-      );
-    } catch (error) {
-      console.error('[profile] Background image upload failed:', error);
-      showUploadErrorAlert(error, {
-        fallbackTitle: 'Upload failed',
-        fallbackMessage: 'Could not upload your background image. Please try again.',
-        logTag: 'profile.header',
-      });
-    } finally {
-      setIsUploadingAvatar(false);
-    }
-  };
-
   const loadProfile = useCallback(
     async (options?: { silent?: boolean }) => {
       if (profileRequestInFlight.current) return;
@@ -881,11 +824,11 @@ export default function ProfileScreen() {
         {/* Background Image / Gradient */}
         <Pressable
           testID="profile-background-image"
-          onPress={isOwnProfile ? handleBackgroundImagePress : undefined}
+          onPress={isOwnProfile ? () => void router.push('/edit-profile') : undefined}
           style={styles.headerBackgroundPressable}
           disabled={!isOwnProfile || isUploadingAvatar}
           accessibilityRole="button"
-          accessibilityLabel={isOwnProfile ? 'Edit background image' : 'Profile background image'}
+          accessibilityLabel={isOwnProfile ? 'Open edit profile' : 'Profile background image'}
         >
           {headerBackgroundImage ? (
             <Image
@@ -917,28 +860,6 @@ export default function ProfileScreen() {
           pointerEvents="none"
         />
 
-        {isOwnProfile ? (
-          <Pressable
-            testID="profile-background-edit-button"
-            onPress={handleBackgroundImagePress}
-            hitSlop={12}
-            disabled={isUploadingAvatar}
-            style={[
-              styles.controlButton,
-              styles.backgroundEditButton,
-              {
-                backgroundColor:
-                  colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.92)',
-                opacity: isUploadingAvatar ? 0.7 : 1,
-              },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Change background image"
-          >
-            <Ionicons name="image-outline" size={18} color={theme.text} />
-          </Pressable>
-        ) : null}
-
         {/* Back Button - Only when viewing another user's profile */}
         {viewingUserId && viewingUserId !== currentUserId ? (
           <Pressable
@@ -967,9 +888,9 @@ export default function ProfileScreen() {
         {/* Settings Button & Follow Button - Top Right Corner */}
         <View style={[styles.headerControls, { top: 12 }]}>
           {viewingUserId && viewingUserId !== currentUserId ? (
-            <View style={styles.headerActionRow}>
+            <View style={styles.inlineActionRow}>
               <Pressable
-                testID="profile-message-button"
+                testID="profile-message-inline-button"
                 style={[
                   styles.headerActionButton,
                   styles.headerActionButtonGhost,
@@ -982,7 +903,7 @@ export default function ProfileScreen() {
                 <Text style={styles.headerActionButtonText}>Message</Text>
               </Pressable>
               <Pressable
-                testID="profile-follow-button"
+                testID="profile-follow-inline-button"
                 style={[
                   styles.headerActionButton,
                   isFollowing ? styles.headerActionButtonActive : styles.headerActionButtonGhost,
@@ -1080,7 +1001,7 @@ export default function ProfileScreen() {
             disabled={isOwnProfile && isUploadingAvatar}
             style={styles.avatarSection}
             accessibilityRole="button"
-            accessibilityLabel={isOwnProfile ? 'Edit profile picture' : 'View profile picture'}
+            accessibilityLabel={isOwnProfile ? 'Open profile picture' : 'View profile picture'}
           >
             <View style={styles.avatarContainer}>
               {me?.avatar_url ? (
@@ -1632,9 +1553,12 @@ export default function ProfileScreen() {
                         @{author.username}
                       </Text>
                     ) : null}
-                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
-                      {caption || 'Post'}
-                    </Text>
+                    <ExpandableText
+                      text={caption || 'Post'}
+                      maxLines={5}
+                      style={[styles.textCardCaption, { color: theme.text }]}
+                      expandStyle={[styles.textCardCaptionToggle, { color: theme.tint }]}
+                    />
                     <View style={styles.textCardFooter}>
                       <View style={styles.textCardStat}>
                         <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
@@ -1753,9 +1677,12 @@ export default function ProfileScreen() {
                         @{author.username}
                       </Text>
                     ) : null}
-                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
-                      {caption || 'Post'}
-                    </Text>
+                    <ExpandableText
+                      text={caption || 'Post'}
+                      maxLines={5}
+                      style={[styles.textCardCaption, { color: theme.text }]}
+                      expandStyle={[styles.textCardCaptionToggle, { color: theme.tint }]}
+                    />
                     <View style={styles.textCardFooter}>
                       <View style={styles.textCardStat}>
                         <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
@@ -1874,9 +1801,12 @@ export default function ProfileScreen() {
                         @{author.username}
                       </Text>
                     ) : null}
-                    <Text numberOfLines={5} style={[styles.textCardCaption, { color: theme.text }]}>
-                      {caption || 'Post'}
-                    </Text>
+                    <ExpandableText
+                      text={caption || 'Post'}
+                      maxLines={5}
+                      style={[styles.textCardCaption, { color: theme.text }]}
+                      expandStyle={[styles.textCardCaptionToggle, { color: theme.tint }]}
+                    />
                     <View style={styles.textCardFooter}>
                       <View style={styles.textCardStat}>
                         <Ionicons name="arrow-up" size={13} color={theme.mutedText} />
@@ -2003,6 +1933,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inlineActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -2608,6 +2543,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 18,
     flex: 1,
+  },
+  textCardCaptionToggle: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
   },
   textCardFooter: {
     flexDirection: 'row',

@@ -206,6 +206,7 @@ export default function SettingsScreen() {
   });
   const [plan, setPlan] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [showCoachBilling, setShowCoachBilling] = useState(false);
   const [coachUpgradeCta, setCoachUpgradeCta] = useState<CoachUpgradeCta | null>(null);
   const [_pendingHostRequests, setPendingHostRequests] = useState<PendingHostRequest[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
@@ -310,6 +311,13 @@ export default function SettingsScreen() {
       | string
       | null;
     setRole(effectiveRole);
+    const coachAccess = {
+      isApprovedCoach: effectiveRole === 'coach' && me?.approval_status === 'APPROVED',
+    };
+    const billingState = {
+      selected_plan: String(serverPrefs?.plan || 'rookie').toLowerCase(),
+    };
+    setShowCoachBilling(coachAccess.isApprovedCoach || billingState.selected_plan !== 'rookie');
     setCoachUpgradeCta(
       getCoachUpgradeCta({
         ...me,
@@ -322,9 +330,12 @@ export default function SettingsScreen() {
     setLinkedProviders(linkedProviders);
   };
 
-  const visibleAuthProviders = [
-    linkedProviders.google ? 'google' : null,
-    linkedProviders.apple ? 'apple' : null,
+  const showPasswordSettings = linkedProviders.password;
+  const showGoogleStatus = linkedProviders.google;
+  const showAppleStatus = linkedProviders.apple;
+  const visibleProviderStatuses = [
+    showGoogleStatus ? 'google' : null,
+    showAppleStatus ? 'apple' : null,
   ].filter(Boolean) as Array<'google' | 'apple'>;
   const canDowngradeCoach = String(role || '').trim().toLowerCase() === 'coach';
 
@@ -525,7 +536,7 @@ export default function SettingsScreen() {
               title="Edit Username"
               onPress={() => void router.push('/settings/edit-username')}
             />
-            {linkedProviders.password && (
+            {showPasswordSettings && (
               <NavRow
                 title="Reset Password"
                 onPress={() => void router.push('/settings/reset-password')}
@@ -537,15 +548,15 @@ export default function SettingsScreen() {
             />
             <NavRow
               title="Followed Teams"
-              isLast={visibleAuthProviders.length === 0}
+              isLast={visibleProviderStatuses.length === 0}
               onPress={() => void router.push('/settings/followed-teams')}
             />
-            {visibleAuthProviders.map((provider, index) => (
+            {visibleProviderStatuses.map((provider, index) => (
               <NavRow
                 key={provider}
                 title={provider === 'google' ? 'Google Sign-In' : 'Apple Sign-In'}
                 subtitle={`Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`}
-                isLast={index === visibleAuthProviders.length - 1}
+                isLast={index === visibleProviderStatuses.length - 1}
                 onPress={() => {}}
               />
             ))}
@@ -688,7 +699,7 @@ export default function SettingsScreen() {
           </SectionCard>
 
           {/* Billing (coaches only) */}
-          {role === 'coach' && (
+          {showCoachBilling && (
             <SectionCard title="Billing">
               <NavRow
                 title="Manage Subscription"
@@ -829,7 +840,7 @@ export default function SettingsScreen() {
             {canDowngradeCoach && (
               <NavRow
                 title="Downgrade to Fan Account"
-                subtitle="Removes coach access after ownership and staff roles are cleared"
+                subtitle="Transfer any team or organization ownership first"
                 isLast={!coachUpgradeCta && !downgradingToFan}
                 onPress={() => {
                   Alert.alert(
@@ -1139,8 +1150,8 @@ export default function SettingsScreen() {
                   ]}
                 >
                   {deleteRequiresPassword
-                    ? 'This permanently deletes your account. Enter your password to confirm.'
-                    : 'This permanently deletes your account and signs you out immediately.'}
+                    ? 'This permanently deletes your account. Type DELETE and enter your password to confirm.'
+                    : 'This permanently deletes your account. Type DELETE to confirm.'}
                 </Text>
                 {deleteRequiresPassword && (
                   <TextInput

@@ -1225,7 +1225,7 @@ function CommunityDiscoverScreen() {
                   onPress={() => {
                     setQuery('');
                     setUnifiedSearchResults(null);
-                    void router.push(`/organization?id=${o.id}`);
+                        void router.push({ pathname: '/organizations/[id]', params: { id: String(o.id) } });
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`View organization ${o.name}`}
@@ -1383,7 +1383,7 @@ function CommunityDiscoverScreen() {
                   onPress={() => {
                     setQuery('');
                     setUnifiedSearchResults(null);
-                    void router.push(`/event-detail?id=${event.id}`);
+                        void router.push({ pathname: '/event-detail', params: { id: String(event.id) } });
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`View event ${event.title}`}

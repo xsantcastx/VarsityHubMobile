@@ -225,6 +225,7 @@ module.exports = ({ config }) => {
       './plugins/withAndroidManifestCleanup',
       './plugins/withAndroidLintExtraTranslationFix',
       './plugins/withAndroidBuildConfig',
+      './plugins/withAndroidGooglePay',
       './plugins/withStripeProguardFix',
       './plugins/withGoogleMaps',
       './plugins/withGoogleOAuth',
@@ -235,12 +236,6 @@ module.exports = ({ config }) => {
           organization: 'lime-productions',
           project: 'varsityhub',
           uploadSourcemaps: sentryAutoUploadEnabled,
-        },
-      ],
-      [
-        '@stripe/stripe-react-native',
-        {
-          enableGooglePay: true,
         },
       ],
       'react-native-iap',

@@ -22,6 +22,11 @@ type LeagueTeam = {
   logo_url?: string;
   description?: string;
   organization_id?: string;
+  venue_address?: string | null;
+  organization?: {
+    id?: string;
+    name?: string | null;
+  } | null;
   created_at?: string;
   _count?: {
     members?: number;
@@ -494,6 +499,13 @@ function TeamScreen() {
   
   const teamName = team?.name || 'Team';
   const teamHandle = `@${(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}`;
+  const teamVenue = typeof team?.venue_address === 'string' ? team.venue_address.trim() : '';
+  const teamOrganizationName =
+    typeof team?.organization?.name === 'string' && team.organization.name.trim().length > 0
+      ? team.organization.name.trim()
+      : team?.organization_id
+        ? 'League'
+        : '';
 
   const renderHeader = () => (
     <>
@@ -690,6 +702,20 @@ function TeamScreen() {
               </Text>
             </View>
           )}
+
+          {teamVenue ? (
+            <View style={styles.metaItem}>
+              <Ionicons name="location-outline" size={14} color={theme.mutedText} />
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>{teamVenue}</Text>
+            </View>
+          ) : null}
+
+          {teamOrganizationName ? (
+            <View style={styles.metaItem}>
+              <Ionicons name="business-outline" size={14} color={theme.mutedText} />
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>{teamOrganizationName}</Text>
+            </View>
+          ) : null}
           
           {/* Stats - Members, Followers, Games */}
           <View style={styles.statsRow}>
@@ -763,7 +789,7 @@ function TeamScreen() {
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push({ pathname: '/organization', params: { id: orgId, tab: 'overview' } } as any);
+                router.push({ pathname: '/organizations/[id]', params: { id: orgId } } as any);
               }
             }}
             disabled={!team?.organization_id}
@@ -777,7 +803,7 @@ function TeamScreen() {
               styles.orgButtonText,
               { color: team?.organization_id ? theme.text : theme.mutedText }
             ]}>
-              {team?.organization_id ? 'My League' : 'No Organization'}
+              {teamOrganizationName || 'No Organization'}
             </Text>
             {team?.organization_id && (
               <Ionicons name="chevron-forward" size={14} color={theme.text} />
