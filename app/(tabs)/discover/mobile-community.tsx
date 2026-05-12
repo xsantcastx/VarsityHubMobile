@@ -30,6 +30,7 @@ import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal
 import { Calendar } from 'react-native-calendars';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
+import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getCoachAccessState } from '@/utils/roleChecks';
@@ -131,7 +132,7 @@ const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } => {
 };
 
 function CommunityDiscoverScreen() {
-  const { user: _user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
@@ -432,20 +433,20 @@ function CommunityDiscoverScreen() {
       setError(null);
       setPersonalizationNotice(null);
 
-      let user: any = null;
+      let currentUser: any = null;
       try {
-        user = await User.me();
-        setMe(user);
+        currentUser = await getAuthSnapshot(checkAuth, user);
+        setMe(currentUser ?? null);
       } catch (err) {
         if (__DEV__) console.warn('Discover load: unable to fetch user', err);
         setMe(null);
       }
 
-      await Promise.allSettled([loadGames(user), loadPersonalization(user)]);
+      await Promise.allSettled([loadGames(currentUser), loadPersonalization(currentUser)]);
 
       if (!silent) setLoading(false);
     },
-    [loadGames, loadPersonalization]
+    [checkAuth, loadGames, loadPersonalization, user]
   );
 
   useEffect(() => {
@@ -502,7 +503,13 @@ function CommunityDiscoverScreen() {
       const list = Array.isArray(summaries) ? summaries : [];
       const firstOrgId = list[0]?.organization?.id;
       if (firstOrgId) {
-        router.push({ pathname: '/organization', params: { id: firstOrgId } } as any);
+        router.push({
+          pathname: '/organization',
+          params: {
+            id: firstOrgId,
+            from: 'discover-quick-actions',
+          },
+        } as any);
       } else {
         Alert.alert('No Organization', 'You are not linked to any organization yet.');
       }
@@ -520,12 +527,32 @@ function CommunityDiscoverScreen() {
           ? (teams as any).items
           : [];
       if (arr.length === 1) {
-        router.push(`/manage-season?teamId=${arr[0].id}` as any);
+        router.push({
+          pathname: '/manage-season',
+          params: {
+            teamId: String(arr[0].id),
+            from: 'discover-quick-actions',
+          },
+        } as any);
       } else if (arr.length > 1) {
-        router.push('/manage-season' as any);
+        router.push({
+          pathname: '/manage-season',
+          params: {
+            from: 'discover-quick-actions',
+          },
+        } as any);
       } else {
         Alert.alert('No Teams', 'Create a team first to manage your schedule.', [
-          { text: 'Create Team', onPress: () => router.push('/create-team') },
+          {
+            text: 'Create Team',
+            onPress: () =>
+              router.push({
+                pathname: '/create-team',
+                params: {
+                  fallback: '/(tabs)/discover',
+                },
+              } as any),
+          },
           { text: 'Close', style: 'cancel' },
         ]);
       }
@@ -1650,7 +1677,15 @@ function CommunityDiscoverScreen() {
                     borderColor: Colors[colorScheme].tint + '30',
                   },
                 ]}
-                onPress={() => void router.push('/organization?tab=teams')}
+                onPress={() =>
+                  void router.push({
+                    pathname: '/manage-teams',
+                    params: {
+                      from: 'discover-quick-actions',
+                      fallback: '/(tabs)/discover',
+                    },
+                  } as any)
+                }
                 accessibilityRole="button"
                 accessibilityLabel="Manage Teams"
               >
@@ -1692,7 +1727,15 @@ function CommunityDiscoverScreen() {
                     marginLeft: 12,
                   },
                 ]}
-                onPress={() => void router.push('/event-approvals')}
+                onPress={() =>
+                  void router.push({
+                    pathname: '/event-approvals',
+                    params: {
+                      from: 'discover-quick-actions',
+                      fallback: '/(tabs)/discover',
+                    },
+                  } as any)
+                }
                 accessibilityRole="button"
                 accessibilityLabel="Review pending event approvals"
               >

@@ -8,10 +8,16 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 const teamPage = read('app/team-page.tsx');
 const teamAdmin = read('app/team-admin.tsx');
 const createTeam = read('app/(tabs)/create-team.tsx');
+const editOrganization = read('app/(tabs)/edit-organization.tsx');
 const approvals = read('app/(tabs)/approvals.tsx');
+const editEvent = read('app/(tabs)/edit-event.tsx');
 const editTeam = read('app/(tabs)/edit-team.tsx');
+const manageTeams = read('app/(tabs)/manage-teams.tsx');
+const eventApprovals = read('app/(tabs)/event-approvals.tsx');
+const eventDetail = read('app/(tabs)/event-detail.tsx');
 const myTeam = read('app/(tabs)/my-team.tsx');
 const manageUsers = read('app/manage-users.tsx');
+const manageSeason = read('app/manage-season.tsx');
 const organizationScreen = read('app/(tabs)/organization.tsx');
 const organizationDetail = read('app/organizations/[id].tsx');
 const organizationJoinRequests = read('app/organization-join-requests.tsx');
@@ -52,6 +58,7 @@ describe('coach/org navigation contracts', () => {
   });
 
   it('team creation fallback routes back to organization tools, not manage-teams', () => {
+    expect(createTeam).toContain('params.fallback');
     expect(createTeam).toContain("pathname: '/organization'");
     expect(createTeam).toContain("tab: 'teams'");
     expect(createTeam).not.toContain("'/(tabs)/manage-teams'");
@@ -96,11 +103,58 @@ describe('coach/org navigation contracts', () => {
     expect(mobileCommunity).toContain('Organization.reviewSummaries()');
   });
 
+  it('discover coach quick actions preserve their origin and coach screens backtrack through tracked history', () => {
+    expect(mobileCommunity).toContain("from: 'discover-quick-actions'");
+    expect(mobileCommunity).toContain("pathname: '/manage-teams'");
+    expect(mobileCommunity).toMatch(/pathname: '\/organization'[\s\S]{0,200}from: 'discover-quick-actions'/);
+    expect(mobileCommunity).toContain("fallback: '/(tabs)/discover'");
+    expect(mobileCommunity).toContain("pathname: '/event-approvals'");
+    expect(organizationScreen).toContain("params.from === 'discover-quick-actions' ? '/(tabs)/discover' : undefined");
+    expect(organizationScreen).toContain('goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback)');
+    expect(manageTeams).toContain("params.from === 'discover-quick-actions'");
+    expect(manageTeams).toContain("'/(tabs)/discover'");
+    expect(manageSeason).toContain("params.from === 'discover-quick-actions'");
+    expect(manageSeason).toContain('goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback)');
+  });
+
+  it('coach admin screens carry an explicit fallback contract instead of relying on stack luck', () => {
+    expect(manageTeams).toContain('params.fallback');
+    expect(manageTeams).toContain("'/organization?tab=teams'");
+    expect(manageTeams).toContain("pathname: '/create-team'");
+    expect(manageTeams).toContain('handleCreateTeamPress');
+    expect(manageTeams).not.toContain("'/(tabs)/create-team'");
+    expect(manageTeams).toContain("pathname: '/manage-season'");
+    expect(editOrganization).toContain('params.fallback');
+    expect(editOrganization).toContain("'/organization?tab=overview'");
+    expect(organizationScreen).toContain("pathname: '/edit-organization'");
+    expect(organizationScreen).toContain("tab=overview");
+    expect(manageSeason).toContain("pathname: '/create-team'");
+    expect(manageSeason).toContain("backFallback ?? '/organization?tab=teams'");
+  });
+
+  it('event moderation and editing routes preserve a canonical return path', () => {
+    expect(eventApprovals).toContain('params.fallback');
+    expect(eventApprovals).toContain("params.from === 'discover-quick-actions'");
+    expect(eventApprovals).toContain("'/(tabs)/discover'");
+    expect(mobileCommunity).toContain("pathname: '/event-approvals'");
+    expect(mobileCommunity).toContain("fallback: '/(tabs)/discover'");
+    expect(editEvent).toContain('fallback');
+    expect(editEvent).toContain('`/event-detail?id=${encodeURIComponent(String(id))}`');
+    expect(eventDetail).toContain("pathname: '/edit-event'");
+    expect(eventDetail).toContain("fallback: `/event-detail?id=${encodeURIComponent(String(event.id))}`");
+  });
+
   it('organization members tooling exposes the authorized-user invite path and pending invite state', () => {
     expect(organizationScreen).toContain('Organization.invite(');
     expect(organizationScreen).toContain('Organization.cancelInvite(');
     expect(organizationScreen).toContain('pending_authorized_invites');
     expect(organizationScreen).toContain('authorized_invites');
+  });
+
+  it('organization owner approval cards route directly to org-specific coach request review', () => {
+    expect(organizationScreen).toContain('buildOrganizationJoinRequestsRoute');
+    expect(organizationScreen).toContain("pathname: '/organization-join-requests'");
+    expect(organizationScreen).not.toContain("onPress={() => router.push('/approvals')}");
   });
 
   it('coach setup copy points users to live team/org management tools instead of a dead authorized-user onboarding step', () => {

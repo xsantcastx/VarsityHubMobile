@@ -6,7 +6,7 @@ import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -113,7 +113,6 @@ function TeamScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; name?: string; from?: string; gameId?: string }>();
   const { from, gameId } = params;
-  const navigation = useNavigation();
   
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<LeagueTeam | null>(null);
@@ -154,15 +153,11 @@ function TeamScreen() {
 
   const handleBack = useCallback(() => {
     if (from === 'game-details' && gameId) {
-      if (navigation.canGoBack()) {
-        safeGoBack(router);
-      } else {
-        router.push({ pathname: '/game/[id]', params: { id: gameId } } as any);
-      }
+      safeGoBack(router, { pathname: '/game/[id]', params: { id: gameId } } as any);
     } else {
       safeGoBack(router);
     }
-  }, [from, gameId, navigation, router]);
+  }, [from, gameId, router]);
 
   // Mounted guard to prevent state updates after unmount
   const mounted = useRef(true);
@@ -789,7 +784,13 @@ function TeamScreen() {
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push({ pathname: '/organizations/[id]', params: { id: orgId } } as any);
+                router.push({
+                  pathname: '/organization',
+                  params: {
+                    id: orgId,
+                    tab: 'overview',
+                  },
+                } as any);
               }
             }}
             disabled={!team?.organization_id}

@@ -1,14 +1,15 @@
 import { Game, Organization, Team } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { safeGoBack } from '@/utils/navigation';
+import { goBackToTrackedRoute } from '@/utils/navigation';
 
 type OrganizationData = {
   id: string;
@@ -54,12 +55,30 @@ type AuthorizedInvite = {
   status?: string | null;
 };
 
+function buildOrganizationJoinRequestsRoute(id: string, name?: string | null) {
+  return {
+    pathname: '/organization-join-requests' as const,
+    params: {
+      organization_id: id,
+      organization_name: name || 'Organization',
+    },
+  };
+}
+
 export default function OrganizationScreen() {
   const { user } = useAuth();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; from?: string; tab?: string }>();
+  const navHistory = useContext(NavigationHistoryContext);
+  const href = useUnstableGlobalHref();
+  const currentHref = typeof href === 'string' ? href : null;
+  const backFallback =
+    params.from === 'discover-quick-actions' ? '/(tabs)/discover' : undefined;
+  const handleBack = useCallback(() => {
+    goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback);
+  }, [backFallback, currentHref, navHistory, router]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -285,7 +304,7 @@ export default function OrganizationScreen() {
           <Ionicons name="business" size={48} color={theme.mutedText} style={{ marginBottom: 12 }} />
           <Text style={[styles.errorText, { color: theme.text, fontSize: 18, fontWeight: '600' }]}>Not Found</Text>
           <Text style={{ color: theme.mutedText, textAlign: 'center', marginTop: 4, marginBottom: 16 }}>This organization doesn't exist or the link is invalid.</Text>
-          <Pressable onPress={() => safeGoBack(router)} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+          <Pressable onPress={handleBack} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
             <Text style={styles.retryText}>Go Back</Text>
           </Pressable>
         </View>
@@ -343,7 +362,7 @@ export default function OrganizationScreen() {
       >
         {/* Back Button */}
         <Pressable
-          onPress={() => safeGoBack(router)}
+          onPress={handleBack}
           style={[styles.backButton, { borderColor: theme.border }]}
         >
           <Ionicons name="arrow-back" size={22} color={theme.text} />
@@ -429,7 +448,17 @@ export default function OrganizationScreen() {
           {isOrgOwner ? (
             <Pressable
               style={[styles.actionBtn, { flex: 1, backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}
-              onPress={() => router.push({ pathname: '/edit-organization', params: { id: organization?.id } })}
+              onPress={() =>
+                router.push({
+                  pathname: '/edit-organization',
+                  params: {
+                    id: organization?.id,
+                    fallback: organization?.id
+                      ? `/organization?id=${encodeURIComponent(organization.id)}&tab=overview`
+                      : '/organization?tab=overview',
+                  },
+                })
+              }
             >
               <Ionicons name="pencil-outline" size={16} color={theme.text} />
               <Text style={[styles.actionBtnText, { color: theme.text }]}>Edit Profile</Text>
@@ -516,7 +545,9 @@ export default function OrganizationScreen() {
         {isOrgOwner && pendingCoachError && organization?.id && (
           <Pressable
             style={[styles.card, styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', gap: 12 }]}
-            onPress={() => router.push('/approvals')}
+            onPress={() =>
+              router.push(buildOrganizationJoinRequestsRoute(organization.id, organization.name || orgName))
+            }
           >
             <MaterialIcons name="error-outline" size={24} color={theme.destructive} />
             <View style={{ flex: 1 }}>
@@ -542,7 +573,9 @@ export default function OrganizationScreen() {
                 gap: 12,
               },
             ]}
-            onPress={() => router.push('/approvals')}
+            onPress={() =>
+              router.push(buildOrganizationJoinRequestsRoute(organization.id, organization.name || orgName))
+            }
           >
             <MaterialIcons
               name="group-add"

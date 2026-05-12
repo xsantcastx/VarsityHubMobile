@@ -2,9 +2,10 @@ import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,9 +36,10 @@ type Team = {
 };
 
 function ManageTeamsSimpleScreen() {
-  const { user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
+  const params = useLocalSearchParams<{ from?: string; fallback?: string; orgId?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);
@@ -47,6 +49,14 @@ function ManageTeamsSimpleScreen() {
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending_approval' | 'ready_to_pay'>('none');
   const [userPlan, setUserPlan] = useState<string | null>(null);
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : params.from === 'discover-quick-actions'
+        ? '/(tabs)/discover'
+        : params.orgId
+          ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=teams`
+          : '/organization?tab=teams';
 
   const loadTeams = useCallback(async () => {
     if (!user) return;
@@ -90,7 +100,7 @@ function ManageTeamsSimpleScreen() {
     if (coachLoading || !canAccessCoachTools) return;
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getAuthSnapshot(checkAuth, user);
         const prefs = me?.preferences || {};
         // Check deferred payment status for paid plans (Rule A: use pending_plan)
         const plan = prefs.pending_plan || prefs.plan;
@@ -109,14 +119,14 @@ function ManageTeamsSimpleScreen() {
         // silently ignore
       }
     })().catch(() => {});
-  }, [canAccessCoachTools, coachLoading]);
+  }, [canAccessCoachTools, checkAuth, coachLoading, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadTeams();
     // Re-check payment status on refresh
     try {
-      const me: any = await User.me();
+      const me: any = await getAuthSnapshot(checkAuth, user);
       const prefs = me?.preferences || {};
       const plan = prefs.pending_plan || prefs.plan;
       setUserPlan(plan);
@@ -127,11 +137,20 @@ function ManageTeamsSimpleScreen() {
       }
     } catch { /* ignore */ }
     setRefreshing(false);
-  }, [loadTeams]);
+  }, [checkAuth, loadTeams, user]);
 
   // Get organization from first team that has one
   const organization = teams.find(t => t.organization)?.organization;
   const activeTeams = teams.filter(t => t.status === 'active');
+  const handleCreateTeamPress = useCallback(() => {
+    void router.push({
+      pathname: '/create-team',
+      params: {
+        fallback: explicitFallback,
+        ...(organization?.id ? { orgId: organization.id } : {}),
+      },
+    } as any);
+  }, [explicitFallback, organization?.id, router]);
 
   const handleQuickAddGame = async (data: QuickGameData) => {
     try {
@@ -289,7 +308,7 @@ function ManageTeamsSimpleScreen() {
       <View style={[styles.header, { backgroundColor: theme.background }]}>
         <Pressable 
           style={styles.backButton} 
-          onPress={() => safeGoBack(router)}
+          onPress={() => safeGoBack(router, explicitFallback)}
         >
           <MaterialIcons name="arrow-back" size={28} color={theme.text} />
         </Pressable>
@@ -379,7 +398,7 @@ function ManageTeamsSimpleScreen() {
       <View style={styles.quickActionsContainer}>
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: theme.tint }]}
-          onPress={() => void router.push('/create-team')}
+          onPress={handleCreateTeamPress}
         >
           <MaterialIcons name="add-circle-outline" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Create Team</Text>
@@ -392,7 +411,14 @@ function ManageTeamsSimpleScreen() {
               Alert.alert('No Teams', 'Create a team first before adding events.');
               return;
             }
-            void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
+            void router.push({
+              pathname: '/manage-season',
+              params: {
+                teamId: activeTeams[0].id,
+                fallback: explicitFallback,
+                ...(params.from ? { from: params.from } : {}),
+              },
+            } as any);
           }}
         >
           <MaterialIcons name="sports-basketball" size={24} color="#fff" />
@@ -518,7 +544,7 @@ function ManageTeamsSimpleScreen() {
             <View style={{ alignItems: 'center', marginTop: 12, paddingHorizontal: 24 }}>
               {/* v1.0.2 pass 10: use theme tint color so button matches dark/light schemes. */}
               <Pressable
-                onPress={() => router.push('/(tabs)/create-team')}
+                onPress={handleCreateTeamPress}
                 style={{ backgroundColor: theme.tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel="Create your first team"
@@ -533,7 +559,7 @@ function ManageTeamsSimpleScreen() {
         <View style={styles.actionsSection}>
           <Pressable
             style={[styles.bigActionButton, { backgroundColor: theme.tint }]}
-            onPress={() => void router.push('/create-team')}
+            onPress={handleCreateTeamPress}
           >
             <MaterialIcons name="add-circle" size={32} color="#FFF" />
             <Text style={styles.bigActionButtonText}>CREATE TEAM</Text>
