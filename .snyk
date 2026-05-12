@@ -18,8 +18,8 @@ ignore:
 
   SNYK-JS-SENTRYCORE-14105053:
     - '*':
-        reason: 'Transitive dependency in @sentry/react-native. Upgrade to @sentry/react-native@7.8.0+ resolves this. Tracked for next dependency update cycle.'
-        expires: '2026-06-30T23:59:59Z'
+        reason: 'Expo SDK 54 expects @sentry/react-native~7.2.0. Upgrading to 7.8.0+ resolves the advisory but breaks the iOS native build in this project. Keep ignored until Expo-compatible Sentry upgrade path is available.'
+        expires: '2026-09-30T23:59:59Z'
 
   SNYK-JS-ELLIPTIC-8187303:
     - '*':
