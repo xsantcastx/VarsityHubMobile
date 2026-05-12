@@ -113,9 +113,17 @@ export default function EventApprovalsScreen() {
     event_id?: string;
     action?: 'approve' | 'reject';
     review_kind?: 'event' | 'game';
+    from?: string;
+    fallback?: string;
   }>();
   const colorScheme = useColorScheme() ?? 'light';
   const C = Colors[colorScheme];
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : params.from === 'discover-quick-actions'
+        ? '/(tabs)/discover'
+        : '/(tabs)/discover';
 
   // Section 1 — Pitched Events
   const [events, setEvents] = useState<PendingEvent[]>([]);
@@ -636,9 +644,9 @@ export default function EventApprovalsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Approvals', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
+      <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
+        <Stack.Screen options={{ title: 'Approvals', headerShown: true, headerLeft: () => (
+            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color="#007AFF" />
             </Pressable>
           ) }} />

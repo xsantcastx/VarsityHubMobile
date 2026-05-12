@@ -1,13 +1,14 @@
 import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { handleCoachAccessError } from '@/utils/coachAccess';
-import { safeGoBack } from '@/utils/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { goBackToTrackedRoute } from '@/utils/navigation';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -89,7 +90,19 @@ function ManageSeasonScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ teamId?: string }>();
+  const params = useLocalSearchParams<{ teamId?: string; from?: string; fallback?: string }>();
+  const navHistory = useContext(NavigationHistoryContext);
+  const href = useUnstableGlobalHref();
+  const currentHref = typeof href === 'string' ? href : null;
+  const backFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : params.from === 'discover-quick-actions'
+        ? '/(tabs)/discover'
+        : undefined;
+  const handleBack = useCallback(() => {
+    goBackToTrackedRoute(router, currentHref, navHistory?.getFallbackRoute?.(), backFallback);
+  }, [backFallback, currentHref, navHistory, router]);
 
   // Modal state for universal action modal
   const [actionModal, setActionModal] = useState<{
@@ -145,15 +158,24 @@ function ManageSeasonScreen() {
       if (normalized.length > 0) {
         setTeamSelectorOpen(true);
       } else {
-        setActionModal({
-          visible: true,
-          title: 'No Managed Teams',
-          message: "You don't manage any teams yet. Create one to continue.",
-          options: [
-            { label: 'Create Team', onPress: () => router.push('/create-team') },
-            { label: 'Close', onPress: () => {} },
-          ],
-        });
+          setActionModal({
+            visible: true,
+            title: 'No Managed Teams',
+            message: "You don't manage any teams yet. Create one to continue.",
+            options: [
+              {
+                label: 'Create Team',
+                onPress: () =>
+                  router.push({
+                    pathname: '/create-team',
+                    params: {
+                      fallback: backFallback ?? '/organization?tab=teams',
+                    },
+                  } as any),
+              },
+              { label: 'Close', onPress: () => {} },
+            ],
+          });
       }
     } catch (error) {
       if (handleCoachAccessError(router, error, 'managing your season')) {
@@ -163,7 +185,7 @@ function ManageSeasonScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.teamId, router]);
+  }, [backFallback, params.teamId, router]);
 
   const loadGames = useCallback(async () => {
     try {
@@ -1314,7 +1336,7 @@ function ManageSeasonScreen() {
         <View
           style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
         >
-          <Pressable onPress={() => safeGoBack(router)} style={{ padding: 8 }}>
+          <Pressable onPress={handleBack} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Pressable onPress={() => setTeamSelectorOpen(true)} style={{ flex: 1 }}>

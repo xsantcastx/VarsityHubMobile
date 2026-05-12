@@ -6,7 +6,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -77,6 +77,7 @@ const formatPlanDisplay = (tier?: string | null) => {
 function CreateTeamScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
+  const params = useLocalSearchParams<{ fallback?: string; orgId?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
@@ -113,6 +114,14 @@ function CreateTeamScreen() {
     teamLimits && typeof teamLimits.remaining === 'number'
       ? Math.max(teamLimits.remaining, 0)
       : null;
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : selectedOrgId
+        ? `/organization?id=${encodeURIComponent(selectedOrgId)}&tab=teams`
+        : typeof params.orgId === 'string' && params.orgId.trim().length > 0
+          ? `/organization?id=${encodeURIComponent(params.orgId.trim())}&tab=teams`
+          : '/organization?tab=teams';
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
   
@@ -555,7 +564,7 @@ function CreateTeamScreen() {
               <Pressable
                 key="header-back"
                 style={styles.backButton}
-                onPress={() => safeGoBack(router)}
+                onPress={() => safeGoBack(router, explicitFallback)}
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
                 children={[

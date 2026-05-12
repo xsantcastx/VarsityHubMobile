@@ -28,9 +28,15 @@ const AUTO_DESC_PATTERN = /^(School|Organization)( in .+)?$/;
 export default function EditOrganizationScreen() {
   const { user: _user } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : params.id
+        ? `/organization?id=${encodeURIComponent(params.id)}&tab=overview`
+        : '/organization?tab=overview';
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,7 +63,7 @@ export default function EditOrganizationScreen() {
       // The detail payload now carries the canonical org access flags.
       if (!org?.can_edit && !org?.is_owner) {
         Alert.alert('Error', 'Only the organization owner can edit this organization.');
-        safeGoBack(router);
+        safeGoBack(router, explicitFallback);
         return;
       }
       setHasPermission(true);
@@ -75,11 +81,11 @@ export default function EditOrganizationScreen() {
       setBackgroundUrl(org.background_url || null);
     } catch {
       Alert.alert('Error', 'Failed to load organization.');
-      safeGoBack(router);
+      safeGoBack(router, explicitFallback);
     } finally {
       setLoading(false);
     }
-  }, [params.id, router]);
+  }, [explicitFallback, params.id, router]);
 
   useEffect(() => { void loadOrg(); }, [loadOrg]);
 
@@ -143,7 +149,7 @@ export default function EditOrganizationScreen() {
         zip_code: zipCode.trim() || null,
       });
       Alert.alert('Saved', 'Organization updated successfully.');
-      safeGoBack(router);
+      safeGoBack(router, explicitFallback);
     } catch (e: any) {
       const msg = e?.data?.error || e?.message || 'Failed to save changes.';
       Alert.alert('Error', msg);
@@ -206,7 +212,7 @@ export default function EditOrganizationScreen() {
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => safeGoBack(router)} hitSlop={12}>
+        <Pressable onPress={() => safeGoBack(router, explicitFallback)} hitSlop={12}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Organization</Text>

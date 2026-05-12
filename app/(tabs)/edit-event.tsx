@@ -20,9 +20,15 @@ import { Event } from '@/api/entities';
 export default function EditEventScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, fallback } = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  const backFallback =
+    typeof fallback === 'string' && fallback.trim().startsWith('/')
+      ? fallback.trim()
+      : id
+        ? `/event-detail?id=${encodeURIComponent(String(id))}`
+        : undefined;
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -39,12 +45,12 @@ export default function EditEventScreen() {
       const data = await Event.get(String(id));
       if (!data || typeof data.id === 'undefined') {
         Alert.alert('Error', 'Event not found.');
-        safeGoBack(router);
+        safeGoBack(router, backFallback);
         return;
       }
       if (!data.can_cancel) {
         Alert.alert('Access Denied', 'You do not have permission to edit this event.');
-        safeGoBack(router);
+        safeGoBack(router, backFallback);
         return;
       }
       setTitle(data.title || '');
@@ -66,11 +72,11 @@ export default function EditEventScreen() {
       }
       if (__DEV__) console.error('[edit-event] Failed to load event:', e);
       Alert.alert('Error', 'Failed to load event data.');
-      safeGoBack(router);
+      safeGoBack(router, backFallback);
     } finally {
       setLoading(false);
     }
-  }, [canAccessCoachTools, coachLoading, id, router]);
+  }, [backFallback, canAccessCoachTools, coachLoading, id, router]);
 
   useEffect(() => {
     if (coachLoading || !canAccessCoachTools) return;
@@ -219,7 +225,7 @@ export default function EditEventScreen() {
 
       await Event.update(String(id), updateData);
       Alert.alert('Success', 'Event updated successfully.', [
-        { text: 'OK', onPress: () => safeGoBack(router) },
+        { text: 'OK', onPress: () => safeGoBack(router, backFallback) },
       ]);
     } catch (e: any) {
       if (handleCoachAccessError(router, e, 'editing events')) {
@@ -256,7 +262,7 @@ export default function EditEventScreen() {
         >
           {/* Header */}
           <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
-            <Pressable style={styles.backButton} onPress={() => safeGoBack(router)}>
+            <Pressable style={styles.backButton} onPress={() => safeGoBack(router, backFallback)}>
               <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
             <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Edit Event</Text>

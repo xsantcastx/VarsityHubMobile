@@ -461,8 +461,11 @@ export default function EventDetailScreen() {
                     ]}
                     onPress={() =>
                       router.push({
-                        pathname: '/(tabs)/edit-event',
-                        params: { id: String(event.id) },
+                        pathname: '/edit-event',
+                        params: {
+                          id: String(event.id),
+                          fallback: `/event-detail?id=${encodeURIComponent(String(event.id))}`,
+                        },
                       })
                     }
                   >
