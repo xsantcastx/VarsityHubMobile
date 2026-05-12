@@ -3,10 +3,11 @@ export default {
   resolver: '<rootDir>/jest.resolver.cjs',
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', {
+    '^.+\\.(ts|tsx|js)$': ['ts-jest', {
       useESM: true,
       tsconfig: {
         isolatedModules: true,
+        allowJs: true,
         module: 'ESNext',
         moduleResolution: 'node',
         esModuleInterop: true,

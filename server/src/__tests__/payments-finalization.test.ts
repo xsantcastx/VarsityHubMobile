@@ -3,6 +3,10 @@ import bcrypt from 'bcrypt';
 
 let prisma: any;
 let runFinalizeFromSession: (session: any) => Promise<void>;
+let syncStripeSubscriptionState: (
+  subscription: any,
+  source?: 'subscription.updated' | 'subscription.finalize'
+) => Promise<any>;
 let finalizeAppleSubscriptionPurchase: (params: {
   userId: string;
   userEmail?: string | null;
@@ -40,6 +44,7 @@ describeDb('Checkout session finalization', () => {
     const paymentsModule = await import('../lib/paymentInternals.js');
     const overnightTasksModule = await import('../cron/overnightTasks.js');
     runFinalizeFromSession = paymentsModule.runFinalizeFromSession;
+    syncStripeSubscriptionState = paymentsModule.syncStripeSubscriptionState;
     finalizeAppleSubscriptionPurchase = paymentsModule.finalizeAppleSubscriptionPurchase;
     finalizeAppleAdPurchase = paymentsModule.finalizeAppleAdPurchase;
     releaseAdInventoryAfterSlotFullRefund = paymentsModule.releaseAdInventoryAfterSlotFullRefund;
@@ -174,6 +179,84 @@ describeDb('Checkout session finalization', () => {
     expect(prefs.payment_pending).toBe(false);
     expect(tx?.status).toBe('COMPLETED');
     expect(tx?.stripe_payment_intent_id).toBe('pi_membership_finalize_test');
+  });
+
+  it('syncs an active Stripe subscription into user entitlements and completion state', async () => {
+    if (!dbReady) return;
+
+    const now = Date.now();
+    const subscriptionId = `sub_sync_finalize_${now}`;
+    const customerId = `cus_sync_finalize_${now}`;
+    createdSessionIds.push(subscriptionId);
+
+    const user = await prisma.user.create({
+      data: {
+        email: `sub-sync-${now}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Subscription Sync User',
+        email_verified: true,
+        approval_status: 'APPROVED',
+        stripe_customer_id: customerId,
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          pending_plan: 'legend',
+          payment_pending: true,
+          payment_approved: true,
+          onboarding_completed: true,
+        },
+      },
+    });
+    createdUserIds.push(user.id);
+
+    await prisma.transactionLog.create({
+      data: {
+        transaction_type: 'SUBSCRIPTION_PURCHASE',
+        status: 'PENDING',
+        stripe_session_id: subscriptionId,
+        user_id: user.id,
+        user_email: user.email,
+        subtotal_cents: 25000,
+        total_cents: 25000,
+        currency: 'usd',
+      },
+    });
+
+    const result = await syncStripeSubscriptionState({
+      id: subscriptionId,
+      customer: customerId,
+      status: 'active',
+      current_period_end: Math.floor(Date.now() / 1000) + 86400,
+      metadata: { plan: 'legend' },
+      items: {
+        data: [
+          {
+            price: {
+              id: 'inline_price_for_test',
+            },
+          },
+        ],
+      },
+    }, 'subscription.finalize');
+
+    const refreshedUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const tx = await prisma.transactionLog.findUnique({
+      where: { stripe_session_id: subscriptionId },
+    });
+
+    const prefs = (refreshedUser?.preferences && typeof refreshedUser.preferences === 'object')
+      ? refreshedUser.preferences as any
+      : {};
+
+    expect(result.entitlementActive).toBe(true);
+    expect(result.plan).toBe('legend');
+    expect(refreshedUser?.subscription_tier).toBe('pro');
+    expect(refreshedUser?.subscription_status).toBe('active');
+    expect(prefs.plan).toBe('legend');
+    expect(prefs.subscription_id).toBe(subscriptionId);
+    expect(prefs.payment_pending).toBe(false);
+    expect(tx?.status).toBe('COMPLETED');
+    expect(tx?.stripe_subscription_id).toBe(subscriptionId);
   });
 
   it('replays a pending Apple subscription purchase into a completed entitlement', async () => {

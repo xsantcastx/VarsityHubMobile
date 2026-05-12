@@ -822,6 +822,11 @@ function finalizePaymentSession(sessionId: string) {
   return httpPost('/payments/finalize-session', { session_id: sessionId });
 }
 
+function finalizeStripeSubscription(subscriptionId: string) {
+  invalidateMeCache();
+  return httpPost('/payments/finalize-subscription', { subscription_id: subscriptionId });
+}
+
 export const Payments = {
   configStatus: getPaymentsConfig,
   getConfig: getPaymentsConfig,
@@ -832,6 +837,7 @@ export const Subscriptions = {
   createCheckout: (plan: string, teamCount?: number) =>
     httpPost('/payments/checkout', { plan, team_count: teamCount }),
   finalizeSession: finalizePaymentSession,
+  finalizeSubscription: finalizeStripeSubscription,
   cancel: () => {
     invalidateMeCache();
     return httpPost('/payments/subscription/cancel', {});

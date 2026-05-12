@@ -40,8 +40,72 @@ let premiumAdUser: any;
 let premiumAdUserToken: string;
 let premiumUnonboardedAdUser: any;
 let premiumUnonboardedAdUserToken: string;
+let ownerManagedCoach: any;
+let ownerManagedCoachToken: string;
 let testOrg: any;
 let cleanupIds: { users: string[]; orgs: string[]; posts: string[]; teams: string[] };
+
+async function createOnboardingRegressionUser(
+  prismaClient: any,
+  org: { id: string; name: string },
+  overrides: Record<string, unknown>
+) {
+  const user = await prismaClient.user.create({
+    data: {
+      email: `critical-onboarding-${ts}-${Math.random()}@example.com`,
+      password_hash: await bcrypt.hash(PASSWORD, 10),
+      email_verified: true,
+      onboarding_completed: true,
+      date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+      approval_status: 'APPROVED',
+      preferences: {
+        role: 'coach',
+        plan: 'veteran',
+        onboarding_completed: true,
+        organization_id: org.id,
+        organization_name: org.name,
+      },
+      ...overrides,
+    },
+  });
+
+  cleanupIds.users.push(user.id);
+  return user;
+}
+
+async function completeOnboardingForUser(token: string) {
+  return request(app)
+    .post('/auth/me/complete-onboarding')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      role: 'coach',
+      affiliation: 'school',
+    });
+}
+
+async function getUserPrefsAndApproval(id: string) {
+  const userAfter = await prisma.user.findUnique({
+    where: { id },
+    select: { preferences: true, approval_status: true },
+  });
+
+  return {
+    prefs: (userAfter?.preferences as any) || {},
+    approvalStatus: userAfter?.approval_status,
+  };
+}
+
+async function runOnboardingRegression(
+  overrides: Record<string, unknown>,
+  assertion: (result: { prefs: Record<string, unknown>; approvalStatus: unknown }) => void
+) {
+  const user = await createOnboardingRegressionUser(prisma, testOrg, overrides);
+  const token = signJwt({ id: user.id });
+  const res = await completeOnboardingForUser(token);
+
+  expect(res.statusCode).toEqual(200);
+  assertion(await getUserPrefsAndApproval(user.id));
+}
 
 describeDb('Critical Server Flows', () => {
   beforeAll(async () => {
@@ -150,6 +214,28 @@ describeDb('Critical Server Flows', () => {
     });
     premiumUnonboardedAdUserToken = signJwt({ id: premiumUnonboardedAdUser.id });
     cleanupIds.users.push(premiumUnonboardedAdUser.id);
+
+    // 7. Approved coach covered by a league owner — must never self-purchase a subscription.
+    ownerManagedCoach = await prisma.user.create({
+      data: {
+        email: `critical-owner-managed-${ts}@example.com`,
+        password_hash: hash,
+        display_name: 'Owner Managed Coach',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        paid_by_owner: true,
+        preferences: {
+          role: 'coach',
+          plan: 'veteran',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
+      },
+    });
+    ownerManagedCoachToken = signJwt({ id: ownerManagedCoach.id });
+    cleanupIds.users.push(ownerManagedCoach.id);
 
     // Organization for the approved coach
     testOrg = await prisma.organization.create({
@@ -421,23 +507,16 @@ describeDb('Critical Server Flows', () => {
 
   describe('Onboarding / Payment Regression Guards', () => {
     it('should preserve an existing paid plan on stale complete-onboarding retries', async () => {
-      const user = await prisma.user.create({
-        data: {
-          email: `critical-plan-${ts}-${Math.random()}@example.com`,
-          password_hash: await bcrypt.hash(PASSWORD, 10),
+      await runOnboardingRegression(
+        {
           display_name: 'Plan Preserve Coach',
           username: `planpreserve${Date.now()}`.slice(0, 20),
-          email_verified: true,
           role: 'coach',
-          onboarding_completed: true,
-          // COPPA gate in /me/complete-onboarding requires a DOB on file.
-          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           // Mirror plan to the canonical column — getSelectedPlan reads
           // the column first; the JSON-only `preferences.plan: 'veteran'`
           // would be invisible to complete-onboarding's preserve-paid-plan
           // logic, which would default the user back to rookie.
           plan: 'veteran',
-          approval_status: 'APPROVED',
           preferences: {
             role: 'coach',
             plan: 'veteran',
@@ -446,43 +525,19 @@ describeDb('Critical Server Flows', () => {
             organization_name: testOrg.name,
           },
         },
-      });
-      cleanupIds.users.push(user.id);
-      const token = signJwt({ id: user.id });
-
-      const res = await request(app)
-        .post('/auth/me/complete-onboarding')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          role: 'coach',
-          affiliation: 'school',
-        });
-
-      expect(res.statusCode).toEqual(200);
-
-      const userAfter = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { preferences: true, approval_status: true },
-      });
-
-      const prefs = (userAfter?.preferences as any) || {};
-      expect(prefs.plan).toBe('veteran');
-      expect(userAfter?.approval_status).toBe('APPROVED');
+        ({ prefs, approvalStatus }) => {
+          expect(prefs.plan).toBe('veteran');
+          expect(approvalStatus).toBe('APPROVED');
+        }
+      );
     });
 
     it('should not downgrade APPROVED status when onboarding re-submits role=coach', async () => {
-      const user = await prisma.user.create({
-        data: {
-          email: `critical-approved-drift-${ts}-${Math.random()}@example.com`,
-          password_hash: await bcrypt.hash(PASSWORD, 10),
+      await runOnboardingRegression(
+        {
           display_name: 'Approved Drift Coach',
           username: `approveddrift${Date.now()}`.slice(0, 20),
-          email_verified: true,
           role: 'fan',
-          onboarding_completed: true,
-          // COPPA gate in /me/complete-onboarding requires a DOB on file.
-          date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
-          approval_status: 'APPROVED',
           preferences: {
             role: 'fan',
             plan: 'veteran',
@@ -491,28 +546,11 @@ describeDb('Critical Server Flows', () => {
             organization_name: testOrg.name,
           },
         },
-      });
-      cleanupIds.users.push(user.id);
-      const token = signJwt({ id: user.id });
-
-      const res = await request(app)
-        .post('/auth/me/complete-onboarding')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          role: 'coach',
-          affiliation: 'school',
-        });
-
-      expect(res.statusCode).toEqual(200);
-
-      const userAfter = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { preferences: true, approval_status: true },
-      });
-
-      const prefs = (userAfter?.preferences as any) || {};
-      expect(prefs.role).toBe('coach');
-      expect(userAfter?.approval_status).toBe('APPROVED');
+        ({ prefs, approvalStatus }) => {
+          expect(prefs.role).toBe('coach');
+          expect(approvalStatus).toBe('APPROVED');
+        }
+      );
     });
 
     it('should clear payment_pending and pending_plan when skipping payment', async () => {
@@ -573,6 +611,38 @@ describeDb('Critical Server Flows', () => {
   // ─── 6. Error Response Shape Consistency ───────────────────────────────────
 
   describe('Ad Booking Access', () => {
+    const expectPaymentSheetAllowed = async (
+      adData: Record<string, unknown>,
+      disallowedError: string,
+      { cleanupReservations = false }: { cleanupReservations?: boolean } = {}
+    ) => {
+      const ad = await prisma.ad.create({
+        data: {
+          user_id: onboardedUser.id,
+          target_url: 'https://example.com',
+          target_zip_code: '10001',
+          radius: 9,
+          payment_status: 'unpaid',
+          ...adData,
+        },
+      });
+
+      try {
+        const res = await request(app)
+          .post('/payments/create-payment-sheet')
+          .set('Authorization', `Bearer ${onboardedToken}`)
+          .send({ ad_id: ad.id, dates: ['2035-01-02'] });
+
+        expect(res.statusCode).not.toEqual(403);
+        expect(String(res.body?.error || '')).not.toBe(disallowedError);
+      } finally {
+        if (cleanupReservations) {
+          await prisma.adReservation.deleteMany({ where: { ad_id: ad.id } }).catch(() => {});
+        }
+        await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
+      }
+    };
+
     it('should allow rookie/free users to create ad drafts', async () => {
       const res = await request(app)
         .post('/ads')
@@ -651,62 +721,30 @@ describeDb('Critical Server Flows', () => {
     });
 
     it('should allow rookie/free users to initiate payment on existing approved ads', async () => {
-      const ad = await prisma.ad.create({
-        data: {
-          user_id: onboardedUser.id,
+      await expectPaymentSheetAllowed(
+        {
           contact_name: 'Free User',
           contact_email: onboardedUser.email,
           business_name: 'Legacy Draft Biz',
           banner_url: 'https://example.com/banner-legacy.jpg',
-          target_url: 'https://example.com',
-          target_zip_code: '10001',
-          radius: 9,
           status: 'approved',
-          payment_status: 'unpaid',
         },
-      });
-
-      try {
-        const res = await request(app)
-          .post('/payments/create-payment-sheet')
-          .set('Authorization', `Bearer ${onboardedToken}`)
-          .send({ ad_id: ad.id, dates: ['2035-01-02'] });
-
-        expect(res.statusCode).not.toEqual(403);
-        expect(String(res.body?.error || '')).not.toBe('PLAN_UPGRADE_REQUIRED');
-      } finally {
-        await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
-      }
+        'PLAN_UPGRADE_REQUIRED'
+      );
     });
 
     it('should allow archived but previously approved ads to be booked again', async () => {
-      const ad = await prisma.ad.create({
-        data: {
-          user_id: onboardedUser.id,
+      await expectPaymentSheetAllowed(
+        {
           contact_name: 'Archived User',
           contact_email: onboardedUser.email,
           business_name: 'Archived Approved Biz',
           banner_url: 'https://example.com/banner-archived.jpg',
-          target_url: 'https://example.com',
-          target_zip_code: '10001',
-          radius: 9,
           status: 'archived',
-          payment_status: 'unpaid',
         },
-      });
-
-      try {
-        const res = await request(app)
-          .post('/payments/create-payment-sheet')
-          .set('Authorization', `Bearer ${onboardedToken}`)
-          .send({ ad_id: ad.id, dates: ['2035-01-02'] });
-
-        expect(res.statusCode).not.toEqual(403);
-        expect(String(res.body?.error || '')).not.toBe('APPROVAL_REQUIRED');
-      } finally {
-        await prisma.adReservation.deleteMany({ where: { ad_id: ad.id } }).catch(() => {});
-        await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
-      }
+        'APPROVAL_REQUIRED',
+        { cleanupReservations: true }
+      );
     });
 
     it('should return an authoritative ad quote that matches server tax rules', async () => {
@@ -835,6 +873,92 @@ describeDb('Critical Server Flows', () => {
         await prisma.adReservation.deleteMany({ where: { ad_id: ad.id } }).catch(() => {});
         await prisma.ad.delete({ where: { id: ad.id } }).catch(() => {});
       }
+    });
+  });
+
+  describe('Owner-managed subscription billing', () => {
+    it('blocks paid_by_owner coaches from starting legacy subscribe checkout', async () => {
+      const res = await request(app)
+        .post('/payments/subscribe')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({ plan: 'legend' });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
+    });
+
+    it('blocks paid_by_owner coaches from creating checkout sessions directly', async () => {
+      const res = await request(app)
+        .post('/payments/checkout')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({ plan: 'legend' });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
+    });
+
+    it('blocks paid_by_owner coaches from opening the subscription payment sheet', async () => {
+      const res = await request(app)
+        .post('/payments/create-payment-sheet')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({ plan: 'veteran' });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
+    });
+
+    it('blocks paid_by_owner coaches from verifying Apple subscription receipts directly', async () => {
+      const res = await request(app)
+        .post('/payments/apple/verify-receipt')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({ jws: 'fake-jws', productId: 'MIDTIER' });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
+    });
+
+    it('blocks paid_by_owner coaches from verifying Google purchases directly', async () => {
+      const res = await request(app)
+        .post('/payments/google/verify-purchase')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({
+          purchase_token: 'purchase_token_for_owner_managed_test_12345',
+          product_id: 'MIDTIER',
+          package_name: 'com.varsityhub.varsityhub',
+        });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
+    });
+
+    it('blocks paid_by_owner coaches from cancelling subscriptions directly', async () => {
+      const res = await request(app)
+        .post('/payments/subscription/cancel')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({});
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
+    });
+
+    it('blocks paid_by_owner coaches from resuming subscriptions directly', async () => {
+      const res = await request(app)
+        .post('/payments/subscription/resume')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({});
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
+    });
+
+    it('blocks paid_by_owner coaches from changing subscription quantity directly', async () => {
+      const res = await request(app)
+        .post('/payments/update-subscription-quantity')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .send({ team_count: 4 });
+
+      expect(res.statusCode).toEqual(403);
+      expect(res.body.error).toMatch(/league owner manages this subscription/i);
     });
   });
 

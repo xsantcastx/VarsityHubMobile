@@ -6,21 +6,13 @@ import { useVHubIAP } from '@/hooks/useIAP';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Linking,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
 import { getCanonicalBillingState } from '@/utils/billingState';
+import { openExternalUrl } from '@/utils/openExternalUrl';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { usePaymentSheet } from '@/utils/stripe';
 
@@ -58,13 +50,13 @@ function ManageSubscription() {
   }
 
   async function finalizeWithRetry(
-    sessionId: string,
+    subscriptionId: string,
     attempts: number = 5,
     delayMs: number = 2000
   ) {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
-        const res = (await Subscriptions.finalizeSession(sessionId)) as FinalizeResponse;
+        const res = (await Subscriptions.finalizeSubscription(subscriptionId)) as FinalizeResponse;
         if (!res?.pending) return true;
       } catch (err) {
         if (__DEV__) console.warn('Finalize session attempt failed', err);
@@ -240,7 +232,7 @@ function ManageSubscription() {
             Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           return;
         }
-        // Payment succeeded — try to finalize
+        // Payment succeeded — confirm the Stripe subscription server-side
         if (res.subscriptionId) {
           captureBreadcrumb('Subscription finalize retry started', 'payments.subscription', {
             tier: targetPlan,
@@ -443,7 +435,10 @@ function ManageSubscription() {
                   {isIOS ? (
                     <Button
                       onPress={() =>
-                        Linking.openURL('https://apps.apple.com/account/subscriptions')
+                        void openExternalUrl('https://apps.apple.com/account/subscriptions', {
+                          context: 'manage_subscription_app_store_link',
+                          errorMessage: 'Unable to open App Store subscriptions right now.',
+                        })
                       }
                       variant="outline"
                     >
@@ -452,7 +447,13 @@ function ManageSubscription() {
                   ) : Platform.OS === 'android' ? (
                     <Button
                       onPress={() =>
-                        Linking.openURL('https://play.google.com/store/account/subscriptions')
+                        void openExternalUrl(
+                          'https://play.google.com/store/account/subscriptions',
+                          {
+                            context: 'manage_subscription_google_play_link',
+                            errorMessage: 'Unable to open Google Play subscriptions right now.',
+                          }
+                        )
                       }
                       variant="outline"
                     >

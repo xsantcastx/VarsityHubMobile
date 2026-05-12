@@ -1,6 +1,6 @@
 import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import { useExistingSessionActions } from '@/hooks/useExistingSessionActions';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -19,6 +20,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { captureException } from '@/utils/sentry';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
+import { openExternalUrl } from '@/utils/openExternalUrl';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 import { getOAuthExistingAccountMessage } from '@/utils/oauthErrors';
 import { Ionicons } from '@expo/vector-icons';
@@ -67,46 +69,32 @@ export default function SignUpScreen() {
     }
 
     const pendingUrl = consumePendingDeepLink();
-    if (pendingUrl && handleDeepLink(pendingUrl)) {
-      return;
+    if (pendingUrl) {
+      if (handleDeepLink(pendingUrl)) {
+        return;
+      }
+      captureException(new Error('Pending deep link consumed but handleDeepLink returned false'), {
+        tags: { context: 'sign_up_pending_deeplink_unhandled' },
+        extra: { pendingUrl },
+      });
     }
 
     router.replace(landingRoute as any);
   };
 
-  const handleSignOutToContinue = async () => {
-    if (authBusy) return;
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      setSigningOut(false);
-    }
-  };
-
-  const handleContinueExistingSession = async () => {
-    if (authBusy) return;
-    setError(null);
-    try {
-      const authUser = user || (await checkAuth());
-      if (authUser) {
-        await routeCurrentUser(authUser);
-        return;
-      }
-      setError('Your saved session expired. You can create or sign in to an account now.');
-    } catch (e: any) {
-      const message = e?.message || '';
-      if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
-        setError(message);
-        return;
-      }
-      if (e?.status === 401) {
-        setError('Your saved session expired. You can create or sign in to an account now.');
-        return;
-      }
-      setError('We could not restore your saved session. You can create or sign in to an account now.');
-    }
-  };
+  const { handleSignOutToContinue, handleContinueExistingSession } =
+    useExistingSessionActions({
+      authBusy,
+      signOut,
+      setSigningOut,
+      setError,
+      user,
+      checkAuth,
+      routeCurrentUser,
+      expiredMessage: 'Your saved session expired. You can create or sign in to an account now.',
+      restoreFailedMessage:
+        'We could not restore your saved session. You can create or sign in to an account now.',
+    });
 
   const handlePasswordChange = (value: string) => {
     setPassword(value);
@@ -137,14 +125,22 @@ export default function SignUpScreen() {
           I agree to the{' '}
           <Text
             style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-            onPress={() => Linking.openURL(PUBLIC_TERMS_URL).catch(() => {})}
+            onPress={() =>
+              void openExternalUrl(PUBLIC_TERMS_URL, {
+                context: 'sign_up_terms_link',
+              })
+            }
           >
             Terms of Service
           </Text>
           {' '}and{' '}
           <Text
             style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
-            onPress={() => Linking.openURL(PUBLIC_PRIVACY_POLICY_URL).catch(() => {})}
+            onPress={() =>
+              void openExternalUrl(PUBLIC_PRIVACY_POLICY_URL, {
+                context: 'sign_up_privacy_link',
+              })
+            }
           >
             Privacy Policy
           </Text>

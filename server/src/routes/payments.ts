@@ -56,6 +56,7 @@ import {
   releaseAdInventoryAfterSlotFullRefundWithRetry,
   reserveAdSlots,
   runFinalizeFromSession,
+  syncStripeSubscriptionState,
   sendAdPaymentEmail,
 } from '../lib/paymentInternals.js';
 
@@ -91,6 +92,9 @@ const ADMIN_NOTIFY_EMAIL =
     .filter(Boolean)[0] || '';
 
 export const paymentsRouter = Router();
+
+const OWNER_MANAGED_SUBSCRIPTION_ERROR =
+  'Your league owner manages this subscription. Contact them if you need billing changes.';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.NODE_ENV === 'production') return console.log(...args);
@@ -171,11 +175,15 @@ async function enforceVerifiedForSubscriptionFlow(
   }
   const u = await prisma.user.findUnique({
     where: { id: req.user.id },
-    select: { id: true, email_verified: true, google_id: true, apple_id: true },
+    select: { id: true, email_verified: true, google_id: true, apple_id: true, paid_by_owner: true },
   });
   const verifiedUser = await ensureOAuthUserVerified(u);
   if (!verifiedUser?.email_verified) {
     res.status(403).json({ error: 'Email verification required' });
+    return false;
+  }
+  if (verifiedUser?.paid_by_owner === true) {
+    res.status(403).json({ error: OWNER_MANAGED_SUBSCRIPTION_ERROR });
     return false;
   }
   return true;
@@ -359,53 +367,11 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     }
     const customer = await stripe.customers.retrieve(subCustomerId).catch(() => null);
     const customerEmail = customer && !customer.deleted ? customer.email : null;
-
-    // Sync subscription state to database (independent of email availability)
-    const subUser = await prisma.user.findFirst({ where: { stripe_customer_id: subCustomerId } });
-    if (subUser) {
-      const priceId = subscription.items?.data?.[0]?.price?.id;
-      // Map Stripe price ID back to plan tier
-      let newTier: string = subUser.subscription_tier || 'free';
-      if (priceId === process.env.STRIPE_PRICE_VETERAN) newTier = 'veteran';
-      else if (priceId === process.env.STRIPE_PRICE_LEGEND) newTier = 'legend';
-
-      const statusMap: Record<string, string> = {
-        active: 'active', past_due: 'past_due', unpaid: 'unpaid',
-        canceled: 'canceled', incomplete: 'incomplete', incomplete_expired: 'canceled',
-        trialing: 'active', paused: 'paused',
-      };
-      const newStatus = statusMap[subscription.status] || subscription.status;
-
-      // Also update preferences.plan to keep it in sync with subscription_tier
-      const planFromTier = newTier === 'veteran' ? 'veteran' : newTier === 'legend' ? 'legend' : undefined;
-      const updateData: any = { subscription_tier: newTier, subscription_status: newStatus };
-      if (planFromTier && (newStatus === 'active')) {
-        const existingPrefs = (subUser.preferences && typeof subUser.preferences === 'object') ? (subUser.preferences as any) : {};
-        updateData.preferences = mergeBillingStateIntoPreferences(existingPrefs, {
-          plan: planFromTier as 'veteran' | 'legend',
-          pending_plan: null,
-          payment_pending: false,
-          payment_approved: false,
-        });
-        Object.assign(updateData, buildBillingStateColumns({
-          plan: planFromTier as 'veteran' | 'legend',
-          pending_plan: null,
-          payment_pending: false,
-          payment_approved: false,
-        }));
-      }
-
-      await prisma.user.update({
-        where: { id: subUser.id },
-        data: updateData,
-      });
-      await invalidateMeCacheForUser(subUser.id);
-      console.log(`[webhook] subscription.updated: user ${subUser.id} -> tier=${newTier} status=${newStatus} plan=${planFromTier || 'unchanged'}`);
-
-      // Update any PENDING transaction log created by PaymentSheet flow
-      updateTransactionStatus(subscription.id, 'COMPLETED', {
-        metadata: { event: 'subscription.updated', status: subscription.status },
-      }).catch(err => captureException(err as Error, { context: 'sub_paymentsheet_transaction_update' }));
+    const syncResult = await syncStripeSubscriptionState(subscription, 'subscription.updated');
+    if (syncResult.userId) {
+      console.log(
+        `[webhook] subscription.updated: user ${syncResult.userId} -> status=${syncResult.normalizedStatus} plan=${syncResult.plan || 'unchanged'} tx=${syncResult.transactionStatus}`
+      );
     }
 
     void customerEmail;
@@ -1033,10 +999,15 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       pending_plan: true,
       payment_pending: true,
       payment_approved: true,
+      paid_by_owner: true,
     },
   });
   const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
   const userRole = getCanonicalUserRole(user as any);
+
+  if (user?.paid_by_owner === true) {
+    throw membershipError(403, OWNER_MANAGED_SUBSCRIPTION_ERROR);
+  }
 
   // Block checkout if coach hasn't been approved yet
   if (userRole === 'coach' && user?.approval_status !== 'APPROVED') {
@@ -1564,6 +1535,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
       pending_plan: true,
       payment_pending: true,
       payment_approved: true,
+      paid_by_owner: true,
     },
   });
 
@@ -2066,8 +2038,11 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { preferences: true, stripe_customer_id: true },
+      select: { preferences: true, stripe_customer_id: true, paid_by_owner: true },
     });
+    if (user?.paid_by_owner === true) {
+      return res.status(403).json({ error: OWNER_MANAGED_SUBSCRIPTION_ERROR });
+    }
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
     const subscriptionId: string | undefined =
       typeof prefs.subscription_id === 'string' ? prefs.subscription_id.trim() : undefined;
@@ -2129,8 +2104,11 @@ paymentsRouter.post('/subscription/resume', expressPkg.json(), requireAuth as an
     const userId = req.user!.id;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { preferences: true, stripe_customer_id: true },
+      select: { preferences: true, stripe_customer_id: true, paid_by_owner: true },
     });
+    if (user?.paid_by_owner === true) {
+      return res.status(403).json({ error: OWNER_MANAGED_SUBSCRIPTION_ERROR });
+    }
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
     const subscriptionId: string | undefined =
       typeof prefs.subscription_id === 'string' ? prefs.subscription_id.trim() : undefined;
@@ -2208,8 +2186,12 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
         pending_plan: true,
         payment_pending: true,
         payment_approved: true,
+        paid_by_owner: true,
       },
     });
+    if (user?.paid_by_owner === true) {
+      return res.status(403).json({ error: OWNER_MANAGED_SUBSCRIPTION_ERROR });
+    }
     const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
     const plan = getCanonicalPlan(user as any);
     const subscriptionId = prefs.subscription_id;
@@ -2674,6 +2656,73 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
   }
 }));
 
+paymentsRouter.post('/finalize-subscription', expressPkg.json(), requireVerified as any, paymentLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  try {
+    const finalizeSchema = z.object({
+      subscription_id: z.string().min(1),
+    });
+    const parsed = finalizeSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
+    }
+
+    const { subscription_id } = parsed.data;
+    if (!subscription_id.startsWith('sub_')) {
+      return res.status(400).json({ error: 'Invalid subscription reference' });
+    }
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { stripe_customer_id: true, paid_by_owner: true },
+    });
+    if (user?.paid_by_owner === true) {
+      return res.status(403).json({ error: OWNER_MANAGED_SUBSCRIPTION_ERROR });
+    }
+    if (!user?.stripe_customer_id) {
+      return res.status(400).json({ error: 'No Stripe customer found for this user' });
+    }
+
+    let subscription: Stripe.Subscription;
+    try {
+      subscription = await stripe.subscriptions.retrieve(subscription_id);
+    } catch (err: any) {
+      return res.status(404).json({ error: 'Subscription not found in Stripe', detail: err?.message });
+    }
+
+    const subCustomerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id;
+    if (!subCustomerId || String(subCustomerId) !== String(user.stripe_customer_id)) {
+      console.warn('[payments] refusing to finalize subscription for non-owner', {
+        userId: req.user!.id,
+        subscriptionId: subscription_id,
+        subCustomerId,
+        stripeCustomerId: user.stripe_customer_id,
+      });
+      return res.status(403).json({ error: 'Subscription does not belong to this user' });
+    }
+
+    const syncResult = await syncStripeSubscriptionState(subscription, 'subscription.finalize');
+    if (!syncResult.entitlementActive) {
+      return res.status(202).json({
+        pending: true,
+        status: subscription.status,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      status: subscription.status,
+      plan: syncResult.plan,
+    });
+  } catch (err) {
+    console.error('Finalize-subscription error:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}));
+
 // Per-session lock to prevent concurrent finalization (H2 — client/webhook race).
 // Uses local promise dedupe + Redis distributed lock (when REDIS_URL is configured).
 const finalizeSessionLocks = new Map<string, Promise<void>>();
@@ -2892,6 +2941,13 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     }
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { preferences: true, email: true, paid_by_owner: true },
+    });
+    if (user?.paid_by_owner === true) {
+      return res.status(403).json({ error: OWNER_MANAGED_SUBSCRIPTION_ERROR });
+    }
 
     const plan = APPLE_PRODUCT_TO_PLAN[productId];
     if (!plan) {
@@ -2970,7 +3026,6 @@ paymentsRouter.post('/apple/verify-receipt', expressPkg.json(), requireVerified 
     if (existingApplePurchase?.user_id && existingApplePurchase.user_id !== userId) {
       return res.status(409).json({ error: 'Receipt already used by another account' });
     }
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
     const expiresAtIso = new Date(expiresMs).toISOString();
     await ensureApplePendingTransactionLog({
       transactionType: 'SUBSCRIPTION_PURCHASE',
@@ -3559,6 +3614,10 @@ const GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY = (process.env.GOOGLE_PLAY_SERVICE
 const GOOGLE_PLAY_STRICT_VERIFY = process.env.GOOGLE_PLAY_STRICT_VERIFY === '1';
 const GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK = process.env.GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK === '1';
 
+function getGooglePurchaseOrderId(purchaseToken: string): string {
+  return `google_purchase:${crypto.createHash('sha256').update(String(purchaseToken)).digest('hex')}`;
+}
+
 // M3: Fail loud in production if Google Play verification is not configured and fallback is enabled.
 // A missing env var + fallback flag = anyone can claim a purchase without store verification.
 if (process.env.NODE_ENV === 'production' && GOOGLE_PLAY_ALLOW_UNVERIFIED_FALLBACK) {
@@ -3656,6 +3715,13 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'AUTH_REQUIRED' });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { preferences: true, email: true, paid_by_owner: true },
+    });
+    if (user?.paid_by_owner === true) {
+      return res.status(403).json({ error: OWNER_MANAGED_SUBSCRIPTION_ERROR });
+    }
 
     const googlePurchaseSchema = z.object({
       purchase_token: z.string().min(16, 'Invalid purchase_token'),
@@ -3680,10 +3746,11 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
       }
     }
 
-    const orderId = String(purchase_token).substring(0, 40);
+    const orderId = getGooglePurchaseOrderId(purchase_token);
+    const legacyOrderId = String(purchase_token).substring(0, 40);
     const existingCompletedPurchase = await prisma.transactionLog.findFirst({
       where: {
-        order_id: orderId,
+        order_id: { in: [orderId, legacyOrderId] },
         transaction_type: 'SUBSCRIPTION_PURCHASE',
         status: 'COMPLETED',
       } as any,
@@ -3720,7 +3787,6 @@ paymentsRouter.post('/google/verify-purchase', expressPkg.json(), requireVerifie
     }
 
     // Update user's plan in database
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true, email: true } });
     const currentPrefs = (user?.preferences && typeof user.preferences === 'object') ? user.preferences as any : {};
 
     // Clear pending flags after successful payment (same as Apple flow)

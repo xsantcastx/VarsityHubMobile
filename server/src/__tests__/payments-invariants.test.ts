@@ -28,6 +28,14 @@ const appleNotifDedup = read('lib/appleNotificationDedup.ts');
 const billingLifecycle = read('lib/billingLifecycle.ts');
 const indexBoot = read('index.ts');
 const schema = readFileSync(join(process.cwd(), 'prisma', 'schema.prisma'), 'utf8');
+const paymentSuccessScreen = readFileSync(
+  join(process.cwd(), '..', 'app', 'payment-success.tsx'),
+  'utf8'
+);
+const manageSubscriptionScreen = readFileSync(
+  join(process.cwd(), '..', 'app', 'settings', 'manage-subscription.tsx'),
+  'utf8'
+);
 
 describe('payments & subscriptions — structural invariants', () => {
   // ──────────────────────────────────────────────────────────────────────
@@ -208,6 +216,62 @@ describe('payments & subscriptions — structural invariants', () => {
   describe('payment rate limiters', () => {
     it('payment router imports paymentLimiter middleware', () => {
       expect(payments).toMatch(/paymentLimiter/);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Payment success recovery
+  // ──────────────────────────────────────────────────────────────────────
+
+  describe('payment success recovery flow', () => {
+    it('re-verifies after account recovery by including the active auth identity in the attempt key', () => {
+      expect(paymentSuccessScreen).toMatch(/const authAttemptOwner = user\?\.id \? String\(user\.id\) : 'anonymous';/);
+      expect(paymentSuccessScreen).toMatch(/const attemptKey = `\$\{paymentType \|\| 'unknown'\}:\$\{rawSessionId\}:\$\{verificationAttempt\}:\$\{authAttemptOwner\}`;/);
+    });
+
+    it('fails closed when the payment deep link is missing a supported type', () => {
+      expect(paymentSuccessScreen).toMatch(/const paymentType = params\.type === 'ad' \|\| params\.type === 'subscription' \? params\.type : null;/);
+      expect(paymentSuccessScreen).toMatch(/if \(!paymentType\) \{/);
+      expect(paymentSuccessScreen).toMatch(/This payment link is invalid or incomplete/);
+    });
+  });
+
+  describe('payment sheet subscription confirmation flow', () => {
+    it('exposes a dedicated finalize-subscription endpoint for Stripe subscription ids', () => {
+      const block =
+        payments.match(/paymentsRouter\.post\(\s*'\/finalize-subscription'[\s\S]{0,2200}/)?.[0] || '';
+      expect(block).toMatch(/subscription_id:\s*z\.string\(\)\.min\(1\)/);
+      expect(block).toMatch(/subscription_id\.startsWith\('sub_'\)/);
+      expect(block).toMatch(/stripe\.subscriptions\.retrieve\(subscription_id\)/);
+      expect(block).toMatch(/syncStripeSubscriptionState\(subscription,\s*'subscription\.finalize'\)/);
+    });
+
+    it('manage-subscription confirms payment sheet subscriptions with finalizeSubscription, not finalizeSession', () => {
+      expect(manageSubscriptionScreen).toMatch(/Subscriptions\.finalizeSubscription\(subscriptionId\)/);
+      expect(manageSubscriptionScreen).not.toMatch(/Subscriptions\.finalizeSession\(subscriptionId\)/);
+    });
+
+    it('customer.subscription.updated uses the shared subscription sync helper', () => {
+      const block =
+        payments.match(/if \(event\.type === 'customer\.subscription\.updated'\) \{[\s\S]{0,1500}/)?.[0] || '';
+      expect(block).toMatch(/syncStripeSubscriptionState\(subscription,\s*'subscription\.updated'\)/);
+      expect(block).not.toMatch(/updateTransactionStatus\(subscription\.id,\s*'COMPLETED'/);
+    });
+  });
+
+  describe('Google Play purchase identity', () => {
+    it('hashes purchase tokens for order_id instead of truncating them', () => {
+      const block =
+        payments.match(/function getGooglePurchaseOrderId[\s\S]{0,400}/)?.[0] || '';
+      expect(block).toMatch(/crypto\.createHash\('sha256'\)/);
+      expect(block).toMatch(/google_purchase:/);
+    });
+
+    it('google purchase dedupe accepts hashed ids and legacy truncated ids during migration', () => {
+      const block =
+        payments.match(/const orderId = getGooglePurchaseOrderId\(purchase_token\);[\s\S]{0,500}/)?.[0] || '';
+      expect(block).toMatch(/const legacyOrderId = String\(purchase_token\)\.substring\(0, 40\);/);
+      expect(block).toMatch(/order_id:\s*\{\s*in:\s*\[orderId,\s*legacyOrderId\]\s*\}/);
     });
   });
 

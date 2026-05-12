@@ -44,8 +44,10 @@ function PaymentSuccessScreen() {
   const checkOpacity = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
 
-  const isAdPayment = params.type === 'ad';
-  const isSubscription = params.type === 'subscription';
+  const paymentType = params.type === 'ad' || params.type === 'subscription' ? params.type : null;
+  const isAdPayment = paymentType === 'ad';
+  const isSubscription = paymentType === 'subscription';
+  const authAttemptOwner = user?.id ? String(user.id) : 'anonymous';
   const maxAttempts = 5;       // subscription: 5 × 2s = 10s (down from 10 × 3s = 30s)
   const adMaxAttempts = 5;     // ad: 5 × 2s = 10s (down from 15 × 2s = 30s)
 
@@ -88,10 +90,22 @@ function PaymentSuccessScreen() {
     ]).start();
   };
 
+  const hasActivePremiumPlan = async () => {
+    const me = await User.me({ force: true });
+    const billing = getCanonicalBillingState(me);
+    return (
+      (billing.plan === 'veteran' || billing.plan === 'legend') &&
+      !billing.payment_pending &&
+      !billing.pending_plan
+    );
+  };
+
   const attemptKeyRef = useRef<string | null>(null);
   useEffect(() => {
     const rawSessionId = params.session_id?.trim() || '';
-    const attemptKey = `${params.type || 'unknown'}:${rawSessionId}:${verificationAttempt}`;
+    // Include the active auth identity so returning from sign-in recovery
+    // re-runs verification for the newly signed-in account.
+    const attemptKey = `${paymentType || 'unknown'}:${rawSessionId}:${verificationAttempt}:${authAttemptOwner}`;
     if (attemptKeyRef.current === attemptKey) return;
     attemptKeyRef.current = attemptKey;
 
@@ -99,6 +113,12 @@ function PaymentSuccessScreen() {
     const verify = async () => {
       try {
         setShowSignInAction(false);
+        if (!paymentType) {
+          if (!mounted) return;
+          setError('This payment link is invalid or incomplete. Please return to the app and try again.');
+          setLoading(false);
+          return;
+        }
         if (!params.session_id) {
           if (!mounted) return;
           setError('Payment session information is missing. If you completed payment, please contact support.');
@@ -137,14 +157,8 @@ function PaymentSuccessScreen() {
               return;
             }
           } else if (isSubscription) {
-            const me = await User.me({ force: true });
             if (!mounted) return;
-            const billing = getCanonicalBillingState(me);
-            if (
-              (billing.plan === 'veteran' || billing.plan === 'legend') &&
-              !billing.payment_pending &&
-              !billing.pending_plan
-            ) {
+            if (await hasActivePremiumPlan()) {
               showSuccessState();
               return;
             }
@@ -180,14 +194,8 @@ function PaymentSuccessScreen() {
           }
         } else {
           try {
-            const me = await User.me({ force: true });
             if (!mounted) return;
-            const billing = getCanonicalBillingState(me);
-            if (
-              (billing.plan === 'veteran' || billing.plan === 'legend') &&
-              !billing.payment_pending &&
-              !billing.pending_plan
-            ) {
+            if (await hasActivePremiumPlan()) {
               showSuccessState();
               return;
             }
@@ -233,7 +241,7 @@ function PaymentSuccessScreen() {
     void verify();
     return () => { mounted = false; clearRetry(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- checkOpacity and contentOpacity are Animated.Values (ref-like), adding them causes infinite loops
-  }, [params.session_id, params.type, isAdPayment, isSubscription, verificationAttempt, user]);
+  }, [params.session_id, paymentType, isAdPayment, isSubscription, verificationAttempt, authAttemptOwner]);
 
   const formatDate = (iso: string) => {
     try {
@@ -265,6 +273,19 @@ function PaymentSuccessScreen() {
         : adScheduleBucket === 'completed'
           ? { backgroundColor: '#F3F4F6', borderColor: '#D1D5DB', textColor: '#4B5563', label: 'COMPLETED' }
           : { backgroundColor: '#FEF3C7', borderColor: '#FCD34D', textColor: '#92400E', label: 'GOING LIVE' };
+
+  const SuccessInfoBox = ({ lines }: { lines: string[] }) => (
+    <View style={[styles.infoBox, { backgroundColor: colorScheme === 'dark' ? '#052e16' : '#F0FDF4' }]}>
+      {lines.map(line => (
+        <Text
+          key={line}
+          style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}
+        >
+          {line}
+        </Text>
+      ))}
+    </View>
+  );
 
   return (
     <>
@@ -391,21 +412,20 @@ function PaymentSuccessScreen() {
               {/* Ad payment with no details returned (webhook already processed) */}
               {isAdPayment && !adDetails && (
                 <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <View style={[styles.infoBox, { backgroundColor: colorScheme === 'dark' ? '#052e16' : '#F0FDF4' }]}>
-                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Ad reservation confirmed</Text>
-                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Dates are now reserved</Text>
-                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Your ad will go live on the scheduled dates</Text>
-                  </View>
+                  <SuccessInfoBox
+                    lines={[
+                      'Ad reservation confirmed',
+                      'Dates are now reserved',
+                      'Your ad will go live on the scheduled dates',
+                    ]}
+                  />
                 </View>
               )}
 
               {/* Subscription confirmed */}
               {isSubscription && (
                 <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <View style={[styles.infoBox, { backgroundColor: colorScheme === 'dark' ? '#052e16' : '#F0FDF4' }]}>
-                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Subscription active</Text>
-                    <Text style={[styles.infoText, { color: colorScheme === 'dark' ? '#86EFAC' : '#166534' }]}>Premium features unlocked</Text>
-                  </View>
+                  <SuccessInfoBox lines={['Subscription active', 'Premium features unlocked']} />
                 </View>
               )}
 

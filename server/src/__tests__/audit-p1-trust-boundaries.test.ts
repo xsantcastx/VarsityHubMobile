@@ -21,6 +21,8 @@
  *        target org, matching the create-path approval gate.
  *   #9 — PUT /auth/me mention rewrite uses parameterized executeRaw,
  *        not executeRawUnsafe, on the request path.
+ *   #10 — owner-managed subscriptions are blocked across every purchase
+ *         and mutation payment route, not just the primary checkout UI.
  */
 
 import { describe, expect, it } from '@jest/globals';
@@ -43,9 +45,8 @@ describe('audit P1 — trust-boundary regression guards', () => {
       const block =
         payments.match(/paymentsRouter\.post\(\s*'\/subscription\/cancel'[\s\S]{0,3500}/)?.[0] ||
         '';
-      expect(block).toMatch(
-        /select:\s*\{\s*preferences:\s*true,\s*stripe_customer_id:\s*true\s*\}/
-      );
+      expect(block).toMatch(/select:\s*\{[\s\S]*preferences:\s*true/);
+      expect(block).toMatch(/select:\s*\{[\s\S]*stripe_customer_id:\s*true/);
     });
 
     it('cancel retrieves the Stripe subscription and checks customer match before mutating', () => {
@@ -138,6 +139,49 @@ describe('audit P1 — trust-boundary regression guards', () => {
       expect(putMeBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Post'\)\)/);
       expect(putMeBlock).toMatch(/\$executeRaw\(mentionRewriteSql\('Comment'\)\)/);
       expect(putMeBlock).not.toMatch(/\$executeRawUnsafe/);
+    });
+  });
+
+  describe('#10 owner-managed subscriptions are blocked across payment routes', () => {
+    it('declares a shared owner-managed subscription error constant', () => {
+      expect(payments).toMatch(/const OWNER_MANAGED_SUBSCRIPTION_ERROR =/);
+    });
+
+    it('blocks owner-managed users in the shared subscription verification gate', () => {
+      const block =
+        payments.match(/async function enforceVerifiedForSubscriptionFlow[\s\S]{0,1200}/)?.[0] ||
+        '';
+      expect(block).toMatch(/paid_by_owner:\s*true/);
+      expect(block).toMatch(/verifiedUser\?\.paid_by_owner === true/);
+      expect(block).toMatch(/OWNER_MANAGED_SUBSCRIPTION_ERROR/);
+    });
+
+    it('keeps every subscription purchase and mutation route behind the owner-managed guard', () => {
+      const guardedRoutes = [
+        '/subscribe',
+        '/checkout',
+        '/create-payment-sheet',
+        '/finalize-subscription',
+        '/subscription/cancel',
+        '/subscription/resume',
+        '/update-subscription-quantity',
+        '/apple/verify-receipt',
+        '/google/verify-purchase',
+      ];
+
+      for (const route of guardedRoutes) {
+        const escapedRoute = route.replace(/\//g, '\\/');
+        const block =
+          payments.match(new RegExp(`paymentsRouter\\.post\\(\\s*'${escapedRoute}'[\\s\\S]{0,2500}`))?.[0] ||
+          '';
+        expect(block).toBeTruthy();
+        if (route === '/subscribe' || route === '/checkout' || route === '/create-payment-sheet') {
+          expect(block).toMatch(/enforceVerifiedForSubscriptionFlow|createMembershipCheckoutSession/);
+        } else {
+          expect(block).toMatch(/paid_by_owner:\s*true/);
+          expect(block).toMatch(/OWNER_MANAGED_SUBSCRIPTION_ERROR/);
+        }
+      }
     });
   });
 });

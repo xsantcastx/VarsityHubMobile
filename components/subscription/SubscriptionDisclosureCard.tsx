@@ -1,7 +1,8 @@
 import { Colors } from '@/constants/Colors';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { Plan, PLAN_DEFINITIONS, ROOKIE_TEAM_LIMIT } from '@/constants/plans';
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { openExternalUrl } from '@/utils/openExternalUrl';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 type Props = {
   colorScheme: 'light' | 'dark';
@@ -64,7 +65,11 @@ export function SubscriptionDisclosureCard({
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Open Terms of Use"
-          onPress={() => Linking.openURL(PUBLIC_TERMS_URL).catch(() => {})}
+          onPress={() =>
+            void openExternalUrl(PUBLIC_TERMS_URL, {
+              context: 'subscription_disclosure_terms_link',
+            })
+          }
         >
           <Text style={[styles.linkText, { color: theme.tint }]}>Terms of Use</Text>
         </Pressable>
@@ -72,7 +77,11 @@ export function SubscriptionDisclosureCard({
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Open Privacy Policy"
-          onPress={() => Linking.openURL(PUBLIC_PRIVACY_POLICY_URL).catch(() => {})}
+          onPress={() =>
+            void openExternalUrl(PUBLIC_PRIVACY_POLICY_URL, {
+              context: 'subscription_disclosure_privacy_link',
+            })
+          }
         >
           <Text style={[styles.linkText, { color: theme.tint }]}>Privacy Policy</Text>
         </Pressable>

@@ -20,13 +20,13 @@ import { useVHubIAP } from '@/hooks/useIAP';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { openExternalUrl } from '@/utils/openExternalUrl';
 import { usePaymentSheet } from '@/utils/stripe';
 import { useEffect, useState } from 'react';
 import { captureBreadcrumb } from '@/utils/sentry';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -749,12 +749,18 @@ function SubscriptionPaywallScreen() {
                   if (isProcessing) return;
                   setLoading(true);
                   try {
-                    const hadPurchases = await iapRestore();
+                    const restoreStatus = await iapRestore();
                     checkAuth().catch(() => {});
-                    if (hadPurchases) {
+                    if (restoreStatus === 'restored') {
                       Alert.alert('Restore Complete', 'Your subscription has been restored.', [
                         { text: 'OK', onPress: () => safeGoBack(router) },
                       ]);
+                    } else if (restoreStatus === 'failed') {
+                      Alert.alert(
+                        'Restore Failed',
+                        iapError ||
+                          'We found previous purchases, but could not restore your VarsityHub subscription.'
+                      );
                     } else {
                       Alert.alert(
                         'No Purchases Found',
@@ -781,7 +787,11 @@ function SubscriptionPaywallScreen() {
                 <Pressable
                   accessibilityRole="link"
                   accessibilityLabel="Open Terms of Service"
-                  onPress={() => Linking.openURL(PUBLIC_TERMS_URL).catch(() => {})}
+                  onPress={() =>
+                    void openExternalUrl(PUBLIC_TERMS_URL, {
+                      context: 'subscription_paywall_terms_link',
+                    })
+                  }
                 >
                   <Text style={[styles.legalLinkText, { color: theme.tint }]}>
                     Terms of Service
@@ -791,7 +801,11 @@ function SubscriptionPaywallScreen() {
                 <Pressable
                   accessibilityRole="link"
                   accessibilityLabel="Open Privacy Policy"
-                  onPress={() => Linking.openURL(PUBLIC_PRIVACY_POLICY_URL).catch(() => {})}
+                  onPress={() =>
+                    void openExternalUrl(PUBLIC_PRIVACY_POLICY_URL, {
+                      context: 'subscription_paywall_privacy_link',
+                    })
+                  }
                 >
                   <Text style={[styles.legalLinkText, { color: theme.tint }]}>Privacy Policy</Text>
                 </Pressable>

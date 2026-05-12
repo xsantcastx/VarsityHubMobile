@@ -149,6 +149,190 @@ async function sendSubscriptionEmail({
   void totalCents;
 }
 
+function resolvePlanFromStripeSubscription(subscription: Stripe.Subscription): 'veteran' | 'legend' | null {
+  const priceId = subscription.items?.data?.[0]?.price?.id;
+  if (priceId === process.env.STRIPE_PRICE_VETERAN) return 'veteran';
+  if (priceId === process.env.STRIPE_PRICE_LEGEND) return 'legend';
+
+  const metadataPlan =
+    typeof subscription.metadata?.plan === 'string' ? subscription.metadata.plan.trim().toLowerCase() : '';
+  if (metadataPlan === 'veteran' || metadataPlan === 'legend') return metadataPlan;
+
+  return null;
+}
+
+function mapStripeSubscriptionStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    active: 'active',
+    past_due: 'past_due',
+    unpaid: 'unpaid',
+    canceled: 'canceled',
+    incomplete: 'incomplete',
+    incomplete_expired: 'canceled',
+    trialing: 'active',
+    paused: 'paused',
+  };
+
+  return statusMap[status] || status;
+}
+
+function mapStripeSubscriptionTransactionStatus(
+  status: string
+): 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' {
+  if (status === 'active' || status === 'trialing') return 'COMPLETED';
+  if (status === 'canceled') return 'CANCELLED';
+  if (status === 'incomplete_expired') return 'FAILED';
+  return 'PENDING';
+}
+
+export async function syncStripeSubscriptionState(
+  subscription: Stripe.Subscription,
+  source: 'subscription.updated' | 'subscription.finalize' = 'subscription.updated'
+) {
+  const { updateTransactionStatus } = await getTransactionLoggerFns();
+  const subCustomerId =
+    typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id || null;
+
+  if (!subCustomerId) {
+    throw new Error('Missing customer ID');
+  }
+
+  const rawStatus = subscription.status || 'unknown';
+  const normalizedStatus = mapStripeSubscriptionStatus(rawStatus);
+  const transactionStatus = mapStripeSubscriptionTransactionStatus(rawStatus);
+  const resolvedPlan = resolvePlanFromStripeSubscription(subscription);
+  const entitlementActive = rawStatus === 'active' || rawStatus === 'trialing';
+
+  const subUser = await prisma.user.findFirst({
+    where: { stripe_customer_id: subCustomerId },
+    select: {
+      id: true,
+      email: true,
+      preferences: true,
+      subscription_tier: true,
+    },
+  });
+
+  if (!subUser) {
+    await updateTransactionStatus(subscription.id, transactionStatus, {
+      stripeSubscriptionId: subscription.id,
+      metadata: {
+        event: source,
+        status: rawStatus,
+        user_missing: true,
+      },
+    });
+    return {
+      userId: null,
+      plan: resolvedPlan,
+      normalizedStatus,
+      entitlementActive,
+      transactionStatus,
+    };
+  }
+
+  const existingPrefs =
+    subUser.preferences && typeof subUser.preferences === 'object'
+      ? (subUser.preferences as any)
+      : {};
+  const oldSubId =
+    typeof existingPrefs.subscription_id === 'string' ? existingPrefs.subscription_id : null;
+
+  const nextPrefsBase: any = {
+    ...existingPrefs,
+    stripe_customer_id: subCustomerId,
+    subscription_id: subscription.id,
+  };
+  if (subscription.current_period_end) {
+    nextPrefsBase.subscription_period_end = new Date(
+      Number(subscription.current_period_end) * 1000
+    ).toISOString();
+  } else {
+    delete nextPrefsBase.subscription_period_end;
+  }
+
+  const nextTier =
+    resolvedPlan === 'legend'
+      ? 'pro'
+      : resolvedPlan === 'veteran'
+        ? 'premium'
+        : subUser.subscription_tier || 'free';
+
+  const updateData: any = {
+    stripe_customer_id: subCustomerId,
+    preferences: nextPrefsBase,
+    subscription_tier: nextTier,
+    subscription_status: normalizedStatus,
+  };
+
+  if (entitlementActive && resolvedPlan) {
+    const {
+      pending_plan: _pp,
+      payment_approved: _pa,
+      join_request_pending: _jrp,
+      ...cleanPrefs
+    } = nextPrefsBase;
+    void _pp;
+    void _pa;
+    void _jrp;
+
+    const syncedPrefs = mergeBillingStateIntoPreferences(cleanPrefs, {
+      plan: resolvedPlan,
+      pending_plan: null,
+      payment_pending: false,
+      payment_approved: false,
+    });
+
+    updateData.preferences = syncedPrefs;
+    Object.assign(updateData, buildBillingStateColumns({
+      plan: resolvedPlan,
+      pending_plan: null,
+      payment_pending: false,
+      payment_approved: false,
+    }));
+
+    const maxTeams = getMaxTeamsForPlan(resolvedPlan);
+    updateData.max_teams = maxTeams ?? 999;
+  }
+
+  await prisma.user.update({
+    where: { id: subUser.id },
+    data: updateData,
+  });
+  await invalidateMeCacheForUser(subUser.id);
+
+  await updateTransactionStatus(subscription.id, transactionStatus, {
+    stripeSubscriptionId: subscription.id,
+    metadata: {
+      event: source,
+      status: rawStatus,
+      plan: resolvedPlan || undefined,
+    },
+  });
+
+  if (
+    entitlementActive &&
+    oldSubId &&
+    oldSubId !== subscription.id &&
+    String(oldSubId).startsWith('sub_')
+  ) {
+    try {
+      const stripe = await getStripe();
+      await stripe.subscriptions.cancel(String(oldSubId));
+    } catch {
+      // Ignore old subscription cancel failures after the replacement entitlement is active.
+    }
+  }
+
+  return {
+    userId: subUser.id,
+    plan: resolvedPlan,
+    normalizedStatus,
+    entitlementActive,
+    transactionStatus,
+  };
+}
+
 export async function getVeteranBillingSnapshot(
   userId: string,
   organizationId?: string | null

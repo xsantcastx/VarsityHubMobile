@@ -50,6 +50,8 @@ const PLAN_SKUS: Record<'veteran' | 'legend', string[]> = {
 };
 const ALL_SKUS = Array.from(new Set([...PLAN_SKUS.veteran, ...PLAN_SKUS.legend]));
 
+export type RestoreStatus = 'restored' | 'not_found' | 'failed';
+
 export function useVHubIAP() {
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -329,8 +331,8 @@ export function useVHubIAP() {
     [subscriptions]
   );
 
-  const restore = useCallback(async (): Promise<boolean> => {
-    if (isExpoGo || (!isIOS && !isAndroid)) return false;
+  const restore = useCallback(async (): Promise<RestoreStatus> => {
+    if (isExpoGo || (!isIOS && !isAndroid)) return 'failed';
     setPurchasing(true);
     setError(null);
     try {
@@ -340,6 +342,7 @@ export function useVHubIAP() {
       const ourSubs = subs.filter((p: { productId?: string }) =>
         PLAN_SKUS.veteran.includes(p.productId ?? '') || PLAN_SKUS.legend.includes(p.productId ?? '')
       );
+      let restoredCount = 0;
       for (const p of ourSubs) {
         try {
           if (isIOS) {
@@ -359,17 +362,32 @@ export function useVHubIAP() {
               });
             }
           }
+          restoredCount += 1;
         } catch (e) {
           if (__DEV__) console.warn('[useVHubIAP] Restore verify failed for', p.productId, e);
         }
       }
+      if (ourSubs.length > 0 && restoredCount === 0) {
+        const restoreError =
+          'We found previous purchases, but could not restore your VarsityHub subscription.';
+        captureBreadcrumb('Subscription restore found purchases without entitlement recovery', 'payments.subscription', {
+          purchase_count: ourSubs.length,
+        }, 'warning');
+        setError(restoreError);
+      } else {
+        captureBreadcrumb('Subscription restore completed', 'payments.subscription', {
+          purchase_count: ourSubs.length,
+          restored_count: restoredCount,
+        });
+      }
       setPurchasing(false);
-      return ourSubs.length > 0;
+      if (restoredCount > 0) return 'restored';
+      return ourSubs.length > 0 ? 'failed' : 'not_found';
     } catch (err: unknown) {
       if (__DEV__) console.warn('[useVHubIAP] restorePurchases failed:', err);
       setError(err instanceof Error ? err.message : 'Restore failed');
       setPurchasing(false);
-      return false;
+      return 'failed';
     }
   }, []);
 
