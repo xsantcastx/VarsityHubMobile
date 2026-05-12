@@ -52,6 +52,7 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
   const startedAt = Date.now();
   const pendingCutoff = new Date(Date.now() - PENDING_STALE_THRESHOLD_MIN * 60 * 1000);
   const dryspellCutoff = new Date(Date.now() - NOTIFICATION_DRYSPELL_HOURS * 60 * 60 * 1000);
+  const recentSubscriptionActivityCutoff = dryspellCutoff;
   const paymentInternals = await import('./paymentInternals.js');
 
   // Recover stale, locally-visible Apple purchases. Excludes APPLE_S2S_NOTIFICATION
@@ -206,7 +207,15 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
     },
   });
 
-  const notificationDrySpell = s2sCount === 0;
+  const recentAppleSubscriptionActivity = await prisma.transactionLog.count({
+    where: {
+      transaction_type: 'SUBSCRIPTION_PURCHASE',
+      created_at: { gte: recentSubscriptionActivityCutoff },
+      apple_transaction_id: { not: null },
+    },
+  });
+
+  const notificationDrySpell = s2sCount === 0 && recentAppleSubscriptionActivity > 0;
   if (notificationDrySpell) {
     captureMessage(
       `No Apple S2S notifications received in last ${NOTIFICATION_DRYSPELL_HOURS}h — webhook URL may be misconfigured`,
@@ -215,6 +224,7 @@ export async function reconcileAppleIapOrphans(): Promise<AppleIapReconciliation
         context: 'apple_iap_reconciliation_notification_dryspell',
         lookback_hours: NOTIFICATION_DRYSPELL_HOURS,
         notifications_seen: s2sCount,
+        recent_apple_subscription_activity: recentAppleSubscriptionActivity,
       }
     );
     console.error(

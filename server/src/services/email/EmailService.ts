@@ -202,18 +202,18 @@ export class EmailService {
           attempt,
         });
 
-        // Surface to Sentry so the underlying exception (network blip, SendGrid
-        // 5xx, malformed payload) doesn't sit in container stdout invisible.
-        // Captured per attempt — if subsequent retries succeed, the success
-        // log line shows in audit but the captured exception still exists for
-        // forensics on flaky sends.
-        captureException(error instanceof Error ? error : new Error(String(error)), {
-          context: 'email_send_exception',
-          provider: this.provider.name,
-          correlationId,
-          attempt,
-          isTemplate,
-        });
+        // Only page Sentry on the terminal failure. Transient provider blips
+        // that succeed on retry should stay in logs without creating noisy
+        // duplicate alerts.
+        if (attempt >= maxAttempts) {
+          captureException(error instanceof Error ? error : new Error(String(error)), {
+            context: 'email_send_exception',
+            provider: this.provider.name,
+            correlationId,
+            attempt,
+            isTemplate,
+          });
+        }
 
         // Don't retry on non-retryable errors
         if (!this.isRetryableError(lastError.errorCode as EmailErrorCode | undefined)) {
