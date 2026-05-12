@@ -33,7 +33,7 @@ export function PendingApprovalShell({
     <>
       <View style={styles.logoRow}>
         <Image
-          source={require('../../assets/images/logo.png')}
+          source={require('../../assets/images/icon.png')}
           style={{ width: 32, height: 32 }}
           contentFit="contain"
         />
@@ -42,7 +42,7 @@ export function PendingApprovalShell({
 
       <View style={[styles.iconCircle, { backgroundColor: iconBackground }]}>
         <Image
-          source={require('../../assets/images/logo.png')}
+          source={require('../../assets/images/icon.png')}
           style={{ width: 56, height: 56 }}
           contentFit="contain"
         />
