@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
+import { useExistingSessionActions } from '@/hooks/useExistingSessionActions';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { validateEmail } from '@/utils/formUtils';
@@ -99,39 +100,18 @@ export default function SignInScreen() {
     router.replace(landingRoute as any);
   };
 
-  const handleSignOutToContinue = async () => {
-    if (authBusy) return;
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      setSigningOut(false);
-    }
-  };
-
-  const handleContinueExistingSession = async () => {
-    if (authBusy) return;
-    setError(null);
-    try {
-      const authUser = user || (await checkAuth());
-      if (authUser) {
-        await routeCurrentUser(authUser);
-        return;
-      }
-      setError('Your saved session expired. Please sign in again.');
-    } catch (e: any) {
-      const message = e?.message || '';
-      if (e?.isNetworkError === true || message.startsWith('Cannot connect to server')) {
-        setError(message);
-        return;
-      }
-      if (e?.status === 401) {
-        setError('Your saved session expired. Please sign in again.');
-        return;
-      }
-      setError('We could not restore your saved session. Please sign in again.');
-    }
-  };
+  const { handleSignOutToContinue, handleContinueExistingSession } =
+    useExistingSessionActions({
+      authBusy,
+      signOut,
+      setSigningOut,
+      setError,
+      user,
+      checkAuth,
+      routeCurrentUser,
+      expiredMessage: 'Your saved session expired. Please sign in again.',
+      restoreFailedMessage: 'We could not restore your saved session. Please sign in again.',
+    });
 
   const onSubmit = async () => {
     if (authBusy) return;
