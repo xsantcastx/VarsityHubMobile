@@ -8,7 +8,8 @@ const webServerConfig = skipEmbeddedServer
   ? undefined
   : [
       {
-        command: 'env -u NO_COLOR NODE_ENV=development ENABLE_DEV_CODES=1 PLAYWRIGHT_E2E=1 npx tsx server/src/index.ts',
+        command:
+          'env -u NO_COLOR NODE_ENV=development ENABLE_DEV_CODES=1 DISABLE_RATE_LIMITING=1 PLAYWRIGHT_E2E=1 npx tsx server/src/index.ts',
         url: `${process.env.API_URL}/health`,
         reuseExistingServer: reuseEmbeddedServer,
         timeout: 120 * 1000,

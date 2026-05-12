@@ -154,7 +154,7 @@ test.describe('Authentication Flow', () => {
     await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
 
     const termsCheckbox = page.getByRole('checkbox', {
-      name: 'I agree to the Terms of Service and Privacy Policy',
+      name: /I agree to the Terms of (Use|Service) and Privacy Policy/,
     });
     const ageCheckbox = page.getByRole('checkbox', {
       name: 'I confirm I am at least 13 years old',

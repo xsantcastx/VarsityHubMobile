@@ -9,7 +9,9 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  * - Game creation from discover is guarded by server-side coach + team rules
  */
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL =
+  (process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000')
+    .replace('://localhost', '://127.0.0.1');
 
 function createAuthRequest(request: APIRequestContext, token: string) {
   const withAuth = (options: Record<string, any> = {}) => ({

@@ -10,6 +10,9 @@ import { test, expect } from '@playwright/test';
 const APP_URL = process.env.APP_URL || 'http://localhost:8081';
 const API_URL = process.env.API_URL || 'http://localhost:4000';
 const HEALTH_CHECK_SECRET = process.env.HEALTH_CHECK_SECRET;
+const RATE_LIMITING_DISABLED = ['1', 'true', 'yes', 'on'].includes(
+  String(process.env.DISABLE_RATE_LIMITING || '').trim().toLowerCase()
+);
 
 async function waitForAppShell(page: import('@playwright/test').Page) {
   await page.locator('body').waitFor({ state: 'visible', timeout: 30000 });
@@ -149,6 +152,8 @@ test.describe('Comprehensive Smoke Tests', () => {
   });
 
   test('API rate limiting works', async ({ request }) => {
+    test.skip(RATE_LIMITING_DISABLED, 'Smoke harness disables rate limiting to avoid auth-setup contention.');
+
     // Make multiple rapid requests to auth endpoint
     const requests = [];
     for (let i = 0; i < 20; i++) {

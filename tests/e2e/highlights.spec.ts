@@ -9,7 +9,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  * - creating highlight posts is gated by the current auth/verification/onboarding rules
  */
 
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || process.env.API_URL || 'http://127.0.0.1:4000')
+const API_BASE_URL = (process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000')
   .replace('://localhost', '://127.0.0.1');
 
 function createAuthRequest(request: APIRequestContext, token: string) {

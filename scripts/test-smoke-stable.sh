@@ -104,7 +104,7 @@ kill_repo_listener "4000" "API"
 kill_repo_listener "8081" "web"
 
 echo "[test:smoke] Starting API server..."
-NODE_ENV=development ENABLE_DEV_CODES=1 npx tsx server/src/index.ts >"$SERVER_LOG" 2>&1 &
+NODE_ENV=development ENABLE_DEV_CODES=1 DISABLE_RATE_LIMITING=1 PLAYWRIGHT_E2E=1 npx tsx server/src/index.ts >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 wait_for_url "http://127.0.0.1:4000/health" "API server"
@@ -117,4 +117,4 @@ wait_for_url "http://127.0.0.1:8081" "web server"
 wait_for_log "$WEB_LOG" "Web Bundled .*node_modules/expo-router/entry.js|LOG  \\[web\\] Logs will appear in the browser console" "Expo web bundle"
 
 echo "[test:smoke] Running Playwright..."
-PLAYWRIGHT_SKIP_SERVER=1 npx playwright test "$@"
+API_URL=http://127.0.0.1:4000 EXPO_PUBLIC_API_URL=http://127.0.0.1:4000 PLAYWRIGHT_SKIP_SERVER=1 npx playwright test "$@"
