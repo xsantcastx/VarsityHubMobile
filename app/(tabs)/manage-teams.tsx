@@ -10,10 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team as TeamApi, User } from '@/api/entities';
-import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
-// @ts-ignore
-import { Game as GameApi } from '@/api/entities';
+import { Team as TeamApi } from '@/api/entities';
 import { EmptyState, SectionHeader, TeamCard, TeamCardSkeleton } from '@/components/ui';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { safeGoBack } from '@/utils/navigation';
@@ -46,7 +43,6 @@ function ManageTeamsSimpleScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'none' | 'pending_approval' | 'ready_to_pay'>('none');
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const explicitFallback =
@@ -151,136 +147,21 @@ function ManageTeamsSimpleScreen() {
       },
     } as any);
   }, [explicitFallback, organization?.id, router]);
-
-  const handleQuickAddGame = async (data: QuickGameData) => {
-    try {
-      // Find the team ID from the current team name
-      const team = teams.find(t => t.name === data.currentTeam);
-      if (!team) {
-        Alert.alert('Error', 'Please select a team first');
-        return;
-      }
-
-      // Parse date and time to create ISO datetime
-      const [year, month, day] = data.date.split('-').map(Number);
-      const timeMatch = data.time.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/i);
-      if (!timeMatch) {
-        Alert.alert('Error', 'Invalid time format');
-        return;
-      }
-      
-      let hours = parseInt(timeMatch[1], 10);
-      const minutes = parseInt(timeMatch[2] || '0', 10);
-      const meridiem = timeMatch[3]?.toUpperCase();
-      
-      if (meridiem === 'PM' && hours !== 12) hours += 12;
-      if (meridiem === 'AM' && hours === 12) hours = 0;
-      
-      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-      
-      // Determine home/away team IDs based on game type
-      const homeTeamId = data.type === 'home' ? (data.currentTeamId || team.id) : data.opponentTeamId;
-      const awayTeamId = data.type === 'home' ? data.opponentTeamId : (data.currentTeamId || team.id);
-
-      // Create game payload matching backend schema
-      const gamePayload: Record<string, any> = {
-        title: data.isCompetitive 
-          ? `${data.currentTeam} vs ${data.opponent}`
-          : `${data.currentTeam} Event`,
-        date: gameDateTime.toISOString(),
-        description: data.isCompetitive
-          ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
-          : `Event for ${data.currentTeam}`,
-      };
-
-      // Only add team fields if this is a competitive game
-      if (data.isCompetitive) {
-        gamePayload.home_team = data.type === 'home' ? data.currentTeam : data.opponent;
-        gamePayload.away_team = data.type === 'home' ? data.opponent : data.currentTeam;
-        
-        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
-        if (awayTeamId) {
-          gamePayload.away_team_id = awayTeamId;
-        } else if (data.opponent) {
-          gamePayload.away_team_name = data.opponent;
-        }
-      } else {
-        // For non-competitive events, still send home_team_id for approval workflow
-        if (data.currentTeamId) {
-          gamePayload.home_team_id = data.currentTeamId;
-        }
-      }
-
-      // Add expected attendance if provided
-      if (data.expectedAttendance) {
-        gamePayload.expected_attendance = data.expectedAttendance;
-      }
-
-      // Add event type
-      if (data.eventType) {
-        gamePayload.event_type = data.eventType;
-      }
-      
-      // Add event type-specific fields
-      if (data.donationGoal) {
-        gamePayload.donation_goal = data.donationGoal;
-      }
-      if (data.watchLocation) {
-        gamePayload.watch_location = data.watchLocation;
-        if (data.watchLocationLat) gamePayload.watch_location_lat = data.watchLocationLat;
-        if (data.watchLocationLng) gamePayload.watch_location_lng = data.watchLocationLng;
-        if (data.watchLocationPlaceId) gamePayload.watch_location_place_id = data.watchLocationPlaceId;
-      }
-      if (data.destination) {
-        gamePayload.destination = data.destination;
-      }
-
-      // Add game venue location
-      const venue = data.type === 'home' ? data.homeVenue : data.awayVenue;
-      const venueLat = data.type === 'home' ? data.homeVenueLat : data.awayVenueLat;
-      const venueLng = data.type === 'home' ? data.homeVenueLng : data.awayVenueLng;
-      if (venue) {
-        gamePayload.location = venue;
-        if (venueLat) gamePayload.latitude = venueLat;
-        if (venueLng) gamePayload.longitude = venueLng;
-      } else {
-        // Fallback: use watch location, destination, or 'TBD' — backend requires location
-        gamePayload.location = data.watchLocation || data.destination || 'TBD';
-      }
-
-      if (data.banner_url) {
-        gamePayload.banner_url = data.banner_url;
-        gamePayload.cover_image_url = data.banner_url;
-      } else if (data.cover_image_url) {
-        gamePayload.cover_image_url = data.cover_image_url;
-      }
-
-      if (data.appearance) {
-        gamePayload.appearance = data.appearance;
-      }
-
-
-      // Create game using the API
-      await GameApi.create(gamePayload);
-
-      setShowQuickAddModal(false);
-      Alert.alert(
-        'Success', 
-        data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!', 
-        [{ text: 'OK', onPress: () => {} }]
-      );
-    } catch (error) {
-      if (handleCoachAccessError(router, error, 'creating games')) {
-        return;
-      }
-      if (__DEV__) console.error('Error adding quick game:', error);
-      Alert.alert(
-        'Error',
-        `Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        [{ text: 'OK' }]
-      );
+  const handleManageSeasonPress = useCallback(() => {
+    if (activeTeams.length === 0) {
+      Alert.alert('No Teams', 'Create a team first before managing your schedule.');
+      return;
     }
-  };
+
+    void router.push({
+      pathname: '/manage-season',
+      params: {
+        ...(activeTeams.length === 1 ? { teamId: activeTeams[0].id } : {}),
+        fallback: explicitFallback,
+        ...(params.from ? { from: params.from } : {}),
+      },
+    } as any);
+  }, [activeTeams, explicitFallback, params.from, router]);
 
   if (coachLoading || !canAccessCoachTools) {
     return (
@@ -406,20 +287,7 @@ function ManageTeamsSimpleScreen() {
         
         <Pressable
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
-          onPress={() => {
-            if (activeTeams.length === 0) {
-              Alert.alert('No Teams', 'Create a team first before adding events.');
-              return;
-            }
-            void router.push({
-              pathname: '/manage-season',
-              params: {
-                teamId: activeTeams[0].id,
-                fallback: explicitFallback,
-                ...(params.from ? { from: params.from } : {}),
-              },
-            } as any);
-          }}
+          onPress={handleManageSeasonPress}
         >
           <MaterialIcons name="sports-basketball" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Schedule</Text>
@@ -554,44 +422,8 @@ function ManageTeamsSimpleScreen() {
             </View>
           </View>
         )}
-
-        {/* Big Action Buttons */}
-        <View style={styles.actionsSection}>
-          <Pressable
-            style={[styles.bigActionButton, { backgroundColor: theme.tint }]}
-            onPress={handleCreateTeamPress}
-          >
-            <MaterialIcons name="add-circle" size={32} color="#FFF" />
-            <Text style={styles.bigActionButtonText}>CREATE TEAM</Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.bigActionButton, { backgroundColor: '#10B981' }]}
-            onPress={() => {
-              if (activeTeams.length === 0) {
-                Alert.alert('No Teams', 'Create a team first before adding events.');
-                return;
-              }
-              setShowQuickAddModal(true);
-            }}
-          >
-            <MaterialIcons name="event" size={32} color="#FFF" />
-            <Text style={styles.bigActionButtonText}>QUICK ADD EVENT</Text>
-          </Pressable>
-        </View>
-
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Quick Add Event Modal */}
-      <QuickAddGameModal
-        visible={showQuickAddModal}
-        onClose={() => setShowQuickAddModal(false)}
-        onSave={handleQuickAddGame}
-        currentTeamName={activeTeams[0]?.name} // Default to first team
-        currentTeamId={activeTeams[0]?.id}
-        userRole="coach"
-      />
     </SafeAreaView>
   );
 }
@@ -782,31 +614,6 @@ const styles = StyleSheet.create({
   teamMetaDivider: {
     fontSize: 15,
     fontWeight: '700',
-  },
-
-  // Action Buttons
-  actionsSection: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  bigActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    borderRadius: 16,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  bigActionButtonText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFF',
-    letterSpacing: 0.5,
   },
 
   // States

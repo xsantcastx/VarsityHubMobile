@@ -201,10 +201,10 @@ export function NotificationTapHandler() {
           break;
 
         case 'join_request_approved': {
-          const orgId = str(data.organization_id);
-          if (orgId) {
-            pushRoute({ pathname: '/organization', params: { id: orgId } });
-          }
+          // Approved join requests are not immediately "org tools ready" if the
+          // coach has not accepted the agreement yet. Route through the
+          // continuation screen that can finish the approval flow safely.
+          pushRoute('/onboarding/coach-agreement');
           break;
         }
 

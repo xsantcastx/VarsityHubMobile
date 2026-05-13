@@ -1,0 +1,51 @@
+<svg width="945" height="2048" viewBox="0 0 945 2048" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="945" height="2048" fill="#0B1120"/>
+
+  <text x="83" y="87" fill="#F9FAFB" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="36" font-weight="700">5:00</text>
+  <text x="177" y="87" fill="#F9FAFB" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="36" font-weight="700">☾</text>
+
+  <rect x="255" y="25" width="435" height="84" rx="42" fill="#000000"/>
+  <circle cx="301" cy="67" r="16" fill="#E84D37"/>
+
+  <rect x="705" y="54" width="10" height="21" rx="2" fill="#F9FAFB"/>
+  <rect x="721" y="48" width="10" height="27" rx="2" fill="#F9FAFB"/>
+  <rect x="737" y="41" width="10" height="34" rx="2" fill="#F9FAFB"/>
+  <rect x="753" y="34" width="10" height="41" rx="2" fill="#4B5563"/>
+  <path d="M786 44h12l11 12 11-12h12l-17 18 17 18h-12l-11-12-11 12h-12l17-18-17-18z" fill="#F9FAFB"/>
+  <rect x="844" y="37" width="65" height="36" rx="18" fill="#F9FAFB"/>
+  <rect x="909" y="45" width="6" height="20" rx="3" fill="#6B7280"/>
+  <text x="876.5" y="63" text-anchor="middle" fill="#111827" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="22" font-weight="700">29</text>
+
+  <image href="../../assets/images/icon.png" x="301" y="210" width="34" height="34" style="mix-blend-mode:screen"/>
+  <text x="385" y="257" fill="#F9FAFB" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.5">VarsityHub</text>
+
+  <circle cx="472.5" cy="492" r="120" fill="#312C22"/>
+  <image href="../../assets/images/icon.png" x="414.5" y="434" width="116" height="116" style="mix-blend-mode:screen"/>
+
+  <text x="472.5" y="725" text-anchor="middle" fill="#F9FAFB" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="56" font-weight="800" letter-spacing="-1.5">Submitted to VarsityHub for</text>
+  <text x="472.5" y="805" text-anchor="middle" fill="#F9FAFB" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="56" font-weight="800" letter-spacing="-1.5">Review</text>
+
+  <text x="472.5" y="885" text-anchor="middle" fill="#9CA3AF" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="34" font-weight="500">VarsityHub is reviewing "LIME</text>
+  <text x="472.5" y="945" text-anchor="middle" fill="#9CA3AF" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="34" font-weight="500">PRODUCTIONS". This usually takes less than</text>
+  <text x="472.5" y="1005" text-anchor="middle" fill="#9CA3AF" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="34" font-weight="500">24 hours. You'll receive an email when your</text>
+  <text x="472.5" y="1065" text-anchor="middle" fill="#9CA3AF" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="34" font-weight="500">league is approved and ready.</text>
+
+  <rect x="58" y="1138" width="829" height="182" rx="28" fill="#1F2937" stroke="#334155" stroke-width="3"/>
+  <rect x="93" y="1178" width="34" height="34" rx="6" fill="#60A5FA" fill-opacity="0.18"/>
+  <path d="M103 1185h16v20h-16zM98 1190h26M98 1197h26M106 1185v20M114 1185v20" stroke="#60A5FA" stroke-width="3" stroke-linecap="round"/>
+  <text x="156" y="1211" fill="#9CA3AF" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="32" font-weight="600">Application:</text>
+  <text x="359" y="1211" fill="#F9FAFB" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="32" font-weight="800">LIME PRODUCTIONS</text>
+
+  <circle cx="110" cy="1270" r="17" stroke="#60A5FA" stroke-width="4"/>
+  <path d="M110 1259v12l8 5" stroke="#60A5FA" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="156" y="1282" fill="#9CA3AF" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="32" font-weight="600">Estimated:</text>
+  <text x="339" y="1282" fill="#F9FAFB" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="32" font-weight="800">Within 24 hours</text>
+
+  <rect x="58" y="1360" width="829" height="112" rx="24" fill="#25467D"/>
+  <text x="472.5" y="1428" text-anchor="middle" fill="#F9FAFB" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="38" font-weight="800">Continue as Fan</text>
+
+  <rect x="58" y="1505" width="829" height="102" rx="24" fill="#0B1120" stroke="#334155" stroke-width="3"/>
+  <text x="472.5" y="1568" text-anchor="middle" fill="#9CA3AF" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="38" font-weight="700">Log Out</text>
+
+  <text x="472.5" y="1862" text-anchor="middle" fill="#6B7280" font-family="SF Pro Text, Helvetica Neue, Arial, sans-serif" font-size="30" font-weight="500">Questions? Contact support@varsityhub.app</text>
+</svg>

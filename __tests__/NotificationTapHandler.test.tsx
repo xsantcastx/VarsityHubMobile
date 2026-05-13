@@ -131,4 +131,21 @@ describe('NotificationTapHandler', () => {
       });
     });
   });
+
+  it('routes join_request_approved notifications through coach-agreement', async () => {
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user_1' },
+      loading: false,
+      hasSession: true,
+    });
+
+    render(<NotificationTapHandler />);
+    expect(listener).toBeTruthy();
+
+    listener?.(makeResponse('join_request_approved', { organization_id: 'org_123' }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/onboarding/coach-agreement');
+    });
+  });
 });

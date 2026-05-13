@@ -22,6 +22,7 @@ const read = (...parts: string[]) => readFileSync(join(...parts), 'utf8');
 const schema = read(SERVER_ROOT, 'prisma', 'schema.prisma');
 const ads = read(SRC_ROOT, 'routes', 'ads.ts');
 const payments = read(SRC_ROOT, 'routes', 'payments.ts');
+const paymentInternals = read(SRC_ROOT, 'lib', 'paymentInternals.ts');
 const approvalService = read(SRC_ROOT, 'lib', 'approvalService.ts');
 const overnightTasks = read(SRC_ROOT, 'cron', 'overnightTasks.ts');
 
@@ -138,16 +139,18 @@ describe('ad lifecycle structural invariants', () => {
   });
 
   it('reserveAdSlots is the only hold/paid reservation writer and only writes hold or paid', () => {
-    const reserveAdSlots = sliceFunction(payments, 'async function reserveAdSlots');
+    const reserveAdSlots = sliceFunction(paymentInternals, 'export async function reserveAdSlots');
     expect(reserveAdSlots).toMatch(/paymentStatus:\s*'hold' \| 'paid'/);
     expect(reserveAdSlots).toMatch(/payment_status:\s*params\.paymentStatus/);
   });
 
   it('checkout entrypoints create holds, and successful finalization always lands on active + paid', () => {
-    const holdCalls = payments.match(/paymentStatus:\s*'hold'/g) || [];
+    const paymentSources = [payments, paymentInternals].join('\n');
+    const holdCalls = paymentSources.match(/paymentStatus:\s*'hold'/g) || [];
     expect(holdCalls.length).toBeGreaterThanOrEqual(2);
 
-    const paidActiveWrites = payments.match(/payment_status:\s*'paid',\s*status:\s*'active'/g) || [];
+    const paidActiveWrites =
+      paymentSources.match(/payment_status:\s*'paid',\s*status:\s*'active'/g) || [];
     expect(paidActiveWrites.length).toBeGreaterThanOrEqual(3);
 
     expectAllowedTuple('approved', 'hold');
@@ -167,12 +170,17 @@ describe('ad lifecycle structural invariants', () => {
   });
 
   it('slot-full refund recovery explicitly releases reservations before marking the transaction refunded', () => {
-    const slotFullReleaseHelper = sliceFunction(payments, 'async function releaseAdInventoryAfterSlotFullRefund');
+    const slotFullReleaseHelper = sliceFunction(
+      paymentInternals,
+      'export async function releaseAdInventoryAfterSlotFullRefund'
+    );
     expect(slotFullReleaseHelper).toMatch(/adReservation\.deleteMany/);
     expect(slotFullReleaseHelper).toMatch(/payment_status:\s*\{\s*in:\s*\['hold', 'pending_approval'\]\s*\}/);
     expect(slotFullReleaseHelper).toMatch(/data:\s*\{\s*payment_status:\s*'unpaid'\s*\}/);
 
-    const releaseCalls = payments.match(/releaseAdInventoryAfterSlotFullRefund\(/g) || [];
+    const releaseCalls =
+      [payments, paymentInternals].join('\n').match(/releaseAdInventoryAfterSlotFullRefund\(/g) ||
+      [];
     expect(releaseCalls.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -204,7 +212,7 @@ describe('ad lifecycle structural invariants', () => {
   });
 
   it('explicit literal ad tuples written by lifecycle code are all in the allowed set', () => {
-    const combined = [ads, payments, approvalService, overnightTasks].join('\n');
+    const combined = [ads, payments, paymentInternals, approvalService, overnightTasks].join('\n');
     const found = new Set<string>();
 
     for (const match of combined.matchAll(/status:\s*'([a-z_]+)'\s*,\s*payment_status:\s*'([a-z_]+)'/g)) {

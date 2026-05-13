@@ -167,7 +167,9 @@ export function getNotificationHref(item: NotificationItem): any | null {
     return '/organization?tab=requests';
   }
   if (type === 'TEAM_INVITE' && item.meta?.coach_approved) {
-    return '/(tabs)/create-team';
+    // Coach approval still requires the agreement gate before any coach-tool
+    // route is safe. Send the user through the dedicated continuation screen.
+    return '/onboarding/coach-agreement';
   }
   if (type === 'TEAM_INVITE') {
     return '/team-invites';
@@ -195,9 +197,7 @@ export function getNotificationHref(item: NotificationItem): any | null {
   if (type === 'JOIN_REQUEST_APPROVED') {
     return item.meta?.denied
       ? '/(tabs)'
-      : item.meta?.organization_id
-        ? `/organization?id=${encodeURIComponent(item.meta.organization_id)}`
-        : '/(tabs)';
+      : '/onboarding/coach-agreement';
   }
   if (type === 'JOIN_REQUEST_DENIED') {
     return '/(tabs)';

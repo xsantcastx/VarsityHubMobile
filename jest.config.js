@@ -50,7 +50,6 @@ module.exports = {
     '/server/',
     '/tests/',
     '/__tests__/__mocks__/',
-    'onboarding.e2e.test.tsx',
   ],
   modulePathIgnorePatterns: [
     '<rootDir>/node_modules_corrupt/',

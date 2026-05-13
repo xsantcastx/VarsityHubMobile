@@ -59,7 +59,9 @@ function PendingApproval() {
     mountedRef.current = false;
   }, []);
 
-  // Poll /me every 30 seconds to check approval_status
+  // Poll /me every 30 seconds and always bypass the client TTL cache.
+  // Approval is granted by another actor, so a cached snapshot defeats the
+  // whole point of the waiting screen.
   const checkApproval = useCallback(async (trigger: 'initial' | 'interval' | 'focus' | 'foreground' = 'interval') => {
     if (approvalCheckInFlightRef.current) return;
     if (trigger === 'focus' || trigger === 'foreground') {
@@ -70,7 +72,7 @@ function PendingApproval() {
     try {
       approvalCheckInFlightRef.current = true;
       setChecking(true);
-      const me: any = await User.me();
+      const me: any = await User.refresh();
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
       const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';

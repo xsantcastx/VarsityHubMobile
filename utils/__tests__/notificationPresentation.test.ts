@@ -5,9 +5,9 @@
  *   Before this file was extracted, `app/feed.tsx` and `app/(tabs)/notifications/index.tsx`
  *   each had their own inline notification tap-routing switch, and they drifted.
  *   Feed drawer routed UPVOTE/COMMENT/MENTION to the actor's profile instead of
- *   the target post. TEAM_INVITE+coach_approved went to /(tabs) in one and
- *   /(tabs)/create-team in the other. Users tapping the same notification
- *   from two entry points ended up on two different screens.
+ *   the target post. Coach-approval notifications also drifted into coach-tool
+ *   screens before the agreement gate had run. Users tapping the same approval
+ *   notification from two entry points ended up on routes that still bounced.
  *
  * This test pins the contract: for each supported notification type, assert
  * the expected href and title. Both consumers (feed.tsx, notifications/index.tsx)
@@ -106,13 +106,13 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/organization?tab=requests');
   });
 
-  it('TEAM_INVITE + coach_approved → /(tabs)/create-team (was /(tabs) in feed.tsx drift)', () => {
+  it('TEAM_INVITE + coach_approved → coach-agreement continuation', () => {
     const href = getNotificationHref({
       type: 'TEAM_INVITE',
       actor: makeActor(),
       meta: { coach_approved: true },
     });
-    expect(href).toBe('/(tabs)/create-team');
+    expect(href).toBe('/onboarding/coach-agreement');
   });
 
   it('TEAM_INVITE fallback → /team-invites', () => {
@@ -159,12 +159,12 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/onboarding/coach-agreement');
   });
 
-  it('JOIN_REQUEST_APPROVED with org id → organization page', () => {
+  it('JOIN_REQUEST_APPROVED → coach-agreement continuation', () => {
     const href = getNotificationHref({
       type: 'JOIN_REQUEST_APPROVED',
       meta: { organization_id: 'org-1' },
     });
-    expect(href).toBe('/organization?id=org-1');
+    expect(href).toBe('/onboarding/coach-agreement');
   });
 
   it('JOIN_REQUEST_APPROVED with denied flag → tabs (legacy denial shape)', () => {

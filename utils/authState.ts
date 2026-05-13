@@ -47,3 +47,25 @@ export function isApprovedCoach(source: AuthStateLike | null | undefined): boole
   const role = String(prefRole || source?.role || '').trim().toLowerCase();
   return role === 'coach' && String(source?.approval_status || '').toUpperCase() === 'APPROVED';
 }
+
+/**
+ * Reuse the current auth snapshot when the caller already has one. Fall back
+ * to AuthProvider.checkAuth() only when local state is absent, so feature
+ * screens do not each invent their own `/me` refresh policy.
+ */
+export async function getAuthSnapshot<T>(
+  checkAuth: ((options?: {
+    email?: string;
+    pendingVerification?: boolean;
+    replaceSession?: boolean;
+  }) => Promise<T | null | undefined>) | undefined,
+  currentUser: T | null | undefined
+): Promise<T | null> {
+  if (currentUser != null) {
+    return currentUser;
+  }
+  if (typeof checkAuth !== 'function') {
+    return null;
+  }
+  return (await checkAuth()) ?? null;
+}

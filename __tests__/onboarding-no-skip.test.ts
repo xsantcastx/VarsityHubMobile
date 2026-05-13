@@ -106,10 +106,10 @@ describe('onboarding flow — no screens can be skipped', () => {
   // ──────────────────────────────────────────────────────────────────────
 
   describe('pending approval screens gate on actual pending state', () => {
-    it('pending-approval polls /me and only proceeds when server state shifts', () => {
-      // Must call User.me() in the polling loop and check approval_status
-      // or onboarding_completed before moving forward.
-      expect(pendingApproval).toMatch(/User\.me\(\)/);
+    it('pending-approval bypasses the /me client TTL while polling for approval', () => {
+      // Approval is granted externally by an admin/owner, so the waiting
+      // screen must bypass the 30s client cache on every lifecycle/poll check.
+      expect(pendingApproval).toMatch(/User\.refresh\(\)/);
     });
 
     it('league-pending-approval requires an orgId to start polling', () => {

@@ -124,6 +124,9 @@ describe('coach/org navigation contracts', () => {
     expect(manageTeams).toContain('handleCreateTeamPress');
     expect(manageTeams).not.toContain("'/(tabs)/create-team'");
     expect(manageTeams).toContain("pathname: '/manage-season'");
+    expect(manageTeams).toContain("activeTeams.length === 1 ? { teamId: activeTeams[0].id } : {}");
+    expect(manageTeams).not.toContain('QuickAddGameModal');
+    expect(manageTeams).not.toContain('QUICK ADD EVENT');
     expect(editOrganization).toContain('params.fallback');
     expect(editOrganization).toContain("'/organization?tab=overview'");
     expect(organizationScreen).toContain("pathname: '/edit-organization'");
