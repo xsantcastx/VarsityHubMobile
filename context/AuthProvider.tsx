@@ -25,6 +25,13 @@ import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { captureException, setUserContext as setSentryUser } from '@/utils/sentry';
 import { analytics } from '@/utils/analytics';
 import { buildAuthRedirectFingerprint, navigateWithAuthRedirect } from '@/utils/authTelemetry';
+import {
+  getCanonicalOrganizationId,
+  getCanonicalRole,
+  hasAcceptedCoachAgreement,
+  isOnboardingCompleteSnapshot,
+  isProceedingAsFanSnapshot,
+} from '@/utils/authState';
 import { onSessionExpired, type SessionExpiredReason } from '@/utils/sessionEvents';
 import { showWarningToast } from '@/components/ErrorToast';
 import Notifications from '@/utils/notifications';
@@ -195,8 +202,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     (normalizedRole === 'super_admin' || user?.is_admin === true);
   const isOnboardingComplete = useCallback(
     (authUser: AuthUser | null | undefined) =>
-      authUser?.onboarding_completed === true ||
-      authUser?.preferences?.onboarding_completed === true,
+      isOnboardingCompleteSnapshot(authUser as any),
     []
   );
 
@@ -496,7 +502,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           username: me.username,
           role: me.role,
           plan: me.preferences?.plan,
-          organization_id: me.organization_id || me.preferences?.organization_id,
+          organization_id: getCanonicalOrganizationId(me as any),
           is_admin: me.is_admin,
           is_verified: Boolean(me.email_verified || me.verified || me.is_verified),
           has_completed_onboarding: serverComplete,
@@ -568,16 +574,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           ? segmentsRef.current.join('/')
           : 'index';
       const effectiveUser = userSnapshot ?? user;
-      const role =
-        String(effectiveUser?.preferences?.role || effectiveUser?.role || '').trim() || null;
+      const role = String(getCanonicalRole(effectiveUser as any) || '').trim() || null;
       const approvalStatus =
         typeof effectiveUser?.approval_status === 'string' ? effectiveUser.approval_status : null;
       const onboardingCompleted = isOnboardingComplete(effectiveUser);
       const emailVerified = effectiveUser?.email_verified === true;
       const pendingVerification = !!pendingVerificationEmail;
       const paidByOwner = effectiveUser?.paid_by_owner === true;
-      const proceedingAsFan = effectiveUser?.preferences?.proceeding_as_fan === true;
-      const coachAgreementAccepted = !!effectiveUser?.preferences?.coach_agreement_accepted_at;
+      const proceedingAsFan = isProceedingAsFanSnapshot(effectiveUser as any);
+      const coachAgreementAccepted = hasAcceptedCoachAgreement(effectiveUser as any);
       const userStateFingerprint = buildAuthRedirectFingerprint({
         from,
         role,

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User, Notification as NotificationApi } from '@/api/entities';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getCanonicalOrganizationId, getCanonicalRole, isProceedingAsFanSnapshot } from '@/utils/authState';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import {
@@ -73,9 +74,9 @@ function PendingApproval() {
       approvalCheckInFlightRef.current = true;
       setChecking(true);
       const me: any = await User.refresh();
-      const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
+      const role = String(getCanonicalRole(me) || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
-      const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+      const isProceedingAsFan = isProceedingAsFanSnapshot(me) || role === 'fan';
       if (isProceedingAsFan || proceedingAsFanRef.current) {
         stopPolling();
         return;
@@ -107,7 +108,7 @@ function PendingApproval() {
       }
       if (me?.approval_status === 'APPROVED') {
         setApproved(true);
-        const resolvedOrgId = me?.preferences?.organization_id || ob.organization_id || null;
+        const resolvedOrgId = getCanonicalOrganizationId(me) || ob.organization_id || null;
         if (resolvedOrgId) setOrgId(resolvedOrgId);
         stopPolling();
         // Do not auto-complete coach onboarding here. Approval only unlocks

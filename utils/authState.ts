@@ -9,6 +9,10 @@ type AuthStateLike = {
   google_id?: string | null;
   apple_id?: string | null;
   role?: string | null;
+  onboarding_completed?: boolean | null;
+  organization_id?: string | null;
+  proceeding_as_fan?: boolean | null;
+  coach_agreement_accepted_at?: string | null;
   linked_providers?: {
     password?: boolean | null;
     google?: boolean | null;
@@ -17,6 +21,16 @@ type AuthStateLike = {
   approval_status?: string | null;
   preferences?: Record<string, unknown> | null;
 };
+
+function readPreferences(source: AuthStateLike | null | undefined): Record<string, unknown> {
+  return source?.preferences && typeof source.preferences === 'object' ? source.preferences : {};
+}
+
+function normalizeString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 export function getLinkedProvidersSnapshot(
   source: AuthStateLike | null | undefined
@@ -39,12 +53,50 @@ export function getLinkedProvidersSnapshot(
   };
 }
 
+export function getCanonicalRole(source: AuthStateLike | null | undefined): string | null {
+  const preferences = readPreferences(source);
+  return normalizeString(source?.role) ?? normalizeString(preferences.role);
+}
+
+export function isOnboardingCompleteSnapshot(
+  source: AuthStateLike | null | undefined
+): boolean {
+  if (typeof source?.onboarding_completed === 'boolean') {
+    return source.onboarding_completed;
+  }
+  const preferences = readPreferences(source);
+  return preferences.onboarding_completed === true;
+}
+
+export function getCanonicalOrganizationId(
+  source: AuthStateLike | null | undefined
+): string | null {
+  const topLevel = normalizeString(source?.organization_id);
+  if (topLevel) return topLevel;
+  const preferences = readPreferences(source);
+  return normalizeString(preferences.organization_id);
+}
+
+export function isProceedingAsFanSnapshot(
+  source: AuthStateLike | null | undefined
+): boolean {
+  if (typeof source?.proceeding_as_fan === 'boolean') {
+    return source.proceeding_as_fan;
+  }
+  const preferences = readPreferences(source);
+  return preferences.proceeding_as_fan === true;
+}
+
+export function hasAcceptedCoachAgreement(
+  source: AuthStateLike | null | undefined
+): boolean {
+  if (normalizeString(source?.coach_agreement_accepted_at)) return true;
+  const preferences = readPreferences(source);
+  return Boolean(normalizeString(preferences.coach_agreement_accepted_at));
+}
+
 export function isApprovedCoach(source: AuthStateLike | null | undefined): boolean {
-  const prefRole =
-    source?.preferences && typeof source.preferences === 'object'
-      ? (source.preferences as Record<string, unknown>).role
-      : null;
-  const role = String(prefRole || source?.role || '').trim().toLowerCase();
+  const role = String(getCanonicalRole(source) || '').trim().toLowerCase();
   return role === 'coach' && String(source?.approval_status || '').toUpperCase() === 'APPROVED';
 }
 

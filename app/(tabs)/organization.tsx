@@ -10,6 +10,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { goBackToTrackedRoute } from '@/utils/navigation';
+import { getCanonicalOrganizationId } from '@/utils/authState';
 
 type OrganizationData = {
   id: string;
@@ -118,17 +119,19 @@ export default function OrganizationScreen() {
           const firstOrg = Array.isArray(summaries) ? summaries[0]?.organization : null;
           if (firstOrg?.id) {
             orgId = firstOrg.id;
-          } else if (user?.preferences?.organization_id) {
+          } else {
             // Coaches who joined via request have role='member' — mine() won't return their org.
             // Fall back to the org ID stored in their preferences during onboarding.
-            orgId = user.preferences.organization_id;
-          } else {
+            orgId = getCanonicalOrganizationId(user as any) || undefined;
+          }
+          if (!orgId) {
             if (mounted.current) { setError('not_found'); setLoading(false); }
             return;
           }
         } catch {
-          if (user?.preferences?.organization_id) {
-            orgId = user.preferences.organization_id;
+          orgId = getCanonicalOrganizationId(user as any) || undefined;
+          if (orgId) {
+            // fall through and load via canonical auth snapshot
           } else {
             if (mounted.current) { setError('not_found'); setLoading(false); }
             return;

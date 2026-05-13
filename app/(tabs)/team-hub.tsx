@@ -5,6 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { getCanonicalOrganizationId } from '@/utils/authState';
 import { Redirect, Stack, useRootNavigationState, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -30,7 +31,7 @@ export default function TeamHubRedirectScreen() {
     const redirect = async () => {
       if (loading || !canAccessCoachTools) return;
 
-      const orgId = user?.preferences?.organization_id;
+      const orgId = getCanonicalOrganizationId(user as any);
       if (orgId) {
         if (active) setTargetRoute(buildOrganizationOverviewRoute(orgId));
         return;
@@ -55,7 +56,7 @@ export default function TeamHubRedirectScreen() {
     return () => {
       active = false;
     };
-  }, [canAccessCoachTools, loading, user?.preferences?.organization_id]);
+  }, [canAccessCoachTools, loading, user]);
 
   if (loading) {
     return (

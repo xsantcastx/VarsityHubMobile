@@ -1,3 +1,11 @@
+import {
+  getCanonicalOrganizationId,
+  getCanonicalRole,
+  hasAcceptedCoachAgreement as hasAcceptedCoachAgreementSnapshot,
+  isOnboardingCompleteSnapshot,
+  isProceedingAsFanSnapshot,
+} from './authState';
+
 type CoachPreferencesLike = {
   role?: string | null;
   onboarding_completed?: boolean;
@@ -54,21 +62,15 @@ function normalizeNumber(value: unknown, fallback: number): number {
 }
 
 export function getCanonicalCoachRole(user: CoachUserLike | null | undefined): string | null {
-  const preferences = user?.preferences ?? null;
-  return normalizeString(user?.role) ?? normalizeString(preferences?.role);
+  return getCanonicalRole(user as any);
 }
 
 export function isCoachOnboardingComplete(user: CoachUserLike | null | undefined): boolean {
-  if (typeof user?.onboarding_completed === 'boolean') {
-    return user.onboarding_completed;
-  }
-  return user?.preferences?.onboarding_completed === true;
+  return isOnboardingCompleteSnapshot(user as any);
 }
 
 export function getCoachOrganizationId(user: CoachUserLike | null | undefined): string | null {
-  const topLevel = normalizeString((user as { organization_id?: string | null } | null | undefined)?.organization_id);
-  if (topLevel) return topLevel;
-  return normalizeString(user?.preferences?.organization_id);
+  return getCanonicalOrganizationId(user as any);
 }
 
 export function getCoachAccessState(user: CoachUserLike | null | undefined): CoachAccessState {
@@ -88,9 +90,10 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
   const isApprovedCoach = isCoach && approvalStatus === 'APPROVED';
   const isPendingCoach = isCoach && approvalStatus === 'PENDING';
   const isRejectedCoach = isCoach && approvalStatus === 'REJECTED';
-  const isProceedingAsFan = preferences?.proceeding_as_fan === true && approvalStatus !== 'APPROVED';
+  const isProceedingAsFan =
+    isProceedingAsFanSnapshot(user as any) && approvalStatus !== 'APPROVED';
   const onboardingCompleted = isCoachOnboardingComplete(user);
-  const hasAcceptedCoachAgreement = !!preferences?.coach_agreement_accepted_at;
+  const hasAcceptedCoachAgreement = hasAcceptedCoachAgreementSnapshot(user as any);
   const hasCurrentCoachAgreement =
     isApprovedCoach &&
     hasAcceptedCoachAgreement &&

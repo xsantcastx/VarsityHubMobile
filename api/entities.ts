@@ -180,9 +180,6 @@ export const User = {
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
-  // Legacy alias kept for backward compatibility. New flow is async and
-  // returns a DataExport row rather than a direct JSON download.
-  exportMyData: () => httpPost('/me/data-export', {}),
   upgradeToCoach: async (plan: 'rookie' | 'veteran' | 'legend') => {
     invalidateMeCache();
     const response = await httpPost('/auth/upgrade-to-coach', { plan });
