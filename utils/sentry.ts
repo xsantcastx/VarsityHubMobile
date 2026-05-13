@@ -18,13 +18,104 @@ const isPlaceholderDsn = (dsn: string) => {
 
 const shouldUseSentry = !__DEV__ && !!SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN);
 const MOBILE_SERVICE_TAG = 'mobile';
+const EXPECTED_AUTH_CONTEXTS = new Set([
+  'email-password-login',
+  'google-signin',
+  'apple-signin',
+  'email-signup-attempt',
+  'email-signup-final',
+  'google-signup',
+  'apple-signup',
+  'verify-email-resend',
+  'verify-email-verify',
+  'password_reset_code_request',
+  'reset_password_screen_submit',
+]);
 
 let sentryReady = false;
 const SENSITIVE_BREADCRUMB_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
+const SENSITIVE_VALUE_RE =
+  /\b(?:sntryu_[A-Za-z0-9]{20,}|Bearer\s+[A-Za-z0-9._-]{20,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+)\b/g;
 const MAX_BREADCRUMB_VALUE_LENGTH = 160;
 const MAX_CONTEXT_DEPTH = 3;
 const MAX_CONTEXT_KEYS = 25;
 const MAX_CONTEXT_ARRAY_ITEMS = 10;
+
+function redactSensitiveString(value: string): string {
+  return value.replace(SENSITIVE_VALUE_RE, '[redacted]');
+}
+
+function getErrorStatus(error: unknown): number | null {
+  const status = (error as { status?: unknown; response?: { status?: unknown } } | null | undefined)?.status
+    ?? (error as { response?: { status?: unknown } } | null | undefined)?.response?.status;
+  const numeric = Number(status);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getErrorCode(error: unknown): string {
+  const candidate =
+    (error as { code?: unknown; data?: { code?: unknown; error?: unknown; errorCode?: unknown } } | null | undefined)?.code
+    ?? (error as { data?: { code?: unknown; error?: unknown; errorCode?: unknown } } | null | undefined)?.data?.code
+    ?? (error as { data?: { error?: unknown; errorCode?: unknown } } | null | undefined)?.data?.errorCode
+    ?? (error as { data?: { error?: unknown } } | null | undefined)?.data?.error;
+  return typeof candidate === 'string' ? candidate.trim().toUpperCase() : '';
+}
+
+function getErrorMessage(error: unknown): string {
+  const message = (error as { message?: unknown } | null | undefined)?.message;
+  return typeof message === 'string' ? message : '';
+}
+
+function isTransientClientTransportError(error: unknown): boolean {
+  const status = getErrorStatus(error);
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    (error as { isNetworkError?: unknown; isTransientAuthError?: unknown } | null | undefined)?.isNetworkError === true ||
+    (error as { isTransientAuthError?: unknown } | null | undefined)?.isTransientAuthError === true ||
+    status === 0 ||
+    status === 408 ||
+    status === 502 ||
+    status === 503 ||
+    message.includes('cannot connect to server') ||
+    message.includes('network request failed') ||
+    message.includes('request timeout') ||
+    message.includes('unable to refresh session right now')
+  );
+}
+
+function isExpectedAuthUxError(error: unknown, event?: { tags?: Record<string, unknown> | undefined }): boolean {
+  const context = typeof event?.tags?.context === 'string' ? event.tags.context : '';
+  if (!EXPECTED_AUTH_CONTEXTS.has(context)) return false;
+
+  const status = getErrorStatus(error);
+  const code = getErrorCode(error);
+  const message = getErrorMessage(error).toLowerCase();
+
+  if (status !== null && [400, 401, 403, 404, 409, 429].includes(status)) return true;
+  if (
+    code === 'EMAIL_ALREADY_REGISTERED' ||
+    code === 'VERIFY_CODE_EXPIRED' ||
+    code === 'VERIFY_CODE_INVALID' ||
+    code === 'VERIFY_NO_CODE' ||
+    code === 'VERIFY_REQUEST_COOLDOWN' ||
+    code === 'VERIFY_REQUEST_RATE_LIMITED' ||
+    code === 'RESET_CODE_EXPIRED' ||
+    code === 'RESET_CODE_INVALID'
+  ) {
+    return true;
+  }
+
+  return (
+    message.includes('invalid email or password') ||
+    message.includes('too many login attempts') ||
+    message.includes('email already registered') ||
+    message.includes('verification code has expired') ||
+    message.includes('invalid verification code') ||
+    message.includes('reset code expired') ||
+    message.includes('reset code is invalid') ||
+    message.includes('account not found')
+  );
+}
 
 export function initSentry() {
   const dsn = SENTRY_DSN;
@@ -51,18 +142,22 @@ export function initSentry() {
         if (__DEV__) {
           return null; // Drop all events in dev mode
         }
+        const originalException = hint?.originalException as unknown;
         // Unauthenticated startup probes to /me are expected; they should not create production issues.
         const customContext = (event.contexts?.custom || {}) as { path?: string };
         const exceptionValue = event.exception?.values?.[0]?.value;
         if (customContext.path === '/me' && exceptionValue === 'Unauthorized') {
           return null;
         }
-        // Filter out network timeouts from dev/local environments to reduce noise
-        const isDev = event.environment === 'development';
-        const ex = hint?.originalException as any;
-        const isNetworkError = ex?.message?.includes('Network request failed');
-        if (isDev && isNetworkError) {
-          return null; // Drop event
+        // Client transport failures are noisy and usually user/network/transient
+        // conditions rather than actionable product bugs.
+        if (isTransientClientTransportError(originalException)) {
+          return null;
+        }
+        // Expected auth UX states (invalid credentials, expired/invalid codes,
+        // signup conflicts, rate limits) should not page as exceptions.
+        if (isExpectedAuthUxError(originalException, event)) {
+          return null;
         }
         return event;
       },
@@ -156,9 +251,10 @@ function normalizeBreadcrumbValue(value: unknown): string {
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'non-finite';
   if (typeof value === 'string') {
-    return value.length > MAX_BREADCRUMB_VALUE_LENGTH
-      ? `${value.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
-      : value;
+    const redacted = redactSensitiveString(value);
+    return redacted.length > MAX_BREADCRUMB_VALUE_LENGTH
+      ? `${redacted.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
+      : redacted;
   }
   if (Array.isArray(value)) {
     return `[${value.slice(0, 5).map((item) => normalizeBreadcrumbValue(item)).join(', ')}${value.length > 5 ? ', ...' : ''}]`;
@@ -191,9 +287,10 @@ function sanitizeContextValue(value: unknown, depth = 0): unknown {
   if (value == null || typeof value === 'boolean') return value ?? null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : 'non-finite';
   if (typeof value === 'string') {
-    return value.length > MAX_BREADCRUMB_VALUE_LENGTH
-      ? `${value.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
-      : value;
+    const redacted = redactSensitiveString(value);
+    return redacted.length > MAX_BREADCRUMB_VALUE_LENGTH
+      ? `${redacted.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
+      : redacted;
   }
   if (depth >= MAX_CONTEXT_DEPTH) {
     return normalizeBreadcrumbValue(value);

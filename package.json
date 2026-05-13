@@ -39,6 +39,7 @@
     "verify:async-handlers": "node scripts/check-async-handler-usage.js",
     "verify:error-envelope": "node scripts/check-error-envelope-usage.js",
     "verify:user-cache": "node scripts/check-user-cache-invalidation.js",
+    "verify:secrets": "node scripts/check-secret-literals.js",
     "verify:guardrails": "bash scripts/verify-guardrails.sh",
     "test:build": "bash scripts/test-build-config.sh",
     "audit:app": "bash scripts/comprehensive-app-audit.sh",

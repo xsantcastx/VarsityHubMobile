@@ -86,6 +86,8 @@ describe('observability payload scrubbing', () => {
     (global as any).__DEV__ = false;
   });
 
+  const makeSentryAuthToken = () => `sntryu_${'a'.repeat(72)}`;
+
   it('redacts sensitive fields from Sentry exception context and tags', () => {
     const scope = {
       setTag: jest.fn(),
@@ -122,6 +124,61 @@ describe('observability payload scrubbing', () => {
     expect(scope.setTag).not.toHaveBeenCalledWith('authorization', expect.anything());
   });
 
+  it('redacts token-like values even when the field name is not sensitive', () => {
+    const scope = {
+      setTag: jest.fn(),
+      setContext: jest.fn(),
+    };
+    sentryMock.withScope.mockImplementation(((cb: (currentScope: typeof scope) => void) => cb(scope)) as any);
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
+
+    sentry.initSentry();
+    sentry.captureException(new Error('boom'), {
+      diagnostics: `using ${makeSentryAuthToken()} for upload`,
+      nested: {
+        note: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature',
+      },
+    });
+
+    expect(scope.setContext).toHaveBeenCalledWith(
+      'custom',
+      expect.objectContaining({
+        diagnostics: expect.stringContaining('[redacted]'),
+        nested: expect.objectContaining({
+          note: expect.stringContaining('[redacted]'),
+        }),
+      })
+    );
+    expect(scope.setContext).not.toHaveBeenCalledWith(
+      'custom',
+      expect.objectContaining({
+        diagnostics: expect.stringContaining('sntryu_'),
+      })
+    );
+  });
+
+  it('redacts token-like values from breadcrumb data payloads', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
+
+    sentry.initSentry();
+    sentry.captureBreadcrumb('upload check', 'build.sentry', {
+      status: `using ${makeSentryAuthToken()}`,
+      session: 'Bearer abcdefghijklmnopqrstuvwxyz0123456789',
+    });
+
+    expect(sentryMock.addBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: expect.stringContaining('[redacted]'),
+          session: expect.stringContaining('[redacted]'),
+        }),
+      })
+    );
+  });
+
   it('redacts sensitive analytics properties before sending to PostHog', () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const analyticsModule = require('@/utils/analytics') as typeof import('@/utils/analytics');
@@ -145,5 +202,44 @@ describe('observability payload scrubbing', () => {
     expect(String(payload.nested)).toContain('"keep":"ok"');
     expect(Array.isArray(payload.attendees)).toBe(true);
     expect(String((payload.attendees as unknown[])[0])).toContain('"phone":"[redacted]"');
+  });
+
+  it('drops transient client transport errors before sending to Sentry', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
+
+    sentry.initSentry();
+    const initOptions = sentryMock.init.mock.calls[0]?.[0] as { beforeSend?: (event: any, hint?: any) => any } | undefined;
+    const beforeSend = initOptions?.beforeSend as
+      | ((event: any, hint?: any) => any)
+      | undefined;
+
+    expect(beforeSend).toEqual(expect.any(Function));
+    const result = beforeSend?.(
+      { exception: { values: [{ value: 'Cannot connect to server' }] }, tags: {} },
+      { originalException: { message: 'Cannot connect to server at https://api.example.com', isNetworkError: true, status: 0 } }
+    );
+    expect(result).toBeNull();
+  });
+
+  it('drops expected auth UX errors for auth flow contexts', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sentry = require('@/utils/sentry') as typeof import('@/utils/sentry');
+
+    sentry.initSentry();
+    const initOptions = sentryMock.init.mock.calls[0]?.[0] as { beforeSend?: (event: any, hint?: any) => any } | undefined;
+    const beforeSend = initOptions?.beforeSend as
+      | ((event: any, hint?: any) => any)
+      | undefined;
+
+    expect(beforeSend).toEqual(expect.any(Function));
+    const result = beforeSend?.(
+      {
+        exception: { values: [{ value: 'Invalid email or password. Please try again.' }] },
+        tags: { context: 'email-password-login' },
+      },
+      { originalException: { message: 'Invalid email or password. Please try again.', status: 401 } }
+    );
+    expect(result).toBeNull();
   });
 });

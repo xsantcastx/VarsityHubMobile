@@ -97,11 +97,11 @@ jest.mock('@/context/OnboardingContext', () => ({
 }));
 jest.mock('@/api/entities', () => ({
   User: {
-    me: (...args: any[]) => mockUserMe(...args),
-    usernameAvailable: (...args: any[]) => mockUsernameAvailable(...args),
-    patchMe: (...args: any[]) => mockPatchMe(...args),
-    updatePreferences: (...args: any[]) => mockUpdatePreferences(...args),
-    completeOnboarding: (...args: any[]) => mockCompleteOnboarding(...args),
+    me: mockUserMe,
+    usernameAvailable: mockUsernameAvailable,
+    patchMe: mockPatchMe,
+    updatePreferences: mockUpdatePreferences,
+    completeOnboarding: mockCompleteOnboarding,
   },
 }));
 

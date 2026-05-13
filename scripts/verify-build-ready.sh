@@ -57,6 +57,16 @@ echo -e "${BLUE}🚀 BUILD READINESS VERIFICATION${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
+# Secret literal scan
+echo -e "${BLUE}Step 0: Secret literal scan...${NC}"
+if npm run verify:secrets >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ No tracked secret literals detected${NC}"
+else
+    echo -e "${RED}❌ Secret literal scan failed${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+echo ""
+
 # Run pre-build verification
 echo -e "${BLUE}Step 1: Running pre-build checks...${NC}"
 if bash scripts/pre-build-verify.sh; then
