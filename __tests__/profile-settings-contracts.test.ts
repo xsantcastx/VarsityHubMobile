@@ -44,8 +44,12 @@ describe('profile/settings note contracts', () => {
 
   it('settings delete-account flow only requires a password when the linked providers snapshot says one exists', () => {
     expect(settingsScreen).toContain('setDeleteRequiresPassword(linkedProviders.password);');
+    expect(settingsScreen).toContain('const confirmation = deleteConfirmation.trim().toUpperCase();');
+    expect(settingsScreen).toContain("if (confirmation !== 'DELETE') {");
+    expect(settingsScreen).toContain("delete_confirmation: confirmation,");
     expect(settingsScreen).toContain("if (deleteRequiresPassword && !pwd) {");
     expect(settingsScreen).toContain('{deleteRequiresPassword');
+    expect(settingsScreen).toContain('placeholder="Type DELETE"');
     expect(settingsScreen).toContain("placeholder=\"Password\"");
     expect(settingsScreen).toContain(
       "? 'This permanently deletes your account. Type DELETE and enter your password to confirm.'"

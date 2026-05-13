@@ -184,9 +184,10 @@ function SwitchRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
+  const { user: authUser, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
+  const initialLinkedProviders = getLinkedProvidersSnapshot(authUser);
 
   const [_loading, setLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
@@ -213,13 +214,10 @@ export default function SettingsScreen() {
   const [_pendingError, setPendingError] = useState<string | null>(null);
   const [deleteWarningVisible, setDeleteWarningVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
-  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(true);
-  const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>({
-    password: true,
-    google: false,
-    apple: false,
-  });
+  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(initialLinkedProviders.password);
+  const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>(initialLinkedProviders);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
   const [downgradingToFan, setDowngradingToFan] = useState(false);
@@ -232,6 +230,13 @@ export default function SettingsScreen() {
       Object.values(activeTimers).forEach(clearTimeout);
     };
   }, []);
+
+  useEffect(() => {
+    if (!authUser) return;
+    const snapshot = getLinkedProvidersSnapshot(authUser);
+    setDeleteRequiresPassword(snapshot.password);
+    setLinkedProviders(snapshot);
+  }, [authUser]);
 
   // Debounced PATCH updater for preferences
   // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
@@ -399,18 +404,22 @@ export default function SettingsScreen() {
 
   const performDeleteAccount = async () => {
     if (deletingAccount) return;
+    const confirmation = deleteConfirmation.trim().toUpperCase();
     const pwd = deletePassword.trim();
+    if (confirmation !== 'DELETE') {
+      Alert.alert('Confirmation required', 'Type DELETE to confirm account deletion.');
+      return;
+    }
     if (deleteRequiresPassword && !pwd) {
       Alert.alert('Password required', 'Enter your password to confirm account deletion.');
       return;
     }
     setDeletingAccount(true);
     try {
-      if (deleteRequiresPassword) {
-        await User.deleteAccount({ password: pwd });
-      } else {
-        await User.deleteAccount();
-      }
+      await User.deleteAccount({
+        delete_confirmation: confirmation,
+        ...(deleteRequiresPassword ? { password: pwd } : {}),
+      });
     } catch (error: any) {
       if (__DEV__) console.error('[settings] Account deletion failed:', error);
       const msg = error?.data?.message || error?.message || 'Could not delete your account.';
@@ -420,6 +429,7 @@ export default function SettingsScreen() {
     }
 
     setDeleteModalVisible(false);
+    setDeleteConfirmation('');
     setDeletePassword('');
     setDeletingAccount(false);
     await performSignOut();
@@ -431,6 +441,7 @@ export default function SettingsScreen() {
 
   const proceedToDeleteConfirm = () => {
     setDeleteWarningVisible(false);
+    setDeleteConfirmation('');
     setDeletePassword('');
     setDeleteModalVisible(true);
   };
@@ -1153,6 +1164,23 @@ export default function SettingsScreen() {
                     ? 'This permanently deletes your account. Type DELETE and enter your password to confirm.'
                     : 'This permanently deletes your account. Type DELETE to confirm.'}
                 </Text>
+                <TextInput
+                  value={deleteConfirmation}
+                  onChangeText={setDeleteConfirmation}
+                  editable={!deletingAccount}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  placeholder="Type DELETE"
+                  placeholderTextColor={Colors[colorScheme ?? 'light'].mutedText}
+                  style={[
+                    styles.deleteInput,
+                    {
+                      color: Colors[colorScheme ?? 'light'].text,
+                      borderColor: Colors[colorScheme ?? 'light'].border,
+                      marginTop: 8,
+                    },
+                  ]}
+                />
                 {deleteRequiresPassword && (
                   <TextInput
                     value={deletePassword}
@@ -1191,11 +1219,13 @@ export default function SettingsScreen() {
                     style={[
                       styles.deleteActionBtn,
                       styles.deleteConfirmBtn,
-                      ((deleteRequiresPassword && !deletePassword.trim()) ||
+                      ((deleteConfirmation.trim().toUpperCase() !== 'DELETE' ||
+                        (deleteRequiresPassword && !deletePassword.trim())) ||
                         deletingAccount) &&
                         styles.deleteConfirmBtnDisabled,
                     ]}
                     disabled={
+                      deleteConfirmation.trim().toUpperCase() !== 'DELETE' ||
                       (deleteRequiresPassword && !deletePassword.trim()) ||
                       deletingAccount
                     }

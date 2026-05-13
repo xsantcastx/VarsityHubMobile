@@ -14,6 +14,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
 import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
+import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 import { formatDobYmd, getUserAge, parseDobLocal, requiresParentalConsent } from '../lib/userAge.js';
 
 export const usersRouter = Router();
@@ -631,7 +632,7 @@ usersRouter.get('/:id/teams', asyncHandler(async (req: AuthedRequest, res) => {
 }));
 
 // Delete own account (soft-delete + anonymize)
-// Password users must provide password. OAuth-only users must provide explicit "DELETE" confirmation.
+// All users must type DELETE. Accounts with a password must also provide it.
 const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Password is required').optional(),
   delete_confirmation: z.string().optional(),
@@ -642,10 +643,10 @@ usersRouter.delete('/me', requireAuth as any, asyncHandler(async (req: AuthedReq
   if (!parsed.success) {
     return res.status(400).json({
       error: 'Invalid confirmation payload',
-      message: 'Provide your password or type DELETE to confirm account deletion.',
+      message: 'Type DELETE and provide your password if your account uses one.',
     });
   }
-  const { password, delete_confirmation } = parsed.data;
+  const { password } = parsed.data;
   try {
     const user = await prisma.user.findUnique({
       where: { id },
@@ -668,28 +669,20 @@ usersRouter.delete('/me', requireAuth as any, asyncHandler(async (req: AuthedReq
       });
     }
 
-    if (user.password_hash) {
-      if (!password) {
-        return res.status(400).json({
-          error: 'Password confirmation required',
-          message: 'Provide your password to delete your account.',
-        });
-      }
-      const isValid = await bcrypt.compare(password, user.password_hash);
+    const confirmationCheck = getAccountDeletionConfirmationRequirements(user, parsed.data);
+    if (!confirmationCheck.ok) {
+      return res.status(confirmationCheck.status).json(confirmationCheck.body);
+    }
+
+    if (confirmationCheck.requiresPassword) {
+      const isValid = await bcrypt.compare(
+        String(password || ''),
+        String(user.password_hash || '')
+      );
       if (!isValid) {
         return res.status(403).json({
           error: 'Invalid password',
           message: 'Password does not match.',
-        });
-      }
-    } else {
-      // OAuth-only users cannot confirm with password; require explicit destructive confirmation instead.
-      const confirmation = (delete_confirmation || '').trim().toUpperCase();
-      if (confirmation !== 'DELETE') {
-        const provider = user.google_id ? 'Google' : user.apple_id ? 'Apple' : 'your social account';
-        return res.status(400).json({
-          error: 'Delete confirmation required',
-          message: `Your account uses ${provider} sign-in. Type DELETE to confirm account deletion.`,
         });
       }
     }

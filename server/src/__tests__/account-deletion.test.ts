@@ -9,6 +9,7 @@
  *
  * Covers:
  *   • Unauthenticated → 401 from requireAuth
+ *   • Missing DELETE confirmation → 400 DELETE_CONFIRMATION_REQUIRED
  *   • Password account, no password supplied → 400 PASSWORD_REQUIRED
  *   • Password account, wrong password → 401 INVALID_PASSWORD
  *   • Password account, correct password → 200 + DB anonymization +
@@ -118,9 +119,19 @@ describe('POST /auth/account/delete', () => {
       const res = await request(app)
         .post('/auth/account/delete')
         .set('Authorization', `Bearer ${token}`)
-        .send({});
+        .send({ delete_confirmation: 'DELETE' });
       expect(res.status).toBe(400);
       expect(res.body?.error).toBe('PASSWORD_REQUIRED');
+    });
+
+    it('rejects with 400 DELETE_CONFIRMATION_REQUIRED when destructive text is omitted', async () => {
+      const { token } = await createPasswordUser();
+      const res = await request(app)
+        .post('/auth/account/delete')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ password: PASSWORD });
+      expect(res.status).toBe(400);
+      expect(res.body?.error).toBe('DELETE_CONFIRMATION_REQUIRED');
     });
 
     it('rejects with 401 INVALID_PASSWORD when password is wrong', async () => {
@@ -128,7 +139,7 @@ describe('POST /auth/account/delete', () => {
       const res = await request(app)
         .post('/auth/account/delete')
         .set('Authorization', `Bearer ${token}`)
-        .send({ password: WRONG_PASSWORD });
+        .send({ password: WRONG_PASSWORD, delete_confirmation: 'DELETE' });
       expect(res.status).toBe(401);
       expect(res.body?.error).toBe('INVALID_PASSWORD');
     });
@@ -139,7 +150,7 @@ describe('POST /auth/account/delete', () => {
       const res = await request(app)
         .post('/auth/account/delete')
         .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD });
+        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
 
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
@@ -165,7 +176,7 @@ describe('POST /auth/account/delete', () => {
       const res = await request(app)
         .post('/auth/account/delete')
         .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD });
+        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
 
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
@@ -185,7 +196,7 @@ describe('POST /auth/account/delete', () => {
       const res = await request(app)
         .post('/auth/account/delete')
         .set('Authorization', `Bearer ${token}`)
-        .send({});
+        .send({ delete_confirmation: 'DELETE' });
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
 
@@ -205,7 +216,7 @@ describe('POST /auth/account/delete', () => {
       const first = await request(app)
         .post('/auth/account/delete')
         .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD });
+        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
       expect(first.status).toBe(200);
 
       // Second call uses the same token. The token MAY be invalidated post-
@@ -215,7 +226,7 @@ describe('POST /auth/account/delete', () => {
       const second = await request(app)
         .post('/auth/account/delete')
         .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD });
+        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
 
       if (second.status === 200) {
         expect(second.body?.already_deleted).toBe(true);

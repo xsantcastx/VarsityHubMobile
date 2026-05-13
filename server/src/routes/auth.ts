@@ -79,6 +79,7 @@ import {
   buildOAuthExistingAccountConflict,
   getLinkedProviders,
 } from '../lib/oauthAccountLinking.js';
+import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 
 export const authRouter = Router();
 
@@ -1004,8 +1005,8 @@ authRouter.post(
  * deleted account returns 200 with a no-op.
  *
  * Behavior:
- *   1. Re-authenticate with current password (for password accounts). OAuth-
- *      only accounts can bypass this check since they don't hold a password.
+ *   1. Require explicit destructive confirmation by typing DELETE. Password
+ *      accounts must also re-authenticate with the current password.
  *   2. Anonymize PII fields in place — email, display_name, username, avatar,
  *      bio, preferences — using the user's own id as the anonymization seed
  *      so uniqueness constraints hold without collision.
@@ -1020,6 +1021,7 @@ authRouter.post(
  */
 const deleteAccountSchema = z.object({
   password: z.string().optional(),
+  delete_confirmation: z.string().optional(),
 });
 authRouter.post(
   '/account/delete',
@@ -1035,6 +1037,8 @@ authRouter.post(
       select: {
         id: true,
         password_hash: true,
+        google_id: true,
+        apple_id: true,
         deleted_at: true,
         deletion_anonymized: true,
       },
@@ -1050,18 +1054,16 @@ authRouter.post(
       });
     }
 
-    // Re-authentication gate. Password accounts require the current password.
-    // OAuth-only accounts (no password_hash) bypass — they've already proven
-    // identity via the valid access token used to hit this endpoint.
-    if (user.password_hash) {
-      const suppliedPassword = parsed.data.password;
-      if (!suppliedPassword) {
-        return res.status(400).json({
-          error: 'PASSWORD_REQUIRED',
-          message: 'Password is required to delete your account.',
-        });
-      }
-      const ok = await bcrypt.compare(suppliedPassword, user.password_hash);
+    const confirmationCheck = getAccountDeletionConfirmationRequirements(user, parsed.data);
+    if (!confirmationCheck.ok) {
+      return res.status(confirmationCheck.status).json(confirmationCheck.body);
+    }
+
+    // Re-authentication gate. Password accounts require the current password
+    // after the destructive confirmation text has been typed correctly.
+    if (confirmationCheck.requiresPassword) {
+      const suppliedPassword = String(parsed.data.password || '');
+      const ok = await bcrypt.compare(suppliedPassword, String(user.password_hash || ''));
       if (!ok) {
         return res.status(401).json({
           error: 'INVALID_PASSWORD',
