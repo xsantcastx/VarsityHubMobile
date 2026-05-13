@@ -45,7 +45,7 @@ describe('account boundary invariants', () => {
       const block = authProvider.match(/const checkAuth = useCallback\([\s\S]{0,5000}/)?.[0] || '';
       expect(block).toMatch(/if\s*\(options\?\.replaceSession\)\s*\{[\s\S]{0,400}clearLocalAuthState\(\)/);
       expect(block).toMatch(/setHasSession\(true\)/);
-      expect(block).toMatch(/User\.me\(\{\s*force:\s*options\?\.replaceSession\s*===\s*true\s*\}\)/);
+      expect(block).toMatch(/User\.me\(\{\s*force:\s*true\s*\}\)/);
     });
 
     it('replaceSession does not preserve a stale user on refresh failure', () => {

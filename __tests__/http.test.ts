@@ -36,12 +36,14 @@ jest.mock('expo-constants', () => ({
 // resolves (via the `@/` alias) to the same module we mock here.
 const mockRefreshToken = jest.fn<(...args: any[]) => any>();
 const mockClearTokensOnly = jest.fn<(...args: any[]) => any>();
+const mockGetToken = jest.fn<(...args: any[]) => any>();
 const mockEmitSessionExpired = jest.fn<(...args: any[]) => any>();
 
 jest.mock('@/api/auth', () => ({
   auth: {
     refreshToken: (...args: any[]) => mockRefreshToken(...args),
     clearTokensOnly: (...args: any[]) => mockClearTokensOnly(...args),
+    getToken: (...args: any[]) => mockGetToken(...args),
   },
 }));
 
@@ -101,10 +103,30 @@ beforeEach(() => {
   mockRefreshToken.mockReset();
   mockClearTokensOnly.mockReset();
   mockClearTokensOnly.mockResolvedValue(undefined as any);
+  mockGetToken.mockReset();
+  mockGetToken.mockResolvedValue(null as any);
   mockEmitSessionExpired.mockReset();
 });
 
 describe('api/http — auth refresh', () => {
+  it('hydrates the auth header from persisted storage when memory cache is empty', async () => {
+    const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>()
+      .mockResolvedValue(mkJsonResponse(200, { ok: true }));
+
+    mockGetToken.mockResolvedValue('persisted-token' as any);
+
+    const http = freshHttp(fetchMock);
+    http.clearAuthToken();
+
+    const result = await http.httpGet('/me', {}, undefined, 0);
+
+    expect(result).toEqual({ ok: true });
+    expect(mockGetToken).toHaveBeenCalledTimes(1);
+    const firstCall = fetchMock.mock.calls[0] as any[];
+    const headers = (firstCall[1] as RequestInit).headers as Record<string, string>;
+    expect(headers.Authorization).toBe('Bearer persisted-token');
+  });
+
   it('one 401 triggers one refresh attempt, then retries the request once', async () => {
     // First call: 401. After refresh, second call: 200.
     const fetchMock = jest.fn<(input: any, init?: any) => Promise<any>>()

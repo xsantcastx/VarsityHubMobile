@@ -135,7 +135,7 @@ export async function listOrganizationJoinRequestsForOrganization(
         FROM "OrganizationJoinRequest" jr
         JOIN "User" u ON u.id = jr.user_id
         WHERE jr.organization_id = ${organizationId}
-          AND jr.status = ${normalizedStatus}
+          AND jr.status::text = ${normalizedStatus}
         ORDER BY jr.created_at DESC
         LIMIT 200
       `

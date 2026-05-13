@@ -8,6 +8,7 @@ const read = (rel: string) => readFileSync(join(SRC_DIR, rel), 'utf8');
 const FILES = {
   organizations: read('routes/organizations.ts'),
   approvalService: read('lib/approvalService.ts'),
+  organizationWorkflowState: read('lib/organizationWorkflowState.ts'),
   teams: read('routes/teams.ts'),
   tournaments: read('routes/tournaments.ts'),
   payments: read('routes/payments.ts'),
@@ -52,6 +53,11 @@ describe('organization data-access invariants', () => {
     expect(FILES.organizations.includes('prisma.organizationJoinRequest.findFirst(')).toBe(false);
     expect(FILES.organizations.includes('prisma.organizationJoinRequest.findMany(')).toBe(false);
     expect(FILES.approvalService.includes('prisma.organizationJoinRequest.findFirst(')).toBe(false);
+  });
+
+  it('org join-request raw helpers cast enum status columns before comparing to text params', () => {
+    expect(FILES.organizationWorkflowState.includes('jr.status::text = ${normalizedStatus}')).toBe(true);
+    expect(FILES.organizationWorkflowState.includes('jr.status = ${normalizedStatus}')).toBe(false);
   });
 
   it('org workflow writes never rely on returning legacy lifecycle columns', () => {

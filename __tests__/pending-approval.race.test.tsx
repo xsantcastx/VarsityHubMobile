@@ -55,12 +55,12 @@ const APPROVED_USER = {
   },
 };
 
-const mockUserMe = jest.fn();
+const mockUserRefresh = jest.fn();
 const mockNotificationListPage = jest.fn(async (..._args: any[]) => ({ items: [] }));
 
 jest.mock('@/api/entities', () => ({
   User: {
-    me: (...args: any[]) => mockUserMe(...args),
+    refresh: (...args: any[]) => mockUserRefresh(...args),
     updatePreferences: jest.fn(async () => ({ ok: true })),
     reapplyCoach: jest.fn(),
   },
@@ -139,12 +139,12 @@ describe('pending-approval — admin-approves-during-pending race', () => {
     mockReplace.mockReset();
     mockCheckAuth.mockReset();
     mockRegisterPushToken.mockClear();
-    mockUserMe.mockReset();
+    mockUserRefresh.mockReset();
     capturedFocusCallback = null;
   });
 
   it('renders Application Submitted when /me returns PENDING', async () => {
-    mockUserMe.mockResolvedValue(PENDING_USER);
+    mockUserRefresh.mockResolvedValue(PENDING_USER);
     const screen = render(<PendingApproval />);
     const { findByText } = screen;
     expect(await findByText('Application Submitted')).toBeTruthy();
@@ -153,7 +153,7 @@ describe('pending-approval — admin-approves-during-pending race', () => {
   it('transitions to approved state when /me later returns APPROVED', async () => {
     // First call (initial mount) — PENDING
     // Second call onward (focus / interval / foreground) — APPROVED
-    mockUserMe.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
+    mockUserRefresh.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
 
     const screen = render(<PendingApproval />);
     const { findByText } = screen;
@@ -173,7 +173,7 @@ describe('pending-approval — admin-approves-during-pending race', () => {
   });
 
   it('routes to coach-agreement when an approved user taps Continue Coach Setup', async () => {
-    mockUserMe.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
+    mockUserRefresh.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
     // checkAuth resolves with the approved user — handleApprovedNavigation
     // pipes that into getPostAuthRouteDecision.
     mockCheckAuth.mockResolvedValue(APPROVED_USER);

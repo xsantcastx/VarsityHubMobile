@@ -53,6 +53,17 @@ let refreshPromise: Promise<RefreshOutcome> | null = null;
 let refreshCacheTimer: ReturnType<typeof setTimeout> | null = null;
 const REFRESH_CACHE_TTL_MS = 5_000;
 
+async function getRequestAuthToken(): Promise<string | null> {
+  const inMemory = getAuthToken();
+  if (inMemory) return inMemory;
+
+  // Hydrate from persisted storage when a protected request fires before
+  // AuthProvider/bootstrap has populated the in-memory token cache.
+  // Keep this lazy to avoid a static cycle with api/auth.ts.
+  const { auth } = await import('./auth');
+  return (await auth.getToken()) || null;
+}
+
 /**
  * Coalesce concurrent refresh attempts behind a single promise and keep
  * the resolved outcome cached for REFRESH_CACHE_TTL_MS so late-arriving
@@ -238,7 +249,7 @@ async function request(
     'Content-Type': 'application/json',
     ...(options.headers as any),
   };
-  const token = getAuthToken();
+  const token = await getRequestAuthToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   // Avoid stale caches/Etags for personalized endpoints
   if (

@@ -429,7 +429,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         }
         setHasSession(true);
 
-        const me: any = await User.me({ force: options?.replaceSession === true });
+        // AuthProvider is the canonical auth-state sync path. Always bypass the
+        // short-lived User.me() cache here so approval, agreement, and billing
+        // transitions propagate immediately into provider state.
+        const me: any = await User.me({ force: true });
         setHealthOk(true);
         setHealthError(null);
 
