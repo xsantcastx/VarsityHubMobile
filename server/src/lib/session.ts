@@ -32,29 +32,28 @@ export async function startNewSession(
   const tokenHash = await hashRefreshTokenSecret(secret);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-  // Add the new refresh token without revoking other active devices. The
-  // current session_epoch still binds access tokens so forced revocations can
-  // invalidate every session at once when needed.
-  const { session_epoch } = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { session_epoch: true },
-    });
-    await tx.refreshToken.create({
-      data: {
-        token_hash: tokenHash,
-        key_id: keyId,
-        hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
-        user_id: userId,
-        expires_at: expiresAt,
-        device_info: deviceInfo,
-      },
-    });
-    return user;
+  // This path only needs the current session_epoch plus a new refresh token row.
+  // Avoid an interactive transaction here: production auth latency can exceed
+  // Prisma's default 5s interactive transaction timeout and intermittently
+  // break otherwise-valid logins.
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { session_epoch: true },
   });
 
-  const access_token = signAccessTokenForSession(userId, session_epoch);
-  return { access_token, refresh_token: rawRefresh, session_epoch };
+  await prisma.refreshToken.create({
+    data: {
+      token_hash: tokenHash,
+      key_id: keyId,
+      hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
+      user_id: userId,
+      expires_at: expiresAt,
+      device_info: deviceInfo,
+    },
+  });
+
+  const access_token = signAccessTokenForSession(userId, user.session_epoch);
+  return { access_token, refresh_token: rawRefresh, session_epoch: user.session_epoch };
 }
 
 export async function revokeAllSessions(userId: string): Promise<{ revokedRefreshTokens: number }> {
