@@ -323,16 +323,20 @@ export default function SettingsScreen() {
       selected_plan: String(serverPrefs?.plan || 'rookie').toLowerCase(),
     };
     setShowCoachBilling(coachAccess.isApprovedCoach || billingState.selected_plan !== 'rookie');
-    setCoachUpgradeCta(
-      getCoachUpgradeCta({
-        ...me,
-        role: effectiveRole,
-        preferences: serverPrefs,
-      } as any)
-    );
+    const nextCoachUpgradeCta = getCoachUpgradeCta({
+      ...me,
+      role: effectiveRole,
+      preferences: serverPrefs,
+    } as any);
+    setCoachUpgradeCta(nextCoachUpgradeCta);
     const linkedProviders = getLinkedProvidersSnapshot(me);
     setDeleteRequiresPassword(linkedProviders.password);
     setLinkedProviders(linkedProviders);
+    setShowCoachBilling(
+      coachAccess.isApprovedCoach ||
+        billingState.selected_plan !== 'rookie' ||
+        !!nextCoachUpgradeCta
+    );
   };
 
   const showPasswordSettings = linkedProviders.password;

@@ -15,7 +15,8 @@ Use this before spending build credits to confirm ad IAP is correctly configured
 
 ## 2. Server (Railway / Production)
 
-- [ ] `APPLE_IAP_SHARED_SECRET` is set (from App Store Connect → App → App Information → App-Specific Shared Secret)
+- [ ] `APPLE_BUNDLE_ID` is set to `com.varsithub.varsityhub-ios`
+- [ ] `APPLE_IAP_SHARED_SECRET` is set if you want legacy Apple receipt fallback available
 - [ ] Server returns 200 for `/payments/config` and `stripe_configured: true` (Stripe still required for product)
 
 ## 3. Build Type
@@ -32,17 +33,17 @@ Use this before spending build credits to confirm ad IAP is correctly configured
 
 ## 5. Code Verification (Already Done)
 
-| Component | Status |
-|-----------|--------|
-| `hooks/useAdIAP.ts` | Product IDs `MOND_THURS`, `FRI_SUN`; lazy-loads react-native-iap |
-| `app/ad-calendar.tsx` | iOS → IAP; Android → Stripe; UTC date math matches server |
+| Component                   | Status                                                                           |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| `hooks/useAdIAP.ts`         | Product IDs `MOND_THURS`, `FRI_SUN`; lazy-loads react-native-iap                 |
+| `app/ad-calendar.tsx`       | iOS → IAP; Android → Stripe; UTC date math matches server                        |
 | `server/routes/payments.ts` | `POST /payments/apple/verify-ad-receipt` verifies receipts, creates reservations |
 
 ## 6. Common Failures
 
-| Symptom | Cause |
-|---------|-------|
-| "IAP disabled in Expo Go" | Must use EAS build, not Expo Go |
-| "Products not found" | Products not Ready in App Store Connect, wrong product IDs, or wrong app/bundle build |
-| "Receipt verification failed" | `APPLE_IAP_SHARED_SECRET` missing or wrong |
-| "Receipt total does not match" | Client/server date math mismatch — fixed by using UTC in both |
+| Symptom                        | Cause                                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| "IAP disabled in Expo Go"      | Must use EAS build, not Expo Go                                                                     |
+| "Products not found"           | Products not Ready in App Store Connect, wrong product IDs, or wrong app/bundle build               |
+| "Receipt verification failed"  | `APPLE_BUNDLE_ID` missing/mismatched, or Apple product metadata is attached to the wrong app/bundle |
+| "Receipt total does not match" | Client/server date math mismatch — fixed by using UTC in both                                       |

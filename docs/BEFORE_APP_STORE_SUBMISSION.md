@@ -32,14 +32,15 @@ Fix any **errors** from these before building. Warnings are acceptable if you’
 
 ## 2. Confirm production config
 
-| Item                         | Where to check                              | Notes                                                                                                                               |
-| ---------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Production API URL**       | EAS production env / `.env`                 | Should be `https://api-production-8ac3.up.railway.app` (or your live API).                                                          |
-| **Stripe publishable key**   | `eas.json` production env                   | Must be `pk_live_...` for real payments. Already in eas.json production profile.                                                    |
-| **Sentry DSN**               | `eas.json` production env                   | Optional but recommended; production profile has it.                                                                                |
-| **App Store Connect App ID** | `eas.json` → submit.production.ios.ascAppId | Must match the app in App Store Connect (`6758405187` in eas.json).                                                                 |
-| **Apple ID for submit**      | `eas.json` → submit.production.ios.appleId  | Used for `eas submit`.                                                                                                              |
-| **Apple IAP shared secret**  | Railway env `APPLE_IAP_SHARED_SECRET`       | Required for iOS in-app purchase receipt verification. From App Store Connect → App → App Information → App-Specific Shared Secret. |
+| Item                         | Where to check                              | Notes                                                                                                                                 |
+| ---------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Production API URL**       | EAS production env / `.env`                 | Should be `https://api-production-8ac3.up.railway.app` (or your live API).                                                            |
+| **Stripe publishable key**   | `eas.json` production env                   | Must be `pk_live_...` for real payments. Already in eas.json production profile.                                                      |
+| **Sentry DSN**               | `eas.json` production env                   | Optional but recommended; production profile has it.                                                                                  |
+| **App Store Connect App ID** | `eas.json` → submit.production.ios.ascAppId | Must match the app in App Store Connect (`6758405187` in eas.json).                                                                   |
+| **Apple ID for submit**      | `eas.json` → submit.production.ios.appleId  | Used for `eas submit`.                                                                                                                |
+| **Apple bundle ID**          | Railway env `APPLE_BUNDLE_ID`               | Must be `com.varsithub.varsityhub-ios`. Required for Apple signed-transaction verification in App Review, TestFlight, and production. |
+| **Apple IAP shared secret**  | Railway env `APPLE_IAP_SHARED_SECRET`       | Optional legacy fallback for older Apple receipt flows. Current production builds use signed transactions first.                      |
 
 ---
 

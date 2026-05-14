@@ -8,17 +8,17 @@ This guide covers all external services, environment variables, and platform con
 
 Set these in **Railway Dashboard → Your Project → Variables** (or via `railway variables set KEY=value`).
 
-| Category | Required | Variables |
-|----------|----------|-----------|
-| **Core** | ✅ | `DATABASE_URL`, `JWT_SECRET` (≥32 chars), `ALLOWED_ORIGINS` |
-| **Email** | ✅ | `SENDGRID_API_KEY`, `FROM_EMAIL`, `SENDGRID_VERIFICATION_TEMPLATE_ID` |
-| **Uploads** | ✅ | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` |
-| **IAP (iOS)** | ✅ | `APPLE_IAP_SHARED_SECRET` |
-| **Google** | ✅ | `GOOGLE_OAUTH_CLIENT_IDS`, `GOOGLE_MAPS_API_KEY` |
-| **Stripe** | ✅ | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*` |
-| **Twilio** | Optional | `TWILIO_*` (SMS; email verification is fallback) |
-| **Redis** | Optional | `REDIS_URL` (job queues) |
-| **Sentry** | Optional | `SENTRY_DSN` |
+| Category      | Required | Variables                                                              |
+| ------------- | -------- | ---------------------------------------------------------------------- |
+| **Core**      | ✅       | `DATABASE_URL`, `JWT_SECRET` (≥32 chars), `ALLOWED_ORIGINS`            |
+| **Email**     | ✅       | `SENDGRID_API_KEY`, `FROM_EMAIL`, `SENDGRID_VERIFICATION_TEMPLATE_ID`  |
+| **Uploads**   | ✅       | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` |
+| **IAP (iOS)** | ✅       | `APPLE_BUNDLE_ID`, `APPLE_IAP_SHARED_SECRET`                           |
+| **Google**    | ✅       | `GOOGLE_OAUTH_CLIENT_IDS`, `GOOGLE_MAPS_API_KEY`                       |
+| **Stripe**    | ✅       | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_*`         |
+| **Twilio**    | Optional | `TWILIO_*` (SMS; email verification is fallback)                       |
+| **Redis**     | Optional | `REDIS_URL` (job queues)                                               |
+| **Sentry**    | Optional | `SENTRY_DSN`                                                           |
 
 ---
 
@@ -32,7 +32,8 @@ For ad hosting, the split is different: **iOS uses Apple IAP** for `MOND_THURS` 
 ### Requirements
 
 - **EAS build** — IAP does **not** work in Expo Go. Use `eas build --profile preview` or `production`.
-- **Server:** `APPLE_IAP_SHARED_SECRET` on Railway (for iOS receipt validation).
+- **Server:** `APPLE_BUNDLE_ID` on Railway (required for StoreKit signed transaction verification in production).
+- **Legacy fallback:** `APPLE_IAP_SHARED_SECRET` on Railway if you want legacy Apple receipt verification available for older builds.
 - **iOS:** Products in App Store Connect; Sandbox Apple ID for testing.
 - **Android:** Products in Google Play Console; internal testing track.
 
@@ -46,8 +47,9 @@ For ad hosting, the split is different: **iOS uses Apple IAP** for `MOND_THURS` 
    - Product ID: `MOND_THURS` — weekday ad slot
    - Product ID: `FRI_SUN` — weekend ad slot
 4. Ensure all Apple products are **Ready to Submit** and attached to the correct app record for bundle ID `com.varsithub.varsityhub-ios`.
-5. **App Store Connect** → App Information → **App-Specific Shared Secret** → Generate/Copy → set as `APPLE_IAP_SHARED_SECRET` on Railway.
-6. These ad slot product IDs are **iOS-only**. Android does not use Play ad IAP products.
+5. Set `APPLE_BUNDLE_ID=com.varsithub.varsityhub-ios` on Railway so the server can verify Apple signed transactions for App Review, TestFlight, and live App Store purchases.
+6. **App Store Connect** → App Information → **App-Specific Shared Secret** → Generate/Copy → set as `APPLE_IAP_SHARED_SECRET` on Railway if you want legacy receipt fallback enabled.
+7. These ad slot product IDs are **iOS-only**. Android does not use Play ad IAP products.
 
 ### Android Setup (Google Play Console)
 
@@ -148,6 +150,7 @@ Cloudinary stores user-uploaded images and videos. The server signs upload reque
 ### Overview
 
 Stripe is used for:
+
 - Web checkout (fallback when IAP unavailable)
 - Android ad hosting payments (weekday/weekend slots)
 - Subscription webhooks
@@ -215,23 +218,24 @@ Check that critical integrations report as configured.
 
 ### Codebase Verification
 
-| Component | Location | Status |
-|-----------|----------|--------|
-| Onboarding completion | `server/src/routes/auth.ts` (GET /me) | `onboarding_completed` defaults to `false` |
-| IAP product IDs | `hooks/useIAP.ts` | `MIDTIER`, `TOPTIER` |
-| Ad IAP product IDs | `hooks/useAdIAP.ts` | `MOND_THURS`, `FRI_SUN` |
-| IAP receipt validation | `server/src/routes/payments.ts` | Apple/Google verify endpoints |
-| Email verification | `server/src/routes/auth.ts` | `POST /auth/verify/request`, `POST /auth/verify/confirm` |
-| SendGrid templates | `server/src/lib/email.ts` | Template IDs from env |
-| Cloudinary | `server/src/lib/cloudinary.ts` | `isCloudinaryConfigured()` |
-| Client uploads | `api/upload.ts` | Uses `/uploads/cloudinary-signature` |
+| Component              | Location                              | Status                                                   |
+| ---------------------- | ------------------------------------- | -------------------------------------------------------- |
+| Onboarding completion  | `server/src/routes/auth.ts` (GET /me) | `onboarding_completed` defaults to `false`               |
+| IAP product IDs        | `hooks/useIAP.ts`                     | `MIDTIER`, `TOPTIER`                                     |
+| Ad IAP product IDs     | `hooks/useAdIAP.ts`                   | `MOND_THURS`, `FRI_SUN`                                  |
+| IAP receipt validation | `server/src/routes/payments.ts`       | Apple/Google verify endpoints                            |
+| Email verification     | `server/src/routes/auth.ts`           | `POST /auth/verify/request`, `POST /auth/verify/confirm` |
+| SendGrid templates     | `server/src/lib/email.ts`             | Template IDs from env                                    |
+| Cloudinary             | `server/src/lib/cloudinary.ts`        | `isCloudinaryConfigured()`                               |
+| Client uploads         | `api/upload.ts`                       | Uses `/uploads/cloudinary-signature`                     |
 
 ### Pre-Release Checklist
 
 - [ ] All Railway env vars set (see Quick Reference)
 - [ ] SendGrid domain verified, templates created
 - [ ] Cloudinary configured
-- [ ] `APPLE_IAP_SHARED_SECRET` set for iOS IAP
+- [ ] `APPLE_BUNDLE_ID` set to `com.varsithub.varsityhub-ios`
+- [ ] `APPLE_IAP_SHARED_SECRET` set if legacy Apple receipt fallback should remain available
 - [ ] App Store Connect products `MIDTIER`, `TOPTIER` Ready to Submit
 - [ ] App Store Connect ad products `MOND_THURS`, `FRI_SUN` available for the same iOS app record
 - [ ] EAS build (not Expo Go) for IAP testing
@@ -242,13 +246,13 @@ Check that critical integrations report as configured.
 
 ## Troubleshooting
 
-| Issue | Likely Cause | Fix |
-|-------|--------------|-----|
-| IAP "Store Unavailable" | Expo Go, or store not connected | Use EAS build; check Sandbox/network |
-| IAP products empty | Product IDs mismatch, not Ready to Submit | Match `MIDTIER`, `TOPTIER`, `MOND_THURS`, `FRI_SUN` in the correct store console |
-| Verification email not sent | SendGrid key/template missing | Set `SENDGRID_API_KEY`, `SENDGRID_VERIFICATION_TEMPLATE_ID` |
-| Upload fails | Cloudinary not configured | Set all 3 Cloudinary env vars |
-| Google Sign-In fails | Client ID / bundle mismatch | Verify OAuth credentials match app.json |
+| Issue                       | Likely Cause                              | Fix                                                                              |
+| --------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------- |
+| IAP "Store Unavailable"     | Expo Go, or store not connected           | Use EAS build; check Sandbox/network                                             |
+| IAP products empty          | Product IDs mismatch, not Ready to Submit | Match `MIDTIER`, `TOPTIER`, `MOND_THURS`, `FRI_SUN` in the correct store console |
+| Verification email not sent | SendGrid key/template missing             | Set `SENDGRID_API_KEY`, `SENDGRID_VERIFICATION_TEMPLATE_ID`                      |
+| Upload fails                | Cloudinary not configured                 | Set all 3 Cloudinary env vars                                                    |
+| Google Sign-In fails        | Client ID / bundle mismatch               | Verify OAuth credentials match app.json                                          |
 
 ---
 

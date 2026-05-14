@@ -5,10 +5,10 @@ VarsityHub is a team management and social platform for youth sports communities
 ---
 
 **Demo Account**
-Email: support@varsityhub.app
-Password: Lime3100$
+Email: `demo@varsityhub.app`
+Password: provided in App Store Connect review notes / sign-in information
 
-This is a pre-approved Coach account with a league ("VarsityHub Demo League"), one team ("Stamford Varsity Basketball"), and a post in the feed. You can immediately browse the feed, manage the team, view the admin dashboard, and explore all features.
+This is the review account we bootstrap for App Review. It is email-verified and fully onboarded so the reviewer can reach the app immediately after sign-in.
 
 ---
 
@@ -22,11 +22,39 @@ This is a pre-approved Coach account with a league ("VarsityHub Demo League"), o
 
 ---
 
+**How To Locate In-App Purchases**
+
+All iOS purchases are presented inside the app and use Apple In-App Purchase.
+
+1. **Subscriptions**
+   - Sign in with the demo account.
+   - Open **Settings**.
+   - Open **Billing**.
+   - Tap **Manage Subscription**.
+   - The subscription purchase buttons are:
+     - **Upgrade to Veteran**
+     - **Upgrade to Legend**
+
+2. **Ad Purchases**
+   - Sign in with the demo account.
+   - Open **Settings**.
+   - Open **My Content**.
+   - Tap **My Ads**.
+   - Open **VarsityHub Review Demo Ad**.
+   - Tap **Schedule Dates**.
+   - Select campaign dates and tap the checkout button at the bottom:
+     - weekday slot product: `MOND_THURS`
+     - weekend slot product: `FRI_SUN`
+
+Apple reviews IAP in the Apple-provided sandbox environment by design. The same iOS purchase flow is used for production releases, where approved live products process real App Store transactions.
+
+---
+
 **Coach Accounts Require Admin Approval**
 
-The app has two roles: Fan (default) and Coach. Coach accounts require manual approval by a league administrator to prevent unauthorized access to team management features (rosters, events, lineups). The demo account is a fully approved Coach with league owner privileges.
+The app has two roles: Fan (default) and Coach. Coach accounts require manual approval by a league administrator to prevent unauthorized access to team management features (rosters, events, lineups).
 
-To test the coach approval flow: create a second account, select Coach role, select "Join Existing League", and search for "VarsityHub Demo League". The demo account will receive the join request and can approve it from the Approvals tab.
+To test the coach approval flow: create a second account, select Coach role, select "Join Existing League", and search for "VarsityHub Demo League". The approval request can then be reviewed by an administrator account.
 
 ---
 
@@ -54,6 +82,16 @@ Subscriptions and ad purchases use Apple In-App Purchase exclusively on iOS. Ava
 - Legend: $20/year (unlimited teams and rosters, club features)
 
 Ad purchases are one-time IAP transactions for promoting team content within the app.
+
+Subscription product IDs:
+
+- `MIDTIER` — Veteran
+- `TOPTIER` — Legend
+
+Ad product IDs:
+
+- `MOND_THURS`
+- `FRI_SUN`
 
 ---
 

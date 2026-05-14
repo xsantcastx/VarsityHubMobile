@@ -81,7 +81,8 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
     sendgrid: sendgridReady,
     googleOAuth: !!process.env.GOOGLE_OAUTH_CLIENT_IDS,
     googleMaps: !!process.env.GOOGLE_MAPS_API_KEY,
-    appleIAP: !!process.env.APPLE_IAP_SHARED_SECRET,
+    appleIAP: !!process.env.APPLE_BUNDLE_ID,
+    appleIAPLegacyReceipt: !!process.env.APPLE_IAP_SHARED_SECRET,
     sentry: !!process.env.SENTRY_DSN,
     redis: redisConnected,
     dataExportStorage: dataExportStorageReady,
@@ -114,7 +115,12 @@ healthRouter.get('/', asyncHandler(async (req: AuthedRequest, res) => {
       ...(missingRecommendedTemplates.length
         ? [`SendGrid recommended templates missing (non-blocking): ${missingRecommendedTemplates.join(', ')}`]
         : []),
-      ...(!integrations.appleIAP ? ['Apple IAP shared secret missing - receipt validation disabled'] : []),
+      ...(!integrations.appleIAP
+        ? ['APPLE_BUNDLE_ID missing - Apple signed transaction verification will fail for App Review, TestFlight, and live iOS purchases']
+        : []),
+      ...(!integrations.appleIAPLegacyReceipt
+        ? ['Apple IAP shared secret missing - legacy receipt fallback disabled']
+        : []),
       ...(!integrations.sentry ? ['Sentry not configured - error tracking disabled'] : []),
       ...(!integrations.redis ? ['Redis not configured - background jobs will use fallback mode'] : []),
       ...(!integrations.dataExportStorage

@@ -75,11 +75,50 @@ async function main() {
       },
     });
 
+    const existingReviewAd = await prisma.ad.findFirst({
+      where: {
+        user_id: user.id,
+        business_name: 'VarsityHub Review Demo Ad',
+      },
+      select: { id: true },
+    });
+
+    const reviewDemoAdData = {
+      user_id: user.id,
+      contact_name: 'VarsityHub Review',
+      contact_email: DEMO_EMAIL,
+      business_name: 'VarsityHub Review Demo Ad',
+      banner_url: null,
+      banner_fit_mode: 'cover',
+      target_url: 'https://www.varsityhub.app',
+      target_zip_code: '10001',
+      target_lat: 40.7506,
+      target_lng: -73.9972,
+      radius: 9,
+      description:
+        'Review-ready approved ad used to verify iOS in-app purchase checkout during App Review.',
+      status: 'approved' as const,
+      payment_status: 'unpaid' as const,
+      admin_note: 'System-seeded review demo ad. Approved to expose ad booking checkout during App Review.',
+    };
+
+    if (existingReviewAd) {
+      await prisma.ad.update({
+        where: { id: existingReviewAd.id },
+        data: reviewDemoAdData,
+      });
+    } else {
+      await prisma.ad.create({
+        data: reviewDemoAdData,
+      });
+    }
+
     console.log('Demo account created/updated successfully:');
     console.log(`  Email:    ${DEMO_EMAIL}`);
     console.log(`  Password: ${DEMO_PASSWORD}`);
     console.log(`  Username: ${DEMO_USERNAME}`);
     console.log(`  User ID:  ${user.id}`);
+    console.log('  Review Ad: VarsityHub Review Demo Ad (approved, unpaid)');
     console.log('');
     console.log('For App Store Connect review notes:');
     console.log(`  Email: ${DEMO_EMAIL}`);

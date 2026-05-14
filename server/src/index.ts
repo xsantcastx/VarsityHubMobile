@@ -328,7 +328,7 @@ runStartupChecks().catch(err => {
     const { prisma } = await import('./lib/prisma.js');
     const bcrypt = await import('bcrypt');
     const hash = await bcrypt.hash(env.DEMO_ACCOUNT_PASSWORD, 10);
-    await prisma.user.upsert({
+    const demoUser = await prisma.user.upsert({
       where: { email: 'demo@varsityhub.app' },
       update: {
         password_hash: hash,
@@ -383,6 +383,41 @@ runStartupChecks().catch(err => {
         },
       },
     });
+    const reviewDemoAd = await prisma.ad.findFirst({
+      where: {
+        user_id: demoUser.id,
+        business_name: 'VarsityHub Review Demo Ad',
+      },
+      select: { id: true },
+    });
+    const reviewDemoAdData = {
+      user_id: demoUser.id,
+      contact_name: 'VarsityHub Review',
+      contact_email: 'demo@varsityhub.app',
+      business_name: 'VarsityHub Review Demo Ad',
+      banner_url: null,
+      banner_fit_mode: 'cover',
+      target_url: 'https://www.varsityhub.app',
+      target_zip_code: '10001',
+      target_lat: 40.7506,
+      target_lng: -73.9972,
+      radius: 9,
+      description:
+        'Review-ready approved ad used to verify iOS in-app purchase checkout during App Review.',
+      status: 'approved' as const,
+      payment_status: 'unpaid' as const,
+      admin_note: 'System-seeded review demo ad. Approved to expose ad booking checkout during App Review.',
+    };
+    if (reviewDemoAd) {
+      await prisma.ad.update({
+        where: { id: reviewDemoAd.id },
+        data: reviewDemoAdData,
+      });
+    } else {
+      await prisma.ad.create({
+        data: reviewDemoAdData,
+      });
+    }
     debugLog('[startup] Demo account (demo@varsityhub.app) ready for Apple Review');
   } catch (e) {
     console.error('[startup] Demo account setup failed:', e);

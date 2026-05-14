@@ -81,7 +81,15 @@ if (process.env.NODE_ENV === 'production') {
     console.error('[payments] FATAL: STRIPE_WEBHOOK_SECRET is not set in production — webhooks will fail silently. Server cannot start.');
     process.exit(1);
   }
-  if (!process.env.APPLE_IAP_SHARED_SECRET) console.warn('[payments] Apple IAP shared secret not set — iOS IAP verification disabled');
+  if (!process.env.APPLE_BUNDLE_ID) {
+    console.error('[payments] FATAL: APPLE_BUNDLE_ID is not set in production — Apple StoreKit signed transaction verification will fail. Server cannot start.');
+    process.exit(1);
+  }
+  if (!process.env.APPLE_IAP_SHARED_SECRET) {
+    console.warn(
+      '[payments] Apple IAP shared secret not set — legacy receipt fallback is disabled, but signed StoreKit transactions still work'
+    );
+  }
 } else {
   if (!process.env.STRIPE_WEBHOOK_SECRET) console.warn('[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set in development — webhooks will fail silently');
 }
@@ -2863,8 +2871,8 @@ function verifyAppleSignedJws(token: string): any {
   }
 
   const environment = String(payload.environment || payload.environmentIOS || '').trim();
-  if (process.env.NODE_ENV === 'production' && environment === 'Sandbox') {
-    throw new Error('Sandbox Apple transaction rejected in production');
+  if (environment && environment !== 'Sandbox' && environment !== 'Production') {
+    throw new Error(`Unexpected Apple transaction environment: ${environment}`);
   }
 
   return payload;
@@ -3336,11 +3344,9 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       return res.status(403).json({ error: 'Bundle ID mismatch' });
     }
 
-    // Reject sandbox notifications in production (optional safety check)
     const environment: string = data.environment || payload.environment || 'Production';
-    if (process.env.NODE_ENV === 'production' && environment === 'Sandbox') {
-      console.warn('[apple-s2s] Rejecting sandbox notification in production');
-      return res.sendStatus(200);
+    if (environment !== 'Sandbox' && environment !== 'Production') {
+      console.warn('[apple-s2s] Unexpected Apple notification environment:', environment);
     }
 
     // Verify inner JWS tokens using their own x5c certificate chains (Apple best practice).

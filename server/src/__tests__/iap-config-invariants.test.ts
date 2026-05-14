@@ -15,6 +15,7 @@ const REPO_ROOT = join(SERVER_ROOT, '..');
 const read = (...parts: string[]) => readFileSync(join(...parts), 'utf8');
 
 const payments = read(SERVER_ROOT, 'src', 'routes', 'payments.ts');
+const paymentInternals = read(SERVER_ROOT, 'src', 'lib', 'paymentInternals.ts');
 const env = read(SERVER_ROOT, 'src', 'lib', 'env.ts');
 const clientIap = read(REPO_ROOT, 'hooks', 'useIAP.ts');
 const clientIapWeb = read(REPO_ROOT, 'hooks', 'useIAP.web.ts');
@@ -38,8 +39,8 @@ describe('IAP product configuration invariants', () => {
   });
 
   it('server maps MIDTIER/TOPTIER for Apple and Google subscription verification', () => {
-    expect(payments).toMatch(/const APPLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
-    expect(payments).toMatch(/const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
+    expect(paymentInternals).toMatch(/const APPLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
+    expect(paymentInternals).toMatch(/const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
     expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
     expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
   });
@@ -50,8 +51,8 @@ describe('IAP product configuration invariants', () => {
     expect(clientAdIapWeb).toMatch(/weekday:\s*'MOND_THURS'/);
     expect(clientAdIapWeb).toMatch(/weekend:\s*'FRI_SUN'/);
     expect(payments).toMatch(/const APPLE_AD_PRODUCTS = \['MOND_THURS', 'FRI_SUN'\]/);
-    expect(payments).toMatch(/MOND_THURS:\s*499/);
-    expect(payments).toMatch(/FRI_SUN:\s*799/);
+    expect(paymentInternals).toMatch(/MOND_THURS:\s*499/);
+    expect(paymentInternals).toMatch(/FRI_SUN:\s*799/);
   });
 
   it('mobile ad checkout uses Apple IAP on iOS and Stripe PaymentSheet elsewhere', () => {
@@ -90,8 +91,13 @@ describe('IAP product configuration invariants', () => {
     expect(stripePricingDoc).toMatch(/On iOS, ad booking uses Apple IAP product IDs `MOND_THURS` and `FRI_SUN`/i);
   });
 
-  it('production env validation hard-fails if Apple IAP is configured without APPLE_BUNDLE_ID', () => {
-    expect(env).toMatch(/APPLE_IAP_SHARED_SECRET && !env\.APPLE_BUNDLE_ID/);
-    expect(env).toMatch(/Apple IAP signed-transaction verification will fail in production/);
+  it('production env validation hard-fails if APPLE_BUNDLE_ID is missing', () => {
+    expect(env).toMatch(/if \(!env\.APPLE_BUNDLE_ID\)/);
+    expect(env).toMatch(/App Review, TestFlight, and live iOS purchases/);
+  });
+
+  it('Apple JWS verification does not reject sandbox transactions in production', () => {
+    expect(payments).not.toMatch(/Sandbox Apple transaction rejected in production/);
+    expect(payments).toMatch(/Unexpected Apple transaction environment/);
   });
 });

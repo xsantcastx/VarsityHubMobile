@@ -132,13 +132,17 @@ if (isProd) {
       'FATAL: SENDGRID_API_KEY is not set. Outbound email would silently fail in production. Set this in Railway env vars immediately.'
     );
   }
-  if (env.APPLE_IAP_SHARED_SECRET && !env.APPLE_BUNDLE_ID) {
+  if (!env.APPLE_BUNDLE_ID) {
     throw new Error(
-      'FATAL: APPLE_BUNDLE_ID is not set. Apple IAP signed-transaction verification will fail in production. Set this to the iOS bundle identifier immediately.'
+      'FATAL: APPLE_BUNDLE_ID is not set. Apple signed-transaction verification will fail in production for App Review, TestFlight, and live iOS purchases. Set this to the iOS bundle identifier immediately.'
     );
   }
-  if (!env.APPLE_BUNDLE_ID) warnings.push('APPLE_BUNDLE_ID (Apple Sign-In/IAP)');
   if (!env.APPLE_CLIENT_ID) warnings.push('APPLE_CLIENT_ID (Apple Sign-In)');
+  if (!env.APPLE_IAP_SHARED_SECRET) {
+    warnings.push(
+      'APPLE_IAP_SHARED_SECRET (legacy Apple receipt fallback disabled; StoreKit signed transactions still work)'
+    );
+  }
   // REDIS_URL is fatal in production: review-token replay protection,
   // distributed locks, and the email queue all silently degrade to per-process
   // in-memory state across Railway replicas without it. Replay tokens that
