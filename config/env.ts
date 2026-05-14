@@ -27,7 +27,7 @@ const processEnv: RawEnv =
   (typeof process !== 'undefined' ? ((process as any).env as RawEnv | undefined) : undefined) ?? {};
 
 const DEFAULT_API_URL = 'https://api-production-8ac3.up.railway.app';
-const DEFAULT_WEB_BASE = 'https://app.varsityhub.app';
+const DEFAULT_WEB_BASE = 'https://varsityhub.app';
 
 const normalizeUrl = (value: string) => value.replace(/\/$/, '');
 

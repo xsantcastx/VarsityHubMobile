@@ -102,6 +102,7 @@ app.use(
 const isProd = process.env.NODE_ENV === 'production';
 const defaultProdOrigins = [
   'https://varsityhub.app',
+  'https://www.varsityhub.app',
   // Transitional Expo-hosted web origin until the custom web app domain
   // is pointed at the actual web bundle instead of the Railway site shell.
   'https://varsity-hub-varsityhub.expo.app',

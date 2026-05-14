@@ -1,5 +1,22 @@
 # Use Node.js 20 LTS Debian-based image for broader libc/SSL support
 # Cache bust: 2026-01-15 - force npm ci to pull fresh lock file
+FROM node:20-bookworm-slim AS web-builder
+
+WORKDIR /web
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential python3 openssl \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY ./package.json ./package.json
+COPY ./package-lock.json ./package-lock.json
+RUN npm ci
+
+COPY . .
+
+ENV CI=1
+RUN npx expo export --platform web
+
 FROM node:20-bookworm-slim
 
 # Set working directory
@@ -29,6 +46,8 @@ COPY ./server/start.sh ./start.sh
 COPY ./server/well-known ./well-known
 # Copy shared directory (needed for plan-definitions.json)
 COPY ./shared ./shared
+# Copy exported Expo web bundle so the apex domain can serve the real web app.
+COPY --from=web-builder /web/dist ./web-dist
 
 # Remove expo extends and ensure compilation outputs files
 RUN node -e " \

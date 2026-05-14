@@ -1,8 +1,11 @@
-import { type Request, type Response, Router } from 'express';
+import express, { type Request, type Response, Router } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const publicSiteRouter = Router();
-const MARKETING_SITE_URL = 'https://www.varsityhub.app/';
-const FALLBACK_WEB_APP_ORIGIN = 'https://app.varsityhub.app';
+const MARKETING_SITE_URL = 'https://varsityhub.app/';
+const FALLBACK_WEB_APP_ORIGIN = 'https://varsityhub.app';
+const FALLBACK_WEB_HOSTS = ['varsityhub.app', 'www.varsityhub.app'];
 const WEB_APP_REDIRECT_PATHS = new Set([
   '/sign-in',
   '/sign-up',
@@ -19,7 +22,7 @@ const WEB_APP_REDIRECT_PATHS = new Set([
 const pageStyle = `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:760px;margin:40px auto;padding:0 20px;color:#1F2937;line-height:1.6;background:#F8FAFC}h1{color:#1B3A6B;margin-bottom:8px}h2{color:#2563EB;margin-top:24px}a{color:#2563EB}.card{background:#fff;border:1px solid #E5E7EB;border-radius:18px;padding:28px 24px;box-shadow:0 12px 32px rgba(15,23,42,.08)}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}.btn{display:inline-block;background:#1B3A6B;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600}.btn-secondary{background:#EFF6FF;color:#1D4ED8}.meta{font-size:14px;color:#64748B;margin-top:20px}`;
 
 function renderLandingPage() {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>VarsityHub</title><style>${pageStyle}</style></head><body><div class="card"><h1>VarsityHub</h1><p>The home for teams, events, and sports communities.</p><p>Use the mobile app for the full experience. This web surface stays intentionally small so deep links, legal pages, and support routes stay reliable.</p><div class="actions"><a class="btn" href="/support">Support</a><a class="btn btn-secondary" href="/privacy-policy">Privacy Policy</a><a class="btn btn-secondary" href="/terms">Terms of Service</a></div><p class="meta">VarsityHub for web is being rolled out separately at <a href="https://www.varsityhub.app/">www.varsityhub.app</a>.</p></div></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>VarsityHub</title><style>${pageStyle}</style></head><body><div class="card"><h1>VarsityHub</h1><p>The home for teams, events, and sports communities.</p><p>The web app bundle is not available on this deployment yet. Legal pages and support routes are still online.</p><div class="actions"><a class="btn" href="/support">Support</a><a class="btn btn-secondary" href="/privacy-policy">Privacy Policy</a><a class="btn btn-secondary" href="/terms">Terms of Service</a></div><p class="meta">Deploy the exported web bundle to this host to replace this fallback shell.</p></div></body></html>`;
 }
 
 function getWebAppOrigin(): string {
@@ -28,11 +31,71 @@ function getWebAppOrigin(): string {
   return raw.replace(/\/+$/, '');
 }
 
+function getWebHosts(): Set<string> {
+  const raw = process.env.PUBLIC_WEB_HOSTS || process.env.WEB_HOSTS || '';
+  const configured = raw
+    .split(',')
+    .map(host => host.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(configured.length > 0 ? configured : FALLBACK_WEB_HOSTS);
+}
+
+function normalizeHostname(hostname: string | undefined): string {
+  return String(hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, '');
+}
+
+function isWebHost(hostname: string | undefined): boolean {
+  return getWebHosts().has(normalizeHostname(hostname));
+}
+
+function getWebDistDir(): string | null {
+  const configured = process.env.WEB_DIST_DIR?.trim();
+  const candidates = [
+    configured,
+    path.resolve(process.cwd(), 'web-dist'),
+    path.resolve(process.cwd(), '../web-dist'),
+    path.resolve(process.cwd(), 'dist'),
+    path.resolve(process.cwd(), '../dist'),
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isDirectory()) {
+        return candidate;
+      }
+    } catch {
+      // Continue through candidates.
+    }
+  }
+
+  return null;
+}
+
+function getIndexHtmlPath(distDir: string): string {
+  return path.join(distDir, 'index.html');
+}
+
+function canServeWebDist(): boolean {
+  const distDir = getWebDistDir();
+  if (!distDir) return false;
+  return fs.existsSync(getIndexHtmlPath(distDir));
+}
+
+function shouldKeepServerPage(pathname: string): boolean {
+  return pathname === '/privacy-policy' || pathname === '/terms' || pathname === '/support';
+}
+
 function shouldRedirectToWebApp(pathname: string): boolean {
   return WEB_APP_REDIRECT_PATHS.has(pathname) || pathname.startsWith('/organizations/');
 }
 
 function maybeRedirectToWebApp(req: Request, res: Response): boolean {
+  if (isWebHost(req.hostname) && canServeWebDist()) {
+    return false;
+  }
   if (!shouldRedirectToWebApp(req.path)) return false;
 
   const targetOrigin = getWebAppOrigin();
@@ -47,8 +110,40 @@ function maybeRedirectToWebApp(req: Request, res: Response): boolean {
   return true;
 }
 
+const serveWebAssets = (() => {
+  let cachedDir: string | null = null;
+  let cachedMiddleware:
+    | ((req: Request, res: Response, next: (err?: unknown) => void) => void)
+    | null = null;
+
+  return (req: Request, res: Response, next: (err?: unknown) => void) => {
+    const distDir = getWebDistDir();
+    if (!distDir) return next();
+
+    if (!cachedMiddleware || cachedDir !== distDir) {
+      cachedDir = distDir;
+      cachedMiddleware = express.static(distDir, {
+        extensions: ['html'],
+        index: false,
+      });
+    }
+
+    return cachedMiddleware(req, res, next);
+  };
+})();
+
+publicSiteRouter.use((req, res, next) => {
+  if (!isWebHost(req.hostname)) return next();
+  if (!canServeWebDist()) return next();
+  return serveWebAssets(req, res, next);
+});
+
 publicSiteRouter.get('/', (req, res) => {
-  if (req.hostname === 'www.varsityhub.app') {
+  if (isWebHost(req.hostname)) {
+    const distDir = getWebDistDir();
+    if (distDir && fs.existsSync(getIndexHtmlPath(distDir))) {
+      return res.sendFile(getIndexHtmlPath(distDir));
+    }
     res.setHeader('Content-Type', 'text/html');
     res.send(renderLandingPage());
     return;
@@ -58,6 +153,15 @@ publicSiteRouter.get('/', (req, res) => {
 });
 
 publicSiteRouter.get('*', (req, res, next) => {
+  if (isWebHost(req.hostname) && canServeWebDist() && !shouldKeepServerPage(req.path)) {
+    return res.sendFile(getIndexHtmlPath(getWebDistDir()!));
+  }
+  if (isWebHost(req.hostname) && !canServeWebDist() && !shouldKeepServerPage(req.path)) {
+    if (maybeRedirectToWebApp(req, res)) return;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(renderLandingPage());
+    return;
+  }
   if (maybeRedirectToWebApp(req, res)) return;
   next();
 });
