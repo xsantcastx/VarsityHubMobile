@@ -1,0 +1,17 @@
+.git
+.expo
+.claude
+.docs
+.eslintcache
+.tsbuildinfo
+android
+ios
+server
+node_modules
+coverage
+dist
+playwright-report
+test-results
+overnight-logs-*
+overnight-results
+docs

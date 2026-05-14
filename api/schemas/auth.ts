@@ -93,7 +93,11 @@ function summarizeKeys(value: unknown): string[] {
   return Object.keys(value as Record<string, unknown>).sort();
 }
 
-function buildValidationError(endpoint: string, payload: unknown, result: z.SafeParseError<unknown>) {
+function buildValidationError(
+  endpoint: string,
+  payload: unknown,
+  errorResult: z.ZodError
+) {
   const error = new Error(`Auth response schema drift at ${endpoint}`);
   captureException(error, {
     tags: {
@@ -101,8 +105,8 @@ function buildValidationError(endpoint: string, payload: unknown, result: z.Safe
       entity: 'auth',
       endpoint,
     },
-    issue_count: result.error.issues.length,
-    issues: result.error.issues.slice(0, 8).map(issue => ({
+    issue_count: errorResult.issues.length,
+    issues: errorResult.issues.slice(0, 8).map(issue => ({
       path: issue.path.join('.'),
       message: issue.message,
       code: issue.code,
@@ -118,7 +122,7 @@ export function validateAuthenticatedUser(
 ): AuthenticatedUserResponse {
   const result = authenticatedUserSchema.safeParse(payload);
   if (result.success) return result.data;
-  throw buildValidationError(endpoint, payload, result);
+  throw buildValidationError(endpoint, payload, result.error);
 }
 
 export function validateOnboardingCompletion(
@@ -127,5 +131,5 @@ export function validateOnboardingCompletion(
 ): OnboardingCompletionResponse {
   const result = onboardingCompletionSchema.safeParse(payload);
   if (result.success) return result.data;
-  throw buildValidationError(endpoint, payload, result);
+  throw buildValidationError(endpoint, payload, result.error);
 }

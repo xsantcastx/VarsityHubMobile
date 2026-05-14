@@ -260,7 +260,7 @@ module.exports = ({ config }) => {
       EXPO_PUBLIC_FORCE_REMOTE_API: forceRemoteApi,
       EXPO_PUBLIC_NODE_ENV: publicNodeEnv,
       EXPO_PUBLIC_APP_SCHEME: 'varsityhubmobile',
-      EXPO_PUBLIC_WEB_BASE_URL: 'https://varsityhub.app',
+      EXPO_PUBLIC_WEB_BASE_URL: 'https://www.varsityhub.app',
       APP_STORE_PRIVACY_POLICY_URL: 'https://varsityhub.app/privacy-policy',
 
       // Sensitive values — loaded from environment variables

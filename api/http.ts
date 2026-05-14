@@ -61,7 +61,7 @@ async function getRequestAuthToken(): Promise<string | null> {
   // Hydrate from persisted storage when a protected request fires before
   // AuthProvider/bootstrap has populated the in-memory token cache.
   // Keep this lazy to avoid a static cycle with api/auth.ts.
-  const { auth } = await import('./auth');
+  const { auth } = await import('./auth' as string);
   return (await auth.getToken()) || null;
 }
 
@@ -345,7 +345,7 @@ async function request(
       // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
       if (err.status === 401 && token && !behavior.skipAuthRetry) {
         // Lazy-import to avoid circular dependency (auth.ts imports from http.ts)
-        const { auth } = await import('./auth');
+        const { auth } = await import('./auth' as string);
 
         const refreshResult = await attemptTokenRefreshWithCache(() => auth.refreshToken());
         const newToken = refreshResult?.accessToken ?? null;
