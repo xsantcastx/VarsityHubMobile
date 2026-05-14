@@ -1,3 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { AD_GEOFENCE_RADIUS_MILES } from '../lib/adGeofencing.js';
+
+const adsRouteSource = readFileSync(join(process.cwd(), 'src', 'routes', 'ads.ts'), 'utf8');
+
 describe('Advertisements', () => {
   describe('Ad Creation', () => {
     it('should require contact name', () => {
@@ -28,9 +34,8 @@ describe('Advertisements', () => {
       expect(ad.target_zip_code).toMatch(/^\d{5}$/);
     });
 
-    it('should have default radius of 45 miles', () => {
-      const defaultRadius = 45;
-      expect(defaultRadius).toBe(45);
+    it('should have a fixed 9 mile ad radius', () => {
+      expect(AD_GEOFENCE_RADIUS_MILES).toBe(9);
     });
   });
 
@@ -77,9 +82,13 @@ describe('Advertisements', () => {
     });
 
     it('should validate radius in miles', () => {
-      const radius = 45;
+      const radius = AD_GEOFENCE_RADIUS_MILES;
       expect(radius).toBeGreaterThan(0);
       expect(radius).toBeLessThanOrEqual(250);
+    });
+
+    it('holds booking inventory on the exact requested zip code', () => {
+      expect(adsRouteSource).toMatch(/target_zip_code:\s*zipCode/);
     });
   });
 

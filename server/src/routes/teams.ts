@@ -38,6 +38,8 @@ import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthS
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
 import { getTeamState, listTeamStates } from '../lib/teamState.js';
+import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
+import { getVeteranTotalTeamAllowance } from '../lib/paymentInternals.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
@@ -240,6 +242,108 @@ async function validateTeamCreateOrganizationAccess(
   return { ok: true as const };
 }
 
+type TeamCreatePayload = {
+  name: string;
+  description?: string;
+  sport?: string;
+  club_type?: 'sport' | 'extracurricular';
+  extracurricular_category?: string;
+  season?: string;
+  primary_color?: string;
+  season_start?: string;
+  season_end?: string;
+  organization_id?: string;
+  organization_name?: string;
+  logo_url?: string;
+  city?: string;
+  state?: string;
+  league?: string;
+  venue_place_id?: string;
+  venue_lat?: number;
+  venue_lng?: number;
+  venue_address?: string;
+  authorized_users?: Array<{
+    email?: string;
+    user_id?: string;
+    role?: string;
+    assign_team?: string;
+  }>;
+  onboarding?: boolean;
+};
+
+type TeamCreateBillingContext = {
+  effectivePlan: string | null | undefined;
+  effectiveSubscriptionId?: string;
+  teamCountSource: 'user' | 'org';
+  orgIdForTeamCount?: string;
+};
+
+async function buildTeamCreateBillingContext(userId: string, me: any): Promise<TeamCreateBillingContext> {
+  const prefs = (me?.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  let effectivePlan = getEffectiveEntitledPlan(me as any);
+  let effectiveSubscriptionId = prefs.subscription_id;
+  let teamCountSource: 'user' | 'org' = 'user';
+  let orgIdForTeamCount: string | undefined;
+
+  if (me?.paid_by_owner) {
+    const orgMembership = await prisma.organizationMembership.findFirst({
+      where: { user_id: userId, status: 'active' },
+      select: { organization: { select: { id: true, league_owner_id: true } } },
+    });
+    const ownerId = orgMembership?.organization?.league_owner_id;
+    if (ownerId) {
+      const owner = await prisma.user.findUnique({
+        where: { id: ownerId },
+        select: {
+          preferences: true,
+          plan: true,
+          pending_plan: true,
+          payment_pending: true,
+          payment_approved: true,
+        },
+      });
+      const ownerPrefs = (owner?.preferences && typeof owner.preferences === 'object')
+        ? (owner.preferences as any)
+        : {};
+      effectivePlan = getEffectiveEntitledPlan(owner as any);
+      effectiveSubscriptionId = ownerPrefs.subscription_id;
+      teamCountSource = 'org';
+      orgIdForTeamCount = orgMembership?.organization?.id;
+    }
+  }
+
+  return {
+    effectivePlan,
+    effectiveSubscriptionId,
+    teamCountSource,
+    orgIdForTeamCount,
+  };
+}
+
+async function countTeamsForBillingContext(db: any, userId: string, context: TeamCreateBillingContext): Promise<number> {
+  if (context.teamCountSource === 'org' && context.orgIdForTeamCount) {
+    return db.team.count({ where: { organization_id: context.orgIdForTeamCount } });
+  }
+
+  return db.teamMembership.count({
+    where: { user_id: userId, role: 'owner', status: 'active' },
+  });
+}
+
+async function getVeteranSubscriptionAllowance(subscriptionId: string) {
+  const stripeLib = await import('stripe');
+  const stripeClient = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+  const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
+  const billableQuantity = subscription.items.data[0]?.quantity || 0;
+  const active = subscription.status === 'active' || subscription.status === 'trialing';
+
+  return {
+    active,
+    billableQuantity,
+    totalTeamAllowance: getVeteranTotalTeamAllowance(billableQuantity),
+  };
+}
+
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
@@ -325,35 +429,63 @@ teamsRouter.get('/managed', requireAuth as any, asyncHandler(async (req: AuthedR
 // Check team creation limits for current user
 teamsRouter.get('/limits', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   try {
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: {
+      id: true,
+      preferences: true,
+      plan: true,
+      pending_plan: true,
+      payment_pending: true,
+      payment_approved: true,
+      paid_by_owner: true,
+      subscription_tier: true,
+    },
+  });
   if (!user) return res.status(401).json({ error: 'User not found' });
 
-  const ownedTeamsCount = await prisma.teamMembership.count({
-    where: {
-      user_id: req.user!.id,
-      role: 'owner',
-      status: 'active'
+  const billingContext = await buildTeamCreateBillingContext(req.user!.id, user);
+  const ownedTeamsCount = await countTeamsForBillingContext(prisma, req.user!.id, billingContext);
+  const effectivePlan = billingContext.effectivePlan;
+
+  let maxTeamsDisplay = 999;
+  let canCreateMore = true;
+  let remaining = 999;
+
+  if (effectivePlan === 'veteran') {
+    const subscriptionId = billingContext.effectiveSubscriptionId;
+    if (!subscriptionId) {
+      maxTeamsDisplay = ownedTeamsCount;
+      canCreateMore = false;
+      remaining = 0;
+    } else {
+      try {
+        const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
+        maxTeamsDisplay = allowance.totalTeamAllowance;
+        canCreateMore = allowance.active && ownedTeamsCount < allowance.totalTeamAllowance;
+        remaining = canCreateMore ? Math.max(0, allowance.totalTeamAllowance - ownedTeamsCount) : 0;
+      } catch (err) {
+        console.error('[teams] limits veteran allowance verification failed:', err);
+        maxTeamsDisplay = ownedTeamsCount;
+        canCreateMore = false;
+        remaining = 0;
+      }
     }
-  });
-  
-  const plan = getEffectiveEntitledPlan(user as any);
-  
-  // Get max teams from plan definitions (source of truth)
-  const maxTeamsFromPlan = getMaxTeamsForPlan(plan);
-  // Use plan-based limit if available, otherwise fallback to database column, then default to 2
-  const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? 3;
-  
-  // For unlimited plans (null), set to a high number for UI display
-  const maxTeamsDisplay = maxTeamsFromPlan === null ? 999 : maxTeams;
-  
-  const canCreateMore = maxTeamsFromPlan === null || ownedTeamsCount < maxTeams;
-  const subscriptionTier = (user as any).subscription_tier ?? 'free';
+  } else {
+    const maxTeamsFromPlan = getMaxTeamsForPlan(effectivePlan);
+    const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? SERVER_ROOKIE_TEAM_LIMIT;
+    maxTeamsDisplay = maxTeamsFromPlan === null ? 999 : maxTeams;
+    canCreateMore = maxTeamsFromPlan === null || ownedTeamsCount < maxTeams;
+    remaining = maxTeamsFromPlan === null ? 999 : Math.max(0, maxTeams - ownedTeamsCount);
+  }
+
+  const subscriptionTier = effectivePlan ?? (user as any).subscription_tier ?? 'free';
   
   return res.json({
     owned_teams: ownedTeamsCount,
     max_teams: maxTeamsDisplay,
     can_create_more: canCreateMore,
-    remaining: maxTeamsFromPlan === null ? 999 : Math.max(0, maxTeams - ownedTeamsCount),
+    remaining,
     subscription_tier: subscriptionTier,
     upgrade_required: !canCreateMore
   });
@@ -959,38 +1091,29 @@ const createSchema = z.object({
   season_end: z.string().optional(),
   onboarding: z.boolean().optional(),
 });
-teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-  // req.user is guaranteed by requireVerified middleware
-  const parsed = createSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      error: 'Invalid payload',
-      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
-    });
-  }
-  const userId = req.user!.id;
+async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload) {
   const me = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
+      role: true,
+      onboarding_completed: true,
       preferences: true,
+      approval_status: true,
+      paid_by_owner: true,
       plan: true,
       pending_plan: true,
       payment_pending: true,
       payment_approved: true,
     },
   });
-  if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  if (!me) return { status: 401, body: { error: 'Unauthorized' } };
 
-  // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
-  // OR if their profile role is 'coach' (covers new coaches who completed onboarding
-  // but haven't created their first team yet).
-  const prefs0 = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const isCoachByPrefs = prefs0.role === 'coach';
+  const canonicalRole = getCanonicalUserRole(me as any);
+  const onboardingComplete = isUserOnboardingComplete(me as any);
+  const isCoach = canonicalRole === 'coach';
 
-  if (!isCoachByPrefs) {
-    // Only check DB memberships if preferences don't confirm coach role
+  if (!isCoach) {
     const hasCoachRole = await prisma.teamMembership.findFirst({
       where: {
         user_id: userId,
@@ -1008,113 +1131,342 @@ teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePl
     });
 
     if (!hasCoachRole && !hasOrgRole) {
-      return res.status(403).json({
-        error: 'COACH_ROLE_REQUIRED',
-        message: 'Only coach accounts can create teams.',
-        code: 'COACH_ROLE_REQUIRED'
-      });
+      return {
+        status: 403,
+        body: {
+          error: 'COACH_ROLE_REQUIRED',
+          message: 'Only coach accounts can create teams.',
+          code: 'COACH_ROLE_REQUIRED',
+        },
+      };
     }
   }
 
-  // Validate organization exists and is approved
-  const org = await getOrganizationState(parsed.data.organization_id);
-  if (!org) return res.status(400).json({ error: 'Organization not found' });
-  if (!(await isOrganizationApproved(parsed.data.organization_id, prisma))) {
-    return res.status(403).json({
-      error: 'ORGANIZATION_NOT_APPROVED',
-      message: 'Teams can only be created under organizations that have been approved by VarsityHub.',
-      code: 'ORGANIZATION_NOT_APPROVED',
-    });
-  }
-  const orgMembership = await getOrganizationMembership(userId, parsed.data.organization_id);
-  if (!orgMembership || orgMembership.status !== 'active') {
-    return res.status(403).json({
-      error: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
-      message: 'You must be an active member of this organization to create a team under it.',
-    });
-  }
-
-  // Atomic limit check + create to prevent race condition on concurrent requests
-  const userPrefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userPlan = getEffectiveEntitledPlan(me as any);
-  const maxTeams = getMaxTeamsForPlan(userPlan) ?? Infinity;
-
-  const t = await prisma.$transaction(async (tx) => {
-    // For Veteran plan, verify Stripe subscription is active inside the transaction
-    if (userPlan === 'veteran') {
-      const subId = userPrefs.subscription_id;
-      if (!subId) {
-        throw Object.assign(new Error('No active subscription'), {
-          status: 403,
-          body: { error: 'No active subscription', message: 'Veteran plan requires an active subscription.' },
-        });
-      }
-      try {
-        const stripeLib = await import('stripe');
-        const sc = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
-        const sub = await sc.subscriptions.retrieve(subId);
-        if (sub.status !== 'active' && sub.status !== 'trialing') {
-          throw Object.assign(new Error('Subscription not active'), {
-            status: 403,
-            body: { error: 'Subscription not active', message: 'Your Veteran subscription is not active.' },
-          });
-        }
-      } catch (err) {
-        if ((err as any).status) throw err; // Re-throw our custom error
-        console.error('[Teams] Failed to verify Veteran subscription on POST /teams:', err);
-        throw Object.assign(new Error('Subscription verification failed'), {
-          status: 500,
-          body: { error: 'Subscription verification failed' },
-        });
-      }
-    }
-
-    const ownedTeamsCount = await tx.teamMembership.count({
+  if (isCoach && me.approval_status !== 'APPROVED') {
+    const isOrgOwner = await prisma.organizationMembership.findFirst({
       where: { user_id: userId, role: 'owner', status: 'active' },
+      select: { id: true },
     });
+    if (!(Boolean(isOrgOwner) && !onboardingComplete)) {
+      return {
+        status: 403,
+        body: {
+          error: 'APPROVAL_REQUIRED',
+          message: 'Your coach account must be approved by a league admin before creating teams.',
+          code: 'APPROVAL_REQUIRED',
+        },
+      };
+    }
+  }
 
-    if (ownedTeamsCount >= maxTeams) {
-      throw Object.assign(new Error('Team limit reached'), {
+  const billingContext = await buildTeamCreateBillingContext(userId, me);
+  const effectivePlan = billingContext.effectivePlan;
+  const clubType = data.club_type || 'sport';
+
+  if (clubType === 'extracurricular' && !planSupportsExtracurricular(effectivePlan)) {
+    return {
+      status: 403,
+      body: {
+        error: 'Extracurricular clubs require Legend tier',
+        message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
+        code: 'LEGEND_TIER_REQUIRED',
+        feature: 'extracurricular_clubs',
+      },
+    };
+  }
+
+  const currentTeamCount = await countTeamsForBillingContext(prisma, userId, billingContext);
+  if (effectivePlan === 'rookie' || !effectivePlan) {
+    if (currentTeamCount >= SERVER_ROOKIE_TEAM_LIMIT) {
+      return {
         status: 403,
         body: {
           error: 'Team limit reached',
-          message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
-          owned_teams: ownedTeamsCount,
-          max_teams: maxTeams,
-          upgrade_required: true,
+          message: me.paid_by_owner
+            ? `Your organization has reached the free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). The league owner needs to upgrade.`
+            : `You've reached your free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). Upgrade to add more.`,
+          code: 'TEAM_LIMIT_EXCEEDED',
+          limit: SERVER_ROOKIE_TEAM_LIMIT,
+          current: currentTeamCount,
+        },
+      };
+    }
+  } else if (effectivePlan === 'veteran') {
+    const subscriptionId = billingContext.effectiveSubscriptionId;
+    if (!subscriptionId) {
+      return {
+        status: 403,
+        body: {
+          error: 'No active subscription',
+          message: me.paid_by_owner
+            ? 'The league owner needs an active Veteran subscription.'
+            : 'Veteran plan requires an active subscription. Please update your billing settings.',
+          code: 'NO_ACTIVE_SUBSCRIPTION',
+        },
+      };
+    }
+
+    try {
+      const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
+      if (!allowance.active) {
+        return {
+          status: 403,
+          body: {
+            error: 'Subscription not active',
+            message: me.paid_by_owner
+              ? "The league owner's Veteran subscription is not active."
+              : 'Your Veteran subscription is not active. Please update your billing settings.',
+            code: 'SUBSCRIPTION_NOT_ACTIVE',
+          },
+        };
+      }
+
+      if (currentTeamCount >= allowance.totalTeamAllowance) {
+        return {
+          status: 403,
+          body: {
+            error: 'Team limit reached',
+            message: me.paid_by_owner
+              ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. The league owner needs to update billing before creating another team.`
+              : `Your subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. Update billing before creating another team.`,
+            code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+            paid_quantity: allowance.billableQuantity,
+            allowed_total_teams: allowance.totalTeamAllowance,
+            current_teams: currentTeamCount,
+          },
+        };
+      }
+    } catch (err) {
+      console.error('[Teams] Failed to verify Veteran subscription:', err);
+      return {
+        status: 500,
+        body: {
+          error: 'Subscription verification failed',
+          message: 'Unable to verify your subscription. Please try again or contact support.',
+        },
+      };
+    }
+  }
+
+  const resolvedOrganization = await resolveOrganizationIdForTeamCreate(data);
+  if ('status' in resolvedOrganization) {
+    return resolvedOrganization;
+  }
+
+  const organizationAccess = await validateTeamCreateOrganizationAccess(
+    me.id,
+    resolvedOrganization.organizationId,
+    onboardingComplete
+  );
+  if ('status' in organizationAccess) {
+    return organizationAccess;
+  }
+
+  const organizationId = resolvedOrganization.organizationId;
+
+  try {
+    const team = await prisma.$transaction(async (tx) => {
+      const ownedTeamsInTx = await countTeamsForBillingContext(tx, me.id, billingContext);
+
+      if (effectivePlan === 'rookie' || !effectivePlan) {
+        if (ownedTeamsInTx >= SERVER_ROOKIE_TEAM_LIMIT) {
+          throw Object.assign(new Error('Team limit reached'), {
+            status: 403,
+            body: {
+              error: 'Team limit reached',
+              message: me.paid_by_owner
+                ? `Your organization has reached the free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). The league owner needs to upgrade.`
+                : `You've reached your free limit (${SERVER_ROOKIE_TEAM_LIMIT} teams). Upgrade to add more.`,
+              code: 'TEAM_LIMIT_EXCEEDED',
+              limit: SERVER_ROOKIE_TEAM_LIMIT,
+              current: ownedTeamsInTx,
+            },
+          });
+        }
+      } else if (effectivePlan === 'veteran') {
+        const subscriptionId = billingContext.effectiveSubscriptionId;
+        if (!subscriptionId) {
+          throw Object.assign(new Error('No active subscription'), {
+            status: 403,
+            body: {
+              error: 'No active subscription',
+              message: me.paid_by_owner
+                ? 'The league owner needs an active Veteran subscription.'
+                : 'Veteran plan requires an active subscription. Please update your billing settings.',
+              code: 'NO_ACTIVE_SUBSCRIPTION',
+            },
+          });
+        }
+
+        try {
+          const allowance = await getVeteranSubscriptionAllowance(subscriptionId);
+          if (!allowance.active) {
+            throw Object.assign(new Error('Subscription not active'), {
+              status: 403,
+              body: {
+                error: 'Subscription not active',
+                message: me.paid_by_owner
+                  ? "The league owner's Veteran subscription is not active."
+                  : 'Your Veteran subscription is not active. Please update your billing settings.',
+                code: 'SUBSCRIPTION_NOT_ACTIVE',
+              },
+            });
+          }
+          if (ownedTeamsInTx >= allowance.totalTeamAllowance) {
+            throw Object.assign(new Error('Team limit reached'), {
+              status: 403,
+              body: {
+                error: 'Team limit reached',
+                message: me.paid_by_owner
+                  ? `The organization's subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. The league owner needs to update billing before creating another team.`
+                  : `Your subscription currently covers ${allowance.totalTeamAllowance} total team${allowance.totalTeamAllowance === 1 ? '' : 's'}. Update billing before creating another team.`,
+                code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+                paid_quantity: allowance.billableQuantity,
+                allowed_total_teams: allowance.totalTeamAllowance,
+                current_teams: ownedTeamsInTx,
+              },
+            });
+          }
+        } catch (err: any) {
+          if (err?.status && err?.body) throw err;
+          throw Object.assign(new Error('Subscription verification failed'), {
+            status: 500,
+            body: {
+              error: 'Subscription verification failed',
+              message: 'Unable to verify your subscription. Please try again or contact support.',
+            },
+          });
+        }
+      }
+
+      const newTeam = await tx.team.create({
+        data: {
+          name: data.name.trim(),
+          description: data.description?.trim() || null,
+          sport: data.sport?.trim() || null,
+          club_type: data.club_type || 'sport',
+          extracurricular_category: data.extracurricular_category?.trim() || null,
+          season: data.season?.trim() || null,
+          primary_color: data.primary_color?.trim() || null,
+          season_start: data.season_start ? new Date(data.season_start) : null,
+          season_end: data.season_end ? new Date(data.season_end) : null,
+          organization_id: organizationId,
+          logo_url: data.logo_url || null,
+          city: data.city?.trim() || null,
+          state: data.state?.trim() || null,
+          league: data.league?.trim() || null,
+          venue_place_id: data.venue_place_id || null,
+          venue_lat: data.venue_lat || null,
+          venue_lng: data.venue_lng || null,
+          venue_address: data.venue_address?.trim() || null,
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          organization_id: true,
+          season_start: true,
+          season_end: true,
+          logo_url: true,
+          avatar_url: true,
         },
       });
+
+      await tx.teamMembership.create({
+        data: {
+          team_id: newTeam.id,
+          user_id: me.id,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+
+      return { ...newTeam, status: 'active' as const };
+    }, { isolationLevel: 'Serializable' });
+
+    if (data.authorized_users && Array.isArray(data.authorized_users) && data.authorized_users.length > 0) {
+      try {
+        const validInviteRoles = new Set(['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness']);
+        const invites = data.authorized_users
+          .filter((user) => user.email)
+          .map((user) => {
+            const requestedRole = String(user.role || 'member');
+            return {
+              team_id: team.id,
+              email: user.email!,
+              role: (validInviteRoles.has(requestedRole) ? requestedRole : 'member') as any,
+            };
+          });
+
+        if (invites.length > 0) {
+          await prisma.teamInvite.createMany({
+            data: invites,
+            skipDuplicates: true,
+          });
+
+          try {
+            const [inviter, createdInvites] = await Promise.all([
+              prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } }),
+              prisma.teamInvite.findMany({
+                where: { team_id: team.id, email: { in: invites.map((invite) => invite.email) } },
+                select: { id: true, email: true },
+                take: invites.length,
+              }),
+            ]);
+            const tokenByEmail = Object.fromEntries(createdInvites.map((invite) => [invite.email, invite.id]));
+            await Promise.all(invites.map(async (invite) => {
+              try {
+                await sendTeamInviteEmail({
+                  to: invite.email,
+                  teamName: team.name,
+                  organizationName: null,
+                  role: invite.role,
+                  inviterName: inviter?.display_name || 'Team Owner',
+                  teamHeroUrl: team.logo_url || undefined,
+                  teamLogoUrl: team.avatar_url || undefined,
+                  inviteToken: tokenByEmail[invite.email],
+                });
+              } catch (error) {
+                console.warn('[Teams] Failed to send team invite email:', error);
+              }
+            }));
+          } catch (emailError) {
+            console.warn('[Teams] Failed to send invite emails (non-blocking):', emailError);
+          }
+        }
+      } catch (inviteError: any) {
+        console.warn('[Teams] Failed to create invites (non-blocking):', inviteError);
+      }
     }
 
-    const team = await tx.team.create({
-      data: {
-        name: parsed.data.name,
-        description: parsed.data.description,
-        organization_id: parsed.data.organization_id,
-        season_start: parsed.data.season_start ? new Date(parsed.data.season_start) : null,
-        season_end: parsed.data.season_end ? new Date(parsed.data.season_end) : null,
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        organization_id: true,
-        season_start: true,
-        season_end: true,
-      },
-    });
-    await tx.teamMembership.create({ data: { team_id: team.id, user_id: me.id, role: 'owner' } });
-    return { ...team, status: 'active' };
-  }, { isolationLevel: 'Serializable' });
-
-  return res.status(201).json(t);
-  } catch (err: any) {
-    if (err?.status && err?.body) {
-      return res.status(err.status).json(err.body);
+    return { team };
+  } catch (teamError: any) {
+    if (teamError?.status && teamError?.body) {
+      return { status: teamError.status, body: teamError.body };
     }
-    console.error('[teams] create error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('[Teams] Failed to create team:', teamError);
+    return { status: 500, body: { error: 'Team creation failed' } };
   }
+}
+
+teamsRouter.post('/', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, teamCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
+  const parsed = createSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
+
+  const result = await createTeamWithGuardrails(req.user!.id, {
+    ...parsed.data,
+    club_type: 'sport',
+  });
+  if ('status' in result) {
+    return res.status(result.status).json(result.body);
+  }
+
+  return res.status(201).json(result.team);
 }));
 
 // Update team (auth required). Only owners/admins can update.
@@ -1410,7 +1762,6 @@ const createTeamSchema = z.object({
 });
 
 teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, requirePlan('rookie') as any, teamCreationLimiter, asyncHandler(async (req: AuthedRequest, res) => {
-  // req.user is guaranteed by requireVerified middleware
   const parsed = createTeamSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -1418,381 +1769,19 @@ teamsRouter.post('/create', requireVerified as any, requireOnboarded as any, req
       issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
     });
   }
-  
-  const data = parsed.data;
-  const userId = req.user!.id;
-  const me = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      role: true,
-      onboarding_completed: true,
-      preferences: true,
-      approval_status: true,
-      paid_by_owner: true,
+  const result = await createTeamWithGuardrails(req.user!.id, parsed.data);
+  if ('status' in result) {
+    return res.status(result.status).json(result.body);
+  }
+
+  return res.status(201).json({
+    ok: true,
+    team: {
+      id: result.team.id,
+      name: result.team.name,
+      organization_id: result.team.organization_id,
     },
   });
-  if (!me) return res.status(401).json({ error: 'Unauthorized' });
-
-  // SECURITY: Enforce coach role — allow if user has any coach-related DB membership,
-  // OR if their profile role is 'coach' (covers new coaches who completed onboarding
-  // but haven't created their first team yet).
-  const prefsCheck = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const canonicalRole = getCanonicalUserRole(me as any);
-  const onboardingComplete = isUserOnboardingComplete(me as any);
-  const isCoach = canonicalRole === 'coach';
-
-  if (!isCoach) {
-    // Only check DB memberships if preferences don't confirm coach role
-    const hasCoachRole = await prisma.teamMembership.findFirst({
-      where: {
-        user_id: userId,
-        role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
-        status: 'active',
-      },
-    });
-    const hasOrgRole = await prisma.organizationMembership.findFirst({
-      where: {
-        user_id: userId,
-        role: { in: ['owner', 'manager'] },
-        status: 'active',
-      },
-      select: { id: true },
-    });
-
-    if (!hasCoachRole && !hasOrgRole) {
-      return res.status(403).json({
-        error: 'COACH_ROLE_REQUIRED',
-        message: 'Only coach accounts can create teams.',
-        code: 'COACH_ROLE_REQUIRED'
-      });
-    }
-  }
-
-  // Guard: Coach must be approved before creating teams
-  // Exception: League owners creating during onboarding — verified server-side (not client flag)
-  if (isCoach && me.approval_status !== 'APPROVED') {
-    // Server-side onboarding check: user has not completed onboarding AND is an org owner
-    const isOnboarding = !onboardingComplete;
-    const isOrgOwner = await prisma.organizationMembership.findFirst({
-      where: { user_id: userId, role: 'owner', status: 'active' },
-      select: { id: true },
-    });
-    if (!(isOnboarding && isOrgOwner)) {
-      return res.status(403).json({
-        error: 'APPROVAL_REQUIRED',
-        message: 'Your coach account must be approved by a league admin before creating teams.',
-        code: 'APPROVAL_REQUIRED',
-      });
-    }
-  }
-
-  // Check team limit — for paid_by_owner coaches, use the org owner's plan and org team count
-  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userPlan = getEffectiveEntitledPlan(me as any);
-  let effectivePlan = userPlan;
-  let effectiveSubscriptionId = prefs.subscription_id;
-  let teamCountSource: 'user' | 'org' = 'user';
-  let orgIdForTeamCount: string | undefined;
-
-  if (me.paid_by_owner) {
-    // Look up the org owner's plan
-    const orgMembership = await prisma.organizationMembership.findFirst({
-      where: { user_id: userId, status: 'active' },
-      select: { id: true, organization: { select: { id: true, league_owner_id: true } } },
-    });
-    const ownerId = orgMembership?.organization?.league_owner_id;
-    if (ownerId) {
-      const owner = await prisma.user.findUnique({
-        where: { id: ownerId },
-        select: {
-          preferences: true,
-          plan: true,
-          pending_plan: true,
-          payment_pending: true,
-          payment_approved: true,
-        },
-      });
-      const ownerPrefs = (owner?.preferences && typeof owner.preferences === 'object') ? (owner.preferences as any) : {};
-      effectivePlan = getEffectiveEntitledPlan(owner as any);
-      effectiveSubscriptionId = ownerPrefs.subscription_id;
-      teamCountSource = 'org';
-      orgIdForTeamCount = orgMembership.organization.id;
-    }
-  }
-
-  const effectiveUserPlan = effectivePlan;
-
-  // Legend tier restriction: Only Legend users can create extracurricular clubs
-  const clubType = data.club_type || 'sport';
-  if (clubType === 'extracurricular' && !planSupportsExtracurricular(effectiveUserPlan)) {
-    return res.status(403).json({
-      error: 'Extracurricular clubs require Legend tier',
-      message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
-      code: 'LEGEND_TIER_REQUIRED',
-      feature: 'extracurricular_clubs',
-    });
-  }
-
-  // Rookie plan: max 3 teams
-  // NOTE: This check is duplicated inside the transaction below for race condition protection
-  if (effectiveUserPlan === 'rookie' || !effectiveUserPlan) {
-    const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
-      ? await prisma.team.count({ where: { organization_id: orgIdForTeamCount } })
-      : await prisma.teamMembership.count({
-          where: { user_id: me.id, role: 'owner', status: 'active' },
-        });
-
-    if (ownedTeamsCount >= 3) {
-      return res.status(403).json({
-        error: 'Team limit reached',
-        message: me.paid_by_owner
-          ? "Your organization has reached the free limit (3 teams). The league owner needs to upgrade."
-          : "You've reached your free limit (3 teams). Upgrade to add more.",
-        code: 'TEAM_LIMIT_EXCEEDED',
-        limit: 3,
-        current: ownedTeamsCount,
-      });
-    }
-  }
-
-  // Veteran plan: verify subscription quantity matches team count
-  if (effectiveUserPlan === 'veteran') {
-    const ownedTeamsCount = teamCountSource === 'org' && orgIdForTeamCount
-      ? await prisma.team.count({ where: { organization_id: orgIdForTeamCount } })
-      : await prisma.teamMembership.count({
-          where: { user_id: me.id, role: 'owner', status: 'active' },
-        });
-
-    const subscriptionId = effectiveSubscriptionId;
-    if (!subscriptionId) {
-      return res.status(403).json({
-        error: 'No active subscription',
-        message: me.paid_by_owner
-          ? 'The league owner needs an active Veteran subscription.'
-          : 'Veteran plan requires an active subscription. Please update your billing settings.',
-        code: 'NO_ACTIVE_SUBSCRIPTION',
-      });
-    }
-
-    // Check Stripe subscription quantity
-    try {
-      const stripe = await import('stripe');
-      const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
-      const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
-
-      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
-        return res.status(403).json({
-          error: 'Subscription not active',
-          message: me.paid_by_owner
-            ? "The league owner's Veteran subscription is not active."
-            : 'Your Veteran subscription is not active. Please update your billing settings.',
-          code: 'SUBSCRIPTION_NOT_ACTIVE',
-        });
-      }
-      
-      const subscriptionItem = subscription.items.data[0];
-      const paidQuantity = subscriptionItem?.quantity || 0;
-      
-      // Trying to create team number (ownedTeamsCount + 1)
-      // Subscription must cover at least that many teams
-      if (ownedTeamsCount >= paidQuantity) {
-        return res.status(403).json({
-          error: 'Team limit reached',
-          message: me.paid_by_owner
-            ? `The organization's subscription covers ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but team #${ownedTeamsCount + 1} is being created. The league owner needs to update the subscription.`
-            : `You've paid for ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but are trying to create team #${ownedTeamsCount + 1}. Please update your subscription first.`,
-          code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
-          paid_quantity: paidQuantity,
-          current_teams: ownedTeamsCount,
-        });
-      }
-    } catch (err) {
-      console.error('[Teams] Failed to verify Veteran subscription:', err);
-      return res.status(500).json({
-        error: 'Subscription verification failed',
-        message: 'Unable to verify your subscription. Please try again or contact support.',
-      });
-    }
-  }
-
-  const resolvedOrganization = await resolveOrganizationIdForTeamCreate(data);
-  if ('status' in resolvedOrganization) {
-    return res.status(resolvedOrganization.status).json(resolvedOrganization.body);
-  }
-
-  const organizationAccess = await validateTeamCreateOrganizationAccess(
-    me.id,
-    resolvedOrganization.organizationId,
-    onboardingComplete
-  );
-  if ('status' in organizationAccess) {
-    return res.status(organizationAccess.status).json(organizationAccess.body);
-  }
-
-  const organizationId = resolvedOrganization.organizationId;
-  
-  // Now create team with guaranteed organization_id
-  // CRITICAL: Use transaction to prevent race condition bypassing team limits
-  try {
-    const team = await prisma.$transaction(async (tx) => {
-      // Re-check team limit atomically within transaction to prevent race conditions
-      const ownedTeamsInTx = await tx.teamMembership.count({
-        where: { user_id: me.id, role: 'owner', status: 'active' },
-      });
-
-      if (effectiveUserPlan === 'rookie' || !effectiveUserPlan) {
-        if (ownedTeamsInTx >= 3) {
-          throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 3 teams');
-        }
-      } else if (effectiveUserPlan === 'veteran') {
-        // Re-verify Stripe quantity inside transaction to prevent race condition
-        const subId = effectiveSubscriptionId;
-        if (subId) {
-          try {
-            const stripeLib = await import('stripe');
-            const sc = new stripeLib.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
-            const sub = await sc.subscriptions.retrieve(subId);
-            const paidQty = sub.items.data[0]?.quantity || 0;
-            if (ownedTeamsInTx >= paidQty) {
-              throw new Error(`TEAM_LIMIT_EXCEEDED:Subscription covers ${paidQty} teams but you already own ${ownedTeamsInTx}`);
-            }
-          } catch (err: any) {
-            if (err?.message?.startsWith('TEAM_LIMIT_EXCEEDED:')) throw err;
-            throw new Error('TEAM_LIMIT_EXCEEDED:Unable to verify subscription. Please try again.');
-          }
-        }
-      }
-
-      // Create team
-      const newTeam = await tx.team.create({
-        data: {
-          name: data.name.trim(),
-          description: data.description?.trim() || null,
-          sport: data.sport?.trim() || null,
-          club_type: data.club_type || 'sport',
-          extracurricular_category: data.extracurricular_category?.trim() || null,
-          season: data.season?.trim() || null,
-          primary_color: data.primary_color?.trim() || null,
-          season_start: data.season_start ? new Date(data.season_start) : null,
-          season_end: data.season_end ? new Date(data.season_end) : null,
-          organization_id: organizationId!, // Guaranteed set by org validation above
-          logo_url: data.logo_url || null,
-          city: data.city?.trim() || null,
-          state: data.state?.trim() || null,
-          league: data.league?.trim() || null,
-          venue_place_id: data.venue_place_id || null,
-          venue_lat: data.venue_lat || null,
-          venue_lng: data.venue_lng || null,
-          venue_address: data.venue_address?.trim() || null,
-        },
-        select: {
-          id: true,
-          name: true,
-          organization_id: true,
-          logo_url: true,
-          avatar_url: true,
-        },
-      });
-
-      // Create team membership (owner) in same transaction
-      await tx.teamMembership.create({
-        data: {
-          team_id: newTeam.id,
-          user_id: me.id,
-          role: 'owner',
-          status: 'active'
-        }
-      });
-
-      return newTeam;
-    }, { isolationLevel: 'Serializable' });
-
-    // Handle authorized users if provided
-    if (data.authorized_users && Array.isArray(data.authorized_users) && data.authorized_users.length > 0) {
-      try {
-      const validInviteRoles = new Set(['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness']);
-        const invites = data.authorized_users
-          .filter(user => user.email)
-        .map(user => {
-          const requestedRole = String(user.role || 'member');
-          return {
-            team_id: team.id,
-            email: user.email!,
-            role: (validInviteRoles.has(requestedRole) ? requestedRole : 'member') as any,
-          };
-        });
-        
-        if (invites.length > 0) {
-          await prisma.teamInvite.createMany({
-            data: invites,
-            skipDuplicates: true,
-          });
-
-          // Send invite emails (non-blocking)
-          try {
-            const [inviter, createdInvites] = await Promise.all([
-              prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } }),
-              prisma.teamInvite.findMany({
-                where: { team_id: team.id, email: { in: invites.map(i => i.email) } },
-                select: { id: true, email: true },
-                take: invites.length,
-              }),
-            ]);
-            const tokenByEmail = Object.fromEntries(createdInvites.map(i => [i.email, i.id]));
-            await Promise.all(invites.map(async (inv) => {
-              try {
-                await sendTeamInviteEmail({
-                  to: inv.email,
-                  teamName: team.name,
-                  organizationName: null,
-                  role: inv.role,
-                  inviterName: inviter?.display_name || 'Team Owner',
-                  teamHeroUrl: team.logo_url || undefined,
-                  teamLogoUrl: team.avatar_url || undefined,
-                  inviteToken: tokenByEmail[inv.email],
-                });
-              } catch (error) {
-                console.warn('[Teams] Failed to send team invite email:', error);
-              }
-            }));
-          } catch (emailError) {
-            console.warn('[Teams] Failed to send invite emails (non-blocking):', emailError);
-          }
-        }
-      } catch (inviteError: any) {
-        console.warn('[Teams] Failed to create invites (non-blocking):', inviteError);
-        // Non-blocking - team is already created
-      }
-    }
-    
-    return res.status(201).json({
-      ok: true,
-      team: {
-        id: team.id,
-        name: team.name,
-        organization_id: team.organization_id,
-      }
-    });
-  } catch (teamError: any) {
-    console.error('[Teams] Failed to create team:', teamError);
-
-    // Handle specific transaction errors
-    if (teamError?.message?.includes('TEAM_LIMIT_EXCEEDED')) {
-      return res.status(403).json({
-        error: 'Team limit reached',
-        message: "You've reached your free limit (3 teams). Upgrade to add more.",
-        code: 'TEAM_LIMIT_EXCEEDED',
-        limit: 3
-      });
-    }
-
-    // Surface the real error for debugging
-    const detail = teamError?.message || 'Unknown error';
-    return res.status(500).json({
-      error: `Team creation failed: ${detail}`,
-    });
-  }
 }));
 
 // Invite user by email to a team

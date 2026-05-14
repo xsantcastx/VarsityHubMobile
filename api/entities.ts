@@ -1,5 +1,9 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
+import {
+  validateAuthenticatedUser,
+  validateOnboardingCompletion,
+} from './schemas/auth';
 import { validateEvent, validateEventArray, validateEventRsvpArray } from './schemas/event';
 import {
   validateOrganization,
@@ -49,11 +53,15 @@ export const User = {
   logout: () => auth.logout(),
   updateMe: (data: UpdateMePayload) => {
     invalidateMeCache();
-    return httpPut('/auth/me', data);
+    return httpPut('/auth/me', data).then(response =>
+      validateAuthenticatedUser('auth.updateMe', response)
+    );
   },
   patchMe: (data: UpdateMePayload) => {
     invalidateMeCache();
-    return httpPatch('/me', data);
+    return httpPatch('/me', data).then(response =>
+      validateAuthenticatedUser('auth.patchMe', response)
+    );
   },
   updatePreferences: (patch: UpdatePreferencesPayload) => {
     invalidateMeCache();
@@ -61,7 +69,9 @@ export const User = {
   },
   completeOnboarding: (data: CompleteOnboardingPayload) => {
     invalidateMeCache();
-    return httpPost('/me/complete-onboarding', data);
+    return httpPost('/me/complete-onboarding', data).then(response =>
+      validateOnboardingCompletion('auth.completeOnboarding', response)
+    );
   },
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),

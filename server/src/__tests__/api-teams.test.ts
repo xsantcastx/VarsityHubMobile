@@ -25,6 +25,8 @@ describe('API Team Endpoints', () => {
   let coachToken: string;
   let fanUserId: string;
   let fanToken: string;
+  let ownerManagedCoachId: string;
+  let ownerManagedCoachToken: string;
   let testOrgId: string;
 
   beforeAll(async () => {
@@ -87,6 +89,33 @@ describe('API Team Endpoints', () => {
     });
     fanUserId = fan.id;
     fanToken = signJwt({ id: fanUserId });
+
+    const ownerManagedPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+    const ownerManagedCoach = await prisma.user.create({
+      data: {
+        email: `test-owner-managed-coach-${Date.now()}@example.com`,
+        password_hash: ownerManagedPasswordHash,
+        display_name: 'Owner Managed Coach',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        paid_by_owner: true,
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: true,
+          organization_id: testOrgId,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
+      },
+    });
+    ownerManagedCoachId = ownerManagedCoach.id;
+    ownerManagedCoachToken = signJwt({ id: ownerManagedCoachId });
+    await prisma.organizationMembership.create({
+      data: { organization_id: testOrgId, user_id: ownerManagedCoachId, role: 'manager', status: 'active' },
+      select: { id: true },
+    });
   });
 
   afterAll(async () => {
@@ -114,7 +143,7 @@ describe('API Team Endpoints', () => {
 
       // Clean up team memberships
       await prisma.teamMembership.deleteMany({
-        where: { user_id: { in: [coachUserId, fanUserId] } },
+        where: { user_id: { in: [coachUserId, fanUserId, ownerManagedCoachId] } },
       });
 
       // Clean up teams
@@ -132,7 +161,7 @@ describe('API Team Endpoints', () => {
       await prisma.user.deleteMany({
         where: {
           id: {
-            in: [coachUserId, fanUserId],
+            in: [coachUserId, fanUserId, ownerManagedCoachId],
           },
         },
       });
@@ -346,6 +375,28 @@ describe('API Team Endpoints', () => {
       expect(response.body).toHaveProperty('max_teams');
       expect(typeof response.body.owned_teams).toBe('number');
       expect(typeof response.body.max_teams).toBe('number');
+    });
+
+    it('uses the organization source of truth for paid_by_owner coaches', async () => {
+      const orgTeamCount = await prisma.team.count({
+        where: { organization_id: testOrgId },
+      });
+      const personalOwnerCount = await prisma.teamMembership.count({
+        where: {
+          user_id: ownerManagedCoachId,
+          role: 'owner',
+          status: 'active',
+        },
+      });
+
+      const response = await request(app)
+        .get('/teams/limits')
+        .set('Authorization', `Bearer ${ownerManagedCoachToken}`)
+        .expect(200);
+
+      expect(personalOwnerCount).toBe(0);
+      expect(response.body.owned_teams).toBe(orgTeamCount);
+      expect(response.body.max_teams).toBe(3);
     });
 
     it('should require authentication', async () => {

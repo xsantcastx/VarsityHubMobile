@@ -19,6 +19,18 @@ const getVeteranBillingSnapshot = paymentsModule.getVeteranBillingSnapshot as (
   userId: string,
   organizationId?: string | null
 ) => Promise<{ teamCount: number; billableQuantity: number }>;
+const getVeteranTotalTeamAllowance = paymentsModule.getVeteranTotalTeamAllowance as (
+  billableQuantity: number
+) => number;
+const resolveVeteranQuantityUpdate = paymentsModule.resolveVeteranQuantityUpdate as (
+  actualTeamCount: number,
+  requestedTeamCount: number
+) => {
+  minAllowedTotal: number;
+  maxAllowedTotal: number;
+  billableQuantity: number;
+  allowed: boolean;
+};
 
 describe('Veteran billing snapshot', () => {
   beforeEach(() => {
@@ -48,5 +60,31 @@ describe('Veteran billing snapshot', () => {
     });
     expect(mockTeamMembershipCount).not.toHaveBeenCalled();
     expect(snapshot).toEqual({ teamCount: 6, billableQuantity: 3 });
+  });
+
+  it('converts billable quantity into total team allowance', () => {
+    expect(getVeteranTotalTeamAllowance(0)).toBe(3);
+    expect(getVeteranTotalTeamAllowance(2)).toBe(5);
+  });
+
+  it('only allows quantity updates for the current total or next team', () => {
+    expect(resolveVeteranQuantityUpdate(4, 4)).toMatchObject({
+      minAllowedTotal: 4,
+      maxAllowedTotal: 5,
+      billableQuantity: 1,
+      allowed: true,
+    });
+    expect(resolveVeteranQuantityUpdate(4, 5)).toMatchObject({
+      minAllowedTotal: 4,
+      maxAllowedTotal: 5,
+      billableQuantity: 2,
+      allowed: true,
+    });
+    expect(resolveVeteranQuantityUpdate(4, 6)).toMatchObject({
+      minAllowedTotal: 4,
+      maxAllowedTotal: 5,
+      billableQuantity: 3,
+      allowed: false,
+    });
   });
 });

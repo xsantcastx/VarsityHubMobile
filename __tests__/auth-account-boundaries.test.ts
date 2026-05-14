@@ -15,6 +15,7 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const authProvider = read('context/AuthProvider.tsx');
 const authApi = read('api/auth.ts');
+const httpApi = read('api/http.ts');
 const serverAuthRoutes = read('server/src/routes/auth.ts');
 const signIn = read('app/sign-in.tsx');
 const signUp = read('app/sign-up.tsx');
@@ -187,6 +188,18 @@ describe('account boundary invariants', () => {
       expect(serverAuthRoutes).toMatch(
         /authRouter\.patch\(\s*'\/me\/preferences',\s*requireAuth as any,\s*requireVerified as any,/
       );
+    });
+
+    it('refresh uses the dedicated refresh-token limiter and logout verifies the full refresh token before cleanup', () => {
+      expect(serverAuthRoutes).toMatch(/authRouter\.post\(\s*'\/refresh',\s*refreshTokenLimiter,/);
+      expect(serverAuthRoutes).toMatch(/verifyRefreshTokenHash\(\s*refresh_token,/);
+      expect(serverAuthRoutes).not.toMatch(/logout's purpose is delete \+ push-token cleanup, so a key-id-only match is sufficient/);
+    });
+
+    it('client sends a stable device id header and refresh enforces it for bound sessions', () => {
+      expect(httpApi).toMatch(/headers\['X-VarsityHub-Device-Id'\]\s*=\s*deviceId/);
+      expect(serverAuthRoutes).toMatch(/verifyStoredSessionFingerprint\(stored\.device_info,\s*req\)/);
+      expect(serverAuthRoutes).toMatch(/auth\.refresh\.delete-device-mismatch-token/);
     });
   });
 });

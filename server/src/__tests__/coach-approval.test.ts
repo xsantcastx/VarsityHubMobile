@@ -188,6 +188,16 @@ describe('Coach Approval Workflow', () => {
       expect(res.body?.error).toMatch(/pending approval/i);
     });
 
+    it('PENDING coach gets 403 on legacy POST /teams', async () => {
+      const res = await request(app)
+        .post('/teams')
+        .set('Authorization', `Bearer ${pendingCoachToken}`)
+        .send({ name: 'Blocked Team Legacy', organization_id: orgId });
+      expect(res.status).toBe(403);
+      expect(res.body?.code).toBe('APPROVAL_REQUIRED');
+      expect(res.body?.error).toMatch(/pending approval/i);
+    });
+
     it('PENDING coach gets 403 on POST /events', async () => {
       const res = await request(app)
         .post('/events')
@@ -981,6 +991,39 @@ describe('Coach Approval Workflow', () => {
         expect(res.headers['content-type']).toMatch(/application\/json/);
       } finally {
         await prisma.user.delete({ where: { id: fan.id } }).catch(() => {});
+      }
+    });
+
+    it('returns JSON 401 when an unverified allowlisted admin POSTs without ?token=', async () => {
+      const adminHash = await bcrypt.hash(PASSWORD, 10);
+      const admin = await prisma.user.create({
+        data: {
+          email: `dashboard-unverified-admin-${ts}@example.com`,
+          password_hash: adminHash,
+          display_name: 'Dashboard Unverified Admin',
+          email_verified: false,
+          role: 'fan',
+          onboarding_completed: true,
+          preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
+      });
+
+      const savedAdminEmails = process.env.ADMIN_EMAILS || '';
+      process.env.ADMIN_EMAILS = [admin.email, savedAdminEmails].filter(Boolean).join(',');
+      const sessionToken = signJwt({ id: admin.id });
+
+      try {
+        const res = await request(fullApp)
+          .post(`/admin/coaches/${approvedCoachId}/approve`)
+          .set('Authorization', `Bearer ${sessionToken}`)
+          .send({});
+
+        expect(res.status).toBe(401);
+        expect(res.headers['content-type']).toMatch(/application\/json/);
+      } finally {
+        process.env.ADMIN_EMAILS = savedAdminEmails;
+        await prisma.user.delete({ where: { id: admin.id } }).catch(() => {});
       }
     });
   });

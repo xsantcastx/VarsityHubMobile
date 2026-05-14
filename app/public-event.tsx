@@ -5,21 +5,29 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
 import settings from '@/api/settings';
+import { useAuth } from '@/context/AuthProvider';
 import { safeGoBack } from '@/utils/navigation';
 
 function PublicEventScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [event, setEvent] = useState<any>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const requiresWebLogin = Platform.OS === 'web' && !authLoading && !user;
+
+  useEffect(() => {
+    if (!requiresWebLogin) return;
+    router.replace('/sign-up' as any);
+  }, [requiresWebLogin, router]);
 
   const loadEventData = useCallback(async () => {
     if (!params.id) return;
@@ -141,20 +149,35 @@ function PublicEventScreen() {
   }, [params?.id]);
 
   useEffect(() => {
+    if (requiresWebLogin) return;
     if (params?.id) {
       void loadEventData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params?.id]);
+  }, [params?.id, requiresWebLogin]);
 
   // Reload posts when screen comes back into focus (after creating a post)
   useFocusEffect(
     useCallback(() => {
+      if (requiresWebLogin) return;
       if (params?.id) {
         void loadEventData();
       }
-    }, [params?.id, loadEventData])
+    }, [params?.id, loadEventData, requiresWebLogin])
   );
+
+  if (requiresWebLogin) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView

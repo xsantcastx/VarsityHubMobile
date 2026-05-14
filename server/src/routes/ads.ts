@@ -1,5 +1,6 @@
 import escapeHtml from 'escape-html';
 import { Router, type Response } from 'express';
+import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
@@ -222,7 +223,7 @@ adsRouter.post(
         target_zip_code,
         target_lat: zipCoords?.lat ?? null,
         target_lng: zipCoords?.lon ?? null,
-        radius: 9, // Fixed 9km radius for all ads
+        radius: AD_GEOFENCE_RADIUS_MILES, // Fixed 9-mile radius for all ads
         description: description ?? null,
         status: 'draft',
         payment_status: 'unpaid',
@@ -423,11 +424,10 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
     return res.json({ date: dateISO, ads: [] });
   }
 
-  // DB-level bounding box: ~9 miles in each direction (0.13° lat ≈ 9mi, 0.15° lng ≈ 9mi at US latitudes)
+  // DB-level bounding box: a padded 9-mile prefilter around the viewer location.
   // This dramatically reduces rows fetched before the precise Haversine JS filter below.
   // Ads created before this column was added (target_lat IS NULL) fall back to JS-only filtering.
-  const BBOX_LAT = 0.13;
-  const BBOX_LNG = 0.15;
+  const { lat: BBOX_LAT, lng: BBOX_LNG } = getAdBoundingBoxDegrees(userCoords.lat);
   const whereAd: any = {
     payment_status: 'paid',
     status: 'active',
@@ -507,7 +507,7 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
         : adZipCoords.get(ad.target_zip_code);
     if (!adCoords) return false;
     const dist = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
-    return dist <= 5.59; // 9km radius (5.59 miles)
+    return dist <= AD_GEOFENCE_RADIUS_MILES;
   });
 
   const result = filtered.slice(0, limit);
@@ -1055,8 +1055,8 @@ adsRouter.get(
         adCoords.lon
       );
 
-      // Only consider zips within 9km (5.59 miles)
-      if (distance <= 5.59) {
+      // Only consider zips within the ad visibility radius.
+      if (distance <= AD_GEOFENCE_RADIUS_MILES) {
         zipDistances.set(ad.target_zip_code, distance);
       }
     }

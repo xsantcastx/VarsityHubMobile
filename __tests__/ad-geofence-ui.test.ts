@@ -1,0 +1,32 @@
+import { describe, expect, it } from '@jest/globals';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = join(process.cwd());
+const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
+
+const reachPreview = read('components/ReachMapPreview.tsx');
+const submitAd = read('components/SubmitAdScreenBase.tsx');
+const adCalendar = read('app/ad-calendar.tsx');
+const editAd = read('app/edit-ad.tsx');
+
+describe('ad geofence UI', () => {
+  it('uses the shared 9 mile radius on submit and edit flows', () => {
+    expect(submitAd).toMatch(/AD_GEOFENCE_RADIUS_MILES/);
+    expect(editAd).toMatch(/AD_GEOFENCE_RADIUS_MILES/);
+  });
+
+  it('does not advertise the old 6 mile radius in the ad flow', () => {
+    expect(reachPreview).not.toContain('6 miles');
+    expect(adCalendar).not.toContain('6 miles');
+  });
+
+  it('keeps the map preview copy tied to the entered zip code', () => {
+    expect(reachPreview).toMatch(/Booking stays tied to this ZIP code/);
+  });
+
+  it('uses a computed preview region instead of the old wide default deltas', () => {
+    expect(reachPreview).toMatch(/getAdReachPreviewRegion/);
+    expect(reachPreview).not.toContain('latitudeDelta: 0.6');
+  });
+});

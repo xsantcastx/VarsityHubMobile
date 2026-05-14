@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { useRouter, useSegments } from 'expo-router';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
@@ -147,6 +147,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   const router = useRouter();
   const segments = useSegments();
+  const unauthenticatedEntryRoute = Platform.OS === 'web' ? '/sign-up' : '/sign-in';
   const currentPath =
     Array.isArray(segments) && segments.length ? segments.map(segment => String(segment)).join('/') : '';
 
@@ -904,7 +905,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       'forgot-password',
       'reset-password',
       'reset',
-      'public-event',
     ]);
     const isPublic = publicRoutes.has(firstSegment);
 
@@ -1134,11 +1134,14 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // Do not strand unauthenticated users on the passive root spinner when a
     // single startup health check fails. Let them reach /sign-in and surface
     // connectivity problems via OfflineBanner there instead.
-    if (!healthOk) {
+      if (!healthOk) {
       if (__DEV__) console.log('[AuthProvider] Backend unhealthy, limiting routing');
       if (!user && !pendingVerificationEmail && !isPublic) {
-        if (lastRedirectRef.current !== '/sign-in') {
-          redirectWithTelemetry('/sign-in', 'unauthenticated_backend_unhealthy');
+        if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
+          redirectWithTelemetry(
+            unauthenticatedEntryRoute,
+            'unauthenticated_backend_unhealthy'
+          );
         }
       }
       return;
@@ -1146,9 +1149,12 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
     // Unauthenticated routing
     if (!user && !pendingVerificationEmail && !isPublic) {
-      if (lastRedirectRef.current !== '/sign-in') {
-        if (__DEV__) console.log('[AuthProvider] Redirecting to sign-in (unauthenticated)');
-        redirectWithTelemetry('/sign-in', 'unauthenticated');
+      if (lastRedirectRef.current !== unauthenticatedEntryRoute) {
+        if (__DEV__)
+          console.log(
+            `[AuthProvider] Redirecting to ${unauthenticatedEntryRoute} (unauthenticated)`
+          );
+        redirectWithTelemetry(unauthenticatedEntryRoute, 'unauthenticated');
       }
     }
   }, [
@@ -1159,6 +1165,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     routingReady,
     healthOk,
     router,
+    unauthenticatedEntryRoute,
     hasCompletedOnboarding,
     redirectWithTelemetry,
   ]);

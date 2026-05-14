@@ -154,6 +154,97 @@ describe('Auth & Upload Security Hardening', () => {
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
     });
+
+    it('does not clear push_token or revoke the session for a forged v2 token with only the real key id', async () => {
+      await prisma.user.update({
+        where: { id: pushUserId },
+        data: {
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+            push_token: 'ExponentPushToken[TestTokenForForgedLogout]',
+          },
+        },
+      });
+
+      const loginRes = await request(app)
+        .post('/auth/login')
+        .send({ email: pushUserEmail, password: PASSWORD });
+      expect(loginRes.status).toBe(200);
+      const refresh = loginRes.body?.refresh_token as string | undefined;
+      expect(typeof refresh).toBe('string');
+
+      const [keyId] = String(refresh).split('.');
+      const forged = `${keyId}.${'f'.repeat(64)}`;
+
+      const forgedLogoutRes = await request(app)
+        .post('/auth/logout')
+        .send({ refresh_token: forged });
+      expect(forgedLogoutRes.status).toBe(200);
+      expect(forgedLogoutRes.body?.ok).toBe(true);
+
+      const afterForgedLogout = await prisma.user.findUnique({
+        where: { id: pushUserId },
+        select: { preferences: true },
+      });
+      expect((afterForgedLogout?.preferences as any)?.push_token).toBeTruthy();
+
+      const refreshRes = await request(app)
+        .post('/auth/refresh')
+        .send({ refresh_token: refresh });
+      expect(refreshRes.status).toBe(200);
+      expect(typeof refreshRes.body?.access_token).toBe('string');
+      expect(typeof refreshRes.body?.refresh_token).toBe('string');
+    });
+  });
+
+  describe('POST /auth/refresh device binding', () => {
+    it('rejects and revokes a refresh token presented from a different device id', async () => {
+      const deviceA = 'device-auth-hardening-a-1234';
+      const deviceB = 'device-auth-hardening-b-5678';
+
+      const loginRes = await request(app)
+        .post('/auth/login')
+        .set('X-VarsityHub-Device-Id', deviceA)
+        .send({ email: pushUserEmail, password: PASSWORD });
+      expect(loginRes.status).toBe(200);
+
+      const refresh = loginRes.body?.refresh_token as string | undefined;
+      expect(typeof refresh).toBe('string');
+
+      const mismatchRes = await request(app)
+        .post('/auth/refresh')
+        .set('X-VarsityHub-Device-Id', deviceB)
+        .send({ refresh_token: refresh });
+      expect(mismatchRes.status).toBe(401);
+
+      const retryFromOriginalDevice = await request(app)
+        .post('/auth/refresh')
+        .set('X-VarsityHub-Device-Id', deviceA)
+        .send({ refresh_token: refresh });
+      expect(retryFromOriginalDevice.status).toBe(401);
+    });
+
+    it('allows refresh rotation when the same device id presents the token', async () => {
+      const deviceId = 'device-auth-hardening-same-9012';
+
+      const loginRes = await request(app)
+        .post('/auth/login')
+        .set('X-VarsityHub-Device-Id', deviceId)
+        .send({ email: pushUserEmail, password: PASSWORD });
+      expect(loginRes.status).toBe(200);
+
+      const refresh = loginRes.body?.refresh_token as string | undefined;
+      expect(typeof refresh).toBe('string');
+
+      const refreshRes = await request(app)
+        .post('/auth/refresh')
+        .set('X-VarsityHub-Device-Id', deviceId)
+        .send({ refresh_token: refresh });
+      expect(refreshRes.status).toBe(200);
+      expect(typeof refreshRes.body?.access_token).toBe('string');
+      expect(typeof refreshRes.body?.refresh_token).toBe('string');
+    });
   });
 
   describe('POST /auth/login per-account lockout', () => {

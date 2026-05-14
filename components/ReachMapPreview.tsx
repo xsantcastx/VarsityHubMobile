@@ -1,15 +1,20 @@
 import { geocodeLocation } from '@/api/geocoding';
 import { Colors } from '@/constants/Colors';
+import {
+  AD_GEOFENCE_RADIUS_METERS,
+  AD_GEOFENCE_RADIUS_MILES,
+  getAdReachPreviewRegion,
+} from '@/constants/adGeofencing';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import MapView, { Circle, Marker } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
 
 interface ReachMapPreviewProps {
   zipCode: string;
-  radiusKm?: number; // Default 15km (~9 miles) matching ad targeting radius
+  radiusMiles?: number;
 }
 
 interface GeoLocation {
@@ -25,7 +30,10 @@ interface GeoLocation {
  * Purpose: Build trust and transparency by showing advertisers
  * exactly where their ad will appear.
  */
-export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps) {
+export function ReachMapPreview({
+  zipCode,
+  radiusMiles = AD_GEOFENCE_RADIUS_MILES,
+}: ReachMapPreviewProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [loading, setLoading] = useState(false);
@@ -108,11 +116,18 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
     };
   }, [zipCode]);
 
-  // Calculate radius in meters for map
-  const radiusMeters = radiusKm * 1000;
+  const radiusMeters = useMemo(() => {
+    if (radiusMiles === AD_GEOFENCE_RADIUS_MILES) {
+      return AD_GEOFENCE_RADIUS_METERS;
+    }
+    return Math.round(radiusMiles * 1609.34);
+  }, [radiusMiles]);
 
-  // Calculate miles for display
-  const radiusMiles = Math.round(radiusKm * 0.621371);
+  const previewRegion = useMemo(
+    () =>
+      location ? getAdReachPreviewRegion(location.latitude, location.longitude) : null,
+    [location]
+  );
 
   if (!zipCode.trim()) {
     return null;
@@ -130,7 +145,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
             Ad Reach Area
           </Text>
           <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
-            Your ad will be shown to users within {radiusMiles} miles ({radiusKm}km) of ZIP {zipCode}
+            Your ad will be shown to users within {radiusMiles} miles of ZIP {zipCode}. Booking stays tied to this ZIP code.
           </Text>
         </View>
       </View>
@@ -162,12 +177,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
           <MapView
             provider={getMapProvider()}
             style={styles.map}
-            initialRegion={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-              latitudeDelta: 0.6, // Sized to show full 15km radius circle
-              longitudeDelta: 1.8,
-            }}
+            initialRegion={previewRegion || undefined}
             scrollEnabled={true}
             zoomEnabled={true}
             pitchEnabled={false}
@@ -218,7 +228,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: 'rgba(59, 130, 246, 0.4)' }]} />
             <Text style={[styles.legendText, { color: Colors[colorScheme].mutedText }]}>
-              Ad reach area (~9 miles)
+              Ad reach area ({radiusMiles} miles)
             </Text>
           </View>
         </View>

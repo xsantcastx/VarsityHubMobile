@@ -401,7 +401,7 @@ function CreateTeamScreen() {
                   try {
                     // Update subscription quantity before creating the team
                     await Subscriptions.updateQuantity(newTeamCount);
-                      await proceedWithTeamCreation();
+                    await proceedWithTeamCreation({ rollbackTeamCount: teamCount });
                   } catch (error: unknown) {
                     const err = error as ApiErrorLike;
                     if (__DEV__) console.error('Failed to update subscription:', err);
@@ -445,7 +445,7 @@ function CreateTeamScreen() {
     }
   };
 
-  const proceedWithTeamCreation = async () => {
+  const proceedWithTeamCreation = async (options?: { rollbackTeamCount?: number }) => {
     try {
       let logoUrl = null;
       
@@ -500,6 +500,15 @@ function CreateTeamScreen() {
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
       if (__DEV__) console.error('Team creation error in proceedWithTeamCreation:', e);
+      let rollbackFailed = false;
+      if (typeof options?.rollbackTeamCount === 'number') {
+        try {
+          await Subscriptions.updateQuantity(options.rollbackTeamCount);
+        } catch (rollbackError) {
+          rollbackFailed = true;
+          if (__DEV__) console.error('Failed to roll back subscription quantity after team creation error:', rollbackError);
+        }
+      }
       if (e?.data?.code === 'COACH_AGREEMENT_REQUIRED' || e?.code === 'COACH_AGREEMENT_REQUIRED') {
         Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating teams.', [
           { text: 'Cancel', style: 'cancel' },
@@ -515,7 +524,12 @@ function CreateTeamScreen() {
       } else if (e?.data?.code === 'ORG_CREATION_FAILED' || e?.code === 'ORG_CREATION_FAILED') {
         Alert.alert('Organization Error', 'Could not create your organization. Please try again or select an existing organization.');
       } else {
-        Alert.alert('Error', e?.data?.error || e?.message || 'Failed to create team. Please try again.');
+        Alert.alert(
+          'Error',
+          rollbackFailed
+            ? 'Failed to create team, and billing could not be restored automatically. Please check your subscription settings.'
+            : (e?.data?.error || e?.message || 'Failed to create team. Please try again.')
+        );
       }
     } finally {
       setSubmitting(false);

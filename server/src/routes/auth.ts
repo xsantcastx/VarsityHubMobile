@@ -29,6 +29,10 @@ import {
 import { revokeAllSessions, startNewSession } from '../lib/session.js';
 import { prisma } from '../lib/prisma.js';
 import { captureException } from '../lib/sentry.js';
+import {
+  buildSessionFingerprint,
+  verifyStoredSessionFingerprint,
+} from '../lib/sessionFingerprint.js';
 import { mustSucceed } from '../lib/sideEffect.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -38,6 +42,7 @@ import {
   authLimiter,
   oauthLimiter,
   passwordResetLimiter,
+  refreshTokenLimiter,
   verificationConfirmLimiter,
 } from '../middleware/rateLimiters.js';
 import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
@@ -632,7 +637,7 @@ authRouter.post(
         hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
         user_id: user.id,
         expires_at: regExpiry,
-        device_info: req.headers['user-agent'] || null,
+        device_info: buildSessionFingerprint(req),
       },
     });
 
@@ -730,7 +735,7 @@ authRouter.post(
     // Mint a fresh token pair for this login without invalidating the user's
     // other active devices. Forced security events (password change, bans,
     // account deletion) still revoke all sessions centrally.
-    const deviceInfo = req.headers['user-agent'] || null;
+    const deviceInfo = buildSessionFingerprint(req);
     const { access_token, refresh_token: rawRefresh } = await startNewSession(user.id, deviceInfo);
 
     const sanitized = sanitizeUser(user);
@@ -757,7 +762,7 @@ const refreshSchema = z.object({ refresh_token: z.string().min(32) });
 
 authRouter.post(
   '/refresh',
-  authLimiter,
+  refreshTokenLimiter,
   asyncHandler(async (req, res) => {
     if (
       !req.body?.refresh_token ||
@@ -833,13 +838,31 @@ authRouter.post(
         return res.status(401).json({ error: 'Token invalidated by password change' });
       }
 
-      // AUTH-4: Validate device fingerprint (warn-only for now to avoid breaking existing sessions)
-      const currentDevice = req.headers['user-agent'] || null;
-      if (stored.device_info && currentDevice && stored.device_info !== currentDevice) {
-        console.warn('[auth] Refresh token used from different device', {
+      const fingerprintCheck = verifyStoredSessionFingerprint(stored.device_info, req);
+      if (!fingerprintCheck.matches) {
+        if (fingerprintCheck.enforce) {
+          console.warn('[auth] Refresh token rejected for device mismatch', {
+            userId: user.id,
+            refreshTokenId: stored.id,
+            reason: fingerprintCheck.reason,
+          });
+          await mustSucceed(
+            'auth.refresh.delete-device-mismatch-token',
+            {
+              route: '/auth/refresh',
+              refresh_token_id: stored.id,
+              user_id: stored.user_id,
+              reason: fingerprintCheck.reason,
+            },
+            () => prisma.refreshToken.delete({ where: { id: stored.id } })
+          );
+          return res.status(401).json({ error: 'Invalid refresh token' });
+        }
+
+        console.warn('[auth] Refresh token used from different legacy device fingerprint', {
           userId: user.id,
-          storedDevice: stored.device_info.substring(0, 50),
-          currentDevice: currentDevice.substring(0, 50),
+          refreshTokenId: stored.id,
+          reason: fingerprintCheck.reason,
         });
       }
 
@@ -862,7 +885,7 @@ authRouter.post(
               hash_version: REFRESH_TOKEN_HASH_VERSION_V2,
               user_id: user.id,
               expires_at: newExpiry,
-              device_info: currentDevice,
+              device_info: buildSessionFingerprint(req),
             },
           }),
         ]);
@@ -912,10 +935,11 @@ authRouter.post(
     const { refresh_token } = req.body || {};
     if (refresh_token && typeof refresh_token === 'string') {
       // Look up the row by whichever index matches the token shape — v2
-      // uses key_id, v1 uses token_hash. We don't bcrypt-verify here:
-      // logout's purpose is delete + push-token cleanup, so a key-id-only
-      // match is sufficient (revealing nothing more than "yes there was a
-      // token with this ID, now there isn't").
+      // uses key_id, v1 uses token_hash — then verify the full raw token
+      // before deleting anything. Requiring only a v2 key_id would let a
+      // caller who learned that 64-bit identifier force-logout a victim
+      // session and clear the associated push_token without proving
+      // possession of the secret half.
       const parsedToken = parseRefreshToken(refresh_token);
       // Resolve the user from the refresh token BEFORE deleting it, so we can
       // also proactively clear their push token. Stale push tokens on logged-out
@@ -949,17 +973,42 @@ authRouter.post(
             return null;
           });
       }
+      let verifiedRow = row;
       if (row) {
-        await prisma.refreshToken.delete({ where: { id: row.id } }).catch((err: any) => {
+        const fullRow = await prisma.refreshToken
+          .findUnique({
+            where: { id: row.id },
+            select: { id: true, user_id: true, token_hash: true, hash_version: true },
+          })
+          .catch((err: any) => {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              context: 'logout_refresh_token_verify_lookup_failed',
+            });
+            return null;
+          });
+        const tokenMatches =
+          !!fullRow &&
+          (await verifyRefreshTokenHash(
+            refresh_token,
+            fullRow.token_hash,
+            fullRow.hash_version
+          ).catch(() => false));
+        verifiedRow = tokenMatches
+          ? { id: fullRow!.id, user_id: fullRow!.user_id }
+          : null;
+      }
+
+      if (verifiedRow) {
+        await prisma.refreshToken.delete({ where: { id: verifiedRow.id } }).catch((err: any) => {
           captureException(err instanceof Error ? err : new Error(String(err)), {
             context: 'logout_refresh_token_delete_failed',
           });
         });
       }
-      if (row?.user_id) {
+      if (verifiedRow?.user_id) {
         try {
           const user = await prisma.user.findUnique({
-            where: { id: row.user_id },
+            where: { id: verifiedRow.user_id },
             select: { preferences: true },
           });
           const prefs =
@@ -972,10 +1021,10 @@ authRouter.post(
             // stale push_token. Direct prisma.user.update leaves the cache
             // serving the old token until natural TTL.
             await prisma.user.update({
-              where: { id: row.user_id },
+              where: { id: verifiedRow.user_id },
               data: { preferences: rest as any },
             });
-            await invalidateMeCacheForUser(row.user_id).catch(() => {});
+            await invalidateMeCacheForUser(verifiedRow.user_id).catch(() => {});
           }
         } catch (err) {
           // Stale push tokens on logged-out devices are a privacy leak —
@@ -988,7 +1037,7 @@ authRouter.post(
           );
           captureException(err instanceof Error ? err : new Error(String(err)), {
             context: 'logout_push_token_clear_failed',
-            userId: row.user_id,
+            userId: verifiedRow.user_id,
           });
         }
       }
@@ -1252,7 +1301,7 @@ authRouter.post(
       const sanitized = sanitizeUser(user);
       const { access_token, refresh_token: rawRefresh } = await startNewSession(
         sanitized.id,
-        req.headers['user-agent'] || null,
+        buildSessionFingerprint(req),
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
 
@@ -1393,7 +1442,7 @@ authRouter.post(
       // Mint a fresh pair for this login without invalidating other devices.
       const { access_token, refresh_token: appleRawRefresh } = await startNewSession(
         sanitized.id,
-        req.headers['user-agent'] || null,
+        buildSessionFingerprint(req),
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
       const isAppleOAuthAdmin = isAdminEmail(sanitized.email);

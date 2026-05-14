@@ -3116,8 +3116,14 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user) return res.status(401).json({ error: 'Admin login required. Please log in to the admin dashboard before approving.' });
-    const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-    if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true, email_verified: true },
+    });
+    if (!me?.email_verified) {
+      return res.status(403).json({ error: 'Email verification required' });
+    }
+    if (!isEmailAdmin(me.email)) return res.status(403).json({ error: 'Admin only' });
     const adminUserId: string = req.user.id;
 
     const adminNote: string | undefined = req.body?.note || undefined;
@@ -3309,8 +3315,14 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user) return res.status(401).json({ error: 'Admin login required. Please log in to the admin dashboard before rejecting.' });
-    const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-    if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
+    const me = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true, email_verified: true },
+    });
+    if (!me?.email_verified) {
+      return res.status(403).json({ error: 'Email verification required' });
+    }
+    if (!isEmailAdmin(me.email)) return res.status(403).json({ error: 'Admin only' });
     const adminUserId: string = req.user.id;
     const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
     if ((result as any).already || (result as any).finalState === 'rejected') {

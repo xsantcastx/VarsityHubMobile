@@ -9,6 +9,7 @@ import {
   httpPostLongTimeout,
   setAuthToken,
 } from './http';
+import { validateAuthenticatedUser } from './schemas/auth';
 
 // Storage keys for authentication tokens (not secrets, just key names)
 const TOKEN_KEY = 'auth_token_key';
@@ -303,11 +304,9 @@ export const auth = {
         'If-None-Match': '',
       },
     };
-    const data = await httpGet('/me', requestOptions);
-    if (data && !data.error) {
-      _meCacheData = data;
-      _meCacheTs = Date.now();
-    }
+    const data = validateAuthenticatedUser('/me', await httpGet('/me', requestOptions));
+    _meCacheData = data;
+    _meCacheTs = Date.now();
     return data;
   },
   async logout() {

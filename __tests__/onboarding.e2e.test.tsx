@@ -6,6 +6,13 @@ const mockRouterReplace = jest.fn();
 const mockRouterPush = jest.fn();
 const mockMarkOnboardingCompleteLocally = jest.fn(async () => undefined);
 const mockRegisterPushToken = jest.fn(async () => undefined);
+const mockCheckAuth = jest.fn(async () => ({
+  id: 'fan-1',
+  email_verified: true,
+  role: 'fan',
+  onboarding_completed: true,
+  preferences: { role: 'fan', onboarding_completed: true },
+}));
 const mockSetOB = jest.fn();
 const mockSetProgress = jest.fn();
 const mockDispatch = jest.fn();
@@ -82,6 +89,7 @@ jest.mock('@/utils/materializeICloudAsset', () => ({
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
+    checkAuth: mockCheckAuth,
     markOnboardingCompleteLocally: mockMarkOnboardingCompleteLocally,
     registerPushToken: mockRegisterPushToken,
   }),
@@ -113,6 +121,13 @@ describe('Onboarding Flow', () => {
     mockPatchMe.mockResolvedValue({ ok: true });
     mockUpdatePreferences.mockResolvedValue({ ok: true });
     mockCompleteOnboarding.mockResolvedValue({ ok: true });
+    mockCheckAuth.mockResolvedValue({
+      id: 'fan-1',
+      email_verified: true,
+      role: 'fan',
+      onboarding_completed: true,
+      preferences: { role: 'fan', onboarding_completed: true },
+    });
   });
 
   it('routes coaches from step-2 to coach-application after saving canonical coach fields', async () => {
@@ -185,6 +200,7 @@ describe('Onboarding Flow', () => {
         username: 'fanuser',
         zip_code: undefined,
       });
+      expect(mockCheckAuth).toHaveBeenCalled();
       expect(mockRouterReplace).toHaveBeenCalledWith('/(tabs)');
       expect(mockMarkOnboardingCompleteLocally).toHaveBeenCalled();
       expect(mockRegisterPushToken).toHaveBeenCalled();

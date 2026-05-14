@@ -7,6 +7,7 @@ import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import Constants from 'expo-constants';
 import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
 import { emitSessionExpired } from '@/utils/sessionEvents';
+import { getClientDeviceId } from './deviceIdentity';
 
 export type HttpBehaviorOptions = {
   skipAuthRetry?: boolean;
@@ -250,7 +251,9 @@ async function request(
     ...(options.headers as any),
   };
   const token = await getRequestAuthToken();
+  const deviceId = await getClientDeviceId();
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (deviceId) headers['X-VarsityHub-Device-Id'] = deviceId;
   // Avoid stale caches/Etags for personalized endpoints
   if (
     /^\/(me|auth\/me|rsvps|follows|support|search|users|teams|team-memberships|team-invites|events\/)/.test(

@@ -35,6 +35,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -867,15 +868,39 @@ function Step3League() {
         }).catch(() => {});
       }
 
-      checkAuth().catch(() => {});
+      const fallbackCompletedCoachUser = {
+        ...(user || {}),
+        onboarding_completed: true,
+        organization_id: orgId,
+        preferences: {
+          ...(user?.preferences || {}),
+          role: 'coach',
+          onboarding_completed: true,
+          organization_id: orgId,
+        },
+      };
+      const { decision } = await getFreshPostAuthState(
+        () => checkAuth(),
+        () => User.refresh().catch(() => null),
+        fallbackCompletedCoachUser as any
+      );
       captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
         mode: 'create-org',
-        next: 'coach-agreement',
+        next: decision.route,
       });
-      router.replace({
-        pathname: '/(tabs)/create-team',
-        params: { organization_id: orgId },
-      } as any);
+      if (decision.route === '/onboarding/coach-agreement') {
+        router.replace({
+          pathname: decision.route,
+          params: { redirect: 'create-team' },
+        } as any);
+      } else if (decision.route === '/(tabs)') {
+        router.replace({
+          pathname: '/(tabs)/create-team',
+          params: { organization_id: orgId },
+        } as any);
+      } else {
+        router.replace(decision.route as any);
+      }
     } catch (e: any) {
       captureBreadcrumb(
         'Onboarding step 3 submit failed',

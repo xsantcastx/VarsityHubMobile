@@ -5,6 +5,7 @@ import { prisma } from './prisma.js';
 import { getMaxTeamsForPlan } from './planLimits.js';
 import {
   SERVER_ROOKIE_TEAM_LIMIT,
+  SERVER_VETERAN_MIN_TOTAL_TEAMS,
 } from './planDefinitions.js';
 import { captureException } from './sentry.js';
 import { invalidateMeCacheForUser } from './userCache.js';
@@ -346,6 +347,36 @@ export async function getVeteranBillingSnapshot(
   return {
     teamCount,
     billableQuantity: Math.max(0, teamCount - SERVER_ROOKIE_TEAM_LIMIT),
+  };
+}
+
+export function getVeteranTotalTeamAllowance(billableQuantity: number): number {
+  return SERVER_ROOKIE_TEAM_LIMIT + Math.max(0, Math.trunc(billableQuantity || 0));
+}
+
+export function resolveVeteranQuantityUpdate(
+  actualTeamCount: number,
+  requestedTeamCount: number
+): {
+  actualTotal: number;
+  requestedTotal: number;
+  minAllowedTotal: number;
+  maxAllowedTotal: number;
+  billableQuantity: number;
+  allowed: boolean;
+} {
+  const actualTotal = Math.max(0, Math.trunc(actualTeamCount || 0));
+  const requestedTotal = Math.max(0, Math.trunc(requestedTeamCount || 0));
+  const minAllowedTotal = Math.max(SERVER_VETERAN_MIN_TOTAL_TEAMS, actualTotal);
+  const maxAllowedTotal = actualTotal + 1;
+
+  return {
+    actualTotal,
+    requestedTotal,
+    minAllowedTotal,
+    maxAllowedTotal,
+    billableQuantity: Math.max(0, requestedTotal - SERVER_ROOKIE_TEAM_LIMIT),
+    allowed: requestedTotal >= minAllowedTotal && requestedTotal <= maxAllowedTotal,
   };
 }
 

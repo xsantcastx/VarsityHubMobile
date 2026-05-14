@@ -49,11 +49,13 @@ import {
   finalizeAppleAdPurchase,
   finalizeAppleSubscriptionPurchase,
   getVeteranBillingSnapshot,
+  getVeteranTotalTeamAllowance,
   isUniqueConstraintError,
   mergeTransactionMetadata,
   normalizeAppleTransactionIds,
   releaseAdInventoryAfterSlotFullRefund,
   releaseAdInventoryAfterSlotFullRefundWithRetry,
+  resolveVeteranQuantityUpdate,
   reserveAdSlots,
   runFinalizeFromSession,
   syncStripeSubscriptionState,
@@ -2173,10 +2175,6 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
     const parsed = updateQuantitySchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { team_count } = parsed.data;
-    const billable = Math.max(0, team_count - 3); // Only teams beyond first three are billed
-    if (billable === 0) {
-      return res.status(400).json({ error: 'No billable teams (only 3). Remain on Rookie plan instead.' });
-    }
     
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -2204,19 +2202,21 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
       return res.status(400).json({ error: 'No active subscription found' });
     }
 
-    // CRITICAL: Verify user actually owns this many teams before updating payment
-    const actualTeamCount = await prisma.teamMembership.count({
-      where: {
-        user_id: userId,
-        role: 'owner',
-        status: 'active'
-      }
-    });
+    const snapshot = await getVeteranBillingSnapshot(userId);
+    const actualTeamCount = snapshot.teamCount;
+    const quantityUpdate = resolveVeteranQuantityUpdate(actualTeamCount, team_count);
+    const billable = quantityUpdate.billableQuantity;
+    if (billable === 0) {
+      return res.status(400).json({ error: 'No billable teams (only 3). Remain on Rookie plan instead.' });
+    }
 
-    if (team_count !== actualTeamCount) {
+    if (!quantityUpdate.allowed) {
       return res.status(400).json({
         error: 'Team count mismatch',
-        message: `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''} but requested to pay for ${team_count}. You can only pay for teams you own.`,
+        message:
+          actualTeamCount >= SERVER_VETERAN_MIN_TOTAL_TEAMS
+            ? `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''}. This flow can only keep billing aligned with your current total or prepay for the next team (${quantityUpdate.maxAllowedTotal} total).`
+            : `Veteran billing requires at least ${SERVER_VETERAN_MIN_TOTAL_TEAMS} total teams.`,
         owned_teams: actualTeamCount,
         requested_teams: team_count
       });
@@ -2255,6 +2255,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
         subscription_id: subscriptionId,
         total_teams: team_count,
         billable_teams: billable,
+        allowed_total_teams: getVeteranTotalTeamAllowance(billable),
         monthly_cost: billable * 1.00
       });
     } catch (err: any) {

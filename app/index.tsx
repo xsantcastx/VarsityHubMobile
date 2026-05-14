@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Image } from 'expo-image';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 
 /**
  * Passive splash screen - navigation is handled centrally by _layout.tsx
@@ -33,7 +33,7 @@ export default function Index() {
     }
 
     if (!user) {
-      router.replace('/sign-in' as any);
+      router.replace((Platform.OS === 'web' ? '/sign-up' : '/sign-in') as any);
       return;
     }
 

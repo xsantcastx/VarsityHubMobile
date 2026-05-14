@@ -23,6 +23,7 @@ import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getConfig } from '@/config/env';
 import Notifications from '@/utils/notifications';
 import { BIO_MAX_LENGTH } from '@/utils/formUtils';
+import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
@@ -90,7 +91,7 @@ function SportBallRow() {
 export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { markOnboardingCompleteLocally, registerPushToken } = useAuth();
+  const { checkAuth, markOnboardingCompleteLocally, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('other');
@@ -521,7 +522,11 @@ export default function Step2Basic() {
           next: 'tabs',
         });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
-        router.replace('/(tabs)' as any);
+        const { decision } = await getFreshPostAuthState(
+          () => checkAuth(),
+          () => User.refresh().catch(() => null)
+        );
+        router.replace(decision.route as any);
 
         void persistOptionalProfileMedia('fan');
         markOnboardingCompleteLocally().catch(() => {});

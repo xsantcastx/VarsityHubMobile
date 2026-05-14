@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
 import { prisma } from '../lib/prisma.js';
 import { sendError } from '../lib/http/sendError.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
@@ -426,8 +427,7 @@ async function getAdsBundle(
   }
   if (!userCoords) return { date: dateISO, ads: [] };
 
-  const bboxLat = 0.13;
-  const bboxLng = 0.15;
+  const { lat: bboxLat, lng: bboxLng } = getAdBoundingBoxDegrees(userCoords.lat);
   const ads = await prisma.ad.findMany({
     where: {
       payment_status: 'paid',
@@ -488,7 +488,7 @@ async function getAdsBundle(
         : adZipCoords.get(ad.target_zip_code);
     if (!adCoords) return false;
     const distance = haversineDistance(userCoords!.lat, userCoords!.lon, adCoords.lat, adCoords.lon);
-    return distance <= 5.59;
+    return distance <= AD_GEOFENCE_RADIUS_MILES;
   });
 
   return {

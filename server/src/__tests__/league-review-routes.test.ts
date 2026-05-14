@@ -15,6 +15,8 @@ describe('League review routes', () => {
   let ownerId = '';
   let secondOwnerId = '';
   let orgId = '';
+  let unverifiedAdminId = '';
+  let unverifiedAdminToken = '';
 
   beforeAll(async () => {
     const hash = await bcrypt.hash(PASSWORD, 10);
@@ -32,6 +34,21 @@ describe('League review routes', () => {
     });
     adminId = admin.id;
     adminToken = signJwt({ id: admin.id });
+
+    const unverifiedAdmin = await prisma.user.create({
+      data: {
+        email: `league-review-unverified-admin-${ts}@example.com`,
+        password_hash: hash,
+        display_name: 'League Review Unverified Admin',
+        email_verified: false,
+        role: 'fan',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'fan', onboarding_completed: true },
+      },
+    });
+    unverifiedAdminId = unverifiedAdmin.id;
+    unverifiedAdminToken = signJwt({ id: unverifiedAdmin.id });
 
     const owner = await prisma.user.create({
       data: {
@@ -85,10 +102,10 @@ describe('League review routes', () => {
 
   afterAll(async () => {
     process.env.ADMIN_EMAILS = savedAdminEmails;
-    await prisma.notification.deleteMany({ where: { user_id: { in: [adminId, ownerId, secondOwnerId] } } }).catch(() => {});
+    await prisma.notification.deleteMany({ where: { user_id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } }).catch(() => {});
     await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [adminId, ownerId, secondOwnerId] } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } }).catch(() => {});
   });
 
   it('keeps organization.league_owner_id in sync when ownership is transferred', async () => {
@@ -191,6 +208,40 @@ describe('League review routes', () => {
       select: { approval_status: true },
     });
     expect(ownerAfter?.approval_status).toBe('APPROVED');
+  });
+
+  it('blocks an unverified allowlisted admin from approving a league', async () => {
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        admin_approved: false,
+        status: 'active',
+        rejected_at: null,
+        rejection_reason: null,
+      } as any,
+    });
+    await prisma.user.update({
+      where: { id: ownerId },
+      data: {
+        approval_status: 'PENDING',
+        rejected_at: null,
+        rejection_reason: null,
+      },
+    });
+
+    const res = await request(app)
+      .post(`/organizations/${orgId}/approve`)
+      .set('Authorization', `Bearer ${unverifiedAdminToken}`)
+      .send({ note: 'should fail' });
+
+    expect(res.status).toBe(403);
+    expect(String(res.body?.error || '')).toMatch(/email verification required/i);
+
+    const orgAfter = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { admin_approved: true },
+    });
+    expect(orgAfter?.admin_approved).toBe(false);
   });
 
   it('allows a verified admin to reject a pending league from the dashboard route', async () => {

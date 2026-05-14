@@ -17,7 +17,7 @@ describe('Public site routes', () => {
     const res = await request(buildApp()).get('/').set('Accept', 'text/html');
 
     expect(res.status).toBe(308);
-    expect(res.headers.location).toBe('https://varsityhub.app/');
+    expect(res.headers.location).toBe('https://www.varsityhub.app/');
   });
 
   it('serves a landing page on the www host instead of redirecting to itself', async () => {
@@ -42,7 +42,7 @@ describe('Public site routes', () => {
     try {
       const root = await request(buildApp())
         .get('/')
-        .set('Host', 'varsityhub.app')
+        .set('Host', 'www.varsityhub.app')
         .set('Accept', 'text/html');
 
       expect(root.status).toBe(200);
@@ -78,25 +78,23 @@ describe('Public site routes', () => {
     expect(support.text).toContain('Customer Service');
   });
 
-  it('serves the fallback landing page for browser app entry routes when no web bundle is deployed', async () => {
+  it('redirects browser app entry routes on apex to the dedicated web app host when no web bundle is deployed', async () => {
     const res = await request(buildApp())
       .get('/sign-in?next=%2Fcreate-team')
       .set('Host', 'varsityhub.app')
       .set('Accept', 'text/html');
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('VarsityHub');
-    expect(res.text).toContain('web app bundle is not available');
+    expect(res.status).toBe(307);
+    expect(res.headers.location).toBe('https://www.varsityhub.app/sign-in?next=%2Fcreate-team');
   });
 
-  it('serves the fallback landing page for organization routes when no web bundle is deployed', async () => {
+  it('redirects organization routes on apex to the dedicated web app host when no web bundle is deployed', async () => {
     const res = await request(buildApp())
       .get('/organizations/test-org')
       .set('Host', 'varsityhub.app')
       .set('Accept', 'text/html');
 
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('VarsityHub');
-    expect(res.text).toContain('web app bundle is not available');
+    expect(res.status).toBe(307);
+    expect(res.headers.location).toBe('https://www.varsityhub.app/organizations/test-org');
   });
 });
