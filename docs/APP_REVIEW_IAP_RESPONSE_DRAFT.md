@@ -8,6 +8,11 @@ Hello,
 
 Thank you. The in-app purchases are available inside the iOS app and can be reached with the review account after sign-in.
 
+Review account:
+
+- Email: `demo@varsityhub.app`
+- Password: `provided in App Store Connect review notes`
+
 Steps to locate the subscriptions:
 
 1. Sign in with the review account provided in App Store Connect.
@@ -15,8 +20,8 @@ Steps to locate the subscriptions:
 3. Open the `Billing` section.
 4. Tap `Manage Subscription`.
 5. The subscription purchase options are:
-   - `Upgrade to Veteran` (`MIDTIER`)
-   - `Upgrade to Legend` (`TOPTIER`)
+   - `Upgrade to Veteran` (product ID: `MIDTIER`)
+   - `Upgrade to Legend` (product ID: `TOPTIER`)
 
 Steps to locate ad in-app purchases:
 
@@ -27,9 +32,15 @@ Steps to locate ad in-app purchases:
 5. Open `VarsityHub Review Demo Ad`.
 6. Tap `Schedule Dates`.
 7. Select campaign dates and tap the checkout button at the bottom of the screen.
-8. The ad product IDs are:
-   - `MOND_THURS`
-   - `FRI_SUN`
+8. The Apple ad product IDs are:
+   - weekday ad slot: `MOND_THURS`
+   - weekend ad slot: `FRI_SUN`
+
+The review ad is already approved for review and configured with:
+
+- target ZIP code: `10001`
+- radius: `9` miles
+- target URL: `https://www.varsityhub.app`
 
 Important note for review: Apple tests these purchases in the Apple-provided sandbox environment during App Review. That is expected. The same iOS in-app purchase flow is used in production with the approved live products.
 
