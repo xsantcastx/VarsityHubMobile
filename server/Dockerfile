@@ -10,6 +10,9 @@ RUN apt-get update \
 
 COPY ./package.json ./package.json
 COPY ./package-lock.json ./package-lock.json
+COPY ./tools ./tools
+COPY ./scripts ./scripts
+COPY ./server ./server
 RUN npm ci
 
 COPY . .
