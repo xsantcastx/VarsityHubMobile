@@ -44,8 +44,6 @@ export type CoachAccountState =
   | 'coach_application_submitted'
   | 'coach_application_rejected'
   | 'coach_pending_approval'
-  | 'coach_agreement_required'
-  | 'coach_final_setup_required'
   | 'coach_active';
 
 export function serializeCoachApplication(
@@ -84,8 +82,6 @@ export function getCoachFlowState(
   const onboardingCompleted = isUserOnboardingComplete(user as any);
   const organizationId = getCanonicalOrganizationId(user as any);
   const proceedingAsFan = isProceedingAsFan(user as any);
-  const hasCoachAgreement = !!user?.coach_agreement_accepted_at;
-
   const pendingFanModeNextStep = '/(tabs)';
 
   if (role !== 'coach') {
@@ -131,27 +127,6 @@ export function getCoachFlowState(
     return {
       account_state: 'coach_application_required',
       next_step: '/onboarding/coach-application',
-    };
-  }
-
-  if (!hasCoachAgreement) {
-    return {
-      account_state: 'coach_agreement_required',
-      next_step: '/onboarding/coach-agreement',
-    };
-  }
-
-  if (!organizationId && application?.status === 'approved') {
-    return {
-      account_state: 'coach_final_setup_required',
-      next_step: '/onboarding/step-3-league',
-    };
-  }
-
-  if (!organizationId && !onboardingCompleted) {
-    return {
-      account_state: 'coach_final_setup_required',
-      next_step: '/onboarding/step-3-league',
     };
   }
 

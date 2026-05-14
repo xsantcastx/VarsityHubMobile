@@ -122,7 +122,7 @@ const coachStates: CoachStateSeed[] = [
   },
   {
     key: 'missing-agreement',
-    label: 'Approved coach missing agreement',
+    label: 'Approved coach missing agreement signature',
     email: coachEmail('missing-agreement'),
     username: coachUsername('agreewait'),
     displayName: 'Coach UAT Agreement Required',
@@ -133,7 +133,7 @@ const coachStates: CoachStateSeed[] = [
     paymentApproved: false,
     paymentPending: false,
     proceedingAsFan: false,
-    expectation: 'Coach screens redirect to the coach agreement flow.',
+    expectation: 'Coach screens still open because approval is the only access gate.',
     maxTeams: 2,
   },
   {

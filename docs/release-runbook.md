@@ -101,6 +101,7 @@ The route battery checks:
 - `/auth/me`
 - `/events/pending`
 - `/events/my-events`
+- `/teams/managed`
 - `/organizations/invites/me`
 - `/organizations/join-requests/me`
 - `/organizations/:orgId/members`
@@ -124,11 +125,19 @@ What to verify:
 - `/auth/me` says:
   - `role=coach`
   - `approval_status=APPROVED`
+  - no legacy blocked `account_state`
+  - `next_step` is empty or `/(tabs)`
   - `email_verified=true`
   - `onboarding_completed=true`
   - `organization_id` present
-  - coach agreement accepted
   - `proceeding_as_fan=false`
+
+Run this against:
+
+- a normal approved coach account
+- an approved coach account that still lacks an agreement signature
+
+Both should pass. If the second account fails, approval-only access has regressed.
 
 ## Failure Triage
 

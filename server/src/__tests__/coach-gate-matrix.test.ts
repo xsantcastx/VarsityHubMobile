@@ -158,7 +158,7 @@ describeDb('requireOnboarded coach gate matrix', () => {
     return res;
   }
 
-  it('blocks approved coach with Veteran plan + payment_pending (PAYMENT_REQUIRED)', async () => {
+  it('allows approved coach with Veteran plan + payment_pending once approval is granted', async () => {
     const { user: owner } = await createUser({
       email: `coach-gate-owner-payment-${ts}@example.com`,
       displayName: 'Coach Gate Owner Payment',
@@ -190,14 +190,13 @@ describeDb('requireOnboarded coach gate matrix', () => {
     const memberId = cleanup.users[cleanup.users.length - 1];
     await addOrgMembership(org.id, memberId);
 
-    const res = await createTeamViaApi(token, org.id, `Payment Blocked Team ${ts}`);
+    const res = await createTeamViaApi(token, org.id, `Payment Allowed Team ${ts}`);
 
-    expect(res.status).toBe(403);
-    expect(res.body?.code).toBe('PAYMENT_REQUIRED');
-    expect(res.body?.pending_plan).toBe('veteran');
+    expect(res.status).toBe(201);
+    expect(res.body?.team?.id ?? res.body?.id).toBeTruthy();
   });
 
-  it('blocks approved coach whose org.admin_approved = false (APPROVAL_REQUIRED)', async () => {
+  it('allows approved coach whose org.admin_approved = false once approval is granted', async () => {
     const { user: owner } = await createUser({
       email: `coach-gate-owner-org-${ts}@example.com`,
       displayName: 'Coach Gate Owner Org',
@@ -227,11 +226,10 @@ describeDb('requireOnboarded coach gate matrix', () => {
     });
     await addOrgMembership(org.id, member.user.id);
 
-    const res = await createTeamViaApi(member.token, org.id, `Org Approval Blocked Team ${ts}`);
+    const res = await createTeamViaApi(member.token, org.id, `Org Approval Allowed Team ${ts}`);
 
-    expect(res.status).toBe(403);
-    expect(res.body?.code).toBe('APPROVAL_REQUIRED');
-    expect(String(res.body?.error || '')).toMatch(/organization is pending approval/i);
+    expect(res.status).toBe(201);
+    expect(res.body?.team?.id ?? res.body?.id).toBeTruthy();
   });
 
   it('blocks rejected applicant within 48h REJECTION_COOLDOWN on POST /auth/upgrade-to-coach', async () => {

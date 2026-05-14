@@ -116,7 +116,7 @@ export function getCoachAccessState(user: CoachUserLike | null | undefined): Coa
     onboardingCompleted,
     hasAcceptedCoachAgreement,
     hasCurrentCoachAgreement,
-    canAccessCoachTools: isApprovedCoach && hasCurrentCoachAgreement,
+    canAccessCoachTools: isApprovedCoach,
     requiredCoachAgreementVersion,
     acceptedCoachAgreementVersion,
     needsPaidPlanCheckout,
@@ -252,7 +252,7 @@ export function isOrganizationAdminMember(
  * Combines two checks the codebase had been doing inconsistently:
  *   1. The user holds an owner/manager membership in the org.
  *   2. The user is currently allowed to use coach tools at all (approved
- *      coach with a current agreement, OR is_admin=true god-override).
+ *      coach by approval status, OR is_admin=true god-override).
  *
  * Without (2), a pending or rejected coach who still has membership
  * left over from a prior approved state could see and tap admin CTAs
@@ -323,8 +323,6 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
       'coach_application_submitted',
       'coach_application_rejected',
       'coach_pending_approval',
-      'coach_agreement_required',
-      'coach_final_setup_required',
     ].includes(accountState)
   ) {
     return explicitNextStep;
@@ -342,14 +340,6 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
     return getPendingCoachRoute(user);
   }
 
-  if (accountState === 'coach_agreement_required') {
-    return '/onboarding/coach-agreement';
-  }
-
-  if (accountState === 'coach_final_setup_required') {
-    return '/onboarding/step-3-league';
-  }
-
   const coachAccess = getCoachAccessState(user);
 
   if (coachAccess.isProceedingAsFan) {
@@ -358,10 +348,6 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
 
   if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && !coachAccess.isProceedingAsFan) {
     return getPendingCoachRoute(user);
-  }
-
-  if (coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement) {
-    return '/onboarding/coach-agreement';
   }
 
   return null;

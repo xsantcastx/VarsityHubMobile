@@ -49,13 +49,8 @@ export type PostAuthRouteKind =
   | 'server_pending_approval_league_waiting'
   | 'server_pending_approval_waiting'
   | 'server_pending_approval_fan_mode'
-  | 'server_coach_agreement_required'
-  | 'server_final_setup_required'
   | 'pending_coach_waiting'
-  | 'approved_coach_finish_setup'
   | 'generic_onboarding_required'
-  | 'coach_checkout_required'
-  | 'coach_agreement_required'
   | 'app_home';
 
 export type PostAuthRouteDecision = {
@@ -75,13 +70,8 @@ const POST_AUTH_ROUTE_BY_KIND: Record<PostAuthRouteKind, AppRoute> = {
   server_pending_approval_league_waiting: '/onboarding/league-pending-approval',
   server_pending_approval_waiting: '/onboarding/pending-approval',
   server_pending_approval_fan_mode: '/(tabs)',
-  server_coach_agreement_required: '/onboarding/coach-agreement',
-  server_final_setup_required: '/onboarding/step-3-league',
   pending_coach_waiting: '/onboarding/pending-approval',
-  approved_coach_finish_setup: '/onboarding/pending-approval',
   generic_onboarding_required: '/onboarding/step-1-role',
-  coach_checkout_required: '/settings/manage-subscription',
-  coach_agreement_required: '/onboarding/coach-agreement',
   app_home: '/(tabs)',
 };
 
@@ -94,8 +84,6 @@ export type OnboardingIndexRouteKind =
   | 'server_pending_approval_league_waiting'
   | 'server_pending_approval_waiting'
   | 'server_pending_approval_fan_mode'
-  | 'server_coach_agreement_required'
-  | 'server_final_setup_required'
   | 'completed_tabs'
   | 'draft_step_1'
   | 'draft_step_2'
@@ -117,8 +105,6 @@ const ONBOARDING_INDEX_ROUTE_BY_KIND: Record<OnboardingIndexRouteKind, AppRoute>
   server_pending_approval_league_waiting: '/onboarding/league-pending-approval',
   server_pending_approval_waiting: '/onboarding/pending-approval',
   server_pending_approval_fan_mode: '/(tabs)',
-  server_coach_agreement_required: '/onboarding/coach-agreement',
-  server_final_setup_required: '/onboarding/step-3-league',
   completed_tabs: '/(tabs)',
   draft_step_1: '/onboarding/step-1-role',
   draft_step_2: '/onboarding/step-2-basic',
@@ -164,16 +150,12 @@ function resolveServerDirectedPostAuthKind(user: RoutingUserLike): PostAuthRoute
         : explicitNextStep === '/onboarding/league-pending-approval'
           ? 'server_pending_approval_league_waiting'
           : 'server_pending_approval_waiting';
-    case 'coach_agreement_required':
-      return 'server_coach_agreement_required';
-    case 'coach_final_setup_required':
-      return 'server_final_setup_required';
     default:
       return null;
   }
 }
 
-function resolvePendingRouteKind(route: string, baseKind: 'pending_coach_waiting' | 'approved_coach_finish_setup'): PostAuthRouteKind {
+function resolvePendingRouteKind(route: string, baseKind: 'pending_coach_waiting'): PostAuthRouteKind {
   if (route === '/onboarding/league-pending-approval') {
     return baseKind;
   }
@@ -228,32 +210,10 @@ export function getPostAuthRouteDecision(
     };
   }
 
-  if (needsOnboarding && coachAccess.isApprovedCoach) {
-    const route = getPendingCoachRoute(user) as AppRoute;
-    return {
-      kind: resolvePendingRouteKind(route, 'approved_coach_finish_setup'),
-      route,
-    };
-  }
-
-  if (needsOnboarding) {
+  if (needsOnboarding && !coachAccess.isApprovedCoach) {
     return {
       kind: 'generic_onboarding_required',
       route: POST_AUTH_ROUTE_BY_KIND.generic_onboarding_required,
-    };
-  }
-
-  if (coachAccess.needsPaidPlanCheckout) {
-    return {
-      kind: 'coach_checkout_required',
-      route: POST_AUTH_ROUTE_BY_KIND.coach_checkout_required,
-    };
-  }
-
-  if (coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement) {
-    return {
-      kind: 'coach_agreement_required',
-      route: POST_AUTH_ROUTE_BY_KIND.coach_agreement_required,
     };
   }
 
@@ -303,13 +263,8 @@ export function getOnboardingIndexRouteDecision(
       server_pending_approval_league_waiting: 'server_pending_approval_league_waiting',
       server_pending_approval_waiting: 'server_pending_approval_waiting',
       server_pending_approval_fan_mode: 'server_pending_approval_fan_mode',
-      server_coach_agreement_required: 'server_coach_agreement_required',
-      server_final_setup_required: 'server_final_setup_required',
       pending_coach_waiting: 'draft_pending_waiting',
-      approved_coach_finish_setup: 'draft_pending_waiting',
       generic_onboarding_required: 'draft_step_1',
-      coach_checkout_required: 'completed_tabs',
-      coach_agreement_required: 'server_coach_agreement_required',
       app_home: 'completed_tabs',
     };
     const kind = serverKindMap[serverDirectedKind];

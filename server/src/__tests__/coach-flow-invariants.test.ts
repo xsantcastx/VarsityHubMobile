@@ -149,10 +149,11 @@ describe('coach flow structural invariants', () => {
       expect(requireVerified.includes('email_verified: true')).toBe(true);
     });
 
-    it('requireOnboarded payment gate uses canonical billing/auth helpers, not prefs.role drift', () => {
-      expect(/getSelectedPlan/.test(requireOnboarded)).toBe(true);
-      expect(/isPaymentPending/.test(requireOnboarded)).toBe(true);
-      expect(/isPaymentApproved/.test(requireOnboarded)).toBe(true);
+    it('requireOnboarded no longer embeds payment-specific coach gates', () => {
+      expect(/PAYMENT_REQUIRED/.test(requireOnboarded)).toBe(false);
+      expect(/getSelectedPlan/.test(requireOnboarded)).toBe(false);
+      expect(/isPaymentPending/.test(requireOnboarded)).toBe(false);
+      expect(/isPaymentApproved/.test(requireOnboarded)).toBe(false);
       expect(/prefs\?\.role\s*===\s*['"]coach['"]/.test(requireOnboarded)).toBe(false);
     });
 
@@ -191,19 +192,18 @@ describe('coach flow structural invariants', () => {
       ).toBe(true);
     });
 
-    it('requireOnboarded blocks approved coaches without accepted coach agreement', () => {
-      expect(/COACH_AGREEMENT_REQUIRED/.test(requireOnboarded)).toBe(true);
+    it('requireOnboarded no longer blocks approved coaches on coach agreement state', () => {
+      expect(/COACH_AGREEMENT_REQUIRED/.test(requireOnboarded)).toBe(false);
     });
 
-    it('requireOnboarded blocks approved coaches whose org is not admin_approved', () => {
-      expect(requireOnboarded).toMatch(/admin_approved/);
-      expect(requireOnboarded).toMatch(/organization is pending approval/i);
+    it('requireOnboarded no longer blocks approved coaches on org admin approval state', () => {
+      expect(requireOnboarded).not.toMatch(/organization is pending approval/i);
     });
 
-    it('requireOnboarded enforces paid-plan checkout for paying coaches', () => {
-      expect(/PAYMENT_REQUIRED/.test(requireOnboarded)).toBe(true);
-      expect(/isPaymentPending/.test(requireOnboarded)).toBe(true);
-      expect(/getSelectedPlan/.test(requireOnboarded)).toBe(true);
+    it('requireOnboarded no longer enforces paid-plan checkout as a coach access gate', () => {
+      expect(/PAYMENT_REQUIRED/.test(requireOnboarded)).toBe(false);
+      expect(/isPaymentPending/.test(requireOnboarded)).toBe(false);
+      expect(/getSelectedPlan/.test(requireOnboarded)).toBe(false);
     });
   });
 

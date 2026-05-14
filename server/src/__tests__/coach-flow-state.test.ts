@@ -104,8 +104,8 @@ describe('getCoachFlowState', () => {
     });
   });
 
-  it('moves an approved coach into agreement before final organization setup', () => {
-    const agreementState = getCoachFlowState(
+  it('treats approved coaches as active without extra agreement or setup gates', () => {
+    const firstApprovedState = getCoachFlowState(
       {
         role: 'coach',
         approval_status: 'APPROVED',
@@ -133,12 +133,12 @@ describe('getCoachFlowState', () => {
       }
     );
 
-    expect(agreementState).toEqual({
-      account_state: 'coach_agreement_required',
-      next_step: '/onboarding/coach-agreement',
+    expect(firstApprovedState).toEqual({
+      account_state: 'coach_active',
+      next_step: '/(tabs)',
     });
 
-    const finalSetupState = getCoachFlowState(
+    const secondApprovedState = getCoachFlowState(
       {
         role: 'coach',
         approval_status: 'APPROVED',
@@ -166,9 +166,9 @@ describe('getCoachFlowState', () => {
       }
     );
 
-    expect(finalSetupState).toEqual({
-      account_state: 'coach_final_setup_required',
-      next_step: '/onboarding/step-3-league',
+    expect(secondApprovedState).toEqual({
+      account_state: 'coach_active',
+      next_step: '/(tabs)',
     });
   });
 });

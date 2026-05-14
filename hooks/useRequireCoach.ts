@@ -23,7 +23,6 @@ export function useRequireCoach() {
   const coachAccess = useMemo(() => getCoachAccessState(coachUser), [coachUser]);
   const isCoach = coachAccess.isCoach;
   const isApprovedCoach = coachAccess.isApprovedCoach;
-  const hasCurrentAgreement = coachAccess.hasCurrentCoachAgreement;
   const canAccessCoachTools = coachAccess.canAccessCoachTools;
 
   useEffect(() => {
@@ -45,24 +44,12 @@ export function useRequireCoach() {
       return;
     }
 
-    const agreementOutdated =
-      coachAccess.hasAcceptedCoachAgreement &&
-      coachAccess.acceptedCoachAgreementVersion < coachAccess.requiredCoachAgreementVersion;
-    const needsAgreement = coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement;
     const pendingRoute = getPendingCoachRoute(coachUser);
 
     if (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) {
       router.replace(pendingRoute as never);
-      return;
     }
-
-    if (needsAgreement) {
-      router.replace({
-        pathname: '/onboarding/coach-agreement',
-        params: agreementOutdated ? { reason: 'outdated' } : undefined,
-      } as never);
-    }
-  }, [coachAccess, coachUser, hasCurrentAgreement, isCoach, loading, router, user]);
+  }, [coachAccess, coachUser, isCoach, loading, router, user]);
 
   return { isCoach, isApprovedCoach, canAccessCoachTools, loading };
 }

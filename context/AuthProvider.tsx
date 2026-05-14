@@ -325,17 +325,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     }
   }, []);
 
-  // v1.0.2: refs for deferred push registration + paywall loop breaker (must be before checkAuth).
+  // v1.0.2: refs for deferred push registration (must be before checkAuth).
   const registerPushTokenRef = React.useRef<(() => Promise<boolean>) | null>(null);
-  const paywallPushTsRef = React.useRef<number>(0);
   const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscriptionFetchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const hasCurrentCoachAgreement = useCallback(
-    (authUser: AuthUser | null | undefined) =>
-      getCoachAccessState(authUser).hasCurrentCoachAgreement,
-    []
-  );
 
   const clearLocalAuthState = useCallback(() => {
     if (pushTokenTimeoutRef.current) {
@@ -987,8 +980,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           'coach_application_submitted',
           'coach_application_rejected',
           'coach_pending_approval',
-          'coach_agreement_required',
-          'coach_final_setup_required',
         ].includes(accountState) &&
         !isOnExplicitNextStep
       ) {
@@ -998,9 +989,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // Approved coach who was browsing as fan — restore coach role and route to coach onboarding.
+      // Approved coach who was browsing as fan — restore coach role in-place.
       // When a coach taps "Continue as Fan", role is saved as 'fan' with proceeding_as_fan=true.
-      // Once the org is approved, we must flip them back to coach and send them through agreement.
+      // Once the org is approved, we must flip them back to coach without
+      // introducing another post-approval gate.
       if (coachAccess.isApprovedCoach && user.preferences?.proceeding_as_fan === true) {
         // Fire-and-forget restore (the effect callback is sync, so we can't await).
         // Two refs prevent two distinct loops:
@@ -1037,21 +1029,6 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
             }
           })();
         }
-        // Route to coach-agreement if they haven't accepted it yet — this does not
-        // depend on the in-flight restore completing.
-        const onAgreement =
-          Array.isArray(segmentsRef.current) &&
-          segmentsRef.current.join('/').includes('coach-agreement');
-        if (!hasCurrentCoachAgreement(user) && !onAgreement) {
-          if (__DEV__)
-            console.log(
-              '[AuthProvider] Approved fan→coach transition — routing to coach agreement'
-            );
-          if (lastRedirectRef.current !== '/onboarding/coach-agreement') {
-            redirectWithTelemetry('/onboarding/coach-agreement', 'approved_fan_to_coach_agreement');
-          }
-          return;
-        }
       }
 
       // Block unapproved coaches (pending/rejected) on coach path.
@@ -1082,62 +1059,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Treat undefined/null as incomplete (prevents bypass when flag is missing)
       const serverSaysIncomplete = !isOnboardingComplete(user);
       const needsOnboarding = serverSaysIncomplete && !coachAccess.isProceedingAsFan;
-      const coachNeedsCheckout = coachAccess.needsPaidPlanCheckout;
-      const isOnPaymentPath =
-        currentPath.includes('settings/manage-subscription') ||
-        currentPath.includes('subscription-paywall') ||
-        currentPath.includes('payment-success') ||
-        currentPath.includes('billing');
-
-      if (!needsOnboarding && coachNeedsCheckout && !isOnPaymentPath) {
-        const now = Date.now();
-        const lastPaywallPush = paywallPushTsRef.current || 0;
-        if (now - lastPaywallPush < 5000) {
-          if (__DEV__)
-            console.warn('[AuthProvider] Paywall redirect loop detected — breaking circuit');
-          paywallPushTsRef.current = 0;
-          return;
-        }
-        if (__DEV__)
-          console.log('[AuthProvider] Approved coach must complete checkout before tools');
-        if (lastRedirectRef.current !== '/settings/manage-subscription') {
-          paywallPushTsRef.current = now;
-          redirectWithTelemetry('/settings/manage-subscription', 'coach_checkout_required');
-        }
-        return;
-      }
-
-      // Approved coach with incomplete onboarding (approved while app was closed)
-      // must finish through the pending-completion screen. Routing them to a raw
-      // onboarding step or a coach tool screen creates a bounce:
-      // incomplete auth state -> non-onboarding route -> AuthProvider yanks them
-      // back -> screen logic pushes elsewhere again.
-      if (
-        postAuthDecision.kind === 'approved_coach_finish_setup' &&
-        firstSegment !== 'onboarding'
-      ) {
-        if (__DEV__)
-          console.log('[AuthProvider] Approved coach needs to complete post-approval setup');
-        const target = postAuthDecision.route;
-        if (lastRedirectRef.current !== target) {
-          redirectWithTelemetry(target, 'approved_coach_post_approval_setup');
-        }
-        return;
-      }
-
-      // Approved coaches must accept the Coach Agreement before accessing tools
-      const isCoachWithoutAgreement =
-        !needsOnboarding &&
-        coachAccess.isApprovedCoach &&
-        !coachAccess.hasCurrentCoachAgreement &&
-        !coachNeedsCheckout;
       const isOnAgreementScreen = currentPath.includes('coach-agreement');
-      if (isCoachWithoutAgreement && !isOnAgreementScreen) {
-        if (lastRedirectRef.current !== postAuthDecision.route) {
-          redirectWithTelemetry(postAuthDecision.route, 'coach_agreement_required');
-        }
-        return;
-      }
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (
@@ -1162,7 +1084,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         firstSegment === 'onboarding' &&
         !isPendingCoach &&
         !isOnPendingScreen &&
-        !(isOnAgreementScreen && isCoachWithoutAgreement)
+        !isOnAgreementScreen
       ) {
         if (__DEV__)
           console.log('[AuthProvider] User completed onboarding, redirecting to main app');

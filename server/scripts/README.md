@@ -5,6 +5,7 @@ This folder contains administrative and database management scripts for the Vars
 ## Folder Structure
 
 ### 📁 database/
+
 Scripts for managing user data, subscriptions, and database operations.
 
 - **`check_user_plans.mjs`** - Analyzes user subscription plans and identifies issues
@@ -18,12 +19,13 @@ Scripts for managing user data, subscriptions, and database operations.
   - Usage: `node reset_unpaid_simple.mjs`
 
 ### 📁 stripe/
+
 Scripts for managing Stripe payment integration.
 
 - **`create_stripe_prices.js`** - Creates Stripe price IDs for subscription plans
   - Sets up Veteran ($70/year) and Legend ($150/year) pricing
   - Outputs price IDs for environment variables
-  - ⚠️  Contains actual Stripe keys - keep secure
+  - ⚠️ Contains actual Stripe keys - keep secure
   - Usage: `node create_stripe_prices.js`
 
 ## Usage
@@ -33,7 +35,7 @@ All scripts should be run from the server directory:
 ```bash
 cd server
 node scripts/database/check_user_plans.mjs
-node scripts/database/reset_unpaid_simple.mjs  
+node scripts/database/reset_unpaid_simple.mjs
 node scripts/stripe/create_stripe_prices.js
 ```
 
@@ -44,6 +46,11 @@ node scripts/stripe/create_stripe_prices.js
 
 - **`verify-production-health.ts`** - validates health endpoint reports production integrations and payment config ready
   - Usage: `BASE_URL=https://api-production-8ac3.up.railway.app npm run verify:production-health`
+
+- **`verify-coach-route-battery.ts`** - read-only approved-coach route verification for production or staging
+  - Confirms `approval_status=APPROVED` is sufficient for coach route access
+  - Catches stale blocked `account_state` / `next_step` values on approved accounts
+  - Usage: `BASE_URL=https://api.example.com COACH_ROUTE_BATTERY_EMAIL=coach@example.com COACH_ROUTE_BATTERY_PASSWORD=secret npm run verify:coach-route-battery`
 
 - **`audit-user-auth-state-drift.ts`** - validates Stream 3 dual-write consistency between canonical `User` auth columns and legacy `preferences` JSON
   - Usage: `DATABASE_URL=postgresql://test:test@localhost:5432/varsityhub_test npm run verify:auth-state-drift`

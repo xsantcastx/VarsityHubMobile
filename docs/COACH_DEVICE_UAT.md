@@ -2,6 +2,8 @@
 
 This is the focused manual certification bundle for the coach surface. It assumes the backend/client guard audit is already green and uses real-device runtime checks to certify navigation, billing UX, blocked-state messaging, and state transitions.
 
+Current policy: coach-feature access is controlled by approval only. Once `approval_status=APPROVED`, the user should be able to use coach features even if an older account still lacks an agreement signature or has stale paid-plan metadata.
+
 ## Commands
 
 ```bash
@@ -20,14 +22,14 @@ Default password: `CoachUAT2026!`
 
 The script prints the final emails if you override `COACH_UAT_EMAIL_DOMAIN` or `COACH_UAT_PASSWORD`.
 
-| State | Default email | Expected first meaningful check |
-|---|---|---|
-| Approved rookie coach + agreement | `coach-uat-rookie@varsityhub.test` | Coach screens open; premium-only upsells remain gated |
-| Approved veteran coach + paid | `coach-uat-veteran@varsityhub.test` | Veteran entitlements persist after restart |
-| Approved legend coach + paid | `coach-uat-legend@varsityhub.test` | Legend entitlements persist after restart |
-| Paid-by-owner coach | `coach-uat-owner-covered@varsityhub.test` | Premium access works without self-checkout |
-| Approved coach missing agreement | `coach-uat-missing-agreement@varsityhub.test` | Direct coach navigation redirects to `/onboarding/coach-agreement` |
-| Pending/rejected coach in fan mode | `coach-uat-rejected-fan@varsityhub.test` by default | Coach tools blocked, fan-safe actions still usable |
+| State                              | Default email                                       | Expected first meaningful check                           |
+| ---------------------------------- | --------------------------------------------------- | --------------------------------------------------------- |
+| Approved rookie coach + agreement  | `coach-uat-rookie@varsityhub.test`                  | Coach screens open; premium-only upsells remain gated     |
+| Approved veteran coach + paid      | `coach-uat-veteran@varsityhub.test`                 | Veteran entitlements persist after restart                |
+| Approved legend coach + paid       | `coach-uat-legend@varsityhub.test`                  | Legend entitlements persist after restart                 |
+| Paid-by-owner coach                | `coach-uat-owner-covered@varsityhub.test`           | Premium access works without self-checkout                |
+| Approved coach missing agreement   | `coach-uat-missing-agreement@varsityhub.test`       | Coach screens still open; no forced redirect to agreement |
+| Pending/rejected coach in fan mode | `coach-uat-rejected-fan@varsityhub.test` by default | Coach tools blocked, fan-safe actions still usable        |
 
 Note: set `COACH_UAT_FAN_MODE_STATUS=PENDING` before `npm run coach:uat:prepare` if you want the sixth account seeded as pending instead of rejected.
 
@@ -57,7 +59,7 @@ Note: set `COACH_UAT_FAN_MODE_STATUS=PENDING` before `npm run coach:uat:prepare`
 
 ### 1. Allowed-state checks
 
-Run these on rookie, veteran, legend, and paid-by-owner accounts.
+Run these on rookie, veteran, legend, paid-by-owner, and missing-agreement accounts.
 
 - Sign in, land on Discover, and confirm the 4 coach Quick Actions render on first load.
 - Open each Quick Action and verify first-tap navigation, data load, and back navigation.
@@ -69,8 +71,9 @@ Run these on rookie, veteran, legend, and paid-by-owner accounts.
 
 - Missing-agreement account:
   - Attempt each coach-only route directly.
-  - Confirm redirect or CTA lands on `/onboarding/coach-agreement`.
-  - Accept the agreement and confirm coach tools unlock without a forced logout/login cycle.
+  - Confirm coach tools still open.
+  - Confirm there is no redirect loop into `/onboarding/coach-agreement`.
+  - If the agreement screen is opened manually, accepting it should complete cleanly without a forced logout/login cycle.
 - Pending/rejected fan-mode account:
   - Attempt each coach-only route directly.
   - Confirm coach tools stay blocked.
@@ -88,22 +91,25 @@ Run these on rookie, veteran, legend, and paid-by-owner accounts.
 - Paid-by-owner account:
   - Open `settings/manage-subscription`.
   - Confirm the user is shown as covered by the owner league and is not asked to self-pay.
+- Missing-agreement account:
+  - Confirm missing agreement does not block coach access.
+  - Confirm any billing UI still behaves as informational or premium-specific, not as a coach-access gate.
 
 ### 4. Approval and deep-link checks
 
 - Rookie account:
   - Open `Approvals` and verify the seeded pending event/game list loads.
 - If a live notification/deep link is available:
-  - Coach approval follow-up should land on the agreement flow when agreement is missing.
+  - Coach approval follow-up should land in the approved coach experience without an extra agreement detour.
   - Event/game approval links should land on the approval screen without losing auth state.
 
 ## Acceptance Criteria
 
 - No non-approved coach reaches a functional coach screen.
-- No approved coach with current agreement and valid billing is incorrectly blocked.
+- No approved coach is incorrectly blocked, including the missing-agreement fixture.
 - Quick Actions route correctly on first tap.
 - No stale offline/auth latch appears after refresh or relaunch.
-- `COACH_AGREEMENT_REQUIRED`, `APPROVAL_REQUIRED`, `APPROVAL_REJECTED`, and `PAYMENT_REQUIRED` are surfaced with distinct UX.
+- `APPROVAL_REQUIRED` and `APPROVAL_REJECTED` are surfaced with distinct UX for blocked users.
 - Paid-by-owner never falls into self-checkout.
 
 ## Evidence

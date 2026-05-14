@@ -12,7 +12,7 @@
  *   3. checkApproval (triggered by focus / interval / foreground) sees
  *      APPROVED → setApproved(true) → UI swaps to "You're Approved!"
  *   4. User taps "Continue Coach Setup" → handleApprovedNavigation calls
- *      checkAuth + getPostAuthRouteDecision → routes to coach-agreement
+ *      checkAuth + getPostAuthRouteDecision → routes into the app
  *
  * If any step regresses, the user is stranded on the pending screen
  * even though the admin approved them.
@@ -47,7 +47,7 @@ const PENDING_USER = {
 const APPROVED_USER = {
   ...PENDING_USER,
   approval_status: 'APPROVED',
-  account_state: 'coach_agreement_required',
+  account_state: 'coach_active',
   required_coach_agreement_version: 1,
   preferences: {
     ...PENDING_USER.preferences,
@@ -172,7 +172,7 @@ describe('pending-approval — admin-approves-during-pending race', () => {
     expect(await findByText('Continue Coach Setup')).toBeTruthy();
   });
 
-  it('routes to coach-agreement when an approved user taps Continue Coach Setup', async () => {
+  it('routes into the app when an approved user taps Continue Coach Setup', async () => {
     mockUserRefresh.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
     // checkAuth resolves with the approved user — handleApprovedNavigation
     // pipes that into getPostAuthRouteDecision.
@@ -194,8 +194,7 @@ describe('pending-approval — admin-approves-during-pending race', () => {
 
     await waitFor(() => {
       expect(mockCheckAuth).toHaveBeenCalled();
-      // APPROVED + onboarding_completed=true + no coach_agreement_accepted_at
-      // → getPostAuthRouteDecision returns /onboarding/coach-agreement.
+      // Approved coaches now route directly into the app once approval lands.
       // The handler appends the redirect param.
       const lastCall = mockReplace.mock.calls[mockReplace.mock.calls.length - 1]?.[0];
       // router.replace can be called with either a string or a {pathname,params}
@@ -204,7 +203,7 @@ describe('pending-approval — admin-approves-during-pending race', () => {
         typeof lastCall === 'string'
           ? lastCall
           : (lastCall as any)?.pathname;
-      expect(target).toBe('/onboarding/coach-agreement');
+      expect(target).toBe('/(tabs)');
     });
   });
 });

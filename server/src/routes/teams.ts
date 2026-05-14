@@ -217,7 +217,7 @@ async function resolveOrganizationIdForTeamCreate(input: {
 async function validateTeamCreateOrganizationAccess(
   userId: string,
   organizationId: string,
-  onboardingComplete: boolean
+  _onboardingComplete: boolean
 ) {
   const organization = await getOrganizationState(organizationId);
   if (!organization || organization.status !== 'active') {
@@ -235,18 +235,6 @@ async function validateTeamCreateOrganizationAccess(
       'ORGANIZATION_MEMBERSHIP_REQUIRED',
       'You must be an active member of this organization to create a team under it.'
     );
-  }
-
-  if (!(await isOrganizationApproved(organizationId, prisma))) {
-    const allowPendingOwnerDuringOnboarding =
-      !onboardingComplete && orgMembership.role === 'owner';
-    if (!allowPendingOwnerDuringOnboarding) {
-      return buildTeamCreateOrganizationError(
-        403,
-        'ORGANIZATION_NOT_APPROVED',
-        'Teams can only be created under organizations that have been approved by VarsityHub.'
-      );
-    }
   }
 
   return { ok: true as const };

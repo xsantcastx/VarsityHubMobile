@@ -5,7 +5,7 @@
  * Safe shape:
  * - login
  * - read /auth/me
- * - verify approved-coach invariants
+ * - verify approval-only coach access invariants
  * - read coach / organizer routes that should be accessible
  * - logout
  *
@@ -36,6 +36,8 @@ type MeBody = {
   email?: string;
   role?: string;
   approval_status?: string;
+  account_state?: string | null;
+  next_step?: string | null;
   email_verified?: boolean;
   onboarding_completed?: boolean;
   organization_id?: string | null;
@@ -137,6 +139,14 @@ function isProceedingAsFan(me: MeBody): boolean {
   return Boolean(me?.proceeding_as_fan ?? me?.preferences?.proceeding_as_fan);
 }
 
+function isLegacyBlockedCoachState(me: MeBody): boolean {
+  const accountState = String(me?.account_state || '').trim();
+  return (
+    accountState === 'coach_agreement_required' ||
+    accountState === 'coach_final_setup_required'
+  );
+}
+
 async function writeReport(ok: boolean, routeResults: RouteProbe[], me?: MeBody | null) {
   const payload = {
     ok,
@@ -148,6 +158,8 @@ async function writeReport(ok: boolean, routeResults: RouteProbe[], me?: MeBody 
           email: me.email,
           role: me.role,
           approval_status: me.approval_status,
+          account_state: me.account_state || null,
+          next_step: me.next_step || null,
           email_verified: me.email_verified,
           onboarding_completed: me.onboarding_completed,
           organization_id: me.organization_id || null,
@@ -224,9 +236,16 @@ async function main() {
       detail: `organization_id=${String(me?.organization_id || '')}`,
     },
     {
-      step: 'me coach agreement accepted',
-      ok: hasCoachAgreement(me || {}),
-      detail: `coach_agreement_accepted=${String(hasCoachAgreement(me || {}))}`,
+      step: 'me no legacy blocked state',
+      ok: isLegacyBlockedCoachState(me || {}) === false,
+      detail: `account_state=${String(me?.account_state || '')}`,
+    },
+    {
+      step: 'me next_step not onboarding gate',
+      ok:
+        String(me?.next_step || '').trim() === '' ||
+        String(me?.next_step || '').trim() === '/(tabs)',
+      detail: `next_step=${String(me?.next_step || '')}`,
     },
     {
       step: 'me not proceeding as fan',
@@ -248,6 +267,7 @@ async function main() {
   const routes = [
     '/events/pending',
     '/events/my-events',
+    '/teams/managed',
     '/organizations/invites/me',
     '/organizations/join-requests/me',
     `/organizations/${encodeURIComponent(orgId)}/members`,

@@ -126,18 +126,14 @@ describe('payments & subscriptions — structural invariants', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────
-  // Paid-plan checkout bypass prevention
+  // Approval-only coach gating + billing lifecycle safety
   // ──────────────────────────────────────────────────────────────────────
 
-  describe('paid-plan checkout gates (server is the source of truth)', () => {
-    it('requireOnboarded blocks approved coaches on veteran/legend with payment_pending', () => {
-      expect(requireOnboarded).toMatch(/PAYMENT_REQUIRED/);
-      expect(requireOnboarded).toMatch(/requiresPayment/);
-      expect(requireOnboarded).toMatch(/pending_plan|selectedPlan/);
-    });
-
-    it('requireOnboarded respects paid_by_owner (league owner covers billing)', () => {
-      expect(requireOnboarded).toMatch(/paid_by_owner/);
+  describe('approval-only coach gate with billing lifecycle cleanup', () => {
+    it('requireOnboarded no longer blocks approved coaches on payment state', () => {
+      expect(requireOnboarded).not.toMatch(/PAYMENT_REQUIRED/);
+      expect(requireOnboarded).not.toMatch(/requiresPayment/);
+      expect(requireOnboarded).not.toMatch(/pending_plan|selectedPlan/);
     });
 
     it('Apple-specific grace-period expiry triggers lazy downgrade to rookie', () => {

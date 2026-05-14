@@ -404,9 +404,9 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Coach agreement gate', () => {
-    it('APPROVED coach without coach_agreement_accepted_at gets COACH_AGREEMENT_REQUIRED on team creation', async () => {
-      // Clear the agreement so this test can verify the gate
+  describe('Approved coach access', () => {
+    it('APPROVED coach without coach_agreement_accepted_at can create a team once approved', async () => {
+      // Clear the agreement so this test verifies approval is the only gate.
       await prisma.user.update({
         where: { id: approvedCoachId },
         data: {
@@ -436,11 +436,13 @@ describe('Coach Approval Workflow', () => {
       const res = await request(app)
         .post('/teams/create')
         .set('Authorization', `Bearer ${approvedCoachToken}`)
-        .send({ name: 'Agreement Blocked Team', organization_id: approvedOrg!.id });
+        .send({ name: 'Agreement Allowed Team', organization_id: approvedOrg!.id });
 
-      expect(res.status).toBe(403);
-      expect(res.body?.code).toBe('COACH_AGREEMENT_REQUIRED');
-      expect(String(res.body?.error || '')).toMatch(/coach agreement/i);
+      expect(res.status).toBe(201);
+      expect(res.body?.team?.id).toBeTruthy();
+      if (res.body?.team?.id) {
+        await prisma.team.delete({ where: { id: res.body.team.id } }).catch(() => {});
+      }
     });
 
     it('APPROVED coach with coach_agreement_accepted_at can create team', async () => {

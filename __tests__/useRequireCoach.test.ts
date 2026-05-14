@@ -106,7 +106,7 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     expect(mockReplace.mock.calls[0][0]).toMatch(/pending-approval$/);
   });
 
-  it('approved coach with current agreement is not redirected', () => {
+  it('approved coach is not redirected after approval even without an agreement', () => {
     mockUseAuth.mockReturnValue({
       loading: false,
       user: {
@@ -114,11 +114,8 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
         is_admin: false,
         role: 'coach',
         approval_status: 'APPROVED',
-        required_coach_agreement_version: 1,
         preferences: {
           role: 'coach',
-          coach_agreement_accepted_at: '2025-01-01T00:00:00Z',
-          coach_agreement_version: 1,
         },
       },
     });

@@ -9,13 +9,10 @@ import {
   hasCoachFanModeAccess,
   isUserOnboardingComplete,
 } from '../lib/userAuthState.js';
-import { getSelectedPlan, isPaymentApproved, isPaymentPending } from '../lib/userBillingState.js';
-import { getLatestCoachApplication } from '../lib/coachApplications.js';
 
 /**
  * Middleware that rejects requests from users who haven't completed onboarding.
  * Also blocks coaches with PENDING approval_status from coach-only actions.
- * For coaches, verifies their org is admin_approved (god-admin gated).
  * Must be placed after auth middleware (requireAuth or requireVerified).
  */
 export async function requireOnboarded(req: AuthedRequest, res: Response, next: NextFunction) {
@@ -26,7 +23,6 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     select: {
       preferences: true,
       approval_status: true,
-      paid_by_owner: true,
       email: true,
       // v1.0.3: include the top-level `role` + `onboarding_completed` columns so
       // the canonical helpers can see them. Previously only `preferences` was
@@ -133,49 +129,6 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
     });
   }
 
-  // Extra guard: coaches must belong to an admin-approved org.
-  //
-  // In the pre-CoachApplication model, creating an organization WAS the coach's
-  // approval application — so Org.admin_approved=false meant the coach hadn't
-  // been approved yet. In the current model, CoachApplication is the canonical
-  // approval surface and the Org is just the coach's workspace. Approved-via-
-  // application coaches who create their real org during final setup should NOT
-  // be re-blocked here just because the new org row hasn't been admin-approved
-  // (it never will be — admin approval now happens on the application, not the
-  // org). Only enforce this gate on legacy coaches who never went through the
-  // CoachApplication flow.
-  if (role === 'coach' && u?.approval_status === 'APPROVED') {
-    const orgId = prefs?.organization_id as string | undefined;
-    if (orgId) {
-      const latestApp = await getLatestCoachApplication(prisma as any, req.user.id).catch(() => null);
-      const hasApprovedApplication = latestApp?.status === 'approved';
-      if (!hasApprovedApplication) {
-        const org = await prisma.organization.findUnique({
-          where: { id: orgId },
-          select: { admin_approved: true },
-        });
-        if (org && !org.admin_approved) {
-          return res.status(403).json({
-            error: 'Your organization is pending approval.',
-            code: 'APPROVAL_REQUIRED',
-          });
-        }
-      }
-    }
-  }
-
-  // v1.0.2: Approved coaches must accept the coach agreement before accessing coach tools.
-  // Previously this was UI-only — any API client could bypass by calling coach endpoints directly.
-  if (role === 'coach' && u?.approval_status === 'APPROVED') {
-    const acceptedAt = prefs?.coach_agreement_accepted_at;
-    if (!acceptedAt) {
-      return res.status(403).json({
-        error: 'You must accept the coach agreement before accessing coach tools.',
-        code: 'COACH_AGREEMENT_REQUIRED',
-      });
-    }
-  }
-
   // v1.0.2 pass 8: safety net for Apple IAP grace period expiry. If Apple's EXPIRED
   // notification was lost, this catches users whose grace period has elapsed and
   // downgrades them lazily on their next coach API call. Without this, users could
@@ -197,26 +150,7 @@ export async function requireOnboarded(req: AuthedRequest, res: Response, next: 
         },
       });
       console.warn('[requireOnboarded] Lazy-downgraded user after grace period expiry', { userId: req.user.id });
-      // Continue with downgraded state; coach paid-tier check below will catch them if needed.
-    }
-  }
-
-  // Approved coach accounts that selected a paid tier must complete checkout
-  // before accessing coach tools, unless their league owner covers billing.
-  if (role === 'coach' && u?.approval_status === 'APPROVED' && u?.paid_by_owner !== true) {
-    const selectedPlan = getSelectedPlan(u as any);
-    const requiresPayment = selectedPlan === 'veteran' || selectedPlan === 'legend';
-    const paymentPending = isPaymentPending(u as any);
-    const paymentApproved = isPaymentApproved(u as any);
-    const joinRequestPending = prefs?.join_request_pending === true;
-    const canCheckoutNow = paymentApproved || !joinRequestPending;
-
-    if (requiresPayment && paymentPending && canCheckoutNow) {
-      return res.status(403).json({
-        error: 'Checkout required before accessing coach tools.',
-        code: 'PAYMENT_REQUIRED',
-        pending_plan: selectedPlan,
-      });
+      // Continue with downgraded state; approval remains the only coach-feature gate here.
     }
   }
 

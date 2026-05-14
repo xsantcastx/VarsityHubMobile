@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 import { getPostAuthLandingRoute } from '../utils/postAuthRouting';
 
 describe('getPostAuthLandingRoute', () => {
-  it('routes approved coach with incomplete onboarding back to the pending completion screen', () => {
+  it('routes approved coach with incomplete onboarding into the app once approved', () => {
     expect(
       getPostAuthLandingRoute({
         email_verified: true,
@@ -13,10 +13,10 @@ describe('getPostAuthLandingRoute', () => {
           organization_id: 'org_123',
         },
       })
-    ).toBe('/onboarding/league-pending-approval');
+    ).toBe('/(tabs)');
   });
 
-  it('routes approved join-request coach with incomplete onboarding to join pending screen', () => {
+  it('routes approved join-request coach with incomplete onboarding into the app once approved', () => {
     expect(
       getPostAuthLandingRoute({
         email_verified: true,
@@ -28,7 +28,7 @@ describe('getPostAuthLandingRoute', () => {
           organization_id: 'org_123',
         },
       })
-    ).toBe('/onboarding/pending-approval');
+    ).toBe('/(tabs)');
   });
 
   it('keeps generic incomplete users on onboarding step 1', () => {
@@ -44,7 +44,7 @@ describe('getPostAuthLandingRoute', () => {
     ).toBe('/onboarding/step-1-role');
   });
 
-  it('routes approved coaches without the agreement to coach-agreement after onboarding completes', () => {
+  it('routes approved coaches without the agreement into the app after onboarding completes', () => {
     expect(
       getPostAuthLandingRoute({
         email_verified: true,
@@ -55,7 +55,7 @@ describe('getPostAuthLandingRoute', () => {
           onboarding_completed: true,
         },
       })
-    ).toBe('/onboarding/coach-agreement');
+    ).toBe('/(tabs)');
   });
 
   it('prefers canonical next_step for pending coach entry', () => {
@@ -73,7 +73,7 @@ describe('getPostAuthLandingRoute', () => {
     ).toBe('/onboarding/league-pending-approval');
   });
 
-  it('prefers canonical next_step for approved coach final setup entry', () => {
+  it('ignores stale final-setup server state once the coach is approved', () => {
     expect(
       getPostAuthLandingRoute({
         email_verified: true,
@@ -85,7 +85,7 @@ describe('getPostAuthLandingRoute', () => {
           onboarding_completed: false,
         },
       })
-    ).toBe('/onboarding/step-3-league');
+    ).toBe('/(tabs)');
   });
 
   it('keeps active fans on the main tabs route', () => {

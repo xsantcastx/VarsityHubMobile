@@ -94,6 +94,13 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(step2).toMatch(/ob\.role === ['"]coach['"] \? \{ role: ['"]coach['"] \} : \{\}/);
     });
 
+    it('step-2 refreshes auth from the server before exiting onboarding for fans', () => {
+      expect(step2).toMatch(/getFreshPostAuthState/);
+      expect(step2).toMatch(/User\.completeOnboarding/);
+      expect(step2).toMatch(/checkAuth/);
+      expect(step2).toMatch(/decision\.route/);
+    });
+
     it('step-3 enforces supporting document for create-new-org path', () => {
       // Coaches creating a new org must attach a supporting document —
       // this is a soft "no skip" gate enforced client-side AND server-side.
@@ -151,25 +158,23 @@ describe('onboarding flow — no screens can be skipped', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────
-  // Coach agreement — approved coaches cannot reach tabs without accepting
+  // Coach agreement — accepted state is still recorded, but it is no longer
+  // a hard post-approval access gate
   // ──────────────────────────────────────────────────────────────────────
 
-  describe('coach agreement gate', () => {
+  describe('coach agreement behavior', () => {
     it('coach-agreement screen writes coach_agreement_accepted_at on accept', () => {
       expect(coachAgreement).toMatch(/coach_agreement_accepted_at/);
       expect(coachAgreement).toMatch(/updatePreferences/);
     });
 
-    it('AuthProvider routes approved coaches to /onboarding/coach-agreement when unsigned', () => {
-      // This is the "no skip" gate for coach tools. An approved coach who
-      // closes the app mid-flow is routed back to coach-agreement on next
-      // open, not dropped into tabs where requireOnboarded would 403.
-      expect(authProvider).toMatch(/\/onboarding\/coach-agreement/);
-      expect(authProvider).toMatch(/coach_agreement_accepted_at/);
+    it('AuthProvider no longer forces approved coaches through coach-agreement', () => {
+      expect(authProvider).not.toMatch(/approved_fan_to_coach_agreement/);
+      expect(authProvider).not.toMatch(/coach_agreement_required/);
     });
 
-    it('AuthProvider checks hasCurrentCoachAgreement / coachAccess.hasCurrentCoachAgreement before tabs', () => {
-      expect(authProvider).toMatch(/hasCurrentCoachAgreement|coach_agreement_accepted_at/);
+    it('AuthProvider no longer checks agreement state before routing approved coaches to tabs', () => {
+      expect(authProvider).not.toMatch(/hasCurrentCoachAgreement\(/);
     });
   });
 
@@ -289,6 +294,12 @@ describe('onboarding flow — no screens can be skipped', () => {
     it('existing-org continue path respects coach recovery routes before completing onboarding', () => {
       expect(step3).toMatch(/getPostAuthRouteDecision/);
       expect(step3).toMatch(/shouldResumeRecoveryFlow/);
+    });
+
+    it('final coach setup refreshes auth and routes agreement-first when required', () => {
+      expect(step3).toMatch(/getFreshPostAuthState/);
+      expect(step3).toMatch(/decision\.route === ['"]\/onboarding\/coach-agreement['"]/);
+      expect(step3).toMatch(/redirect:\s*['"]create-team['"]/);
     });
 
     it('AuthProvider has a redirect-family loop breaker', () => {

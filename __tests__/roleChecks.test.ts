@@ -94,18 +94,18 @@ describe('getCoachAccessState — coach agreement versioning (DISC-2)', () => {
     },
   });
 
-  it('approved coach with no agreement accepted → no current agreement, no tool access', () => {
+  it('approved coach with no agreement accepted still has tool access once approved', () => {
     const s = getCoachAccessState(approvedCoach(0, 1, null));
     expect(s.hasAcceptedCoachAgreement).toBe(false);
     expect(s.hasCurrentCoachAgreement).toBe(false);
-    expect(s.canAccessCoachTools).toBe(false);
+    expect(s.canAccessCoachTools).toBe(true);
   });
 
-  it('approved coach with outdated version → accepted but not current, no tool access', () => {
+  it('approved coach with outdated version still has tool access once approved', () => {
     const s = getCoachAccessState(approvedCoach(1, 2, new Date().toISOString()));
     expect(s.hasAcceptedCoachAgreement).toBe(true);
     expect(s.hasCurrentCoachAgreement).toBe(false);
-    expect(s.canAccessCoachTools).toBe(false);
+    expect(s.canAccessCoachTools).toBe(true);
   });
 
   it('approved coach with current version → current, tools accessible', () => {
@@ -320,12 +320,12 @@ describe('getCoachRecoveryRoute', () => {
     ).toBe('/(tabs)');
   });
 
-  it('routes approved coaches without an agreement to coach-agreement', () => {
+  it('does not force approved coaches into recovery routes for agreement state', () => {
     expect(
       getCoachRecoveryRoute({
         approval_status: 'APPROVED',
         preferences: { role: 'coach', onboarding_completed: true },
       })
-    ).toBe('/onboarding/coach-agreement');
+    ).toBeNull();
   });
 });
