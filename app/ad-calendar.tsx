@@ -298,8 +298,11 @@ function AdCalendarScreen() {
   const discountCents = quote?.discount_cents ?? (preview?.valid ? (preview.discount_cents || 0) : 0);
   const totalCents = quote?.total_cents ?? Math.max(0, subtotalCents - discountCents);
   const effective = useMemo(() => totalCents / 100, [totalCents]);
-  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
-  const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
+  const paymentsTemporarilyDisabled =
+    Platform.OS !== 'ios' && paymentsStatus?.stripe_configured === false;
+  const showPaymentsWarning =
+    (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
+    (!!paymentsStatusError && !paymentsTemporarilyDisabled && Platform.OS !== 'ios');
   const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
   const submitForApprovalDisabled = submitting;
   const isPending = adStatus === 'pending';
@@ -852,7 +855,8 @@ function AdCalendarScreen() {
             >
               {paymentsTemporarilyDisabled
                 ? 'Checkout is disabled until our payment provider is configured. Please try again later.'
-                : paymentsStatusError || 'We could not confirm payment readiness. You can still attempt checkout, but it may fail until connectivity improves.'}
+                : paymentsStatusError ||
+                  'We could not confirm payment readiness. You can still attempt checkout, but it may fail until connectivity improves.'}
             </Text>
           </View>
         )}
@@ -1248,7 +1252,7 @@ function AdCalendarScreen() {
                   <ActivityIndicator />
                 ) : (
                   <Text style={styles.payBtnText}>
-                    {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
+              {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
                   </Text>
                 )}
               </Pressable>

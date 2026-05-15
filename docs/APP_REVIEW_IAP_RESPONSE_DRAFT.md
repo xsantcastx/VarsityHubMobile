@@ -6,7 +6,7 @@ Use this reply in App Store Connect when Apple says they cannot locate the in-ap
 
 Hello,
 
-Thank you. The in-app purchases are available inside the iOS app and can be reached with the review account after sign-in.
+Thank you. The in-app purchases are available inside the iOS app and can be reached with the review account after sign-in. The review account is coach-approved and remains on the free Rookie plan so the subscription upgrade buttons are visible during review.
 
 Review account:
 
@@ -25,11 +25,11 @@ Steps to locate the subscriptions:
 
 Steps to locate ad in-app purchases:
 
-1. Sign in with the same review account.
+1. Sign in with the review account.
 2. Open `Settings`.
 3. Open `My Content`.
 4. Tap `My Ads`.
-5. Open `VarsityHub Review Demo Ad`.
+5. Open `VarsityHub Review Coach Demo Ad`.
 6. Tap `Schedule Dates`.
 7. Select campaign dates and tap the checkout button at the bottom of the screen.
 8. The Apple ad product IDs are:

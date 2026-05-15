@@ -119,6 +119,12 @@ Pass criteria:
 
 Do this sparingly to avoid rate limits.
 
+Prepare the review account explicitly when needed:
+
+```bash
+APP_REVIEW_PASSWORD='...' npm --prefix server run prepare:app-review
+```
+
 What to verify:
 
 - login succeeds
@@ -129,8 +135,16 @@ What to verify:
   - `next_step` is empty or `/(tabs)`
   - `email_verified=true`
   - `onboarding_completed=true`
-  - `organization_id` present
-  - `proceeding_as_fan=false`
+- `organization_id` present
+- `proceeding_as_fan=false`
+
+Automated check:
+
+```bash
+BASE_URL=https://api-production-8ac3.up.railway.app \
+APP_REVIEW_PASSWORD='...' \
+npm --prefix server run verify:app-review
+```
 
 Run this against:
 

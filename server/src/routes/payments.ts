@@ -199,6 +199,28 @@ async function enforceVerifiedForSubscriptionFlow(
   return true;
 }
 
+async function enforceVerifiedForAdPaymentFlow(
+  req: AuthedRequest,
+  res: Response,
+  adId?: string,
+) {
+  if (!adId?.trim()) return true;
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  const u = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, email_verified: true, google_id: true, apple_id: true },
+  });
+  const verifiedUser = await ensureOAuthUserVerified(u);
+  if (!verifiedUser?.email_verified) {
+    res.status(403).json({ error: 'Email verification required' });
+    return false;
+  }
+  return true;
+}
+
 type WebhookRouteResponse = {
   status: number;
   body: Record<string, any>;
@@ -1217,6 +1239,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireAuth as any, paymentL
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
   const { ad_id, dates, promo_code, plan, team_count, organization_id, checkout_mode } = parsed.data;
   if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
+  if (!(await enforceVerifiedForAdPaymentFlow(req, res, ad_id))) return;
   if (typeof plan === 'string' && plan.trim()) {
     if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
     try {
@@ -1535,6 +1558,7 @@ paymentsRouter.post('/create-payment-sheet', expressPkg.json(), requireAuth as a
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
   const { ad_id, dates, promo_code, plan, team_count, organization_id: orgIdBody } = parsed.data;
   if (!(await enforceVerifiedForSubscriptionFlow(req, res, plan))) return;
+  if (!(await enforceVerifiedForAdPaymentFlow(req, res, ad_id))) return;
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -3092,6 +3116,7 @@ paymentsRouter.post('/apple/verify-ad-receipt', expressPkg.json(), requireAuth a
     const parsed = appleAdReceiptSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten().fieldErrors });
     const { ad_id, dates, receipts } = parsed.data;
+    if (!(await enforceVerifiedForAdPaymentFlow(req, res, ad_id))) return;
     if (receipts.some((entry) => !entry.jws && !entry.receipt)) {
       return res.status(400).json({ error: 'Each Apple purchase must include a signed transaction or receipt' });
     }

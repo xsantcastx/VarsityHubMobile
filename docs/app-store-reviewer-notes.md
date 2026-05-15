@@ -5,20 +5,20 @@ VarsityHub is a team management and social platform for youth sports communities
 ---
 
 **Demo Account**
-Email: `demo@varsityhub.app`
-Password: provided in App Store Connect review notes / sign-in information
 
-This is the review account we bootstrap for App Review. It is email-verified and fully onboarded so the reviewer can reach the app immediately after sign-in.
+- Email: `demo@varsityhub.app`
+- Password: provided in App Store Connect review notes / sign-in information
+
+This account is email-verified, fully onboarded, pre-approved as a coach / organizer, and attached to `VarsityHub Review League` and `VarsityHub Review Team`. It is the single App Review login and starts on the free Rookie plan so the subscription purchase buttons remain visible during review. Feed, events, maps, messaging, coach tools, approvals, schedules, ad booking, and billing surfaces are pre-populated and reachable immediately after sign-in.
 
 ---
 
 **Testing Key Flows**
 
-1. _Browse Feed:_ After login, the home tab displays a feed of posts from followed teams. Scroll to browse; tap a post to view details and comments.
-2. _Follow a Team:_ Navigate to the Explore tab, search for a team, and tap "Follow." The team's posts will appear in your feed.
-3. _View Events:_ Tap the Events tab to see upcoming events. Tap an event for details including location and time.
-4. _Maps:_ The Maps tab shows nearby teams and event locations.
-5. _Messaging:_ Tap the Messages tab to view conversations.
+1. _Main review flow:_ Sign in with `demo@varsityhub.app`. This account is already attached to the seeded review league and review team, and it follows that content so the app is populated on first launch.
+2. _View Events:_ Tap the Events tab to see upcoming seeded events. Tap an event for details including location and time.
+3. _Maps:_ The Maps tab shows nearby teams and event locations.
+4. _Messaging:_ Tap the Messages tab to view conversations.
 
 ---
 
@@ -40,7 +40,7 @@ All iOS purchases are presented inside the app and use Apple In-App Purchase.
    - Open **Settings**.
    - Open **My Content**.
    - Tap **My Ads**.
-   - Open **VarsityHub Review Demo Ad**.
+   - Open **VarsityHub Review Coach Demo Ad**.
    - Tap **Schedule Dates**.
    - Select campaign dates and tap the checkout button at the bottom:
      - weekday slot product: `MOND_THURS`
@@ -50,11 +50,9 @@ Apple reviews IAP in the Apple-provided sandbox environment by design. The same 
 
 ---
 
-**Coach Accounts Require Admin Approval**
+**Coach / Organizer Review Access**
 
-The app has two roles: Fan (default) and Coach. Coach accounts require manual approval by a league administrator to prevent unauthorized access to team management features (rosters, events, lineups).
-
-To test the coach approval flow: create a second account, select Coach role, select "Join Existing League", and search for "VarsityHub Demo League". The approval request can then be reviewed by an administrator account.
+Please use `demo@varsityhub.app` as the single review account. It is already approved for coach / organizer flows, so there is no need to create a new coach account during review.
 
 ---
 
@@ -77,9 +75,9 @@ All user-generated content (posts, comments, messages) can be reported by any us
 
 Subscriptions and ad purchases use Apple In-App Purchase exclusively on iOS. Available plans:
 
-- Rookie: Free (2 teams, 50-player roster limit)
-- Veteran: $0.99/month per team (100-player roster limit)
-- Legend: $20/year (unlimited teams and rosters, club features)
+- Rookie: Free (3 teams, 50-player roster limit)
+- Veteran: $0.99/month per team over 3 teams (100-player roster limit)
+- Legend: $19.99/year (unlimited teams and rosters, club features)
 
 Ad purchases are one-time IAP transactions for promoting team content within the app.
 

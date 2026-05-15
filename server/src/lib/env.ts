@@ -51,7 +51,6 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional().transform(toOptional),
   SENTRY_ENVIRONMENT: z.string().optional().transform(toOptional),
   SENDGRID_API_KEY: z.string().optional().transform(toOptional),
-  DEMO_ACCOUNT_PASSWORD: z.string().optional().transform(toOptional),
   UPLOADS_PUBLIC: z.string().optional(),
   /** iOS in-app purchase receipt verification (App Store Connect → App → App-Specific Shared Secret) */
   APPLE_IAP_SHARED_SECRET: z.string().optional().transform(toOptional),

@@ -58,16 +58,31 @@ type PendingAdVerification = {
   dates: string[];
   receipts: { jws?: string | null; receipt?: string; productId: string; quantity: number }[];
   attemptCount: number;
+  createdAt: number;
 };
 
 let flushQueuePromise: Promise<void> | null = null;
+const PENDING_AD_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 async function readPendingAdVerifications(): Promise<PendingAdVerification[]> {
   try {
     const raw = await AsyncStorage.getItem(PENDING_AD_IAP_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const now = Date.now();
+    return parsed.filter((item: any) => {
+      const createdAt = Number(item?.createdAt || 0);
+      return (
+        item &&
+        typeof item.id === 'string' &&
+        typeof item.adId === 'string' &&
+        Array.isArray(item.dates) &&
+        Array.isArray(item.receipts) &&
+        Number.isFinite(createdAt) &&
+        now - createdAt <= PENDING_AD_VERIFICATION_TTL_MS
+      );
+    });
   } catch {
     return [];
   }
@@ -89,6 +104,14 @@ async function enqueuePendingAdVerification(item: PendingAdVerification) {
   ]);
 }
 
+async function submitAdVerification(item: PendingAdVerification) {
+  await httpPost('/payments/apple/verify-ad-receipt', {
+    ad_id: item.adId,
+    dates: item.dates,
+    receipts: item.receipts,
+  });
+}
+
 function getVerificationErrorMessage(err: any) {
   return err?.message || err?.data?.error || 'Receipt verification is taking longer than usual';
 }
@@ -103,11 +126,7 @@ export async function flushPendingAdVerifications(onError?: (message: string) =>
     const remaining: PendingAdVerification[] = [];
     for (const item of queue) {
       try {
-        await httpPost('/payments/apple/verify-ad-receipt', {
-          ad_id: item.adId,
-          dates: item.dates,
-          receipts: item.receipts,
-        });
+        await submitAdVerification(item);
       } catch (err: any) {
         const message = getVerificationErrorMessage(err);
         onError?.(message);
@@ -132,6 +151,16 @@ export function useAdIAP() {
   const [error, setError] = useState<string | null>(null);
   const availableProductIdsRef = useRef<string[]>([]);
   const fetchProductsPromiseRef = useRef<Promise<void> | null>(null);
+
+  const queueAdVerificationRecovery = useCallback(async (item: PendingAdVerification, err: any) => {
+    await enqueuePendingAdVerification(item);
+    const message = getVerificationErrorMessage(err);
+    setError(message);
+    if (__DEV__) console.error('[useAdIAP] verify-ad-receipt queued for retry:', err);
+    void flushPendingAdVerifications((flushMessage) => {
+      setError(flushMessage);
+    });
+  }, []);
 
   const {
     connected,
@@ -208,25 +237,32 @@ export function useAdIAP() {
           dates: pending.dates,
           receipts: pending.receipts,
           attemptCount: 0,
+          createdAt: Date.now(),
         };
-        await enqueuePendingAdVerification(verification);
 
         pendingAdRef.current = null;
         setPurchasing(false);
 
-        // Persist the verification work before resolving so a slow connection or
-        // app background does not drop the activation request after finishTransaction.
         pending.resolve({ ok: true });
-        captureBreadcrumb('Ad receipt verification queued', 'payments.ad', {
+        captureBreadcrumb('Ad receipt verification started', 'payments.ad', {
           ad_id: pending.adId,
           receipts_count: pending.receipts.length,
           weekday_blocks: weekdayBlocks,
           weekend_blocks: weekendBlocks,
         });
-
-        void flushPendingAdVerifications((message) => {
-          setError(message);
-        });
+        try {
+          await submitAdVerification(verification);
+          captureBreadcrumb('Ad receipt verification completed', 'payments.ad', {
+            ad_id: pending.adId,
+            receipts_count: pending.receipts.length,
+          });
+        } catch (err: any) {
+          captureBreadcrumb('Ad receipt verification deferred', 'payments.ad', {
+            ad_id: pending.adId,
+            error: err?.message || 'unknown_error',
+          }, 'warning');
+          void queueAdVerificationRecovery(verification, err);
+        }
       } else if (needWeekend && !hasWeekend) {
         // Set a 2-minute timeout to prevent UI getting stuck if Apple IAP stalls
         const iapTimeout = setTimeout(() => {
@@ -431,7 +467,7 @@ export function useAdIAP() {
         run();
       });
     },
-    [connected, refreshProducts, rnRequestPurchase]
+    [connected, queueAdVerificationRecovery, refreshProducts, rnRequestPurchase]
   );
 
   const getProduct = useCallback(

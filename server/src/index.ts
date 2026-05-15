@@ -315,114 +315,11 @@ runStartupChecks().catch(err => {
   console.error('[startup] runStartupChecks threw unexpectedly:', err);
 });
 
-// ONE-TIME: Ensure Apple Review demo account is verified & onboarded
-// Safe to re-run (upsert). Remove after Apple approves build 90.
-(async () => {
-  if (!env.DEMO_ACCOUNT_PASSWORD) {
-    debugLog(
-      '[startup] DEMO_ACCOUNT_PASSWORD not set — skipping Apple Review demo account bootstrap'
-    );
-    return;
-  }
-  try {
-    const { prisma } = await import('./lib/prisma.js');
-    const bcrypt = await import('bcrypt');
-    const hash = await bcrypt.hash(env.DEMO_ACCOUNT_PASSWORD, 10);
-    const demoUser = await prisma.user.upsert({
-      where: { email: 'demo@varsityhub.app' },
-      update: {
-        password_hash: hash,
-        display_name: 'Demo User',
-        username: 'appledemo',
-        email_verified: true,
-        approval_status: 'APPROVED',
-        role: 'fan',
-        onboarding_completed: true,
-        plan: 'rookie',
-        preferences: {
-          onboarding_completed: true,
-          role: 'fan',
-          plan: 'rookie',
-          affiliation: 'none',
-          dob: '2000-01-15',
-          notifications: {
-            game_event_reminders: false,
-            team_updates: false,
-            comments_upvotes: false,
-            follows_notifications: true,
-            messages_notifications: true,
-          },
-        },
-      },
-      create: {
-        email: 'demo@varsityhub.app',
-        password_hash: hash,
-        display_name: 'Demo User',
-        username: 'appledemo',
-        email_verified: true,
-        approval_status: 'APPROVED',
-        subscription_tier: 'free',
-        subscription_status: 'active',
-        max_teams: 3,
-        role: 'fan',
-        onboarding_completed: true,
-        plan: 'rookie',
-        preferences: {
-          onboarding_completed: true,
-          role: 'fan',
-          plan: 'rookie',
-          affiliation: 'none',
-          dob: '2000-01-15',
-          notifications: {
-            game_event_reminders: false,
-            team_updates: false,
-            comments_upvotes: false,
-            follows_notifications: true,
-            messages_notifications: true,
-          },
-        },
-      },
-    });
-    const reviewDemoAd = await prisma.ad.findFirst({
-      where: {
-        user_id: demoUser.id,
-        business_name: 'VarsityHub Review Demo Ad',
-      },
-      select: { id: true },
-    });
-    const reviewDemoAdData = {
-      user_id: demoUser.id,
-      contact_name: 'VarsityHub Review',
-      contact_email: 'demo@varsityhub.app',
-      business_name: 'VarsityHub Review Demo Ad',
-      banner_url: null,
-      banner_fit_mode: 'cover',
-      target_url: 'https://www.varsityhub.app',
-      target_zip_code: '10001',
-      target_lat: 40.7506,
-      target_lng: -73.9972,
-      radius: 9,
-      description:
-        'Review-ready approved ad used to verify iOS in-app purchase checkout during App Review.',
-      status: 'approved' as const,
-      payment_status: 'unpaid' as const,
-      admin_note: 'System-seeded review demo ad. Approved to expose ad booking checkout during App Review.',
-    };
-    if (reviewDemoAd) {
-      await prisma.ad.update({
-        where: { id: reviewDemoAd.id },
-        data: reviewDemoAdData,
-      });
-    } else {
-      await prisma.ad.create({
-        data: reviewDemoAdData,
-      });
-    }
-    debugLog('[startup] Demo account (demo@varsityhub.app) ready for Apple Review');
-  } catch (e) {
-    console.error('[startup] Demo account setup failed:', e);
-  }
-})();
+if (process.env.DEMO_ACCOUNT_PASSWORD || process.env.DEMO_COACH_ACCOUNT_PASSWORD) {
+  console.warn(
+    '[startup] DEMO_ACCOUNT_PASSWORD / DEMO_COACH_ACCOUNT_PASSWORD are deprecated and ignored. Prepare the App Review account explicitly with `npm --prefix server run prepare:app-review`.'
+  );
+}
 
 // Export app for testing or external usage
 export { app };

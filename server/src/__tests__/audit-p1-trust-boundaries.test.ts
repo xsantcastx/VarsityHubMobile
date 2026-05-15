@@ -23,6 +23,8 @@
  *        not executeRawUnsafe, on the request path.
  *   #10 — owner-managed subscriptions are blocked across every purchase
  *         and mutation payment route, not just the primary checkout UI.
+ *   #11 — ad payment flows require a verified account before checkout or
+ *         Apple receipt activation.
  */
 
 import { describe, expect, it } from '@jest/globals';
@@ -182,6 +184,28 @@ describe('audit P1 — trust-boundary regression guards', () => {
           expect(block).toMatch(/OWNER_MANAGED_SUBSCRIPTION_ERROR/);
         }
       }
+    });
+  });
+
+  describe('#11 ad payment flows require verified accounts', () => {
+    it('declares a dedicated verification gate for ad payments', () => {
+      expect(payments).toMatch(/async function enforceVerifiedForAdPaymentFlow/);
+      expect(payments).toMatch(/Email verification required/);
+    });
+
+    it('guards Stripe ad checkout routes with the ad verification gate', () => {
+      const checkoutBlock =
+        payments.match(/paymentsRouter\.post\(\s*'\/checkout'[\s\S]{0,2000}/)?.[0] || '';
+      const paymentSheetBlock =
+        payments.match(/paymentsRouter\.post\(\s*'\/create-payment-sheet'[\s\S]{0,2000}/)?.[0] || '';
+      expect(checkoutBlock).toMatch(/enforceVerifiedForAdPaymentFlow\(req, res, ad_id\)/);
+      expect(paymentSheetBlock).toMatch(/enforceVerifiedForAdPaymentFlow\(req, res, ad_id\)/);
+    });
+
+    it('guards Apple ad receipt activation with the ad verification gate', () => {
+      const block =
+        payments.match(/paymentsRouter\.post\(\s*'\/apple\/verify-ad-receipt'[\s\S]{0,1800}/)?.[0] || '';
+      expect(block).toMatch(/enforceVerifiedForAdPaymentFlow\(req, res, ad_id\)/);
     });
   });
 });
