@@ -1101,15 +1101,17 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // paywall logic before Stripe state is finalized.
       const isPaymentRedirectScreen =
         firstSegment === 'payment-success' || firstSegment === 'payment-cancel';
-      const isAuthEntryScreen = firstSegment === 'sign-in' || firstSegment === 'sign-up';
 
-      // If on public route and doesn't need onboarding (but NOT verify-email or payment redirects)
+      // Auth entry screens must not trap an already-authenticated user. If a
+      // valid session lands on /sign-in or /sign-up (stale history, manual nav,
+      // deep-link recovery), immediately route to the canonical post-auth
+      // destination instead of leaving the user on an auth screen that appears
+      // to "loop".
       if (
         isPublic &&
         postAuthDecision.kind === 'app_home' &&
         firstSegment !== 'verify-email' &&
-        !isPaymentRedirectScreen &&
-        !isAuthEntryScreen
+        !isPaymentRedirectScreen
       ) {
         const landingRoute = postAuthDecision.route;
         if (lastRedirectRef.current !== landingRoute) {
