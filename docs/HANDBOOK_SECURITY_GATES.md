@@ -7,6 +7,7 @@ Canonical policy remains:
 - [`AUDIT_STANDARD.md`](./AUDIT_STANDARD.md)
 - [`PR_CHECKLIST.md`](./PR_CHECKLIST.md)
 - [`release/CHECKLIST.md`](./release/CHECKLIST.md)
+- [`release/LAUNCH_READINESS_GATE.md`](./release/LAUNCH_READINESS_GATE.md)
 
 ---
 
