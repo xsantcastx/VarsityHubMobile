@@ -3870,7 +3870,7 @@ function sanitizeUser(u: any) {
       .filter(key => source[key] === undefined && normalizedPreferences[key] !== undefined)
       .map(key => [key, normalizedPreferences[key]])
   );
-  const safeBase: Record<string, unknown> = {
+  const safeBase = {
     id: source.id,
     email: source.email,
     display_name: source.display_name ?? null,
@@ -3891,9 +3891,9 @@ function sanitizeUser(u: any) {
     parental_consent_at: source.parental_consent_at ?? null,
     parental_consent_requested_at: source.parental_consent_requested_at ?? null,
   };
-  if (source._count) safeBase._count = source._count;
+  const safeWithCounts = source._count ? { ...safeBase, _count: source._count } : safeBase;
   return {
-    ...safeBase,
+    ...safeWithCounts,
     ...topLevelAliases,
     preferences: normalizedPreferences,
     role: canonicalAuthState.role,

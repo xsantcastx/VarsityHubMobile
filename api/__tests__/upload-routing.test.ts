@@ -18,6 +18,14 @@ jest.mock('../auth', () => ({
 
 jest.mock('../http', () => ({
   getApiBaseUrl: jest.fn(() => 'https://api.test'),
+  getAccessTokenForRequest: jest.fn(async ({ allowRefresh }: { allowRefresh?: boolean } = {}) => {
+    const token = await mockAuth.getToken();
+    if (token) return token;
+    if (!allowRefresh) return null;
+    const refreshed = await mockAuth.refreshToken();
+    return refreshed?.accessToken ?? null;
+  }),
+  refreshAccessTokenWithCache: jest.fn(async () => mockAuth.refreshToken()),
 }));
 
 jest.mock('@/hooks/useVerificationGate', () => ({

@@ -20,6 +20,16 @@ describeDb('Posts API Endpoints', () => {
   let testUser: any;
   let testUserToken: string;
   let testPostId: string;
+  let testEventId: string;
+  let adminUser: any;
+  let adminToken: string;
+  let bypassCoachUser: any;
+  let bypassCoachToken: string;
+  let bypassOrgId: string;
+  let bypassHomeTeamId: string;
+  let bypassAwayTeamId: string;
+  let bypassGameId: string;
+  let bypassEventId: string;
   const missingPostId = `c${'0'.repeat(24)}`;
 
   beforeAll(async () => {
@@ -43,14 +53,142 @@ describeDb('Posts API Endpoints', () => {
       },
     });
     testUserToken = signJwt({ id: testUser.id });
+
+    const priorAdminEmails = process.env.ADMIN_EMAILS;
+    process.env.ADMIN_EMAILS = ['admin-geofence-test@varsityhub.app', priorAdminEmails]
+      .filter(Boolean)
+      .join(',');
+
+    adminUser = await prisma.user.create({
+      data: {
+        email: 'admin-geofence-test@varsityhub.app',
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Geofence Admin',
+        email_verified: true,
+        role: 'fan',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'fan',
+          onboarding_completed: true,
+        },
+      },
+    });
+    adminToken = signJwt({ id: adminUser.id });
+
+    bypassCoachUser = await prisma.user.create({
+      data: {
+        email: `bypass-coach-posts-${Date.now()}@example.com`,
+        password_hash: await bcrypt.hash('TestPassword123!', 10),
+        display_name: 'Bypass Coach',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
+      },
+    });
+    bypassCoachToken = signJwt({ id: bypassCoachUser.id });
+
+    const bypassOrg = await prisma.organization.create({
+      data: {
+        name: `Post geofence bypass org ${Date.now()}`,
+        org_type: 'club',
+        updated_at: new Date(),
+      },
+    });
+    bypassOrgId = bypassOrg.id;
+
+    const [homeTeam, awayTeam] = await Promise.all([
+      prisma.team.create({
+        data: {
+          name: `Post bypass home ${Date.now()}`,
+          organization_id: bypassOrgId,
+        },
+      }),
+      prisma.team.create({
+        data: {
+          name: `Post bypass away ${Date.now()}`,
+          organization_id: bypassOrgId,
+        },
+      }),
+    ]);
+    bypassHomeTeamId = homeTeam.id;
+    bypassAwayTeamId = awayTeam.id;
+
+    const bypassGame = await prisma.game.create({
+      data: {
+        title: `Post bypass game ${Date.now()}`,
+        date: new Date(Date.now() + 60 * 60 * 1000),
+        location: 'Bypass Stadium',
+        approval_status: 'approved',
+        home_team_id: bypassHomeTeamId,
+        away_team_id: bypassAwayTeamId,
+      },
+    });
+    bypassGameId = bypassGame.id;
+
+    const bypassEvent = await prisma.event.create({
+      data: {
+        title: `Post bypass event ${Date.now()}`,
+        date: new Date(Date.now() + 60 * 60 * 1000),
+        location: 'Bypass Stadium',
+        latitude: 40.7128,
+        longitude: -74.006,
+        game_id: bypassGameId,
+        status: 'approved',
+        approval_status: 'approved',
+        creator_id: testUser.id,
+        creator_role: 'coach',
+      },
+    });
+    bypassEventId = bypassEvent.id;
+
+    await prisma.teamMembership.create({
+      data: {
+        team_id: bypassHomeTeamId,
+        user_id: bypassCoachUser.id,
+        role: 'coach',
+        status: 'active',
+      },
+    });
   });
 
   afterAll(async () => {
     await prisma.notification.deleteMany({ where: { user_id: testUser.id } }).catch(() => {});
+    if (testEventId) {
+      await prisma.event.delete({ where: { id: testEventId } }).catch(() => {});
+    }
+    if (bypassEventId) {
+      await prisma.event.delete({ where: { id: bypassEventId } }).catch(() => {});
+    }
+    if (bypassGameId) {
+      await prisma.game.delete({ where: { id: bypassGameId } }).catch(() => {});
+    }
+    if (bypassHomeTeamId || bypassAwayTeamId) {
+      await prisma.teamMembership
+        .deleteMany({ where: { user_id: bypassCoachUser?.id } })
+        .catch(() => {});
+      await prisma.team
+        .deleteMany({ where: { id: { in: [bypassHomeTeamId, bypassAwayTeamId].filter(Boolean) } } })
+        .catch(() => {});
+    }
+    if (bypassOrgId) {
+      await prisma.organization.delete({ where: { id: bypassOrgId } }).catch(() => {});
+    }
     // Clean up test data
     if (testPostId) {
       await prisma.post.delete({ where: { id: testPostId } }).catch(() => {});
     }
+    await prisma.post.deleteMany({
+      where: { author_id: { in: [adminUser?.id, bypassCoachUser?.id].filter(Boolean) } },
+    }).catch(() => {});
+    await prisma.user.delete({ where: { id: adminUser?.id } }).catch(() => {});
+    await prisma.user.delete({ where: { id: bypassCoachUser?.id } }).catch(() => {});
     await prisma.user.delete({ where: { id: testUser.id } }).catch(() => {});
   });
 
@@ -250,6 +388,163 @@ describeDb('Posts API Endpoints', () => {
         });
 
       expect(res.statusCode).toEqual(400);
+    });
+
+    it.each(['zip', 'derived', 'places'] as const)(
+      'should reject event posts when location source is %s',
+      async source => {
+        const event = await prisma.event.create({
+          data: {
+            title: `Post geofence event ${Date.now()}-${source}`,
+            date: new Date(Date.now() + 60 * 60 * 1000),
+            location: 'VarsityHub Stadium',
+            latitude: 40.7128,
+            longitude: -74.006,
+            status: 'approved',
+            approval_status: 'approved',
+            creator_id: testUser.id,
+            creator_role: 'coach',
+          },
+        });
+        testEventId = event.id;
+
+        try {
+          const res = await request(app)
+            .post('/posts')
+            .set('Authorization', `Bearer ${testUserToken}`)
+            .send({
+              title: `${source}-backed event post`,
+              content: `Trying to post with a non-device location source: ${source}`,
+              event_id: event.id,
+              location: {
+                lat: 40.7128,
+                lng: -74.006,
+                source,
+              },
+            });
+
+          expect(res.statusCode).toBe(403);
+          expect(res.body.error).toBe('LOCATION_REQUIRED');
+          expect(res.body.message).toMatch(/device location/i);
+        } finally {
+          await prisma.event.delete({ where: { id: event.id } }).catch(() => {});
+          testEventId = undefined as any;
+        }
+      }
+    );
+
+    it('should reject event posts when location source is missing', async () => {
+      const event = await prisma.event.create({
+        data: {
+          title: `Missing-source event ${Date.now()}`,
+          date: new Date(Date.now() + 60 * 60 * 1000),
+          location: 'VarsityHub Stadium',
+          latitude: 40.7128,
+          longitude: -74.006,
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: testUser.id,
+          creator_role: 'coach',
+        },
+      });
+
+      try {
+        const res = await request(app)
+          .post('/posts')
+          .set('Authorization', `Bearer ${testUserToken}`)
+          .send({
+            title: 'Missing-source event post',
+            content: 'Trying to post without an explicit device location source',
+            event_id: event.id,
+            location: {
+              lat: 40.7128,
+              lng: -74.006,
+            },
+          });
+
+        expect(res.statusCode).toBe(403);
+        expect(res.body.error).toBe('LOCATION_REQUIRED');
+        expect(res.body.message).toMatch(/device location/i);
+      } finally {
+        await prisma.event.delete({ where: { id: event.id } }).catch(() => {});
+      }
+    });
+
+    it('should allow event posts when device-origin coordinates are within 3 km', async () => {
+      const event = await prisma.event.create({
+        data: {
+          title: `Device geofence event ${Date.now()}`,
+          date: new Date(Date.now() + 60 * 60 * 1000),
+          location: 'VarsityHub Arena',
+          latitude: 40.7128,
+          longitude: -74.006,
+          status: 'approved',
+          approval_status: 'approved',
+          creator_id: testUser.id,
+          creator_role: 'coach',
+        },
+      });
+
+      try {
+        const res = await request(app)
+          .post('/posts')
+          .set('Authorization', `Bearer ${testUserToken}`)
+          .send({
+            title: 'Device-backed event post',
+            content: 'Posting from the venue with device coordinates',
+            event_id: event.id,
+            location: {
+              lat: 40.7128,
+              lng: -74.006,
+              source: 'device',
+            },
+          });
+
+        expect(res.statusCode).toBe(201);
+        expect(res.body.id).toBeDefined();
+
+        await prisma.post.delete({ where: { id: res.body.id } }).catch(() => {});
+      } finally {
+        await prisma.event.delete({ where: { id: event.id } }).catch(() => {});
+      }
+    });
+
+    it('should let admins bypass geofencing without device-origin location', async () => {
+      const res = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          title: 'Admin bypass post',
+          content: 'Admin bypasses venue geofence',
+          game_id: bypassGameId,
+          location: {
+            source: 'zip',
+          },
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.id).toBeDefined();
+
+      await prisma.post.delete({ where: { id: res.body.id } }).catch(() => {});
+    });
+
+    it('should let active team members bypass geofencing without device-origin location', async () => {
+      const res = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${bypassCoachToken}`)
+        .send({
+          title: 'Team member bypass post',
+          content: 'Active team members bypass venue geofence',
+          game_id: bypassGameId,
+          location: {
+            source: 'derived',
+          },
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.id).toBeDefined();
+
+      await prisma.post.delete({ where: { id: res.body.id } }).catch(() => {});
     });
   });
 

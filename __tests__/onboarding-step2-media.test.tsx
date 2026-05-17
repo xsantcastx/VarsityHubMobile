@@ -5,6 +5,14 @@ import { Pressable, Text, TextInput } from 'react-native';
 const mockRouterReplace = jest.fn();
 const mockMarkOnboardingCompleteLocally = jest.fn(async () => undefined);
 const mockRegisterPushToken = jest.fn(async () => undefined);
+const mockCheckAuth = jest.fn(async () => ({
+  id: 'user-1',
+  email_verified: true,
+  username: 'fanuser',
+  role: 'fan',
+  onboarding_completed: true,
+  preferences: { role: 'fan', onboarding_completed: true },
+}));
 const mockSetOB = jest.fn();
 const mockSetProgress = jest.fn();
 const mockDispatch = jest.fn();
@@ -73,6 +81,8 @@ jest.mock('@/utils/sentry', () => ({
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
+    user: null,
+    checkAuth: mockCheckAuth,
     markOnboardingCompleteLocally: mockMarkOnboardingCompleteLocally,
     registerPushToken: mockRegisterPushToken,
   }),
@@ -106,6 +116,14 @@ import Step2Basic from '../app/onboarding/step-2-basic';
 describe('Step2Basic optional media persistence', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCheckAuth.mockResolvedValue({
+      id: 'user-1',
+      email_verified: true,
+      username: 'fanuser',
+      role: 'fan',
+      onboarding_completed: true,
+      preferences: { role: 'fan', onboarding_completed: true },
+    });
     mockPatchMe.mockResolvedValue({ ok: true });
     mockUpdatePreferences.mockResolvedValue({ ok: true });
     mockCompleteOnboarding.mockResolvedValue({ ok: true });
@@ -120,12 +138,22 @@ describe('Step2Basic optional media persistence', () => {
   it('keeps onboarding flow moving while persisting avatar and header image data', async () => {
     const { getByTestId } = render(<Step2Basic />);
 
+    await waitFor(() => {
+      expect(getByTestId('onboarding-step2-username-input').props.value).toBe('fanuser');
+    });
+
     await act(async () => {
       fireEvent.press(getByTestId('onboarding-step2-avatar-picker'));
       fireEvent.press(getByTestId('onboarding-step2-header-picker'));
     });
 
     fireEvent.changeText(getByTestId('dob-input'), '2000-01-01');
+
+    await waitFor(() => {
+      expect(getByTestId('onboarding-step2-continue-button').props.accessibilityState?.disabled).toBe(
+        false
+      );
+    });
 
     await act(async () => {
       fireEvent.press(getByTestId('onboarding-step2-continue-button'));
