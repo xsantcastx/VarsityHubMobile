@@ -16,6 +16,21 @@
 - [ ] If security or integrity behavior changed, before/after failure path documented
 - [ ] If contract shape changed, client and server were verified together
 
+## Secure Borders (Required for security-sensitive PRs)
+
+_Use when this PR touches auth, permissions, payment, subscriptions, approvals, ownership, geofencing, or deep-link authorization paths._
+
+- [ ] Backend validation is authoritative for changed protected flows
+- [ ] No client-controlled field can set role, plan, approval, payment, or ownership state
+- [ ] Protected actions still enforce auth + role/plan + ownership server-side
+- [ ] Privileged malformed/missing params fail closed
+- [ ] Async critical flows changed here are idempotent and replay-safe
+- [ ] No fallback/catch/retry path weakens security posture
+- [ ] Source-of-truth is named for each critical state touched
+- [ ] Trust boundaries touched are listed (client/API/webhook/job/admin/deep-link/storage)
+- [ ] Before/after failure path is documented for security/integrity fixes
+- [ ] Changed critical flow has named proof (test/script/log/runtime)
+
 ## Guardrail Checklist
 
 - [ ] Routing touched: I checked route declarations, navigation call sites, and params
