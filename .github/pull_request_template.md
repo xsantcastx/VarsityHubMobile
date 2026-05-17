@@ -42,4 +42,5 @@
 
 - Use [`docs/PR_CHECKLIST.md`](../docs/PR_CHECKLIST.md) as the operating review gate.
 - Use [`docs/AUDIT_STANDARD.md`](../docs/AUDIT_STANDARD.md) when policy questions come up.
+- If this PR is release-critical, run [`docs/release/CHECKLIST.md`](../docs/release/CHECKLIST.md) Go/No-Go gate items before merge.
 - `N/A` is acceptable only with a concrete reason.

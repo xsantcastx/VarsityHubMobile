@@ -4,6 +4,25 @@
 > Canonical policy lives in [`AUDIT_STANDARD.md`](./AUDIT_STANDARD.md). This
 > file is the operating review gate for PRs.
 
+## Copy/Paste "Secure Borders" Block
+
+Use this block directly in PR descriptions when the change touches auth,
+payments, approvals, ownership, geofencing, or other privileged flows.
+
+```md
+### Secure Borders (Required)
+- [ ] Protected mutations touched here enforce auth + role + plan + ownership server-side where applicable
+- [ ] No client-controlled field can set role, plan, approval, payment, or ownership state
+- [ ] Privileged flows fail closed on missing/malformed params (public navigation can fail gracefully)
+- [ ] Webhook/callback/retry paths touched here are idempotent and replay-safe
+- [ ] No fallback/catch/retry path weakens security posture
+- [ ] Source of truth is stated for each critical state touched (auth, approval, payment, membership, ownership)
+- [ ] Trust boundaries touched are listed (client/API/webhook/job/admin/deep-link/storage)
+- [ ] Before/after failure path is documented for security/integrity fixes
+- [ ] Observability exists for changed critical flow (logs, audit trail, or metric)
+- [ ] Critical regression coverage exists or `N/A` is justified with owner + follow-up
+```
+
 ## Mechanical Gates
 
 - [ ] `npx tsc --noEmit --project server/tsconfig.json` exits 0

@@ -5,6 +5,39 @@
 > For one-time post-audit operator actions (credential rotations, EAS rebuild bundle, DNS attach, etc.) see [PENDING_OPERATOR_ACTIONS.md](./PENDING_OPERATOR_ACTIONS.md). Work through that doc first; it consolidates the spring-2026 audit + spiderweb-sweep follow-ups.
 > For provider-by-provider click paths in Stripe, Railway, SendGrid, App Store Connect, Play Console, EAS, and Namecheap, use [PROVIDER_DASHBOARD_VERIFICATION.md](./PROVIDER_DASHBOARD_VERIFICATION.md).
 
+## Go / No-Go Security Gate (Run This First)
+
+Mark release **NO-GO** if any required command fails.
+
+### Required command gate
+
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npx tsc --noEmit --project server/tsconfig.json`
+- [ ] `npm run verify:guardrails`
+- [ ] `npm run verify:release`
+- [ ] `npm run test:regressions` (or scoped equivalent with reason documented)
+
+### Conditional command gate (required when relevant)
+
+- [ ] `npm run verify:error-envelope` when error envelope paths changed
+- [ ] `npm --prefix server run test:payments:confidence` when payment/subscription code changed
+- [ ] `npm --prefix server run verify:rate-limits` when auth/abuse/rate-limit behavior changed
+
+### Runtime security smoke gate (required for risky changes)
+
+- [ ] Real-device auth flow validated (sign-in, sign-out, token refresh, protected screen access)
+- [ ] Role/plan/ownership enforcement validated on server (UI hide + server deny path both checked)
+- [ ] Payment success path validates server state (no trust in query params)
+- [ ] Geofence denies verified for non-device coordinates and out-of-radius attempts
+- [ ] Geofence allows verified for in-radius device coordinates
+- [ ] Dark/light quick sweep completed for changed screens (critical actions visible and usable)
+
+## Release Decision
+
+- [ ] **GO** only if every required gate above is green, or an explicit signed exception is documented with owner + mitigation + follow-up date
+- [ ] **NO-GO** when any required gate is red, unknown, or unverified
+
 ## Pre-Release: Code Quality
 - [ ] `./scripts/check-repo-health.sh` passes (no logs/artifacts committed)
 - [ ] CI green: `npm run lint` passes
