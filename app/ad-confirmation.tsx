@@ -14,6 +14,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +25,9 @@ import { safeGoBack } from '@/utils/navigation';
 function AdConfirmationScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
   const params = useLocalSearchParams<{
     ad_id?: string;
     businessName?: string;
@@ -117,263 +121,267 @@ function AdConfirmationScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      style={[styles.container, { backgroundColor: theme.background }]}
       edges={['top', 'bottom']}
     >
       <Stack.Screen options={{ headerShown: false }} />
       <BackHeader
         title="Ad Confirmation"
-        backgroundColor={Colors[colorScheme].background}
-        textColor={Colors[colorScheme].text}
-        borderColor={Colors[colorScheme].border}
+        backgroundColor={theme.background}
+        textColor={theme.text}
+        borderColor={theme.border}
       />
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10B981" />
-          <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-            Activating your ad...
-          </Text>
+          <View style={styles.stateInner}>
+            <ActivityIndicator size="large" color="#10B981" />
+            <Text style={[styles.loadingText, { color: theme.mutedText }]}>Activating your ad...</Text>
+          </View>
         </View>
       ) : pollError && !paymentVerified ? (
         <View style={styles.loadingContainer}>
-          <MaterialIcons name="hourglass-top" size={48} color="#F59E0B" />
-          <Text
-            style={[
-              styles.loadingText,
-              { color: Colors[colorScheme].text, fontWeight: '600', marginTop: 12 },
-            ]}
-          >
-            Payment Processing
-          </Text>
-          <Text
-            style={[styles.loadingText, { color: Colors[colorScheme].mutedText, marginTop: 4 }]}
-          >
-            Your payment is being processed. You'll receive an email confirmation once your ad is
-            active.
-          </Text>
-          <Pressable
-            onPress={() => {
-              setPollError(false);
-              setLoading(true);
-              setRetryCount(c => c + 1);
-            }}
-            style={{
-              marginTop: 20,
-              backgroundColor: '#10B981',
-              paddingHorizontal: 24,
-              paddingVertical: 12,
-              borderRadius: 8,
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>
-          </Pressable>
-          <Pressable onPress={() => setPollError(false)} style={{ marginTop: 12 }}>
-            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '500' }}>
-              Continue Anyway
+          <View style={styles.stateInner}>
+            <MaterialIcons name="hourglass-top" size={48} color="#F59E0B" />
+            <Text
+              style={[
+                styles.loadingText,
+                { color: theme.text, fontWeight: '700', marginTop: 12 },
+              ]}
+            >
+              Payment Processing
             </Text>
-          </Pressable>
+            <Text
+              style={[styles.loadingText, { color: theme.mutedText, marginTop: 4 }]}
+            >
+              Your payment is being processed. You'll receive an email confirmation once your ad is
+              active.
+            </Text>
+            <Pressable
+              onPress={() => {
+                setPollError(false);
+                setLoading(true);
+                setRetryCount(c => c + 1);
+              }}
+              style={{
+                marginTop: 20,
+                backgroundColor: '#10B981',
+                paddingHorizontal: 24,
+                paddingVertical: 12,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Try Again</Text>
+            </Pressable>
+            <Pressable onPress={() => setPollError(false)} style={{ marginTop: 12 }}>
+              <Text style={{ color: theme.tint, fontWeight: '600' }}>
+                Continue Anyway
+              </Text>
+            </Pressable>
+          </View>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Success Animation */}
-          <View style={styles.animationContainer}>
-            <View
-              style={[
-                styles.successCircle,
-                { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5' },
-              ]}
-            >
-              <MaterialIcons name="check-circle" size={100} color="#10B981" />
+          <View style={[styles.contentInner, isLargeScreen && styles.contentInnerLarge]}>
+            {/* Success Animation */}
+            <View style={styles.animationContainer}>
+              <View
+                style={[
+                  styles.successCircle,
+                  { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5' },
+                ]}
+              >
+                <MaterialIcons name="check-circle" size={100} color="#10B981" />
+              </View>
             </View>
-          </View>
 
-          {/* Success Message — title only claims "live" once the server has both
-              confirmed payment AND transitioned the ad's status to active. While
-              payment is still processing or the ad is sitting in approved-but-not-yet-active,
-              the title hedges to match the subtitle so the screen doesn't overstate. */}
-          {(() => {
-            const isTrulyLive =
-              paymentVerified &&
-              (adDetails as any)?.status === 'active' &&
-              getAdScheduleBucket(Array.isArray((adDetails as any)?.dates) ? (adDetails as any).dates : []) === 'live';
-            return (
-              <View style={styles.messageContainer}>
-                <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-                  {isTrulyLive ? '🎉 Your Ad is Live!' : 'Payment Received — Ad Going Live Shortly'}
-                </Text>
-                <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-                  {isTrulyLive
-                    ? 'Your payment was successful and your ad campaign is now active.'
-                    : paymentVerified
-                      ? 'Your payment is confirmed. Your ad will be active shortly — typically within a few minutes.'
-                      : 'Your payment is being processed. Your ad will be active shortly.'}
-                </Text>
-              </View>
-            );
-          })()}
-
-          {/* Ad Preview Section */}
-          {bannerUrl && (
-            <View
-              style={[
-                styles.previewSection,
-                {
-                  backgroundColor: Colors[colorScheme].card,
-                  borderColor: Colors[colorScheme].border,
-                },
-              ]}
-            >
-              <View style={styles.previewHeader}>
-                <MaterialIcons name="visibility" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
-                  Ad Preview
-                </Text>
-              </View>
-              <View style={styles.bannerContainer}>
-                <Image source={{ uri: bannerUrl }} style={styles.bannerImage} resizeMode="cover" />
-              </View>
-              {adDetails?.target_url && (
-                <View style={styles.linkRow}>
-                  <MaterialIcons name="link" size={16} color={Colors[colorScheme].mutedText} />
-                  <Text
-                    style={[styles.linkText, { color: Colors[colorScheme].mutedText }]}
-                    numberOfLines={1}
-                  >
-                    {adDetails.target_url}
+            {/* Success Message — title only claims "live" once the server has both
+                confirmed payment AND transitioned the ad's status to active. While
+                payment is still processing or the ad is sitting in approved-but-not-yet-active,
+                the title hedges to match the subtitle so the screen doesn't overstate. */}
+            {(() => {
+              const isTrulyLive =
+                paymentVerified &&
+                (adDetails as any)?.status === 'active' &&
+                getAdScheduleBucket(Array.isArray((adDetails as any)?.dates) ? (adDetails as any).dates : []) === 'live';
+              return (
+                <View style={styles.messageContainer}>
+                  <Text style={[styles.title, { color: theme.text }]}>
+                    {isTrulyLive ? 'Your Ad is Live!' : 'Payment Received — Ad Going Live Shortly'}
+                  </Text>
+                  <Text style={[styles.subtitle, { color: theme.mutedText }]}>
+                    {isTrulyLive
+                      ? 'Your payment was successful and your ad campaign is now active.'
+                      : paymentVerified
+                        ? 'Your payment is confirmed. Your ad will be active shortly — typically within a few minutes.'
+                        : 'Your payment is being processed. Your ad will be active shortly.'}
                   </Text>
                 </View>
-              )}
-            </View>
-          )}
+              );
+            })()}
 
-          {/* Details Card */}
-          <LinearGradient
-            colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
-            style={[styles.detailsCard, { borderColor: Colors[colorScheme].border }]}
-          >
-            <View style={styles.detailRow}>
-              <MaterialIcons name="business" size={24} color="#10B981" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
-                  Business Name
-                </Text>
-                <Text style={[styles.detailValue, { color: Colors[colorScheme].text }]}>
-                  {businessName}
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
-
-            <View style={styles.detailRow}>
-              <MaterialIcons name="event" size={24} color="#10B981" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
-                  Campaign Dates
-                </Text>
-                <Text style={[styles.detailValue, { color: Colors[colorScheme].text }]}>
-                  {selectedDates}
-                </Text>
-              </View>
-            </View>
-
-            {purchasedHours !== null && (
-              <>
-                <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
-                <View style={styles.detailRow}>
-                  <MaterialIcons name="schedule" size={24} color="#10B981" />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
-                      Total Exposure
-                    </Text>
-                    <Text style={[styles.detailValue, { color: Colors[colorScheme].text }]}>
-                      {purchasedHours} hours
-                      {purchasedDays !== null
-                        ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
-                        : ''}
+            {/* Ad Preview Section */}
+            {bannerUrl && (
+              <View
+                style={[
+                  styles.previewSection,
+                  {
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <View style={styles.previewHeader}>
+                  <MaterialIcons name="visibility" size={20} color={theme.text} />
+                  <Text style={[styles.previewTitle, { color: theme.text }]}>
+                    Ad Preview
+                  </Text>
+                </View>
+                <View style={[styles.bannerContainer, { backgroundColor: theme.surface }]}>
+                  <Image source={{ uri: bannerUrl }} style={styles.bannerImage} resizeMode="cover" />
+                </View>
+                {adDetails?.target_url && (
+                  <View style={styles.linkRow}>
+                    <MaterialIcons name="link" size={16} color={theme.mutedText} />
+                    <Text
+                      style={[styles.linkText, { color: theme.mutedText }]}
+                      numberOfLines={1}
+                    >
+                      {adDetails.target_url}
                     </Text>
                   </View>
-                </View>
-              </>
+                )}
+              </View>
             )}
 
-            <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
+            {/* Details Card */}
+            <LinearGradient
+              colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+              style={[styles.detailsCard, { borderColor: theme.border }]}
+            >
+              <View style={styles.detailRow}>
+                <MaterialIcons name="business" size={24} color="#10B981" />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
+                    Business Name
+                  </Text>
+                  <Text style={[styles.detailValue, { color: theme.text }]}>
+                    {businessName}
+                  </Text>
+                </View>
+              </View>
 
-            <View style={styles.detailRow}>
-              <MaterialIcons name="payments" size={24} color="#10B981" />
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+              <View style={styles.detailRow}>
+                <MaterialIcons name="event" size={24} color="#10B981" />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
+                    Campaign Dates
+                  </Text>
+                  <Text style={[styles.detailValue, { color: theme.text }]}>
+                    {selectedDates}
+                  </Text>
+                </View>
+              </View>
+
+              {purchasedHours !== null && (
+                <>
+                  <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                  <View style={styles.detailRow}>
+                    <MaterialIcons name="schedule" size={24} color="#10B981" />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
+                        Total Exposure
+                      </Text>
+                      <Text style={[styles.detailValue, { color: theme.text }]}>
+                        {purchasedHours} hours
+                        {purchasedDays !== null
+                          ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
+                          : ''}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+              <View style={styles.detailRow}>
+                <MaterialIcons name="payments" size={24} color="#10B981" />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
+                    Total Paid
+                  </Text>
+                  <Text style={[styles.detailValue, { color: theme.text }]}>
+                    {totalAmount}
+                  </Text>
+                </View>
+              </View>
+            </LinearGradient>
+
+            {/* Info Box */}
+            <View
+              style={[
+                styles.infoBox,
+                {
+                  backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#EFF6FF',
+                  borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
+                },
+              ]}
+            >
+              <MaterialIcons name="info" size={24} color="#3B82F6" />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={[styles.detailLabel, { color: Colors[colorScheme].mutedText }]}>
-                  Total Paid
-                </Text>
-                <Text style={[styles.detailValue, { color: Colors[colorScheme].text }]}>
-                  {totalAmount}
+                <Text
+                  style={[styles.infoText, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}
+                >
+                  <Text style={{ fontWeight: '700' }}>What's Next?</Text>
+                  {'\n'}
+                  Your ad will appear in feeds for users in your target area. You can view campaign
+                  performance and manage your ads in the "My Ads" section.
                 </Text>
               </View>
             </View>
-          </LinearGradient>
 
-          {/* Info Box */}
-          <View
-            style={[
-              styles.infoBox,
-              {
-                backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#EFF6FF',
-                borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
-              },
-            ]}
-          >
-            <MaterialIcons name="info" size={24} color="#3B82F6" />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text
-                style={[styles.infoText, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}
+            {/* Action Buttons */}
+            <View style={styles.actions}>
+              <Pressable
+                style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
+                onPress={() => {
+                  safeGoBack(router, '/my-ads');
+                }}
               >
-                <Text style={{ fontWeight: '700' }}>What's Next?</Text>
-                {'\n'}
-                Your ad will appear in feeds for users in your target area. You can view campaign
-                performance and manage your ads in the "My Ads" section.
-              </Text>
+                <MaterialIcons name="work" size={20} color="#ffffff" />
+                <Text style={styles.primaryButtonText}>View My Ads</Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.secondaryButton,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: theme.card,
+                  },
+                ]}
+                onPress={() => {
+                  safeGoBack(router, '/(tabs)');
+                }}
+              >
+                <MaterialIcons name="home" size={20} color={theme.text} />
+                <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
+                  Back to Feed
+                </Text>
+              </Pressable>
             </View>
-          </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actions}>
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
-              onPress={() => {
-                safeGoBack(router, '/my-ads');
-              }}
-            >
-              <MaterialIcons name="work" size={20} color="#ffffff" />
-              <Text style={styles.primaryButtonText}>View My Ads</Text>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.secondaryButton,
-                {
-                  borderColor: Colors[colorScheme].border,
-                  backgroundColor: Colors[colorScheme].card,
-                },
-              ]}
-              onPress={() => {
-                safeGoBack(router, '/(tabs)');
-              }}
-            >
-              <MaterialIcons name="home" size={20} color={Colors[colorScheme].text} />
-              <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>
-                Back to Feed
+            {/* Support Link */}
+            <Pressable style={styles.supportLink} onPress={() => void router.push('/help')}>
+              <MaterialIcons name="help-outline" size={16} color={theme.mutedText} />
+              <Text style={[styles.supportText, { color: theme.mutedText }]}>
+                Need help? Contact Support
               </Text>
             </Pressable>
           </View>
-
-          {/* Support Link */}
-          <Pressable style={styles.supportLink} onPress={() => void router.push('/help')}>
-            <MaterialIcons name="help-outline" size={16} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.supportText, { color: Colors[colorScheme].mutedText }]}>
-              Need help? Contact Support
-            </Text>
-          </Pressable>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -391,12 +399,27 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+  stateInner: {
+    width: '100%',
+    maxWidth: 560,
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
   content: {
     padding: 24,
     paddingBottom: 48,
+  },
+  contentInner: {
+    width: '100%',
+    alignSelf: 'center',
+  },
+  contentInnerLarge: {
+    maxWidth: 860,
   },
   animationContainer: {
     alignItems: 'center',
@@ -431,10 +454,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 17,
     textAlign: 'center',
-    lineHeight: 24,
-    maxWidth: 300,
+    lineHeight: 26,
+    maxWidth: 520,
   },
   previewSection: {
     borderRadius: 16,
@@ -456,7 +479,6 @@ const styles = StyleSheet.create({
   bannerContainer: {
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
     marginBottom: 8,
   },
   bannerImage: {
@@ -515,8 +537,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   infoText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
   },
   actions: {
     gap: 12,

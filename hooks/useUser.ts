@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 
 /**
  * Custom hook to load and access current user data
@@ -8,35 +8,40 @@ import { User } from '@/api/entities';
  * @returns Object containing user data, loading state, error, and refresh function
  */
 export function useUser(autoLoad: boolean = true) {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(autoLoad);
+  const { user, loading: authLoading, checkAuth } = useAuth();
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const loadUser = useCallback(async () => {
-    setLoading(true);
+    setRefreshing(true);
     setError(null);
     try {
-      const me = await User.me({ force: true });
-      setUser(me);
+      const me = (await checkAuth({ skipSubscriptionRefresh: true })) ?? user ?? null;
       return me;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load user');
       setError(error);
       throw error;
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [checkAuth, user]);
 
   useEffect(() => {
-    if (autoLoad) {
-      void loadUser();
+    if (autoLoad && !user && !authLoading) {
+      void loadUser().catch(() => {});
     }
-  }, [autoLoad, loadUser]);
+  }, [autoLoad, authLoading, loadUser, user]);
+
+  useEffect(() => {
+    if (user) {
+      setError(null);
+    }
+  }, [user]);
 
   return {
     user,
-    loading,
+    loading: refreshing || (autoLoad && authLoading && !user),
     error,
     loadUser,
     refresh: loadUser,
@@ -52,12 +57,13 @@ export function useUser(autoLoad: boolean = true) {
  */
 export function useUserProfile(autoLoad: boolean = true) {
   const { user, loading, error, loadUser } = useUser(autoLoad);
+  const profileUser = (user || null) as any;
 
   return {
-    displayName: user?.display_name || '',
-    email: user?.email || '',
-    avatarUrl: user?.avatar_url || null,
-    zipCode: user?.preferences?.zip_code || '',
+    displayName: profileUser?.display_name || '',
+    email: profileUser?.email || '',
+    avatarUrl: profileUser?.avatar_url || null,
+    zipCode: profileUser?.preferences?.zip_code || '',
     user,
     loading,
     error,

@@ -4,7 +4,7 @@ type RefreshAuthFn<T extends RoutingUserLike> = () => Promise<T | null | undefin
 
 export async function getFreshPostAuthState<T extends RoutingUserLike>(
   refreshAuth: RefreshAuthFn<T>,
-  refreshUser: RefreshAuthFn<T>,
+  refreshUser?: RefreshAuthFn<T>,
   fallbackUser?: T | null
 ): Promise<{ user: T; decision: PostAuthRouteDecision }> {
   let user: T | null | undefined = null;
@@ -15,7 +15,7 @@ export async function getFreshPostAuthState<T extends RoutingUserLike>(
     user = null;
   }
 
-  if (!user) {
+  if (!user && typeof refreshUser === 'function') {
     try {
       user = (await refreshUser()) ?? null;
     } catch {

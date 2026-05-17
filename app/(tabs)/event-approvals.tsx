@@ -21,7 +21,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
-import { httpGet, httpPost, httpPut } from '@/api/http';
+import { Event, Game, Organization, Team } from '@/api/entities';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
@@ -160,8 +160,8 @@ export default function EventApprovalsScreen() {
     try {
       // Load both pending events AND pending games (fan pitches go to /games)
       const [eventsData, gamesData] = await Promise.all([
-        httpGet('/events/pending').catch(() => []),
-        httpGet('/games?show_pending=true&limit=50').catch(() => ({ games: [] })),
+        Event.pending().catch(() => []),
+        Game.list(undefined, { showPending: true, limit: 50 }).catch(() => ({ games: [] })),
       ]);
       const pendingEvents = asArray<RawPendingEvent>(eventsData)
         .filter((event) => event?.approval_status === 'pending');
@@ -189,7 +189,7 @@ export default function EventApprovalsScreen() {
 
   const loadTeamInvites = useCallback(async () => {
     try {
-      const data = await httpGet('/teams/invites/me');
+      const data = await Team.myInvites();
       const pending = asArray<TeamInvite & { status?: string }>(data)
         .filter((invite) => invite?.status === 'pending');
       setTeamInvites(pending);
@@ -206,7 +206,7 @@ export default function EventApprovalsScreen() {
 
   const loadOrgRequests = useCallback(async () => {
     try {
-      const data = await httpGet('/organizations/join-requests/me');
+      const data = await Organization.myJoinRequests();
       // Show all requests (pending, approved, denied) as read-only status view
       const requests = asArray<OrgJoinRequest>(data);
       setOrgRequests(requests);
@@ -267,9 +267,9 @@ export default function EventApprovalsScreen() {
     });
     try {
       if (evt?._isGame) {
-        await httpPut(`/games/${eventId}/approve`, { approval_status: 'approved' });
+        await Game.setApprovalStatus(eventId, 'approved');
       } else {
-        await httpPut(`/events/${eventId}/approve`, {});
+        await Event.approve(eventId);
       }
       captureBreadcrumb('Event approval succeeded', 'admin.approval', {
         action: 'approve',
@@ -326,9 +326,9 @@ export default function EventApprovalsScreen() {
     try {
       if (evt?._isGame) {
         // Games use the same approve endpoint with approval_status: 'rejected'
-        await httpPut(`/games/${eventId}/approve`, { approval_status: 'rejected', reason: rejectReason.trim() || undefined });
+        await Game.setApprovalStatus(eventId, 'rejected', rejectReason.trim() || undefined);
       } else {
-        await httpPut(`/events/${eventId}/reject`, { reason: rejectReason.trim() || undefined });
+        await Event.reject(eventId, rejectReason.trim() || undefined);
       }
       captureBreadcrumb('Event rejection succeeded', 'admin.approval', {
         action: 'reject',
@@ -389,7 +389,7 @@ export default function EventApprovalsScreen() {
   const handleAcceptInvite = async (inviteId: string) => {
     setProcessingInviteId(inviteId);
     try {
-      await httpPost(`/teams/invites/${inviteId}/accept`);
+      await Team.acceptInvite(inviteId);
       Alert.alert('Accepted', 'You have joined the team.');
       setTeamInvites(prev => prev.filter(i => i.id !== inviteId));
     } catch (error: unknown) {
@@ -409,7 +409,7 @@ export default function EventApprovalsScreen() {
         onPress: async () => {
           setProcessingInviteId(inviteId);
           try {
-            await httpPost(`/teams/invites/${inviteId}/decline`);
+            await Team.declineInvite(inviteId);
             setTeamInvites(prev => prev.filter(i => i.id !== inviteId));
           } catch (error: unknown) {
             const e = error as ApprovalError;
@@ -627,7 +627,7 @@ export default function EventApprovalsScreen() {
   if (coachLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
-        <ActivityIndicator style={{ marginTop: 40 }} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={C.tint} />
       </SafeAreaView>
     );
   }
@@ -647,14 +647,14 @@ export default function EventApprovalsScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: C.background }]} edges={['bottom']}>
         <Stack.Screen options={{ title: 'Approvals', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
+              <Ionicons name="chevron-back" size={28} color={C.tint} />
             </Pressable>
           ) }} />
 
       {error && !isLoading && (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Text style={{ color: '#ff4444', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
-          <TouchableOpacity onPress={() => { setError(null); setEventsLoading(true); setInvitesLoading(true); setOrgRequestsLoading(true); void loadAll(); }} style={{ backgroundColor: '#1e3a5f', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
+          <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+          <TouchableOpacity onPress={() => { setError(null); setEventsLoading(true); setInvitesLoading(true); setOrgRequestsLoading(true); void loadAll(); }} style={{ backgroundColor: C.tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>

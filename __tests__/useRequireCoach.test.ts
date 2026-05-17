@@ -124,4 +124,27 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
 
     expect(mockReplace).not.toHaveBeenCalled();
   });
+
+  it('approved coach with a paid plan pending checkout routes to billing', () => {
+    mockUseAuth.mockReturnValue({
+      loading: false,
+      user: {
+        id: 'coach-2',
+        is_admin: false,
+        role: 'coach',
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          pending_plan: 'veteran',
+          payment_pending: true,
+          payment_approved: true,
+        },
+      },
+    });
+
+    renderHook(() => useRequireCoach());
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith('/settings/manage-subscription');
+  });
 });

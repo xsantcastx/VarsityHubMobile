@@ -2,10 +2,8 @@
  * File upload utilities for VarsityHub mobile app
  */
 
-import { Platform } from 'react-native';
-import auth from '../api/auth';
+import { uploadFile as uploadWithAuth } from '../api/upload';
 import { getApiBaseUrl } from '../api/http';
-import { compressImageForUpload } from './ensureUploadableUri';
 
 export interface UploadResponse {
   url: string;
@@ -31,66 +29,31 @@ export interface FileToUpload {
  */
 export async function uploadFile(
   file: FileToUpload, 
-  isMedia: boolean = false
+  _isMedia: boolean = false
 ): Promise<UploadResponse> {
   try {
     if (__DEV__) console.log('Starting upload:', { name: file.name, uri: file.uri, type: file.type });
-
-    const token = await auth.getToken();
-    if (!token) {
-      throw new Error('Unauthorized — please sign in to upload files.');
-    }
-
-    // Compress images before upload (max 1920px, 80% quality). Videos pass through unchanged.
-    let uploadUri = file.uri;
-    let uploadType = file.type || 'application/octet-stream';
-    if (uploadType.startsWith('image/')) {
-      try {
-        const compressed = await compressImageForUpload(uploadUri, uploadType);
-        uploadUri = compressed.uri;
-        if (compressed.mimeType) uploadType = compressed.mimeType;
-      } catch (e) {
-        if (__DEV__) console.warn('[uploadUtils] Image compression failed, uploading original:', e);
-      }
-    }
-
-    const formData = new FormData();
-
-    // Create the file object for FormData
-    const fileObj = {
-      uri: uploadUri,
-      type: uploadType,
-      name: file.name,
-    } as any;
-
-    formData.append('file', fileObj);
-
-    // Choose endpoint based on file type
-    const serverUrl = getApiBaseUrl();
-    const endpoint = isMedia ? '/uploads' : '/uploads/files';
-    const url = `${serverUrl}${endpoint}`;
-
-    if (__DEV__) console.log('Uploading to:', url);
-
-    // Important: do NOT set the Content-Type header for FormData in React Native
-    // The runtime must set the boundary for multipart/form-data automatically.
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
-    
-    if (__DEV__) console.log('Upload response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      if (__DEV__) console.error('Upload failed with status:', response.status, errorText);
-      throw new Error(`Upload failed: ${response.status} ${errorText}`);
-    }
-    
-    const result: UploadResponse = await response.json();
-    if (__DEV__) console.log('Upload successful:', result);
-    return result;
+    const uploadType = file.type || 'application/octet-stream';
+    const result = await uploadWithAuth(getApiBaseUrl(), file.uri, file.name, uploadType);
+    const normalized: UploadResponse = {
+      url: String(result?.url || ''),
+      path: typeof result?.path === 'string' ? result.path : String(result?.url || ''),
+      type:
+        typeof result?.type === 'string' && result.type.length > 0
+          ? result.type
+          : _isMedia
+            ? 'image'
+            : getFileTypeFromMime(uploadType),
+      mime:
+        typeof result?.mime === 'string' && result.mime.length > 0 ? result.mime : uploadType,
+      size: typeof result?.size === 'number' ? result.size : file.size || 0,
+      originalName:
+        typeof result?.originalName === 'string' && result.originalName.length > 0
+          ? result.originalName
+          : file.name,
+    };
+    if (__DEV__) console.log('Upload successful:', normalized);
+    return normalized;
   } catch (error) {
     if (__DEV__) console.error('Upload error:', error);
     // Provide more detailed error information

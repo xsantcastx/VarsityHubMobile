@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useAuth } from '@/context/AuthProvider';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
@@ -18,6 +19,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { getApiBaseUrl } from '@/api/http';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 import { getCanonicalBillingState } from '@/utils/billingState';
+import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
 
 type TeamLimitSummary = {
@@ -76,6 +78,7 @@ const formatPlanDisplay = (tier?: string | null) => {
 
 function CreateTeamScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
+  const { user: authUser, checkAuth } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams<{ fallback?: string; orgId?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -181,7 +184,7 @@ function CreateTeamScreen() {
     if (selectedOrgId) return; // Already selected
     void (async () => {
       try {
-        const me = (await User.me()) as UserOrgPreference | null;
+        const me = (await getAuthSnapshot(checkAuth, authUser)) as UserOrgPreference | null;
         const orgId = me?.preferences?.organization_id;
         if (orgId) {
           const { Organization } = await import('@/api/entities');
@@ -193,7 +196,7 @@ function CreateTeamScreen() {
         }
       } catch { /* ignore — user may not have an org yet */ }
     })();
-  }, [selectedOrgId]);
+  }, [authUser, checkAuth, selectedOrgId]);
 
   // Auto-suggest year based on season selection
   const getSuggestedYear = (seasonName: string) => {
@@ -343,7 +346,7 @@ function CreateTeamScreen() {
     try {
       let user;
       try { 
-        user = (await User.me()) as UserOrgPreference | null; 
+        user = (await getFreshAuthSnapshot(checkAuth, authUser)) as UserOrgPreference | null; 
       } catch { 
         Alert.alert('Sign in required', 'Please sign in to create a team.'); 
         setSubmitting(false); 
@@ -380,7 +383,7 @@ function CreateTeamScreen() {
             `Your ${userPlan === 'rookie' ? 'Rookie (free)' : userPlan === 'veteran' ? 'Veteran' : 'current'} plan has reached its team limit. Upgrade to add more teams.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
-              { text: 'Upgrade', onPress: () => { setSubmitting(false); router.push('/subscription-paywall'); } }
+              { text: 'Upgrade', onPress: () => { setSubmitting(false); router.push('/settings/manage-subscription'); } }
             ]
           );
           return;
@@ -632,7 +635,7 @@ function CreateTeamScreen() {
                     limitReached && Platform.OS !== 'ios' ? (
                       <Pressable
                         key="limit-cta"
-                        onPress={() => router.push('/subscription-paywall')}
+                        onPress={() => router.push('/settings/manage-subscription')}
                         style={styles.limitUpgradeLink}
                         accessibilityRole="button"
                         accessibilityLabel="View subscription plans"
@@ -827,7 +830,7 @@ function CreateTeamScreen() {
                             { text: 'Cancel', style: 'cancel' },
                             {
                               text: 'Upgrade to Legend',
-                              onPress: () => router.push('/subscription-paywall'),
+                              onPress: () => router.push('/settings/manage-subscription'),
                               style: 'default'
                             }
                           ]

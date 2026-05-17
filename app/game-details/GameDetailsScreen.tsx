@@ -42,7 +42,7 @@ import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
-import { Event, Game, Post, Team, User } from '@/api/entities';
+import { Event, Game, Post, Team } from '@/api/entities';
 import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -87,6 +87,7 @@ type StoriesViewerProps = {
   onSeen: (id: string) => void;
   onDelete?: (id: string) => void;
   gameId?: string | null;
+  currentUserId?: string | null;
 };
 
 function StoriesViewer({
@@ -97,6 +98,7 @@ function StoriesViewer({
   onSeen,
   onDelete,
   gameId,
+  currentUserId,
 }: StoriesViewerProps) {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
@@ -105,24 +107,7 @@ function StoriesViewer({
   const w = useWindowDimensions().width;
   const progress = useRef(new Animated.Value(0)).current;
   const [paused, setPaused] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // v1.0.2 audit fix: guard setState against resolution after unmount / visibility change.
-  useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
-    User.me()
-      .then((user: any) => {
-        if (!cancelled) setCurrentUserId(user?.id || null);
-      })
-      .catch(() => {
-        if (!cancelled) setCurrentUserId(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [visible]);
 
   // Sync starting index when viewer opens or caller changes it
   useEffect(() => {
@@ -3557,6 +3542,7 @@ const GameDetailsScreen = () => {
             });
           }}
           gameId={vm?.gameId}
+          currentUserId={authUser?.id ?? null}
         />
       ) : null}
       {/* RSVP Bottom Sheet */}

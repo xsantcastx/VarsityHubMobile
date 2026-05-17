@@ -14,7 +14,7 @@ export type HttpBehaviorOptions = {
   skipVerificationGate?: boolean;
 };
 
-type RefreshOutcome =
+export type RefreshOutcome =
   | { accessToken: string; reason: 'success' }
   | { accessToken: null; reason: 'missing' | 'auth' | 'network' | 'unknown'; error?: unknown };
 
@@ -63,6 +63,20 @@ async function getRequestAuthToken(): Promise<string | null> {
   // Keep this lazy to avoid a static cycle with api/auth.ts.
   const { auth } = await import('./auth' as string);
   return (await auth.getToken()) || null;
+}
+
+export async function refreshAccessTokenWithCache(): Promise<RefreshOutcome> {
+  const { auth } = await import('./auth' as string);
+  return attemptTokenRefreshWithCache(() => auth.refreshToken());
+}
+
+export async function getAccessTokenForRequest(options?: {
+  allowRefresh?: boolean;
+}): Promise<string | null> {
+  const token = await getRequestAuthToken();
+  if (token || !options?.allowRefresh) return token;
+  const refreshResult = await refreshAccessTokenWithCache();
+  return refreshResult?.accessToken ?? null;
 }
 
 /**
@@ -250,7 +264,7 @@ async function request(
     'Content-Type': 'application/json',
     ...(options.headers as any),
   };
-  const token = await getRequestAuthToken();
+  const token = await getAccessTokenForRequest();
   const deviceId = await getClientDeviceId();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (deviceId) headers['X-VarsityHub-Device-Id'] = deviceId;
@@ -344,10 +358,10 @@ async function request(
       // On 401, attempt a token refresh before giving up.
       // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
       if (err.status === 401 && token && !behavior.skipAuthRetry) {
-        // Lazy-import to avoid circular dependency (auth.ts imports from http.ts)
+        // Use the shared refresh cache so concurrent 401s across transports
+        // coalesce onto one refresh attempt.
         const { auth } = await import('./auth' as string);
-
-        const refreshResult = await attemptTokenRefreshWithCache(() => auth.refreshToken());
+        const refreshResult = await refreshAccessTokenWithCache();
         const newToken = refreshResult?.accessToken ?? null;
 
         if (newToken) {

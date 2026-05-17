@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAdIAP } from '@/hooks/useAdIAP';
-import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 // @ts-ignore
@@ -142,6 +142,8 @@ function AdCalendarScreen() {
   const params = useLocalSearchParams<{ adId?: string }>();
   const adId = Array.isArray(params.adId) ? params.adId[0] : params.adId || '';
   const colorScheme = useColorScheme() ?? 'light';
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -832,6 +834,7 @@ function AdCalendarScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+        <View style={[styles.contentInner, isLargeScreen ? styles.contentInnerLarge : null]}>
         {showPaymentsWarning && (
           <View
             style={[
@@ -1249,7 +1252,7 @@ function AdCalendarScreen() {
                 ]}
               >
                 {submitting ? (
-                  <ActivityIndicator />
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.payBtnText}>
               {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
@@ -1277,7 +1280,7 @@ function AdCalendarScreen() {
                 ]}
               >
                 {submitting ? (
-                  <ActivityIndicator />
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.payBtnText}>
                     Submit for Approval
@@ -1314,6 +1317,7 @@ function AdCalendarScreen() {
               </View>
             </View>
           )}
+        </View>
         </View>
       </ScrollView>
       </View>
@@ -1367,7 +1371,15 @@ const styles = StyleSheet.create({
   content: { 
     padding: 16, 
     gap: 16,
+    alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Extra padding for iOS home indicator
+  },
+  contentInner: {
+    width: '100%',
+    gap: 16,
+  },
+  contentInnerLarge: {
+    maxWidth: 860,
   },
   paymentBanner: {
     borderRadius: 12,
@@ -1384,18 +1396,18 @@ const styles = StyleSheet.create({
   },
   paymentBannerTitle: {
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 16,
     marginBottom: 4,
     color: '#1F2937',
   },
   paymentBannerText: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.light.text,
-    lineHeight: 18,
+    lineHeight: 21,
   },
   paymentBannerHelp: {
     marginTop: 8,
-    fontSize: 12,
+    fontSize: 13,
     color: '#B91C1C',
     textAlign: 'center',
   },
@@ -1424,7 +1436,7 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '700' },
   cardDesc: {},
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  muted: { fontSize: 12 },
+  muted: { fontSize: 14, lineHeight: 20 },
   bold: { fontWeight: '600' },
   sep: { height: 1, marginVertical: 8 },
   badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -1470,8 +1482,8 @@ const styles = StyleSheet.create({
   legendContainer: { marginVertical: 8, gap: 6 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: { width: 16, height: 16, borderRadius: 8 },
-  legendText: { fontSize: 13, fontWeight: '500' },
-  calendarHint: { fontSize: 12, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
+  legendText: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
+  calendarHint: { fontSize: 13, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
   noticeBox: {
     marginTop: 12,
     padding: 14,
@@ -1479,13 +1491,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   noticeTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
   },
   noticeText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
   },
   payBtn: {
     marginTop: 12,
@@ -1522,8 +1534,8 @@ const styles = StyleSheet.create({
   },
   fullPriceNoticeText: {
     flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
     color: '#92400E',
     fontWeight: '500',
   },

@@ -5,6 +5,7 @@ import {
   validateOnboardingCompletion,
 } from './schemas/auth';
 import { validateEvent, validateEventArray, validateEventRsvpArray } from './schemas/event';
+import { validateEventSummaryArray } from './schemas/event';
 import {
   validateOrganization,
   validateOrganizationAdminSummary,
@@ -15,6 +16,7 @@ import {
   validateTeam,
   validateTeamAdminSummary,
   validateTeamArray,
+  validateFollowedTeamArray,
   validateTeamScreenSummary,
 } from './schemas/team';
 import {
@@ -300,8 +302,11 @@ export const Game = {
     id: string,
     data: { home_score?: number; away_score?: number; winner?: 'home' | 'away' | 'tie' | null }
   ) => httpPatch(`/games/${encodeURIComponent(id)}/result`, data),
-  setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
-    httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
+  setApprovalStatus: (id: string, approval: 'approved' | 'rejected', reason?: string) =>
+    httpPut(
+      `/games/${encodeURIComponent(id)}/approve`,
+      reason ? { approval_status: approval, reason } : { approval_status: approval }
+    ),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`, {}, 15000, 1),
   // Story creation can be slower under server load; allow a longer timeout but avoid retries to prevent duplicates.
   addStory: (
@@ -477,6 +482,10 @@ export const Post = {
 
 export const Event = {
   create: (data: CreateEventPayload) => httpPost('/events', data),
+  mine: () =>
+    httpGet('/events/my-events').then(data => validateEventSummaryArray('events.mine', data)),
+  pending: () =>
+    httpGet('/events/pending').then(data => validateEventArray('events.pending', data)),
   filter: (
     where: {
       status?: string;
@@ -511,6 +520,9 @@ export const Event = {
     httpGet('/events/' + encodeURIComponent(id)).then(data => validateEvent('events.get', data)),
   update: (id: string, data: UpdateEventPayload) =>
     httpPatch('/events/' + encodeURIComponent(id), data),
+  approve: (id: string) => httpPut(`/events/${encodeURIComponent(id)}/approve`, {}),
+  reject: (id: string, reason?: string) =>
+    httpPut(`/events/${encodeURIComponent(id)}/reject`, reason ? { reason } : {}),
   cancel: (id: string) => httpPatch('/events/' + encodeURIComponent(id) + '/cancel'),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) =>
@@ -629,6 +641,7 @@ export const Organization = {
     httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) =>
     httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  myJoinRequests: () => httpGet('/organizations/join-requests/me'),
   // Organization join requests (coach/admin workflows)
   requestToJoin: (organizationId: string, message?: string, role?: string) =>
     httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, role }),
@@ -689,6 +702,10 @@ export const Team = {
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams/managed' + qs).then(data => validateTeamArray('teams.managed', data));
   },
+  followed: (): Promise<any> =>
+    httpGet('/follows/teams?user_id=me').then(data =>
+      validateFollowedTeamArray('teams.followed', data)
+    ),
   get: (id: string): Promise<any> =>
     httpGet('/teams/' + encodeURIComponent(id)).then(data => validateTeam('teams.get', data)),
   screenSummary: (id: string): Promise<any> =>
@@ -837,6 +854,14 @@ function finalizeStripeSubscription(subscriptionId: string) {
 export const Payments = {
   configStatus: getPaymentsConfig,
   getConfig: getPaymentsConfig,
+  createPaymentSheet: (payload: {
+    plan?: string;
+    promo_code?: string;
+    ad_id?: string;
+    dates?: string[];
+  }) => httpPost('/payments/create-payment-sheet', payload),
+  cancelIntent: (paymentIntentId: string) =>
+    httpPost('/payments/cancel-intent', { payment_intent_id: paymentIntentId }),
   finalizeSession: finalizePaymentSession,
 };
 

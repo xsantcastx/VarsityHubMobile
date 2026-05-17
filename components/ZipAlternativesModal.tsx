@@ -48,6 +48,12 @@ export function ZipAlternativesModal({
 }: ZipAlternativesModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const errorSurface = colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.18)' : '#FEE2E2';
+  const infoSurface = colorScheme === 'dark' ? 'rgba(37, 99, 235, 0.18)' : '#DBEAFE';
+  const infoAccent = colorScheme === 'dark' ? '#93C5FD' : '#2563EB';
+  const infoText = colorScheme === 'dark' ? '#DBEAFE' : '#1E40AF';
+  const neutralSurface = colorScheme === 'dark' ? theme.surface : '#F3F4F6';
+  const softSurface = colorScheme === 'dark' ? theme.card : '#F9FAFB';
 
   return (
     <CustomActionModal
@@ -64,33 +70,33 @@ export function ZipAlternativesModal({
     >
       <ScrollView style={styles.content}>
         {/* Error message */}
-        <View style={styles.errorContainer}>
-          <MaterialIcons name="error" size={24} color="#DC2626" />
-          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>
+        <View style={[styles.errorContainer, { backgroundColor: errorSurface }]}>
+          <MaterialIcons name="error" size={24} color={theme.destructive} />
+          <Text style={[styles.errorText, { color: theme.text }]}>
             Zip code <Text style={styles.zipHighlight}>{requestedZip}</Text> is fully booked for
             your selected dates.
           </Text>
         </View>
 
         {/* Coverage info */}
-        <View style={styles.infoContainer}>
-          <MaterialIcons name="info-outline" size={20} color="#2563EB" />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoContainer, { backgroundColor: infoSurface }]}>
+          <MaterialIcons name="info-outline" size={20} color={infoAccent} />
+          <Text style={[styles.infoText, { color: infoText }]}>
             We found nearby zip codes within 20 miles that have availability:
           </Text>
         </View>
 
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator color="#2563EB" />
+            <ActivityIndicator color={theme.tint} />
             <Text style={[styles.loadingText, { color: theme.mutedText }]}>Checking nearby availability...</Text>
           </View>
         )}
 
         {!loading && alternatives.length === 0 && (
           <View style={styles.emptyContainer}>
-            <MaterialIcons name="sentiment-dissatisfied" size={48} color="#9CA3AF" />
-            <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>
+            <MaterialIcons name="sentiment-dissatisfied" size={48} color={theme.mutedText} />
+            <Text style={[styles.emptyText, { color: theme.text }]}>
               No nearby zip codes with availability found.
             </Text>
             <Text style={[styles.emptySubtext, { color: theme.mutedText }]}>
@@ -109,7 +115,7 @@ export function ZipAlternativesModal({
                 key={alt.zip}
                 style={[
                   styles.alternativeCard,
-                  { backgroundColor: Colors[colorScheme].background },
+                  { backgroundColor: theme.background, borderColor: theme.border },
                 ]}
                 onPress={() => {
                   onSelectZip(alt.zip);
@@ -119,7 +125,7 @@ export function ZipAlternativesModal({
                 {/* Zip and Distance */}
                 <View style={styles.alternativeHeader}>
                   <View style={styles.zipContainer}>
-                    <Text style={[styles.zipCode, { color: Colors[colorScheme].text }]}>
+                    <Text style={[styles.zipCode, { color: theme.text }]}>
                       {alt.zip}
                     </Text>
                     {alt.city && alt.state && (
@@ -129,7 +135,7 @@ export function ZipAlternativesModal({
                     )}
                   </View>
                   {alt.distance !== undefined && (
-                    <View style={styles.distanceBadge}>
+                    <View style={[styles.distanceBadge, { backgroundColor: neutralSurface }]}>
                       <MaterialIcons name="location-on" size={14} color={theme.mutedText} />
                       <Text style={[styles.distanceText, { color: theme.mutedText }]}>{formatDistance(alt.distance)}</Text>
                     </View>
@@ -138,7 +144,7 @@ export function ZipAlternativesModal({
 
                 {/* Availability */}
                 <View style={styles.availabilityContainer}>
-                  <View style={styles.availabilityBar}>
+                  <View style={[styles.availabilityBar, { backgroundColor: colorScheme === 'dark' ? theme.border : '#D1D5DB' }]}>
                     <View
                       style={[
                         styles.availabilityFill,
@@ -156,8 +162,8 @@ export function ZipAlternativesModal({
 
                 {/* Select button */}
                 <View style={styles.selectButton}>
-                  <Text style={styles.selectButtonText}>Select This Zip</Text>
-                  <MaterialIcons name="chevron-right" size={16} color="#2563EB" />
+                  <Text style={[styles.selectButtonText, { color: theme.tint }]}>Select This Zip</Text>
+                  <MaterialIcons name="chevron-right" size={16} color={theme.tint} />
                 </View>
               </Pressable>
             ))}
@@ -165,8 +171,8 @@ export function ZipAlternativesModal({
         )}
 
         {/* Coverage explanation */}
-        <View style={styles.explanationContainer}>
-          <Text style={[styles.explanationText, { color: Colors[colorScheme].text }]}>
+        <View style={[styles.explanationContainer, { backgroundColor: softSurface }]}>
+          <Text style={[styles.explanationText, { color: theme.text }]}>
             <Text style={styles.bold}>20-Mile Radius Coverage:</Text> Your ad will reach users
             within 20 miles of the selected zip code. Selecting a nearby zip ensures you still reach
             your target audience.
@@ -186,7 +192,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     padding: 12,
-    backgroundColor: '#FEE2E2',
     borderRadius: 8,
     marginBottom: 16,
   },
@@ -204,14 +209,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 8,
     padding: 12,
-    backgroundColor: '#DBEAFE',
     borderRadius: 8,
     marginBottom: 16,
   },
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: '#1E40AF',
     lineHeight: 18,
   },
   loadingContainer: {
@@ -248,7 +251,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
     gap: 12,
   },
   alternativeHeader: {
@@ -271,7 +273,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -285,7 +286,6 @@ const styles = StyleSheet.create({
   },
   availabilityBar: {
     height: 8,
-    backgroundColor: '#D1D5DB',
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -306,12 +306,10 @@ const styles = StyleSheet.create({
   selectButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563EB',
   },
   explanationContainer: {
     marginTop: 16,
     padding: 12,
-    backgroundColor: '#F9FAFB',
     borderRadius: 8,
   },
   explanationText: {

@@ -1,116 +1,131 @@
 #!/bin/bash
 
-# VarsityHub Pre-Submission Checklist
-# Validates app is ready for App Store submission
+set -u
 
-PROJECT_ROOT="/Users/varsityhub/Desktop/CODE/VarsityHubMobile"
+# VarsityHub Pre-Submission Checklist
+# Validates current iOS submission config without relying on stale bundle IDs
+# or pod-project implementation details.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PASSED=0
 FAILED=0
+
+pass() {
+  echo "✅"
+  ((PASSED++))
+}
+
+fail() {
+  local message="${1:-}"
+  if [ -n "$message" ]; then
+    echo "❌ $message"
+  else
+    echo "❌"
+  fi
+  ((FAILED++))
+}
+
+optional_warn() {
+  local message="${1:-optional check not satisfied}"
+  echo "⚠️  $message"
+}
+
+read_json() {
+  local script="$1"
+  node -e "$script"
+}
+
+APP_JSON="$PROJECT_ROOT/app.json"
+PACKAGE_JSON="$PROJECT_ROOT/package.json"
+PBXPROJ="$PROJECT_ROOT/ios/VarsityHub.xcodeproj/project.pbxproj"
+INFO_PLIST="$PROJECT_ROOT/ios/VarsityHub/Info.plist"
+PRIVACY_MANIFEST="$PROJECT_ROOT/ios/VarsityHub/PrivacyInfo.xcprivacy"
+BABEL_CONFIG="$PROJECT_ROOT/babel.config.js"
+
+EXPO_VERSION=$(read_json "const app=require('$APP_JSON'); console.log(app.expo?.version || '')")
+IOS_BUILD_NUMBER=$(read_json "const app=require('$APP_JSON'); console.log(app.expo?.ios?.buildNumber || '')")
+BUNDLE_ID=$(read_json "const app=require('$APP_JSON'); console.log(app.expo?.ios?.bundleIdentifier || '')")
+APPLE_TEAM_ID=$(read_json "const app=require('$APP_JSON'); console.log(app.expo?.ios?.appleTeamId || '')")
+WEB_BASE_URL=$(read_json "const app=require('$APP_JSON'); console.log(app.expo?.extra?.EXPO_PUBLIC_WEB_BASE_URL || '')")
+APP_PRIVACY_URL=$(read_json "const app=require('$APP_JSON'); console.log(app.expo?.extra?.APP_STORE_PRIVACY_POLICY_URL || app.expo?.ios?.infoPlist?.NSPrivacyPolicyURL || '')")
+PACKAGE_VERSION=$(read_json "const pkg=require('$PACKAGE_JSON'); console.log(pkg.version || '')")
 
 echo "🔍 VarsityHub Pre-Submission Checklist"
 echo "====================================="
 echo ""
 
-# Check 1: Build compiles
-echo -n "✓ Release build compiles without errors... "
-if npx expo run:ios --configuration Release --dry-run 2>&1 | grep -q "success\|configured"; then
-  echo "✅"
-  ((PASSED++))
+echo -n "✓ Release build settings are readable... "
+if xcodebuild -workspace "$PROJECT_ROOT/ios/VarsityHub.xcworkspace" -scheme VarsityHub -configuration Release -showBuildSettings >/dev/null 2>&1; then
+  pass
 else
-  echo "❌"
-  ((FAILED++))
+  fail "(xcodebuild could not read Release settings)"
 fi
 
-# Check 2: No console.log in production files
-echo -n "✓ No debug console.log in production code... "
-CONSOLE_COUNT=$(grep -r "console\\.log" "$PROJECT_ROOT/server/src/routes/" --include="*.ts" 2>/dev/null | wc -l)
-if [ "$CONSOLE_COUNT" -eq 0 ]; then
-  echo "✅"
-  ((PASSED++))
+echo -n "✓ Production build strips console.log statements... "
+if grep -q "transform-remove-console" "$BABEL_CONFIG"; then
+  pass
 else
-  echo "❌ ($CONSOLE_COUNT instances found)"
-  ((FAILED++))
+  fail "(babel production log stripping not configured)"
 fi
 
-# Check 3: App Store metadata configured
-echo -n "✓ App Store URLs configured in app.json... "
-if grep -q "\"privacy\"" "$PROJECT_ROOT/app.json" && grep -q "\"homepage\"" "$PROJECT_ROOT/app.json"; then
-  echo "✅"
-  ((PASSED++))
+echo -n "✓ App Store URLs are configured... "
+if [ -n "$APP_PRIVACY_URL" ] && [ -n "$WEB_BASE_URL" ]; then
+  pass
 else
-  echo "❌ Missing privacy or homepage URL"
-  ((FAILED++))
+  fail "(missing privacy URL or web base URL)"
 fi
 
-# Check 4: Bundle identifier correct
-echo -n "✓ Bundle identifier is correct... "
-if grep -q "com.xsantcastx.varsityhub" "$PROJECT_ROOT/app.json"; then
-  echo "✅"
-  ((PASSED++))
+echo -n "✓ Bundle identifier is aligned across Expo and Xcode... "
+if [ -n "$BUNDLE_ID" ] && grep -q "PRODUCT_BUNDLE_IDENTIFIER = \"$BUNDLE_ID\";" "$PBXPROJ"; then
+  pass
 else
-  echo "❌"
-  ((FAILED++))
+  fail "(Expo/Xcode bundle identifier mismatch)"
 fi
 
-# Check 5: Privacy manifest files present
-echo -n "✓ All frameworks have PrivacyInfo.xcprivacy... "
-PRIVACY_COUNT=$(find "$PROJECT_ROOT/ios/Pods" -name "PrivacyInfo.xcprivacy" 2>/dev/null | wc -l)
-if [ "$PRIVACY_COUNT" -gt 0 ]; then
-  echo "✅ ($PRIVACY_COUNT found)"
-  ((PASSED++))
+echo -n "✓ Privacy manifest is present... "
+if [ -f "$PRIVACY_MANIFEST" ] && grep -q "NSPrivacyAccessedAPITypes" "$PRIVACY_MANIFEST"; then
+  pass
 else
-  echo "❌"
-  ((FAILED++))
+  fail "(missing ios/VarsityHub/PrivacyInfo.xcprivacy)"
 fi
 
-# Check 6: Code signing configured
-echo -n "✓ Code signing team configured... "
-if grep -q "B5H8F69RW5" "$PROJECT_ROOT/ios/Pods/Pods.xcodeproj/project.pbxproj"; then
-  echo "✅"
-  ((PASSED++))
+echo -n "✓ Code signing team is configured in Expo and Xcode... "
+if [ -n "$APPLE_TEAM_ID" ] && grep -q "DEVELOPMENT_TEAM = $APPLE_TEAM_ID;" "$PBXPROJ"; then
+  pass
 else
-  echo "❌"
-  ((FAILED++))
+  fail "(Expo/Xcode team ID mismatch)"
 fi
 
-# Check 7: Version number set
-echo -n "✓ Version number configured... "
-if grep -q "\"version\": \"1.0" "$PROJECT_ROOT/package.json"; then
-  echo "✅"
-  ((PASSED++))
+echo -n "✓ Version and build number are configured... "
+if [ -n "$EXPO_VERSION" ] && [ -n "$IOS_BUILD_NUMBER" ] && [ "$EXPO_VERSION" = "$PACKAGE_VERSION" ]; then
+  pass
 else
-  echo "❌"
-  ((FAILED++))
+  fail "(missing or mismatched version/build number)"
 fi
 
-# Check 8: iOS deployment target correct
-echo -n "✓ iOS deployment target is 15.1+... "
-if grep -q "IPHONEOS_DEPLOYMENT_TARGET = 15.1" "$PROJECT_ROOT/ios/Pods/Pods.xcodeproj/project.pbxproj"; then
-  echo "✅"
-  ((PASSED++))
+echo -n "✓ Apple Sign In capability is enabled... "
+if grep -q "com.apple.developer.applesignin" "$PROJECT_ROOT/ios/VarsityHub/VarsityHub.entitlements" && grep -q "\"usesAppleSignIn\": true" "$APP_JSON"; then
+  pass
 else
-  echo "❌"
-  ((FAILED++))
+  fail "(missing Apple Sign In capability)"
 fi
 
-# Check 9: ExportOptions.plist exists
-echo -n "✓ ExportOptions.plist configured... "
+echo -n "✓ iOS privacy purpose strings exist... "
+if grep -q "NSCameraUsageDescription" "$INFO_PLIST" && \
+   grep -q "NSPhotoLibraryUsageDescription" "$INFO_PLIST" && \
+   grep -q "NSMicrophoneUsageDescription" "$INFO_PLIST" && \
+   grep -q "NSLocationWhenInUseUsageDescription" "$INFO_PLIST"; then
+  pass
+else
+  fail "(one or more iOS permission strings are missing)"
+fi
+
+echo -n "✓ ExportOptions.plist is configured... "
 if [ -f "$PROJECT_ROOT/ios/ExportOptions.plist" ]; then
-  echo "✅"
-  ((PASSED++))
+  pass
 else
-  echo "❌"
-  ((FAILED++))
-fi
-
-# Check 10: Production API endpoint set
-echo -n "✓ Production API endpoint configured... "
-if grep -q "EXPO_PUBLIC_API_URL" "$PROJECT_ROOT/.env" 2>/dev/null || grep -q "varsityhub.app\|api.varsityhub" "$PROJECT_ROOT/server/src/lib/email.ts"; then
-  echo "✅"
-  ((PASSED++))
-else
-  echo "⚠️  Not explicitly set (verify in build configuration)"
-  ((FAILED++))
+  optional_warn "not present (fine if you ship with EAS/Transporter instead of manual xcodebuild export)"
 fi
 
 echo ""
@@ -119,20 +134,9 @@ echo "📊 Results: $PASSED passed, $FAILED failed"
 echo ""
 
 if [ "$FAILED" -eq 0 ]; then
-  echo "🎉 ✅ APP IS READY FOR SUBMISSION!"
-  echo ""
-  echo "Next steps:"
-  echo "  1. Run: ./scripts/build-release.sh"
-  echo "  2. Upload IPA to App Store Connect"
-  echo "  3. Configure screenshots and description"
-  echo "  4. Submit for review"
+  echo "✅ Submission config checks passed"
   exit 0
-else
-  echo "⚠️  Please fix $FAILED issue(s) before submission"
-  echo ""
-  echo "Common fixes:"
-  echo "  - Add privacy policy URL to app.json"
-  echo "  - Remove console.log statements"
-  echo "  - Verify API endpoint configuration"
-  exit 1
 fi
+
+echo "⚠️  Please fix $FAILED blocking issue(s) before submission"
+exit 1

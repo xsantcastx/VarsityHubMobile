@@ -170,6 +170,7 @@ const corsOptions: cors.CorsOptions = {
     'Content-Type',
     'Authorization',
     'X-Requested-With',
+    'X-VarsityHub-Device-Id',
     'If-None-Match',
     'Cache-Control',
     'Pragma',

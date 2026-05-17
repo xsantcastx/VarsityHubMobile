@@ -134,35 +134,37 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   cardCompact: {
-    padding: 14,
+    padding: 18,
   },
   eyebrow: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   serviceTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
+    lineHeight: 28,
   },
   planTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
+    lineHeight: 24,
   },
   detailList: {
-    gap: 6,
+    gap: 8,
   },
   detailLine: {
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: 15,
+    lineHeight: 23,
   },
   detailValue: {
     fontWeight: '600',
   },
   renewalText: {
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 21,
   },
   linksRow: {
     flexDirection: 'row',
@@ -171,12 +173,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   linkText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
   linkDivider: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
   },
 });

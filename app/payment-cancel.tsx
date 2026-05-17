@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PrimaryButton from '@/components/ui/PrimaryButton';
@@ -15,6 +15,10 @@ function PaymentCancelScreen() {
   const isAd = params.type === 'ad';
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
+  const adAccentColor = colorScheme === 'dark' ? '#FBBF24' : '#92400E';
+  const adIconColor = colorScheme === 'dark' ? '#FBBF24' : '#F59E0B';
 
   // For ad cancellations, auto-navigate to /my-ads after a short delay.
   // Use router.replace explicitly (not safeGoBack) so the destination is
@@ -52,31 +56,43 @@ function PaymentCancelScreen() {
       }} />
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.content}>
-          <View style={styles.cancelContainer}>
-            <MaterialIcons name="cancel" size={64} color={isAd ? '#F59E0B' : theme.destructive} />
-            <Text style={[styles.cancelTitle, { color: theme.destructive }, isAd && { color: '#92400E' }]}>
-              {isAd ? 'Checkout Cancelled' : 'Payment Cancelled'}
-            </Text>
-            <Text style={[styles.cancelText, { color: theme.mutedText }]}>
-              {isAd
-                ? 'No charge was made. Returning to your schedule...'
-                : 'Your payment was cancelled. You can try again or continue with limited features.'}
-            </Text>
+          <View style={[styles.contentInner, isLargeScreen && styles.contentInnerLarge]}>
+            <View style={styles.cancelContainer}>
+              <MaterialIcons name="cancel" size={72} color={isAd ? adIconColor : theme.destructive} />
+              <Text
+                style={[
+                  styles.cancelTitle,
+                  { color: isAd ? adAccentColor : theme.destructive },
+                ]}
+              >
+                {isAd ? 'Checkout Cancelled' : 'Payment Cancelled'}
+              </Text>
+              <Text style={[styles.cancelText, { color: theme.mutedText }]}>
+                {isAd
+                  ? 'No charge was made. Returning to your schedule...'
+                  : 'Your payment was cancelled. You can try again or continue with limited features.'}
+              </Text>
 
-            <View style={styles.buttonContainer}>
-              <PrimaryButton
-                label={isAd ? 'Back to Schedule' : 'Try Payment Again'}
-                onPress={handleRetryPayment}
-              />
-            </View>
-
-            {!isAd && (
               <View style={styles.buttonContainer}>
-                <Pressable style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={handleContinue}>
-                  <Text style={[styles.secondaryButtonText, { color: theme.mutedText }]}>Continue with Free Version</Text>
-                </Pressable>
+                <PrimaryButton
+                  label={isAd ? 'Back to Schedule' : 'Try Payment Again'}
+                  onPress={handleRetryPayment}
+                />
               </View>
-            )}
+
+              {!isAd && (
+                <View style={styles.buttonContainer}>
+                  <Pressable
+                    style={[styles.secondaryButton, { borderColor: theme.border }]}
+                    onPress={handleContinue}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
+                      Continue with Free Version
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -94,23 +110,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
+  contentInner: {
+    width: '100%',
+    alignSelf: 'center',
+  },
+  contentInnerLarge: {
+    maxWidth: 560,
+  },
   cancelContainer: {
     alignItems: 'center',
+    width: '100%',
   },
   cancelTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#DC2626',
     marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 12,
     textAlign: 'center',
   },
   cancelText: {
-    fontSize: 16,
-    color: Colors.light.mutedText,
+    fontSize: 17,
     textAlign: 'center',
     marginBottom: 32,
-    lineHeight: 24,
+    lineHeight: 26,
   },
   buttonContainer: {
     width: '100%',
@@ -127,7 +149,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryButtonText: {
-    color: Colors.light.mutedText,
     fontSize: 16,
     fontWeight: '500',
   },

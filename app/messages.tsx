@@ -10,7 +10,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
 import { formatUserLabel } from '@/utils/userDisplay';
 
@@ -49,6 +51,7 @@ function MessagesScreen() {
   const sharePostId = params?.sharePost ? String(params.sharePost) : undefined;
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<MiniUser | null>(null);
@@ -105,8 +108,8 @@ function MessagesScreen() {
     setError(null);
     try {
       try {
-        const u = await User.me();
-        setMe(u);
+        const u = await getAuthSnapshot(checkAuth, authUser);
+        setMe(u ? ((u as MiniUser) ?? null) : null);
       } catch (error: any) {
         if (__DEV__) {
           if (__DEV__) console.warn('[Messages] Failed to load user:', error?.message || error);
@@ -127,7 +130,7 @@ function MessagesScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authUser, checkAuth]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -446,7 +449,7 @@ function MessagesScreen() {
       </LinearGradient>
 
       <View style={styles.contentContainer}>
-        {loading && <View style={styles.center}><ActivityIndicator /></View>}
+        {loading && <View style={styles.center}><ActivityIndicator color={Colors[colorScheme].tint} /></View>}
         {error && !loading && (
           <View style={styles.errorState}>
             <MaterialIcons name="error-outline" size={48} color="#DC2626" />
@@ -528,7 +531,7 @@ function MessagesScreen() {
 
             {searchingUsers && (
               <View style={styles.center}>
-                <ActivityIndicator />
+                <ActivityIndicator color={Colors[colorScheme].tint} />
               </View>
             )}
 

@@ -2146,7 +2146,7 @@ function CommunityDiscoverScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator />
+          <ActivityIndicator color={Colors[colorScheme].tint} />
         </View>
       ) : error ? (
         <View style={{ alignItems: 'center', paddingVertical: 24 }}>

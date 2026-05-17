@@ -1,6 +1,7 @@
 #!/usr/bin/env npx tsx
 import bcrypt from 'bcrypt';
 import 'dotenv/config';
+import { pathToFileURL } from 'node:url';
 import { PrismaClient, type ApprovalStatus, type MembershipPlan } from '@prisma/client';
 import {
   buildAuthStateColumns,
@@ -14,8 +15,10 @@ import {
 
 const prisma = new PrismaClient();
 
-const EMAIL_DOMAIN = (process.env.COACH_UAT_EMAIL_DOMAIN || 'varsityhub.test').trim();
-const PASSWORD = (process.env.COACH_UAT_PASSWORD || 'CoachUAT2026!').trim();
+export const COACH_UAT_EMAIL_DOMAIN = (process.env.COACH_UAT_EMAIL_DOMAIN || 'varsityhub.test').trim();
+export const COACH_UAT_PASSWORD = (process.env.COACH_UAT_PASSWORD || 'CoachUAT2026!').trim();
+const EMAIL_DOMAIN = COACH_UAT_EMAIL_DOMAIN;
+const PASSWORD = COACH_UAT_PASSWORD;
 const AGREEMENT_VERSION = Number(process.env.COACH_UAT_AGREEMENT_VERSION || '1') || 1;
 const FAN_MODE_STATUS =
   String(process.env.COACH_UAT_FAN_MODE_STATUS || 'REJECTED').trim().toUpperCase() === 'PENDING'
@@ -43,6 +46,8 @@ type CoachStateSeed = {
 function coachEmail(slug: string) {
   return `coach-uat-${slug}@${EMAIL_DOMAIN}`;
 }
+
+export const COACH_ROUTE_BATTERY_LOCAL_EMAIL = coachEmail('rookie');
 
 function coachUsername(slug: string) {
   return `cuat_${slug}`.slice(0, 20);
@@ -571,7 +576,7 @@ async function createPaidByOwnerOwner() {
   });
 }
 
-async function main() {
+export async function prepareCoachUatAccounts() {
   console.log('Preparing coach UAT accounts...');
   console.log(`Email domain: ${EMAIL_DOMAIN}`);
   console.log(`Fixture password: ${PASSWORD}`);
@@ -685,11 +690,20 @@ async function main() {
   console.log('Results template: docs/COACH_DEVICE_UAT_RESULTS_TEMPLATE.md');
 }
 
-main()
-  .catch((error) => {
-    console.error('Failed to prepare coach UAT accounts:', error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+export async function disconnectCoachUatAccountsPrisma() {
+  await prisma.$disconnect();
+}
+
+const isDirectRun =
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isDirectRun) {
+  prepareCoachUatAccounts()
+    .catch((error) => {
+      console.error('Failed to prepare coach UAT accounts:', error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await disconnectCoachUatAccountsPrisma();
+    });
+}

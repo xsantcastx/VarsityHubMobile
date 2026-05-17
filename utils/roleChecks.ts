@@ -346,6 +346,10 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
     return '/(tabs)';
   }
 
+  if (coachAccess.needsPaidPlanCheckout) {
+    return '/settings/manage-subscription';
+  }
+
   if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && !coachAccess.isProceedingAsFan) {
     return getPendingCoachRoute(user);
   }

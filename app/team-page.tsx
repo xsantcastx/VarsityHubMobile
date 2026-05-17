@@ -1011,7 +1011,7 @@ function TeamScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+          ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null}
         />
       ) : activeTab === 'replies' ? (
         <FlatList
@@ -1100,7 +1100,7 @@ function TeamScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+          ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null}
         />
       ) : activeTab === 'upvotes' ? (
         <FlatList
@@ -1189,7 +1189,7 @@ function TeamScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+          ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null}
         />
       ) : (
         <FlatList

@@ -75,7 +75,7 @@ function AdminUsersScreen() {
   if (adminLoading) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator />
+        <ActivityIndicator color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }
@@ -92,7 +92,7 @@ function AdminUsersScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · Users', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
       <View style={styles.bar}>
@@ -101,8 +101,8 @@ function AdminUsersScreen() {
           <Text style={[styles.toggleText, { color: showBanned ? '#fff' : Colors[colorScheme].text }]}>Banned</Text>
         </Pressable>
       </View>
-      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={Colors[colorScheme].tint} /></View> : null}
+      {error ? <Text style={[styles.error, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>{error}</Text> : null}
       {!loading && !error && (
         <FlatList
           data={items}

@@ -149,10 +149,18 @@ function AdminActivityLogScreen() {
   );
 
   if (adminLoading) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></SafeAreaView>;
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }}>
+        <ActivityIndicator color={Colors[colorScheme].tint} />
+      </SafeAreaView>
+    );
   }
   if (!isAdmin) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Admin access required</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }}>
+        <Text style={{ color: Colors[colorScheme].text }}>Admin access required</Text>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -168,7 +176,7 @@ function AdminActivityLogScreen() {
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
           headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
         }}

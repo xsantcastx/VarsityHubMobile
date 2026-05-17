@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 // @ts-ignore JS exports
-import { Support, User } from '@/api/entities';
+import { Support } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '@/api/http';
 import { pickerMediaTypesProp } from '@/utils/picker';
@@ -24,16 +24,6 @@ export default function FeedbackScreen() {
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        await User.me();
-      } catch (error) {
-        if (__DEV__) console.warn('[feedback] Failed to load user data:', error);
-      }
-    })();
-  }, []);
 
   const pickImage = async (source: 'library' | 'camera') => {
     try {

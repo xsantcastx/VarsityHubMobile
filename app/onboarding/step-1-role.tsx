@@ -1,6 +1,7 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -151,7 +152,7 @@ function RoleCard({
 export default function Step1Role() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user, signOut } = useAuth();
+  const { user, signOut, checkAuth } = useAuth();
   const {
     state: ob,
     setState: setOB,
@@ -189,7 +190,7 @@ export default function Step1Role() {
     let cancelled = false;
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getAuthSnapshot(checkAuth, user);
         if (cancelled) return;
         const canonicalRole = getCanonicalCoachRole(me);
         if (canonicalRole === 'fan' || canonicalRole === 'coach') {
@@ -205,20 +206,20 @@ export default function Step1Role() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial mount only; ob.role and setOB are stable context values
-  }, []);
+  }, [checkAuth, setOB, user, ob.role]);
 
   // Check email verification status on mount and when screen focuses
   useFocusEffect(
     useCallback(() => {
       void (async () => {
         try {
-          const me: any = await User.me();
+          const me: any = await getFreshAuthSnapshot(checkAuth, user);
           setEmailVerified(me?.email_verified ?? null);
         } catch (error) {
           if (__DEV__) console.error('Failed to check email verification:', error);
         }
       })();
-    }, [])
+    }, [checkAuth, user])
   );
 
   // Reset coach age confirmation when switching away from coach
@@ -288,7 +289,7 @@ export default function Step1Role() {
       const persistRole = async (attempt = 1): Promise<void> => {
         try {
           if (!freshServerUser) {
-            freshServerUser = await User.refresh().catch(() => User.me().catch(() => null));
+            freshServerUser = await getFreshAuthSnapshot(checkAuth, user);
           }
           const serverRole = String(getCanonicalCoachRole(freshServerUser) || '').toLowerCase();
           const onboardingCompleted =
@@ -307,7 +308,7 @@ export default function Step1Role() {
           // upgrade endpoint here instead of surfacing the generic save alert.
           if (shouldUseCoachUpgradeFlow) {
             await User.upgradeToCoach('rookie');
-            freshServerUser = await User.refresh().catch(() => freshServerUser);
+            freshServerUser = await getFreshAuthSnapshot(checkAuth, freshServerUser ?? user);
             return;
           }
           await User.updatePreferences({ role });
@@ -339,7 +340,7 @@ export default function Step1Role() {
         const isRoleChangeBlocked = error?.status === 403 && errMsg.includes('cannot change role');
         if (isRoleChangeBlocked) {
           const freshUser: any =
-            freshServerUser ?? (await User.refresh().catch(() => User.me().catch(() => null)));
+            freshServerUser ?? (await getFreshAuthSnapshot(checkAuth, user));
           const recoveryRoute = getPostAuthRouteDecision(freshUser).route;
           if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
             const canonicalRole = getCanonicalCoachRole(freshUser);

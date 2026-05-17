@@ -1,5 +1,4 @@
-import { getConfig } from '@/config/env';
-import { httpGet } from '@/api/http';
+import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
@@ -22,14 +21,13 @@ function OrganizationsIndexScreen() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [featured, setFeatured] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
-  const { apiUrl } = getConfig();
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       try {
-        const data = await httpGet(`/organizations?limit=20`);
+        const data = await Organization.list(undefined, 20);
         if (!cancelled) {
           const orgList = Array.isArray(data) ? data : data.items || [];
           const combined = ensureSeededOrganizations(orgList as Organization[]);
@@ -50,7 +48,7 @@ function OrganizationsIndexScreen() {
     }
     void load();
     return () => { cancelled = true; };
-  }, [apiUrl]);
+  }, []);
 
   const styles = createStyles(colorScheme);
 

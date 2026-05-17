@@ -38,6 +38,14 @@ const adminAds = read('app/admin-ads.tsx');
 const approvals = read('app/(tabs)/approvals.tsx');
 const organizationJoinRequests = read('app/organization-join-requests.tsx');
 const eventApprovals = read('app/(tabs)/event-approvals.tsx');
+const coachAgreement = read('app/onboarding/coach-agreement.tsx');
+const onboardingIndex = read('app/onboarding/index.tsx');
+const onboardingStep1 = read('app/onboarding/step-1-role.tsx');
+const onboardingStep2 = read('app/onboarding/step-2-basic.tsx');
+const onboardingStep3 = read('app/onboarding/step-3-league.tsx');
+const verifyIdentity = read('app/verify-identity.tsx');
+const roleOnboarding = read('app/role-onboarding.tsx');
+const settingsIndex = read('app/settings/index.tsx');
 
 describe('session-expired event bus — client wiring invariants', () => {
   describe('utils/sessionEvents.ts — bus implementation', () => {
@@ -98,6 +106,11 @@ describe('session-expired event bus — client wiring invariants', () => {
   describe('api/upload.ts — same session-expired contract for upload paths', () => {
     it('imports emitSessionExpired', () => {
       expect(uploadLayer).toMatch(/emitSessionExpired/);
+    });
+
+    it('uses the shared refresh cache instead of starting a second upload-only refresh path', () => {
+      expect(uploadLayer).toMatch(/refreshAccessTokenWithCache/);
+      expect(uploadLayer).not.toMatch(/auth\.refreshToken\(\)/);
     });
 
     it('flags isSessionExpired on unrecoverable upload 401 (so alert is suppressed)', () => {
@@ -208,6 +221,46 @@ describe('session-expired event bus — client wiring invariants', () => {
       expect(approvals).not.toContain("Alert.alert('Session expired'");
       expect(organizationJoinRequests).not.toContain("Alert.alert('Session expired'");
       expect(eventApprovals).not.toContain("Alert.alert('Session expired'");
+    });
+  });
+
+  describe('auth snapshot ownership — auth-sensitive screens do not run competing /me refresh policies', () => {
+    it('coach agreement routes from a fresh AuthProvider snapshot instead of a second User.me call', () => {
+      expect(coachAgreement).toMatch(/getFreshAuthSnapshot/);
+      expect(coachAgreement).not.toMatch(/User\.me\(/);
+    });
+
+    it('onboarding index hydrates from AuthProvider-owned auth state', () => {
+      expect(onboardingIndex).toMatch(/getFreshAuthSnapshot/);
+      expect(onboardingIndex).not.toMatch(/User\.me\(/);
+    });
+
+    it('step-1 role uses AuthProvider snapshot helpers instead of raw User.me\\/refresh', () => {
+      expect(onboardingStep1).toMatch(/getAuthSnapshot/);
+      expect(onboardingStep1).toMatch(/getFreshAuthSnapshot/);
+      expect(onboardingStep1).not.toMatch(/User\.me\(/);
+      expect(onboardingStep1).not.toMatch(/User\.refresh\(/);
+    });
+
+    it('step-2 and step-3 onboarding no longer maintain parallel me\\/refresh fallback chains', () => {
+      expect(onboardingStep2).toMatch(/getFreshAuthSnapshot/);
+      expect(onboardingStep2).not.toMatch(/User\.refresh\(/);
+      expect(onboardingStep3).toMatch(/getFreshAuthSnapshot/);
+      expect(onboardingStep3).not.toMatch(/User\.me\(/);
+      expect(onboardingStep3).not.toMatch(/User\.refresh\(/);
+    });
+
+    it('verify-identity and role-onboarding reuse AuthProvider refresh state', () => {
+      expect(verifyIdentity).toMatch(/getFreshAuthSnapshot/);
+      expect(verifyIdentity).not.toMatch(/User\.me\(/);
+      expect(roleOnboarding).toMatch(/getFreshAuthSnapshot/);
+      expect(roleOnboarding).not.toMatch(/User\.refresh\(/);
+    });
+
+    it('settings account-management actions reuse AuthProvider refresh state after mutations', () => {
+      expect(settingsIndex).toMatch(/getFreshAuthSnapshot/);
+      expect(settingsIndex).not.toMatch(/User\.me\(/);
+      expect(settingsIndex).not.toMatch(/User\.refresh\(/);
     });
   });
 });

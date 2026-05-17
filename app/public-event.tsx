@@ -173,7 +173,7 @@ function PublicEventScreen() {
         edges={['top', 'bottom']}
       >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator />
+          <ActivityIndicator color={Colors[colorScheme].tint} />
         </View>
       </SafeAreaView>
     );
@@ -195,7 +195,7 @@ function PublicEventScreen() {
               }}
               style={{ paddingRight: 8 }}
             >
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
         }}
@@ -254,7 +254,7 @@ function PublicEventScreen() {
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator />
+              <ActivityIndicator color={Colors[colorScheme].tint} />
             </View>
           ) : loadError ? (
             <View style={styles.emptyState}>

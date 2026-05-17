@@ -1,7 +1,6 @@
-import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { useShareLink } from '@/hooks/useShareLink';
-import { httpGet } from '@/api/http';
+import { Organization as OrganizationApi } from '@/api/entities';
 import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrganizations';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
@@ -57,7 +56,6 @@ function OrganizationDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [savingQr, setSavingQr] = useState(false);
-  const { apiUrl } = getConfig();
   const seedOrg = useMemo(() => normalizedId ? findSeedOrganization(normalizedId) : null, [normalizedId]);
   const qrCardRef = useRef<ViewShot | null>(null);
 
@@ -72,7 +70,7 @@ function OrganizationDetailScreen() {
           setOrg(seedOrganizationToPayload(seedOrg) as Organization);
           return;
         }
-        const data = await httpGet(`/organizations/${normalizedId}`);
+        const data = await OrganizationApi.get(normalizedId);
         if (!cancelled) setOrg(data);
       } catch (e: any) {
         if (!cancelled) {
@@ -89,7 +87,7 @@ function OrganizationDetailScreen() {
     }
     void load();
     return () => { cancelled = true; };
-  }, [normalizedId, apiUrl, seedOrg]);
+  }, [normalizedId, seedOrg]);
 
   const locationText = org?.formatted_address || org?.location || null;
   const orgName = org?.name || seedOrg?.name || 'Organization';

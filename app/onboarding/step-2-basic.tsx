@@ -22,6 +22,7 @@ import { uploadFile } from '@/api/upload';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getConfig } from '@/config/env';
 import Notifications from '@/utils/notifications';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { BIO_MAX_LENGTH } from '@/utils/formUtils';
 import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
@@ -91,7 +92,7 @@ function SportBallRow() {
 export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { checkAuth, markOnboardingCompleteLocally, registerPushToken } = useAuth();
+  const { user, checkAuth, markOnboardingCompleteLocally, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('other');
@@ -121,13 +122,14 @@ export default function Step2Basic() {
   const serverUsernameRef = useRef<string>('');
   const initialLoadDone = useRef(false);
 
-  // Single User.me() call on focus — handles both email verification check and initial data load.
-  // The 30s client-side cache on User.me() prevents redundant network calls on rapid focus events.
+  // AuthProvider owns the canonical /me snapshot; onboarding asks it for a
+  // fresh view when this screen focuses so verification and profile fields
+  // stay aligned with the active session instead of a parallel client cache.
   useFocusEffect(
     useCallback(() => {
       void (async () => {
         try {
-          const me: any = await User.me();
+          const me: any = await getFreshAuthSnapshot(checkAuth, user);
           setEmailVerified(me?.email_verified ?? null);
 
           // First focus: also load username, zip, DOB, and check availability
@@ -171,7 +173,7 @@ export default function Step2Basic() {
           setEmailVerified(null);
         }
       })();
-    }, [])
+    }, [checkAuth, user])
   );
   useEffect(() => {
     if (ob.affiliation) setAffiliation(ob.affiliation);
@@ -524,7 +526,20 @@ export default function Step2Basic() {
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
         const { decision } = await getFreshPostAuthState(
           () => checkAuth(),
-          () => User.refresh().catch(() => null)
+          undefined,
+          {
+            ...(user || {}),
+            username: finalUsername,
+            onboarding_completed: true,
+            zip_code: zip || user?.zip_code || null,
+            preferences: {
+              ...(user?.preferences || {}),
+              role: 'fan',
+              affiliation,
+              onboarding_completed: true,
+              zip_code: zip || user?.preferences?.zip_code || undefined,
+            },
+          } as any
         );
         router.replace(decision.route as any);
 

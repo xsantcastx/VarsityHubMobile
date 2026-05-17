@@ -161,7 +161,7 @@ function ManageUsersScreen() {
   if (coachLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator style={{ marginTop: 40 }} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }
@@ -182,14 +182,14 @@ function ManageUsersScreen() {
         title: 'Manage Users',
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
-            <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+            <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),
       }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Users</Text>
       <Input placeholder="Search name, email, or team" value={q} onChangeText={setQ} style={{ marginBottom: 10 }} />
-      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
-      {error && !loading && <Text style={{ color: '#b91c1c' }}>{error}</Text>}
+      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator color={Colors[colorScheme].tint} /></View>}
+      {error && !loading && <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }}>{error}</Text>}
       {!error && !loading && filtered.length === 0 && (
         <Text style={{ color: Colors[colorScheme].mutedText }}>No members or pending invites found.</Text>
       )}

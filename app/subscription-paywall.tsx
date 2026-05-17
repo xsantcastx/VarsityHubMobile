@@ -8,9 +8,8 @@
  * Other fallback: Uses Stripe Payment Sheets
  */
 
-import { httpPost } from '@/api/http';
 // @ts-ignore
-import { User } from '@/api/entities';
+import { Payments, User } from '@/api/entities';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
@@ -33,12 +32,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 
 const isIOS = Platform.OS === 'ios';
@@ -47,6 +48,9 @@ function SubscriptionPaywallScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const { checkAuth, user } = useAuth();
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
   const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
@@ -56,9 +60,15 @@ function SubscriptionPaywallScreen() {
 
   // Check if user is a league owner — non-owners cannot purchase
   useEffect(() => {
+    let mounted = true;
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getFreshAuthSnapshot(checkAuth, user);
+        if (!mounted) return;
+        if (!me) {
+          setIsNonOwnerCoach(false);
+          return;
+        }
         const billing = getCanonicalBillingState(me);
         if (billing.pending_plan === 'veteran' || billing.pending_plan === 'legend') {
           setSelectedTier(billing.pending_plan);
@@ -67,13 +77,17 @@ function SubscriptionPaywallScreen() {
         if (me?.paid_by_owner === true) {
           setIsNonOwnerCoach(true);
         }
-      } catch {
-        /* ignore */
+      } catch (error) {
+        if (__DEV__) console.warn('[subscription-paywall] Failed to refresh auth snapshot:', error);
       }
-      setCheckingAccess(false);
+      if (mounted) {
+        setCheckingAccess(false);
+      }
     })();
-  }, []);
-  const { checkAuth } = useAuth();
+    return () => {
+      mounted = false;
+    };
+  }, [checkAuth, user?.id]);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const {
     connected: iapConnected,
@@ -238,7 +252,7 @@ function SubscriptionPaywallScreen() {
         entry: 'subscription_paywall',
         has_promo_code: promoCode.trim().length > 0,
       });
-      const data: any = await httpPost('/payments/create-payment-sheet', {
+      const data: any = await Payments.createPaymentSheet({
         plan: selectedTier,
         promo_code: promoCode.trim() || undefined,
       });
@@ -295,9 +309,7 @@ function SubscriptionPaywallScreen() {
             Alert.alert('Payment Failed', error.message || 'Payment could not be completed.');
           // Clean up: cancel the incomplete PaymentIntent so the subscription doesn't linger
           if (data.payment_intent_id) {
-            httpPost('/payments/cancel-intent', {
-              payment_intent_id: data.payment_intent_id,
-            }).catch(() => {});
+            Payments.cancelIntent(data.payment_intent_id).catch(() => {});
           }
           return;
         }
@@ -429,7 +441,7 @@ function SubscriptionPaywallScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
               >
-                <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+                <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
               </Pressable>
             ),
             headerShown: true,
@@ -479,13 +491,14 @@ function SubscriptionPaywallScreen() {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+              <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
         }}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.contentInner, isLargeScreen ? styles.contentInnerLarge : null]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
@@ -814,6 +827,7 @@ function SubscriptionPaywallScreen() {
             </>
           )}
         </View>
+        </View>
       </ScrollView>
 
       {/* Action Modal */}
@@ -874,6 +888,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 32,
+    alignItems: 'center',
+  },
+  contentInner: {
+    width: '100%',
+  },
+  contentInnerLarge: {
+    maxWidth: 860,
   },
   header: {
     marginBottom: 24,
@@ -899,7 +920,8 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     color: '#DC2626',
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 20,
     textAlign: 'center',
   },
   tierSelector: {
@@ -935,7 +957,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   iapPriceText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
     marginTop: 4,
   },
@@ -1035,7 +1057,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   ctaSubtext: {
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 12,
     textAlign: 'center',
   },
@@ -1045,7 +1068,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   restoreButtonText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
   legalLinksRow: {
@@ -1057,11 +1080,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   legalLinksIntro: {
-    fontSize: 12,
+    fontSize: 14,
+    lineHeight: 20,
     textAlign: 'center',
   },
   legalLinkText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     textDecorationLine: 'underline',
   },

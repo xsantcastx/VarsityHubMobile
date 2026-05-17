@@ -65,6 +65,24 @@ export const eventSchema = z
 
 const eventArraySchema = z.array(eventSchema);
 
+const eventSummarySchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    date: z.string().nullable(),
+    location: z.string().nullable(),
+    event_type: z.string().nullable(),
+    approval_status: z.string().nullable(),
+    status: z.string().nullable(),
+    rejected_reason: z.string().nullable(),
+    created_at: z.string().nullable(),
+    approved_at: z.string().nullable(),
+    description: z.string().nullable(),
+  })
+  .passthrough();
+
+const eventSummaryArraySchema = z.array(eventSummarySchema);
+
 export const eventRsvpRowSchema = z
   .object({
     id: z.string(),
@@ -77,6 +95,8 @@ const eventRsvpArraySchema = z.array(eventRsvpRowSchema);
 
 export type EventResponse = z.infer<typeof eventSchema>;
 export type EventArrayResponse = z.infer<typeof eventArraySchema>;
+export type EventSummaryResponse = z.infer<typeof eventSummarySchema>;
+export type EventSummaryArrayResponse = z.infer<typeof eventSummaryArraySchema>;
 export type EventRsvpRowResponse = z.infer<typeof eventRsvpRowSchema>;
 export type EventRsvpArrayResponse = z.infer<typeof eventRsvpArraySchema>;
 
@@ -114,6 +134,16 @@ export function validateEventArray(endpoint: string, payload: unknown): EventArr
   if (result.success) return result.data;
   reportShapeDrift(endpoint, result, payload);
   return payload as EventArrayResponse;
+}
+
+export function validateEventSummaryArray(
+  endpoint: string,
+  payload: unknown
+): EventSummaryArrayResponse {
+  const result = eventSummaryArraySchema.safeParse(payload);
+  if (result.success) return result.data;
+  reportShapeDrift(endpoint, result, payload);
+  return payload as EventSummaryArrayResponse;
 }
 
 export function validateEventRsvpArray(

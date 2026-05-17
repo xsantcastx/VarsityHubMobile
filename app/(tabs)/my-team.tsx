@@ -477,7 +477,11 @@ function MyTeamScreen() {
   };
 
   if (coachLoading) {
-    return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}><ActivityIndicator style={{ marginTop: 40 }} /></View>;
+    return (
+      <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
+      </View>
+    );
   }
 
   if (!canAccessCoachTools) {
@@ -571,7 +575,7 @@ function MyTeamScreen() {
               {selectedMember?.user.display_name}
             </Text>
             {memberActionLoading ? (
-              <ActivityIndicator style={{ marginVertical: 16 }} />
+              <ActivityIndicator style={{ marginVertical: 16 }} color={Colors[colorScheme].tint} />
             ) : ROLE_OPTIONS.map((role) => {
               const badge = getRoleBadgeColor(role);
               const isActive = selectedMember?.role === role;

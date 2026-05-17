@@ -6,14 +6,12 @@ import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '@/hooks/useUser';
-import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { getLinkedProvidersSnapshot } from '@/utils/authState';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
   const { refresh: refreshUser, user } = useUser(true);
-  const { checkAuth } = useAuth();
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -45,11 +43,10 @@ export default function ResetPasswordScreen() {
     setSaving(true);
     try {
       await auth.changePassword(currentValue, p);
-      // Refresh user data in both useUser hook and AuthProvider
-      await Promise.all([
-        refreshUser().catch((e) => { if (__DEV__) console.warn('[reset-password] User refresh failed:', e); }), // VAL-2
-        checkAuth().catch((e) => { if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e); }), // VAL-2
-      ]);
+      // Refresh the canonical auth snapshot once; useUser reads from AuthProvider.
+      await refreshUser().catch((e) => {
+        if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e);
+      });
       Alert.alert('Password updated', 'Your password has been changed. A confirmation email has been sent to your account.');
       setCurrent('');
       setPassword('');

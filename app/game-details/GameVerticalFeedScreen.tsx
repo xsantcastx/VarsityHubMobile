@@ -34,8 +34,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
 import { Game, Highlights, Post, Report, User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { httpGet } from '@/api/http';
+import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
 import { resolveMediaType } from '@/utils/media';
@@ -235,7 +237,6 @@ const FeedCard = memo(
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
-    const [currentUser, setCurrentUser] = useState<any>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -256,21 +257,8 @@ const FeedCard = memo(
       };
     }, []);
 
-    // Load current user
-    useEffect(() => {
-      const loadUser = async () => {
-        try {
-          const user = await User.me();
-          setCurrentUser(user);
-        } catch (error) {
-          if (__DEV__) console.error('Failed to load user:', error);
-        }
-      };
-      void loadUser();
-    }, []);
-
     // Check if current user is the author of the post
-    const isAuthor = currentUser && post.author?.id && currentUser.id === post.author.id;
+    const isAuthor = Boolean(meInfo?.id && post.author?.id && meInfo.id === post.author.id);
 
     const handleDeletePost = () => {
       setShowDeleteConfirm(true);
@@ -688,6 +676,7 @@ function GameVerticalFeedScreen({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user: authUser, checkAuth } = useAuth();
   const gameId = externalGameId ? String(externalGameId) : gameIdParam ? String(gameIdParam) : null;
   const usingInitial = useMemo(
     () => Array.isArray(initialPosts) && initialPosts.length > 0,
@@ -1250,7 +1239,7 @@ function GameVerticalFeedScreen({
         // Load current user info (for display name) if missing
         if (!meInfo) {
           try {
-            const me: any = await User.me();
+            const me: any = await getAuthSnapshot(checkAuth, authUser);
             setMeInfo({ id: me?.id ? String(me.id) : undefined, username: me?.username ?? null });
           } catch (error: any) {
             if (__DEV__) {
@@ -1270,7 +1259,7 @@ function GameVerticalFeedScreen({
         setCommentsLoading(false);
       }
     },
-    [meInfo]
+    [authUser, checkAuth, meInfo]
   );
 
   const loadMoreComments = useCallback(async () => {
@@ -1398,7 +1387,7 @@ function GameVerticalFeedScreen({
     let cancelled = false;
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getAuthSnapshot(checkAuth, authUser);
         if (!cancelled && me) {
           setMeInfo({
             id: me?.id ? String(me.id) : undefined,
@@ -1414,7 +1403,7 @@ function GameVerticalFeedScreen({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser, checkAuth]);
 
   // Note: We allow missing gameId - the component will load general highlights instead
   // The loadFeed function handles this case gracefully (lines 612-642)
@@ -1566,10 +1555,7 @@ function GameVerticalFeedScreen({
               onEndReachedThreshold={0.4}
               ListFooterComponent={
                 commentsCursor ? (
-                  <ActivityIndicator
-                    color={Colors[colorScheme].tint}
-                    style={{ marginVertical: 12 }}
-                  />
+                  <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 12 }} />
                 ) : null
               }
             />

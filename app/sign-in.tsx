@@ -24,7 +24,7 @@ import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useExistingSessionActions } from '@/hooks/useExistingSessionActions';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { validateEmail } from '@/utils/formUtils';
+import { sanitizeEmail, validateEmail } from '@/utils/formUtils';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
@@ -44,6 +44,7 @@ export default function SignInScreen() {
   const palette = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
 
   const passwordRef = useRef<TextInput>(null);
+  const submitInFlightRef = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,7 +58,7 @@ export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const sessionGuardActive = hasSession;
   const authBusy = loading || googleLoading || appleLoading || signingOut;
-  const emailInvalid = !!error && (!email || !validateEmail(email).valid);
+  const emailInvalid = !!error && (!email || !validateEmail(sanitizeEmail(email)).valid);
   const passwordInvalid = !!error && !password;
 
   const getInputBorderColor = (focused: boolean, invalid: boolean) => {
@@ -114,7 +115,13 @@ export default function SignInScreen() {
     });
 
   const onSubmit = async () => {
-    if (authBusy) return;
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    const sanitizedEmail = sanitizeEmail(email);
+    if (authBusy) {
+      submitInFlightRef.current = false;
+      return;
+    }
     // Same boundary as Google + Apple OAuth (handleGoogleLogin / handleAppleLogin).
     // Without this, a signed-in user could submit credentials for a different
     // account and effectively switch silently — local state would replace
@@ -124,15 +131,18 @@ export default function SignInScreen() {
     // server-side push_token of the outgoing account.
     if (sessionGuardActive) {
       setError('Sign out before signing in to a different account on this device.');
+      submitInFlightRef.current = false;
       return;
     }
-    if (!email || !password) {
+    if (!sanitizedEmail || !password) {
       setError('Please enter email and password');
+      submitInFlightRef.current = false;
       return;
     }
-    const emailCheck = validateEmail(email);
+    const emailCheck = validateEmail(sanitizedEmail);
     if (!emailCheck.valid) {
       setError(emailCheck.error || 'Please enter a valid email address');
+      submitInFlightRef.current = false;
       return;
     }
     setLoading(true);
@@ -142,7 +152,7 @@ export default function SignInScreen() {
       has_email: !!email.trim(),
     });
     try {
-      const res: any = await User.loginViaEmailPassword(email, password);
+      const res: any = await User.loginViaEmailPassword(sanitizedEmail, password);
 
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
@@ -158,7 +168,7 @@ export default function SignInScreen() {
           method: 'email',
         });
         try {
-          await checkAuth({ email, pendingVerification: true });
+          await checkAuth({ email: sanitizedEmail, pendingVerification: true });
         } catch (authError) {
           // Token is saved, AuthProvider will handle routing on next render
           // eslint-disable-next-line no-console
@@ -234,17 +244,25 @@ export default function SignInScreen() {
       );
     } finally {
       setLoading(false);
+      submitInFlightRef.current = false;
     }
   };
 
   const handleGoogleLogin = async () => {
-    if (authBusy) return;
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    if (authBusy) {
+      submitInFlightRef.current = false;
+      return;
+    }
     if (sessionGuardActive) {
       setError('Sign out before using a different Google account on this device.');
+      submitInFlightRef.current = false;
       return;
     }
     if (!googleReady) {
       setError('Google sign in is not configured yet.');
+      submitInFlightRef.current = false;
       return;
     }
     setError(null);
@@ -319,17 +337,26 @@ export default function SignInScreen() {
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'google-signin' } }
       );
+    } finally {
+      submitInFlightRef.current = false;
     }
   };
 
   const handleAppleLogin = async () => {
-    if (authBusy) return;
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    if (authBusy) {
+      submitInFlightRef.current = false;
+      return;
+    }
     if (sessionGuardActive) {
       setError('Sign out before using a different Apple account on this device.');
+      submitInFlightRef.current = false;
       return;
     }
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
+      submitInFlightRef.current = false;
       return;
     }
     // Race guard: useAppleAuth seeds `available` as false and resolves it
@@ -339,6 +366,7 @@ export default function SignInScreen() {
     // later. Mirrors the existing guard in sign-up.tsx.
     if (!appleReady) {
       setError('Apple sign in is still initializing. Please try again in a moment.');
+      submitInFlightRef.current = false;
       return;
     }
     setError(null);
@@ -417,6 +445,8 @@ export default function SignInScreen() {
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'apple-signin' } }
       );
+    } finally {
+      submitInFlightRef.current = false;
     }
   };
 

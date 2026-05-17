@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -28,10 +29,11 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Event, Game, Team as TeamAPI, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
-import { getApiBaseUrl, httpGet } from '@/api/http';
+import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { sanitizeText } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import MatchBanner from './components/MatchBanner';
 import AppearancePicker, { AppearancePreset } from './components/AppearancePicker';
@@ -124,6 +126,7 @@ type EventCreatePayload = {
 function CreateFanEventScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const { user: authUser, checkAuth } = useAuth();
 
   // Detect user role to differentiate Pitch Event (fan) vs Create Event (coach)
   const [userRole, setUserRole] = useState<string>('fan');
@@ -133,8 +136,8 @@ function CreateFanEventScreen() {
   const eventLimitReached = userRole !== 'coach' && pendingEventCount !== null && pendingEventCount >= 3;
 
   useEffect(() => {
-    User.me()
-      .then((u: MeResponse) => {
+    getFreshAuthSnapshot(checkAuth, authUser)
+      .then((u: MeResponse | null) => {
         const coachAccess = getCoachAccessState(u);
         const canCreateCoachEvents = coachAccess.isApprovedCoach && coachAccess.onboardingCompleted;
         setUserRole(canCreateCoachEvents ? 'coach' : 'fan');
@@ -148,7 +151,7 @@ function CreateFanEventScreen() {
         setRoleError(true);
       });
     // Pre-check pending event count so we can warn before form fill
-    httpGet('/events/my-events')
+    Event.mine()
       .then((events: MyEventSummary[]) => {
         if (Array.isArray(events)) {
           const pending = events.filter((event) => event.approval_status === 'pending').length;
@@ -159,7 +162,7 @@ function CreateFanEventScreen() {
         // If count check fails, allow creation — server enforces the real limit
         setPendingEventCount(0);
       });
-  }, []);
+  }, [authUser, checkAuth]);
   const isCoach = userRole === 'coach';
 
   // Load followed teams
@@ -172,7 +175,7 @@ function CreateFanEventScreen() {
       try {
         setTeamsLoading(true);
         setTeamsError(false);
-        const teams = await httpGet('/follows/teams?user_id=me');
+        const teams = await TeamAPI.followed();
         setRawTeams(Array.isArray(teams) ? (teams as FollowedTeam[]) : []);
       } catch (error: unknown) {
         if (__DEV__) console.warn('[CreateFanEvent] Failed to load followed teams:', error);

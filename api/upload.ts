@@ -2,7 +2,12 @@ import { compressImageForUpload } from '@/utils/ensureUploadableUri';
 import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import auth from './auth';
-import { getApiBaseUrl } from './http';
+import {
+  getAccessTokenForRequest,
+  getApiBaseUrl,
+  refreshAccessTokenWithCache,
+  type RefreshOutcome,
+} from './http';
 
 function computeBase(provided?: string | null) {
   if (provided) return provided.replace(/\/$/, '');
@@ -46,17 +51,6 @@ interface UploadFetchConfig {
   coerceFinal401ToUnauthorized?: boolean;
 }
 
-async function resolveUploadToken(): Promise<string | null> {
-  const fromSession = await auth.getToken();
-  if (fromSession) return fromSession;
-  try {
-    const refreshed = await auth.refreshToken();
-    return refreshed?.accessToken ?? null;
-  } catch {
-    return null;
-  }
-}
-
 const MIME_MAP: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
   webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
@@ -95,19 +89,55 @@ function buildUploadNetworkError(error: any, coerceFinal401ToUnauthorized = fals
   if (coerceFinal401ToUnauthorized && error?.status === 401) {
     const unauthorized: any = new Error('Unauthorized');
     unauthorized.status = 401;
+    if (error?.isSessionExpired === true) unauthorized.isSessionExpired = true;
+    if (error?.isTransientAuthError === true) unauthorized.isTransientAuthError = true;
     return unauthorized;
   }
   return error;
 }
 
 async function resolveUploadHeaders(): Promise<Record<string, string>> {
-  const token = await resolveUploadToken();
+  const token = await getAccessTokenForRequest({ allowRefresh: true });
   if (!token) {
     const err: any = new Error('Unauthorized');
     err.status = 401;
     throw err;
   }
   return { Authorization: `Bearer ${token}` };
+}
+
+function buildTransientUploadAuthError(refreshResult: RefreshOutcome): Error {
+  const transientAuthErr: any = new Error(
+    'Unable to refresh session right now. Please try again.'
+  );
+  transientAuthErr.status = 503;
+  transientAuthErr.isTransientAuthError = true;
+  transientAuthErr.refreshFailureReason = refreshResult.reason;
+  transientAuthErr.originalError =
+    refreshResult && 'error' in refreshResult ? refreshResult.error : undefined;
+  return transientAuthErr;
+}
+
+async function applyRefreshResultToUploadBoundary(
+  refreshResult: RefreshOutcome,
+  headers: Record<string, string>,
+  error?: any
+): Promise<boolean> {
+  if (refreshResult?.accessToken) {
+    headers.Authorization = `Bearer ${refreshResult.accessToken}`;
+    return true;
+  }
+
+  if (refreshResult?.reason === 'auth' || refreshResult?.reason === 'missing') {
+    await auth.clearTokensOnly();
+    if (error) error.isSessionExpired = true;
+    emitSessionExpired(
+      refreshResult.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+    );
+    return false;
+  }
+
+  throw buildTransientUploadAuthError(refreshResult);
 }
 
 async function handleUploadAccessBoundary(
@@ -118,16 +148,8 @@ async function handleUploadAccessBoundary(
 ): Promise<boolean> {
   if (error?.status === 401 && !refreshAttemptedRef.current) {
     refreshAttemptedRef.current = true;
-    const refreshed = await auth.refreshToken();
-    if (refreshed?.accessToken) {
-      headers.Authorization = `Bearer ${refreshed.accessToken}`;
-      return true;
-    }
-    try { await auth.clearTokensOnly?.(); } catch {}
-    error.isSessionExpired = true;
-    emitSessionExpired(
-      refreshed?.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
-    );
+    const refreshed = await refreshAccessTokenWithCache();
+    return applyRefreshResultToUploadBoundary(refreshed, headers, error);
   }
 
   if (
@@ -137,7 +159,7 @@ async function handleUploadAccessBoundary(
     verificationPromptedRef.current = true;
     const verified = await openVerificationGate();
     if (verified) {
-      const refreshedToken = await resolveUploadToken();
+      const refreshedToken = await getAccessTokenForRequest({ allowRefresh: true });
       if (refreshedToken) {
         headers.Authorization = `Bearer ${refreshedToken}`;
         return true;
@@ -257,7 +279,7 @@ async function getCloudinarySignature(
     return _sigCache.sig;
   }
 
-  let token = await resolveUploadToken();
+  let token = await getAccessTokenForRequest({ allowRefresh: true });
   if (!token) return null;
 
   let refreshAttempted = false;
@@ -268,14 +290,22 @@ async function getCloudinarySignature(
       const res = await fetch(buildUploadUrl(`${baseUrl}/uploads/cloudinary-signature`, options?.formFields), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        if (res.status === 401 && !refreshAttempted) {
-          refreshAttempted = true;
-          const refreshed = await auth.refreshToken();
-          token = refreshed?.accessToken ?? null;
-          if (token) continue;
-        }
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          if (res.status === 401 && !refreshAttempted) {
+            refreshAttempted = true;
+            const refreshed = await refreshAccessTokenWithCache();
+            token = refreshed?.accessToken ?? null;
+            if (token) continue;
+            if (refreshed.reason === 'auth' || refreshed.reason === 'missing') {
+              await auth.clearTokensOnly();
+              emitSessionExpired(
+                refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+              );
+              return null;
+            }
+            throw buildTransientUploadAuthError(refreshed);
+          }
         if (
           isEmailVerificationRequiredError(res.status, data) &&
           !verificationPrompted
@@ -283,7 +313,7 @@ async function getCloudinarySignature(
           verificationPrompted = true;
           const verified = await openVerificationGate();
           if (verified) {
-            token = await resolveUploadToken();
+            token = await getAccessTokenForRequest({ allowRefresh: true });
             if (token) continue;
           }
         }
@@ -506,7 +536,7 @@ export async function uploadFileWithProgress(
   }
 
   const target = buildUploadUrl(`${finalBase}/uploads`, options?.formFields);
-  const token = await resolveUploadToken();
+  const token = await getAccessTokenForRequest({ allowRefresh: true });
   if (!token) {
     const err: any = new Error('Unauthorized');
     err.status = 401;
@@ -523,31 +553,70 @@ export async function uploadFileWithProgress(
     form.append(key, String(value));
   }
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    if (onProgress) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          onProgress(Math.round((event.loaded / event.total) * 100), event.loaded, event.total);
-        }
-      };
-    }
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('Non-JSON response')); }
-      } else {
-        const err: any = new Error(`Upload failed: HTTP ${xhr.status}`);
-        err.status = xhr.status;
-        reject(err);
+  const attemptUpload = async (
+    currentToken: string,
+    refreshAttempted = false
+  ): Promise<any> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      if (onProgress) {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            onProgress(Math.round((event.loaded / event.total) * 100), event.loaded, event.total);
+          }
+        };
       }
-    };
-    xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out'));
-    xhr.timeout = timeoutMs;
-    xhr.open('POST', target);
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    xhr.send(form as any);
-  });
+      xhr.onload = () => {
+        void (async () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error('Non-JSON response'));
+            }
+            return;
+          }
+
+          if (xhr.status === 401 && !refreshAttempted) {
+            try {
+              const refreshed = await refreshAccessTokenWithCache();
+              if (refreshed.accessToken) {
+                resolve(await attemptUpload(refreshed.accessToken, true));
+                return;
+              }
+              if (refreshed.reason === 'auth' || refreshed.reason === 'missing') {
+                await auth.clearTokensOnly();
+                const sessionErr: any = new Error('Unauthorized');
+                sessionErr.status = 401;
+                sessionErr.isSessionExpired = true;
+                emitSessionExpired(
+                  refreshed.reason === 'missing' ? 'refresh_missing' : 'refresh_failed'
+                );
+                reject(sessionErr);
+                return;
+              }
+              reject(buildTransientUploadAuthError(refreshed));
+              return;
+            } catch (error) {
+              reject(error);
+              return;
+            }
+          }
+
+          const err: any = new Error(`Upload failed: HTTP ${xhr.status}`);
+          err.status = xhr.status;
+          reject(err);
+        })();
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.ontimeout = () => reject(new Error('Upload timed out'));
+      xhr.timeout = timeoutMs;
+      xhr.open('POST', target);
+      xhr.setRequestHeader('Authorization', `Bearer ${currentToken}`);
+      xhr.send(form as any);
+    });
+
+  return attemptUpload(token);
 }
 
 // -----------------------------------------------

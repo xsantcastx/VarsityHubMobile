@@ -31,9 +31,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore
 import { Post as PostApi, User, Report } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { useAuth } from '@/context/AuthProvider';
 import { useShareLink } from '@/hooks/useShareLink';
 import { usePostCache } from '@/context/PostCacheContext';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
+import { getAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -68,6 +70,7 @@ export default function PostDetailScreen() {
   const postCache = usePostCache();
   const { edgeSwipeGesture } = useEdgeSwipeBack();
   const insets = useSafeAreaInsets();
+  const { user: authUser, checkAuth } = useAuth();
 
   // Parse params for multi-post navigation
   const postIdsArray = useMemo(() => {
@@ -330,7 +333,7 @@ export default function PostDetailScreen() {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const user = await User.me();
+        const user = await getAuthSnapshot(checkAuth, authUser);
         setCurrentUser(user);
       } catch (error) {
         if (__DEV__) console.warn('[post-detail] Failed to load current user:', error);
@@ -338,7 +341,7 @@ export default function PostDetailScreen() {
       }
     };
     void loadUser();
-  }, []);
+  }, [authUser, checkAuth]);
 
   const load = useCallback(
     async (postId?: string, showLoading = true) => {

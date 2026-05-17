@@ -30,24 +30,42 @@ export function invalidateMeCache() {
   _meCacheTs = 0;
 }
 
+export type FreshInstallCleanupResult = {
+  freshInstall: boolean;
+  ok: boolean;
+  error?: unknown;
+};
+
 /**
  * Clear stale Keychain tokens on fresh install.
  * iOS Keychain persists across app delete/reinstall, but AsyncStorage does not.
  * If the AsyncStorage flag is missing, this is a fresh install and we clear old tokens.
+ *
+ * Fail closed: if cleanup cannot complete, clear in-memory auth state and
+ * return `ok: false` so bootstrap can avoid trusting persisted identity.
  */
-export async function clearStaleTokensOnFreshInstall(): Promise<void> {
-  if (Platform.OS === 'web') return;
+export async function clearStaleTokensOnFreshInstall(): Promise<FreshInstallCleanupResult> {
+  if (Platform.OS === 'web') return { freshInstall: false, ok: true };
+
   try {
     const installed = await AsyncStorage.getItem(FRESH_INSTALL_KEY);
-    if (!installed) {
-      // Fresh install — clear any leftover Keychain tokens from previous install
-      await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
-      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => {});
-      clearAuthToken();
-      await AsyncStorage.setItem(FRESH_INSTALL_KEY, 'true');
+    if (installed) {
+      return { freshInstall: false, ok: true };
     }
-  } catch {
-    // Silently fail — worst case user stays logged in
+
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    clearAuthToken();
+    invalidateMeCache();
+    await AsyncStorage.setItem(FRESH_INSTALL_KEY, 'true');
+    return { freshInstall: true, ok: true };
+  } catch (error) {
+    clearAuthToken();
+    invalidateMeCache();
+    if (__DEV__) {
+      console.warn('[auth] Fresh install token cleanup failed; forcing signed-out bootstrap:', error);
+    }
+    return { freshInstall: true, ok: false, error };
   }
 }
 

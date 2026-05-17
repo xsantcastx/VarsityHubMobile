@@ -39,12 +39,9 @@ export function Button({
   const theme = Colors[colorScheme];
   const vs = getVariantStyles(variant, theme);
   const ss = getSizeStyles(size);
-  const content = React.Children.map(children, child => {
-    if (typeof child === 'string' || typeof child === 'number') {
-      return <Text style={[styles.text, vs.text, ss.text, textStyle]}>{String(child)}</Text>;
-    }
-    return child;
-  });
+  const content = React.Children.map(children, child =>
+    renderButtonChild(child, [styles.text, vs.text, ss.text, textStyle])
+  );
 
   return (
     <Pressable
@@ -57,6 +54,28 @@ export function Button({
       {content}
     </Pressable>
   );
+}
+
+function renderButtonChild(
+  child: React.ReactNode,
+  appliedTextStyle: React.ComponentProps<typeof Text>['style']
+) {
+  if (typeof child === 'string' || typeof child === 'number') {
+    return <Text style={appliedTextStyle}>{String(child)}</Text>;
+  }
+
+  if (!React.isValidElement(child)) {
+    return child;
+  }
+
+  if (child.type === Text) {
+    const textChild = child as React.ReactElement<{ style?: React.ComponentProps<typeof Text>['style'] }>;
+    return React.cloneElement(textChild, {
+      style: [appliedTextStyle, textChild.props.style],
+    });
+  }
+
+  return child;
 }
 
 const styles = StyleSheet.create({

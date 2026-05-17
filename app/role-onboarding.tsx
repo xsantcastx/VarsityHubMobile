@@ -21,6 +21,7 @@ import {
 import { User } from '@/api/entities';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
 import { getCanonicalBillingState } from '@/utils/billingState';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import {
   LEGEND_YEARLY_PRICE_LABEL,
@@ -28,6 +29,7 @@ import {
   VETERAN_MONTHLY_TEAM_PRICE_LABEL,
 } from '@/constants/plans';
 import { getCoachUpgradeCta } from '@/utils/coachUpgradeCta';
+import { useAuth } from '@/context/AuthProvider';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -43,6 +45,7 @@ type CoachTier = 'rookie' | 'veteran' | 'legend';
 function RoleOnboardingScreenInner() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user, checkAuth } = useAuth();
   const { setState: setOB } = useOnboarding();
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [coachTier, setCoachTier] = useState<CoachTier | null>(null);
@@ -63,7 +66,7 @@ function RoleOnboardingScreenInner() {
   useEffect(() => {
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getFreshAuthSnapshot(checkAuth, user);
         const userRole = getCanonicalCoachRole(me);
         const billing = getCanonicalBillingState(me);
         const resolvedCoachTier = billing.selected_plan as CoachTier;
@@ -103,7 +106,7 @@ function RoleOnboardingScreenInner() {
         setShowAccountSelection(true);
       }
     })();
-  }, []);
+  }, [checkAuth, user]);
 
   const validateZipCode = (zip: string): boolean => {
     // Global postal codes: 3-10 alphanumeric characters (with optional spaces/hyphens)
@@ -130,7 +133,7 @@ function RoleOnboardingScreenInner() {
     try {
       logTelemetry('zip-save-attempt');
       await User.updatePreferences({ zip_code: trimmedZip });
-      const fresh = await User.refresh();
+      const fresh = await getFreshAuthSnapshot(checkAuth, user);
       const savedZip = String(fresh?.preferences?.zip_code || fresh?.zip_code || '').trim();
       if (savedZip !== trimmedZip) {
         throw new Error('Saved ZIP code did not round-trip from the server.');
@@ -206,10 +209,10 @@ function RoleOnboardingScreenInner() {
         e?.data?.code === 'COACH_REAPPLICATION_REQUIRED' ||
         e?.data?.code === 'COACH_ALREADY_APPROVED'
       ) {
-        const fresh = (await User.refresh().catch(() => null)) as any;
-        const nextCta = getCoachUpgradeCta({
-          ...fresh,
-          role: fresh?.preferences?.role || fresh?.role || null,
+      const fresh = (await getFreshAuthSnapshot(checkAuth, user).catch(() => null)) as any;
+      const nextCta = getCoachUpgradeCta({
+        ...fresh,
+        role: fresh?.preferences?.role || fresh?.role || null,
           preferences: fresh?.preferences || {},
         });
         if (nextCta?.route) {

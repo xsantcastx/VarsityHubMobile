@@ -166,7 +166,7 @@ function ManageTeamsSimpleScreen() {
   if (coachLoading || !canAccessCoachTools) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator style={{ marginTop: 40 }} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }
@@ -175,7 +175,7 @@ function ManageTeamsSimpleScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" />
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
         </View>
       </SafeAreaView>
     );
@@ -242,7 +242,7 @@ function ManageTeamsSimpleScreen() {
               borderColor: colorScheme === 'dark' ? 'rgba(52,211,153,0.35)' : '#6EE7B7',
             },
           ]}
-          onPress={() => void router.push('/subscription-paywall')}
+          onPress={() => void router.push('/settings/manage-subscription')}
         >
           <MaterialIcons
             name="check-circle"

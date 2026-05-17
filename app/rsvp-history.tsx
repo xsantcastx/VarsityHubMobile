@@ -124,11 +124,11 @@ function RsvpHistoryScreen() {
       </View>
 
       <Text style={[styles.header, { color: Colors[colorScheme].text }]}>Upcoming</Text>
-      {loading && <View style={{ paddingVertical: 10 }}><ActivityIndicator /></View>}
+      {loading && <View style={{ paddingVertical: 10 }}><ActivityIndicator color={Colors[colorScheme].tint} /></View>}
       {error && !loading && (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Text style={{ color: '#ff4444', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
-          <TouchableOpacity onPress={() => { setError(null); void loadRsvps(); }} style={{ backgroundColor: '#1e3a5f', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
+          <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+          <TouchableOpacity onPress={() => { setError(null); void loadRsvps(); }} style={{ backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
           </TouchableOpacity>
         </View>

@@ -7,6 +7,7 @@
  *   APP_REVIEW_PASSWORD='...' \
  *   npm --prefix server run verify:app-review
  */
+import type { Server } from 'node:http';
 import {
   APP_REVIEW_AD_NAME,
   APP_REVIEW_EMAIL,
@@ -45,6 +46,7 @@ const PASSWORD = String(
 ).trim();
 
 const results: StepResult[] = [];
+let embeddedLocalServer: Server | null = null;
 
 function record(step: string, ok: boolean, status?: number, detail?: string) {
   results.push({ step, ok, status, detail });
@@ -79,6 +81,68 @@ async function api<T = any>(
   return { status: res.status, data };
 }
 
+function isLocalBaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+function getBaseUrlAddress(url: string): { hostname: string; port: number } {
+  const parsed = new URL(url);
+  return {
+    hostname: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80,
+  };
+}
+
+async function isBaseUrlReachable(url: string): Promise<boolean> {
+  try {
+    await fetch(`${url}/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(1500),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureLocalServer() {
+  if (!isLocalBaseUrl(BASE_URL)) return;
+  if (await isBaseUrlReachable(BASE_URL)) return;
+
+  const { hostname, port } = getBaseUrlAddress(BASE_URL);
+  process.env.NODE_ENV = 'test';
+  const { app } = await import('../src/testApp.js');
+
+  await new Promise<void>((resolve, reject) => {
+    const server = app.listen(port, hostname, () => {
+      embeddedLocalServer = server;
+      resolve();
+    });
+    server.on('error', reject);
+  });
+
+  console.log(
+    `[app-review-verify] Started embedded local API on ${hostname}:${port} for localhost verification.`
+  );
+}
+
+async function shutdownEmbeddedLocalServer() {
+  if (!embeddedLocalServer) return;
+  const server = embeddedLocalServer;
+  embeddedLocalServer = null;
+  await new Promise<void>((resolve, reject) => {
+    server.close(err => {
+      if (err) reject(err);
+      else resolve();
+    });
+  }).catch(() => {});
+}
+
 function requirePassword() {
   if (!PASSWORD) {
     throw new Error('Missing APP_REVIEW_PASSWORD');
@@ -95,119 +159,128 @@ function requireLogin(body: LoginBody): { accessToken: string; refreshToken: str
 }
 
 async function main() {
-  requirePassword();
+  try {
+    await ensureLocalServer();
+    requirePassword();
 
-  const login = await api<LoginBody>('POST', '/auth/login', {
-    email: APP_REVIEW_EMAIL,
-    password: PASSWORD,
-  });
-  if (login.status !== 200) {
-    record('login', false, login.status, 'review account login failed');
-    process.exit(1);
+    const login = await api<LoginBody>('POST', '/auth/login', {
+      email: APP_REVIEW_EMAIL,
+      password: PASSWORD,
+    });
+    if (login.status !== 200) {
+      record('login', false, login.status, 'review account login failed');
+      return 1;
+    }
+
+    const { accessToken, refreshToken } = requireLogin(login.data as LoginBody);
+    record('login', true, login.status);
+
+    const meRes = await api<MeBody>('GET', '/auth/me', undefined, accessToken);
+    if (meRes.status !== 200) {
+      record('auth/me', false, meRes.status, 'unexpected /auth/me response');
+      return 1;
+    }
+    record('auth/me', true, meRes.status);
+
+    const me = (meRes.data || {}) as MeBody;
+    const meChecks: Array<{ step: string; ok: boolean; detail?: string }> = [
+      {
+        step: 'review role coach',
+        ok: String(me.role || '').toLowerCase() === 'coach',
+        detail: `role=${String(me.role || '')}`,
+      },
+      {
+        step: 'review approval approved',
+        ok: String(me.approval_status || '').toUpperCase() === 'APPROVED',
+        detail: `approval_status=${String(me.approval_status || '')}`,
+      },
+      {
+        step: 'review email verified',
+        ok: me.email_verified === true,
+        detail: `email_verified=${String(me.email_verified)}`,
+      },
+      {
+        step: 'review onboarding complete',
+        ok: me.onboarding_completed === true,
+        detail: `onboarding_completed=${String(me.onboarding_completed)}`,
+      },
+      {
+        step: 'review organization attached',
+        ok: Boolean(String(me.organization_id || '').trim()),
+        detail: `organization_id=${String(me.organization_id || '')}`,
+      },
+      {
+        step: 'review not proceeding as fan',
+        ok: me.proceeding_as_fan !== true,
+        detail: `proceeding_as_fan=${String(me.proceeding_as_fan)}`,
+      },
+      {
+        step: 'review plan rookie',
+        ok: String(me.plan || '').toLowerCase() === APP_REVIEW_PLAN,
+        detail: `plan=${String(me.plan || '')}`,
+      },
+      {
+        step: 'review subscription tier free',
+        ok: String(me.subscription_tier || '').toLowerCase() === APP_REVIEW_SUBSCRIPTION_TIER,
+        detail: `subscription_tier=${String(me.subscription_tier || '')}`,
+      },
+      {
+        step: 'review not owner-paid',
+        ok: me.paid_by_owner !== true,
+        detail: `paid_by_owner=${String(me.paid_by_owner)}`,
+      },
+    ];
+
+    for (const check of meChecks) {
+      record(check.step, check.ok, meRes.status, check.ok ? undefined : check.detail);
+    }
+
+    const paymentsConfig = await api<any>('GET', '/payments/config', undefined, accessToken);
+    const paymentsReady =
+      paymentsConfig.status === 200 &&
+      Boolean((paymentsConfig.data as any)?.payments_enabled) &&
+      typeof (paymentsConfig.data as any)?.stripe_publishable_key === 'string';
+    record(
+      'payments config reachable',
+      paymentsReady,
+      paymentsConfig.status,
+      paymentsReady ? undefined : 'payments/config missing readiness fields'
+    );
+
+    const eventsPending = await api<any>('GET', '/events/pending', undefined, accessToken);
+    record('events pending route', eventsPending.status === 200, eventsPending.status);
+
+    const managedTeams = await api<any>('GET', '/teams/managed', undefined, accessToken);
+    record('teams managed route', managedTeams.status === 200, managedTeams.status);
+
+    const myAds = await api<any>('GET', '/ads?mine=1', undefined, accessToken);
+    const adVisible =
+      myAds.status === 200 &&
+      Array.isArray(myAds.data) &&
+      myAds.data.some((ad: any) => String(ad?.business_name || '') === APP_REVIEW_AD_NAME);
+    record(
+      'review ad visible',
+      adVisible,
+      myAds.status,
+      adVisible ? undefined : `expected ${APP_REVIEW_AD_NAME}`
+    );
+
+    const logout = await api<any>('POST', '/auth/logout', { refresh_token: refreshToken });
+    record('logout', logout.status === 200 && (logout.data as any)?.ok === true, logout.status);
+
+    return results.every(result => result.ok) ? 0 : 1;
+  } finally {
+    await shutdownEmbeddedLocalServer();
   }
-
-  const { accessToken, refreshToken } = requireLogin(login.data as LoginBody);
-  record('login', true, login.status);
-
-  const meRes = await api<MeBody>('GET', '/auth/me', undefined, accessToken);
-  if (meRes.status !== 200) {
-    record('auth/me', false, meRes.status, 'unexpected /auth/me response');
-    process.exit(1);
-  }
-  record('auth/me', true, meRes.status);
-
-  const me = (meRes.data || {}) as MeBody;
-  const meChecks: Array<{ step: string; ok: boolean; detail?: string }> = [
-    {
-      step: 'review role coach',
-      ok: String(me.role || '').toLowerCase() === 'coach',
-      detail: `role=${String(me.role || '')}`,
-    },
-    {
-      step: 'review approval approved',
-      ok: String(me.approval_status || '').toUpperCase() === 'APPROVED',
-      detail: `approval_status=${String(me.approval_status || '')}`,
-    },
-    {
-      step: 'review email verified',
-      ok: me.email_verified === true,
-      detail: `email_verified=${String(me.email_verified)}`,
-    },
-    {
-      step: 'review onboarding complete',
-      ok: me.onboarding_completed === true,
-      detail: `onboarding_completed=${String(me.onboarding_completed)}`,
-    },
-    {
-      step: 'review organization attached',
-      ok: Boolean(String(me.organization_id || '').trim()),
-      detail: `organization_id=${String(me.organization_id || '')}`,
-    },
-    {
-      step: 'review not proceeding as fan',
-      ok: me.proceeding_as_fan !== true,
-      detail: `proceeding_as_fan=${String(me.proceeding_as_fan)}`,
-    },
-    {
-      step: 'review plan rookie',
-      ok: String(me.plan || '').toLowerCase() === APP_REVIEW_PLAN,
-      detail: `plan=${String(me.plan || '')}`,
-    },
-    {
-      step: 'review subscription tier free',
-      ok: String(me.subscription_tier || '').toLowerCase() === APP_REVIEW_SUBSCRIPTION_TIER,
-      detail: `subscription_tier=${String(me.subscription_tier || '')}`,
-    },
-    {
-      step: 'review not owner-paid',
-      ok: me.paid_by_owner !== true,
-      detail: `paid_by_owner=${String(me.paid_by_owner)}`,
-    },
-  ];
-
-  for (const check of meChecks) {
-    record(check.step, check.ok, meRes.status, check.ok ? undefined : check.detail);
-  }
-
-  const paymentsConfig = await api<any>('GET', '/payments/config', undefined, accessToken);
-  const paymentsReady =
-    paymentsConfig.status === 200 &&
-    Boolean((paymentsConfig.data as any)?.payments_enabled) &&
-    typeof (paymentsConfig.data as any)?.stripe_publishable_key === 'string';
-  record(
-    'payments config reachable',
-    paymentsReady,
-    paymentsConfig.status,
-    paymentsReady ? undefined : 'payments/config missing readiness fields'
-  );
-
-  const eventsPending = await api<any>('GET', '/events/pending', undefined, accessToken);
-  record('events pending route', eventsPending.status === 200, eventsPending.status);
-
-  const managedTeams = await api<any>('GET', '/teams/managed', undefined, accessToken);
-  record('teams managed route', managedTeams.status === 200, managedTeams.status);
-
-  const myAds = await api<any>('GET', '/ads?mine=1', undefined, accessToken);
-  const adVisible =
-    myAds.status === 200 &&
-    Array.isArray(myAds.data) &&
-    myAds.data.some((ad: any) => String(ad?.business_name || '') === APP_REVIEW_AD_NAME);
-  record(
-    'review ad visible',
-    adVisible,
-    myAds.status,
-    adVisible ? undefined : `expected ${APP_REVIEW_AD_NAME}`
-  );
-
-  const logout = await api<any>('POST', '/auth/logout', { refresh_token: refreshToken });
-  record('logout', logout.status === 200 && (logout.data as any)?.ok === true, logout.status);
-
-  const ok = results.every(result => result.ok);
-  if (!ok) process.exit(1);
 }
 
 main().catch(error => {
   record('fatal', false, undefined, error instanceof Error ? error.message : String(error));
+  void shutdownEmbeddedLocalServer();
   console.error('[app-review-verify] fatal:', error);
   process.exit(1);
+}).then(code => {
+  if (typeof code === 'number') {
+    process.exit(code);
+  }
 });

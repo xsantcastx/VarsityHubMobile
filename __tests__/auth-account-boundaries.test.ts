@@ -60,6 +60,18 @@ describe('account boundary invariants', () => {
       expect(authProvider).toMatch(/previousUserId\s*!==\s*me\.id/);
       expect(authProvider).toMatch(/await clearUserScopedStorage\(\)/);
     });
+
+    it('fresh-install cleanup returns a status object so bootstrap can fail closed', () => {
+      expect(authApi).toMatch(/export type FreshInstallCleanupResult/);
+      expect(authApi).toMatch(/return \{ freshInstall: true, ok: false, error \}/);
+      expect(authApi).toMatch(/Fresh install token cleanup failed; forcing signed-out bootstrap/);
+    });
+
+    it('AuthProvider skips persisted-session bootstrap when fresh-install cleanup fails', () => {
+      expect(authProvider).toMatch(/freshInstallCleanup\?\.ok === false/);
+      expect(authProvider).toMatch(/fresh_install_token_cleanup_failed/);
+      expect(authProvider).toMatch(/skipping persisted-session bootstrap/);
+    });
   });
 
   describe('Sign-in and sign-up routing', () => {
@@ -71,7 +83,7 @@ describe('account boundary invariants', () => {
 
     it('sign-in branches on needs_verification before normal post-login routing', () => {
       expect(signIn).toMatch(/if\s*\(res\?\.needs_verification\)/);
-      expect(signIn).toMatch(/checkAuth\(\{\s*email,\s*pendingVerification:\s*true\s*\}\)/);
+      expect(signIn).toMatch(/checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/);
     });
 
     it('server auth responses keep platform admin in is_admin instead of rewriting role to admin', () => {
@@ -90,6 +102,14 @@ describe('account boundary invariants', () => {
 
     it('sign-in uses replaceSession when completing a new login', () => {
       expect(signIn).toMatch(/checkAuth\(\{\s*replaceSession:\s*true\s*\}\)/);
+    });
+
+    it('sign-in synchronously guards duplicate auth submissions and sanitizes email before login', () => {
+      expect(signIn).toMatch(/submitInFlightRef/);
+      expect(signIn).toMatch(/if \(submitInFlightRef\.current\) return;/);
+      expect(signIn).toMatch(/const sanitizedEmail = sanitizeEmail\(email\)/);
+      expect(signIn).toMatch(/loginViaEmailPassword\(sanitizedEmail,\s*password\)/);
+      expect(signIn).toMatch(/checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/);
     });
 
     it('sign-up uses replaceSession when completing OAuth account creation', () => {

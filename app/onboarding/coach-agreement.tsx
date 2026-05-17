@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { getCoachAgreementRouteDecision } from '@/utils/appRouteDecisions';
 import { safeGoBack } from '@/utils/navigation';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import type { CoachUserLike } from '@/utils/roleChecks';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -23,7 +24,7 @@ function CoachAgreementScreen() {
   const C = Colors[colorScheme];
   const isDark = colorScheme === 'dark';
   const router = useRouter();
-  const { checkAuth } = useAuth();
+  const { checkAuth, user } = useAuth();
   const params = useLocalSearchParams<{ redirect?: string; reason?: string }>();
   const [accepting, setAccepting] = useState(false);
   const isOutdatedAgreement = params.reason === 'outdated';
@@ -35,8 +36,7 @@ function CoachAgreementScreen() {
         coach_agreement_accepted_at: new Date().toISOString(),
       });
       // Sync auth state so we have the latest preferences
-      await checkAuth();
-      const me = (await User.me()) as CoachUserLike | null;
+      const me = (await getFreshAuthSnapshot(checkAuth, user)) as CoachUserLike | null;
       const decision = me
         ? getCoachAgreementRouteDecision(me, params.redirect)
         : { route: '/onboarding/step-3-league', params: undefined };

@@ -55,10 +55,18 @@ function AdminMetricsScreen() {
   );
 
   if (adminLoading) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></SafeAreaView>;
+    return (
+      <SafeAreaView style={[styles.centerState, { backgroundColor: palette.background }]}>
+        <ActivityIndicator color={palette.tint} />
+      </SafeAreaView>
+    );
   }
   if (!isAdmin) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Admin access required</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={[styles.centerState, { backgroundColor: palette.background }]}>
+        <Text style={{ color: palette.text }}>Admin access required</Text>
+      </SafeAreaView>
+    );
   }
 
   const StatCard = ({ title, total, recent, color, icon }: { title: string; total: number; recent: number; color: string; icon: string }) => {
@@ -109,7 +117,7 @@ function AdminMetricsScreen() {
         headerTintColor: palette.text,
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-            <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+            <MaterialIcons name="chevron-left" size={28} color={palette.tint} />
           </Pressable>
         ),
       }} />
@@ -137,10 +145,10 @@ function AdminMetricsScreen() {
         </View>
 
         {loading ? (
-          <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator size="large" /></View>
+          <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator size="large" color={palette.tint} /></View>
         ) : error ? (
           <View style={{ padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: '#EF4444', fontWeight: '600' }}>{error}</Text>
+            <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626', fontWeight: '600' }}>{error}</Text>
             <Pressable style={[styles.retryBtn, { backgroundColor: palette.tint }]} onPress={() => void loadMetrics()}>
               <Text style={{ color: 'white', fontWeight: '700' }}>Retry</Text>
             </Pressable>
@@ -231,6 +239,7 @@ function AdminMetricsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   rangeRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   rangeChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   sectionTitle: { fontWeight: '800', fontSize: 16, marginBottom: 10 },

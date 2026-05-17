@@ -11,6 +11,7 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   useColorScheme,
 } from 'react-native';
@@ -52,6 +53,8 @@ function statusColor(status: string, isDark: boolean): string {
 export default function BillingHistory() {
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 768;
   const router = useRouter();
   const [rows, setRows] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,11 +85,13 @@ export default function BillingHistory() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { borderBottomColor: isDark ? '#1F2937' : '#E5E7EB' }]}>
-        <Pressable onPress={() => safeGoBack(router)} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back">
-          <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
-        </Pressable>
-        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Billing History</Text>
-        <View style={{ width: 28 }} />
+        <View style={[styles.headerInner, isLargeScreen ? styles.headerInnerLarge : null]}>
+          <Pressable onPress={() => safeGoBack(router)} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back">
+            <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Billing History</Text>
+          <View style={{ width: 28 }} />
+        </View>
       </View>
 
       {loading ? (
@@ -113,7 +118,10 @@ export default function BillingHistory() {
           data={rows}
           keyExtractor={(r) => r.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}
-          contentContainerStyle={{ paddingVertical: 8 }}
+          contentContainerStyle={[
+            styles.listContent,
+            isLargeScreen ? styles.listContentLarge : null,
+          ]}
           renderItem={({ item }) => (
             <View style={[styles.row, { borderBottomColor: isDark ? '#1F2937' : '#F3F4F6' }]}>
               <View style={{ flex: 1 }}>
@@ -144,15 +152,24 @@ export default function BillingHistory() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerInnerLarge: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
   },
   backBtn: { width: 28, alignItems: 'flex-start' },
   title: { fontSize: 18, fontWeight: '700' },
+  listContent: { paddingVertical: 8 },
+  listContentLarge: { width: '100%', maxWidth: 760, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   errorText: { fontSize: 14, textAlign: 'center', marginBottom: 12 },
   retryBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
@@ -168,8 +185,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowType: { fontSize: 15, fontWeight: '600' },
-  rowDate: { fontSize: 12, marginTop: 2 },
-  rowPromo: { fontSize: 12, marginTop: 4 },
+  rowDate: { fontSize: 13, marginTop: 2 },
+  rowPromo: { fontSize: 13, marginTop: 4 },
   rowAmount: { fontSize: 15, fontWeight: '700' },
-  rowStatus: { fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 },
+  rowStatus: { fontSize: 12, fontWeight: '700', marginTop: 4, letterSpacing: 0.4 },
 });

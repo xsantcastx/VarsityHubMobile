@@ -4,6 +4,15 @@ export type LinkedProvidersSnapshot = {
   apple: boolean;
 };
 
+type AuthCheckFn<T> =
+  | ((options?: {
+      email?: string;
+      pendingVerification?: boolean;
+      replaceSession?: boolean;
+      skipSubscriptionRefresh?: boolean;
+    }) => Promise<T | null | undefined>)
+  | undefined;
+
 type AuthStateLike = {
   has_password?: boolean | null;
   google_id?: string | null;
@@ -106,11 +115,7 @@ export function isApprovedCoach(source: AuthStateLike | null | undefined): boole
  * screens do not each invent their own `/me` refresh policy.
  */
 export async function getAuthSnapshot<T>(
-  checkAuth: ((options?: {
-    email?: string;
-    pendingVerification?: boolean;
-    replaceSession?: boolean;
-  }) => Promise<T | null | undefined>) | undefined,
+  checkAuth: AuthCheckFn<T>,
   currentUser: T | null | undefined
 ): Promise<T | null> {
   if (currentUser != null) {
@@ -120,4 +125,21 @@ export async function getAuthSnapshot<T>(
     return null;
   }
   return (await checkAuth()) ?? null;
+}
+
+/**
+ * Auth-critical screens should prefer an AuthProvider-driven refresh before
+ * falling back to any local snapshot.
+ */
+export async function getFreshAuthSnapshot<T>(
+  checkAuth: AuthCheckFn<T>,
+  currentUser: T | null | undefined
+): Promise<T | null> {
+  if (typeof checkAuth === 'function') {
+    const fresh = await checkAuth({ skipSubscriptionRefresh: true });
+    if (fresh != null) {
+      return fresh;
+    }
+  }
+  return currentUser ?? null;
 }

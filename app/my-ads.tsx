@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
@@ -9,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 import settings from '@/api/settings';
+import { getAuthSnapshot } from '@/utils/authState';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -31,6 +33,7 @@ function MyAdsScreen() {
   const router = useRouter();
   const { payment_success } = useLocalSearchParams<{ payment_success?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<ManagedAd[]>([]);
   const [datesByAd, setDatesByAd] = useState<Record<string, string[]>>({});
@@ -45,7 +48,7 @@ function MyAdsScreen() {
     let mounted = true;
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getAuthSnapshot(checkAuth, authUser);
         if (!mounted) return;
         setUserId(me?.id ? String(me.id) : null);
       } catch {
@@ -58,7 +61,7 @@ function MyAdsScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [authUser, checkAuth]);
 
   const getLocalAdsKey = useCallback(() => {
     const base = settings.SETTINGS_KEYS.LOCAL_ADS;

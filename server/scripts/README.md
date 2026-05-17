@@ -51,6 +51,7 @@ node scripts/stripe/create_stripe_prices.js
   - Confirms `approval_status=APPROVED` is sufficient for coach route access
   - Catches stale blocked `account_state` / `next_step` values on approved accounts
   - Usage: `BASE_URL=https://api.example.com COACH_ROUTE_BATTERY_EMAIL=coach@example.com COACH_ROUTE_BATTERY_PASSWORD=secret npm run verify:coach-route-battery`
+  - Localhost fallback: when `BASE_URL` is `http://localhost:4000` (or `127.0.0.1`) and no explicit battery creds are set, it seeds the coach UAT fixtures and runs against the deterministic approved rookie coach automatically
 
 - **`audit-user-auth-state-drift.ts`** - validates Stream 3 dual-write consistency between canonical `User` auth columns and legacy `preferences` JSON
   - Usage: `DATABASE_URL=postgresql://test:test@localhost:5432/varsityhub_test npm run verify:auth-state-drift`

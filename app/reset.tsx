@@ -29,7 +29,7 @@ export default function ResetScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Reset Password', headerShown: false }} />
       <View style={styles.content}>
-        <ActivityIndicator />
+        <ActivityIndicator color={palette.tint} />
         <Text style={[styles.subtitle, { color: palette.mutedText }]}>
           Redirecting to password reset...
         </Text>

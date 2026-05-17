@@ -77,7 +77,7 @@ function TeamInvitesScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Team Invites', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Team Invites</Text>
@@ -86,8 +86,8 @@ function TeamInvitesScreen() {
           Your emailed invitation is at the top of the list.
         </Text>
       ) : null}
-      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
-      {invitesError && !loading && <Text style={styles.error}>{invitesError}</Text>}
+      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator color={Colors[colorScheme].tint} /></View>}
+      {invitesError && !loading && <Text style={[styles.error, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>{invitesError}</Text>}
       {!loading && invites.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>}
       {!loading && prioritizedInvites.length > 0 && (
         <FlatList

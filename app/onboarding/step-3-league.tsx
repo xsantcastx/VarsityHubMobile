@@ -35,6 +35,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
@@ -160,7 +161,7 @@ function Step3League() {
   useEffect(() => {
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getFreshAuthSnapshot(checkAuth, user);
         setEmailVerified(me?.email_verified ?? null);
         const accountState = String(me?.account_state || '').trim();
         const coachApplication = me?.coach_application || null;
@@ -615,7 +616,7 @@ function Step3League() {
         // Only proceed as fan when there's a pending join request (coach waits for approval).
         // If org/team already exists and is approved, coach should go through normal approval flow.
         const isPendingJoin = !!ob.join_request_pending;
-        const freshUser: any = await User.refresh().catch(() => User.me().catch(() => null));
+        const freshUser: any = await getFreshAuthSnapshot(checkAuth, user);
         const mergedUserForRouting = freshUser
           ? {
               ...freshUser,
@@ -652,14 +653,14 @@ function Step3League() {
 
         if (!isPendingJoin && !shouldResumeRecoveryFlow) {
           try {
-            const me: any = await User.me().catch(() => null);
+            const completionUser: any = freshUser || user;
             await User.completeOnboarding({
               role: 'coach',
               proceeding_as_fan: false,
-              username: me?.username || ob.username,
-              dob: me?.dob || ob.dob,
-              zip_code: me?.zip_code || ob.zip_code || ob.zip,
-              affiliation: me?.preferences?.affiliation || ob.affiliation,
+              username: completionUser?.username || ob.username,
+              dob: completionUser?.dob || ob.dob,
+              zip_code: completionUser?.zip_code || ob.zip_code || ob.zip,
+              affiliation: completionUser?.preferences?.affiliation || ob.affiliation,
               organization_id: resolvedOrgId || undefined,
               organization_name: resolvedOrgName || undefined,
             });
@@ -669,7 +670,7 @@ function Step3League() {
             if (__DEV__) console.warn('[step-3] Failed to complete onboarding (existing):', err);
           }
         }
-        checkAuth().catch(() => {});
+        void checkAuth().catch(() => {});
         if (isPendingJoin) {
           captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
             mode: 'pending-join',
@@ -803,9 +804,24 @@ function Step3League() {
           organization_location: locationLabel || null,
           step_3_visited: true,
         }));
-        const refreshedUser = await User.refresh().catch(() => null);
-        const authUser = (await checkAuth()) || refreshedUser;
-        const nextDecision = getPostAuthRouteDecision(authUser);
+        const fallbackSubmittedApplicationUser = {
+          ...(user || {}),
+          account_state: 'coach_application_submitted',
+          next_step: '/onboarding/league-pending-approval',
+          coach_application: {
+            ...(user?.coach_application || {}),
+            organization_name: orgName.trim(),
+            org_type: orgType || undefined,
+            location: locationLabel || undefined,
+            zip_code: selectedPlaceZip || searchZip.trim() || undefined,
+            supporting_document_url: docUrl,
+          },
+        };
+        const { decision: nextDecision } = await getFreshPostAuthState(
+          () => checkAuth(),
+          undefined,
+          fallbackSubmittedApplicationUser as any
+        );
         captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
           mode: 'submit-application',
           next: nextDecision.route,
@@ -847,14 +863,14 @@ function Step3League() {
       }));
 
       try {
-        const me: any = await User.me().catch(() => null);
+        const completionUser: any = user;
         await User.completeOnboarding({
           role: 'coach',
           proceeding_as_fan: false,
-          username: me?.username || ob.username,
-          dob: me?.dob || ob.dob,
-          zip_code: me?.zip_code || ob.zip_code || ob.zip,
-          affiliation: me?.preferences?.affiliation || ob.affiliation,
+          username: completionUser?.username || ob.username,
+          dob: completionUser?.dob || ob.dob,
+          zip_code: completionUser?.zip_code || ob.zip_code || ob.zip,
+          affiliation: completionUser?.preferences?.affiliation || ob.affiliation,
           organization_id: orgId,
           organization_name: orgName.trim(),
         });
@@ -881,7 +897,7 @@ function Step3League() {
       };
       const { decision } = await getFreshPostAuthState(
         () => checkAuth(),
-        () => User.refresh().catch(() => null),
+        undefined,
         fallbackCompletedCoachUser as any
       );
       captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {

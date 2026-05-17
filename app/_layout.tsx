@@ -119,122 +119,33 @@ function VerificationGateHost() {
   );
 }
 
-function RootLayout() {
+function AppShell() {
   const colorScheme = useColorScheme();
-  const _router = useRouter();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    // Explicitly load icon fonts so iOS doesn't render `?` glyphs for
-    // arrow-upward / chat-bubble-outline at small sizes (PostCard StatPill).
-    ...MaterialIcons.font,
-    ...Ionicons.font,
-  });
-  const navState = useRootNavigationState();
-  const navReady = Boolean(navState?.key);
-
-  React.useEffect(() => {
-    if (__DEV__) {
-      const key = getConfig().stripePublishableKey;
-      devLog(
-        '[Stripe] publishableKey:',
-        key ? `${key.substring(0, 12)}...${key.slice(-4)}` : '(empty)'
-      );
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (!__DEV__) return;
-    LogBox.ignoreLogs([
-      'Non-serializable values were found in the navigation state',
-      'new NativeEventEmitter',
-      'Require cycle:',
-      'PushNotificationIOS has been extracted',
-      'Invariant Violation: `new NativeEventEmitter()',
-      'animations-in-inline-styling',
-      '[Reanimated] Tried to access',
-    ]);
-    if (Platform.OS === 'web') {
-      LogBox.ignoreLogs([
-        '"shadow*" style props are deprecated',
-        '"textShadow*" style props are deprecated',
-        'props.pointerEvents is deprecated. Use style.pointerEvents',
-      ]);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
-    Notifications.setNotificationChannelAsync('default', {
-      name: 'General',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [250, 250],
-      sound: 'default',
-      enableVibrate: true,
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      lightColor: '#2563EB',
-    }).catch(() => {});
-  }, []);
-
-  // Handle deep links (shared post links, etc.)
-  // Public routes (verify, reset-password) navigate immediately.
-  // Protected routes (post, game, team, profile) are deferred until AuthProvider
-  // confirms the user is authenticated — prevents bypassing onboarding/verification.
-  useEffect(() => {
-    handleInitialDeepLink(url => {
-      handleDeepLinkAuthAware(url);
-    }).catch(() => {});
-    const unsubscribe = setupDeepLinkListener(url => {
-      handleDeepLinkAuthAware(url);
-    });
-    return unsubscribe;
-  }, []);
-
-  if (!loaded) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: Colors[colorScheme ?? 'light'].background,
-        }}
-      >
-        <ActivityIndicator />
-      </View>
-    );
-  }
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <StripeProvider publishableKey={getConfig().stripePublishableKey}>
-            <ThemeProvider>
-              <PostCacheProvider>
-                <NavigationHistoryProvider>
-                  <AuthProvider navReady={navReady}>
-                    <NotificationTapHandler />
-                    <VerificationGateHost />
-                    <NavigationThemeProvider
-                      value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
-                    >
-                      <OfflineBanner />
-                      <ErrorToastContainer />
-                      <View
-                        style={{
-                          flex: 1,
-                          backgroundColor: Colors[colorScheme ?? 'light'].background,
-                        }}
-                      >
-                        <View
-                          style={{
-                            flex: 1,
-                            maxWidth: MAX_CONTENT_WIDTH,
-                            width: '100%',
-                            alignSelf: 'center',
-                          }}
-                        >
-                          <Stack screenOptions={{ headerShown: false }}>
+    <ThemeProvider>
+      <NotificationTapHandler />
+      <VerificationGateHost />
+      <NavigationThemeProvider
+        value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
+      >
+        <OfflineBanner />
+        <ErrorToastContainer />
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: Colors[colorScheme ?? 'light'].background,
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              maxWidth: MAX_CONTENT_WIDTH,
+              width: '100%',
+              alignSelf: 'center',
+            }}
+          >
+            <Stack screenOptions={{ headerShown: false }}>
                             <Stack.Screen name="index" options={{ headerShown: false }} />
                             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                             {/* Game detail at root so back returns to previous screen (Spotify-like nav) */}
@@ -370,15 +281,112 @@ function RootLayout() {
                             <Stack.Screen name="following" options={{ headerShown: false }} />
                             <Stack.Screen name="verify-email" options={{ headerShown: false }} />
                             <Stack.Screen name="+not-found" />
-                          </Stack>
-                        </View>
-                      </View>
-                      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-                    </NavigationThemeProvider>
-                  </AuthProvider>
-                </NavigationHistoryProvider>
-              </PostCacheProvider>
-            </ThemeProvider>
+            </Stack>
+          </View>
+        </View>
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      </NavigationThemeProvider>
+    </ThemeProvider>
+  );
+}
+
+function RootLayout() {
+  const fallbackColorScheme = useColorScheme();
+  const _router = useRouter();
+  const [loaded] = useFonts({
+    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    // Explicitly load icon fonts so iOS doesn't render `?` glyphs for
+    // arrow-upward / chat-bubble-outline at small sizes (PostCard StatPill).
+    ...MaterialIcons.font,
+    ...Ionicons.font,
+  });
+  const navState = useRootNavigationState();
+  const navReady = Boolean(navState?.key);
+
+  React.useEffect(() => {
+    if (__DEV__) {
+      const key = getConfig().stripePublishableKey;
+      devLog(
+        '[Stripe] publishableKey:',
+        key ? `${key.substring(0, 12)}...${key.slice(-4)}` : '(empty)'
+      );
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!__DEV__) return;
+    LogBox.ignoreLogs([
+      'Non-serializable values were found in the navigation state',
+      'new NativeEventEmitter',
+      'Require cycle:',
+      'PushNotificationIOS has been extracted',
+      'Invariant Violation: `new NativeEventEmitter()',
+      'animations-in-inline-styling',
+      '[Reanimated] Tried to access',
+    ]);
+    if (Platform.OS === 'web') {
+      LogBox.ignoreLogs([
+        '"shadow*" style props are deprecated',
+        '"textShadow*" style props are deprecated',
+        'props.pointerEvents is deprecated. Use style.pointerEvents',
+      ]);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
+    Notifications.setNotificationChannelAsync('default', {
+      name: 'General',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [250, 250],
+      sound: 'default',
+      enableVibrate: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      lightColor: '#2563EB',
+    }).catch(() => {});
+  }, []);
+
+  // Handle deep links (shared post links, etc.)
+  // Public routes (verify, reset-password) navigate immediately.
+  // Protected routes (post, game, team, profile) are deferred until AuthProvider
+  // confirms the user is authenticated — prevents bypassing onboarding/verification.
+  useEffect(() => {
+    handleInitialDeepLink(url => {
+      handleDeepLinkAuthAware(url);
+    }).catch(() => {});
+    const unsubscribe = setupDeepLinkListener(url => {
+      handleDeepLinkAuthAware(url);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (!loaded) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: Colors[fallbackColorScheme ?? 'light'].background,
+        }}
+      >
+        <ActivityIndicator color={Colors[fallbackColorScheme ?? 'light'].tint} />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <StripeProvider publishableKey={getConfig().stripePublishableKey}>
+            <PostCacheProvider>
+              <NavigationHistoryProvider>
+                <AuthProvider navReady={navReady}>
+                  <AppShell />
+                </AuthProvider>
+              </NavigationHistoryProvider>
+            </PostCacheProvider>
           </StripeProvider>
         </GestureHandlerRootView>
       </ErrorBoundary>

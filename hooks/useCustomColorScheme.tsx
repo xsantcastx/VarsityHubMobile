@@ -1,8 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, useColorScheme as useSystemColorScheme } from 'react-native';
-// @ts-ignore JS exports
-import { User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 
 type ColorScheme = 'light' | 'dark' | 'system';
 type ActualColorScheme = 'light' | 'dark';
@@ -47,23 +46,17 @@ async function setStoredTheme(key: string, theme: ColorScheme): Promise<void> {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useSystemColorScheme();
+  const { user } = useAuth();
   const [themePreference, setThemePreferenceState] = useState<ColorScheme>('system');
   const currentStorageKey = useRef<string>(storageKeyForUser(null));
 
-  // Load theme preference from storage on app start
-  // Load theme preference from storage on app start or when user changes
+  // Scope theme preference to the active auth identity instead of resolving
+  // a parallel /me snapshot here. AuthProvider already owns current-user state.
   useEffect(() => {
     let mounted = true;
     const loadTheme = async () => {
       try {
-        // Try to resolve current user to scope the theme key per-account when possible
-        let me: any = null;
-        try {
-          me = await User.me();
-        } catch {
-          me = null;
-        }
-        const key = storageKeyForUser(me?.id ?? me?.user_id ?? null);
+        const key = storageKeyForUser(user?.id ?? null);
         currentStorageKey.current = key;
         const savedTheme = await getStoredTheme(key);
         if (mounted && savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
@@ -75,7 +68,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     };
     void loadTheme();
     return () => { mounted = false; };
-  }, []);
+  }, [user?.id]);
 
   // Calculate actual color scheme based on preference
   const colorScheme: ActualColorScheme = 

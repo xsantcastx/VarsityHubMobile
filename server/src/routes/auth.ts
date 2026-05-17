@@ -98,6 +98,13 @@ function sendAuthError(
   return res.status(status).json({ error, code, ...(extra || {}) });
 }
 
+function authNoStore(_req: AuthedRequest, res: Response, next: () => void) {
+  res.set('Cache-Control', 'no-store, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Vary', 'Authorization, Origin');
+  next();
+}
+
 async function invalidateMeCacheForUser(userId: string | null | undefined): Promise<void> {
   const { invalidateMeCacheForUser } = await import('../lib/userCache.js');
   await invalidateMeCacheForUser(userId);
@@ -112,6 +119,50 @@ async function softDeleteUserAccount(userId: string) {
   const { softDeleteUserAccount } = await import('../lib/accountDeletion.js');
   return softDeleteUserAccount(userId);
 }
+
+const ME_USER_SELECT = {
+  id: true,
+  email: true,
+  password_hash: true,
+  google_id: true,
+  apple_id: true,
+  display_name: true,
+  username: true,
+  avatar_url: true,
+  bio: true,
+  created_at: true,
+  email_verified: true,
+  preferences: true,
+  role: true,
+  onboarding_completed: true,
+  organization_id: true,
+  proceeding_as_fan: true,
+  coach_agreement_accepted_at: true,
+  coach_agreement_version: true,
+  plan: true,
+  pending_plan: true,
+  payment_pending: true,
+  payment_approved: true,
+  date_of_birth: true,
+  dob_set_at: true,
+  parental_consent_status: true,
+  parental_consent_at: true,
+  parental_consent_requested_at: true,
+  approval_status: true,
+  rejected_at: true,
+  rejection_reason: true,
+  subscription_tier: true,
+  subscription_status: true,
+  subscription_expires_at: true,
+  max_teams: true,
+  paid_by_owner: true,
+  _count: {
+    select: {
+      followers: true,
+      following: true,
+    },
+  },
+} as const;
 
 // Rate limit thresholds (unchanged)
 const MAX_AUTH_ATTEMPTS = 5;
@@ -2463,6 +2514,7 @@ authRouter.post(
 authRouter.get(
   '/me',
   requireAuth as any,
+  authNoStore as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -2474,17 +2526,10 @@ authRouter.get(
     const [rawUser, activePostCount, coachApplication] = await Promise.all([
       prisma.user.findUnique({
         where: { id: req.user!.id },
-        include: {
-          _count: {
-            select: {
-              followers: true,
-              following: true,
-            },
-          },
-        },
+        select: ME_USER_SELECT,
       }),
       prisma.post.count({
-        where: { author_id: req.user!.id },
+        where: { author_id: req.user!.id, deleted_at: null },
       }),
       getLatestCoachApplication(prisma, req.user!.id),
     ]);
@@ -2500,15 +2545,13 @@ authRouter.get(
         messages_notifications: true,
       },
       is_parent: false,
-      // Admin accounts go through normal onboarding like everyone else
     };
-    // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
-    // This ensures admin accounts always have onboarding_completed=true regardless of DB state
-    // Non-admin users' preferences are merged without forcing onboarding_completed
     const has_password = !!(user as any).password_hash;
     const safe = sanitizeUser(user);
     const userPrefs = ((safe as any).preferences || {}) as Record<string, unknown>;
-    const prefs = mergePreferences(userPrefs, defaults);
+    // Defaults only backfill missing preference keys. Canonical auth/billing
+    // state is already injected into `safe.preferences` by sanitizeUser.
+    const prefs = mergePreferences(defaults, userPrefs);
     const normalizedRole = getCanonicalUserRole(user as any);
     const requiredCoachAgreementVersion = Number(
       process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
@@ -3776,22 +3819,14 @@ authRouter.post(
 );
 
 function sanitizeUser(u: any) {
-  const {
-    password_hash,
-    email_verification_code,
-    email_verification_expires,
-    password_reset_code,
-    password_reset_expires,
-    ban_reason,
-    ...rest
-  } = u as any;
-  const normalizedDob = formatDobYmd(getCanonicalDob(rest));
-    const normalizedPreferences =
-      rest.preferences && typeof rest.preferences === 'object' && !Array.isArray(rest.preferences)
-        ? { ...(rest.preferences as Record<string, unknown>) }
-        : {};
-  const canonicalAuthState = getCanonicalAuthState(rest);
-  const canonicalBillingState = getCanonicalBillingState(rest);
+  const source = (u || {}) as Record<string, any>;
+  const normalizedDob = formatDobYmd(getCanonicalDob(source));
+  const normalizedPreferences =
+    source.preferences && typeof source.preferences === 'object' && !Array.isArray(source.preferences)
+      ? { ...(source.preferences as Record<string, unknown>) }
+      : {};
+  const canonicalAuthState = getCanonicalAuthState(source);
+  const canonicalBillingState = getCanonicalBillingState(source);
   normalizedPreferences.role = canonicalAuthState.role;
   normalizedPreferences.onboarding_completed = canonicalAuthState.onboarding_completed;
   if (canonicalAuthState.organization_id) {
@@ -3832,11 +3867,33 @@ function sanitizeUser(u: any) {
   ] as const;
   const topLevelAliases = Object.fromEntries(
     aliasKeys
-      .filter(key => rest[key] === undefined && normalizedPreferences[key] !== undefined)
+      .filter(key => source[key] === undefined && normalizedPreferences[key] !== undefined)
       .map(key => [key, normalizedPreferences[key]])
   );
+  const safeBase: Record<string, unknown> = {
+    id: source.id,
+    email: source.email,
+    display_name: source.display_name ?? null,
+    username: source.username ?? null,
+    avatar_url: source.avatar_url ?? null,
+    bio: source.bio ?? null,
+    created_at: source.created_at,
+    email_verified: source.email_verified,
+    approval_status: source.approval_status ?? null,
+    rejected_at: source.rejected_at ?? null,
+    rejection_reason: source.rejection_reason ?? null,
+    subscription_tier: source.subscription_tier,
+    subscription_status: source.subscription_status,
+    subscription_expires_at: source.subscription_expires_at ?? null,
+    max_teams: typeof source.max_teams === 'number' ? source.max_teams : undefined,
+    paid_by_owner: source.paid_by_owner ?? false,
+    parental_consent_status: source.parental_consent_status ?? null,
+    parental_consent_at: source.parental_consent_at ?? null,
+    parental_consent_requested_at: source.parental_consent_requested_at ?? null,
+  };
+  if (source._count) safeBase._count = source._count;
   return {
-    ...rest,
+    ...safeBase,
     ...topLevelAliases,
     preferences: normalizedPreferences,
     role: canonicalAuthState.role,

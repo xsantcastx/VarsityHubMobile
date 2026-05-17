@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Advertisement as AdsApi, User } from '@/api/entities';
+import { Advertisement as AdsApi } from '@/api/entities';
 
 type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'paused';
 
@@ -49,7 +49,6 @@ function AdminAdsScreen() {
     if (!isAdmin) return;
     setLoading(true); setError(null);
     try {
-      await User.me().catch(() => null);
       const list = await AdsApi.listAll();
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
@@ -240,7 +239,7 @@ function AdminAdsScreen() {
   const theme = Colors[colorScheme];
 
   if (adminLoading) {
-    return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}><ActivityIndicator style={{ marginTop: 40 }} /></SafeAreaView>;
+    return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}><ActivityIndicator style={{ marginTop: 40 }} color={theme.tint} /></SafeAreaView>;
   }
   if (!isAdmin) {
     return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}><Text style={{ textAlign: 'center', marginTop: 40, color: theme.text }}>Admin access required</Text></SafeAreaView>;

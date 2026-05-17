@@ -8,6 +8,7 @@ const read = (rel: string) => readFileSync(join(repoRoot, rel), 'utf8');
 const serverIndex = read('src/index.ts');
 const fixture = read('src/lib/appReviewFixture.ts');
 const createDemoScript = read('scripts/create-demo-account.ts');
+const verifyAppReviewScript = read('scripts/verify-app-review-account.ts');
 
 describe('App Review root-cause guards', () => {
   it('does not mutate the App Review account during server startup anymore', () => {
@@ -29,5 +30,12 @@ describe('App Review root-cause guards', () => {
     expect(createDemoScript).toMatch(/ensureAppReviewFixture/);
     expect(createDemoScript).toMatch(/APP_REVIEW_PASSWORD/);
     expect(createDemoScript).not.toMatch(/role:\s*'fan'/);
+  });
+
+  it('lets localhost app-review verification self-host the API instead of assuming one is already running', () => {
+    expect(verifyAppReviewScript).toMatch(/Started embedded local API/);
+    expect(verifyAppReviewScript).toMatch(/await ensureLocalServer\(\)/);
+    expect(verifyAppReviewScript).toMatch(/await import\('\.\.\/src\/testApp\.js'\)/);
+    expect(verifyAppReviewScript).toMatch(/await shutdownEmbeddedLocalServer\(\)/);
   });
 });

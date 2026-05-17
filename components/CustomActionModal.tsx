@@ -31,6 +31,11 @@ export default function CustomActionModal({
   children,
 }: CustomActionModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const destructiveButtonBackground =
+    colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.18)' : '#FEE2E2';
+  const destructiveButtonBorder =
+    colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.32)' : '#FCA5A5';
   return (
     <Modal
       visible={visible}
@@ -39,9 +44,9 @@ export default function CustomActionModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: Colors[colorScheme].background }]}> 
-          {title && <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{title}</Text>}
-          {message && <Text style={[styles.message, { color: Colors[colorScheme].mutedText }]}>{message}</Text>}
+        <View style={[styles.card, { backgroundColor: theme.background }]}>
+          {title && <Text style={[styles.title, { color: theme.text }]}>{title}</Text>}
+          {message && <Text style={[styles.message, { color: theme.mutedText }]}>{message}</Text>}
           {children}
           <View style={styles.optionsRow}>
             {options.map((opt, i) => (
@@ -49,7 +54,10 @@ export default function CustomActionModal({
                 key={i}
                 style={[
                   styles.optionBtn,
-                  opt.isDestructive && styles.optionBtnDestructive,
+                  {
+                    backgroundColor: opt.isDestructive ? destructiveButtonBackground : theme.surface,
+                    borderColor: opt.isDestructive ? destructiveButtonBorder : theme.border,
+                  },
                 ]}
                 onPress={() => {
                   onClose();
@@ -57,9 +65,22 @@ export default function CustomActionModal({
                 }}
               >
                 {opt.icon && (
-                  <MaterialIcons name={opt.icon as any} size={18} color={opt.color || Colors[colorScheme].tint} style={{ marginRight: 6 }} />
+                  <MaterialIcons
+                    name={opt.icon as any}
+                    size={18}
+                    color={opt.color || (opt.isDestructive ? theme.destructive : theme.tint)}
+                    style={{ marginRight: 6 }}
+                  />
                 )}
-                <Text style={[styles.optionText, opt.isDestructive && styles.optionTextDestructive, opt.color && { color: opt.color }]}>{opt.label}</Text>
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: opt.isDestructive ? theme.destructive : theme.text },
+                    opt.color && { color: opt.color },
+                  ]}
+                >
+                  {opt.label}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -113,20 +134,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 18,
-    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
-  },
-  optionBtnDestructive: {
-    backgroundColor: '#fee2e2',
   },
   optionText: {
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
-  },
-  optionTextDestructive: {
-    color: '#dc2626',
   },
 });

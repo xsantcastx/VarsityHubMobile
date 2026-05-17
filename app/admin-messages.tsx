@@ -8,7 +8,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
 // @ts-ignore
-import { Message as MsgApi, User } from '@/api/entities';
+import { Message as MsgApi } from '@/api/entities';
 
 function AdminMessagesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -22,7 +22,6 @@ function AdminMessagesScreen() {
       if (!isAdmin) return;
     setLoading(true); setError(null);
     try {
-      await User.me();
       const list = await MsgApi.listAll(200);
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
@@ -35,7 +34,7 @@ function AdminMessagesScreen() {
   if (adminLoading) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator />
+        <ActivityIndicator color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }
@@ -52,10 +51,10 @@ function AdminMessagesScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · All Messages', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
-      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}
+      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={Colors[colorScheme].tint} /></View> : null}
       {error ? <Text style={[styles.error, { color: Colors[colorScheme].mutedText }]}>{error}</Text> : null}
       {!loading && !error && (
         <FlatList

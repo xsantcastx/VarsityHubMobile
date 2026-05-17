@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import {
   getCoachAccessState,
+  getCoachRecoveryRoute,
   getPendingCoachRoute,
   type CoachUserLike,
 } from '@/utils/roleChecks';
@@ -23,7 +24,7 @@ export function useRequireCoach() {
   const coachAccess = useMemo(() => getCoachAccessState(coachUser), [coachUser]);
   const isCoach = coachAccess.isCoach;
   const isApprovedCoach = coachAccess.isApprovedCoach;
-  const canAccessCoachTools = coachAccess.canAccessCoachTools;
+  const canAccessCoachTools = coachAccess.canAccessCoachTools && !coachAccess.needsPaidPlanCheckout;
 
   useEffect(() => {
     if (loading) return;
@@ -42,6 +43,14 @@ export function useRequireCoach() {
     if (!user || !isCoach) {
       router.replace('/(tabs)');
       return;
+    }
+
+    if (coachAccess.needsPaidPlanCheckout) {
+      const recoveryRoute = getCoachRecoveryRoute(coachUser);
+      if (recoveryRoute) {
+        router.replace(recoveryRoute as never);
+        return;
+      }
     }
 
     const pendingRoute = getPendingCoachRoute(coachUser);

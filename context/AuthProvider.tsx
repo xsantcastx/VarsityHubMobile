@@ -2,7 +2,7 @@
  * AuthProvider - Centralized authentication and routing logic
  *
  * Fixes production issues:
- * - Eliminates competing User.me() calls in _layout, index, and sign-in
+ * - Eliminates competing screen-level auth fetches in _layout, index, and sign-in
  * - Provides single source of truth for auth state
  * - Prevents route flicker and redirect loops
  * - Exposes health check status for offline UX
@@ -106,6 +106,7 @@ export interface AuthContextType {
     email?: string;
     pendingVerification?: boolean;
     replaceSession?: boolean;
+    skipSubscriptionRefresh?: boolean;
   }) => Promise<any>;
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
@@ -760,7 +761,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // Clear stale tokens and probe backend health in parallel so startup doesn't
       // serialize SecureStore/AsyncStorage work ahead of the first network check.
       if (__DEV__) console.log('[AuthProvider] Checking backend health...');
-      const [healthy] = await Promise.all([
+      const [healthy, freshInstallCleanup] = await Promise.all([
         checkHealth(),
         import('@/api/auth').then(({ clearStaleTokensOnFreshInstall }) =>
           clearStaleTokensOnFreshInstall()
@@ -776,6 +777,28 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         setLoading(false);
         setInitializing(false);
         // Don't redirect - let user see offline banner
+        return;
+      }
+
+      if (freshInstallCleanup?.ok === false) {
+        clearLocalAuthState();
+        captureException(new Error('fresh_install_token_cleanup_failed'), {
+          tags: {
+            context: 'fresh_install_token_cleanup_failed',
+          },
+          freshInstall: freshInstallCleanup.freshInstall,
+          error:
+            freshInstallCleanup.error instanceof Error
+              ? freshInstallCleanup.error.message
+              : String(freshInstallCleanup.error || 'unknown_error'),
+        });
+        if (__DEV__) {
+          console.warn(
+            '[AuthProvider] Fresh-install token cleanup failed; skipping persisted-session bootstrap'
+          );
+        }
+        setLoading(false);
+        setInitializing(false);
         return;
       }
 

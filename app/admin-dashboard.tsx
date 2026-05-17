@@ -350,10 +350,18 @@ function AdminDashboardScreen() {
   );
 
   if (adminLoading) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></SafeAreaView>;
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }}>
+        <ActivityIndicator color={Colors[colorScheme].tint} />
+      </SafeAreaView>
+    );
   }
   if (!isAdmin) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Admin access required</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }}>
+        <Text style={{ color: Colors[colorScheme].text }}>Admin access required</Text>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -369,7 +377,7 @@ function AdminDashboardScreen() {
           headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
           headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
         }}
@@ -381,8 +389,14 @@ function AdminDashboardScreen() {
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
-          <MaterialIcons name="warning-amber" size={48} color="#EF4444" />
-          <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
+          <MaterialIcons
+            name="warning-amber"
+            size={48}
+            color={colorScheme === 'dark' ? '#FCA5A5' : '#DC2626'}
+          />
+          <Text style={[styles.errorText, { color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626' }]}>
+            {error}
+          </Text>
           <Pressable 
             style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]} 
             onPress={() => { void loadStats(); }}
@@ -421,19 +435,33 @@ function AdminDashboardScreen() {
           {/* Report Spike Alert */}
           {reportSpike?.isSpike && (
             <Pressable
-              style={[styles.spikeAlert, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+              style={[
+                styles.spikeAlert,
+                {
+                  backgroundColor: colorScheme === 'dark' ? '#3B0A0A' : '#FEE2E2',
+                  borderColor: colorScheme === 'dark' ? '#7F1D1D' : '#FCA5A5',
+                },
+              ]}
               onPress={() => void router.push('/admin-reports')}
             >
-              <MaterialIcons name="warning" size={24} color="#DC2626" />
+              <MaterialIcons
+                name="warning"
+                size={24}
+                color={colorScheme === 'dark' ? '#FCA5A5' : '#DC2626'}
+              />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={{ fontWeight: '800', color: '#991B1B', fontSize: 14 }}>
+                <Text style={{ fontWeight: '800', color: colorScheme === 'dark' ? '#FECACA' : '#991B1B', fontSize: 14 }}>
                   Report Spike Detected
                 </Text>
-                <Text style={{ color: '#B91C1C', fontSize: 12, marginTop: 2 }}>
+                <Text style={{ color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C', fontSize: 12, marginTop: 2 }}>
                   {reportSpike.pendingCount} pending reports ({reportSpike.recentCount} recent). Tap to review.
                 </Text>
               </View>
-              <MaterialIcons name="chevron-right" size={20} color="#DC2626" />
+              <MaterialIcons
+                name="chevron-right"
+                size={20}
+                color={colorScheme === 'dark' ? '#FCA5A5' : '#DC2626'}
+              />
             </Pressable>
           )}
 

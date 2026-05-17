@@ -100,7 +100,7 @@ function OrganizationInvitesScreen() {
           headerShown: true,
           headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
         }}
@@ -111,8 +111,8 @@ function OrganizationInvitesScreen() {
           Invitation for {highlightedInviteName}
         </Text>
       ) : null}
-      {loading ? <View style={styles.loading}><ActivityIndicator /></View> : null}
-      {error && !loading ? <Text style={styles.error}>{error}</Text> : null}
+      {loading ? <View style={styles.loading}><ActivityIndicator color={Colors[colorScheme].tint} /></View> : null}
+      {error && !loading ? <Text style={[styles.error, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>{error}</Text> : null}
       {!loading && invites.length === 0 ? (
         <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>
       ) : null}

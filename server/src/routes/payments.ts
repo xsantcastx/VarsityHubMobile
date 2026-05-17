@@ -74,24 +74,41 @@ const stripe = new StripeCtor(process.env.STRIPE_SECRET_KEY || 'sk_test_not_conf
 const MAX_AD_SLOTS = 2;
 const webhookEventLocks = new Map<string, Promise<any>>();
 const isJestRuntime = process.env.JEST_WORKER_ID != null;
+const hasStripeWebhookSecret = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
+const hasAppleBundleId = Boolean(process.env.APPLE_BUNDLE_ID);
+const hasAppleIapSharedSecret = Boolean(process.env.APPLE_IAP_SHARED_SECRET);
 
 // Startup warnings for critical payment config
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  if (!hasStripeWebhookSecret) {
     console.error('[payments] FATAL: STRIPE_WEBHOOK_SECRET is not set in production — webhooks will fail silently. Server cannot start.');
     process.exit(1);
   }
-  if (!process.env.APPLE_BUNDLE_ID) {
+  if (!hasAppleBundleId) {
     console.error('[payments] FATAL: APPLE_BUNDLE_ID is not set in production — Apple StoreKit signed transaction verification will fail. Server cannot start.');
     process.exit(1);
   }
-  if (!process.env.APPLE_IAP_SHARED_SECRET) {
+  if (!hasAppleIapSharedSecret) {
     console.warn(
       '[payments] Apple IAP shared secret not set — legacy receipt fallback is disabled, but signed StoreKit transactions still work'
     );
   }
 } else {
-  if (!process.env.STRIPE_WEBHOOK_SECRET) console.warn('[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set in development — webhooks will fail silently');
+  if (!hasStripeWebhookSecret) {
+    console.warn(
+      '[payments] WARNING: STRIPE_WEBHOOK_SECRET is not set in development — Stripe webhooks will fail silently'
+    );
+  }
+  if (!hasAppleBundleId) {
+    console.warn(
+      '[payments] WARNING: APPLE_BUNDLE_ID is not set in development — signed StoreKit transaction verification may fail'
+    );
+  }
+  if (!hasAppleIapSharedSecret) {
+    console.warn(
+      '[payments] WARNING: APPLE_IAP_SHARED_SECRET is not set in development — legacy Apple receipt fallback is disabled'
+    );
+  }
 }
 
 // Admin notification email — first entry from ADMIN_EMAILS env var

@@ -23,7 +23,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { formatUserLabel } from '@/utils/userDisplay';
@@ -58,6 +60,7 @@ function MessageThreadScreen() {
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
+  const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
@@ -88,7 +91,7 @@ function MessageThreadScreen() {
     setLoading(true);
     setError(null);
     try {
-      const user = await User.me();
+      const user = await getAuthSnapshot(checkAuth, authUser);
       setMe(user);
       let list: Msg[] = [];
       if (conversation_id)
@@ -107,7 +110,7 @@ function MessageThreadScreen() {
     } finally {
       setLoading(false);
     }
-  }, [conversation_id, withParam]);
+  }, [authUser, checkAuth, conversation_id, withParam]);
 
   useEffect(() => {
     void load();
@@ -428,7 +431,7 @@ function MessageThreadScreen() {
             <View style={styles.chatContent}>
               {loading && (
                 <View style={styles.center}>
-                  <ActivityIndicator />
+                  <ActivityIndicator color={Colors[colorScheme].tint} />
                 </View>
               )}
               {error && !loading && (

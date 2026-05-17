@@ -1,16 +1,19 @@
+import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { getOnboardingIndexRouteDecision } from '@/utils/appRouteDecisions';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-// @ts-ignore
-import { User } from '@/api/entities';
 import { captureException } from '@/utils/sentry';
 
 export default function OnboardingIndex() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const palette = Colors[colorScheme];
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const { progress, state, isLoaded, setProgress, reducerState: _reducerState, dispatch, nextStep: _nextStep, hydrateFromServer } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
@@ -34,7 +37,7 @@ export default function OnboardingIndex() {
     // onboarding — silent loop.
     if (!hydratedRef.current) {
       hydratedRef.current = true;
-      User.me()
+      getFreshAuthSnapshot(checkAuth, user)
         .then((me: any) => {
           if (me?.preferences && Object.keys(me.preferences).length > 0) {
             hydrateFromServer(me.preferences);
@@ -62,7 +65,7 @@ export default function OnboardingIndex() {
           setHasHydrated(true);
         });
     }
-  }, [user, isLoaded, router, hydrateFromServer]);
+  }, [checkAuth, user, isLoaded, router, hydrateFromServer]);
 
   useEffect(() => {
     // Don't navigate until AsyncStorage has loaded, user is authenticated, AND
@@ -102,8 +105,8 @@ export default function OnboardingIndex() {
   
   // Show loading indicator while waiting for state to load
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" />
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background }}>
+      <ActivityIndicator size="large" color={palette.tint} />
     </View>
   );
 }

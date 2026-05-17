@@ -174,7 +174,7 @@ function AdminUserDetailScreen() {
   if (adminLoading) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator />
+        <ActivityIndicator color={palette.tint} />
       </SafeAreaView>
     );
   }
@@ -193,11 +193,11 @@ function AdminUserDetailScreen() {
         title: 'Admin · User Detail',
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
-            <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+            <MaterialIcons name="chevron-left" size={24} color={palette.tint} />
           </Pressable>
         ),
       }} />
-      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}
+      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={palette.tint} /></View> : null}
       {error ? <Text style={[styles.error, { color: palette.mutedText }]}>{error}</Text> : null}
       {!loading && !error && detail ? (
         <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
@@ -256,7 +256,7 @@ function AdminUserDetailScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: palette.text }]}>Moderation History</Text>
             {modLoading ? (
-              <ActivityIndicator style={{ marginTop: 8 }} />
+              <ActivityIndicator style={{ marginTop: 8 }} color={palette.tint} />
             ) : warnings.length === 0 ? (
               <Text style={[styles.meta, { color: palette.mutedText, marginTop: 4 }]}>No warnings or actions on record.</Text>
             ) : (

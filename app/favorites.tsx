@@ -15,7 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -66,6 +68,7 @@ function FavoritesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const router = useRouter();
+  const { user: authUser, checkAuth } = useAuth();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [items, setItems] = useState<SavedPost[]>([]);
@@ -80,7 +83,7 @@ function FavoritesScreen() {
     let canceled = false;
     void (async () => {
       try {
-        const me: any = await User.me();
+        const me: any = await getAuthSnapshot(checkAuth, authUser);
         if (canceled) return;
         const idValue = me?.id ?? me?.user_id;
         if (idValue) {
@@ -99,7 +102,7 @@ function FavoritesScreen() {
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [authUser, checkAuth]);
 
   const fetchSaved = useCallback(
     async ({ cursor: cursorArg, mode }: { cursor?: string | null; mode?: 'append' | 'refresh' | 'initial' } = {}) => {

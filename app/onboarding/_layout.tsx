@@ -1,4 +1,6 @@
+import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { OBProvider } from '@/context/OnboardingContext';
 import { Slot, useRouter } from 'expo-router';
 import { useEffect } from 'react';
@@ -6,6 +8,8 @@ import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function OnboardingLayout() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const palette = Colors[colorScheme];
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -35,8 +39,8 @@ export default function OnboardingLayout() {
   // Show loading while auth is being checked
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background }}>
+        <ActivityIndicator size="large" color={palette.tint} />
       </View>
     );
   }
@@ -45,8 +49,8 @@ export default function OnboardingLayout() {
   // unverified-email cases; the effect above has kicked off replace().
   if (!user || user.email_verified !== true) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.background }}>
+        <ActivityIndicator size="large" color={palette.tint} />
       </View>
     );
   }

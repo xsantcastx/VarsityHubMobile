@@ -37,10 +37,7 @@ export default function ZipCodeScreen() {
     setSaving(true);
     try {
       await User.updatePreferences({ zip_code: v || null });
-      const fresh = await User.refresh().catch(async (error) => {
-        if (__DEV__) console.warn('[zip-code] User.refresh failed after save, falling back to hook refresh:', error);
-        return refreshUserProfile();
-      });
+      const fresh = await refreshUserProfile();
       const savedZip = String(fresh?.preferences?.zip_code || fresh?.zip_code || '').trim();
       if (savedZip !== (v || '')) {
         throw new Error('Saved ZIP code did not round-trip from the server.');

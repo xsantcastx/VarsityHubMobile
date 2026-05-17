@@ -62,6 +62,8 @@ describe('profile/settings note contracts', () => {
   it('settings exposes a downgrade path for coach accounts and keeps billing visible for non-rookie plans', () => {
     expect(settingsScreen).toContain('title="Downgrade to Fan Account"');
     expect(settingsScreen).toContain("subtitle=\"Transfer any team or organization ownership first\"");
+    expect(settingsScreen).toContain("import { getCanonicalBillingState } from '@/utils/billingState';");
+    expect(settingsScreen).toContain('const billingState = getCanonicalBillingState(me as any);');
     expect(settingsScreen).toContain("setShowCoachBilling(coachAccess.isApprovedCoach || billingState.selected_plan !== 'rookie');");
   });
 

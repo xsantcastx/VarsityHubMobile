@@ -21,7 +21,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Event, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
-import { getLinkedProvidersSnapshot } from '@/utils/authState';
+import { getFreshAuthSnapshot, getLinkedProvidersSnapshot } from '@/utils/authState';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachUpgradeCta, type CoachUpgradeCta } from '@/utils/coachUpgradeCta';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -311,16 +312,14 @@ export default function SettingsScreen() {
           ? serverPrefs.comment_permission
           : 'everyone',
     });
-    setPlan(serverPrefs?.plan ?? null);
+    const billingState = getCanonicalBillingState(me as any);
+    setPlan(billingState.selected_plan);
     const effectiveRole = (serverPrefs?.role || me?.role || null) as
       | string
       | null;
     setRole(effectiveRole);
     const coachAccess = {
       isApprovedCoach: effectiveRole === 'coach' && me?.approval_status === 'APPROVED',
-    };
-    const billingState = {
-      selected_plan: String(serverPrefs?.plan || 'rookie').toLowerCase(),
     };
     setShowCoachBilling(coachAccess.isApprovedCoach || billingState.selected_plan !== 'rookie');
     const nextCoachUpgradeCta = getCoachUpgradeCta({
@@ -347,10 +346,15 @@ export default function SettingsScreen() {
     showAppleStatus ? 'apple' : null,
   ].filter(Boolean) as Array<'google' | 'apple'>;
   const canDowngradeCoach = String(role || '').trim().toLowerCase() === 'coach';
+  const getFreshSettingsUser = async (fallbackUser?: UserMeResponse | null) =>
+    ((await getFreshAuthSnapshot(
+      checkAuth,
+      (fallbackUser ?? authUser ?? null) as any
+    )) as UserMeResponse | null);
 
   const _restartOnboarding = async () => {
     try {
-      const me = (await User.me()) as UserMeResponse;
+      const me = (await getFreshSettingsUser()) as UserMeResponse;
       const prefsFromServer = (me?.preferences || {}) as Record<string, unknown>;
       const preload: Record<string, unknown> = {
         role: prefsFromServer.role || me?.role || 'fan',
@@ -457,7 +461,7 @@ export default function SettingsScreen() {
       setLoading(true);
       setError(null);
       try {
-        const me = (await User.me()) as UserMeResponse;
+        const me = (await getFreshSettingsUser()) as UserMeResponse;
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
         const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
@@ -870,13 +874,14 @@ export default function SettingsScreen() {
                           try {
                             setDowngradingToFan(true);
                             await User.downgradeToFan();
-                            const fresh = (await User.refresh().catch(() => null)) as UserMeResponse | null;
+                            const fresh = (await getFreshSettingsUser().catch(() => null)) as
+                              | UserMeResponse
+                              | null;
                             if (fresh) {
                               applyMeSnapshot(fresh, true);
                             }
                             setRole('fan');
                             setPlan('rookie');
-                            await checkAuth().catch(() => {});
                             Alert.alert('Account updated', 'Your account is now a fan account.');
                           } catch (e: any) {
                             const code = e?.data?.code;
@@ -941,7 +946,8 @@ export default function SettingsScreen() {
                                 router.push(preferredRoute as any);
                                 return;
                               }
-                              const fresh = freshUser ?? ((await User.refresh().catch(() => null)) as any);
+                              const fresh =
+                                freshUser ?? ((await getFreshSettingsUser().catch(() => null)) as any);
                               const prefs = fresh?.preferences || {};
                               const hasUsername = !!(
                                 fresh?.username && String(fresh.username).trim()
@@ -977,11 +983,10 @@ export default function SettingsScreen() {
                           try {
                             setUpgradingToCoach(true);
                             await User.upgradeToCoach('rookie');
-                            const fresh = (await User.refresh().catch(() => null)) as any;
+                            const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
                             setRole('coach');
                             setPlan('rookie');
                             await markOnboardingIncompleteLocally();
-                            await checkAuth().catch(() => {});
                             await routeCoachOnboarding(fresh);
                           } catch (e: any) {
                             const msg = e?.data?.error || e?.message || '';
@@ -992,7 +997,7 @@ export default function SettingsScreen() {
                               code === 'COACH_ALREADY_APPROVED' ||
                               msg.toLowerCase().includes('already a coach')
                             ) {
-                              const fresh = (await User.refresh().catch(() => null)) as any;
+                              const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
                               const nextCta = getCoachUpgradeCta({
                                 ...fresh,
                                 role:
@@ -1004,7 +1009,6 @@ export default function SettingsScreen() {
                               if (fresh) {
                                 applyMeSnapshot(fresh, true);
                               }
-                              await checkAuth().catch(() => {});
                               await routeCoachOnboarding(
                                 fresh,
                                 e?.data?.next_step || nextCta?.route || null

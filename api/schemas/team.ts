@@ -50,6 +50,21 @@ const teamArraySchema = z.array(teamSchema);
 export type TeamResponse = z.infer<typeof teamSchema>;
 export type TeamArrayResponse = z.infer<typeof teamArraySchema>;
 
+const followedTeamSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string().nullable().optional(),
+    venue_address: z.string().nullable().optional(),
+    logo_url: z.string().nullable().optional(),
+    avatar_url: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const followedTeamArraySchema = z.array(followedTeamSchema);
+export type FollowedTeamResponse = z.infer<typeof followedTeamSchema>;
+export type FollowedTeamArrayResponse = z.infer<typeof followedTeamArraySchema>;
+
 const teamAdminSummarySchema = z
   .object({
     team: teamSchema,
@@ -136,6 +151,16 @@ export function validateTeamArray(endpoint: string, payload: unknown): TeamArray
   if (result.success) return result.data;
   reportShapeDrift(endpoint, result, payload);
   return payload as TeamArrayResponse;
+}
+
+export function validateFollowedTeamArray(
+  endpoint: string,
+  payload: unknown
+): FollowedTeamArrayResponse {
+  const result = followedTeamArraySchema.safeParse(payload);
+  if (result.success) return result.data;
+  reportShapeDrift(endpoint, result, payload);
+  return payload as FollowedTeamArrayResponse;
 }
 
 export function validateTeamAdminSummary(

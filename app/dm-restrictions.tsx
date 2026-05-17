@@ -1,7 +1,9 @@
 import { User } from '@/api/entities';
 import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -14,6 +16,7 @@ type Policy = 'everyone' | 'following' | 'no_one';
 function DMRestrictionsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const { user: authUser, checkAuth } = useAuth();
   const [policy, setPolicy] = useState<Policy>('everyone');
   const [saving, setSaving] = useState(false);
 
@@ -22,7 +25,7 @@ function DMRestrictionsScreen() {
     void (async () => {
       try {
         // Load from server (source of truth), fall back to local cache
-        const me = await User.me();
+        const me = await getFreshAuthSnapshot(checkAuth, authUser);
         const serverPolicy = (me?.preferences as any)?.dm_policy;
         if (!mounted) return;
         if (serverPolicy && ['everyone', 'following', 'no_one'].includes(serverPolicy)) {
@@ -40,7 +43,7 @@ function DMRestrictionsScreen() {
       setPolicy((p as Policy) || 'everyone');
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [authUser, checkAuth]);
 
   const save = async (p: Policy) => {
     setSaving(true);

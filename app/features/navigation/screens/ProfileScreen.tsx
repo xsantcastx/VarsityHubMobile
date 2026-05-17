@@ -9,7 +9,7 @@ import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
-import { isApprovedCoach } from '@/utils/authState';
+import { getAuthSnapshot, isApprovedCoach } from '@/utils/authState';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
@@ -137,7 +137,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const href = useUnstableGlobalHref();
   const { user: userFromHook, refresh: refreshUserFromHook } = useUser(false); // Get user from hook but don't auto-load
-  const { user: userFromAuth } = useAuth(); // Get user from AuthProvider
+  const { user: userFromAuth, checkAuth } = useAuth(); // Get user from AuthProvider
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
@@ -441,7 +441,10 @@ export default function ProfileScreen() {
 
       try {
         // Step 1: Get current user first
-        const currentUser: any = await User.me();
+        const currentUser: any = await getAuthSnapshot(
+          checkAuth,
+          userFromAuth ?? userFromHook
+        );
         setCurrentUserId(currentUser?.id || null);
 
         let u: any;
@@ -515,7 +518,7 @@ export default function ProfileScreen() {
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [activeTab, refreshPosts, refreshReplies, refreshUpvotes, viewingUserId]
+    [activeTab, checkAuth, refreshPosts, refreshReplies, refreshUpvotes, userFromAuth, userFromHook, viewingUserId]
   );
 
   // Initial load on mount - only once
@@ -1579,7 +1582,7 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
+            postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
           }
         />
       ) : activeTab === 'replies' ? (
@@ -1703,7 +1706,7 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
+            repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
           }
         />
       ) : (
@@ -1827,7 +1830,7 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null
+            upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
           }
         />
       )}

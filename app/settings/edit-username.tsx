@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useUser } from '@/hooks/useUser';
-import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -15,7 +14,6 @@ export default function EditUsernameScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { user, loading: userLoading, refresh: refreshUser } = useUser();
-  const { checkAuth } = useAuth();
   const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -52,11 +50,8 @@ export default function EditUsernameScreen() {
     setSaving(true);
     try {
       await User.updateMe({ username: v });
-      // Refresh user data in both useUser hook and AuthProvider
-      await Promise.all([
-        refreshUser(),
-        checkAuth().catch((e) => { if (__DEV__) console.warn('[edit-username] Auth refresh failed:', e); }), // VAL-2
-      ]);
+      // Refresh the canonical auth snapshot once; useUser reads from AuthProvider.
+      await refreshUser();
       Alert.alert('Success', 'Username updated successfully');
       safeGoBack(router);
     } catch (e: any) {
@@ -133,4 +128,3 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 });
-

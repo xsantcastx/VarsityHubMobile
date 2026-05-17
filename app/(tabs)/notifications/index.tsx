@@ -209,7 +209,7 @@ function NotificationsScreen() {
       <View style={{ flex: 1 }}>
 
       {loading && !refreshing && items.length === 0 ? (
-        <View style={S.center}><ActivityIndicator /></View>
+        <View style={S.center}><ActivityIndicator color={theme.tint} /></View>
       ) : error && items.length === 0 ? (
         <View style={S.center}>
           <Text style={{ color: theme.destructive, marginBottom: 12 }}>{error}</Text>

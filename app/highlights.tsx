@@ -1,7 +1,9 @@
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -346,6 +348,7 @@ function HighlightsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -369,7 +372,7 @@ function HighlightsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const me: any = await User.me().catch((error: any) => {
+      const me: any = await getAuthSnapshot(checkAuth, authUser).catch((error: any) => {
         if (__DEV__) {
           if (__DEV__) console.warn('[Highlights] Failed to load user:', error?.message || error);
         }
@@ -433,7 +436,7 @@ function HighlightsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [postCache]);
+  }, [authUser, checkAuth, postCache]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

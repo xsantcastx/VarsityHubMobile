@@ -32,6 +32,7 @@ export function ZipCodeMapPreview({
   showCircle = true,
 }: ZipCodeMapPreviewProps) {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,31 +105,31 @@ export function ZipCodeMapPreview({
     : `Showing location for ZIP ${zipCode}`;
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+    <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.border }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerIcon}>
           <MaterialIcons name="location-on" size={20} color="#0EA5E9" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-          <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>{displaySubtitle}</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.mutedText }]}>{displaySubtitle}</Text>
         </View>
       </View>
 
       {/* Map */}
-      <View style={styles.mapWrapper}>
+      <View style={[styles.mapWrapper, { backgroundColor: theme.surface }]}>
         {loading && (
-          <View style={[styles.overlay, { backgroundColor: Colors[colorScheme].background }]}>
-            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>Locating ZIP code...</Text>
+          <View style={[styles.overlay, { backgroundColor: theme.background }]}>
+            <ActivityIndicator size="large" color={theme.tint} />
+            <Text style={[styles.overlayText, { color: theme.mutedText }]}>Locating ZIP code...</Text>
           </View>
         )}
 
         {error && !loading && (
-          <View style={[styles.overlay, { backgroundColor: Colors[colorScheme].background }]}>
-            <MaterialIcons name="error" size={40} color={Colors[colorScheme].destructive} />
-            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>{error}</Text>
+          <View style={[styles.overlay, { backgroundColor: theme.background }]}>
+            <MaterialIcons name="error" size={40} color={theme.destructive} />
+            <Text style={[styles.overlayText, { color: theme.mutedText }]}>{error}</Text>
           </View>
         )}
 
@@ -148,7 +149,7 @@ export function ZipCodeMapPreview({
             rotateEnabled={false}
           >
             <Marker coordinate={location} title={`ZIP ${zipCode}`}>
-              <View style={[styles.marker, { backgroundColor: Colors[colorScheme].card }]}>
+              <View style={[styles.marker, { backgroundColor: theme.card }]}>
                 <MaterialIcons name="location-on" size={22} color="#0EA5E9" />
               </View>
             </Marker>
@@ -166,9 +167,9 @@ export function ZipCodeMapPreview({
         )}
 
         {!location && !loading && !error && (
-          <View style={[styles.overlay, { backgroundColor: Colors[colorScheme].background }]}>
-            <MaterialIcons name="map" size={40} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.overlayText, { color: Colors[colorScheme].mutedText }]}>Enter a ZIP code to preview</Text>
+          <View style={[styles.overlay, { backgroundColor: theme.background }]}>
+            <MaterialIcons name="map" size={40} color={theme.mutedText} />
+            <Text style={[styles.overlayText, { color: theme.mutedText }]}>Enter a ZIP code to preview</Text>
           </View>
         )}
       </View>
@@ -209,7 +210,6 @@ const styles = StyleSheet.create({
   mapWrapper: {
     height: 200,
     position: 'relative',
-    backgroundColor: '#f5f5f5',
   },
   map: { flex: 1 },
   overlay: {

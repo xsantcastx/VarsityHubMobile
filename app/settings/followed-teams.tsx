@@ -1,4 +1,4 @@
-import { httpGet } from '@/api/http';
+import { Team } from '@/api/entities';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, useColorScheme, View } from 'react-native';
@@ -21,7 +21,7 @@ function FollowedTeamsScreen() {
     void (async () => {
       setLoading(true); setError(null);
       try {
-        const rows = await httpGet('/follows/teams?user_id=me') as FollowedTeam[];
+        const rows = await Team.followed() as FollowedTeam[];
         if (mounted) setItems(Array.isArray(rows) ? rows : []);
       } catch (e: any) {
         if (mounted) setError(e?.message || 'Failed to load');

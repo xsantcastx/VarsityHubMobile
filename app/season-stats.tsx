@@ -155,6 +155,7 @@ function buildGameResults(games: any[], teamId: string): GameResult[] {
 // TODO v1.1: Wire up navigation from manage-season
 function SeasonStatsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const params = useLocalSearchParams<{ teamId?: string }>();
   const router = useRouter();
 
@@ -274,7 +275,7 @@ function SeasonStatsScreen() {
     if (result === 'W') return '#10B981';
     if (result === 'L') return '#EF4444';
     if (result === 'T') return '#6B7280';
-    return Colors[colorScheme].mutedText;
+    return theme.mutedText;
   };
 
   const formatDate = (dateStr: string) => {
@@ -289,22 +290,22 @@ function SeasonStatsScreen() {
   const screenOptions = {
     title: 'Season Statistics',
     headerShown: true,
-    headerStyle: { backgroundColor: Colors[colorScheme].background },
-    headerTintColor: Colors[colorScheme].text,
+    headerStyle: { backgroundColor: theme.background },
+    headerTintColor: theme.text,
     headerLeft: () => (
       <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingLeft: 8 }}>
-        <MaterialIcons name="chevron-left" size={24} color="#3B82F6" />
+        <MaterialIcons name="chevron-left" size={24} color={theme.tint} />
       </Pressable>
     ),
   } as const;
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Stack.Screen options={screenOptions} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-          <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+          <ActivityIndicator size="large" color={theme.tint} />
+          <Text style={[styles.loadingText, { color: theme.mutedText }]}>
             Loading stats...
           </Text>
         </View>
@@ -314,19 +315,19 @@ function SeasonStatsScreen() {
 
   if (error || !teamStats) {
     return (
-      <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Stack.Screen options={screenOptions} />
         <ScrollView
           contentContainerStyle={styles.emptyContainer}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors[colorScheme].tint]} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.tint]} />
           }
         >
-          <MaterialIcons name="bar-chart" size={48} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+          <MaterialIcons name="bar-chart" size={48} color={theme.mutedText} />
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>
             No Stats Available
           </Text>
-          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+          <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
             {error || 'No team data found. Pull to refresh.'}
           </Text>
         </ScrollView>
@@ -338,7 +339,7 @@ function SeasonStatsScreen() {
   const showTeamSelector = !params.teamId && managedTeams.length > 1;
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={screenOptions} />
 
       {/* Team Selector */}
@@ -350,8 +351,8 @@ function SeasonStatsScreen() {
               style={[
                 styles.teamSelectorChip,
                 {
-                  backgroundColor: activeTeamId === t.id ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                  borderColor: Colors[colorScheme].border,
+                  backgroundColor: activeTeamId === t.id ? theme.tint : theme.surface,
+                  borderColor: theme.border,
                 },
               ]}
               onPress={() => {
@@ -364,7 +365,7 @@ function SeasonStatsScreen() {
               <Text
                 style={[
                   styles.teamSelectorText,
-                  { color: activeTeamId === t.id ? '#fff' : Colors[colorScheme].text },
+                  { color: activeTeamId === t.id ? '#fff' : theme.text },
                 ]}
                 numberOfLines={1}
               >
@@ -376,9 +377,9 @@ function SeasonStatsScreen() {
       )}
 
       {/* Header Stats Overview */}
-      <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+      <View style={[styles.headerCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <LinearGradient
-          colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + '80']}
+          colors={[theme.tint, theme.tint + '80']}
           style={styles.statsGradient}
         >
           <View style={styles.seasonHeader}>
@@ -417,19 +418,19 @@ function SeasonStatsScreen() {
       </View>
 
       {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
         {(['team', 'players', 'games'] as const).map((tab) => (
           <Pressable
             key={tab}
             style={[
               styles.tab,
-              { backgroundColor: selectedTab === tab ? Colors[colorScheme].tint : 'transparent' }
+              { backgroundColor: selectedTab === tab ? theme.tint : 'transparent' }
             ]}
             onPress={() => setSelectedTab(tab)}
           >
             <Text style={[
               styles.tabText,
-              { color: selectedTab === tab ? '#fff' : Colors[colorScheme].text }
+              { color: selectedTab === tab ? '#fff' : theme.text }
             ]}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </Text>
@@ -443,7 +444,7 @@ function SeasonStatsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors[colorScheme].tint]}
+            colors={[theme.tint]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -451,75 +452,75 @@ function SeasonStatsScreen() {
         {selectedTab === 'team' && (
           <View style={styles.tabContent}>
             {teamStats.gamesPlayed === 0 ? (
-              <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                <Text style={[styles.emptyTabText, { color: Colors[colorScheme].mutedText }]}>
+              <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Text style={[styles.emptyTabText, { color: theme.mutedText }]}>
                   No completed games yet. Stats will appear once games have been played and results recorded.
                 </Text>
               </View>
             ) : (
               <>
                 {/* Overall Record */}
-                <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
                     Overall Record
                   </Text>
 
                   <View style={styles.recordGrid}>
                     <View style={styles.recordItem}>
                       <Text style={[styles.recordValue, { color: '#10B981' }]}>{teamStats.wins}</Text>
-                      <Text style={[styles.recordLabel, { color: Colors[colorScheme].text }]}>Wins</Text>
+                      <Text style={[styles.recordLabel, { color: theme.text }]}>Wins</Text>
                     </View>
                     <View style={styles.recordItem}>
                       <Text style={[styles.recordValue, { color: '#EF4444' }]}>{teamStats.losses}</Text>
-                      <Text style={[styles.recordLabel, { color: Colors[colorScheme].text }]}>Losses</Text>
+                      <Text style={[styles.recordLabel, { color: theme.text }]}>Losses</Text>
                     </View>
                     <View style={styles.recordItem}>
-                      <Text style={[styles.recordValue, { color: Colors.light.mutedText }]}>{teamStats.ties}</Text>
-                      <Text style={[styles.recordLabel, { color: Colors[colorScheme].text }]}>Ties</Text>
+                      <Text style={[styles.recordValue, { color: theme.mutedText }]}>{teamStats.ties}</Text>
+                      <Text style={[styles.recordLabel, { color: theme.text }]}>Ties</Text>
                     </View>
                     <View style={styles.recordItem}>
-                      <Text style={[styles.recordValue, { color: Colors[colorScheme].text }]}>{teamStats.gamesPlayed}</Text>
-                      <Text style={[styles.recordLabel, { color: Colors[colorScheme].text }]}>Played</Text>
+                      <Text style={[styles.recordValue, { color: theme.text }]}>{teamStats.gamesPlayed}</Text>
+                      <Text style={[styles.recordLabel, { color: theme.text }]}>Played</Text>
                     </View>
                   </View>
 
                   <View style={styles.percentageBar}>
-                    <View style={styles.percentageTrack}>
+                    <View style={[styles.percentageTrack, { backgroundColor: theme.border }]}>
                       <View
                         style={[
                           styles.percentageFill,
                           {
                             width: `${teamStats.winPercentage * 100}%`,
-                            backgroundColor: Colors[colorScheme].tint
+                            backgroundColor: theme.tint
                           }
                         ]}
                       />
                     </View>
-                    <Text style={[styles.percentageText, { color: Colors[colorScheme].text }]}>
+                    <Text style={[styles.percentageText, { color: theme.text }]}>
                       {(teamStats.winPercentage * 100).toFixed(1)}% Win Rate
                     </Text>
                   </View>
                 </View>
 
                 {/* Home vs Away */}
-                <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
                     Home vs Away Performance
                   </Text>
 
                   <View style={styles.homeAwayGrid}>
-                    <View style={[styles.homeAwayItem, { backgroundColor: Colors[colorScheme].background }]}>
-                      <MaterialIcons name="home" size={20} color={Colors[colorScheme].tint} />
-                      <Text style={[styles.homeAwayLabel, { color: Colors[colorScheme].text }]}>Home</Text>
-                      <Text style={[styles.homeAwayRecord, { color: Colors[colorScheme].text }]}>
+                    <View style={[styles.homeAwayItem, { backgroundColor: theme.background }]}>
+                      <MaterialIcons name="home" size={20} color={theme.tint} />
+                      <Text style={[styles.homeAwayLabel, { color: theme.text }]}>Home</Text>
+                      <Text style={[styles.homeAwayRecord, { color: theme.text }]}>
                         {teamStats.homeRecord}
                       </Text>
                     </View>
 
-                    <View style={[styles.homeAwayItem, { backgroundColor: Colors[colorScheme].background }]}>
-                      <MaterialIcons name="flight" size={20} color={Colors[colorScheme].tint} />
-                      <Text style={[styles.homeAwayLabel, { color: Colors[colorScheme].text }]}>Away</Text>
-                      <Text style={[styles.homeAwayRecord, { color: Colors[colorScheme].text }]}>
+                    <View style={[styles.homeAwayItem, { backgroundColor: theme.background }]}>
+                      <MaterialIcons name="flight" size={20} color={theme.tint} />
+                      <Text style={[styles.homeAwayLabel, { color: theme.text }]}>Away</Text>
+                      <Text style={[styles.homeAwayRecord, { color: theme.text }]}>
                         {teamStats.awayRecord}
                       </Text>
                     </View>
@@ -527,8 +528,8 @@ function SeasonStatsScreen() {
                 </View>
 
                 {/* Scoring Stats */}
-                <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
                     Scoring Statistics
                   </Text>
 
@@ -536,14 +537,14 @@ function SeasonStatsScreen() {
                     <View style={styles.scoringStat}>
                       <View style={styles.scoringStatHeader}>
                         <MaterialIcons name="trending-up" size={16} color="#10B981" />
-                        <Text style={[styles.scoringStatLabel, { color: Colors[colorScheme].text }]}>
+                        <Text style={[styles.scoringStatLabel, { color: theme.text }]}>
                           Points For
                         </Text>
                       </View>
-                      <Text style={[styles.scoringStatValue, { color: Colors[colorScheme].text }]}>
+                      <Text style={[styles.scoringStatValue, { color: theme.text }]}>
                         {teamStats.pointsFor}
                       </Text>
-                      <Text style={[styles.scoringStatAvg, { color: Colors[colorScheme].mutedText }]}>
+                      <Text style={[styles.scoringStatAvg, { color: theme.mutedText }]}>
                         {teamStats.avgPointsFor.toFixed(1)} per game
                       </Text>
                     </View>
@@ -551,21 +552,21 @@ function SeasonStatsScreen() {
                     <View style={styles.scoringStat}>
                       <View style={styles.scoringStatHeader}>
                         <MaterialIcons name="trending-down" size={16} color="#EF4444" />
-                        <Text style={[styles.scoringStatLabel, { color: Colors[colorScheme].text }]}>
+                        <Text style={[styles.scoringStatLabel, { color: theme.text }]}>
                           Points Against
                         </Text>
                       </View>
-                      <Text style={[styles.scoringStatValue, { color: Colors[colorScheme].text }]}>
+                      <Text style={[styles.scoringStatValue, { color: theme.text }]}>
                         {teamStats.pointsAgainst}
                       </Text>
-                      <Text style={[styles.scoringStatAvg, { color: Colors[colorScheme].mutedText }]}>
+                      <Text style={[styles.scoringStatAvg, { color: theme.mutedText }]}>
                         {teamStats.avgPointsAgainst.toFixed(1)} per game
                       </Text>
                     </View>
                   </View>
 
-                  <View style={[styles.differentialCard, { backgroundColor: Colors[colorScheme].background }]}>
-                    <Text style={[styles.differentialLabel, { color: Colors[colorScheme].text }]}>
+                  <View style={[styles.differentialCard, { backgroundColor: theme.background }]}>
+                    <Text style={[styles.differentialLabel, { color: theme.text }]}>
                       Point Differential
                     </Text>
                     <Text style={[
@@ -578,14 +579,14 @@ function SeasonStatsScreen() {
                 </View>
 
                 {/* Recent Form */}
-                <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
                     Recent Form
                   </Text>
 
                   <View style={styles.formContainer}>
                     <View style={styles.formStat}>
-                      <Text style={[styles.formLabel, { color: Colors[colorScheme].text }]}>
+                      <Text style={[styles.formLabel, { color: theme.text }]}>
                         Current Streak
                       </Text>
                       <View style={[styles.formBadge, { backgroundColor: getStreakColor(teamStats.streak) }]}>
@@ -595,7 +596,7 @@ function SeasonStatsScreen() {
 
                     {teamStats.lastFiveGames !== '-' && (
                       <View style={styles.formStat}>
-                        <Text style={[styles.formLabel, { color: Colors[colorScheme].text }]}>
+                        <Text style={[styles.formLabel, { color: theme.text }]}>
                           Last {teamStats.lastFiveGames.split('-').length} Games
                         </Text>
                         <View style={styles.formHistory}>
@@ -622,39 +623,39 @@ function SeasonStatsScreen() {
 
         {selectedTab === 'players' && (
           <View style={styles.tabContent}>
-            <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+            <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 Team Members
               </Text>
 
               {playerStats.length === 0 ? (
-                <Text style={[styles.emptyTabText, { color: Colors[colorScheme].mutedText }]}>
+                <Text style={[styles.emptyTabText, { color: theme.mutedText }]}>
                   No team members found. Invite players to your team to see them here.
                 </Text>
               ) : (
                 playerStats.map((player, index) => (
-                  <View key={player.id} style={[styles.playerCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
+                  <View key={player.id} style={[styles.playerCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
                     <View style={styles.playerHeader}>
                       <View style={styles.playerInfo}>
-                        <View style={styles.playerRank}>
-                          <Text style={[styles.rankNumber, { color: Colors[colorScheme].mutedText }]}>
+                        <View style={[styles.playerRank, { backgroundColor: theme.card }]}>
+                          <Text style={[styles.rankNumber, { color: theme.mutedText }]}>
                             {index + 1}
                           </Text>
                         </View>
                         <View style={styles.playerDetails}>
-                          <Text style={[styles.playerName, { color: Colors[colorScheme].text }]}>
+                          <Text style={[styles.playerName, { color: theme.text }]}>
                             {player.name}
                           </Text>
-                          <Text style={[styles.playerPosition, { color: Colors[colorScheme].mutedText }]}>
+                          <Text style={[styles.playerPosition, { color: theme.mutedText }]}>
                             {player.position}
                           </Text>
                         </View>
                       </View>
                       <View style={styles.playerMainStat}>
-                        <Text style={[styles.playerPoints, { color: Colors[colorScheme].text }]}>
+                        <Text style={[styles.playerPoints, { color: theme.text }]}>
                           {player.gamesPlayed}
                         </Text>
-                        <Text style={[styles.playerPointsLabel, { color: Colors[colorScheme].mutedText }]}>
+                        <Text style={[styles.playerPointsLabel, { color: theme.mutedText }]}>
                           GP
                         </Text>
                       </View>
@@ -662,26 +663,26 @@ function SeasonStatsScreen() {
 
                     <View style={styles.playerStats}>
                       <View style={styles.playerStatItem}>
-                        <Text style={[styles.playerStatValue, { color: Colors[colorScheme].text }]}>
+                        <Text style={[styles.playerStatValue, { color: theme.text }]}>
                           {player.role}
                         </Text>
-                        <Text style={[styles.playerStatLabel, { color: Colors[colorScheme].mutedText }]}>
+                        <Text style={[styles.playerStatLabel, { color: theme.mutedText }]}>
                           ROLE
                         </Text>
                       </View>
                       <View style={styles.playerStatItem}>
-                        <Text style={[styles.playerStatValue, { color: Colors[colorScheme].text }]}>
+                        <Text style={[styles.playerStatValue, { color: theme.text }]}>
                           {player.position}
                         </Text>
-                        <Text style={[styles.playerStatLabel, { color: Colors[colorScheme].mutedText }]}>
+                        <Text style={[styles.playerStatLabel, { color: theme.mutedText }]}>
                           POS
                         </Text>
                       </View>
                       <View style={styles.playerStatItem}>
-                        <Text style={[styles.playerStatValue, { color: Colors[colorScheme].text }]}>
+                        <Text style={[styles.playerStatValue, { color: theme.text }]}>
                           {player.gamesPlayed}
                         </Text>
-                        <Text style={[styles.playerStatLabel, { color: Colors[colorScheme].mutedText }]}>
+                        <Text style={[styles.playerStatLabel, { color: theme.mutedText }]}>
                           GAMES
                         </Text>
                       </View>
@@ -695,20 +696,20 @@ function SeasonStatsScreen() {
 
         {selectedTab === 'games' && (
           <View style={styles.tabContent}>
-            <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+            <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
                 Game Results
               </Text>
 
               {gameResults.length === 0 ? (
-                <Text style={[styles.emptyTabText, { color: Colors[colorScheme].mutedText }]}>
+                <Text style={[styles.emptyTabText, { color: theme.mutedText }]}>
                   No games found for this team yet.
                 </Text>
               ) : (
                 gameResults.map((game) => (
-                  <View key={game.id} style={[styles.gameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
+                  <View key={game.id} style={[styles.gameCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
                     <View style={styles.gameCardHeader}>
-                      <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
+                      <Text style={[styles.gameDate, { color: theme.mutedText }]}>
                         {formatDate(game.date)}
                       </Text>
                       {game.result ? (
@@ -716,7 +717,7 @@ function SeasonStatsScreen() {
                           <Text style={styles.gameResultBadgeText}>{game.result}</Text>
                         </View>
                       ) : (
-                        <View style={[styles.gameResultBadge, { backgroundColor: Colors[colorScheme].mutedText }]}>
+                        <View style={[styles.gameResultBadge, { backgroundColor: theme.mutedText }]}>
                           <Text style={styles.gameResultBadgeText}>
                             {game.status === 'upcoming' ? 'TBD' : game.status === 'cancelled' ? 'CAN' : '-'}
                           </Text>
@@ -725,7 +726,7 @@ function SeasonStatsScreen() {
                     </View>
 
                     {game.title ? (
-                      <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                      <Text style={[styles.gameTitle, { color: theme.text }]} numberOfLines={1}>
                         {game.title}
                       </Text>
                     ) : null}
@@ -734,23 +735,23 @@ function SeasonStatsScreen() {
                       <View style={styles.gameTeam}>
                         <Text style={[
                           styles.gameTeamName,
-                          { color: Colors[colorScheme].text, fontWeight: game.isHome ? '800' : '500' }
+                          { color: theme.text, fontWeight: game.isHome ? '800' : '500' }
                         ]} numberOfLines={1}>
                           {game.homeTeamName}
                         </Text>
-                        {game.isHome && <Text style={[styles.homeIndicator, { color: Colors[colorScheme].tint }]}>(H)</Text>}
+                        {game.isHome && <Text style={[styles.homeIndicator, { color: theme.tint }]}>(H)</Text>}
                       </View>
-                      <Text style={[styles.gameScore, { color: Colors[colorScheme].text }]}>
+                      <Text style={[styles.gameScore, { color: theme.text }]}>
                         {game.homeScore !== null ? game.homeScore : '-'} - {game.awayScore !== null ? game.awayScore : '-'}
                       </Text>
                       <View style={[styles.gameTeam, { alignItems: 'flex-end' }]}>
                         <Text style={[
                           styles.gameTeamName,
-                          { color: Colors[colorScheme].text, fontWeight: !game.isHome ? '800' : '500' }
+                          { color: theme.text, fontWeight: !game.isHome ? '800' : '500' }
                         ]} numberOfLines={1}>
                           {game.awayTeamName}
                         </Text>
-                        {!game.isHome && <Text style={[styles.homeIndicator, { color: Colors[colorScheme].tint }]}>(A)</Text>}
+                        {!game.isHome && <Text style={[styles.homeIndicator, { color: theme.tint }]}>(A)</Text>}
                       </View>
                     </View>
                   </View>
@@ -767,7 +768,6 @@ function SeasonStatsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC'
   },
   loadingContainer: {
     flex: 1,
@@ -883,7 +883,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: '#D1D5DB',
     borderRadius: 12,
     padding: 4,
   },
@@ -935,7 +934,6 @@ const styles = StyleSheet.create({
   percentageTrack: {
     width: '100%',
     height: 8,
-    backgroundColor: '#D1D5DB',
     borderRadius: 4,
     marginBottom: 8,
   },
@@ -1067,7 +1065,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,

@@ -290,6 +290,99 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.preferences.onboarding_completed).toBe(true);
     });
 
+    it('should preserve stored preferences, send no-store headers, and hide internal auth fields', async () => {
+      const now = Date.now();
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          role: 'fan',
+          onboarding_completed: true,
+          google_id: `google-auth-me-${now}`,
+          apple_id: `apple-auth-me-${now}`,
+          stripe_customer_id: `cus_auth_me_${now}`,
+          parent_email: `parent-${now}@example.com`,
+          parental_consent_status: 'pending',
+          parental_consent_at: new Date('2026-01-01T00:00:00.000Z'),
+          parental_consent_requested_at: new Date('2026-01-02T00:00:00.000Z'),
+          parental_consent_token_hash: 'hashed-parent-token',
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+            is_parent: true,
+            notifications: {
+              game_event_reminders: true,
+              team_updates: true,
+              comments_upvotes: true,
+              follows_notifications: false,
+              messages_notifications: false,
+            },
+          },
+        },
+      });
+
+      const response = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.headers['cache-control']).toBe('no-store, private');
+      expect(response.headers['pragma']).toBe('no-cache');
+      expect(response.headers['vary']).toContain('Authorization');
+
+      expect(response.body.preferences.is_parent).toBe(true);
+      expect(response.body.preferences.notifications).toEqual({
+        game_event_reminders: true,
+        team_updates: true,
+        comments_upvotes: true,
+        follows_notifications: false,
+        messages_notifications: false,
+      });
+
+      expect(response.body.has_password).toBe(true);
+      expect(response.body.linked_providers).toEqual({
+        password: true,
+        google: true,
+        apple: true,
+      });
+
+      expect(response.body).not.toHaveProperty('password_hash');
+      expect(response.body).not.toHaveProperty('google_id');
+      expect(response.body).not.toHaveProperty('apple_id');
+      expect(response.body).not.toHaveProperty('stripe_customer_id');
+      expect(response.body).not.toHaveProperty('parent_email');
+      expect(response.body).not.toHaveProperty('parental_consent_token_hash');
+      expect(response.body).not.toHaveProperty('password_changed_at');
+      expect(response.body).not.toHaveProperty('session_epoch');
+    });
+
+    it('should exclude soft-deleted posts from _count.posts', async () => {
+      await prisma.post.deleteMany({ where: { author_id: userId } });
+      await prisma.post.create({
+        data: {
+          author_id: userId,
+          title: 'Active auth me post',
+          content: 'Visible',
+          type: 'post',
+        },
+      });
+      await prisma.post.create({
+        data: {
+          author_id: userId,
+          title: 'Deleted auth me post',
+          content: 'Hidden',
+          type: 'post',
+          deleted_at: new Date(),
+        },
+      });
+
+      const response = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body._count.posts).toBe(1);
+    });
+
     it('should return current user through the canonical /me alias', async () => {
       const response = await request(app)
         .get('/me')
@@ -298,6 +391,7 @@ describe('API Authentication Endpoints', () => {
 
       expect(response.body.email).toBe(TEST_EMAIL);
       expect(response.body).toHaveProperty('preferences');
+      expect(response.headers['cache-control']).toBe('no-store, private');
     });
   });
 

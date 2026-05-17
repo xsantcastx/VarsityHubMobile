@@ -84,10 +84,18 @@ function AdminTransactionsScreen() {
   ];
 
   if (adminLoading) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></SafeAreaView>;
+    return (
+      <SafeAreaView style={[styles.centerState, { backgroundColor: palette.background }]}>
+        <ActivityIndicator color={palette.tint} />
+      </SafeAreaView>
+    );
   }
   if (!isAdmin) {
-    return <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Admin access required</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={[styles.centerState, { backgroundColor: palette.background }]}>
+        <Text style={{ color: palette.text }}>Admin access required</Text>
+      </SafeAreaView>
+    );
   }
 
   const SummaryCard = ({ title, value, color, icon }: { title: string; value: string | number; color: string; icon: string }) => (
@@ -109,7 +117,7 @@ function AdminTransactionsScreen() {
         headerTintColor: palette.text,
         headerLeft: () => (
           <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-            <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
+            <MaterialIcons name="chevron-left" size={28} color={palette.tint} />
           </Pressable>
         ),
       }} />
@@ -187,7 +195,7 @@ function AdminTransactionsScreen() {
         ) : null}
         ListFooterComponent={() => (
           <>
-            {loading && <ActivityIndicator style={{ padding: 16 }} />}
+            {loading && <ActivityIndicator style={{ padding: 16 }} color={palette.tint} />}
             {hasMore && !loading && transactions.length > 0 && (
               <Pressable style={[styles.loadMore, { borderColor: cardBorder }]} onPress={() => void loadData(false)}>
                 <Text style={{ color: palette.tint, fontWeight: '600' }}>Load More</Text>
@@ -202,6 +210,7 @@ function AdminTransactionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   summaryCard: { flex: 1, minWidth: '45%', padding: 12, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   summaryIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },

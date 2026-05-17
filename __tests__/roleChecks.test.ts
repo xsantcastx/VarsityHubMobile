@@ -328,4 +328,19 @@ describe('getCoachRecoveryRoute', () => {
       })
     ).toBeNull();
   });
+
+  it('routes approved coaches with pending paid checkout to manage subscription', () => {
+    expect(
+      getCoachRecoveryRoute({
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          pending_plan: 'legend',
+          payment_pending: true,
+          payment_approved: true,
+        },
+      })
+    ).toBe('/settings/manage-subscription');
+  });
 });

@@ -14,9 +14,11 @@ import { MentionInput } from '@/components/ui/MentionInput';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
+import { getAuthSnapshot } from '@/utils/authState';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { sanitizeText } from '@/utils/formUtils';
 import { usePostCache } from '@/context/PostCacheContext';
@@ -92,6 +94,7 @@ const isSampleEvent = (id?: string | null): boolean => {
 
 function CreatePostScreen() {
   const router = useRouter();
+  const { user: authUser, checkAuth } = useAuth();
   const { clear: clearPostCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
@@ -744,7 +747,7 @@ function CreatePostScreen() {
 
       if (isSelectedSample && selectedGameId) {
         try {
-          const me = await User.me().catch(() => null);
+          const me = await getAuthSnapshot(checkAuth, authUser).catch(() => null);
           const isVideo = picked?.type === 'video';
           const newPost = {
             id: created?.id ? String(created.id) : `local-${Date.now()}`,

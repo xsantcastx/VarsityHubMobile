@@ -5,6 +5,7 @@ import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { safeGoBack } from '@/utils/navigation';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
 import { VerificationCodeScreenBase } from '@/components/VerificationCodeScreenBase';
 
@@ -19,7 +20,7 @@ const toSingleValue = (value: ParamValue): string | undefined => {
 
 function VerifyScreen() {
   const router = useRouter();
-  const { checkAuth } = useAuth();
+  const { checkAuth, user } = useAuth();
   const params = useLocalSearchParams<{ devCode?: ParamValue }>();
 
   const [screenInfo, setScreenInfo] = useState<string | null>(null);
@@ -48,13 +49,13 @@ function VerifyScreen() {
     getConfirmErrorMessage: (e: any) => e?.message || e?.data?.error || 'Verification failed',
     getRequestErrorMessage: (e: any) => e?.message || e?.data?.error || 'Resend failed',
     onVerified: async () => {
-      await checkAuth().catch(() => {});
+      const freshUser = await checkAuth().catch(() => null);
       setScreenInfo('Email verified successfully!');
       setScreenError(null);
       setIsVerified(true);
 
       try {
-        const userInfo = await User.me();
+        const userInfo = freshUser ?? (await getFreshAuthSnapshot(checkAuth, user));
         const targetRoute = getPostAuthLandingRoute(userInfo);
         redirectTimerRef.current = setTimeout(() => {
           router.replace(targetRoute as any);
@@ -94,7 +95,7 @@ function VerifyScreen() {
 
   const onContinue = async () => {
     try {
-      const userInfo = await User.me();
+      const userInfo = await getFreshAuthSnapshot(checkAuth, user);
       router.replace(getPostAuthLandingRoute(userInfo) as any);
     } catch (err: any) {
       const status = err?.status ?? err?.response?.status ?? null;

@@ -27,6 +27,7 @@ import {
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -38,6 +39,7 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
+import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
   getNotificationHref,
@@ -265,6 +267,7 @@ export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
+  const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
@@ -389,7 +392,7 @@ export default function FeedScreen() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const userPromise = User.me()
+      const userPromise = getAuthSnapshot(checkAuth, authUser)
         .then(user => {
           if (isCurrentRequest()) setMe(user);
           return user;
@@ -571,7 +574,7 @@ export default function FeedScreen() {
         lastLoadTimestampRef.current = Date.now();
       }
     }
-  }, []);
+  }, [authUser, checkAuth]);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -2079,7 +2082,7 @@ export default function FeedScreen() {
           <View style={{ flex: 1 }}>
             {loadingNotifications ? (
               <View style={styles.center}>
-                <ActivityIndicator />
+                <ActivityIndicator color={Colors[colorScheme].tint} />
               </View>
             ) : notificationsList.length === 0 ? (
               <View style={{ padding: 24, alignItems: 'center' }}>

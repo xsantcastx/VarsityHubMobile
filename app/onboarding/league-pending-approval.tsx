@@ -8,8 +8,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 // @ts-ignore
-import { User, Notification as NotificationApi } from '@/api/entities';
-import { httpGet } from '@/api/http';
+import { User, Notification as NotificationApi, Organization } from '@/api/entities';
 import { captureException } from '@/utils/sentry';
 import {
   CoachSetupActions,
@@ -182,7 +181,7 @@ function LeaguePendingApproval() {
         return;
       }
 
-      const org: any = await httpGet(`/organizations/${orgId}`);
+      const org: any = await Organization.get(orgId);
       const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
       const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
@@ -359,7 +358,7 @@ function LeaguePendingApproval() {
 
           {!orgId && hydrating ? (
             <View style={{ marginTop: 12, alignItems: 'center' }}>
-              <ActivityIndicator />
+              <ActivityIndicator color={isDark ? '#60A5FA' : '#2563EB'} />
               <Text style={[styles.supportText, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 8 }]}>
                 Loading your application…
               </Text>

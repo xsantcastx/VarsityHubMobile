@@ -195,7 +195,7 @@ function CreateEventScreen() {
   if (adminLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-        <ActivityIndicator style={{ marginTop: 40 }} />
+        <ActivityIndicator style={{ marginTop: 40 }} color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
   }

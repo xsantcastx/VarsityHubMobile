@@ -1,5 +1,7 @@
 import { Organization, User } from '@/api/entities';
+import { useAuth } from '@/context/AuthProvider';
 import { getOrganizationAccess } from '@/utils/roleChecks';
+import { getFreshAuthSnapshot } from '@/utils/authState';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { captureException } from '@/utils/sentry';
@@ -38,6 +40,7 @@ type JoinRequest = {
 };
 
 function OrganizationJoinRequestsScreen() {
+  const { user: authUser, checkAuth } = useAuth();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
@@ -88,7 +91,7 @@ function OrganizationJoinRequestsScreen() {
       // user is currently allowed to review coach requests BEFORE loading
       // any data. Mirrors the server owner-only gate on the review routes.
       const [currentUser, members] = await Promise.all([
-        User.me().catch(() => null),
+        getFreshAuthSnapshot(checkAuth, authUser).catch(() => null),
         Organization.members(params.organization_id).catch(() => []),
       ]);
       if (!getOrganizationAccess(currentUser as any, Array.isArray(members) ? members : []).isOwner) {
@@ -122,7 +125,7 @@ function OrganizationJoinRequestsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.organization_id, params.organization_name, filter]);
+  }, [authUser, checkAuth, params.organization_id, params.organization_name, filter]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

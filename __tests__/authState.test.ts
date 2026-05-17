@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 
 import {
   getAuthSnapshot,
+  getFreshAuthSnapshot,
   getCanonicalOrganizationId,
   getCanonicalRole,
   hasAcceptedCoachAgreement,
@@ -25,6 +26,22 @@ describe('authState helpers', () => {
 
     await expect(getAuthSnapshot(checkAuth as any, null)).resolves.toEqual(serverUser);
     expect(checkAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it('getFreshAuthSnapshot prefers a forced AuthProvider refresh even when local user exists', async () => {
+    const serverUser = { id: 'server-user', approval_status: 'APPROVED' };
+    const localUser = { id: 'local-user', approval_status: 'PENDING' };
+    const checkAuth = jest.fn<() => Promise<any>>().mockResolvedValue(serverUser);
+
+    await expect(getFreshAuthSnapshot(checkAuth as any, localUser)).resolves.toEqual(serverUser);
+    expect(checkAuth).toHaveBeenCalledWith({ skipSubscriptionRefresh: true });
+  });
+
+  it('getFreshAuthSnapshot falls back to current user when refresh returns null', async () => {
+    const localUser = { id: 'local-user', approval_status: 'PENDING' };
+    const checkAuth = jest.fn<() => Promise<any>>().mockResolvedValue(null);
+
+    await expect(getFreshAuthSnapshot(checkAuth as any, localUser)).resolves.toEqual(localUser);
   });
 
   it('detects approved coaches from canonical role + approval status', () => {

@@ -17,8 +17,9 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Event, User } from '@/api/entities';
+import { Event } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
+import { getAuthSnapshot } from '@/utils/authState';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
 import { Image } from 'expo-image';
@@ -37,7 +38,7 @@ type EventItem = {
 };
 
 export default function EventDetailScreen() {
-  const { user: _user } = useAuth();
+  const { user: authUser, checkAuth } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -93,7 +94,7 @@ export default function EventDetailScreen() {
       // Load user and RSVP status in parallel (best-effort, don't block render)
       try {
         const [user, status]: any = await Promise.all([
-          User.me().catch(() => null),
+          getAuthSnapshot(checkAuth, authUser).catch(() => null),
           Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
         ]);
         setMe(user);
@@ -107,7 +108,7 @@ export default function EventDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [authUser, checkAuth, id]);
 
   useEffect(() => {
     void load();
@@ -303,7 +304,7 @@ export default function EventDetailScreen() {
         )}
         {loading && (
           <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-            <ActivityIndicator size="large" />
+            <ActivityIndicator size="large" color={theme.tint} />
           </View>
         )}
         {error && !loading && (
