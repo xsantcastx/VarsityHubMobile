@@ -65,7 +65,7 @@ module.exports = ({ config }) => {
     // older installed binary via env override when needed.
     runtimeVersion,
     description:
-      'The ultimate sports team management and social platform for athletes, coaches, and fans.',
+      'VarsityHub is the sports social app where fans follow their teams, athletes share highlights, and friends connect over local games.',
     githubUrl: 'https://github.com/xsantcastx/VarsityHubMobile',
     icon: './assets/images/icon.png',
     scheme: 'varsityhubmobile',

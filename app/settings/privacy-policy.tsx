@@ -14,14 +14,14 @@ export default function PrivacyPolicyScreen() {
       <Stack.Screen options={{ title: 'Privacy Policy' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-          Last updated: March 25, 2026
+          Last updated: May 17, 2026
         </Text>
 
         <PolicySection
           colorScheme={colorScheme}
           title="What We Collect"
           body={
-            'We collect: email, username, profile info, posts, photos, videos, messages, team/game data, event RSVPs, device info, usage data, and approximate location (when enabled). Payments are processed by Apple, Google Play, or Stripe depending on platform — we never store full card numbers.'
+            'We collect: email, username, profile info, posts, photos, videos, messages, team/game data, event RSVPs, device info, usage data, product analytics events (screen views, taps, feature usage), crash diagnostics, and approximate location (when enabled). Payments are processed by Apple, Google Play, or Stripe depending on platform — we never store full card numbers.'
           }
         />
 
@@ -37,7 +37,7 @@ export default function PrivacyPolicyScreen() {
           colorScheme={colorScheme}
           title="Who We Share With"
           body={
-            'We do not sell your data. We share only with: service providers (Stripe, Cloudinary, Railway, Google, Sentry), when you post publicly, or when required by law. We do not share data with sports leagues or universities.'
+            'We do not sell your data. We share only with: service providers (Stripe, Cloudinary, Railway, Google, Sentry for crash diagnostics, PostHog for product analytics, SendGrid for email), when you post publicly, or when required by law. We do not share data with sports leagues or universities.'
           }
         />
 
