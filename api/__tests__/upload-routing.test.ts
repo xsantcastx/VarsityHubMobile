@@ -3,9 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 const mockAuth = {
   getToken: jest.fn(async () => 'test-token'),
   refreshToken: jest.fn(async () => ({ accessToken: 'refreshed-token', reason: 'success' as const })),
+  clearTokensOnly: jest.fn(async () => undefined),
 };
 
 const openVerificationGateMock = jest.fn(async () => false);
+const getAccessTokenForRequestMock = jest.fn(async () => 'test-token');
+const refreshAccessTokenWithCacheMock = jest.fn(
+  async () => ({ accessToken: 'refreshed-token', reason: 'success' as const })
+);
 
 jest.mock('@/utils/ensureUploadableUri', () => ({
   compressImageForUpload: jest.fn(async (uri: string, mimeType: string) => ({ uri, mimeType })),
@@ -18,6 +23,8 @@ jest.mock('../auth', () => ({
 
 jest.mock('../http', () => ({
   getApiBaseUrl: jest.fn(() => 'https://api.test'),
+  getAccessTokenForRequest: getAccessTokenForRequestMock,
+  refreshAccessTokenWithCache: refreshAccessTokenWithCacheMock,
 }));
 
 jest.mock('@/hooks/useVerificationGate', () => ({
@@ -65,8 +72,16 @@ describe('uploadFile routing', () => {
     fetchMock.mockReset();
     mockAuth.getToken.mockReset();
     mockAuth.refreshToken.mockReset();
+    mockAuth.clearTokensOnly.mockReset();
     mockAuth.getToken.mockResolvedValue('test-token');
     mockAuth.refreshToken.mockResolvedValue({ accessToken: 'refreshed-token', reason: 'success' });
+    getAccessTokenForRequestMock.mockReset();
+    refreshAccessTokenWithCacheMock.mockReset();
+    getAccessTokenForRequestMock.mockResolvedValue('test-token');
+    refreshAccessTokenWithCacheMock.mockResolvedValue({
+      accessToken: 'refreshed-token',
+      reason: 'success',
+    });
     openVerificationGateMock.mockReset();
     openVerificationGateMock.mockResolvedValue(false);
     MockXHR.instances.length = 0;
@@ -132,18 +147,14 @@ describe('uploadFile routing', () => {
     const { uploadFile } = await import('../upload');
     const result = await uploadFile('https://api.test', 'file:///tmp/doc.pdf', 'doc.pdf', 'application/pdf');
 
-    expect(mockAuth.refreshToken).toHaveBeenCalledTimes(1);
+    expect(refreshAccessTokenWithCacheMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1]?.[1]?.headers?.Authorization).toBe('Bearer refreshed-token');
     expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
   });
 
-  it('uses the refresh token when no access token is currently loaded for PDF uploads', async () => {
-    mockAuth.getToken.mockResolvedValue(null as any);
-    mockAuth.refreshToken.mockResolvedValue({
-      accessToken: 'recovered-token',
-      reason: 'success',
-    });
+  it('uses the token resolved by the HTTP auth helper for PDF uploads', async () => {
+    getAccessTokenForRequestMock.mockResolvedValueOnce('recovered-token');
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -159,14 +170,14 @@ describe('uploadFile routing', () => {
       'application/pdf'
     );
 
-    expect(mockAuth.refreshToken).toHaveBeenCalledTimes(1);
+    expect(refreshAccessTokenWithCacheMock).toHaveBeenCalledTimes(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]?.headers?.Authorization).toBe('Bearer recovered-token');
     expect(result).toEqual({ url: 'https://cdn.test/doc.pdf', type: 'raw', mime: 'application/pdf' });
   });
 
   it('opens the verification gate and retries PDF uploads after email-verification-required', async () => {
-    mockAuth.getToken
+    getAccessTokenForRequestMock
       .mockResolvedValueOnce('test-token')
       .mockResolvedValueOnce('verified-token');
     openVerificationGateMock.mockResolvedValue(true);

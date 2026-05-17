@@ -3818,7 +3818,13 @@ authRouter.post(
   })
 );
 
-function sanitizeUser(u: any) {
+type SanitizedUser = Record<string, unknown> & {
+  id: string;
+  email: string;
+  preferences: Record<string, unknown>;
+};
+
+function sanitizeUser(u: any): SanitizedUser {
   const source = (u || {}) as Record<string, any>;
   const normalizedDob = formatDobYmd(getCanonicalDob(source));
   const normalizedPreferences =
@@ -3871,8 +3877,6 @@ function sanitizeUser(u: any) {
       .map(key => [key, normalizedPreferences[key]])
   );
   const safeBase: Record<string, unknown> = {
-    id: source.id,
-    email: source.email,
     display_name: source.display_name ?? null,
     username: source.username ?? null,
     avatar_url: source.avatar_url ?? null,
@@ -3893,6 +3897,8 @@ function sanitizeUser(u: any) {
   };
   if (source._count) safeBase._count = source._count;
   return {
+    id: source.id as string,
+    email: source.email as string,
     ...safeBase,
     ...topLevelAliases,
     preferences: normalizedPreferences,

@@ -13,6 +13,16 @@ const mockUploadFile = jest.fn();
 const mockPatchMe = jest.fn();
 const mockUpdatePreferences = jest.fn();
 const mockCompleteOnboarding = jest.fn();
+const mockGetFreshPostAuthState = jest.fn(async () => ({
+  decision: { route: '/(tabs)' },
+}));
+const mockAuthUser = {
+  id: 'user-1',
+  email_verified: true,
+  username: 'fanuser',
+  preferences: {},
+};
+const mockCheckAuth = jest.fn(async () => mockAuthUser);
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -67,12 +77,17 @@ jest.mock('@/utils/notifications', () => ({
   getPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
   requestPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
 }));
+jest.mock('@/utils/postMutationAuth', () => ({
+  getFreshPostAuthState: mockGetFreshPostAuthState,
+}));
 jest.mock('@/utils/sentry', () => ({
   captureBreadcrumb: jest.fn(),
   captureException: jest.fn(),
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
+    user: mockAuthUser,
+    checkAuth: mockCheckAuth,
     markOnboardingCompleteLocally: mockMarkOnboardingCompleteLocally,
     registerPushToken: mockRegisterPushToken,
   }),
@@ -106,6 +121,8 @@ import Step2Basic from '../app/onboarding/step-2-basic';
 describe('Step2Basic optional media persistence', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCheckAuth.mockResolvedValue(mockAuthUser);
+    mockGetFreshPostAuthState.mockResolvedValue({ decision: { route: '/(tabs)' } });
     mockPatchMe.mockResolvedValue({ ok: true });
     mockUpdatePreferences.mockResolvedValue({ ok: true });
     mockCompleteOnboarding.mockResolvedValue({ ok: true });
@@ -120,12 +137,23 @@ describe('Step2Basic optional media persistence', () => {
   it('keeps onboarding flow moving while persisting avatar and header image data', async () => {
     const { getByTestId } = render(<Step2Basic />);
 
+    await waitFor(() => {
+      expect(mockCheckAuth).toHaveBeenCalled();
+      expect(getByTestId('onboarding-step2-username-input').props?.value).toBe('fanuser');
+    });
+
     await act(async () => {
       fireEvent.press(getByTestId('onboarding-step2-avatar-picker'));
       fireEvent.press(getByTestId('onboarding-step2-header-picker'));
     });
 
     fireEvent.changeText(getByTestId('dob-input'), '2000-01-01');
+
+    await waitFor(() => {
+      expect(
+        getByTestId('onboarding-step2-continue-button').props?.accessibilityState?.disabled
+      ).toBe(false);
+    });
 
     await act(async () => {
       fireEvent.press(getByTestId('onboarding-step2-continue-button'));
