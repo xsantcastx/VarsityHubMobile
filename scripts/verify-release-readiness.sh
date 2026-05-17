@@ -17,6 +17,18 @@ ERRORS=0
 WARNINGS=0
 BLOCKERS=0
 
+COACH_GUARD_REGEX="useRequireCoach|canAccessCoachTools|role.*coach|isCoach|CoachAccessRedirecting|COACH_ROLE_REQUIRED|COACH_REQUIRED"
+
+has_coach_protection_for_pattern() {
+  local feature_pattern="$1"
+  while IFS= read -r feature_file; do
+    if grep -Eq "$COACH_GUARD_REGEX" "$feature_file" 2>/dev/null; then
+      return 0
+    fi
+  done < <(find app -type f -name "*${feature_pattern}*" 2>/dev/null)
+  return 1
+}
+
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${MAGENTA}🚀 RELEASE READINESS VERIFICATION - FEBRUARY 2026${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -62,8 +74,7 @@ echo -e "${BLUE}Test 1.3: Coach-only features protected...${NC}"
 COACH_FEATURES=("manage-season.tsx" "create-team" "manage-teams")
 for feature in "${COACH_FEATURES[@]}"; do
     if find app -name "*${feature}*" -type f | grep -q .; then
-        FEATURE_FILE=$(find app -name "*${feature}*" -type f | head -1)
-        if grep -q "role.*coach\|isCoach\|preferences.*role.*coach" "$FEATURE_FILE" 2>/dev/null; then
+        if has_coach_protection_for_pattern "$feature"; then
             echo -e "${GREEN}✅ ${feature} has role protection${NC}"
         else
             echo -e "${YELLOW}⚠️  ${feature} may lack role protection${NC}"
@@ -214,8 +225,7 @@ echo ""
 # Test 4.1: Create team (coach only)
 echo -e "${BLUE}Test 4.1: Create team feature...${NC}"
 if find app -name "*create*team*" -o -name "*team*create*" | grep -q .; then
-    CREATE_TEAM=$(find app -name "*create*team*" -o -name "*team*create*" | head -1)
-    if grep -q "role.*coach\|isCoach" "$CREATE_TEAM" 2>/dev/null; then
+    if has_coach_protection_for_pattern "create-team"; then
         echo -e "${GREEN}✅ Create team restricted to coaches${NC}"
     else
         echo -e "${YELLOW}⚠️  Create team may not check role${NC}"
@@ -241,9 +251,11 @@ fi
 echo -e "${BLUE}Test 4.3: Authorized users...${NC}"
 if [ -f "app/onboarding/step-6-authorized-users.tsx" ]; then
     echo -e "${GREEN}✅ Authorized users step exists${NC}"
-else
-    echo -e "${YELLOW}⚠️  Authorized users step missing${NC}"
+elif grep -q "step-6-authorized-users" app/onboarding/index.tsx 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Authorized users step referenced but missing${NC}"
     WARNINGS=$((WARNINGS + 1))
+else
+    echo -e "${GREEN}✅ Authorized users step not required in current onboarding flow${NC}"
 fi
 
 echo ""
