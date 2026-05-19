@@ -1,4 +1,3 @@
-import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -13,8 +12,10 @@ import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
-import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
-import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import {
+  accountDeletionPayloadSchema,
+  processSelfAccountDeletion,
+} from '../lib/accountDeletionFlow.js';
 import { formatDobYmd, getUserAge, parseDobLocal, requiresParentalConsent } from '../lib/userAge.js';
 
 export const usersRouter = Router();
@@ -631,99 +632,14 @@ usersRouter.get('/:id/teams', asyncHandler(async (req: AuthedRequest, res) => {
   }
 }));
 
-// Delete own account (soft-delete + anonymize)
-// All users must type DELETE. Accounts with a password must also provide it.
-const deleteAccountSchema = z.object({
-  password: z.string().min(1, 'Password is required').optional(),
-  delete_confirmation: z.string().optional(),
-});
 usersRouter.delete('/me', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = req.user!.id;
-  const parsed = deleteAccountSchema.safeParse(req.body || {});
+  const parsed = accountDeletionPayloadSchema.safeParse(req.body || {});
   if (!parsed.success) {
-    return res.status(400).json({
-      error: 'Invalid confirmation payload',
-      message: 'Type DELETE and provide your password if your account uses one.',
-    });
+    return res.status(400).json({ error: 'Invalid payload' });
   }
-  const { password } = parsed.data;
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        email: true,
-        password_hash: true,
-        google_id: true,
-        apple_id: true,
-        deleted_at: true,
-        deletion_anonymized: true,
-      },
-    });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    if (user.deleted_at || user.deletion_anonymized) {
-      return res.status(202).json({
-        deleted: true,
-        already_deleted: true,
-        deleted_at: user.deleted_at?.toISOString(),
-      });
-    }
-
-    const confirmationCheck = getAccountDeletionConfirmationRequirements(user, parsed.data);
-    if (!confirmationCheck.ok) {
-      return res.status(confirmationCheck.status).json(confirmationCheck.body);
-    }
-
-    if (confirmationCheck.requiresPassword) {
-      const isValid = await bcrypt.compare(
-        String(password || ''),
-        String(user.password_hash || '')
-      );
-      if (!isValid) {
-        return res.status(403).json({
-          error: 'Invalid password',
-          message: 'Password does not match.',
-        });
-      }
-    }
-
-    try {
-      await assertCanSelfDeleteUser(id);
-    } catch (err) {
-      if ((err as any)?.code === 'SOLE_ORG_OWNER') {
-        return res.status(400).json({
-          error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
-          code: 'SOLE_ORG_OWNER',
-          organization_id: (err as any).organization_id,
-        });
-      }
-      throw err;
-    }
-
-    const userEmail = user.email;
-    const result = await softDeleteUserAccount(id);
-
-    // Send deletion confirmation email (best-effort, user record already deleted)
-    if (userEmail) {
-      try {
-        const { sendEmail } = await import('../lib/email.js');
-        await (sendEmail as any)({
-          to: userEmail,
-          subject: 'VarsityHub Account Deleted',
-          text: 'Your VarsityHub account has been permanently deleted. All your data has been removed. If you did not request this, contact support@varsityhub.app immediately.',
-        });
-      } catch { /* best-effort */ }
-    }
-
-    return res.status(202).json({
-      deleted: true,
-      deleted_at: result.deletedAt.toISOString(),
-      message: 'Account deletion accepted',
-    });
-  } catch (e: any) {
-    console.error('Account deletion error:', e);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+  const deletion = await processSelfAccountDeletion(id, parsed.data);
+  return res.status(deletion.status).json(deletion.body);
 }));
 
 // Username availability check (public - no auth required)
