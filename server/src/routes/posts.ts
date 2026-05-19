@@ -857,6 +857,8 @@ postsRouter.post(
     });
     const preferCountry = getCountryFromReqOrPrefs(req as any, prefs?.preferences);
     const loc = (data as any).location || {};
+    const hasDeviceOriginLocation =
+      loc?.source === 'device' && typeof loc.lat === 'number' && typeof loc.lng === 'number';
     if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
       lat = loc.lat;
       lng = loc.lng;
@@ -966,11 +968,17 @@ postsRouter.post(
       } else if (isAdmin || isTeamMember) {
         debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin}, isTeamMember=${isTeamMember})`);
       } else if (targetEventId) {
+        if (!hasDeviceOriginLocation) {
+          return res.status(403).json({
+            error: 'LOCATION_REQUIRED',
+            message: 'Live event posts require current device location within 3 km of the venue.',
+          });
+        }
         const verification = await verifyEventPostingPermission(
           targetEventId,
           req.user.id,
-          lat,
-          lng
+          loc.lat,
+          loc.lng
         );
         if (!verification.allowed) {
           return res.status(403).json({

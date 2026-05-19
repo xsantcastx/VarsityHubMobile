@@ -18,7 +18,8 @@ jest.unstable_mockModule('../lib/prisma.js', () => ({
   },
 }));
 
-const { isStoryPostingWindowOpen, verifyEventPostingPermission } = await import('../lib/geofencing.js');
+const { isStoryPostingWindowOpen, verifyEventPostingPermission, verifyStoryPostingPermission } =
+  await import('../lib/geofencing.js');
 
 const EVENT_DATE = new Date('2026-05-10T18:00:00.000Z');
 const BASE_EVENT = {
@@ -37,6 +38,7 @@ describe('regular post grace window', () => {
     mockEventFindUnique.mockReset();
     mockGameFindUnique.mockReset();
     mockPostFindFirst.mockReset();
+    global.fetch = jest.fn() as any;
     mockEventFindUnique.mockResolvedValue(BASE_EVENT);
     mockGameFindUnique.mockResolvedValue(null);
     mockPostFindFirst.mockResolvedValue(null);
@@ -44,6 +46,7 @@ describe('regular post grace window', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+    jest.restoreAllMocks();
   });
 
   it('denies posting before the window opens', async () => {
@@ -119,5 +122,24 @@ describe('regular post grace window', () => {
 
     jest.setSystemTime(new Date('2026-05-12T18:00:01.000Z'));
     expect(isStoryPostingWindowOpen(EVENT_DATE)).toBe(false);
+  });
+
+  it('rejects stories when client coordinates conflict with network location', async () => {
+    jest.setSystemTime(new Date('2026-05-10T23:00:00.000Z'));
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ latitude: 34.0522, longitude: -118.2437 }),
+    });
+
+    const result = await verifyStoryPostingPermission(
+      'event-1',
+      'user-1',
+      40.7128,
+      -74.006,
+      '8.8.8.8'
+    );
+
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe('LOCATION_SPOOF_SUSPECTED');
   });
 });

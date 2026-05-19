@@ -62,6 +62,32 @@ describe('Geofencing Utilities', () => {
   });
 
   describe('isWithinGeofence', () => {
+    const pointNorthByKm = (
+      startLat: number,
+      startLon: number,
+      targetKm: number,
+      delta = 0.000001
+    ) => {
+      let low = startLat;
+      let high = startLat + 0.1;
+      while (calculateDistance(startLat, startLon, high, startLon, 'km') < targetKm) {
+        high += 0.1;
+      }
+      for (let i = 0; i < 40; i += 1) {
+        const mid = (low + high) / 2;
+        const distance = calculateDistance(startLat, startLon, mid, startLon, 'km');
+        if (distance < targetKm) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      return {
+        atEdgeLat: low,
+        justOutsideLat: high + delta,
+      };
+    };
+
     it('should return true when user is within default radius (0.5 miles)', () => {
       // User at venue (same location)
       const userLat = 40.7128;
@@ -108,6 +134,24 @@ describe('Geofencing Utilities', () => {
       const within = isWithinGeofence(userLat, userLon, eventLat, eventLon, 0.5);
       
       expect(within).toBe(true);
+    });
+
+    it('should allow a point exactly at the 1 km boundary and reject just beyond it', () => {
+      const eventLat = 40.7128;
+      const eventLon = -74.0060;
+      const { atEdgeLat, justOutsideLat } = pointNorthByKm(eventLat, eventLon, 1);
+
+      expect(isWithinGeofence(atEdgeLat, eventLon, eventLat, eventLon, 1)).toBe(true);
+      expect(isWithinGeofence(justOutsideLat, eventLon, eventLat, eventLon, 1)).toBe(false);
+    });
+
+    it('should allow a point exactly at the 3 km boundary and reject just beyond it', () => {
+      const eventLat = 40.7128;
+      const eventLon = -74.0060;
+      const { atEdgeLat, justOutsideLat } = pointNorthByKm(eventLat, eventLon, 3);
+
+      expect(isWithinGeofence(atEdgeLat, eventLon, eventLat, eventLon, 3)).toBe(true);
+      expect(isWithinGeofence(justOutsideLat, eventLon, eventLat, eventLon, 3)).toBe(false);
     });
   });
 

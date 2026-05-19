@@ -267,8 +267,19 @@ export const makeCreateStoryHandler =
       if (!isDemoMatchup && !isAdmin && !isTeamMember && game?.events && game.events.length > 0) {
         const event = game.events[0];
         const location = parsed.data.location;
-        const lat = location?.lat ?? null;
-        const lng = location?.lng ?? null;
+        const hasDeviceOriginLocation =
+          location?.source === 'device' &&
+          typeof location?.lat === 'number' &&
+          typeof location?.lng === 'number';
+
+        if (!hasDeviceOriginLocation) {
+          return res.status(403).json({
+            error: 'LOCATION_REQUIRED',
+            message: 'Stories require current device location within 1 km of the venue.',
+          });
+        }
+        const lat = location.lat ?? null;
+        const lng = location.lng ?? null;
 
         // v1.0.2 pass 9: pass requester IP for anti-spoof cross-check inside geofencing.
         const ipAddr =

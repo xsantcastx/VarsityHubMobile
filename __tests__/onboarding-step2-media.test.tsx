@@ -20,7 +20,9 @@ const mockAuthUser = {
   id: 'user-1',
   email_verified: true,
   username: 'fanuser',
-  preferences: {},
+  role: 'fan',
+  onboarding_completed: true,
+  preferences: { role: 'fan', onboarding_completed: true },
 };
 const mockCheckAuth = jest.fn(async () => mockAuthUser);
 
@@ -86,7 +88,7 @@ jest.mock('@/utils/sentry', () => ({
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
-    user: mockAuthUser,
+    user: null,
     checkAuth: mockCheckAuth,
     markOnboardingCompleteLocally: mockMarkOnboardingCompleteLocally,
     registerPushToken: mockRegisterPushToken,

@@ -3877,6 +3877,8 @@ function sanitizeUser(u: any): SanitizedUser {
       .map(key => [key, normalizedPreferences[key]])
   );
   const safeBase: Record<string, unknown> = {
+    id: source.id,
+    email: source.email,
     display_name: source.display_name ?? null,
     username: source.username ?? null,
     avatar_url: source.avatar_url ?? null,
@@ -3895,11 +3897,11 @@ function sanitizeUser(u: any): SanitizedUser {
     parental_consent_at: source.parental_consent_at ?? null,
     parental_consent_requested_at: source.parental_consent_requested_at ?? null,
   };
-  if (source._count) safeBase._count = source._count;
+  const safeWithCounts = source._count ? { ...safeBase, _count: source._count } : safeBase;
   return {
-    id: source.id as string,
-    email: source.email as string,
-    ...safeBase,
+    ...safeWithCounts,
+    id: String(source.id || ''),
+    email: String(source.email || ''),
     ...topLevelAliases,
     preferences: normalizedPreferences,
     role: canonicalAuthState.role,
