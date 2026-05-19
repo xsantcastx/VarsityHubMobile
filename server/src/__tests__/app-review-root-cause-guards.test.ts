@@ -9,6 +9,7 @@ const serverIndex = read('src/index.ts');
 const fixture = read('src/lib/appReviewFixture.ts');
 const createDemoScript = read('scripts/create-demo-account.ts');
 const verifyAppReviewScript = read('scripts/verify-app-review-account.ts');
+const adsRoute = read('src/routes/ads.ts');
 
 describe('App Review root-cause guards', () => {
   it('does not mutate the App Review account during server startup anymore', () => {
@@ -37,5 +38,15 @@ describe('App Review root-cause guards', () => {
     expect(verifyAppReviewScript).toMatch(/await ensureLocalServer\(\)/);
     expect(verifyAppReviewScript).toMatch(/await import\('\.\.\/src\/testApp\.js'\)/);
     expect(verifyAppReviewScript).toMatch(/await shutdownEmbeddedLocalServer\(\)/);
+  });
+
+  it('limits ad approval bypass to the exact App Review demo email', () => {
+    expect(adsRoute).toMatch(/import \{ APP_REVIEW_EMAIL \} from '\.\.\/lib\/appReviewFixture\.js';/);
+    expect(adsRoute).toMatch(
+      /String\(user\?\.email \|\| ''\)\.trim\(\)\.toLowerCase\(\) === APP_REVIEW_EMAIL\.toLowerCase\(\)/
+    );
+    expect(adsRoute).not.toMatch(/@varsityhub\.app['"]?\s*\.test/);
+    expect(adsRoute).not.toMatch(/includes\(\s*APP_REVIEW_EMAIL/);
+    expect(adsRoute).not.toMatch(/startsWith\(\s*APP_REVIEW_EMAIL/);
   });
 });
