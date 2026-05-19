@@ -32,12 +32,22 @@ import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { addBreadcrumb } from '../lib/sentry.js';
+import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
   }
 };
+
+async function isAppReviewDemoUser(userId: string | null | undefined): Promise<boolean> {
+  if (!userId) return false;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  return String(user?.email || '').trim().toLowerCase() === APP_REVIEW_EMAIL.toLowerCase();
+}
 
 const adCreateSchema = z.object({
   contact_name: z.string().min(1).max(200),
@@ -211,6 +221,7 @@ adsRouter.post(
     } = parsed.data;
 
     const zipCoords = await getZipCoordinatesWithFallback(target_zip_code);
+    const bypassApproval = await isAppReviewDemoUser(req.user?.id);
     const ad = await prisma.ad.create({
       data: {
         user_id: req.user?.id,
@@ -225,8 +236,14 @@ adsRouter.post(
         target_lng: zipCoords?.lon ?? null,
         radius: AD_GEOFENCE_RADIUS_MILES, // Fixed 9-mile radius for all ads
         description: description ?? null,
-        status: 'draft',
+        status: bypassApproval ? 'approved' : 'draft',
         payment_status: 'unpaid',
+        ...(bypassApproval
+          ? {
+              admin_note:
+                'Auto-approved for App Review demo account to keep review checkout unblocked.',
+            }
+          : {}),
       },
     });
     return res.status(201).json(ad);
@@ -243,25 +260,40 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
+    const bypassApproval = await isAppReviewDemoUser(req.user?.id);
     if (ad.status !== 'draft') {
-      return res
-        .status(400)
-        .json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
+      if (!bypassApproval) {
+        return res
+          .status(400)
+          .json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
+      }
     }
 
     // Review is now content-only. Dates belong to booking/checkout after the
     // media has been approved, so clear any legacy reservations here instead of
     // carrying stale dates through the moderation workflow.
-    await prisma.$transaction(
-      async tx => {
-        await tx.ad.update({
-          where: { id },
-          data: { status: 'pending', payment_status: 'pending_approval' },
-        });
-        await tx.adReservation.deleteMany({ where: { ad_id: id } });
-      },
-      { isolationLevel: 'Serializable' as any }
-    );
+    if (bypassApproval) {
+      await prisma.ad.update({
+        where: { id },
+        data: {
+          status: 'approved',
+          payment_status: ad.payment_status === 'pending_approval' ? 'unpaid' : ad.payment_status,
+          admin_note:
+            'Auto-approved for App Review demo account to keep review checkout unblocked.',
+        },
+      });
+    } else {
+      await prisma.$transaction(
+        async tx => {
+          await tx.ad.update({
+            where: { id },
+            data: { status: 'pending', payment_status: 'pending_approval' },
+          });
+          await tx.adReservation.deleteMany({ where: { ad_id: id } });
+        },
+        { isolationLevel: 'Serializable' as any }
+      );
+    }
 
     let updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     if (updated?.banner_url) {
@@ -270,30 +302,32 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
       updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     }
 
-    const { getAllAdminEmails } = await import('../lib/adminEmails.js');
-    const adminEmails = getAllAdminEmails();
-    void Promise.all(
-      adminEmails.map((to) =>
-        sendAdPendingReviewEmail({
-          to,
-          businessName: updated?.business_name || ad.business_name || undefined,
-          contactName: updated?.contact_name || ad.contact_name || undefined,
-          contactEmail: updated?.contact_email || ad.contact_email || undefined,
-          zipCode: updated?.target_zip_code || ad.target_zip_code || undefined,
-          bannerUrl: updated?.banner_url || ad.banner_url || undefined,
-          adId: id,
-        }).then((sent) => {
-          if (!sent) {
-            console.error(
-              '[ads] submit-for-approval email returned false — email NOT delivered for ad',
-              { adId: id, to }
-            );
-          }
-        })
-      )
-    ).catch(err =>
-      console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
-    );
+    if (!bypassApproval) {
+      const { getAllAdminEmails } = await import('../lib/adminEmails.js');
+      const adminEmails = getAllAdminEmails();
+      void Promise.all(
+        adminEmails.map((to) =>
+          sendAdPendingReviewEmail({
+            to,
+            businessName: updated?.business_name || ad.business_name || undefined,
+            contactName: updated?.contact_name || ad.contact_name || undefined,
+            contactEmail: updated?.contact_email || ad.contact_email || undefined,
+            zipCode: updated?.target_zip_code || ad.target_zip_code || undefined,
+            bannerUrl: updated?.banner_url || ad.banner_url || undefined,
+            adId: id,
+          }).then((sent) => {
+            if (!sent) {
+              console.error(
+                '[ads] submit-for-approval email returned false — email NOT delivered for ad',
+                { adId: id, to }
+              );
+            }
+          })
+        )
+      ).catch(err =>
+        console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
+      );
+    }
 
     return res.status(200).json(updated);
   } catch (err) {
@@ -605,6 +639,23 @@ adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, asyncHandler(async (r
   const isAdmin = await getIsAdmin(req);
   const isOwner = !!ad.user_id && ad.user_id === req.user!.id;
   if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
+  const bypassApproval = isOwner && (await isAppReviewDemoUser(req.user?.id));
+  if (
+    bypassApproval &&
+    (ad.status === 'draft' ||
+      ad.status === 'pending' ||
+      ad.payment_status === 'pending_approval')
+  ) {
+    ad = await prisma.ad.update({
+      where: { id },
+      data: {
+        status: 'approved',
+        payment_status: ad.payment_status === 'pending_approval' ? 'unpaid' : ad.payment_status,
+        admin_note:
+          'Auto-approved for App Review demo account to keep review checkout unblocked.',
+      },
+    });
+  }
   if (ad.payment_status === 'pending_approval') {
     const cleanup = await releaseExpiredPendingApprovalReservationsForAd(prisma, id);
     if (cleanup.changed) {
@@ -629,6 +680,7 @@ adsRouter.put(
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
+    const bypassApproval = await isAppReviewDemoUser(req.user?.id);
     const { payment_status, status: _status, ...safeBody } = req.body || {};
     const parsed = adUpdateSchema.safeParse(safeBody);
     if (!parsed.success) {
@@ -666,6 +718,7 @@ adsRouter.put(
       Object.assign(data, clearBannerModerationFields());
     }
     const requiresReapproval =
+      !bypassApproval &&
       ad.status !== 'draft' &&
       ((bannerChanged && data.banner_url) || targetUrlChanged || textChanged);
     if (requiresReapproval) {
