@@ -842,6 +842,7 @@ export default function SettingsScreen() {
             <NavRow
               title="Log Out"
               destructive
+              isLast={!canDowngradeCoach && !coachUpgradeCta}
               onPress={() => {
                 Alert.alert('Log out', 'Are you sure you want to log out?', [
                   { text: 'Cancel', style: 'cancel' },
@@ -854,12 +855,6 @@ export default function SettingsScreen() {
                   },
                 ]);
               }}
-            />
-            <NavRow
-              title="Delete Account"
-              destructive
-              isLast={!coachUpgradeCta && !canDowngradeCoach && !downgradingToFan}
-              onPress={confirmDeleteAccount}
             />
             {canDowngradeCoach && (
               <NavRow
