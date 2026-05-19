@@ -40,13 +40,15 @@ describe('App Review root-cause guards', () => {
     expect(verifyAppReviewScript).toMatch(/await shutdownEmbeddedLocalServer\(\)/);
   });
 
-  it('limits ad approval bypass to the exact App Review demo email', () => {
-    expect(adsRoute).toMatch(/import \{ APP_REVIEW_EMAIL \} from '\.\.\/lib\/appReviewFixture\.js';/);
-    expect(adsRoute).toMatch(
-      /String\(user\?\.email \|\| ''\)\.trim\(\)\.toLowerCase\(\) === APP_REVIEW_EMAIL\.toLowerCase\(\)/
+  it('keeps app-review fixture behavior out of live ad moderation routes', () => {
+    expect(adsRoute).not.toMatch(/APP_REVIEW_EMAIL/);
+    expect(adsRoute).not.toMatch(/isAppReviewDemoUser/);
+    expect(adsRoute).not.toMatch(/Auto-approved for App Review demo account/);
+
+    const singleAdRoute = adsRoute.match(
+      /adsRouter\.get\('\/:id\(\[a-z0-9\]\{15,50\}\)'[\s\S]*?\n\}\)\);/
     );
-    expect(adsRoute).not.toMatch(/@varsityhub\.app['"]?\s*\.test/);
-    expect(adsRoute).not.toMatch(/includes\(\s*APP_REVIEW_EMAIL/);
-    expect(adsRoute).not.toMatch(/startsWith\(\s*APP_REVIEW_EMAIL/);
+    expect(singleAdRoute).toBeTruthy();
+    expect(singleAdRoute?.[0]).not.toMatch(/prisma\.ad\.update/);
   });
 });
