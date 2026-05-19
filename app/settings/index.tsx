@@ -567,18 +567,23 @@ export default function SettingsScreen() {
             />
             <NavRow
               title="Followed Teams"
-              isLast={visibleProviderStatuses.length === 0}
               onPress={() => void router.push('/settings/followed-teams')}
             />
-            {visibleProviderStatuses.map((provider, index) => (
+            {visibleProviderStatuses.map((provider) => (
               <NavRow
                 key={provider}
                 title={provider === 'google' ? 'Google Sign-In' : 'Apple Sign-In'}
                 subtitle={`Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`}
-                isLast={index === visibleProviderStatuses.length - 1}
                 onPress={() => {}}
               />
             ))}
+            <NavRow
+              title="Delete Account"
+              subtitle="Permanently delete your account and data"
+              destructive
+              isLast
+              onPress={confirmDeleteAccount}
+            />
           </SectionCard>
 
           {/* Notifications */}

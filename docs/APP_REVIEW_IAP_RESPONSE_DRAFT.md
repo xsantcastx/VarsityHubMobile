@@ -1,29 +1,53 @@
-# App Review IAP Response Draft
+# App Review Response Draft (Account Deletion + IAP)
 
-Use this reply in App Store Connect when Apple says they cannot locate the in-app purchases.
+Use this reply in App Store Connect for the current rejection that includes Guideline 5.1.1(v) and Guideline 2.1(b).
 
 ---
 
-Hello,
+Hello App Review Team,
 
-Thank you. The in-app purchases are available inside the iOS app and can be reached with the review account after sign-in. The review account is coach-approved and remains on the free Rookie plan so the subscription upgrade buttons are visible during review.
+Thank you for the feedback. We addressed both items below.
+
+### 1) Account deletion (Guideline 5.1.1(v))
+
+The app includes an in-app self-serve account deletion flow.
+
+Steps:
+
+1. Sign in to any account (or create a new account in-app).
+2. Open `Settings`.
+3. Open the `Account` section.
+4. Tap `Delete Account` (also available under `Session`).
+5. Tap `Continue`.
+6. Type `DELETE` (and enter password if prompted).
+7. Tap `Delete`.
+8. The app confirms deletion and signs the user out.
+
+For the demonstration video requested in the review message, we will attach a physical-device recording that shows:
+- sign in (or account creation),
+- navigation to `Settings` → `Account` → `Delete Account`,
+- the full deletion confirmation flow through completion.
+
+### 2) How to locate In-App Purchases (Guideline 2.1(b))
 
 Review account:
 
 - Email: `demo@varsityhub.app`
 - Password: `provided in App Store Connect review notes`
 
-Steps to locate the subscriptions:
+The review account is coach-approved and starts on the free Rookie plan so upgrade purchase buttons remain visible.
 
-1. Sign in with the review account provided in App Store Connect.
+**Subscriptions**
+
+1. Sign in with the review account.
 2. Open `Settings`.
-3. Open the `Billing` section.
+3. Open `Billing`.
 4. Tap `Manage Subscription`.
-5. The subscription purchase options are:
-   - `Upgrade to Veteran` (product ID: `MIDTIER`)
-   - `Upgrade to Legend` (product ID: `TOPTIER`)
+5. Purchase options:
+   - `Upgrade to Veteran` (product ID `MIDTIER`)
+   - `Upgrade to Legend` (product ID `TOPTIER`)
 
-Steps to locate ad in-app purchases:
+**Ad purchases**
 
 1. Sign in with the review account.
 2. Open `Settings`.
@@ -31,17 +55,11 @@ Steps to locate ad in-app purchases:
 4. Tap `My Ads`.
 5. Open `VarsityHub Review Coach Demo Ad`.
 6. Tap `Schedule Dates`.
-7. Select campaign dates and tap the checkout button at the bottom of the screen.
-8. The Apple ad product IDs are:
-   - weekday ad slot: `MOND_THURS`
-   - weekend ad slot: `FRI_SUN`
+7. Select dates and tap checkout.
+8. Apple ad product IDs:
+   - weekday slot: `MOND_THURS`
+   - weekend slot: `FRI_SUN`
 
-The review ad is already approved for review and configured with:
-
-- target ZIP code: `10001`
-- radius: `9` miles
-- target URL: `https://www.varsityhub.app`
-
-Important note for review: Apple tests these purchases in the Apple-provided sandbox environment during App Review. That is expected. The same iOS in-app purchase flow is used in production with the approved live products.
+Apple reviews IAP in the Apple-provided sandbox environment, and these flows are configured for sandbox review. We also confirm the Paid Apps Agreement is accepted on our App Store Connect account.
 
 Thank you.

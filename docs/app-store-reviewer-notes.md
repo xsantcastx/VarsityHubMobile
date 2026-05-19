@@ -22,6 +22,24 @@ This account is email-verified, fully onboarded, pre-approved as a coach / organ
 
 ---
 
+**How To Delete an Account (Guideline 5.1.1(v))**
+
+The app supports in-app account deletion with a confirmation step.
+
+For deletion testing, please use a disposable account (newly created in-app), so the shared demo account remains available for IAP review.
+
+1. Sign in (or create a new account).
+2. Open **Settings**.
+3. Open **Account**.
+4. Tap **Delete Account** (also available in **Session**).
+5. Tap **Continue**.
+6. Type `DELETE` and, for password accounts, enter the account password.
+7. Tap **Delete** to complete deletion.
+
+Expected behavior: the account is deleted, user data is anonymized/deleted server-side, and the session is signed out.
+
+---
+
 **How To Locate In-App Purchases**
 
 All iOS purchases are presented inside the app and use Apple In-App Purchase.
