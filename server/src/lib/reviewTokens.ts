@@ -4,7 +4,7 @@ import { captureException, captureMessage } from './sentry.js';
 
 type RedisClient = import('ioredis').default;
 
-const DEFAULT_REVIEW_TOKEN_TTL_SECONDS = 48 * 60 * 60;
+const DEFAULT_REVIEW_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const REDIS_DB = 3;
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
 
@@ -125,7 +125,7 @@ async function getRedisClient(): Promise<RedisClient | null> {
 
 export function signReviewToken<T extends Record<string, unknown>>(
   payload: T,
-  expiresIn = '48h'
+  expiresIn = '7d'
 ): string {
   return signJwt({ ...payload, jti: crypto.randomUUID() }, expiresIn);
 }

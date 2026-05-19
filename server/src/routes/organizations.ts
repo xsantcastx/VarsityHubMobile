@@ -322,7 +322,7 @@ async function isCurrentUserPlatformAdmin(req: AuthedRequest): Promise<boolean> 
   return !!user?.email_verified && isEmailAdmin(user?.email);
 }
 
-const LEAGUE_APPROVAL_TOKEN_TTL = '48h';
+const LEAGUE_APPROVAL_TOKEN_TTL = '7d';
 
 async function getPlatformAdminSession(req: AuthedRequest) {
   if (!req.user?.id) return null;
