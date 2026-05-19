@@ -25,9 +25,6 @@ import {
   approveAd as approveAdService,
   rejectAd as rejectAdService,
 } from '../lib/approvalService.js';
-import {
-  releaseExpiredPendingApprovalReservationsForAd,
-} from '../lib/adReservationLifecycle.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -109,34 +106,6 @@ async function getZipCoordinatesWithFallback(
 
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
-
-async function normalizePendingApprovalAdsForResponse<T extends { id: string; status?: string | null; payment_status?: string | null }>(
-  list: T[],
-): Promise<T[]> {
-  const candidates = list.filter((ad) => ad.payment_status === 'pending_approval');
-  if (candidates.length === 0) return list;
-
-  const cleanupById = new Map(
-    (
-      await Promise.all(
-        candidates.map(async (ad) => [
-          ad.id,
-          await releaseExpiredPendingApprovalReservationsForAd(prisma, ad.id),
-        ] as const)
-      )
-    ).map(([id, result]) => [id, result])
-  );
-
-  return list.map((ad) => {
-    const cleanup = cleanupById.get(ad.id);
-    if (!cleanup || !cleanup.changed) return ad;
-    return {
-      ...ad,
-      status: cleanup.status,
-      payment_status: cleanup.paymentStatus,
-    };
-  });
-}
 
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
@@ -348,9 +317,8 @@ adsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, r
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     // return all ads
     const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
-    const normalizedList = await normalizePendingApprovalAdsForResponse(list);
     debugLog('[ads] GET / admin all ads count:', list.length);
-    return res.json(normalizedList);
+    return res.json(list);
   } else {
     // SECURITY: Default to requiring authentication and returning user's ads only
     debugLog('[ads] GET / no filter provided, defaulting to user ads only');
@@ -363,14 +331,13 @@ adsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, r
   }
 
   const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' }, take: 100 });
-  const normalizedList = await normalizePendingApprovalAdsForResponse(list);
   debugLog('[ads] GET / returning ads:', {
-    count: normalizedList.length,
+    count: list.length,
     where,
-    adIds: normalizedList.map(a => a.id),
-    userIds: normalizedList.map(a => a.user_id),
+    adIds: list.map(a => a.id),
+    userIds: list.map(a => a.user_id),
   });
-  return res.json(normalizedList);
+  return res.json(list);
 }));
 
 // Ads for feed: return ads with a reservation for a specific date (default: today), filtered by location radius
@@ -600,18 +567,11 @@ adsRouter.post(
 // Get a single Ad with its reservations (dates)
 adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  let ad = await prisma.ad.findUnique({ where: { id } });
+  const ad = await prisma.ad.findUnique({ where: { id } });
   if (!ad) return res.status(404).json({ error: 'Not found' });
   const isAdmin = await getIsAdmin(req);
   const isOwner = !!ad.user_id && ad.user_id === req.user!.id;
   if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
-  if (ad.payment_status === 'pending_approval') {
-    const cleanup = await releaseExpiredPendingApprovalReservationsForAd(prisma, id);
-    if (cleanup.changed) {
-      ad = await prisma.ad.findUnique({ where: { id } });
-      if (!ad) return res.status(404).json({ error: 'Not found' });
-    }
-  }
   const dates = await prisma.adReservation.findMany({
     where: { ad_id: id },
     orderBy: { date: 'asc' },
@@ -822,9 +782,6 @@ adsRouter.get('/reservations', requireAuth as any, asyncHandler(async (req: Auth
     const isAdmin = await getIsAdmin(req as any);
     if (ad.user_id !== req.user?.id && !isAdmin) {
       return res.status(403).json({ error: 'You can only view reservations for your own ads' });
-    }
-    if (ad.payment_status === 'pending_approval') {
-      await releaseExpiredPendingApprovalReservationsForAd(prisma, adId);
     }
   }
 
