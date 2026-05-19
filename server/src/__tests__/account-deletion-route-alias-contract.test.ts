@@ -17,6 +17,19 @@ describe('account deletion route alias contract', () => {
   it('routes both endpoints through the canonical processSelfAccountDeletion flow', () => {
     expect(authRoute).toMatch(/processSelfAccountDeletion\(userId, parsed\.data\)/);
     expect(usersRoute).toMatch(/processSelfAccountDeletion\(id, parsed\.data\)/);
+    expect(authRoute).toMatch(/return res\.status\(deletion\.status\)\.json\(deletion\.body\);/);
+    expect(usersRoute).toMatch(/return res\.status\(deletion\.status\)\.json\(deletion\.body\);/);
+  });
+
+  it('keeps route handlers thin so deletion logic is not duplicated on top of the shared flow', () => {
+    expect(authRoute).not.toMatch(/assertCanSelfDeleteUser\(/);
+    expect(authRoute).not.toMatch(/softDeleteUserAccount\(/);
+    expect(authRoute).not.toMatch(/getAccountDeletionConfirmationRequirements\(/);
+
+    expect(usersRoute).not.toMatch(/assertCanSelfDeleteUser\(/);
+    expect(usersRoute).not.toMatch(/softDeleteUserAccount\(/);
+    expect(usersRoute).not.toMatch(/getAccountDeletionConfirmationRequirements\(/);
+    expect(usersRoute).not.toMatch(/bcrypt\.compare/);
   });
 
   it('removes legacy /users/me deletion response drift and side-effect email sends', () => {

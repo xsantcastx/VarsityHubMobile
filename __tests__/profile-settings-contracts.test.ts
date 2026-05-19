@@ -59,6 +59,11 @@ describe('profile/settings note contracts', () => {
     );
   });
 
+  it('settings keeps a single canonical Delete Account entry to avoid duplicate destructive actions', () => {
+    const deleteRowMatches = settingsScreen.match(/title="Delete Account"/g) || [];
+    expect(deleteRowMatches).toHaveLength(1);
+  });
+
   it('settings exposes a downgrade path for coach accounts and keeps billing visible for non-rookie plans', () => {
     expect(settingsScreen).toContain('title="Downgrade to Fan Account"');
     expect(settingsScreen).toContain("subtitle=\"Transfer any team or organization ownership first\"");
