@@ -133,6 +133,37 @@ const APP_BASE_URL_RESOLUTION = resolveEmailBaseUrlWithDiagnostics(
   CANONICAL_APP_FALLBACK,
   BROKEN_APP_HOSTS
 );
+
+function enforceProductionEmailBaseUrlConfig() {
+  const allowFallback = process.env.ALLOW_EMAIL_BASE_URL_FALLBACK === '1';
+  if (process.env.NODE_ENV !== 'production' || allowFallback) return;
+
+  const fallbackViolations: string[] = [];
+  if (API_BASE_URL_RESOLUTION.usedFallback) {
+    fallbackViolations.push(
+      `API_BASE_URL (${API_BASE_URL_RESOLUTION.reason}) resolved to fallback ${CANONICAL_API_FALLBACK}`
+    );
+  }
+  if (APP_BASE_URL_RESOLUTION.usedFallback) {
+    fallbackViolations.push(
+      `APP_BASE_URL (${APP_BASE_URL_RESOLUTION.reason}) resolved to fallback ${CANONICAL_APP_FALLBACK}`
+    );
+  }
+
+  if (fallbackViolations.length > 0) {
+    console.error('[email] FATAL: Refusing to start with fallback email base URLs in production.');
+    for (const violation of fallbackViolations) {
+      console.error(`[email] ${violation}`);
+    }
+    console.error(
+      '[email] Fix APP_BASE_URL/API_BASE_URL (preferred) or set ALLOW_EMAIL_BASE_URL_FALLBACK=1 as a temporary emergency override.'
+    );
+    process.exit(1);
+  }
+}
+
+enforceProductionEmailBaseUrlConfig();
+
 const API_BASE_URL = API_BASE_URL_RESOLUTION.value;
 const APP_BASE_URL = APP_BASE_URL_RESOLUTION.value;
 const CONSENT_API_BASE_URL = resolveEmailBaseUrlWithDiagnostics(
