@@ -9,8 +9,25 @@
 #   ./scripts/verify-railway-env.sh
 # =============================================================================
 
-set -e
-API_URL="${API_URL:-https://api-production-8ac3.up.railway.app}"
+set -euo pipefail
+
+STALE_RAILWAY_URL='https://api-production-8ac3.up.railway.app'
+API_URL="${API_URL:-}"
+
+if [ -z "${API_URL}" ]; then
+  echo "❌ API_URL is required."
+  echo "   Example: API_URL=https://api.varsityhub.app ./scripts/verify-railway-env.sh"
+  exit 1
+fi
+
+API_URL="${API_URL%/}"
+
+if [ "${API_URL}" = "${STALE_RAILWAY_URL}" ]; then
+  echo "❌ API_URL points to a retired Railway hostname:"
+  echo "   ${STALE_RAILWAY_URL}"
+  echo "   Set API_URL to your live domain and run again."
+  exit 1
+fi
 
 echo "=== Railway Environment Verification ==="
 echo "API URL: $API_URL"
@@ -18,7 +35,22 @@ echo ""
 
 # Health check (returns full integration status)
 echo "1. Health check..."
-HEALTH=$(curl -s "${API_URL}/health")
+TMP_HEADERS="$(mktemp)"
+HEALTH=$(curl -sS -D "$TMP_HEADERS" "${API_URL}/health")
+if grep -Eiq '^x-railway-fallback:\s*true' "$TMP_HEADERS"; then
+  echo "   ❌ Railway fallback response detected (X-Railway-Fallback: true)."
+  echo "   This usually means the API service/domain is not correctly attached."
+  rm -f "$TMP_HEADERS"
+  exit 1
+fi
+rm -f "$TMP_HEADERS"
+
+if echo "$HEALTH" | grep -qi 'Application not found'; then
+  echo "   ❌ Health endpoint returned 'Application not found'."
+  echo "   Response: $HEALTH"
+  exit 1
+fi
+
 if echo "$HEALTH" | grep -q '"status":"ok"'; then
   echo "   ✅ Server is responding"
 else
@@ -74,7 +106,7 @@ echo "  [ ] APPLE_CLIENT_ID        (com.varsithub.varsityhub-ios)"
 echo ""
 echo "RECOMMENDED:"
 echo "  [ ] ALLOWED_ORIGINS        (https://varsityhub.app,...)"
-echo "  [ ] APP_BASE_URL           (https://api-production-8ac3.up.railway.app)"
+echo "  [ ] APP_BASE_URL           (same as API_URL used above)"
 echo "  [ ] API_BASE_URL           (same as APP_BASE_URL for league approval emails)"
 echo "  [ ] SENTRY_DSN"
 echo ""

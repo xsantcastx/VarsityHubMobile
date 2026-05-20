@@ -50,6 +50,19 @@ npm run build:ios
 - ✅ `SENTRY_ORG` and `SENTRY_PROJECT` in eas.json
 - ✅ `SENTRY_AUTH_TOKEN` set in EAS secrets (for builds)
 
+### 6. API Domain Verification (Required)
+- ✅ `EXPO_PUBLIC_API_URL` is set to a live API domain in build env
+- ✅ `EXPO_PUBLIC_API_URL` is **not** the retired Railway hostname
+- ✅ Health checks do not return `X-Railway-Fallback: true`
+- ✅ Health checks do not return `Application not found`
+
+Run these before every release:
+
+```bash
+API_URL=https://<live-api-domain> ./scripts/verify-railway-env.sh
+BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-health
+```
+
 ---
 
 ## 🔒 Security & Validation Checks

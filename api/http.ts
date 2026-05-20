@@ -199,7 +199,8 @@ function executeOrReuseInflightGet(
 }
 
 export function getApiBaseUrl(): string {
-  const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
+  const STALE_RAILWAY_URL = 'https://api-production-8ac3.up.railway.app';
+  const LOCAL_DEV_DEFAULT_URL = 'http://localhost:4000';
   const processEnv =
     typeof process !== 'undefined' && process?.env ? (process.env as Record<string, string | undefined>) : {};
   const processForceRemoteApi = processEnv.EXPO_PUBLIC_FORCE_REMOTE_API;
@@ -224,25 +225,42 @@ export function getApiBaseUrl(): string {
   const localWindowHost =
     browserHostname && /^(localhost|127\.0\.0\.1)$/.test(browserHostname) ? browserHostname : null;
   const localDevUrl = localWindowHost ? `http://${localWindowHost}:4000` : null;
-  const preferLocalDevUrl =
+
+  if (normalizedEnvUrl === STALE_RAILWAY_URL) {
+    throw new Error(
+      '[http] EXPO_PUBLIC_API_URL points to a retired Railway hostname. Configure a live API domain before release.'
+    );
+  }
+
+  let finalUrl = '';
+  const canUseLocalDevUrl =
     __DEV__ &&
-    localDevUrl &&
-    !forceRemoteApi &&
-    (!normalizedEnvUrl || isLocalhostEnv || normalizedEnvUrl === PRODUCTION_URL);
-  const finalUrl = preferLocalDevUrl
-    ? localDevUrl
-    : normalizedEnvUrl
-    ? !isLocalhostEnv || __DEV__ || !forceRemoteApi
-      ? normalizedEnvUrl
-      : PRODUCTION_URL
-    : __DEV__ && !forceRemoteApi && localDevUrl
-      ? localDevUrl
-      : PRODUCTION_URL;
-  const isCustom = finalUrl !== PRODUCTION_URL;
+    !!localDevUrl &&
+    (!forceRemoteApi || !normalizedEnvUrl || isLocalhostEnv);
+  if (canUseLocalDevUrl && localDevUrl) {
+    finalUrl = localDevUrl;
+  } else if (normalizedEnvUrl) {
+    if (!__DEV__ && isLocalhostEnv) {
+      throw new Error(
+        '[http] EXPO_PUBLIC_API_URL cannot use localhost in production. Configure a live API domain.'
+      );
+    }
+    if (__DEV__ && isLocalhostEnv && forceRemoteApi) {
+      finalUrl = LOCAL_DEV_DEFAULT_URL;
+    } else {
+      finalUrl = normalizedEnvUrl;
+    }
+  } else if (__DEV__) {
+    finalUrl = localDevUrl || LOCAL_DEV_DEFAULT_URL;
+  } else {
+    throw new Error(
+      '[http] Missing EXPO_PUBLIC_API_URL in production. Configure a live API domain to make authenticated requests.'
+    );
+  }
 
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
     (globalThis as any).__VH_LOGGED_API_BASE = true;
-    if (__DEV__) console.log('[http] API base:', finalUrl, isCustom ? '(custom)' : '(production)');
+    if (__DEV__) console.log('[http] API base:', finalUrl);
   }
 
   return finalUrl;
