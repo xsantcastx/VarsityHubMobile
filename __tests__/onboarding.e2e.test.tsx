@@ -11,6 +11,7 @@ const mockCheckAuth = jest.fn(async () => ({
   email_verified: true,
   role: 'fan',
   onboarding_completed: true,
+  username: 'fan-1',
   preferences: { role: 'fan', onboarding_completed: true },
 }));
 const mockSetOB = jest.fn();
@@ -126,6 +127,7 @@ describe('Onboarding Flow', () => {
       email_verified: true,
       role: 'fan',
       onboarding_completed: true,
+      username: 'fan-1',
       preferences: { role: 'fan', onboarding_completed: true },
     });
   });
