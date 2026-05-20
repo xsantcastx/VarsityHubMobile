@@ -4,13 +4,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { prisma } from '../lib/prisma.js';
 import { app } from '../testApp.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 // randomUUID over Date.now() — two parallel runs at the same millisecond
 // would otherwise collide on User.email unique constraint (audit Phase 7).
 const ts = randomUUID();

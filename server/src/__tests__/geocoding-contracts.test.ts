@@ -3,13 +3,7 @@ import axios from 'axios';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 describeDb('Geocoding contracts', () => {
   let prisma: any;
   let signJwt: any;

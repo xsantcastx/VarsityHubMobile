@@ -13,13 +13,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/glo
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
 import { hashRefreshToken, signJwt, verifyJwt } from '../lib/jwt.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 // Test user data
 const TEST_EMAIL = `test-auth-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';

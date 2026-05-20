@@ -39,12 +39,7 @@ import { reportsRouter } from '../routes/reports.js';
 import { supportRouter } from '../routes/support.js';
 import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
+import { describeDb } from './dbTestGuard.js';
 const fullApp = express();
 fullApp.use(express.json());
 fullApp.use(authMiddleware);

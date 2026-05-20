@@ -18,13 +18,7 @@ import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
 import { prisma } from '../lib/prisma.js';
 import { signJwt, hashRefreshToken } from '../lib/jwt.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 

@@ -11,13 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 const TEST_COACH_EMAIL = `test-event-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-event-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';

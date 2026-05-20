@@ -25,13 +25,7 @@ import request from 'supertest';
 import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
 import { app } from '../testApp.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 const PASSWORD = 'CorrectPassword123!';
 const WRONG_PASSWORD = 'WrongPassword999!';
 

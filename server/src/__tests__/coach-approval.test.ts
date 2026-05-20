@@ -12,13 +12,7 @@ import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
 import { app as fullApp } from '../app.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 let getOrganizationJoinRequestState: any;

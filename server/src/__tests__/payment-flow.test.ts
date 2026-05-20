@@ -13,13 +13,7 @@ import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
 import { SERVER_LEGEND_PRICE_CENTS } from '../lib/planDefinitions.js';
 import { redeemPromo, reversePromoRedemption } from '../lib/promos.js';
-
-const __skipDbIntegrationSuites =
-  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
-
-
-
+import { describeDb } from './dbTestGuard.js';
 const TEST_USER_EMAIL = `test-payment-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
