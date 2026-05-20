@@ -142,6 +142,10 @@ jobs:
         working-directory: server
         run: npm ci
 
+      - name: Verify DB test guard conventions
+        working-directory: server
+        run: npm run verify:db-test-guard
+
       - name: Validate Prisma schema
         working-directory: server
         run: npx prisma validate

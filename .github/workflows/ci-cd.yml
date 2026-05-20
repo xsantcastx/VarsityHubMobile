@@ -121,6 +121,7 @@ jobs:
           SKIP_SERVER_INTEGRATION_TESTS: '1'
         run: |
           cd server
+          npm run verify:db-test-guard
           npm test 2>&1 | tee ../server-test-output.txt
 
       - name: Verify sensitive endpoint rate limits
