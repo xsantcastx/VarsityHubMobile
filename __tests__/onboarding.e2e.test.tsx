@@ -96,7 +96,7 @@ jest.mock('@/context/AuthProvider', () => ({
 }));
 jest.mock('@/context/OnboardingContext', () => ({
   useOnboarding: () => ({
-    state: mockOnboardingState,
+    state: { role: 'fan', ...mockOnboardingState },
     setState: mockSetOB,
     setProgress: mockSetProgress,
     dispatch: mockDispatch,
@@ -132,11 +132,13 @@ describe('Onboarding Flow', () => {
 
   it('routes coaches from step-2 to coach-application after saving canonical coach fields', async () => {
     mockOnboardingState = { role: 'coach', affiliation: undefined, dob: '' };
-    mockUserMe.mockResolvedValue({
+    mockCheckAuth.mockResolvedValue({
       id: 'coach-1',
       email_verified: true,
+      role: 'coach',
+      onboarding_completed: false,
       username: 'coachuser',
-      preferences: {},
+      preferences: { role: 'coach', onboarding_completed: false },
     });
 
     const screen = render(<Step2Basic />);
@@ -168,11 +170,13 @@ describe('Onboarding Flow', () => {
 
   it('completes fan onboarding and routes to tabs from step-2', async () => {
     mockOnboardingState = { role: 'fan', affiliation: undefined, dob: '' };
-    mockUserMe.mockResolvedValue({
+    mockCheckAuth.mockResolvedValue({
       id: 'fan-1',
       email_verified: true,
+      role: 'fan',
+      onboarding_completed: true,
       username: 'fanuser',
-      preferences: {},
+      preferences: { role: 'fan', onboarding_completed: true },
     });
 
     const screen = render(<Step2Basic />);

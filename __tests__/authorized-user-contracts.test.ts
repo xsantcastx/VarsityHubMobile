@@ -24,8 +24,8 @@ describe('authorized-user contracts', () => {
 
   it('organization admin-summary includes pending authorized invite data for the frontend', () => {
     expect(organizationsRoute).toContain('pending_authorized_invites');
-    expect(organizationsRoute).toContain('authorized_invites: pendingAuthorizedInvites');
-    expect(organizationsRoute).toContain("'/:id/invites/:inviteId/cancel'");
+    expect(organizationsRoute).toContain('authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite)');
+    expect(organizationsRoute).toContain("'/:id/invite'");
   });
 
   it('team invite fallback route sends canonical invite links and uses the scoped authorized-user limit set', () => {
@@ -34,9 +34,9 @@ describe('authorized-user contracts', () => {
     expect(teamInvitesRoute).toContain('getTeamEntitlementState');
   });
 
-  it('team admin summary includes pending invite data for coach tools', () => {
-    expect(teamRoute).toContain('pending_invites');
-    expect(teamRoute).toContain('pendingInvites');
+  it('team routes expose invite cancellation and avoid stale admin-summary pending invite fields', () => {
+    expect(teamRoute).not.toContain('pending_invites');
+    expect(teamRoute).not.toContain('pendingInvites');
     expect(teamRoute).toContain("'/:id/invites/:inviteId/cancel'");
   });
 
@@ -45,8 +45,8 @@ describe('authorized-user contracts', () => {
     expect(approvalsScreen).not.toContain('Authorized User Requests');
   });
 
-  it('settings restart flow no longer seeds a dead authorized-users onboarding field', () => {
-    expect(settingsScreen).not.toContain('authorized_users: prefsFromServer.authorized_users');
+  it('settings restart flow maps legacy authorized-user prefs into canonical onboarding state', () => {
+    expect(settingsScreen).toContain('authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? []');
   });
 
   it('frontend onboarding contracts no longer carry dead authorized-users state', () => {

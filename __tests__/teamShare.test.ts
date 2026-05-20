@@ -14,7 +14,7 @@ describe('team QR sharing', () => {
     const initialLink = AppLinks.team('team_123', 'Westhill Wildcats');
     const renamedLink = AppLinks.team('team_123', 'Westhill Hoops');
 
-    expect(initialLink.webUrl).toBe('https://varsityhub.app/teams/team_123');
+    expect(initialLink.webUrl).toBe('https://www.varsityhub.app/teams/team_123');
     expect(renamedLink.webUrl).toBe(initialLink.webUrl);
     expect(getCanonicalTeamShareUrl('team_123')).toBe(initialLink.webUrl);
   });

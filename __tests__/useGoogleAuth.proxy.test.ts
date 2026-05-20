@@ -32,7 +32,7 @@ const mockConstantsData = {
       EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID:
         '814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com',
       EXPO_PUBLIC_GOOGLE_FORCE_PROXY: '0',
-      EXPO_PUBLIC_API_URL: 'https://api-production-8ac3.up.railway.app',
+      EXPO_PUBLIC_API_URL: 'https://api.varsityhub.test',
       EXPO_PUBLIC_APP_SCHEME: 'varsityhubmobile',
     },
   },
