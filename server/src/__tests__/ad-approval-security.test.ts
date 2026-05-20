@@ -149,17 +149,23 @@ describeDb('Ad Approval Security', () => {
         limiterAdminId,
       ].filter(Boolean);
 
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: userIds } },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: userIds } },
+        })
+        .catch(() => {});
 
-      await prisma.ad.deleteMany({
-        where: { user_id: { in: userIds } },
-      }).catch(() => {});
+      await prisma.ad
+        .deleteMany({
+          where: { user_id: { in: userIds } },
+        })
+        .catch(() => {});
 
-      await prisma.user.deleteMany({
-        where: { id: { in: userIds } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: userIds } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }
@@ -178,7 +184,8 @@ describeDb('Ad Approval Security', () => {
         radius: 25,
         description,
         status,
-        payment_status: status === 'active' ? 'paid' : status === 'pending' ? 'pending_approval' : 'unpaid',
+        payment_status:
+          status === 'active' ? 'paid' : status === 'pending' ? 'pending_approval' : 'unpaid',
       },
     });
   }
@@ -187,10 +194,7 @@ describeDb('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
-    const res = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
+    const res = await request(app).post(`/ads/${ad.id}/approve`).query({ token }).send({});
 
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Ad Approved/i);
@@ -203,15 +207,9 @@ describeDb('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
-    const first = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
+    const first = await request(app).post(`/ads/${ad.id}/approve`).query({ token }).send({});
 
-    const second = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
+    const second = await request(app).post(`/ads/${ad.id}/approve`).query({ token }).send({});
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(409);
@@ -222,9 +220,7 @@ describeDb('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
-    const res = await request(app)
-      .get(`/ads/${ad.id}/approve`)
-      .query({ token });
+    const res = await request(app).get(`/ads/${ad.id}/approve`).query({ token });
 
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');
@@ -236,9 +232,7 @@ describeDb('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'reject_ad' }, '7d');
 
-    const res = await request(app)
-      .get(`/ads/${ad.id}/reject`)
-      .query({ token });
+    const res = await request(app).get(`/ads/${ad.id}/reject`).query({ token });
 
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');
@@ -293,10 +287,7 @@ describeDb('Ad Approval Security', () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
-    const res = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
+    const res = await request(app).post(`/ads/${ad.id}/approve`).query({ token }).send({});
 
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Ad Approved/i);
@@ -361,9 +352,7 @@ describeDb('Ad Approval Security', () => {
   it('blocks unauthenticated /review requests', async () => {
     const ad = await createAd('pending');
 
-    const res = await request(app)
-      .post(`/ads/${ad.id}/review`)
-      .send({ action: 'approve' });
+    const res = await request(app).post(`/ads/${ad.id}/review`).send({ action: 'approve' });
 
     expect(res.status).toBe(401);
   });
@@ -471,7 +460,8 @@ describeDb('Ad Approval Security', () => {
 
   it('approves a flagged banner with a valid override reason and records it in admin_note (/review)', async () => {
     const ad = await createFlaggedAd();
-    const reason = 'Reviewed by trust & safety team — banner is a sports action shot, not suggestive content.';
+    const reason =
+      'Reviewed by trust & safety team — banner is a sports action shot, not suggestive content.';
 
     const res = await request(app)
       .post(`/ads/${ad.id}/review`)

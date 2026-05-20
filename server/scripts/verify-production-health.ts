@@ -69,8 +69,16 @@ async function main() {
     if (!body.ready) failures.push('ready=false');
 
     const requiredIntegrations = [
-      'database', 'jwt', 'cloudinary', 'stripe', 'sendgrid',
-      'googleOAuth', 'googleMaps', 'appleIAP', 'sentry', 'redis',
+      'database',
+      'jwt',
+      'cloudinary',
+      'stripe',
+      'sendgrid',
+      'googleOAuth',
+      'googleMaps',
+      'appleIAP',
+      'sentry',
+      'redis',
     ];
     for (const key of requiredIntegrations) {
       if (!body.integrations[key]) {
@@ -119,7 +127,7 @@ async function main() {
   console.log('Production health verification passed.');
 }
 
-main().catch((err) => {
+main().catch(err => {
   // eslint-disable-next-line no-console
   console.error('verify-production-health failed:', err);
   process.exit(1);

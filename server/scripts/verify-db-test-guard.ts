@@ -69,7 +69,7 @@ async function main() {
   console.log(`dbTestGuard verification passed for ${testFiles.length} test files.`);
 }
 
-main().catch((error) => {
+main().catch(error => {
   // eslint-disable-next-line no-console
   console.error('verify-db-test-guard failed:', error);
   process.exit(1);

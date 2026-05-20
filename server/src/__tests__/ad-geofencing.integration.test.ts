@@ -113,12 +113,7 @@ describeDb('Ad geofencing integration', () => {
       },
     });
 
-    adIds.push(
-      insideRadiusAd.id,
-      outsideRadiusAd.id,
-      fullZipAdA.id,
-      fullZipAdB.id
-    );
+    adIds.push(insideRadiusAd.id, outsideRadiusAd.id, fullZipAdA.id, fullZipAdB.id);
 
     await prisma.adReservation.createMany({
       data: [
@@ -132,17 +127,23 @@ describeDb('Ad geofencing integration', () => {
   afterAll(async () => {
     if (!prisma) return;
 
-    await prisma.adReservation.deleteMany({
-      where: { ad_id: { in: adIds } },
-    }).catch(() => {});
+    await prisma.adReservation
+      .deleteMany({
+        where: { ad_id: { in: adIds } },
+      })
+      .catch(() => {});
 
-    await prisma.ad.deleteMany({
-      where: { id: { in: adIds } },
-    }).catch(() => {});
+    await prisma.ad
+      .deleteMany({
+        where: { id: { in: adIds } },
+      })
+      .catch(() => {});
 
-    await prisma.user.deleteMany({
-      where: { id: { in: userIds } },
-    }).catch(() => {});
+    await prisma.user
+      .deleteMany({
+        where: { id: { in: userIds } },
+      })
+      .catch(() => {});
   });
 
   it('returns only ads within the 9 mile radius from the viewer in /ads/for-feed', async () => {
@@ -180,13 +181,11 @@ describeDb('Ad geofencing integration', () => {
   });
 
   it('counts booking capacity only against the exact requested zip code', async () => {
-    const nearbyZipRes = await request(app)
-      .get('/ads/availability')
-      .query({
-        zip: '10001',
-        from: futureIso,
-        to: futureIso,
-      });
+    const nearbyZipRes = await request(app).get('/ads/availability').query({
+      zip: '10001',
+      from: futureIso,
+      to: futureIso,
+    });
 
     expect(nearbyZipRes.status).toBe(200);
     expect(nearbyZipRes.body?.availability?.[futureIso]).toEqual({
@@ -195,13 +194,11 @@ describeDb('Ad geofencing integration', () => {
       slotsRemaining: 2,
     });
 
-    const fullZipRes = await request(app)
-      .get('/ads/availability')
-      .query({
-        zip: '10002',
-        from: futureIso,
-        to: futureIso,
-      });
+    const fullZipRes = await request(app).get('/ads/availability').query({
+      zip: '10002',
+      from: futureIso,
+      to: futureIso,
+    });
 
     expect(fullZipRes.status).toBe(200);
     expect(fullZipRes.body?.availability?.[futureIso]).toEqual({

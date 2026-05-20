@@ -1,6 +1,6 @@
 /**
  * Payment Flow Tests
- * 
+ *
  * Tests critical payment processing functionality:
  * - Price calculation
  * - Promo code validation
@@ -211,7 +211,7 @@ describeDb('Payment Flow', () => {
     it('should validate subscription expiry', () => {
       const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const now = new Date();
-      
+
       expect(expiresAt.getTime()).toBeGreaterThan(now.getTime());
     });
   });

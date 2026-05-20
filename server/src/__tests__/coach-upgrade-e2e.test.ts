@@ -5,7 +5,7 @@
  * verifies every server-side state transition the client relies on:
  *
  *   1. preferences.role flips from 'fan' to 'coach'
-   *   2. preferences.plan / pending_plan reflect whether billing is deferred
+ *   2. preferences.plan / pending_plan reflect whether billing is deferred
  *   3. preferences.onboarding_completed resets to false (so coach must
  *      complete coach-specific onboarding steps)
  *   4. approval_status resets to 'PENDING' (coach must be approved
@@ -152,9 +152,7 @@ describeDb('POST /auth/upgrade-to-coach — fan → coach state transition', () 
       .set('Authorization', `Bearer ${fanToken}`)
       .send({ plan: 'rookie' });
 
-    const meRes = await request(app)
-      .get('/auth/me')
-      .set('Authorization', `Bearer ${fanToken}`);
+    const meRes = await request(app).get('/auth/me').set('Authorization', `Bearer ${fanToken}`);
 
     expect(meRes.status).toBe(200);
     // The DISC-2 fix: client reads this number to decide whether the

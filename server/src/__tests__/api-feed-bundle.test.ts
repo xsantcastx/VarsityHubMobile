@@ -184,30 +184,40 @@ describeDb('GET /feed/bundle', () => {
 
   afterAll(async () => {
     try {
-      await prisma.message.deleteMany({
-        where: {
-          OR: [{ sender_id: { in: userIds } }, { recipient_id: { in: userIds } }],
-        },
-      }).catch(() => {});
-      await prisma.notification.deleteMany({
-        where: {
-          OR: [{ user_id: { in: userIds } }, { actor_id: { in: userIds } }],
-        },
-      }).catch(() => {});
-      await prisma.postUpvote.deleteMany({
-        where: {
-          user_id: { in: userIds },
-          post_id: { in: postIds },
-        },
-      }).catch(() => {});
-      await prisma.teamFollow.deleteMany({
-        where: { user_id: { in: userIds }, team_id: { in: teamIds } },
-      }).catch(() => {});
-      await prisma.follows.deleteMany({
-        where: {
-          OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }],
-        },
-      }).catch(() => {});
+      await prisma.message
+        .deleteMany({
+          where: {
+            OR: [{ sender_id: { in: userIds } }, { recipient_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: {
+            OR: [{ user_id: { in: userIds } }, { actor_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
+      await prisma.postUpvote
+        .deleteMany({
+          where: {
+            user_id: { in: userIds },
+            post_id: { in: postIds },
+          },
+        })
+        .catch(() => {});
+      await prisma.teamFollow
+        .deleteMany({
+          where: { user_id: { in: userIds }, team_id: { in: teamIds } },
+        })
+        .catch(() => {});
+      await prisma.follows
+        .deleteMany({
+          where: {
+            OR: [{ follower_id: { in: userIds } }, { following_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
       await prisma.ad.deleteMany({ where: { id: { in: adIds } } }).catch(() => {});
       await prisma.post.deleteMany({ where: { id: { in: postIds } } }).catch(() => {});
       await prisma.team.deleteMany({ where: { id: { in: teamIds } } }).catch(() => {});
@@ -239,7 +249,9 @@ describeDb('GET /feed/bundle', () => {
     expect(res.body?.unread_messages).toBe(1);
 
     const followedIds = (res.body?.posts?.items ?? []).map((item: any) => item.id);
-    const teamIdsFromBundle = (res.body?.posts_followed_teams?.items ?? []).map((item: any) => item.id);
+    const teamIdsFromBundle = (res.body?.posts_followed_teams?.items ?? []).map(
+      (item: any) => item.id
+    );
     expect(followedIds.length).toBeGreaterThan(0);
     expect(teamIdsFromBundle.length).toBeGreaterThan(0);
     expect(res.body?.posts?.followed_feed_meta?.following_count).toBe(1);

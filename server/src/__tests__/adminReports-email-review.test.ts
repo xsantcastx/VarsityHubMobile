@@ -46,12 +46,16 @@ describeDb('Admin abuse-report email review routes', () => {
   afterAll(async () => {
     process.env.ADMIN_EMAILS = savedAdminEmails;
     if (reportIds.length > 0) {
-      await prisma.adminActivityLog.deleteMany({
-        where: { target_type: 'abuse_report', target_id: { in: reportIds } },
-      }).catch(() => {});
-      await prisma.abuseReport.deleteMany({
-        where: { id: { in: reportIds } },
-      }).catch(() => {});
+      await prisma.adminActivityLog
+        .deleteMany({
+          where: { target_type: 'abuse_report', target_id: { in: reportIds } },
+        })
+        .catch(() => {});
+      await prisma.abuseReport
+        .deleteMany({
+          where: { id: { in: reportIds } },
+        })
+        .catch(() => {});
     }
     await prisma.user.deleteMany({ where: { id: adminId } }).catch(() => {});
   });
@@ -77,9 +81,7 @@ describeDb('Admin abuse-report email review routes', () => {
     const report = await createReport();
     const token = signJwt({ reportId: report.id, action: 'resolve_abuse_report' }, '7d');
 
-    const res = await request(app)
-      .get(`/admin/reports/${report.id}/resolve`)
-      .query({ token });
+    const res = await request(app).get(`/admin/reports/${report.id}/resolve`).query({ token });
 
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');

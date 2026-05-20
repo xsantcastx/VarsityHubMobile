@@ -1,6 +1,6 @@
 /**
  * Event Creation Tests
- * 
+ *
  * Tests event creation with:
  * - Coach auto-approval
  * - Fan approval workflow
@@ -123,7 +123,7 @@ describeDb('Event Creation', () => {
     it('should trim whitespace from event title', () => {
       const titleWithSpaces = '  Test Event  ';
       const sanitized = titleWithSpaces.trim();
-      
+
       expect(sanitized).toBe('Test Event');
       expect(sanitized.length).toBeLessThan(titleWithSpaces.length);
     });
@@ -131,14 +131,14 @@ describeDb('Event Creation', () => {
     it('should trim whitespace from event location', () => {
       const locationWithSpaces = '  Test Stadium  ';
       const sanitized = locationWithSpaces.trim();
-      
+
       expect(sanitized).toBe('Test Stadium');
     });
 
     it('should trim whitespace from event description', () => {
       const descWithSpaces = '  Test Description  ';
       const sanitized = descWithSpaces.trim();
-      
+
       expect(sanitized).toBe('Test Description');
     });
   });
@@ -175,7 +175,7 @@ describeDb('Event Creation', () => {
     it('should validate future event dates', () => {
       const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000); // Yesterday
       const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000); // Tomorrow
-      
+
       expect(pastDate.getTime()).toBeLessThan(Date.now());
       expect(futureDate.getTime()).toBeGreaterThan(Date.now());
     });

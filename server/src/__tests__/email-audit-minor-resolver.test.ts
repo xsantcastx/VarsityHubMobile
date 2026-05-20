@@ -18,7 +18,9 @@ import bcrypt from 'bcrypt';
 import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
-let resolveMinorAuditMetadata: (email: string | null | undefined) => Promise<Record<string, string> | undefined>;
+let resolveMinorAuditMetadata: (
+  email: string | null | undefined
+) => Promise<Record<string, string> | undefined>;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
@@ -109,9 +111,7 @@ describeDb('resolveMinorAuditMetadata (email audit redaction resolver)', () => {
   });
 
   it('is case-insensitive on the email lookup', async () => {
-    const result = await resolveMinorAuditMetadata(
-      `MINOR-REDACT-${ts}@EXAMPLE.COM`
-    );
+    const result = await resolveMinorAuditMetadata(`MINOR-REDACT-${ts}@EXAMPLE.COM`);
     expect(result).toEqual({ audit_privacy: 'minor' });
   });
 

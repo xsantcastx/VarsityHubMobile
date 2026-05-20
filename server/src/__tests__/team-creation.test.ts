@@ -1,6 +1,6 @@
 /**
  * Team Creation Tests
- * 
+ *
  * Tests team creation with role validation and subscription limits
  */
 
@@ -156,13 +156,12 @@ describeDb('Team Creation with Role Validation', () => {
         select: { preferences: true },
       });
 
-      const prefs = (fan?.preferences && typeof fan.preferences === 'object') 
-        ? (fan.preferences as any) 
-        : {};
+      const prefs =
+        fan?.preferences && typeof fan.preferences === 'object' ? (fan.preferences as any) : {};
       const userRole = prefs.role || 'fan';
 
       expect(userRole).toBe('fan');
-      
+
       // In the actual API, this would return 403 with COACH_ROLE_REQUIRED error
       // Here we verify the role check logic
       const canCreateTeam = userRole === 'coach';
@@ -193,7 +192,7 @@ describeDb('Team Creation with Role Validation', () => {
     it('should sanitize team name (trim whitespace)', () => {
       const nameWithSpaces = '  Test Team  ';
       const sanitized = nameWithSpaces.trim();
-      
+
       expect(sanitized).toBe('Test Team');
       expect(sanitized).not.toBe(nameWithSpaces);
     });
@@ -201,7 +200,7 @@ describeDb('Team Creation with Role Validation', () => {
     it('should sanitize team description (trim whitespace)', () => {
       const descWithSpaces = '  Test Description  ';
       const sanitized = descWithSpaces.trim();
-      
+
       expect(sanitized).toBe('Test Description');
       expect(sanitized).not.toBe(descWithSpaces);
     });

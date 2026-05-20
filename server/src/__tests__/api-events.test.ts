@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Event Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for event management:
  * - POST /events (create event with approval workflow)
  * - GET /events (list events)
@@ -260,41 +260,31 @@ describeDb('API Event Endpoints', () => {
 
   describeDb('GET /events', () => {
     it('should return list of approved events', async () => {
-      const response = await request(app)
-        .get('/events')
-        .expect(200);
+      const response = await request(app).get('/events').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should filter events by status', async () => {
-      const response = await request(app)
-        .get('/events?status=approved')
-        .expect(200);
+      const response = await request(app).get('/events?status=approved').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should filter events by approval_status', async () => {
-      const response = await request(app)
-        .get('/events?approval_status=pending')
-        .expect(200);
+      const response = await request(app).get('/events?approval_status=pending').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should search events by query', async () => {
-      const response = await request(app)
-        .get('/events?q=Test')
-        .expect(200);
+      const response = await request(app).get('/events?q=Test').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should limit number of results', async () => {
-      const response = await request(app)
-        .get('/events?limit=10')
-        .expect(200);
+      const response = await request(app).get('/events?limit=10').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeLessThanOrEqual(10);
@@ -365,15 +355,17 @@ describeDb('API Event Endpoints', () => {
         expect(ids).toContain(linkedEvent.id);
         expect(ids).not.toContain(outsideEvent.id);
       } finally {
-        await prisma.event.deleteMany({
-          where: {
-            OR: [
-              { team_id: outsideTeam.id },
-              { game_id: linkedGame.id },
-              { team_id: testTeamId, title: { contains: 'Direct Team Event' } },
-            ],
-          },
-        }).catch(() => {});
+        await prisma.event
+          .deleteMany({
+            where: {
+              OR: [
+                { team_id: outsideTeam.id },
+                { game_id: linkedGame.id },
+                { team_id: testTeamId, title: { contains: 'Direct Team Event' } },
+              ],
+            },
+          })
+          .catch(() => {});
         await prisma.game.delete({ where: { id: linkedGame.id } }).catch(() => {});
         await prisma.team.delete({ where: { id: outsideTeam.id } }).catch(() => {});
       }
@@ -394,9 +386,7 @@ describeDb('API Event Endpoints', () => {
         },
       });
 
-      const response = await request(app)
-        .get('/events')
-        .expect(200);
+      const response = await request(app).get('/events').expect(200);
 
       const created = response.body.find((item: any) => item.creator_id === coachUserId);
       expect(created).toBeTruthy();
@@ -481,7 +471,9 @@ describeDb('API Event Endpoints', () => {
 
       // Cleanup
       await prisma.event.deleteMany({ where: { id: event.id } }).catch(() => {});
-      await prisma.teamMembership.deleteMany({ where: { team_id: separateTeam.id } }).catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({ where: { team_id: separateTeam.id } })
+        .catch(() => {});
       await prisma.team.delete({ where: { id: separateTeam.id } }).catch(() => {});
       await prisma.user.delete({ where: { id: separateCreator.id } }).catch(() => {});
     });

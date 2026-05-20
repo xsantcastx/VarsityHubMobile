@@ -139,15 +139,21 @@ describeDb('API Organization Endpoints', () => {
 
   afterAll(async () => {
     await prisma.organizationJoinRequest.deleteMany({ where: { user_id: userId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({
-      where: { user_id: { in: [userId, ownerId, managerId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.organization.deleteMany({
-      where: { id: { in: [approvedOrgId, pendingOrgId, ownedOrgId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.user.deleteMany({
-      where: { id: { in: [userId, ownerId, managerId].filter(Boolean) } },
-    }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { user_id: { in: [userId, ownerId, managerId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.organization
+      .deleteMany({
+        where: { id: { in: [approvedOrgId, pendingOrgId, ownedOrgId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.user
+      .deleteMany({
+        where: { id: { in: [userId, ownerId, managerId].filter(Boolean) } },
+      })
+      .catch(() => {});
   });
 
   describeDb('GET /organizations', () => {

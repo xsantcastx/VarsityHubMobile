@@ -37,33 +37,47 @@ describeDb('requireOnboarded coach gate matrix', () => {
     if (!prisma) return;
 
     if (cleanup.teams.length) {
-      await prisma.teamInvite.deleteMany({
-        where: { team_id: { in: cleanup.teams } },
-      }).catch(() => {});
-      await prisma.teamMembership.deleteMany({
-        where: { team_id: { in: cleanup.teams } },
-      }).catch(() => {});
-      await prisma.team.deleteMany({
-        where: { id: { in: cleanup.teams } },
-      }).catch(() => {});
+      await prisma.teamInvite
+        .deleteMany({
+          where: { team_id: { in: cleanup.teams } },
+        })
+        .catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({
+          where: { team_id: { in: cleanup.teams } },
+        })
+        .catch(() => {});
+      await prisma.team
+        .deleteMany({
+          where: { id: { in: cleanup.teams } },
+        })
+        .catch(() => {});
     }
 
     if (cleanup.orgs.length) {
-      await prisma.organizationJoinRequest.deleteMany({
-        where: { organization_id: { in: cleanup.orgs } },
-      }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({
-        where: { organization_id: { in: cleanup.orgs } },
-      }).catch(() => {});
-      await prisma.organization.deleteMany({
-        where: { id: { in: cleanup.orgs } },
-      }).catch(() => {});
+      await prisma.organizationJoinRequest
+        .deleteMany({
+          where: { organization_id: { in: cleanup.orgs } },
+        })
+        .catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({
+          where: { organization_id: { in: cleanup.orgs } },
+        })
+        .catch(() => {});
+      await prisma.organization
+        .deleteMany({
+          where: { id: { in: cleanup.orgs } },
+        })
+        .catch(() => {});
     }
 
     if (cleanup.users.length) {
-      await prisma.user.deleteMany({
-        where: { id: { in: cleanup.users } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: cleanup.users } },
+        })
+        .catch(() => {});
     }
   });
 
@@ -83,8 +97,11 @@ describeDb('requireOnboarded coach gate matrix', () => {
         email: options.email,
         password_hash: passwordHash,
         display_name: options.displayName,
-        username: `${options.displayName.toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now()}`
-          .slice(0, 20),
+        username:
+          `${options.displayName.toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now()}`.slice(
+            0,
+            20
+          ),
         email_verified: true,
         approval_status: options.approvalStatus ?? 'APPROVED',
         paid_by_owner: options.paidByOwner ?? false,

@@ -24,6 +24,7 @@ Steps:
 8. The app confirms deletion and signs the user out.
 
 For the demonstration video requested in the review message, we will attach a physical-device recording that shows:
+
 - sign in (or account creation),
 - navigation to `Settings` → `Account` → `Delete Account`,
 - the full deletion confirmation flow through completion.

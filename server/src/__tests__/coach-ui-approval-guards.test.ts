@@ -14,10 +14,7 @@ const leaguePendingApprovalScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'league-pending-approval.tsx'),
   'utf8'
 );
-const adminAdsScreen = readFileSync(
-  join(process.cwd(), '..', 'app', 'admin-ads.tsx'),
-  'utf8'
-);
+const adminAdsScreen = readFileSync(join(process.cwd(), '..', 'app', 'admin-ads.tsx'), 'utf8');
 const adminDashboardScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'admin-dashboard.tsx'),
   'utf8'
@@ -34,10 +31,7 @@ const onboardingIndexScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'index.tsx'),
   'utf8'
 );
-const authProvider = readFileSync(
-  join(process.cwd(), '..', 'context', 'AuthProvider.tsx'),
-  'utf8'
-);
+const authProvider = readFileSync(join(process.cwd(), '..', 'context', 'AuthProvider.tsx'), 'utf8');
 const appRouteDecisions = readFileSync(
   join(process.cwd(), '..', 'utils', 'appRouteDecisions.ts'),
   'utf8'
@@ -92,11 +86,7 @@ describe('coach approval UI guards', () => {
   });
 
   it.each([
-    [
-      'admin-ads.tsx',
-      adminAdsScreen,
-      /const signature = `\$\{adId\}\|\$\{action \?\? ''\}`;/,
-    ],
+    ['admin-ads.tsx', adminAdsScreen, /const signature = `\$\{adId\}\|\$\{action \?\? ''\}`;/],
     [
       'admin-dashboard.tsx',
       adminDashboardScreen,
@@ -112,13 +102,16 @@ describe('coach approval UI guards', () => {
       eventApprovalsScreen,
       /const signature = `\$\{reviewKind \?\? ''\}\|\$\{eventId\}\|\$\{action\}`;/,
     ],
-  ])('%s handles email review links by deep-link signature, not one-shot session state', (_name, source, signatureRegex) => {
-    expect(source).toMatch(/const lastHandledLinkRef = useRef<string \| null>\(null\)/);
-    expect(source).not.toMatch(/emailReviewHandledRef/);
-    expect(source).toMatch(signatureRegex);
-    expect(source).toMatch(/if \(lastHandledLinkRef\.current === signature\) return;/);
-    expect(source).toMatch(/lastHandledLinkRef\.current = signature;/);
-  });
+  ])(
+    '%s handles email review links by deep-link signature, not one-shot session state',
+    (_name, source, signatureRegex) => {
+      expect(source).toMatch(/const lastHandledLinkRef = useRef<string \| null>\(null\)/);
+      expect(source).not.toMatch(/emailReviewHandledRef/);
+      expect(source).toMatch(signatureRegex);
+      expect(source).toMatch(/if \(lastHandledLinkRef\.current === signature\) return;/);
+      expect(source).toMatch(/lastHandledLinkRef\.current = signature;/);
+    }
+  );
 
   it('onboarding index trusts canonical onboarding completion before falling back to preferences', () => {
     expect(onboardingIndexScreen).toContain('getOnboardingIndexRouteDecision');
@@ -144,8 +137,6 @@ describe('coach approval UI guards', () => {
   });
 
   it('client admin access requires a verified admin account before showing admin screens', () => {
-    expect(authProvider).toMatch(
-      /const isAdmin =\s*user\?\.email_verified === true &&\s*\(/
-    );
+    expect(authProvider).toMatch(/const isAdmin =\s*user\?\.email_verified === true &&\s*\(/);
   });
 });

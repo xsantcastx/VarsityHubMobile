@@ -59,7 +59,11 @@ async function createPasswordUser(): Promise<{ id: string; email: string; token:
   return { id: user.id, email, token };
 }
 
-async function createUnverifiedPasswordUser(): Promise<{ id: string; email: string; token: string }> {
+async function createUnverifiedPasswordUser(): Promise<{
+  id: string;
+  email: string;
+  token: string;
+}> {
   const email = `delete-acct-unverified-${randomUUID()}@example.com`;
   const password_hash = await bcrypt.hash(PASSWORD, 10);
   const user = await prisma.user.create({

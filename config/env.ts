@@ -111,15 +111,13 @@ const config: AppConfig = {
   appScheme: readEnv('EXPO_PUBLIC_APP_SCHEME', 'varsityhubmobile') || 'varsityhubmobile',
   webBaseUrl:
     normalizeUrl(
-      readEnv('EXPO_PUBLIC_WEB_BASE_URL') ||
-        readEnv('EXPO_PUBLIC_APP_BASE_URL') ||
-        DEFAULT_WEB_BASE
+      readEnv('EXPO_PUBLIC_WEB_BASE_URL') || readEnv('EXPO_PUBLIC_APP_BASE_URL') || DEFAULT_WEB_BASE
     ) || DEFAULT_WEB_BASE,
   sentryDsn: readEnv('EXPO_PUBLIC_SENTRY_DSN'),
   stripePublishableKey: readEnv('EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY'),
   adminEmails: (readEnv('EXPO_PUBLIC_ADMIN_EMAILS') || '')
     .split(',')
-    .map((email) => email.trim())
+    .map(email => email.trim())
     .filter(Boolean),
   expoProjectFullName: readEnv('EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME') || undefined,
   google: {

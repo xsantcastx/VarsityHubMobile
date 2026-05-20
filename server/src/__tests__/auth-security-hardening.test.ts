@@ -107,9 +107,7 @@ describeDb('Auth & Upload Security Hardening', () => {
           where: { id: { in: [pushUserId, avatarUserId].filter(Boolean) } },
         })
         .catch(() => {});
-      await prisma.user
-        .deleteMany({ where: { email: lockoutUserEmail } })
-        .catch(() => {});
+      await prisma.user.deleteMany({ where: { email: lockoutUserEmail } }).catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }
@@ -133,9 +131,7 @@ describeDb('Auth & Upload Security Hardening', () => {
       expect(typeof refresh).toBe('string');
 
       // Logout.
-      const logoutRes = await request(app)
-        .post('/auth/logout')
-        .send({ refresh_token: refresh });
+      const logoutRes = await request(app).post('/auth/logout').send({ refresh_token: refresh });
       expect(logoutRes.status).toBe(200);
 
       // After logout, push_token should be removed from preferences.
@@ -189,9 +185,7 @@ describeDb('Auth & Upload Security Hardening', () => {
       });
       expect((afterForgedLogout?.preferences as any)?.push_token).toBeTruthy();
 
-      const refreshRes = await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refresh });
+      const refreshRes = await request(app).post('/auth/refresh').send({ refresh_token: refresh });
       expect(refreshRes.status).toBe(200);
       expect(typeof refreshRes.body?.access_token).toBe('string');
       expect(typeof refreshRes.body?.refresh_token).toBe('string');

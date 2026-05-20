@@ -155,30 +155,46 @@ describeDb('Game Approval Flow', () => {
 
   afterAll(async () => {
     try {
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: [coachId, orgManagerId, fanId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.event.deleteMany({
-        where: { creator_id: { in: [fanId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.game.deleteMany({
-        where: { OR: [{ created_by_id: fanId }, { home_team_id: teamId }] },
-      }).catch(() => {});
-      await prisma.teamMembership.deleteMany({
-        where: { team_id: teamId },
-      }).catch(() => {});
-      await prisma.team.deleteMany({
-        where: { id: teamId },
-      }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({
-        where: { organization_id: orgId },
-      }).catch(() => {});
-      await prisma.organization.deleteMany({
-        where: { id: orgId },
-      }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [coachId, orgManagerId, fanId].filter(Boolean) } },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: [coachId, orgManagerId, fanId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.event
+        .deleteMany({
+          where: { creator_id: { in: [fanId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.game
+        .deleteMany({
+          where: { OR: [{ created_by_id: fanId }, { home_team_id: teamId }] },
+        })
+        .catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({
+          where: { team_id: teamId },
+        })
+        .catch(() => {});
+      await prisma.team
+        .deleteMany({
+          where: { id: teamId },
+        })
+        .catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({
+          where: { organization_id: orgId },
+        })
+        .catch(() => {});
+      await prisma.organization
+        .deleteMany({
+          where: { id: orgId },
+        })
+        .catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [coachId, orgManagerId, fanId].filter(Boolean) } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }

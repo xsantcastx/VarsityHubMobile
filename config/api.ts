@@ -11,7 +11,11 @@ export const API_TIMEOUT = 10000; // 10 seconds
 
 // Debug logging
 if (__DEV__) {
-  console.log('API Configuration:', { baseUrl: API_BASE_URL, env: appConfig.nodeEnv || 'production', timeout: API_TIMEOUT });
+  console.log('API Configuration:', {
+    baseUrl: API_BASE_URL,
+    env: appConfig.nodeEnv || 'production',
+    timeout: API_TIMEOUT,
+  });
 }
 
 // API health check function
@@ -19,11 +23,11 @@ export const checkAPIHealth = async (): Promise<boolean> => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
+
     const response = await fetch(`${API_BASE_URL}/health`, {
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {

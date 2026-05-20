@@ -102,10 +102,18 @@ describeDb('League review routes', () => {
 
   afterAll(async () => {
     process.env.ADMIN_EMAILS = savedAdminEmails;
-    await prisma.notification.deleteMany({ where: { user_id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.notification
+      .deleteMany({
+        where: { user_id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } },
+      })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } }).catch(() => {});
+    await prisma.user
+      .deleteMany({ where: { id: { in: [adminId, unverifiedAdminId, ownerId, secondOwnerId] } } })
+      .catch(() => {});
   });
 
   it('keeps organization.league_owner_id in sync when ownership is transferred', async () => {
@@ -254,9 +262,11 @@ describeDb('League review routes', () => {
         rejection_reason: null,
       } as any,
     });
-    await prisma.organizationMembership.create({
-      data: { organization_id: orgId, user_id: ownerId, role: 'owner', status: 'active' },
-    }).catch(() => {});
+    await prisma.organizationMembership
+      .create({
+        data: { organization_id: orgId, user_id: ownerId, role: 'owner', status: 'active' },
+      })
+      .catch(() => {});
     await prisma.user.update({
       where: { id: ownerId },
       data: {

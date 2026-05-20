@@ -231,25 +231,23 @@ describeDb('Minors Foundation Integration', () => {
     process.env.ADMIN_EMAILS = originalAdminEmails;
 
     try {
-      await prisma.message.deleteMany({
-        where: {
-          OR: [
-            { sender_id: { in: userIds } },
-            { recipient_id: { in: userIds } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.message
+        .deleteMany({
+          where: {
+            OR: [{ sender_id: { in: userIds } }, { recipient_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
       if (deleteUserPostId) {
         await prisma.post.deleteMany({ where: { id: deleteUserPostId } }).catch(() => {});
       }
-      await prisma.notification.deleteMany({
-        where: {
-          OR: [
-            { user_id: { in: userIds } },
-            { actor_id: { in: userIds } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: {
+            OR: [{ user_id: { in: userIds } }, { actor_id: { in: userIds } }],
+          },
+        })
+        .catch(() => {});
       await prisma.refreshToken.deleteMany({ where: { user_id: { in: userIds } } }).catch(() => {});
       await prisma.ad.deleteMany({ where: { id: { in: adIds } } }).catch(() => {});
       await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});

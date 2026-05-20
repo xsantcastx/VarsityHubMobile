@@ -23,34 +23,40 @@ npm run build:ios
 ## ✅ Pre-Build Verification (Automated)
 
 ### 1. TypeScript Compilation
+
 - ✅ No TypeScript errors
 - ✅ All types properly defined
 - ✅ No `any` types in critical paths
 
 ### 2. Configuration Files
+
 - ✅ `app.json` - Valid JSON, required fields present
 - ✅ `eas.json` - Valid JSON, all profiles configured
 - ✅ `tsconfig.json` - Properly configured
 - ✅ `package.json` - Dependencies installed
 
 ### 3. Build Configuration
+
 - ✅ Android: `build.gradle` configured correctly
 - ✅ iOS: `Podfile` and Xcode project present
 - ✅ Sentry: Organization and project configured
 - ✅ EAS: All build profiles valid
 
 ### 4. Critical Dependencies
+
 - ✅ `@sentry/react-native` installed
 - ✅ `@sentry/node` installed (server)
 - ✅ Expo SDK compatible versions
 - ✅ All native modules properly linked
 
 ### 5. Environment Variables
+
 - ✅ `EXPO_PUBLIC_SENTRY_DSN` configured
 - ✅ `SENTRY_ORG` and `SENTRY_PROJECT` in eas.json
 - ✅ `SENTRY_AUTH_TOKEN` set in EAS secrets (for builds)
 
 ### 6. API Domain Verification (Required)
+
 - ✅ `EXPO_PUBLIC_API_URL` is set to a live API domain in build env
 - ✅ `EXPO_PUBLIC_API_URL` is **not** the retired Railway hostname
 - ✅ Health checks do not return `X-Railway-Fallback: true`
@@ -68,18 +74,21 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 ## 🔒 Security & Validation Checks
 
 ### Authentication & Authorization
+
 - ✅ JWT tokens properly validated
 - ✅ Role-based access control enforced
 - ✅ Coach-only features protected
 - ✅ Admin features properly gated
 
 ### Data Validation
+
 - ✅ Frontend validation matches backend
 - ✅ Input sanitization on all user inputs
 - ✅ SQL injection prevention (Prisma)
 - ✅ XSS prevention in error messages
 
 ### Payment Security
+
 - ✅ Stripe keys properly configured
 - ✅ Webhook signature validation
 - ✅ Payment callbacks verified
@@ -90,24 +99,28 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 ## 🏗️ Architecture Compliance
 
 ### Code Organization
+
 - ✅ `app/` directory is thin routing layer
 - ✅ Feature code in appropriate locations
 - ✅ Shared code in `@/shared/*` or `utils/`
 - ✅ No deep relative imports
 
 ### State Management
+
 - ✅ Feature-scoped state where possible
 - ✅ Global context only for auth/theme/user
 - ✅ API calls through `api/*` clients
 - ✅ No direct `fetch()` calls in screens
 
 ### Error Handling
+
 - ✅ All async operations have error handling
 - ✅ No silent failures
 - ✅ User-friendly error messages
 - ✅ Errors logged to Sentry
 
 ### Loading States
+
 - ✅ Loading states for all async operations
 - ✅ Error states displayed to users
 - ✅ Empty states for lists
@@ -118,6 +131,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 ## 💳 Critical User Flows
 
 ### Authentication Flow
+
 - ✅ Sign up → Email verification → Login
 - ✅ Password reset flow
 - ✅ OAuth sign-in (Google/Apple)
@@ -125,6 +139,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 - ✅ Token refresh handling
 
 ### Onboarding Flow
+
 - ✅ Role selection (Fan/Coach)
 - ✅ Profile setup
 - ✅ Plan selection
@@ -132,6 +147,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 - ✅ Team/organization setup (coaches)
 
 ### Payment Flow
+
 - ✅ Plan selection
 - ✅ Stripe checkout
 - ✅ Payment confirmation
@@ -139,6 +155,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 - ✅ Webhook handling
 
 ### Team Management
+
 - ✅ Team creation (coach only)
 - ✅ Team member invites
 - ✅ Role assignments
@@ -149,6 +166,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 ## 📱 Platform-Specific Checks
 
 ### Android
+
 - ✅ `build.gradle` configured
 - ✅ `AndroidManifest.xml` permissions set
 - ✅ Package name: `com.varsithub.varsityhub`
@@ -156,6 +174,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 - ✅ ProGuard rules (if minification enabled)
 
 ### iOS
+
 - ✅ `Podfile` configured
 - ✅ Bundle identifier: `com.varsithub.varsityhub`
 - ✅ Apple Team ID configured
@@ -167,6 +186,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 ## 🧪 Testing Requirements
 
 ### Before Production Build
+
 - ✅ TypeScript compiles without errors
 - ✅ Linting passes (warnings OK, errors block)
 - ✅ Critical flows tested manually
@@ -174,6 +194,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 - ✅ Sentry error tracking working
 
 ### Critical Flows to Test
+
 1. **Registration & Email Verification**
    - User can sign up
    - Verification email arrives
@@ -203,6 +224,7 @@ BASE_URL=https://<live-api-domain> npm --prefix server run verify:production-hea
 ## 🚀 Build Process
 
 ### Pre-Build Steps (REQUIRED)
+
 ```bash
 # 1. Run verification
 bash scripts/verify-build-ready.sh
@@ -220,6 +242,7 @@ eas env:list --environment production | grep SENTRY_AUTH_TOKEN
 ```
 
 ### Build Commands
+
 ```bash
 # Android (runs verification first)
 npm run build:android
@@ -232,6 +255,7 @@ npm run build:production
 ```
 
 ### Post-Build Verification
+
 - ✅ Build completes successfully
 - ✅ App installs on device
 - ✅ App launches without crashes
@@ -243,21 +267,27 @@ npm run build:production
 ## ⚠️ Common Build Failures & Fixes
 
 ### "SENTRY_AUTH_TOKEN is required"
+
 **Fix:** Set token in EAS secrets
+
 ```bash
 eas env:create --name SENTRY_AUTH_TOKEN --value <token> --environment production --visibility sensitive
 ```
 
 ### "TypeScript errors"
+
 **Fix:** Run `npm run typecheck` and fix all errors
 
 ### "plan-definitions.json not found"
+
 **Fix:** Already fixed - build script copies shared directory
 
 ### "Build failed: Gradle error"
+
 **Fix:** Check `android/app/build.gradle` for syntax errors
 
 ### "iOS build failed: Pod install error"
+
 **Fix:** Run `cd ios && pod install` locally first
 
 ---
@@ -265,14 +295,16 @@ eas env:create --name SENTRY_AUTH_TOKEN --value <token> --environment production
 ## 📊 Production Readiness Score
 
 Run this to get your readiness score:
+
 ```bash
 bash scripts/verify-build-ready.sh
 ```
 
 **Scoring:**
+
 - 0 errors, 0 warnings = ✅ **READY FOR PRODUCTION**
 - 0 errors, <10 warnings = ✅ **READY (warnings acceptable)**
-- >0 errors = ❌ **NOT READY - Fix errors first**
+- > 0 errors = ❌ **NOT READY - Fix errors first**
 
 ---
 

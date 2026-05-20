@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Team Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for team management:
  * - POST /teams (create team with role validation)
  * - GET /teams/limits (check team creation limits)
@@ -113,7 +113,12 @@ describeDb('API Team Endpoints', () => {
     ownerManagedCoachId = ownerManagedCoach.id;
     ownerManagedCoachToken = signJwt({ id: ownerManagedCoachId });
     await prisma.organizationMembership.create({
-      data: { organization_id: testOrgId, user_id: ownerManagedCoachId, role: 'manager', status: 'active' },
+      data: {
+        organization_id: testOrgId,
+        user_id: ownerManagedCoachId,
+        role: 'manager',
+        status: 'active',
+      },
       select: { id: true },
     });
   });
@@ -131,14 +136,13 @@ describeDb('API Team Endpoints', () => {
       if (teamIds.length > 0) {
         await prisma.post.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
         await prisma.event.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
-        await prisma.game.deleteMany({
-          where: {
-            OR: [
-              { home_team_id: { in: teamIds } },
-              { away_team_id: { in: teamIds } },
-            ],
-          },
-        }).catch(() => {});
+        await prisma.game
+          .deleteMany({
+            where: {
+              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+            },
+          })
+          .catch(() => {});
       }
 
       // Clean up team memberships
@@ -355,9 +359,7 @@ describeDb('API Team Endpoints', () => {
       expect(refreshedEvent?.team_id).toBe(team.id);
       expect(refreshedPost?.team_id).toBe(team.id);
 
-      const listResponse = await request(app)
-        .get('/teams')
-        .expect(200);
+      const listResponse = await request(app).get('/teams').expect(200);
 
       expect(Array.isArray(listResponse.body)).toBe(true);
       expect(listResponse.body.some((entry: any) => entry.id === team.id)).toBe(false);
@@ -400,9 +402,7 @@ describeDb('API Team Endpoints', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/limits')
-        .expect(401);
+      const response = await request(app).get('/teams/limits').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -419,9 +419,7 @@ describeDb('API Team Endpoints', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/managed')
-        .expect(401);
+      const response = await request(app).get('/teams/managed').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -807,9 +805,7 @@ describeDb('API Team Endpoints', () => {
         ],
       });
 
-      const publicResponse = await request(app)
-        .get(`/teams/${team.id}/screen-summary`)
-        .expect(200);
+      const publicResponse = await request(app).get(`/teams/${team.id}/screen-summary`).expect(200);
 
       expect(publicResponse.body.team?.id).toBe(team.id);
       expect(publicResponse.body.permissions?.can_manage).toBe(false);

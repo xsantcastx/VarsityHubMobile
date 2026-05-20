@@ -64,9 +64,11 @@ describeDb('Uploads API Endpoints', () => {
   });
 
   afterAll(async () => {
-    await prisma.ad.deleteMany({
-      where: { id: { in: [ownedAd?.id, foreignAd?.id].filter(Boolean) } },
-    }).catch(() => {});
+    await prisma.ad
+      .deleteMany({
+        where: { id: { in: [ownedAd?.id, foreignAd?.id].filter(Boolean) } },
+      })
+      .catch(() => {});
     await prisma.user.deleteMany({ where: { id: testUser.id } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: unverifiedUser.id } }).catch(() => {});
   });

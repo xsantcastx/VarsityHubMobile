@@ -89,21 +89,27 @@ describeDb('Ad Report Flow', () => {
     process.env.ADMIN_EMAILS = originalAdminEmails;
 
     try {
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.abuseReport.deleteMany({
-        where: {
-          OR: [
-            { reporter_id: { in: [ownerId, reporterId].filter(Boolean) } },
-            { subject: { contains: `[ad:${adId}]` } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.abuseReport
+        .deleteMany({
+          where: {
+            OR: [
+              { reporter_id: { in: [ownerId, reporterId].filter(Boolean) } },
+              { subject: { contains: `[ad:${adId}]` } },
+            ],
+          },
+        })
+        .catch(() => {});
       await prisma.ad.deleteMany({ where: { id: adId } }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }

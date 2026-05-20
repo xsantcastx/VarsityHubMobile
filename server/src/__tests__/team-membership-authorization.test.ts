@@ -142,23 +142,31 @@ describeDb('Team membership authorization boundaries', () => {
 
   afterAll(async () => {
     try {
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.teamMembership.deleteMany({
-        where: {
-          OR: [
-            { team_id: teamId },
-            { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({
+          where: {
+            OR: [
+              { team_id: teamId },
+              { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+            ],
+          },
+        })
+        .catch(() => {});
       await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: orgId } })
+        .catch(() => {});
       await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }

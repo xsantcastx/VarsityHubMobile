@@ -36,9 +36,8 @@ describeDb('Coach Approval Workflow', () => {
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signJwt } = await import('../lib/jwt.js'));
-    ({ getOrganizationJoinRequestState, getOrganizationJoinRequestStateForUser } = await import(
-      '../lib/organizationWorkflowState.js'
-    ));
+    ({ getOrganizationJoinRequestState, getOrganizationJoinRequestStateForUser } =
+      await import('../lib/organizationWorkflowState.js'));
 
     // Pending coach (role=coach, approval_status=PENDING)
     const pendingHash = await bcrypt.hash(PASSWORD, 10);
@@ -91,7 +90,12 @@ describeDb('Coach Approval Workflow', () => {
         email_verified: true,
         role: 'coach',
         onboarding_completed: true,
-        preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+        preferences: {
+          role: 'coach',
+          plan: 'rookie',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
         approval_status: 'APPROVED',
       },
     });
@@ -108,7 +112,12 @@ describeDb('Coach Approval Workflow', () => {
         email_verified: true,
         role: 'coach',
         onboarding_completed: true,
-        preferences: { role: 'coach', plan: 'veteran', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+        preferences: {
+          role: 'coach',
+          plan: 'veteran',
+          onboarding_completed: true,
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
         approval_status: 'APPROVED',
       },
     });
@@ -146,7 +155,12 @@ describeDb('Coach Approval Workflow', () => {
       select: { id: true },
     });
     await prisma.organizationMembership.create({
-      data: { organization_id: approvedOrg.id, user_id: approvedCoachId, role: 'owner', status: 'active' },
+      data: {
+        organization_id: approvedOrg.id,
+        user_id: approvedCoachId,
+        role: 'owner',
+        status: 'active',
+      },
       select: { id: true },
     });
   });
@@ -293,10 +307,7 @@ describeDb('Coach Approval Workflow', () => {
         data: {
           post_id: discussionPost.id,
           options: {
-            create: [
-              { text: 'Option A' },
-              { text: 'Option B' },
-            ],
+            create: [{ text: 'Option A' }, { text: 'Option B' }],
           },
         },
         include: {
@@ -500,7 +511,12 @@ describeDb('Coach Approval Workflow', () => {
           date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
           approval_status: 'APPROVED',
         },
       });
@@ -612,7 +628,12 @@ describeDb('Coach Approval Workflow', () => {
           date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
           approval_status: 'APPROVED',
         },
       });
@@ -639,10 +660,14 @@ describeDb('Coach Approval Workflow', () => {
       expect(userAfter?.approval_status).toBe('PENDING');
       expect(userAfter?.organization_id).toBe(orgIdFromCreate);
       expect((userAfter?.preferences as any)?.organization_id).toBe(orgIdFromCreate);
-      expect((userAfter?.preferences as any)?.organization_name).toContain('Onboarding Create League');
+      expect((userAfter?.preferences as any)?.organization_name).toContain(
+        'Onboarding Create League'
+      );
       expect((userAfter?.preferences as any)?.join_request_pending).toBe(false);
 
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgIdFromCreate } });
+      await prisma.organizationMembership.deleteMany({
+        where: { organization_id: orgIdFromCreate },
+      });
       await prisma.organization.deleteMany({ where: { id: orgIdFromCreate } });
       await prisma.user.deleteMany({ where: { id: creator.id } });
       orgIdFromCreate = '';
@@ -817,7 +842,9 @@ describeDb('Coach Approval Workflow', () => {
         expect(applicationAfter?.status).toBe('approved');
         expect(applicationAfter?.reviewed_by).toBeNull();
       } finally {
-        await prisma.adminActivityLog.deleteMany({ where: { target_id: coach.id } }).catch(() => {});
+        await prisma.adminActivityLog
+          .deleteMany({ where: { target_id: coach.id } })
+          .catch(() => {});
         await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
         await prisma.user.delete({ where: { id: coach.id } }).catch(() => {});
       }
@@ -888,11 +915,15 @@ describeDb('Coach Approval Workflow', () => {
         expect(auditLog?.admin_id).toBe('email-token');
         expect(auditLog?.admin_email).toBe('email-token');
       } finally {
-        await prisma.adminActivityLog.deleteMany({
-          where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
-        }).catch(() => {});
+        await prisma.adminActivityLog
+          .deleteMany({
+            where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
+          })
+          .catch(() => {});
         await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
-        await prisma.user.deleteMany({ where: { id: { in: [coach.id, actor.id] } } }).catch(() => {});
+        await prisma.user
+          .deleteMany({ where: { id: { in: [coach.id, actor.id] } } })
+          .catch(() => {});
       }
     });
   });
@@ -957,11 +988,15 @@ describeDb('Coach Approval Workflow', () => {
         expect(applicationAfter?.reviewed_by).toBe(admin.id);
       } finally {
         process.env.ADMIN_EMAILS = savedAdminEmails;
-        await prisma.adminActivityLog.deleteMany({
-          where: { OR: [{ target_id: coach.id }, { admin_id: admin.id }] },
-        }).catch(() => {});
+        await prisma.adminActivityLog
+          .deleteMany({
+            where: { OR: [{ target_id: coach.id }, { admin_id: admin.id }] },
+          })
+          .catch(() => {});
         await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
-        await prisma.user.deleteMany({ where: { id: { in: [coach.id, admin.id] } } }).catch(() => {});
+        await prisma.user
+          .deleteMany({ where: { id: { in: [coach.id, admin.id] } } })
+          .catch(() => {});
       }
     });
 
@@ -1153,7 +1188,12 @@ describeDb('Coach Approval Workflow', () => {
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
           approval_status: 'APPROVED',
         },
       });
@@ -1166,7 +1206,9 @@ describeDb('Coach Approval Workflow', () => {
     });
 
     afterAll(async () => {
-      await prisma.organizationMembership.deleteMany({ where: { user_id: managerId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { user_id: managerId } })
+        .catch(() => {});
       await prisma.user.delete({ where: { id: managerId } }).catch(() => {});
     });
 
@@ -1257,7 +1299,7 @@ describeDb('Coach Approval Workflow', () => {
       expect(res.status).toBe(403);
       const reqAfter = await getOrganizationJoinRequestStateForUser(orgId, coach.id);
       expect(reqAfter?.status).toBe('pending');
- 
+
       await prisma.organizationJoinRequest.deleteMany({ where: { user_id: coach.id } });
       await prisma.user.delete({ where: { id: coach.id } });
     });
@@ -1310,7 +1352,12 @@ describeDb('Coach Approval Workflow', () => {
           email_verified: true,
           role: 'coach',
           onboarding_completed: true,
-          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true, coach_agreement_accepted_at: new Date().toISOString() },
+          preferences: {
+            role: 'coach',
+            plan: 'rookie',
+            onboarding_completed: true,
+            coach_agreement_accepted_at: new Date().toISOString(),
+          },
           approval_status: 'APPROVED',
         },
       });

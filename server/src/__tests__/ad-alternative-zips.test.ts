@@ -82,18 +82,24 @@ describeDb('Ad alternative zip availability', () => {
   afterAll(async () => {
     if (!prisma) return;
 
-    await prisma.adReservation.deleteMany({
-      where: { ad_id: { in: createdAdIds } },
-    }).catch(() => {});
+    await prisma.adReservation
+      .deleteMany({
+        where: { ad_id: { in: createdAdIds } },
+      })
+      .catch(() => {});
 
-    await prisma.ad.deleteMany({
-      where: { id: { in: createdAdIds } },
-    }).catch(() => {});
+    await prisma.ad
+      .deleteMany({
+        where: { id: { in: createdAdIds } },
+      })
+      .catch(() => {});
 
     if (userId) {
-      await prisma.user.deleteMany({
-        where: { id: userId },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: userId },
+        })
+        .catch(() => {});
     }
   });
 
@@ -110,7 +116,10 @@ describeDb('Ad alternative zip availability', () => {
     expect(Array.isArray(res.body?.alternatives)).toBe(true);
 
     const byZip = new Map(
-      (res.body.alternatives as Array<{ zip: string; available: boolean }>).map((entry) => [entry.zip, entry.available])
+      (res.body.alternatives as Array<{ zip: string; available: boolean }>).map(entry => [
+        entry.zip,
+        entry.available,
+      ])
     );
 
     expect(byZip.has('10101')).toBe(false);

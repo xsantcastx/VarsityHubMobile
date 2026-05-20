@@ -24,7 +24,9 @@ describe('authorized-user contracts', () => {
 
   it('organization admin-summary includes pending authorized invite data for the frontend', () => {
     expect(organizationsRoute).toContain('pending_authorized_invites');
-    expect(organizationsRoute).toContain('authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite)');
+    expect(organizationsRoute).toContain(
+      'authorized_invites: pendingInvites.map(serializeOrganizationAdminInvite)'
+    );
     expect(organizationsRoute).toContain("'/:id/invite'");
   });
 
@@ -46,7 +48,9 @@ describe('authorized-user contracts', () => {
   });
 
   it('settings restart flow maps legacy authorized-user prefs into canonical onboarding state', () => {
-    expect(settingsScreen).toContain('authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? []');
+    expect(settingsScreen).toContain(
+      'authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? []'
+    );
   });
 
   it('frontend onboarding contracts no longer carry dead authorized-users state', () => {

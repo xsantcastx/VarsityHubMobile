@@ -139,10 +139,18 @@ describeDb('Team Privacy (is_private)', () => {
 
   afterAll(async () => {
     const userIds = [ownerId, memberId, followerId, orgManagerId, strangerId].filter(Boolean);
-    await prisma.teamFollow.deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } }).catch(() => {});
-    await prisma.teamMembership.deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } }).catch(() => {});
-    await prisma.team.deleteMany({ where: { id: { in: [publicTeamId, privateTeamId] } } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.teamFollow
+      .deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } })
+      .catch(() => {});
+    await prisma.teamMembership
+      .deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } })
+      .catch(() => {});
+    await prisma.team
+      .deleteMany({ where: { id: { in: [publicTeamId, privateTeamId] } } })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });

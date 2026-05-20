@@ -57,7 +57,9 @@ jest.mock('@/components/ui/PrimaryButton', () => (props: any) => (
   </Pressable>
 ));
 
-jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => <>{props.children}</>);
+jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => (
+  <>{props.children}</>
+));
 jest.mock('@/components/ZipCodeMapPreview', () => ({ ZipCodeMapPreview: () => null }));
 jest.mock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
 jest.mock('@/utils/navigation', () => ({ safeGoBack: jest.fn() }));

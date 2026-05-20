@@ -5,7 +5,10 @@
 
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import Constants from 'expo-constants';
-import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
+import {
+  isEmailVerificationRequiredError,
+  openVerificationGate,
+} from '@/hooks/useVerificationGate';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import { getClientDeviceId } from './deviceIdentity';
 
@@ -140,10 +143,7 @@ export function abortAllInflight(reason = 'sign_out'): void {
  */
 function hasRailwayCorrelationKey(body: unknown): boolean {
   if (typeof body !== 'string') return false;
-  return (
-    /Correlation Key:?\s*[A-Z0-9]{27}/i.test(body) ||
-    /[A-Z0-9]{27}/.test(body)
-  );
+  return /Correlation Key:?\s*[A-Z0-9]{27}/i.test(body) || /[A-Z0-9]{27}/.test(body);
 }
 
 /**
@@ -158,11 +158,7 @@ function hasRailwayCorrelationKey(body: unknown): boolean {
  * correlation key is present. Non-502 responses are never classified as
  * infra errors here.
  */
-function isRailwayInfrastructureError(
-  status: number,
-  contentType: string,
-  body: unknown
-): boolean {
+function isRailwayInfrastructureError(status: number, contentType: string, body: unknown): boolean {
   if (status !== 502) return false;
   if (contentType.includes('text/html')) return true;
   if (typeof body !== 'string') return false;
@@ -202,7 +198,9 @@ export function getApiBaseUrl(): string {
   const STALE_RAILWAY_URL = 'https://api-production-8ac3.up.railway.app';
   const LOCAL_DEV_DEFAULT_URL = 'http://localhost:4000';
   const processEnv =
-    typeof process !== 'undefined' && process?.env ? (process.env as Record<string, string | undefined>) : {};
+    typeof process !== 'undefined' && process?.env
+      ? (process.env as Record<string, string | undefined>)
+      : {};
   const processForceRemoteApi = processEnv.EXPO_PUBLIC_FORCE_REMOTE_API;
   const constantsForceRemoteApi = Constants.expoConfig?.extra?.EXPO_PUBLIC_FORCE_REMOTE_API;
   const forceRemoteApiRaw = processForceRemoteApi || constantsForceRemoteApi;
@@ -234,9 +232,7 @@ export function getApiBaseUrl(): string {
 
   let finalUrl = '';
   const canUseLocalDevUrl =
-    __DEV__ &&
-    !!localDevUrl &&
-    (!forceRemoteApi || !normalizedEnvUrl || isLocalhostEnv);
+    __DEV__ && !!localDevUrl && (!forceRemoteApi || !normalizedEnvUrl || isLocalhostEnv);
   if (canUseLocalDevUrl && localDevUrl) {
     finalUrl = localDevUrl;
   } else if (normalizedEnvUrl) {
@@ -360,10 +356,7 @@ async function request(
       err.data = data;
       err.isRailwayErrorPage = isRailwayErrorPage; // Flag for retry logic
 
-      if (
-        isEmailVerificationRequiredError(err.status, data) &&
-        !behavior.skipVerificationGate
-      ) {
+      if (isEmailVerificationRequiredError(err.status, data) && !behavior.skipVerificationGate) {
         const verified = await openVerificationGate();
         if (verified) {
           return request(path, options, timeoutMs, retries, {
@@ -583,9 +576,7 @@ async function request(
       // Critical endpoints still have a higher 502 ceiling here, but the caller's
       // retry budget remains the real cap on total attempts.
       const isCriticalEndpoint =
-        path.includes('/auth/') ||
-        path.includes('/me') ||
-        path.includes('/notifications');
+        path.includes('/auth/') || path.includes('/me') || path.includes('/notifications');
       const maxRetriesFor502 = isRailwayInfraError
         ? isCriticalEndpoint
           ? 5
@@ -708,12 +699,24 @@ export function httpGet(
     typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
 
   return executeOrReuseInflightGet(path, getAuthToken(), () =>
-    request(path, { ...options, method: 'GET' }, timeoutMs || DEFAULT_GET_TIMEOUT_MS, retries, behavior)
+    request(
+      path,
+      { ...options, method: 'GET' },
+      timeoutMs || DEFAULT_GET_TIMEOUT_MS,
+      retries,
+      behavior
+    )
   );
 }
 // Default POST should never retry automatically (prevents duplicate mutations).
 export function httpPost(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, DEFAULT_MUTATION_TIMEOUT_MS, 0, behavior);
+  return request(
+    path,
+    { method: 'POST', body: JSON.stringify(body || {}) },
+    DEFAULT_MUTATION_TIMEOUT_MS,
+    0,
+    behavior
+  );
 }
 // POST with explicit timeout/retry controls for endpoint-specific tuning.
 export function httpPostWithOptions(
@@ -733,15 +736,33 @@ export function httpPostWithOptions(
 }
 // Long-timeout POST for heavy endpoints, still no automatic retries for safety.
 export function httpPostLongTimeout(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, LONG_POST_TIMEOUT_MS, 0, behavior);
+  return request(
+    path,
+    { method: 'POST', body: JSON.stringify(body || {}) },
+    LONG_POST_TIMEOUT_MS,
+    0,
+    behavior
+  );
 }
 // PUT/PATCH/DELETE should NOT retry - they are state-changing operations
 // Retrying could cause duplicate updates or delete operations on already-deleted resources
 export function httpPut(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, DEFAULT_MUTATION_TIMEOUT_MS, 0, behavior);
+  return request(
+    path,
+    { method: 'PUT', body: JSON.stringify(body || {}) },
+    DEFAULT_MUTATION_TIMEOUT_MS,
+    0,
+    behavior
+  );
 }
 export function httpPatch(path: string, body?: any, behavior?: HttpBehaviorOptions) {
-  return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }, DEFAULT_MUTATION_TIMEOUT_MS, 0, behavior);
+  return request(
+    path,
+    { method: 'PATCH', body: JSON.stringify(body || {}) },
+    DEFAULT_MUTATION_TIMEOUT_MS,
+    0,
+    behavior
+  );
 }
 export function httpDelete(path: string, body?: any, behavior?: HttpBehaviorOptions) {
   const payload = typeof body === 'undefined' ? undefined : JSON.stringify(body);
