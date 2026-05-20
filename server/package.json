@@ -26,6 +26,7 @@
     "verify:production-health": "tsx scripts/verify-production-health.ts",
     "verify:auth-canary": "tsx scripts/verify-auth-canary.ts",
     "verify:app-review": "tsx scripts/verify-app-review-account.ts",
+    "verify:db-test-guard": "tsx scripts/verify-db-test-guard.ts",
     "verify:coach-route-battery": "tsx scripts/verify-coach-route-battery.ts",
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
     "verify:cloudinary": "tsx scripts/verify-cloudinary.ts",
