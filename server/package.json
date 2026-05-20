@@ -17,6 +17,7 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
+    "pretest": "npm run verify:db-test-guard",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:invariants": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --runTestsByPath src/__tests__/coach-flow-invariants.test.ts src/__tests__/oauth-account-linking.test.ts && npx tsx scripts/verify-session-enforcement.ts",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
