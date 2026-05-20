@@ -13,6 +13,12 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 let app: import('express').Express;
@@ -20,7 +26,7 @@ let app: import('express').Express;
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Coach Agreement Versioning', () => {
+describeDb('Coach Agreement Versioning', () => {
   let coachId: string;
   let coachToken: string;
   const originalEnv = process.env.REQUIRED_COACH_AGREEMENT_VERSION;

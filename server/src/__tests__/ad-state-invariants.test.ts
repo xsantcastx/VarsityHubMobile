@@ -106,9 +106,12 @@ describe('ad lifecycle structural invariants', () => {
   });
 
   it('draft creation and submit-for-approval transitions stay explicit', () => {
-    expect(ads).toMatch(/status:\s*'draft',\s*payment_status:\s*'unpaid'/);
+    expect(ads).toMatch(
+      /status:\s*bypassApproval\s*\?\s*'approved'\s*:\s*'draft',\s*payment_status:\s*'unpaid'/
+    );
     expect(ads).toMatch(/data:\s*\{\s*status:\s*'pending',\s*payment_status:\s*'pending_approval'\s*\}/);
     expectAllowedTuple('draft', 'unpaid');
+    expectAllowedTuple('approved', 'unpaid');
     expectAllowedTuple('pending', 'pending_approval');
   });
 

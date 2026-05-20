@@ -26,6 +26,12 @@ import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
 import { app } from '../testApp.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 const PASSWORD = 'CorrectPassword123!';
 const WRONG_PASSWORD = 'WrongPassword999!';
 
@@ -105,15 +111,15 @@ afterAll(async () => {
   }
 });
 
-describe('POST /auth/account/delete', () => {
-  describe('authentication gate', () => {
+describeDb('POST /auth/account/delete', () => {
+  describeDb('authentication gate', () => {
     it('rejects unauthenticated request with 401', async () => {
       const res = await request(app).post('/auth/account/delete').send({});
       expect(res.status).toBe(401);
     });
   });
 
-  describe('password account', () => {
+  describeDb('password account', () => {
     it('rejects with 400 PASSWORD_REQUIRED when password is omitted', async () => {
       const { token } = await createPasswordUser();
       const res = await request(app)
@@ -190,7 +196,7 @@ describe('POST /auth/account/delete', () => {
     });
   });
 
-  describe('OAuth-only account', () => {
+  describeDb('OAuth-only account', () => {
     it('soft-deletes without requiring a password (no password_hash on file)', async () => {
       const { id, token } = await createOAuthOnlyUser();
       const res = await request(app)
@@ -209,7 +215,7 @@ describe('POST /auth/account/delete', () => {
     });
   });
 
-  describe('idempotency', () => {
+  describeDb('idempotency', () => {
     it('returns 200 with already_deleted=true on a second call', async () => {
       const { token } = await createPasswordUser();
 

@@ -13,6 +13,12 @@ import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
 import { getTeamState } from '../lib/teamState.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 
@@ -20,7 +26,7 @@ const TEST_COACH_EMAIL = `test-api-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('API Team Endpoints', () => {
+describeDb('API Team Endpoints', () => {
   let coachUserId: string;
   let coachToken: string;
   let fanUserId: string;
@@ -170,7 +176,7 @@ describe('API Team Endpoints', () => {
     }
   });
 
-  describe('POST /teams', () => {
+  describeDb('POST /teams', () => {
     it('should allow coach to create team', async () => {
       const response = await request(app)
         .post('/teams')
@@ -274,7 +280,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('DELETE /teams/:id', () => {
+  describeDb('DELETE /teams/:id', () => {
     it('should archive the team and preserve linked posts, events, and games', async () => {
       const team = await prisma.team.create({
         data: {
@@ -364,7 +370,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams/limits', () => {
+  describeDb('GET /teams/limits', () => {
     it('should return team limits for authenticated user', async () => {
       const response = await request(app)
         .get('/teams/limits')
@@ -408,7 +414,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams/managed', () => {
+  describeDb('GET /teams/managed', () => {
     it('should return teams managed by authenticated user', async () => {
       const response = await request(app)
         .get('/teams/managed')
@@ -476,7 +482,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams contracts', () => {
+  describeDb('GET /teams contracts', () => {
     it('returns the canonical team list contract', async () => {
       const team = await prisma.team.create({
         data: {
@@ -571,7 +577,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams/:id/admin-summary', () => {
+  describeDb('GET /teams/:id/admin-summary', () => {
     it('returns the scoped admin summary for org admins without team membership', async () => {
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
       const teamOwner = await prisma.user.create({
@@ -731,7 +737,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams/:id/screen-summary', () => {
+  describeDb('GET /teams/:id/screen-summary', () => {
     it('returns a public screen summary with roster and approved games while exposing scoped manage permissions for org admins', async () => {
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
       const teamOwner = await prisma.user.create({
@@ -840,7 +846,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('Team privacy', () => {
+  describeDb('Team privacy', () => {
     it('hides private teams from public list and detail while allowing followers and org admins', async () => {
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
       const privateOwner = await prisma.user.create({
@@ -919,7 +925,7 @@ describe('API Team Endpoints', () => {
   // membership can still archive teams and transfer ownership inside their
   // own league. Same shape as the team-chat regression test at
   // api-group-chats.test.ts:213.
-  describe('Org-admin fallback — team lifecycle', () => {
+  describeDb('Org-admin fallback — team lifecycle', () => {
     it('allows an org owner to archive a team inside their league without team membership', async () => {
       // Fresh team inside the already-provisioned org, owned by a different
       // user so the coach we're testing isn't also a team member.

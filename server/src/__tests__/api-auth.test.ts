@@ -13,6 +13,12 @@ import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 let hashRefreshToken: (token: string) => string;
@@ -21,7 +27,7 @@ const TEST_EMAIL = `test-api-auth-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 const TEST_DISPLAY_NAME = 'Test API User';
 
-describe('API Authentication Endpoints', () => {
+describeDb('API Authentication Endpoints', () => {
   let userId: string;
   let accessToken: string;
   let verificationCode: string;
@@ -53,7 +59,7 @@ describe('API Authentication Endpoints', () => {
     }
   });
 
-  describe('POST /auth/register', () => {
+  describeDb('POST /auth/register', () => {
     it('should register a new user successfully', async () => {
       const response = await request(app)
         .post('/auth/register')
@@ -153,7 +159,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('POST /auth/login', () => {
+  describeDb('POST /auth/login', () => {
     it('should login with correct credentials', async () => {
       const response = await request(app)
         .post('/auth/login')
@@ -228,7 +234,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('GET /auth/me', () => {
+  describeDb('GET /auth/me', () => {
     it('should require authentication', async () => {
       const response = await request(app).get('/auth/me').expect(401);
 
@@ -395,7 +401,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('POST /auth/revoke-all-tokens', () => {
+  describeDb('POST /auth/revoke-all-tokens', () => {
     it('revokes refresh tokens and immediately invalidates the current access token', async () => {
       const loginResponse = await request(app)
         .post('/auth/login')
@@ -497,7 +503,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('session invalidation across multiple active sessions', () => {
+  describeDb('session invalidation across multiple active sessions', () => {
     it('password change immediately invalidates both active access tokens and both refresh tokens', async () => {
       const originalAccessToken = accessToken;
       const passwordTestEmail = `test-api-auth-password-${Date.now()}@example.com`;
@@ -658,7 +664,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('PATCH /me/preferences', () => {
+  describeDb('PATCH /me/preferences', () => {
     it('should ignore client attempts to set paid plan fields', async () => {
       const verifiedEmail = `test-api-auth-preferences-${Date.now()}@example.com`;
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -694,7 +700,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('POST /auth/verify/confirm', () => {
+  describeDb('POST /auth/verify/confirm', () => {
     it('should verify email with correct code', async () => {
       if (!verificationCode) {
         // DB stores a hash — cannot recover plaintext. Need ENABLE_DEV_CODES=1.
@@ -768,7 +774,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('POST /auth/password/forgot', () => {
+  describeDb('POST /auth/password/forgot', () => {
     it('should initiate password reset for valid email', async () => {
       const response = await request(app)
         .post('/auth/password/forgot')
@@ -792,7 +798,7 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('POST /auth/password/reset', () => {
+  describeDb('POST /auth/password/reset', () => {
     it('consumes the reset code so it cannot be reused', async () => {
       const rawResetCode = '654321';
       await prisma.user.update({

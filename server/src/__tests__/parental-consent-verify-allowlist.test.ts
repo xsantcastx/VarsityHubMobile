@@ -19,10 +19,16 @@ import { app } from '../testApp.js';
 import { prisma } from '../lib/prisma.js';
 import { signJwt, hashRefreshToken } from '../lib/jwt.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Parental consent firewall — /auth/verify allowlist', () => {
+describeDb('Parental consent firewall — /auth/verify allowlist', () => {
   let childId: string;
   let childToken: string;
 

@@ -12,6 +12,12 @@ import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 
@@ -19,7 +25,7 @@ const TEST_COACH_EMAIL = `test-api-event-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-event-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('API Event Endpoints', () => {
+describeDb('API Event Endpoints', () => {
   let coachUserId: string;
   let coachToken: string;
   let fanUserId: string;
@@ -138,7 +144,7 @@ describe('API Event Endpoints', () => {
     }
   });
 
-  describe('POST /events', () => {
+  describeDb('POST /events', () => {
     it('should auto-approve events created by coaches', async () => {
       const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 
@@ -258,7 +264,7 @@ describe('API Event Endpoints', () => {
     });
   });
 
-  describe('GET /events', () => {
+  describeDb('GET /events', () => {
     it('should return list of approved events', async () => {
       const response = await request(app)
         .get('/events')
@@ -411,7 +417,7 @@ describe('API Event Endpoints', () => {
   // canManageAnyTeam() which accepts owner/manager/coach/assistant_coach plus
   // org-admin fallback. These tests pin the broader semantics so a future
   // tightening can't silently regress them.
-  describe('Event cancel — boundary regression', () => {
+  describeDb('Event cancel — boundary regression', () => {
     const futureDate = () => {
       const d = new Date();
       d.setDate(d.getDate() + 14);

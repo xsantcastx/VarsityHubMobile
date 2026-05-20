@@ -20,6 +20,7 @@ import bcrypt from 'bcrypt';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 
+
 /* ──────────────────────────────────────────── */
 /*  Build a test app that mounts ALL routers    */
 /* ──────────────────────────────────────────── */
@@ -38,6 +39,11 @@ import { reportsRouter } from '../routes/reports.js';
 import { supportRouter } from '../routes/support.js';
 import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
+
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
 
 const fullApp = express();
 fullApp.use(express.json());
@@ -335,10 +341,10 @@ async function hitAll(method: 'get' | 'post' | 'patch' | 'put' | 'delete', path:
    TESTS
    ═══════════════════════════════════════════════════ */
 
-describe('Access Matrix — Full Feature Scan', () => {
+describeDb('Access Matrix — Full Feature Scan', () => {
   // ─── AUTH / PROFILE ───────────────────────────────
 
-  describe('Auth & Profile', () => {
+  describeDb('Auth & Profile', () => {
     it('GET /auth/me — view own profile', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/auth/me');
       const { flags } = record('View own profile', 'GET /auth/me', fan, rookie, veteran);
@@ -366,7 +372,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── TEAMS ────────────────────────────────────────
 
-  describe('Teams', () => {
+  describeDb('Teams', () => {
     it('POST /teams — create team (coach-only, plan-gated)', async () => {
       const { fan, rookie, veteran } = await hitAll('post', '/teams', {
         name: `AccessTest Team ${ts}`,
@@ -427,7 +433,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── ORGANIZATIONS ────────────────────────────────
 
-  describe('Organizations', () => {
+  describeDb('Organizations', () => {
     it('GET /organizations — list organizations (public)', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/organizations');
       record('List organizations', 'GET /organizations', fan, rookie, veteran);
@@ -524,7 +530,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── EVENTS ───────────────────────────────────────
 
-  describe('Events', () => {
+  describeDb('Events', () => {
     it('GET /events — list events (public)', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/events');
       record('List events', 'GET /events', fan, rookie, veteran);
@@ -596,7 +602,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── POSTS ────────────────────────────────────────
 
-  describe('Posts', () => {
+  describeDb('Posts', () => {
     it('GET /posts — list posts (public)', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/posts');
       record('List posts', 'GET /posts', fan, rookie, veteran);
@@ -647,7 +653,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── ADS ──────────────────────────────────────────
 
-  describe('Ads', () => {
+  describeDb('Ads', () => {
     it('POST /ads — create ad', async () => {
       const { fan, rookie, veteran } = await hitAll('post', '/ads', {
         contact_name: 'Test',
@@ -694,7 +700,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── SOCIAL ───────────────────────────────────────
 
-  describe('Social (Follow / Block)', () => {
+  describeDb('Social (Follow / Block)', () => {
     it('POST /users/:id/follow — follow user', async () => {
       const { fan, rookie, veteran } = await hitAll('post', `/users/${targetUserId}/follow`);
       record('Follow user', 'POST /users/:id/follow', fan, rookie, veteran);
@@ -730,7 +736,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── MESSAGES ─────────────────────────────────────
 
-  describe('Messages', () => {
+  describeDb('Messages', () => {
     it('GET /messages — list messages', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/messages');
       record('List messages', 'GET /messages', fan, rookie, veteran);
@@ -752,7 +758,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── NOTIFICATIONS ────────────────────────────────
 
-  describe('Notifications', () => {
+  describeDb('Notifications', () => {
     it('GET /notifications — list notifications', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/notifications');
       record('List notifications', 'GET /notifications', fan, rookie, veteran);
@@ -768,7 +774,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── REPORTS / SUPPORT ────────────────────────────
 
-  describe('Reports & Support', () => {
+  describeDb('Reports & Support', () => {
     it('GET /reports/reasons — list report reasons (public)', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/reports/reasons');
       record('Report reasons', 'GET /reports/reasons', fan, rookie, veteran);
@@ -797,7 +803,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── UPLOADS ──────────────────────────────────────
 
-  describe('Uploads', () => {
+  describeDb('Uploads', () => {
     it('GET /uploads/sign — sign URL (auth required)', async () => {
       const { fan, rookie, veteran } = await hitAll('get', '/uploads/sign?key=test.jpg');
       record('Sign upload URL', 'GET /uploads/sign', fan, rookie, veteran);
@@ -807,7 +813,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── COACH-ONLY FEATURES DEEP CHECK ──────────────
 
-  describe('Coach-only features (Fan must be denied)', () => {
+  describeDb('Coach-only features (Fan must be denied)', () => {
     it('POST /teams — Fan cannot create team', async () => {
       const res = await request(fullApp)
         .post('/teams')
@@ -831,7 +837,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── VETERAN-ONLY FEATURES DEEP CHECK ─────────────
 
-  describe('Veteran-only features (Rookie must be denied)', () => {
+  describeDb('Veteran-only features (Rookie must be denied)', () => {
     it('POST /organizations/:id/invite — Rookie can invite to own org within org limits', async () => {
       const res = await request(fullApp)
         .post(`/organizations/${orgId}/invite`)
@@ -859,7 +865,7 @@ describe('Access Matrix — Full Feature Scan', () => {
 
   // ─── FINAL MATRIX REPORT ─────────────────────────
 
-  describe('Matrix Report', () => {
+  describeDb('Matrix Report', () => {
     it('prints the full access matrix and checks for flags', () => {
       // Print formatted matrix
       console.log('\n');

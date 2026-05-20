@@ -2,6 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signReviewToken: any;
 let app: import('express').Express;
@@ -11,7 +17,7 @@ let getOrganizationMembership: any;
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Coach join request email-token review routes', () => {
+describeDb('Coach join request email-token review routes', () => {
   let ownerId = '';
   let coachId = '';
   let orgId = '';

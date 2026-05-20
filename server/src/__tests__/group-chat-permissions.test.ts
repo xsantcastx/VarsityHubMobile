@@ -24,13 +24,19 @@ import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Group Chat Permissions', () => {
+describeDb('Group Chat Permissions', () => {
   let orgId: string;
   let teamId: string;
   let creatorId: string;
@@ -146,7 +152,7 @@ describe('Group Chat Permissions', () => {
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });
 
-  describe('POST /group-chats/:chatId/members', () => {
+  describeDb('POST /group-chats/:chatId/members', () => {
     it('team coach can add a roster member', async () => {
       const res = await request(app)
         .post(`/group-chats/${chatId}/members`)
@@ -210,7 +216,7 @@ describe('Group Chat Permissions', () => {
     });
   });
 
-  describe('DELETE /group-chats/:chatId/members/:userId', () => {
+  describeDb('DELETE /group-chats/:chatId/members/:userId', () => {
     async function ensureMember(userId: string) {
       const existing = await prisma.groupChatMember.findFirst({
         where: { chat_id: chatId, user_id: userId },

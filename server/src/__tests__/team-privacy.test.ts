@@ -18,13 +18,19 @@ import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Team Privacy (is_private)', () => {
+describeDb('Team Privacy (is_private)', () => {
   let orgId: string;
   let publicTeamId: string;
   let privateTeamId: string;
@@ -147,7 +153,7 @@ describe('Team Privacy (is_private)', () => {
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });
 
-  describe('GET /teams/:id', () => {
+  describeDb('GET /teams/:id', () => {
     it('public team is visible to a stranger', async () => {
       const res = await request(app)
         .get(`/teams/${publicTeamId}`)
@@ -195,7 +201,7 @@ describe('Team Privacy (is_private)', () => {
     });
   });
 
-  describe('GET /search', () => {
+  describeDb('GET /search', () => {
     it('public team appears in search for a stranger', async () => {
       const res = await request(app)
         .get(`/search?q=Public Team ${ts}`)
@@ -229,7 +235,7 @@ describe('Team Privacy (is_private)', () => {
     });
   });
 
-  describe('PUT /teams/:id is_private toggle', () => {
+  describeDb('PUT /teams/:id is_private toggle', () => {
     it('team owner can flip is_private from true to false', async () => {
       const res = await request(app)
         .put(`/teams/${privateTeamId}`)

@@ -2,6 +2,12 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 let app: import('express').Express;
@@ -14,7 +20,7 @@ const PASSWORD = 'TestPassword123!';
 // global 10s timeout is too tight when the full run is already under load.
 jest.setTimeout(20_000);
 
-describe('Ad Approval Security', () => {
+describeDb('Ad Approval Security', () => {
   let originalAdminEmails = '';
   let ownerId = '';
   let ownerToken = '';

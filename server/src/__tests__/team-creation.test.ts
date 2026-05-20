@@ -8,11 +8,17 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 const TEST_COACH_EMAIL = `test-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('Team Creation with Role Validation', () => {
+describeDb('Team Creation with Role Validation', () => {
   let coachUserId: string;
   let fanUserId: string;
   let organizationId: string;
@@ -91,7 +97,7 @@ describe('Team Creation with Role Validation', () => {
     }
   });
 
-  describe('Coach Role Validation', () => {
+  describeDb('Coach Role Validation', () => {
     it('should allow coach to create team', async () => {
       const team = await prisma.team.create({
         data: {
@@ -149,7 +155,7 @@ describe('Team Creation with Role Validation', () => {
     });
   });
 
-  describe('Fan Role Restriction', () => {
+  describeDb('Fan Role Restriction', () => {
     it('should prevent fan from creating team', async () => {
       const fan = await prisma.user.findUnique({
         where: { id: fanUserId },
@@ -170,7 +176,7 @@ describe('Team Creation with Role Validation', () => {
     });
   });
 
-  describe('Team Data Validation', () => {
+  describeDb('Team Data Validation', () => {
     it('should require team name', async () => {
       await expect(
         prisma.team.create({

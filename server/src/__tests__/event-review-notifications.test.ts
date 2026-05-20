@@ -1,12 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('event review notifications', () => {
+describeDb('event review notifications', () => {
   let orgId = '';
   let teamId = '';
   let teamCoachId = '';

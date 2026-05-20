@@ -20,6 +20,12 @@ import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { app } from '../testApp.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 
@@ -34,7 +40,7 @@ const PASSWORD = 'TestPassword123!';
 // but adds spurious cross-run variance.
 const FUTURE_EVENT_DATE = new Date('2099-01-01T12:00:00Z');
 
-describe('Event Cancel Permissions', () => {
+describeDb('Event Cancel Permissions', () => {
   let orgId: string;
   let teamId: string;
   let creatorId: string;

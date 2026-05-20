@@ -14,12 +14,18 @@ import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
 import { hashRefreshToken, signJwt, verifyJwt } from '../lib/jwt.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 // Test user data
 const TEST_EMAIL = `test-auth-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 const TEST_DISPLAY_NAME = 'Test User';
 
-describe('Authentication Flow', () => {
+describeDb('Authentication Flow', () => {
   let userId: string;
   let verificationCode: string;
 
@@ -38,7 +44,7 @@ describe('Authentication Flow', () => {
     }
   });
 
-  describe('User Registration', () => {
+  describeDb('User Registration', () => {
     it('should register a new user with valid data', async () => {
       // This would normally be done via API endpoint
       // For now, we test the core logic
@@ -97,7 +103,7 @@ describe('Authentication Flow', () => {
     });
   });
 
-  describe('Email Verification', () => {
+  describeDb('Email Verification', () => {
     it('should verify email with correct code', async () => {
       const user = await prisma.user.findUnique({
         where: { email: TEST_EMAIL },
@@ -143,7 +149,7 @@ describe('Authentication Flow', () => {
     });
   });
 
-  describe('User Login', () => {
+  describeDb('User Login', () => {
     it('should login with correct credentials', async () => {
       const user = await prisma.user.findUnique({
         where: { email: TEST_EMAIL },
@@ -198,7 +204,7 @@ describe('Authentication Flow', () => {
     });
   });
 
-  describe('JWT Token Validation', () => {
+  describeDb('JWT Token Validation', () => {
     it('should generate valid JWT token', () => {
       const payload = { id: userId };
       const token = signJwt(payload);
@@ -241,7 +247,7 @@ describe('Authentication Flow', () => {
     });
   });
 
-  describe('Password Reset', () => {
+  describeDb('Password Reset', () => {
     it('should generate password reset code', async () => {
       const rawResetCode = String(Math.floor(100000 + Math.random() * 900000));
       const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour

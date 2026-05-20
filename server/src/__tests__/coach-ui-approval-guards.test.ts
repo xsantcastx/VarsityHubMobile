@@ -84,7 +84,7 @@ describe('coach approval UI guards', () => {
 
   it('coach application submission routes to waiting instead of locally completing onboarding', () => {
     const submitSnippet = step3LeagueScreen.match(
-      /httpPost\('\/auth\/coach-applications'[\s\S]*?const nextDecision = getPostAuthRouteDecision\(authUser\)[\s\S]*?if \(nextDecision\.route === '\/onboarding\/league-pending-approval'\)[\s\S]*?router\.replace\(\{[\s\S]*?pathname:\s*nextDecision\.route/
+      /httpPost\('\/auth\/coach-applications'[\s\S]*?const \{ decision: nextDecision \} = await getFreshPostAuthState\([\s\S]*?if \(nextDecision\.route === '\/onboarding\/league-pending-approval'\)[\s\S]*?router\.replace\(\{[\s\S]*?pathname:\s*nextDecision\.route/
     )?.[0];
     expect(submitSnippet).toBeTruthy();
     expect(submitSnippet).not.toMatch(/markOnboardingCompleteLocally/);

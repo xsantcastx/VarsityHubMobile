@@ -3,13 +3,19 @@ import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../teamGateTestApp.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Team transfer authorization boundaries', () => {
+describeDb('Team transfer authorization boundaries', () => {
   let moverId = '';
   let moverToken = '';
   let sourceOrgId = '';

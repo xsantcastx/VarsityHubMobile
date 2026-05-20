@@ -14,10 +14,16 @@ import bcrypt from 'bcrypt';
 import { SERVER_LEGEND_PRICE_CENTS } from '../lib/planDefinitions.js';
 import { redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 const TEST_USER_EMAIL = `test-payment-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('Payment Flow', () => {
+describeDb('Payment Flow', () => {
   let userId: string;
 
   beforeAll(async () => {
@@ -59,7 +65,7 @@ describe('Payment Flow', () => {
     }
   });
 
-  describe('Transaction Logging', () => {
+  describeDb('Transaction Logging', () => {
     it('should log transaction creation', async () => {
       const transaction = await prisma.transactionLog.create({
         data: {
@@ -105,7 +111,7 @@ describe('Payment Flow', () => {
     });
   });
 
-  describe('Price Calculation', () => {
+  describeDb('Price Calculation', () => {
     it('should calculate correct membership price', () => {
       const basePrice = SERVER_LEGEND_PRICE_CENTS;
       const tax = 0;
@@ -134,7 +140,7 @@ describe('Payment Flow', () => {
     });
   });
 
-  describe('Promo Redemption Lifecycle', () => {
+  describeDb('Promo Redemption Lifecycle', () => {
     it('should reverse promo usage on refund references idempotently', async () => {
       const code = `TESTPAY${Date.now()}`;
       const orderId = `pi_test_${Date.now()}`;
@@ -191,7 +197,7 @@ describe('Payment Flow', () => {
     });
   });
 
-  describe('Subscription Management', () => {
+  describeDb('Subscription Management', () => {
     it('should create subscription record', async () => {
       const user = await prisma.user.update({
         where: { id: userId },

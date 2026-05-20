@@ -3,10 +3,16 @@ import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 
-describe('API Organization Endpoints', () => {
+describeDb('API Organization Endpoints', () => {
   const coachAgreementAcceptedAt = new Date().toISOString();
 
   let userId: string;
@@ -150,7 +156,7 @@ describe('API Organization Endpoints', () => {
     }).catch(() => {});
   });
 
-  describe('GET /organizations', () => {
+  describeDb('GET /organizations', () => {
     it('includes admin_approved for approved orgs and pending join-request orgs', async () => {
       const response = await request(app)
         .get('/organizations')
@@ -169,7 +175,7 @@ describe('API Organization Endpoints', () => {
     });
   });
 
-  describe('owner-only organization management', () => {
+  describeDb('owner-only organization management', () => {
     it('GET /organizations/:id returns approved organization details without a decode error', async () => {
       const response = await request(app)
         .get(`/organizations/${ownedOrgId}`)

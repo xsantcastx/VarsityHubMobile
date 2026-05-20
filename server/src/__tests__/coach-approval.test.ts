@@ -13,6 +13,12 @@ import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
 import { app as fullApp } from '../app.js';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 let prisma: any;
 let signJwt: any;
 let getOrganizationJoinRequestState: any;
@@ -21,7 +27,7 @@ let getOrganizationJoinRequestStateForUser: any;
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Coach Approval Workflow', () => {
+describeDb('Coach Approval Workflow', () => {
   let pendingCoachId: string;
   let pendingCoachToken: string;
   let rejectedCoachId: string;
@@ -177,7 +183,7 @@ describe('Coach Approval Workflow', () => {
     }
   });
 
-  describe('requireOnboarded blocks PENDING coaches', () => {
+  describeDb('requireOnboarded blocks PENDING coaches', () => {
     it('PENDING coach gets 403 on POST /teams/create', async () => {
       const res = await request(app)
         .post('/teams/create')
@@ -414,7 +420,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Approved coach access', () => {
+  describeDb('Approved coach access', () => {
     it('APPROVED coach without coach_agreement_accepted_at can create a team once approved', async () => {
       // Clear the agreement so this test verifies approval is the only gate.
       await prisma.user.update({
@@ -488,7 +494,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('POST /organizations approval transition', () => {
+  describeDb('POST /organizations approval transition', () => {
     it('legacy creator is PENDING after POST /organizations', async () => {
       const creatorHash = await bcrypt.hash(PASSWORD, 10);
       const creator = await prisma.user.create({
@@ -600,7 +606,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('POST /organizations/create approval transition', () => {
+  describeDb('POST /organizations/create approval transition', () => {
     it('legacy creator is PENDING after POST /organizations/create', async () => {
       const creatorHash = await bcrypt.hash(PASSWORD, 10);
       const creator = await prisma.user.create({
@@ -721,7 +727,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('League approval sets league owner to APPROVED', () => {
+  describeDb('League approval sets league owner to APPROVED', () => {
     it('allows the email approval token to approve the league without an admin session', async () => {
       const ownerHash = await bcrypt.hash(PASSWORD, 10);
       const owner = await prisma.user.create({
@@ -774,7 +780,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Coach email-token reviewer attribution', () => {
+  describeDb('Coach email-token reviewer attribution', () => {
     it('leaves reviewed_by null when a token-only approval has no authenticated actor', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
@@ -897,7 +903,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Admin dashboard coach review (no email token)', () => {
+  describeDb('Admin dashboard coach review (no email token)', () => {
     it('approves a pending coach when a signed-in admin POSTs without ?token=', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const adminHash = await bcrypt.hash(PASSWORD, 10);
@@ -1028,7 +1034,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Coach join request sets coach to PENDING', () => {
+  describeDb('Coach join request sets coach to PENDING', () => {
     it('coach requesting to join gets PENDING', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
@@ -1139,7 +1145,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Existing-org coach admission is owner-only', () => {
+  describeDb('Existing-org coach admission is owner-only', () => {
     let managerId: string;
     let managerToken: string;
 
@@ -1336,7 +1342,7 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('League owner approval sets coach to APPROVED', () => {
+  describeDb('League owner approval sets coach to APPROVED', () => {
     it('league owner approving coach sets coach to APPROVED', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({

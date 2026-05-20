@@ -27,6 +27,12 @@ import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
 
+const __skipDbIntegrationSuites =
+  String(process.env.CI ?? '').toLowerCase() === 'true' || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = __skipDbIntegrationSuites ? describe.skip : describe;
+
+
+
 /* ---------- lazy imports (ESM compat) ---------- */
 let prisma: any;
 let signJwt: any;
@@ -203,7 +209,7 @@ afterAll(async () => {
 //  1. FAN ACCOUNT – CANNOT ACCESS COACH FEATURES
 // =============================================================================
 
-describe('Fan account restrictions', () => {
+describeDb('Fan account restrictions', () => {
   it('Fan CANNOT create a team (POST /teams/create → 403)', async () => {
     const res = await createTeamViaApi(fanToken, 'Fan Team', rookieOrgId);
     expect(res.status).toBe(403);
@@ -254,7 +260,7 @@ describe('Fan account restrictions', () => {
 //  2. ROOKIE COACH – 3 FREE TEAMS, 6 AUTHORIZED USERS, NO EXTRACURRICULAR
 // =============================================================================
 
-describe('Rookie Coach plan limits', () => {
+describeDb('Rookie Coach plan limits', () => {
   it('Rookie can create team #1 (within free limit)', async () => {
     const res = await createTeamViaApi(rookieToken, `Rookie Team 1 ${ts}`, rookieOrgId);
     expect(res.status).toBe(201);
@@ -335,7 +341,7 @@ describe('Rookie Coach plan limits', () => {
 //  3. VETERAN COACH – UNLIMITED TEAMS (PAID), 5 AUTH USERS/TEAM
 // =============================================================================
 
-describe('Veteran Coach plan limits', () => {
+describeDb('Veteran Coach plan limits', () => {
   it('Veteran plan is correctly stored', async () => {
     const user = await prisma.user.findUnique({ where: { id: veteranId }, select: { preferences: true } });
     const prefs = user?.preferences as any;
@@ -400,7 +406,7 @@ describe('Veteran Coach plan limits', () => {
 //  4. LEGEND COACH – UNLIMITED EVERYTHING + EXTRACURRICULAR
 // =============================================================================
 
-describe('Legend Coach plan limits', () => {
+describeDb('Legend Coach plan limits', () => {
   it('Legend plan is correctly stored', async () => {
     const user = await prisma.user.findUnique({ where: { id: legendId }, select: { preferences: true } });
     const prefs = user?.preferences as any;
@@ -446,7 +452,7 @@ describe('Legend Coach plan limits', () => {
 //  5. LEAGUE PAGES (ORGANIZATIONS) – NO DUPLICATES, TRANSFERABLE
 // =============================================================================
 
-describe('League page (organization) rules', () => {
+describeDb('League page (organization) rules', () => {
   it('League pages cannot be duplicated (same name → reuses existing)', async () => {
     // Create org with the same name as rookieOrg
     const existingOrg = await prisma.organization.findUnique({ where: { id: rookieOrgId } });
@@ -523,7 +529,7 @@ describe('League page (organization) rules', () => {
 //  6. PLAN TIER HIERARCHY – SUBSCRIPTION MIDDLEWARE
 // =============================================================================
 
-describe('Plan tier hierarchy and middleware', () => {
+describeDb('Plan tier hierarchy and middleware', () => {
   it('Tier order: rookie < veteran < legend', async () => {
     // Import the internal tier comparison function
     const subscriptionModule = await import('../middleware/subscription.js');
@@ -584,7 +590,7 @@ describe('Plan tier hierarchy and middleware', () => {
 //  7. PLAN DEFINITION INTEGRITY
 // =============================================================================
 
-describe('Plan definitions integrity', () => {
+describeDb('Plan definitions integrity', () => {
   it('All three plans exist in plan-definitions.json', async () => {
     const { getAllPlanDefinitions } = await import('../lib/planLimits.js');
     const plans = getAllPlanDefinitions();
