@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Unified search', () => {
+describeDb('Unified search', () => {
   let userId: string;
   let token: string;
   let organizationId: string;

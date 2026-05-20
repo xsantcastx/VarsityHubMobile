@@ -18,8 +18,24 @@ module.exports = ({ config }) => {
   const appVersion = process.env.APP_VERSION_OVERRIDE || packageVersion;
   const runtimeVersion = process.env.RUNTIME_VERSION_OVERRIDE || appVersion;
   const sentryAutoUploadEnabled = process.env.SENTRY_DISABLE_AUTO_UPLOAD !== 'true';
-  const publicApiUrl =
-    process.env.EXPO_PUBLIC_API_URL || 'https://api-production-8ac3.up.railway.app';
+  const STALE_RAILWAY_URL = 'https://api-production-8ac3.up.railway.app';
+  const publicApiUrl = (process.env.EXPO_PUBLIC_API_URL || '').trim().replace(/\/$/, '');
+  const buildProfile = (process.env.EAS_BUILD_PROFILE || '').toLowerCase();
+  const appVariant = (process.env.APP_VARIANT || '').toLowerCase();
+  const isProductionBuild =
+    process.env.NODE_ENV === 'production' ||
+    buildProfile === 'production' ||
+    appVariant === 'production';
+  if (publicApiUrl === STALE_RAILWAY_URL) {
+    throw new Error(
+      'EXPO_PUBLIC_API_URL points to a retired Railway hostname. Configure a live API domain before building.'
+    );
+  }
+  if (isProductionBuild && !publicApiUrl) {
+    throw new Error(
+      'EXPO_PUBLIC_API_URL is required for production builds. Configure a live API domain before building.'
+    );
+  }
   const forceRemoteApi = process.env.EXPO_PUBLIC_FORCE_REMOTE_API || '1';
   const publicNodeEnv =
     process.env.EXPO_PUBLIC_NODE_ENV ||

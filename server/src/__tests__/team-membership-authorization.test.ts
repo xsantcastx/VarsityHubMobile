@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../app.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Team membership authorization boundaries', () => {
+describeDb('Team membership authorization boundaries', () => {
   let ownerId = '';
   let managerId = '';
   let memberId = '';
@@ -142,23 +142,31 @@ describe('Team membership authorization boundaries', () => {
 
   afterAll(async () => {
     try {
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.teamMembership.deleteMany({
-        where: {
-          OR: [
-            { team_id: teamId },
-            { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({
+          where: {
+            OR: [
+              { team_id: teamId },
+              { user_id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+            ],
+          },
+        })
+        .catch(() => {});
       await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: orgId } })
+        .catch(() => {});
       await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [ownerId, managerId, memberId, addTargetId].filter(Boolean) } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }

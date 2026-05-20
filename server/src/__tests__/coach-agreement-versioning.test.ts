@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 let app: import('express').Express;
@@ -20,7 +20,7 @@ let app: import('express').Express;
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Coach Agreement Versioning', () => {
+describeDb('Coach Agreement Versioning', () => {
   let coachId: string;
   let coachToken: string;
   const originalEnv = process.env.REQUIRED_COACH_AGREEMENT_VERSION;

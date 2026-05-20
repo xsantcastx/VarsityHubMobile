@@ -19,7 +19,7 @@ import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
@@ -34,7 +34,7 @@ const PASSWORD = 'TestPassword123!';
 // but adds spurious cross-run variance.
 const FUTURE_EVENT_DATE = new Date('2099-01-01T12:00:00Z');
 
-describe('Event Cancel Permissions', () => {
+describeDb('Event Cancel Permissions', () => {
   let orgId: string;
   let teamId: string;
   let creatorId: string;
@@ -135,7 +135,9 @@ describe('Event Cancel Permissions', () => {
     await prisma.event.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });

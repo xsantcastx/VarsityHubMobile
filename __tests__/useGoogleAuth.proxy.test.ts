@@ -32,7 +32,7 @@ const mockConstantsData = {
       EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID:
         '814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com',
       EXPO_PUBLIC_GOOGLE_FORCE_PROXY: '0',
-      EXPO_PUBLIC_API_URL: 'https://api-production-8ac3.up.railway.app',
+      EXPO_PUBLIC_API_URL: 'https://api.varsityhub.test',
       EXPO_PUBLIC_APP_SCHEME: 'varsityhubmobile',
     },
   },
@@ -45,13 +45,12 @@ jest.mock('expo-constants', () => ({
 
 // ─── Auth session spies ──────────────────────────────────────────────────────
 
-const mockMakeRedirectUri = jest.fn((opts?: { native?: string; scheme?: string }) =>
-  opts?.native ?? opts?.scheme ?? 'varsityhubmobile://oauthredirect',
+const mockMakeRedirectUri = jest.fn(
+  (opts?: { native?: string; scheme?: string }) =>
+    opts?.native ?? opts?.scheme ?? 'varsityhubmobile://oauthredirect'
 );
 
-const mockGetRedirectUrl = jest.fn(
-  () => 'https://auth.expo.io/@varsity-hub/varsityhub',
-);
+const mockGetRedirectUrl = jest.fn(() => 'https://auth.expo.io/@varsity-hub/varsityhub');
 
 jest.mock('expo-auth-session', () => ({
   __esModule: true,
@@ -111,7 +110,7 @@ describe('useGoogleAuth — proxy detection', () => {
     expect(mockMakeRedirectUri).toHaveBeenCalledWith(
       expect.objectContaining({
         native: expect.stringContaining('com.googleusercontent.apps.'),
-      }),
+      })
     );
     // Proxy path must NOT be taken
     expect(mockGetRedirectUrl).not.toHaveBeenCalled();
@@ -138,7 +137,7 @@ describe('useGoogleAuth — proxy detection', () => {
     expect(mockMakeRedirectUri).not.toHaveBeenCalledWith(
       expect.objectContaining({
         native: expect.stringContaining('com.googleusercontent.apps.'),
-      }),
+      })
     );
   });
 
@@ -166,7 +165,7 @@ describe('useGoogleAuth — proxy detection', () => {
       expect.objectContaining({
         native:
           'com.googleusercontent.apps.814866365020-ia09lnm6he2prvaivrp8sblh7oeh9ic0:/oauthredirect',
-      }),
+      })
     );
   });
 

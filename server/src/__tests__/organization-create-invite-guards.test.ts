@@ -17,13 +17,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@jest/glo
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('POST /organizations/create bulk-invite guards', () => {
+describeDb('POST /organizations/create bulk-invite guards', () => {
   let coachUserId: string;
   let coachToken: string;
   const createdOrgIds: string[] = [];

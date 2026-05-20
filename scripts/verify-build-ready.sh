@@ -593,7 +593,11 @@ else
 fi
 
 # Check API URL is configured
-API_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_API_URL || '')" 2>/dev/null)
+# Prefer explicit environment injection (CI/EAS), then fall back to app.json.
+API_URL="${EXPO_PUBLIC_API_URL:-}"
+if [ -z "$API_URL" ] || [ "$API_URL" = "" ]; then
+    API_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_API_URL || '')" 2>/dev/null)
+fi
 API_URL_FROM_EAS=0
 if [ -z "$API_URL" ] || [ "$API_URL" = "" ]; then
     API_URL=$(get_eas_env_value "EXPO_PUBLIC_API_URL")

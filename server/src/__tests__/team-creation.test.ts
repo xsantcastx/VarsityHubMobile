@@ -1,18 +1,18 @@
 /**
  * Team Creation Tests
- * 
+ *
  * Tests team creation with role validation and subscription limits
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
-
+import { describeDb } from './dbTestGuard.js';
 const TEST_COACH_EMAIL = `test-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('Team Creation with Role Validation', () => {
+describeDb('Team Creation with Role Validation', () => {
   let coachUserId: string;
   let fanUserId: string;
   let organizationId: string;
@@ -91,7 +91,7 @@ describe('Team Creation with Role Validation', () => {
     }
   });
 
-  describe('Coach Role Validation', () => {
+  describeDb('Coach Role Validation', () => {
     it('should allow coach to create team', async () => {
       const team = await prisma.team.create({
         data: {
@@ -149,20 +149,19 @@ describe('Team Creation with Role Validation', () => {
     });
   });
 
-  describe('Fan Role Restriction', () => {
+  describeDb('Fan Role Restriction', () => {
     it('should prevent fan from creating team', async () => {
       const fan = await prisma.user.findUnique({
         where: { id: fanUserId },
         select: { preferences: true },
       });
 
-      const prefs = (fan?.preferences && typeof fan.preferences === 'object') 
-        ? (fan.preferences as any) 
-        : {};
+      const prefs =
+        fan?.preferences && typeof fan.preferences === 'object' ? (fan.preferences as any) : {};
       const userRole = prefs.role || 'fan';
 
       expect(userRole).toBe('fan');
-      
+
       // In the actual API, this would return 403 with COACH_ROLE_REQUIRED error
       // Here we verify the role check logic
       const canCreateTeam = userRole === 'coach';
@@ -170,7 +169,7 @@ describe('Team Creation with Role Validation', () => {
     });
   });
 
-  describe('Team Data Validation', () => {
+  describeDb('Team Data Validation', () => {
     it('should require team name', async () => {
       await expect(
         prisma.team.create({
@@ -193,7 +192,7 @@ describe('Team Creation with Role Validation', () => {
     it('should sanitize team name (trim whitespace)', () => {
       const nameWithSpaces = '  Test Team  ';
       const sanitized = nameWithSpaces.trim();
-      
+
       expect(sanitized).toBe('Test Team');
       expect(sanitized).not.toBe(nameWithSpaces);
     });
@@ -201,7 +200,7 @@ describe('Team Creation with Role Validation', () => {
     it('should sanitize team description (trim whitespace)', () => {
       const descWithSpaces = '  Test Description  ';
       const sanitized = descWithSpaces.trim();
-      
+
       expect(sanitized).toBe('Test Description');
       expect(sanitized).not.toBe(descWithSpaces);
     });

@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('event review notifications', () => {
+describeDb('event review notifications', () => {
   let orgId = '';
   let teamId = '';
   let teamCoachId = '';
@@ -85,21 +85,31 @@ describe('event review notifications', () => {
   });
 
   afterAll(async () => {
-    await prisma.teamMembership.deleteMany({
-      where: { user_id: { in: [teamCoachId, orgManagerId] } },
-    }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({
-      where: { user_id: { in: [teamCoachId, orgManagerId] } },
-    }).catch(() => {});
-    await prisma.team.deleteMany({
-      where: { id: teamId || undefined },
-    }).catch(() => {});
-    await prisma.organization.deleteMany({
-      where: { id: orgId || undefined },
-    }).catch(() => {});
-    await prisma.user.deleteMany({
-      where: { id: { in: [teamCoachId, orgManagerId] } },
-    }).catch(() => {});
+    await prisma.teamMembership
+      .deleteMany({
+        where: { user_id: { in: [teamCoachId, orgManagerId] } },
+      })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { user_id: { in: [teamCoachId, orgManagerId] } },
+      })
+      .catch(() => {});
+    await prisma.team
+      .deleteMany({
+        where: { id: teamId || undefined },
+      })
+      .catch(() => {});
+    await prisma.organization
+      .deleteMany({
+        where: { id: orgId || undefined },
+      })
+      .catch(() => {});
+    await prisma.user
+      .deleteMany({
+        where: { id: { in: [teamCoachId, orgManagerId] } },
+      })
+      .catch(() => {});
   });
 
   it('returns team staff and org admins for a team-scoped pending review', async () => {

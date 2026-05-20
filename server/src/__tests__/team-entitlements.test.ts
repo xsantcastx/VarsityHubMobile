@@ -2,14 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../app.js';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let signJwt: any;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 const TEAM_PREFIX = `Entitlement Audit ${ts}`;
@@ -257,11 +253,15 @@ describeDb('Team entitlement enforcement', () => {
     if (!prisma) return;
 
     if (createdInviteIds.length) {
-      await prisma.teamInvite.deleteMany({ where: { id: { in: createdInviteIds } } }).catch(() => {});
+      await prisma.teamInvite
+        .deleteMany({ where: { id: { in: createdInviteIds } } })
+        .catch(() => {});
     }
 
     if (createdMembershipIds.length) {
-      await prisma.teamMembership.deleteMany({ where: { id: { in: createdMembershipIds } } }).catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({ where: { id: { in: createdMembershipIds } } })
+        .catch(() => {});
     }
 
     if (createdTeamIds.length) {
@@ -269,7 +269,9 @@ describeDb('Team entitlement enforcement', () => {
     }
 
     if (orgId) {
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: orgId } })
+        .catch(() => {});
       await prisma.organization.delete({ where: { id: orgId } }).catch(() => {});
     }
 
@@ -290,9 +292,7 @@ describeDb('Team entitlement enforcement', () => {
   });
 
   it('keeps public team detail readable but blocks privileged access to locked teams', async () => {
-    await request(app)
-      .get(`/teams/${lockedTeamId}`)
-      .expect(200);
+    await request(app).get(`/teams/${lockedTeamId}`).expect(200);
 
     const lockedRes = await request(app)
       .get(`/teams/${lockedTeamId}`)

@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Ad Report Flow', () => {
+describeDb('Ad Report Flow', () => {
   let originalAdminEmails = '';
   let ownerId = '';
   let ownerToken = '';
@@ -89,21 +89,27 @@ describe('Ad Report Flow', () => {
     process.env.ADMIN_EMAILS = originalAdminEmails;
 
     try {
-      await prisma.notification.deleteMany({
-        where: { user_id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
-      }).catch(() => {});
-      await prisma.abuseReport.deleteMany({
-        where: {
-          OR: [
-            { reporter_id: { in: [ownerId, reporterId].filter(Boolean) } },
-            { subject: { contains: `[ad:${adId}]` } },
-          ],
-        },
-      }).catch(() => {});
+      await prisma.notification
+        .deleteMany({
+          where: { user_id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
+        })
+        .catch(() => {});
+      await prisma.abuseReport
+        .deleteMany({
+          where: {
+            OR: [
+              { reporter_id: { in: [ownerId, reporterId].filter(Boolean) } },
+              { subject: { contains: `[ad:${adId}]` } },
+            ],
+          },
+        })
+        .catch(() => {});
       await prisma.ad.deleteMany({ where: { id: adId } }).catch(() => {});
-      await prisma.user.deleteMany({
-        where: { id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: [ownerId, reporterId, adminId].filter(Boolean) } },
+        })
+        .catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }

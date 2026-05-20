@@ -15,6 +15,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let hardDeleteAnonymizedUsers: (opts?: {
@@ -24,11 +25,6 @@ let hardDeleteAnonymizedUsers: (opts?: {
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
 function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }

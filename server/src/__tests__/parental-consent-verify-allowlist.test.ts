@@ -18,11 +18,11 @@ import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
 import { prisma } from '../lib/prisma.js';
 import { signJwt, hashRefreshToken } from '../lib/jwt.js';
-
+import { describeDb } from './dbTestGuard.js';
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Parental consent firewall — /auth/verify allowlist', () => {
+describeDb('Parental consent firewall — /auth/verify allowlist', () => {
   let childId: string;
   let childToken: string;
 

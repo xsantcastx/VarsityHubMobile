@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let runPostUpvoteReconciliation: (limit?: number) => Promise<{
@@ -8,11 +9,6 @@ let runPostUpvoteReconciliation: (limit?: number) => Promise<{
   fixed: number;
   skipped: number;
 }>;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
-
 describeDb('Post upvote reconciliation', () => {
   const createdUserIds: string[] = [];
   let postId = '';
@@ -83,9 +79,11 @@ describeDb('Post upvote reconciliation', () => {
   afterAll(async () => {
     if (!prisma) return;
     if (createdUserIds.length) {
-      await prisma.user.deleteMany({
-        where: { id: { in: createdUserIds } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: createdUserIds } },
+        })
+        .catch(() => {});
     }
   });
 

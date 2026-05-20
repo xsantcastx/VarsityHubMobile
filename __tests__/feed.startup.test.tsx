@@ -23,6 +23,7 @@ let capturedFocusEffect: null | (() => void | (() => void)) = null;
 let userDeferred: Deferred<any>;
 let firstGameDeferred: Deferred<any>;
 let gameDeferredQueue: Deferred<any>[] = [];
+const mockCheckAuth = jest.fn(async () => null);
 const mockUserMe = jest.fn(() => userDeferred.promise);
 const mockGameList = jest.fn(() => {
   const next = gameDeferredQueue.shift();
@@ -83,6 +84,13 @@ jest.mock('@/api/entities', () => ({
   User: {
     me: () => mockUserMe(),
   },
+}));
+
+jest.mock('@/context/AuthProvider', () => ({
+  useAuth: () => ({
+    user: null,
+    checkAuth: mockCheckAuth,
+  }),
 }));
 
 jest.mock('@/components/BannerAd', () => ({
@@ -197,7 +205,7 @@ describe('Feed startup performance', () => {
     });
 
     expect(screen.queryByTestId('feed-skeleton')).toBeNull();
-    expect(mockUserMe).toHaveBeenCalledTimes(1);
+    expect(mockCheckAuth).toHaveBeenCalledTimes(1);
     expect(mockGameList).toHaveBeenCalledTimes(1);
   });
 
@@ -235,7 +243,7 @@ describe('Feed startup performance', () => {
     });
 
     expect(mockGameList).toHaveBeenCalledTimes(2);
-    expect(mockUserMe).toHaveBeenCalledTimes(2);
+    expect(mockCheckAuth).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('feed-game-card-game-1')).toBeTruthy();
     expect(screen.queryByTestId('feed-skeleton')).toBeNull();
 

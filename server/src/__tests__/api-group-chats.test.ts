@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
@@ -14,7 +14,7 @@ const TEST_A_EMAIL = `test-gc-a-${Date.now()}@example.com`;
 const TEST_B_EMAIL = `test-gc-b-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('API Group chats', () => {
+describeDb('API Group chats', () => {
   let userAId: string;
   let userBId: string;
   let tokenA: string;
@@ -157,7 +157,9 @@ describe('API Group chats', () => {
       await prisma.groupChat.deleteMany({ where: { team_id: teamId } }).catch(() => {});
       await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
       await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-      await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+      await prisma.organizationMembership
+        .deleteMany({ where: { organization_id: orgId } })
+        .catch(() => {});
       await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
       await prisma.user.deleteMany({
         where: { id: { in: [userAId, userBId, orgManagerId, rosterMemberId] } },
@@ -175,7 +177,7 @@ describe('API Group chats', () => {
 
     const body = res.body as any[];
     expect(Array.isArray(body)).toBe(true);
-    const row = body.find((c) => c.id === chatId);
+    const row = body.find(c => c.id === chatId);
     expect(row).toBeTruthy();
     expect(row.unreadCount).toBe(3);
     expect(row.lastMessage).toBeTruthy();
@@ -195,7 +197,7 @@ describe('API Group chats', () => {
       .expect(200);
 
     const body = res.body as any[];
-    const row = body.find((c) => c.id === chatId);
+    const row = body.find(c => c.id === chatId);
     expect(row?.unreadCount).toBe(1);
 
     await prisma.groupChatMessage.create({
@@ -211,7 +213,7 @@ describe('API Group chats', () => {
       .get('/group-chats')
       .set('Authorization', `Bearer ${tokenA}`)
       .expect(200);
-    const row2 = (res2.body as any[]).find((c) => c.id === chatId);
+    const row2 = (res2.body as any[]).find(c => c.id === chatId);
     expect(row2?.unreadCount).toBe(1);
   });
 
@@ -234,7 +236,7 @@ describe('API Group chats', () => {
       .get('/group-chats')
       .set('Authorization', `Bearer ${tokenA}`)
       .expect(200);
-    const row = (res.body as any[]).find((c) => c.id === chatId);
+    const row = (res.body as any[]).find(c => c.id === chatId);
     // The 3 fixture messages from beforeAll (2024-06-01..03) all predate
     // the simulated join (2024-12-01), so unread MUST be 0.
     expect(row?.unreadCount).toBe(0);
@@ -266,7 +268,7 @@ describe('API Group chats', () => {
       .set('Authorization', `Bearer ${tokenA}`)
       .expect(200);
 
-    const row = (res.body as any[]).find((c) => c.id === chatId);
+    const row = (res.body as any[]).find(c => c.id === chatId);
     expect(row?.unreadCount).toBe(1005);
   });
 

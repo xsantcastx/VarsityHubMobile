@@ -26,7 +26,8 @@ const expoConfigExtra = ((Constants?.expoConfig as any)?.extra ?? {}) as Record<
 const processEnv: RawEnv =
   (typeof process !== 'undefined' ? ((process as any).env as RawEnv | undefined) : undefined) ?? {};
 
-const DEFAULT_API_URL = 'https://api-production-8ac3.up.railway.app';
+const STALE_RAILWAY_URL = 'https://api-production-8ac3.up.railway.app';
+const LOCAL_DEV_API_URL = 'http://localhost:4000';
 const DEFAULT_WEB_BASE = 'https://www.varsityhub.app';
 
 const normalizeUrl = (value: string) => value.replace(/\/$/, '');
@@ -80,31 +81,43 @@ const config: AppConfig = {
     const normalizedEnvUrl = envUrl ? normalizeUrl(envUrl) : '';
 
     if (normalizedEnvUrl) {
-      if (!forceRemoteApi || !/localhost|127\.0\.0\.1/.test(normalizedEnvUrl)) {
-        return normalizedEnvUrl;
+      if (normalizedEnvUrl === STALE_RAILWAY_URL) {
+        throw new Error(
+          '[config/env] EXPO_PUBLIC_API_URL points to a retired Railway hostname. Configure a live API domain.'
+        );
       }
+      if (!__DEV__ && /localhost|127\.0\.0\.1/.test(normalizedEnvUrl)) {
+        throw new Error(
+          '[config/env] EXPO_PUBLIC_API_URL cannot point to localhost in production.'
+        );
+      }
+      return normalizedEnvUrl;
     }
 
     if (__DEV__ && !forceRemoteApi) {
       return getDevLocalApiUrl();
     }
 
-    return DEFAULT_API_URL;
+    if (__DEV__) {
+      return LOCAL_DEV_API_URL;
+    }
+
+    throw new Error(
+      '[config/env] Missing EXPO_PUBLIC_API_URL in production. Configure a live API domain.'
+    );
   })(),
   forceRemoteApi: readBoolean('EXPO_PUBLIC_FORCE_REMOTE_API', true),
   nodeEnv: readEnv('EXPO_PUBLIC_NODE_ENV', __DEV__ ? 'development' : 'production'),
   appScheme: readEnv('EXPO_PUBLIC_APP_SCHEME', 'varsityhubmobile') || 'varsityhubmobile',
   webBaseUrl:
     normalizeUrl(
-      readEnv('EXPO_PUBLIC_WEB_BASE_URL') ||
-        readEnv('EXPO_PUBLIC_APP_BASE_URL') ||
-        DEFAULT_WEB_BASE
+      readEnv('EXPO_PUBLIC_WEB_BASE_URL') || readEnv('EXPO_PUBLIC_APP_BASE_URL') || DEFAULT_WEB_BASE
     ) || DEFAULT_WEB_BASE,
   sentryDsn: readEnv('EXPO_PUBLIC_SENTRY_DSN'),
   stripePublishableKey: readEnv('EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY'),
   adminEmails: (readEnv('EXPO_PUBLIC_ADMIN_EMAILS') || '')
     .split(',')
-    .map((email) => email.trim())
+    .map(email => email.trim())
     .filter(Boolean),
   expoProjectFullName: readEnv('EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME') || undefined,
   google: {

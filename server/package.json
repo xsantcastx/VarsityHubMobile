@@ -17,6 +17,7 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
+    "pretest": "npm run verify:db-test-guard",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:invariants": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --runTestsByPath src/__tests__/coach-flow-invariants.test.ts src/__tests__/oauth-account-linking.test.ts && npx tsx scripts/verify-session-enforcement.ts",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
@@ -26,6 +27,7 @@
     "verify:production-health": "tsx scripts/verify-production-health.ts",
     "verify:auth-canary": "tsx scripts/verify-auth-canary.ts",
     "verify:app-review": "tsx scripts/verify-app-review-account.ts",
+    "verify:db-test-guard": "tsx scripts/verify-db-test-guard.ts",
     "verify:coach-route-battery": "tsx scripts/verify-coach-route-battery.ts",
     "verify:rate-limits": "tsx scripts/verify-rate-limit-coverage.ts",
     "verify:cloudinary": "tsx scripts/verify-cloudinary.ts",
@@ -66,7 +68,7 @@
     "pino-pretty": "^11.2.1",
     "prisma": "5.22.0",
     "rate-limit-redis": "^4.3.1",
-    "sanitize-html": "^2.17.1",
+    "sanitize-html": "^2.17.4",
     "stripe": "^16.6.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
@@ -106,7 +108,7 @@
     "undici": "^6.24.0",
     "postcss": "8.5.12",
     "axios": "^1.16.0",
-    "brace-expansion": "^5.0.5",
+    "brace-expansion": "^5.0.6",
     "follow-redirects": ">=1.15.12"
   }
 }

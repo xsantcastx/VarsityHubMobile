@@ -23,14 +23,14 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Group Chat Permissions', () => {
+describeDb('Group Chat Permissions', () => {
   let orgId: string;
   let teamId: string;
   let creatorId: string;
@@ -135,18 +135,27 @@ describe('Group Chat Permissions', () => {
   });
 
   afterAll(async () => {
-    const userIds = [creatorId, coachId, orgManagerId, strangerId, rosterMemberId, offRosterUserId].filter(Boolean);
+    const userIds = [
+      creatorId,
+      coachId,
+      orgManagerId,
+      strangerId,
+      rosterMemberId,
+      offRosterUserId,
+    ].filter(Boolean);
     await prisma.groupChatMessage.deleteMany({ where: { chat_id: chatId } }).catch(() => {});
     await prisma.groupChatMember.deleteMany({ where: { chat_id: chatId } }).catch(() => {});
     await prisma.groupChat.deleteMany({ where: { id: chatId } }).catch(() => {});
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });
 
-  describe('POST /group-chats/:chatId/members', () => {
+  describeDb('POST /group-chats/:chatId/members', () => {
     it('team coach can add a roster member', async () => {
       const res = await request(app)
         .post(`/group-chats/${chatId}/members`)
@@ -210,7 +219,7 @@ describe('Group Chat Permissions', () => {
     });
   });
 
-  describe('DELETE /group-chats/:chatId/members/:userId', () => {
+  describeDb('DELETE /group-chats/:chatId/members/:userId', () => {
     async function ensureMember(userId: string) {
       const existing = await prisma.groupChatMember.findFirst({
         where: { chat_id: chatId, user_id: userId },

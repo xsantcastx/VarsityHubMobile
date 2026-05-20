@@ -15,13 +15,13 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('POST /teams/create org gate', () => {
+describeDb('POST /teams/create org gate', () => {
   let coachUserId: string;
   let coachToken: string;
   let approvedOwnedOrgId: string;

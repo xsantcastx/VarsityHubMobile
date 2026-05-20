@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signReviewToken: any;
 let app: import('express').Express;
@@ -11,7 +11,7 @@ let getOrganizationMembership: any;
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Coach join request email-token review routes', () => {
+describeDb('Coach join request email-token review routes', () => {
   let ownerId = '';
   let coachId = '';
   let orgId = '';
@@ -86,16 +86,18 @@ describe('Coach join request email-token review routes', () => {
     await prisma.notification
       .deleteMany({ where: { user_id: { in: [ownerId, coachId] } } })
       .catch(() => {});
-    await prisma.organizationJoinRequest.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.organizationJoinRequest
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: [ownerId, coachId] } } }).catch(() => {});
   });
 
   it('rejects requests without a token', async () => {
-    const res = await request(app).get(
-      `/organizations/join-requests/${requestId}/email/approve`
-    );
+    const res = await request(app).get(`/organizations/join-requests/${requestId}/email/approve`);
     expect(res.status).toBe(401);
     expect(res.text).toMatch(/Link Expired/i);
   });
@@ -125,10 +127,7 @@ describe('Coach join request email-token review routes', () => {
   });
 
   it('renders a confirmation page on GET with a valid approve token', async () => {
-    const token = signReviewToken(
-      { requestId, orgId, action: 'approve_join_request' },
-      '48h'
-    );
+    const token = signReviewToken({ requestId, orgId, action: 'approve_join_request' }, '48h');
     const res = await request(app).get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
@@ -138,10 +137,7 @@ describe('Coach join request email-token review routes', () => {
   });
 
   it('approves the coach on POST with a valid token (no app login required)', async () => {
-    const token = signReviewToken(
-      { requestId, orgId, action: 'approve_join_request' },
-      '48h'
-    );
+    const token = signReviewToken({ requestId, orgId, action: 'approve_join_request' }, '48h');
     const res = await request(app).post(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
@@ -165,10 +161,7 @@ describe('Coach join request email-token review routes', () => {
   it('shows an "already reviewed" page when the join request is no longer pending', async () => {
     // The previous test already approved this request, so a new token now lands
     // on the request-status guard rather than executing again.
-    const token = signReviewToken(
-      { requestId, orgId, action: 'approve_join_request' },
-      '48h'
-    );
+    const token = signReviewToken({ requestId, orgId, action: 'approve_join_request' }, '48h');
     const res = await request(app).post(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );

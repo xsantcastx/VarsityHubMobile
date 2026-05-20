@@ -1,6 +1,6 @@
 /**
  * Authentication Flow Integration Tests
- * 
+ *
  * Tests the complete user authentication flow:
  * - User registration
  * - Email verification
@@ -13,13 +13,13 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/glo
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
 import { hashRefreshToken, signJwt, verifyJwt } from '../lib/jwt.js';
-
+import { describeDb } from './dbTestGuard.js';
 // Test user data
 const TEST_EMAIL = `test-auth-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 const TEST_DISPLAY_NAME = 'Test User';
 
-describe('Authentication Flow', () => {
+describeDb('Authentication Flow', () => {
   let userId: string;
   let verificationCode: string;
 
@@ -38,13 +38,13 @@ describe('Authentication Flow', () => {
     }
   });
 
-  describe('User Registration', () => {
+  describeDb('User Registration', () => {
     it('should register a new user with valid data', async () => {
       // This would normally be done via API endpoint
       // For now, we test the core logic
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
       const code = String(Math.floor(100000 + Math.random() * 900000));
-      
+
       const user = await prisma.user.create({
         data: {
           email: TEST_EMAIL,
@@ -71,7 +71,7 @@ describe('Authentication Flow', () => {
 
     it('should not allow duplicate email registration', async () => {
       const passwordHash = await bcrypt.hash('AnotherPassword123!', 10);
-      
+
       await expect(
         prisma.user.create({
           data: {
@@ -91,13 +91,13 @@ describe('Authentication Flow', () => {
 
       expect(user?.password_hash).toBeDefined();
       expect(user?.password_hash).not.toBe(TEST_PASSWORD);
-      
+
       const isValid = await bcrypt.compare(TEST_PASSWORD, user!.password_hash);
       expect(isValid).toBe(true);
     });
   });
 
-  describe('Email Verification', () => {
+  describeDb('Email Verification', () => {
     it('should verify email with correct code', async () => {
       const user = await prisma.user.findUnique({
         where: { email: TEST_EMAIL },
@@ -124,7 +124,7 @@ describe('Authentication Flow', () => {
       const expiredEmail = `test-expired-${Date.now()}@example.com`;
       const passwordHash = await bcrypt.hash('Password123!', 10);
       const code = String(Math.floor(100000 + Math.random() * 900000));
-      
+
       const user = await prisma.user.create({
         data: {
           email: expiredEmail,
@@ -143,14 +143,14 @@ describe('Authentication Flow', () => {
     });
   });
 
-  describe('User Login', () => {
+  describeDb('User Login', () => {
     it('should login with correct credentials', async () => {
       const user = await prisma.user.findUnique({
         where: { email: TEST_EMAIL },
       });
 
       expect(user).toBeDefined();
-      
+
       const isValid = await bcrypt.compare(TEST_PASSWORD, user!.password_hash);
       expect(isValid).toBe(true);
 
@@ -181,7 +181,7 @@ describe('Authentication Flow', () => {
       // Create banned user
       const bannedEmail = `test-banned-${Date.now()}@example.com`;
       const passwordHash = await bcrypt.hash('Password123!', 10);
-      
+
       const bannedUser = await prisma.user.create({
         data: {
           email: bannedEmail,
@@ -198,11 +198,11 @@ describe('Authentication Flow', () => {
     });
   });
 
-  describe('JWT Token Validation', () => {
+  describeDb('JWT Token Validation', () => {
     it('should generate valid JWT token', () => {
       const payload = { id: userId };
       const token = signJwt(payload);
-      
+
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
       expect(token.split('.').length).toBe(3); // JWT has 3 parts
@@ -212,7 +212,7 @@ describe('Authentication Flow', () => {
       const payload = { id: userId };
       const token = signJwt(payload);
       const verified = verifyJwt<{ id: string }>(token);
-      
+
       expect(verified).toBeDefined();
       expect(verified?.id).toBe(userId);
     });
@@ -220,7 +220,7 @@ describe('Authentication Flow', () => {
     it('should reject invalid JWT token', () => {
       const invalidToken = 'invalid.token.here';
       const verified = verifyJwt(invalidToken);
-      
+
       expect(verified).toBeNull();
     });
 
@@ -229,9 +229,9 @@ describe('Authentication Flow', () => {
       // In a real scenario, we'd test with a token that has expired
       const payload = { id: userId };
       const token = signJwt(payload, '1s'); // 1 second expiry
-      
+
       // Wait for expiry
-      return new Promise<void>((resolve) => {
+      return new Promise<void>(resolve => {
         setTimeout(() => {
           const verified = verifyJwt<{ id: string }>(token);
           expect(verified).toBeNull(); // Should be expired
@@ -241,11 +241,11 @@ describe('Authentication Flow', () => {
     });
   });
 
-  describe('Password Reset', () => {
+  describeDb('Password Reset', () => {
     it('should generate password reset code', async () => {
       const rawResetCode = String(Math.floor(100000 + Math.random() * 900000));
       const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-      
+
       await prisma.user.update({
         where: { id: userId },
         data: {

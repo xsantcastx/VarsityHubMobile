@@ -17,14 +17,14 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Team Privacy (is_private)', () => {
+describeDb('Team Privacy (is_private)', () => {
   let orgId: string;
   let publicTeamId: string;
   let privateTeamId: string;
@@ -139,15 +139,23 @@ describe('Team Privacy (is_private)', () => {
 
   afterAll(async () => {
     const userIds = [ownerId, memberId, followerId, orgManagerId, strangerId].filter(Boolean);
-    await prisma.teamFollow.deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } }).catch(() => {});
-    await prisma.teamMembership.deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } }).catch(() => {});
-    await prisma.team.deleteMany({ where: { id: { in: [publicTeamId, privateTeamId] } } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
+    await prisma.teamFollow
+      .deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } })
+      .catch(() => {});
+    await prisma.teamMembership
+      .deleteMany({ where: { team_id: { in: [publicTeamId, privateTeamId] } } })
+      .catch(() => {});
+    await prisma.team
+      .deleteMany({ where: { id: { in: [publicTeamId, privateTeamId] } } })
+      .catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { organization_id: orgId } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });
 
-  describe('GET /teams/:id', () => {
+  describeDb('GET /teams/:id', () => {
     it('public team is visible to a stranger', async () => {
       const res = await request(app)
         .get(`/teams/${publicTeamId}`)
@@ -195,7 +203,7 @@ describe('Team Privacy (is_private)', () => {
     });
   });
 
-  describe('GET /search', () => {
+  describeDb('GET /search', () => {
     it('public team appears in search for a stranger', async () => {
       const res = await request(app)
         .get(`/search?q=Public Team ${ts}`)
@@ -229,7 +237,7 @@ describe('Team Privacy (is_private)', () => {
     });
   });
 
-  describe('PUT /teams/:id is_private toggle', () => {
+  describeDb('PUT /teams/:id is_private toggle', () => {
     it('team owner can flip is_private from true to false', async () => {
       const res = await request(app)
         .put(`/teams/${privateTeamId}`)

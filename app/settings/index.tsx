@@ -185,7 +185,13 @@ function SwitchRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { user: authUser, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
+  const {
+    user: authUser,
+    checkAuth,
+    markOnboardingIncompleteLocally,
+    signOut,
+    isAdmin,
+  } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
   const initialLinkedProviders = getLinkedProvidersSnapshot(authUser);
@@ -217,7 +223,9 @@ export default function SettingsScreen() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
-  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(initialLinkedProviders.password);
+  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(
+    initialLinkedProviders.password
+  );
   const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>(initialLinkedProviders);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
@@ -314,9 +322,7 @@ export default function SettingsScreen() {
     });
     const billingState = getCanonicalBillingState(me as any);
     setPlan(billingState.selected_plan);
-    const effectiveRole = (serverPrefs?.role || me?.role || null) as
-      | string
-      | null;
+    const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
     setRole(effectiveRole);
     const coachAccess = {
       isApprovedCoach: effectiveRole === 'coach' && me?.approval_status === 'APPROVED',
@@ -345,12 +351,15 @@ export default function SettingsScreen() {
     showGoogleStatus ? 'google' : null,
     showAppleStatus ? 'apple' : null,
   ].filter(Boolean) as Array<'google' | 'apple'>;
-  const canDowngradeCoach = String(role || '').trim().toLowerCase() === 'coach';
+  const canDowngradeCoach =
+    String(role || '')
+      .trim()
+      .toLowerCase() === 'coach';
   const getFreshSettingsUser = async (fallbackUser?: UserMeResponse | null) =>
-    ((await getFreshAuthSnapshot(
+    (await getFreshAuthSnapshot(
       checkAuth,
       (fallbackUser ?? authUser ?? null) as any
-    )) as UserMeResponse | null);
+    )) as UserMeResponse | null;
 
   const _restartOnboarding = async () => {
     try {
@@ -465,9 +474,7 @@ export default function SettingsScreen() {
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
         const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
-        const effectiveRole = (serverPrefs?.role || me?.role || null) as
-          | string
-          | null;
+        const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
 
         // Fetch pending host event requests for coaches
         if (effectiveRole === 'coach') {
@@ -569,7 +576,7 @@ export default function SettingsScreen() {
               title="Followed Teams"
               onPress={() => void router.push('/settings/followed-teams')}
             />
-            {visibleProviderStatuses.map((provider) => (
+            {visibleProviderStatuses.map(provider => (
               <NavRow
                 key={provider}
                 title={provider === 'google' ? 'Google Sign-In' : 'Apple Sign-In'}
@@ -722,9 +729,15 @@ export default function SettingsScreen() {
             />
           </SectionCard>
 
-          {/* Billing (coaches only) */}
-          {showCoachBilling && (
-            <SectionCard title="Billing">
+          {/* Billing */}
+          <SectionCard title="Billing & Plans">
+            <NavRow
+              title="View Subscription Plans"
+              subtitle="See Rookie, Veteran, and Legend options"
+              isLast={!showCoachBilling}
+              onPress={() => void router.push('/subscription-paywall')}
+            />
+            {showCoachBilling && (
               <NavRow
                 title="Manage Subscription"
                 isLast
@@ -735,8 +748,8 @@ export default function SettingsScreen() {
                 }
                 onPress={() => void router.push('/settings/manage-subscription')}
               />
-            </SectionCard>
-          )}
+            )}
+          </SectionCard>
 
           {/* Contact VarsityHub */}
           <SectionCard title="Contact VarsityHub Team">
@@ -857,6 +870,7 @@ export default function SettingsScreen() {
             />
             <NavRow
               title="Delete Account"
+              subtitle="Permanently delete your account and data"
               destructive
               isLast={!coachUpgradeCta && !canDowngradeCoach && !downgradingToFan}
               onPress={confirmDeleteAccount}
@@ -879,9 +893,9 @@ export default function SettingsScreen() {
                           try {
                             setDowngradingToFan(true);
                             await User.downgradeToFan();
-                            const fresh = (await getFreshSettingsUser().catch(() => null)) as
-                              | UserMeResponse
-                              | null;
+                            const fresh = (await getFreshSettingsUser().catch(
+                              () => null
+                            )) as UserMeResponse | null;
                             if (fresh) {
                               applyMeSnapshot(fresh, true);
                             }
@@ -890,7 +904,8 @@ export default function SettingsScreen() {
                             Alert.alert('Account updated', 'Your account is now a fan account.');
                           } catch (e: any) {
                             const code = e?.data?.code;
-                            const msg = e?.data?.error || e?.message || 'Failed to downgrade account.';
+                            const msg =
+                              e?.data?.error || e?.message || 'Failed to downgrade account.';
                             if (code === 'SUBSCRIPTION_DOWNGRADE_REQUIRED') {
                               Alert.alert(
                                 'Downgrade subscription first',
@@ -934,140 +949,138 @@ export default function SettingsScreen() {
                     router.push(coachUpgradeCta.route as any);
                     return;
                   }
-                  Alert.alert(
-                    'Upgrade to Coach Account',
-                    coachUpgradeCta.subtitle,
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Continue',
-                        onPress: async () => {
-                          const routeCoachOnboarding = async (
-                            freshUser?: any,
-                            preferredRoute?: string | null
-                          ) => {
-                            try {
-                              if (preferredRoute && preferredRoute !== '/(tabs)') {
-                                router.push(preferredRoute as any);
-                                return;
-                              }
-                              const fresh =
-                                freshUser ?? ((await getFreshSettingsUser().catch(() => null)) as any);
-                              const prefs = fresh?.preferences || {};
-                              const hasUsername = !!(
-                                fresh?.username && String(fresh.username).trim()
-                              );
-                              const dob = prefs.dob || prefs.date_of_birth || fresh?.dob;
-                              const zip = prefs.zip_code || prefs.zip || fresh?.zip_code;
-                              const hasDob = !!dob && String(dob).trim().length > 0;
-                              const hasZip = !!zip && String(zip).trim().length > 0;
-                              const hasCompletedBasicStep = hasUsername && hasDob && hasZip;
-                              if (setOB) {
-                                setOB(prev => ({
-                                  ...prev,
-                                  role: 'coach',
-                                  plan: (prefs.plan as any) || 'rookie',
-                                  username: fresh?.username ?? prev?.username,
-                                  dob: (dob as string | undefined) ?? prev?.dob,
-                                  zip: (zip as string | undefined) ?? prev?.zip,
-                                  zip_code: (zip as string | undefined) ?? prev?.zip_code ?? null,
-                                  step_2_visited: hasCompletedBasicStep,
-                                  step_3_visited: false,
-                                }));
-                              }
-                              setPlan((prefs.plan as string | null) ?? 'rookie');
-                              if (hasUsername && hasDob && hasZip) {
-                                router.push('/onboarding/coach-application' as any);
-                              } else {
-                                router.push('/onboarding/step-2-basic');
-                              }
-                            } catch {
-                              router.push('/onboarding/step-2-basic');
-                            }
-                          };
+                  Alert.alert('Upgrade to Coach Account', coachUpgradeCta.subtitle, [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Continue',
+                      onPress: async () => {
+                        const routeCoachOnboarding = async (
+                          freshUser?: any,
+                          preferredRoute?: string | null
+                        ) => {
                           try {
-                            setUpgradingToCoach(true);
-                            await User.upgradeToCoach('rookie');
-                            const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
-                            setRole('coach');
-                            setPlan('rookie');
-                            await markOnboardingIncompleteLocally();
-                            await routeCoachOnboarding(fresh);
-                          } catch (e: any) {
-                            const msg = e?.data?.error || e?.message || '';
-                            const code = e?.data?.code;
-                            if (
-                              code === 'COACH_UPGRADE_IN_PROGRESS' ||
-                              code === 'COACH_REAPPLICATION_REQUIRED' ||
-                              code === 'COACH_ALREADY_APPROVED' ||
-                              msg.toLowerCase().includes('already a coach')
-                            ) {
-                              const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
-                              const nextCta = getCoachUpgradeCta({
-                                ...fresh,
-                                role:
-                                  fresh?.preferences?.role ||
-                                  fresh?.role ||
-                                  null,
-                                preferences: fresh?.preferences || {},
-                              });
-                              if (fresh) {
-                                applyMeSnapshot(fresh, true);
-                              }
-                              await routeCoachOnboarding(
-                                fresh,
-                                e?.data?.next_step || nextCta?.route || null
-                              );
+                            if (preferredRoute && preferredRoute !== '/(tabs)') {
+                              router.push(preferredRoute as any);
                               return;
                             }
-                            // v1.0.3: surface the specific server error codes that
-                            // block upgrade so users know exactly what to do.
-                            if (code === 'REJECTION_COOLDOWN') {
-                              const retryAt = e?.data?.retry_at;
-                              const hrs = e?.data?.retry_after_hours;
-                              let msgText = 'You can try again once the cooldown expires.';
-                              if (typeof retryAt === 'string') {
-                                const when = new Date(retryAt);
-                                if (!isNaN(when.getTime())) {
-                                  msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
-                                }
-                              } else if (hrs) {
-                                msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
-                              }
-                              Alert.alert('Please wait', msgText);
-                            } else if (code === 'DOB_REQUIRED') {
-                              Alert.alert(
-                                'Date of birth required',
-                                'We need your date of birth on file before you can upgrade to a coach account. Tap Edit Profile to add it.'
-                              );
-                            } else if (code === 'AGE_REQUIREMENT') {
-                              Alert.alert(
-                                'Age requirement',
-                                'Coach accounts require users to be at least 18 years old.'
-                              );
-                            } else {
-                              Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');
+                            const fresh =
+                              freshUser ??
+                              ((await getFreshSettingsUser().catch(() => null)) as any);
+                            const prefs = fresh?.preferences || {};
+                            const hasUsername = !!(
+                              fresh?.username && String(fresh.username).trim()
+                            );
+                            const dob = prefs.dob || prefs.date_of_birth || fresh?.dob;
+                            const zip = prefs.zip_code || prefs.zip || fresh?.zip_code;
+                            const hasDob = !!dob && String(dob).trim().length > 0;
+                            const hasZip = !!zip && String(zip).trim().length > 0;
+                            const hasCompletedBasicStep = hasUsername && hasDob && hasZip;
+                            if (setOB) {
+                              setOB(prev => ({
+                                ...prev,
+                                role: 'coach',
+                                plan: (prefs.plan as any) || 'rookie',
+                                username: fresh?.username ?? prev?.username,
+                                dob: (dob as string | undefined) ?? prev?.dob,
+                                zip: (zip as string | undefined) ?? prev?.zip,
+                                zip_code: (zip as string | undefined) ?? prev?.zip_code ?? null,
+                                step_2_visited: hasCompletedBasicStep,
+                                step_3_visited: false,
+                              }));
                             }
-                          } finally {
-                            setUpgradingToCoach(false);
+                            setPlan((prefs.plan as string | null) ?? 'rookie');
+                            if (hasUsername && hasDob && hasZip) {
+                              router.push('/onboarding/coach-application' as any);
+                            } else {
+                              router.push('/onboarding/step-2-basic');
+                            }
+                          } catch {
+                            router.push('/onboarding/step-2-basic');
                           }
-                        },
+                        };
+                        try {
+                          setUpgradingToCoach(true);
+                          await User.upgradeToCoach('rookie');
+                          const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
+                          setRole('coach');
+                          setPlan('rookie');
+                          await markOnboardingIncompleteLocally();
+                          await routeCoachOnboarding(fresh);
+                        } catch (e: any) {
+                          const msg = e?.data?.error || e?.message || '';
+                          const code = e?.data?.code;
+                          if (
+                            code === 'COACH_UPGRADE_IN_PROGRESS' ||
+                            code === 'COACH_REAPPLICATION_REQUIRED' ||
+                            code === 'COACH_ALREADY_APPROVED' ||
+                            msg.toLowerCase().includes('already a coach')
+                          ) {
+                            const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
+                            const nextCta = getCoachUpgradeCta({
+                              ...fresh,
+                              role: fresh?.preferences?.role || fresh?.role || null,
+                              preferences: fresh?.preferences || {},
+                            });
+                            if (fresh) {
+                              applyMeSnapshot(fresh, true);
+                            }
+                            await routeCoachOnboarding(
+                              fresh,
+                              e?.data?.next_step || nextCta?.route || null
+                            );
+                            return;
+                          }
+                          // v1.0.3: surface the specific server error codes that
+                          // block upgrade so users know exactly what to do.
+                          if (code === 'REJECTION_COOLDOWN') {
+                            const retryAt = e?.data?.retry_at;
+                            const hrs = e?.data?.retry_after_hours;
+                            let msgText = 'You can try again once the cooldown expires.';
+                            if (typeof retryAt === 'string') {
+                              const when = new Date(retryAt);
+                              if (!isNaN(when.getTime())) {
+                                msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+                              }
+                            } else if (hrs) {
+                              msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
+                            }
+                            Alert.alert('Please wait', msgText);
+                          } else if (code === 'DOB_REQUIRED') {
+                            Alert.alert(
+                              'Date of birth required',
+                              'We need your date of birth on file before you can upgrade to a coach account. Tap Edit Profile to add it.'
+                            );
+                          } else if (code === 'AGE_REQUIREMENT') {
+                            Alert.alert(
+                              'Age requirement',
+                              'Coach accounts require users to be at least 18 years old.'
+                            );
+                          } else {
+                            Alert.alert('Error', msg || 'Failed to upgrade. Please try again.');
+                          }
+                        } finally {
+                          setUpgradingToCoach(false);
+                        }
                       },
-                    ]
-                  );
+                    },
+                  ]);
                 }}
               />
             )}
             {upgradingToCoach && (
               <View style={[styles.rowBetween, { opacity: 0.75 }]}>
-                <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                <Text
+                  style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}
+                >
                   Upgrading your account...
                 </Text>
               </View>
             )}
             {downgradingToFan && (
               <View style={[styles.rowBetween, { opacity: 0.75 }]}>
-                <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                <Text
+                  style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}
+                >
                   Downgrading your account...
                 </Text>
               </View>
@@ -1232,8 +1245,8 @@ export default function SettingsScreen() {
                     style={[
                       styles.deleteActionBtn,
                       styles.deleteConfirmBtn,
-                      ((deleteConfirmation.trim().toUpperCase() !== 'DELETE' ||
-                        (deleteRequiresPassword && !deletePassword.trim())) ||
+                      (deleteConfirmation.trim().toUpperCase() !== 'DELETE' ||
+                        (deleteRequiresPassword && !deletePassword.trim()) ||
                         deletingAccount) &&
                         styles.deleteConfirmBtnDisabled,
                     ]}

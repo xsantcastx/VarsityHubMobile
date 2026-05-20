@@ -4,8 +4,8 @@ import request from 'supertest';
 import { hashRefreshToken } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { app } from '../testApp.js';
-
-describe('Public app handoff behavior', () => {
+import { describeDb } from './dbTestGuard.js';
+describeDb('Public app handoff behavior', () => {
   const cleanupUserIds = new Set<string>();
 
   beforeAll(async () => {

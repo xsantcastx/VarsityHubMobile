@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { app } from '../testApp.js';
 import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
-
-describe('Support auth regression', () => {
+import { describeDb } from './dbTestGuard.js';
+describeDb('Support auth regression', () => {
   let userId = '';
   let token = '';
   let email = '';

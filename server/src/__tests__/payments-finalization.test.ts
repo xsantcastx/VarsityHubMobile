@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let runFinalizeFromSession: (session: any) => Promise<void>;
@@ -28,11 +29,6 @@ let releaseAdInventoryAfterSlotFullRefund: (adId: string) => Promise<void>;
 let releaseAdInventoryAfterSlotFullRefundWithRetry: (adId: string) => Promise<void>;
 let recoverSlotFullRefundReleaseFailures: (referenceTime?: Date) => Promise<number>;
 let dbReady = false;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
-
 describeDb('Checkout session finalization', () => {
   const createdUserIds: string[] = [];
   const createdAdIds: string[] = [];
@@ -64,49 +60,63 @@ describeDb('Checkout session finalization', () => {
     if (!prisma || !dbReady) return;
 
     if (createdSessionIds.length) {
-      await prisma.transactionLog.deleteMany({
-        where: { stripe_session_id: { in: createdSessionIds } },
-      }).catch(() => {});
+      await prisma.transactionLog
+        .deleteMany({
+          where: { stripe_session_id: { in: createdSessionIds } },
+        })
+        .catch(() => {});
     }
 
     if (createdAppleTransactionIds.length) {
-      await prisma.transactionLog.deleteMany({
-        where: { apple_transaction_id: { in: createdAppleTransactionIds } },
-      }).catch(() => {});
-      await prisma.appleTransactionClaim.deleteMany({
-        where: { apple_transaction_id: { in: createdAppleTransactionIds } },
-      }).catch(() => {});
+      await prisma.transactionLog
+        .deleteMany({
+          where: { apple_transaction_id: { in: createdAppleTransactionIds } },
+        })
+        .catch(() => {});
+      await prisma.appleTransactionClaim
+        .deleteMany({
+          where: { apple_transaction_id: { in: createdAppleTransactionIds } },
+        })
+        .catch(() => {});
     }
 
     if (createdAdIds.length || createdUserIds.length) {
-      await prisma.transactionLog.deleteMany({
-        where: {
-          OR: [
-            createdAdIds.length ? { order_id: { in: createdAdIds } } : undefined,
-            createdUserIds.length
-              ? {
-                  user_id: { in: createdUserIds },
-                  transaction_type: { in: ['SUBSCRIPTION_PURCHASE', 'AD_PURCHASE'] },
-                }
-              : undefined,
-          ].filter(Boolean) as any,
-        },
-      }).catch(() => {});
+      await prisma.transactionLog
+        .deleteMany({
+          where: {
+            OR: [
+              createdAdIds.length ? { order_id: { in: createdAdIds } } : undefined,
+              createdUserIds.length
+                ? {
+                    user_id: { in: createdUserIds },
+                    transaction_type: { in: ['SUBSCRIPTION_PURCHASE', 'AD_PURCHASE'] },
+                  }
+                : undefined,
+            ].filter(Boolean) as any,
+          },
+        })
+        .catch(() => {});
     }
 
     if (createdAdIds.length) {
-      await prisma.adReservation.deleteMany({
-        where: { ad_id: { in: createdAdIds } },
-      }).catch(() => {});
-      await prisma.ad.deleteMany({
-        where: { id: { in: createdAdIds } },
-      }).catch(() => {});
+      await prisma.adReservation
+        .deleteMany({
+          where: { ad_id: { in: createdAdIds } },
+        })
+        .catch(() => {});
+      await prisma.ad
+        .deleteMany({
+          where: { id: { in: createdAdIds } },
+        })
+        .catch(() => {});
     }
 
     if (createdUserIds.length) {
-      await prisma.user.deleteMany({
-        where: { id: { in: createdUserIds } },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: { in: createdUserIds } },
+        })
+        .catch(() => {});
     }
   });
 
@@ -168,9 +178,10 @@ describeDb('Checkout session finalization', () => {
       where: { stripe_session_id: sessionId },
     });
 
-    const prefs = (refreshedUser?.preferences && typeof refreshedUser.preferences === 'object')
-      ? refreshedUser.preferences as any
-      : {};
+    const prefs =
+      refreshedUser?.preferences && typeof refreshedUser.preferences === 'object'
+        ? (refreshedUser.preferences as any)
+        : {};
 
     expect(refreshedUser?.subscription_tier).toBe('premium');
     expect(refreshedUser?.subscription_status).toBe('active');
@@ -222,31 +233,35 @@ describeDb('Checkout session finalization', () => {
       },
     });
 
-    const result = await syncStripeSubscriptionState({
-      id: subscriptionId,
-      customer: customerId,
-      status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 86400,
-      metadata: { plan: 'legend' },
-      items: {
-        data: [
-          {
-            price: {
-              id: 'inline_price_for_test',
+    const result = await syncStripeSubscriptionState(
+      {
+        id: subscriptionId,
+        customer: customerId,
+        status: 'active',
+        current_period_end: Math.floor(Date.now() / 1000) + 86400,
+        metadata: { plan: 'legend' },
+        items: {
+          data: [
+            {
+              price: {
+                id: 'inline_price_for_test',
+              },
             },
-          },
-        ],
+          ],
+        },
       },
-    }, 'subscription.finalize');
+      'subscription.finalize'
+    );
 
     const refreshedUser = await prisma.user.findUnique({ where: { id: user.id } });
     const tx = await prisma.transactionLog.findUnique({
       where: { stripe_session_id: subscriptionId },
     });
 
-    const prefs = (refreshedUser?.preferences && typeof refreshedUser.preferences === 'object')
-      ? refreshedUser.preferences as any
-      : {};
+    const prefs =
+      refreshedUser?.preferences && typeof refreshedUser.preferences === 'object'
+        ? (refreshedUser.preferences as any)
+        : {};
 
     expect(result.entitlementActive).toBe(true);
     expect(result.plan).toBe('legend');
@@ -321,9 +336,10 @@ describeDb('Checkout session finalization', () => {
     const tx = await prisma.transactionLog.findUnique({
       where: { apple_transaction_id: appleTransactionId },
     });
-    const prefs = (refreshedUser?.preferences && typeof refreshedUser.preferences === 'object')
-      ? refreshedUser.preferences as any
-      : {};
+    const prefs =
+      refreshedUser?.preferences && typeof refreshedUser.preferences === 'object'
+        ? (refreshedUser.preferences as any)
+        : {};
 
     expect(refreshedUser?.subscription_tier).toBe('premium');
     expect(refreshedUser?.subscription_status).toBe('active');
@@ -616,10 +632,17 @@ describeDb('Checkout session finalization', () => {
       orderBy: { apple_transaction_id: 'asc' },
     });
     expect(claims).toHaveLength(2);
-    expect(claims.every((claim: any) => claim.ad_id === ad.id && claim.order_id === ad.id)).toBe(true);
+    expect(claims.every((claim: any) => claim.ad_id === ad.id && claim.order_id === ad.id)).toBe(
+      true
+    );
 
     const tx = await prisma.transactionLog.findFirst({
-      where: { user_id: user.id, order_id: ad.id, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' },
+      where: {
+        user_id: user.id,
+        order_id: ad.id,
+        transaction_type: 'AD_PURCHASE',
+        status: 'COMPLETED',
+      },
       orderBy: { created_at: 'desc' },
     });
     expect(tx).toBeTruthy();
@@ -639,7 +662,12 @@ describeDb('Checkout session finalization', () => {
     expect(second.idempotent).toBe(true);
 
     const txCount = await prisma.transactionLog.count({
-      where: { user_id: user.id, order_id: ad.id, transaction_type: 'AD_PURCHASE', status: 'COMPLETED' },
+      where: {
+        user_id: user.id,
+        order_id: ad.id,
+        transaction_type: 'AD_PURCHASE',
+        status: 'COMPLETED',
+      },
     });
     expect(txCount).toBe(1);
   });

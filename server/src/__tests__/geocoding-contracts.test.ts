@@ -3,8 +3,8 @@ import axios from 'axios';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
-describe('Geocoding contracts', () => {
+import { describeDb } from './dbTestGuard.js';
+describeDb('Geocoding contracts', () => {
   let prisma: any;
   let signJwt: any;
   let token: string;

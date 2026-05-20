@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Event Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for event management:
  * - POST /events (create event with approval workflow)
  * - GET /events (list events)
@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
@@ -19,7 +19,7 @@ const TEST_COACH_EMAIL = `test-api-event-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-event-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('API Event Endpoints', () => {
+describeDb('API Event Endpoints', () => {
   let coachUserId: string;
   let coachToken: string;
   let fanUserId: string;
@@ -138,7 +138,7 @@ describe('API Event Endpoints', () => {
     }
   });
 
-  describe('POST /events', () => {
+  describeDb('POST /events', () => {
     it('should auto-approve events created by coaches', async () => {
       const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 
@@ -258,43 +258,33 @@ describe('API Event Endpoints', () => {
     });
   });
 
-  describe('GET /events', () => {
+  describeDb('GET /events', () => {
     it('should return list of approved events', async () => {
-      const response = await request(app)
-        .get('/events')
-        .expect(200);
+      const response = await request(app).get('/events').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should filter events by status', async () => {
-      const response = await request(app)
-        .get('/events?status=approved')
-        .expect(200);
+      const response = await request(app).get('/events?status=approved').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should filter events by approval_status', async () => {
-      const response = await request(app)
-        .get('/events?approval_status=pending')
-        .expect(200);
+      const response = await request(app).get('/events?approval_status=pending').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should search events by query', async () => {
-      const response = await request(app)
-        .get('/events?q=Test')
-        .expect(200);
+      const response = await request(app).get('/events?q=Test').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
     it('should limit number of results', async () => {
-      const response = await request(app)
-        .get('/events?limit=10')
-        .expect(200);
+      const response = await request(app).get('/events?limit=10').expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeLessThanOrEqual(10);
@@ -365,15 +355,17 @@ describe('API Event Endpoints', () => {
         expect(ids).toContain(linkedEvent.id);
         expect(ids).not.toContain(outsideEvent.id);
       } finally {
-        await prisma.event.deleteMany({
-          where: {
-            OR: [
-              { team_id: outsideTeam.id },
-              { game_id: linkedGame.id },
-              { team_id: testTeamId, title: { contains: 'Direct Team Event' } },
-            ],
-          },
-        }).catch(() => {});
+        await prisma.event
+          .deleteMany({
+            where: {
+              OR: [
+                { team_id: outsideTeam.id },
+                { game_id: linkedGame.id },
+                { team_id: testTeamId, title: { contains: 'Direct Team Event' } },
+              ],
+            },
+          })
+          .catch(() => {});
         await prisma.game.delete({ where: { id: linkedGame.id } }).catch(() => {});
         await prisma.team.delete({ where: { id: outsideTeam.id } }).catch(() => {});
       }
@@ -394,9 +386,7 @@ describe('API Event Endpoints', () => {
         },
       });
 
-      const response = await request(app)
-        .get('/events')
-        .expect(200);
+      const response = await request(app).get('/events').expect(200);
 
       const created = response.body.find((item: any) => item.creator_id === coachUserId);
       expect(created).toBeTruthy();
@@ -411,7 +401,7 @@ describe('API Event Endpoints', () => {
   // canManageAnyTeam() which accepts owner/manager/coach/assistant_coach plus
   // org-admin fallback. These tests pin the broader semantics so a future
   // tightening can't silently regress them.
-  describe('Event cancel — boundary regression', () => {
+  describeDb('Event cancel — boundary regression', () => {
     const futureDate = () => {
       const d = new Date();
       d.setDate(d.getDate() + 14);
@@ -481,7 +471,9 @@ describe('API Event Endpoints', () => {
 
       // Cleanup
       await prisma.event.deleteMany({ where: { id: event.id } }).catch(() => {});
-      await prisma.teamMembership.deleteMany({ where: { team_id: separateTeam.id } }).catch(() => {});
+      await prisma.teamMembership
+        .deleteMany({ where: { team_id: separateTeam.id } })
+        .catch(() => {});
       await prisma.team.delete({ where: { id: separateTeam.id } }).catch(() => {});
       await prisma.user.delete({ where: { id: separateCreator.id } }).catch(() => {});
     });

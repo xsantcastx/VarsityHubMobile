@@ -1,6 +1,6 @@
 /**
  * API Integration Tests - Team Endpoints
- * 
+ *
  * Tests actual HTTP endpoints for team management:
  * - POST /teams (create team with role validation)
  * - GET /teams/limits (check team creation limits)
@@ -12,7 +12,7 @@ import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
 import { getTeamState } from '../lib/teamState.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
@@ -20,7 +20,7 @@ const TEST_COACH_EMAIL = `test-api-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-fan-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
 
-describe('API Team Endpoints', () => {
+describeDb('API Team Endpoints', () => {
   let coachUserId: string;
   let coachToken: string;
   let fanUserId: string;
@@ -113,7 +113,12 @@ describe('API Team Endpoints', () => {
     ownerManagedCoachId = ownerManagedCoach.id;
     ownerManagedCoachToken = signJwt({ id: ownerManagedCoachId });
     await prisma.organizationMembership.create({
-      data: { organization_id: testOrgId, user_id: ownerManagedCoachId, role: 'manager', status: 'active' },
+      data: {
+        organization_id: testOrgId,
+        user_id: ownerManagedCoachId,
+        role: 'manager',
+        status: 'active',
+      },
       select: { id: true },
     });
   });
@@ -131,14 +136,13 @@ describe('API Team Endpoints', () => {
       if (teamIds.length > 0) {
         await prisma.post.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
         await prisma.event.deleteMany({ where: { team_id: { in: teamIds } } }).catch(() => {});
-        await prisma.game.deleteMany({
-          where: {
-            OR: [
-              { home_team_id: { in: teamIds } },
-              { away_team_id: { in: teamIds } },
-            ],
-          },
-        }).catch(() => {});
+        await prisma.game
+          .deleteMany({
+            where: {
+              OR: [{ home_team_id: { in: teamIds } }, { away_team_id: { in: teamIds } }],
+            },
+          })
+          .catch(() => {});
       }
 
       // Clean up team memberships
@@ -170,7 +174,7 @@ describe('API Team Endpoints', () => {
     }
   });
 
-  describe('POST /teams', () => {
+  describeDb('POST /teams', () => {
     it('should allow coach to create team', async () => {
       const response = await request(app)
         .post('/teams')
@@ -274,7 +278,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('DELETE /teams/:id', () => {
+  describeDb('DELETE /teams/:id', () => {
     it('should archive the team and preserve linked posts, events, and games', async () => {
       const team = await prisma.team.create({
         data: {
@@ -355,16 +359,14 @@ describe('API Team Endpoints', () => {
       expect(refreshedEvent?.team_id).toBe(team.id);
       expect(refreshedPost?.team_id).toBe(team.id);
 
-      const listResponse = await request(app)
-        .get('/teams')
-        .expect(200);
+      const listResponse = await request(app).get('/teams').expect(200);
 
       expect(Array.isArray(listResponse.body)).toBe(true);
       expect(listResponse.body.some((entry: any) => entry.id === team.id)).toBe(false);
     });
   });
 
-  describe('GET /teams/limits', () => {
+  describeDb('GET /teams/limits', () => {
     it('should return team limits for authenticated user', async () => {
       const response = await request(app)
         .get('/teams/limits')
@@ -400,15 +402,13 @@ describe('API Team Endpoints', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/limits')
-        .expect(401);
+      const response = await request(app).get('/teams/limits').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
   });
 
-  describe('GET /teams/managed', () => {
+  describeDb('GET /teams/managed', () => {
     it('should return teams managed by authenticated user', async () => {
       const response = await request(app)
         .get('/teams/managed')
@@ -419,9 +419,7 @@ describe('API Team Endpoints', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await request(app)
-        .get('/teams/managed')
-        .expect(401);
+      const response = await request(app).get('/teams/managed').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -476,7 +474,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams contracts', () => {
+  describeDb('GET /teams contracts', () => {
     it('returns the canonical team list contract', async () => {
       const team = await prisma.team.create({
         data: {
@@ -571,7 +569,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams/:id/admin-summary', () => {
+  describeDb('GET /teams/:id/admin-summary', () => {
     it('returns the scoped admin summary for org admins without team membership', async () => {
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
       const teamOwner = await prisma.user.create({
@@ -731,7 +729,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('GET /teams/:id/screen-summary', () => {
+  describeDb('GET /teams/:id/screen-summary', () => {
     it('returns a public screen summary with roster and approved games while exposing scoped manage permissions for org admins', async () => {
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
       const teamOwner = await prisma.user.create({
@@ -807,9 +805,7 @@ describe('API Team Endpoints', () => {
         ],
       });
 
-      const publicResponse = await request(app)
-        .get(`/teams/${team.id}/screen-summary`)
-        .expect(200);
+      const publicResponse = await request(app).get(`/teams/${team.id}/screen-summary`).expect(200);
 
       expect(publicResponse.body.team?.id).toBe(team.id);
       expect(publicResponse.body.permissions?.can_manage).toBe(false);
@@ -840,7 +836,7 @@ describe('API Team Endpoints', () => {
     });
   });
 
-  describe('Team privacy', () => {
+  describeDb('Team privacy', () => {
     it('hides private teams from public list and detail while allowing followers and org admins', async () => {
       const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
       const privateOwner = await prisma.user.create({
@@ -919,7 +915,7 @@ describe('API Team Endpoints', () => {
   // membership can still archive teams and transfer ownership inside their
   // own league. Same shape as the team-chat regression test at
   // api-group-chats.test.ts:213.
-  describe('Org-admin fallback — team lifecycle', () => {
+  describeDb('Org-admin fallback — team lifecycle', () => {
     it('allows an org owner to archive a team inside their league without team membership', async () => {
       // Fresh team inside the already-provisioned org, owned by a different
       // user so the coach we're testing isn't also a team member.

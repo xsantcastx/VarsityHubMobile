@@ -1,6 +1,6 @@
 /**
  * API Integration Tests for Posts Endpoints
- * 
+ *
  * Tests the posts API endpoints with real HTTP requests
  */
 
@@ -8,14 +8,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let signJwt: any;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
-
 describeDb('Posts API Endpoints', () => {
   let testUser: any;
   let testUserToken: string;
@@ -184,9 +180,11 @@ describeDb('Posts API Endpoints', () => {
     if (testPostId) {
       await prisma.post.delete({ where: { id: testPostId } }).catch(() => {});
     }
-    await prisma.post.deleteMany({
-      where: { author_id: { in: [adminUser?.id, bypassCoachUser?.id].filter(Boolean) } },
-    }).catch(() => {});
+    await prisma.post
+      .deleteMany({
+        where: { author_id: { in: [adminUser?.id, bypassCoachUser?.id].filter(Boolean) } },
+      })
+      .catch(() => {});
     await prisma.user.delete({ where: { id: adminUser?.id } }).catch(() => {});
     await prisma.user.delete({ where: { id: bypassCoachUser?.id } }).catch(() => {});
     await prisma.user.delete({ where: { id: testUser.id } }).catch(() => {});
@@ -194,27 +192,21 @@ describeDb('Posts API Endpoints', () => {
 
   describe('GET /posts', () => {
     it('should return list of posts', async () => {
-      const res = await request(app)
-        .get('/posts')
-        .query({ limit: '10' });
+      const res = await request(app).get('/posts').query({ limit: '10' });
 
       expect(res.statusCode).toEqual(200);
       expect(Array.isArray(res.body.items)).toBe(true);
     });
 
     it('should support pagination with cursor', async () => {
-      const res1 = await request(app)
-        .get('/posts')
-        .query({ limit: '5' });
+      const res1 = await request(app).get('/posts').query({ limit: '5' });
 
       expect(res1.statusCode).toEqual(200);
       expect(Array.isArray(res1.body.items)).toBe(true);
 
       if (res1.body.items.length > 0) {
         const cursor = res1.body.items[res1.body.items.length - 1].id;
-        const res2 = await request(app)
-          .get('/posts')
-          .query({ limit: '5', cursor });
+        const res2 = await request(app).get('/posts').query({ limit: '5', cursor });
 
         expect(res2.statusCode).toEqual(200);
         expect(Array.isArray(res2.body.items)).toBe(true);
@@ -222,9 +214,7 @@ describeDb('Posts API Endpoints', () => {
     });
 
     it('should filter by game_id when provided', async () => {
-      const res = await request(app)
-        .get('/posts')
-        .query({ game_id: 'non-existent-id' });
+      const res = await request(app).get('/posts').query({ game_id: 'non-existent-id' });
 
       expect(res.statusCode).toEqual(200);
       expect(Array.isArray(res.body.items)).toBe(true);
@@ -233,12 +223,10 @@ describeDb('Posts API Endpoints', () => {
 
   describe('POST /posts', () => {
     it('should require authentication', async () => {
-      const res = await request(app)
-        .post('/posts')
-        .send({
-          title: 'Test Post',
-          content: 'Test content',
-        });
+      const res = await request(app).post('/posts').send({
+        title: 'Test Post',
+        content: 'Test content',
+      });
 
       expect(res.statusCode).toEqual(401);
     });
@@ -562,16 +550,14 @@ describeDb('Posts API Endpoints', () => {
         testPostId = createRes.body.id;
       }
 
-      const res = await request(app)
-        .get(`/posts/${testPostId}`);
+      const res = await request(app).get(`/posts/${testPostId}`);
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.id).toBe(testPostId);
     });
 
     it('should return 404 for non-existent post', async () => {
-      const res = await request(app)
-        .get(`/posts/${missingPostId}`);
+      const res = await request(app).get(`/posts/${missingPostId}`);
 
       expect(res.statusCode).toEqual(404);
     });
@@ -581,8 +567,7 @@ describeDb('Posts API Endpoints', () => {
     it('should require authentication', async () => {
       if (!testPostId) return;
 
-      const res = await request(app)
-        .post(`/posts/${testPostId}/upvote`);
+      const res = await request(app).post(`/posts/${testPostId}/upvote`);
 
       expect(res.statusCode).toEqual(401);
     });

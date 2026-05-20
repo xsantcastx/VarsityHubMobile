@@ -19,14 +19,14 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let rlDel: (key: string) => Promise<void>;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Auth & Upload Security Hardening', () => {
+describeDb('Auth & Upload Security Hardening', () => {
   let pushUserId = '';
   let pushUserEmail = '';
   let avatarUserId = '';
@@ -107,15 +107,13 @@ describe('Auth & Upload Security Hardening', () => {
           where: { id: { in: [pushUserId, avatarUserId].filter(Boolean) } },
         })
         .catch(() => {});
-      await prisma.user
-        .deleteMany({ where: { email: lockoutUserEmail } })
-        .catch(() => {});
+      await prisma.user.deleteMany({ where: { email: lockoutUserEmail } }).catch(() => {});
     } catch (e) {
       console.warn('Cleanup error (non-critical):', e);
     }
   });
 
-  describe('POST /auth/logout clears push_token', () => {
+  describeDb('POST /auth/logout clears push_token', () => {
     it('removes push_token from preferences when logging out with a valid refresh token', async () => {
       // Sanity: push_token is set before logout.
       const before = await prisma.user.findUnique({
@@ -133,9 +131,7 @@ describe('Auth & Upload Security Hardening', () => {
       expect(typeof refresh).toBe('string');
 
       // Logout.
-      const logoutRes = await request(app)
-        .post('/auth/logout')
-        .send({ refresh_token: refresh });
+      const logoutRes = await request(app).post('/auth/logout').send({ refresh_token: refresh });
       expect(logoutRes.status).toBe(200);
 
       // After logout, push_token should be removed from preferences.
@@ -189,16 +185,14 @@ describe('Auth & Upload Security Hardening', () => {
       });
       expect((afterForgedLogout?.preferences as any)?.push_token).toBeTruthy();
 
-      const refreshRes = await request(app)
-        .post('/auth/refresh')
-        .send({ refresh_token: refresh });
+      const refreshRes = await request(app).post('/auth/refresh').send({ refresh_token: refresh });
       expect(refreshRes.status).toBe(200);
       expect(typeof refreshRes.body?.access_token).toBe('string');
       expect(typeof refreshRes.body?.refresh_token).toBe('string');
     });
   });
 
-  describe('POST /auth/refresh device binding', () => {
+  describeDb('POST /auth/refresh device binding', () => {
     it('rejects and revokes a refresh token presented from a different device id', async () => {
       const deviceA = 'device-auth-hardening-a-1234';
       const deviceB = 'device-auth-hardening-b-5678';
@@ -247,7 +241,7 @@ describe('Auth & Upload Security Hardening', () => {
     });
   });
 
-  describe('POST /auth/login per-account lockout', () => {
+  describeDb('POST /auth/login per-account lockout', () => {
     it('locks the account after MAX_LOGIN_FAILURES consecutive bad passwords', async () => {
       // 5 failures → 6th attempt should be locked out (429 with retry_after_ms).
       for (let i = 0; i < 5; i++) {
@@ -271,7 +265,7 @@ describe('Auth & Upload Security Hardening', () => {
     });
   });
 
-  describe('POST /uploads/avatar magic-byte validation', () => {
+  describeDb('POST /uploads/avatar magic-byte validation', () => {
     it('rejects a file that claims image/png but is actually random bytes', async () => {
       const bogus = Buffer.alloc(64);
       for (let i = 0; i < bogus.length; i++) bogus[i] = (i * 37) & 0xff;

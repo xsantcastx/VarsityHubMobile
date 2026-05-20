@@ -2,11 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
-describe('API Organization Endpoints', () => {
+describeDb('API Organization Endpoints', () => {
   const coachAgreementAcceptedAt = new Date().toISOString();
 
   let userId: string;
@@ -139,18 +139,24 @@ describe('API Organization Endpoints', () => {
 
   afterAll(async () => {
     await prisma.organizationJoinRequest.deleteMany({ where: { user_id: userId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({
-      where: { user_id: { in: [userId, ownerId, managerId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.organization.deleteMany({
-      where: { id: { in: [approvedOrgId, pendingOrgId, ownedOrgId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.user.deleteMany({
-      where: { id: { in: [userId, ownerId, managerId].filter(Boolean) } },
-    }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { user_id: { in: [userId, ownerId, managerId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.organization
+      .deleteMany({
+        where: { id: { in: [approvedOrgId, pendingOrgId, ownedOrgId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.user
+      .deleteMany({
+        where: { id: { in: [userId, ownerId, managerId].filter(Boolean) } },
+      })
+      .catch(() => {});
   });
 
-  describe('GET /organizations', () => {
+  describeDb('GET /organizations', () => {
     it('includes admin_approved for approved orgs and pending join-request orgs', async () => {
       const response = await request(app)
         .get('/organizations')
@@ -169,7 +175,7 @@ describe('API Organization Endpoints', () => {
     });
   });
 
-  describe('owner-only organization management', () => {
+  describeDb('owner-only organization management', () => {
     it('GET /organizations/:id returns approved organization details without a decode error', async () => {
       const response = await request(app)
         .get(`/organizations/${ownedOrgId}`)

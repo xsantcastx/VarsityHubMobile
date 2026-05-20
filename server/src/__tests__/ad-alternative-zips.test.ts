@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../testApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Ad alternative zip availability', () => {
+describeDb('Ad alternative zip availability', () => {
   let userId = '';
   let userToken = '';
   const createdAdIds: string[] = [];
@@ -82,18 +82,24 @@ describe('Ad alternative zip availability', () => {
   afterAll(async () => {
     if (!prisma) return;
 
-    await prisma.adReservation.deleteMany({
-      where: { ad_id: { in: createdAdIds } },
-    }).catch(() => {});
+    await prisma.adReservation
+      .deleteMany({
+        where: { ad_id: { in: createdAdIds } },
+      })
+      .catch(() => {});
 
-    await prisma.ad.deleteMany({
-      where: { id: { in: createdAdIds } },
-    }).catch(() => {});
+    await prisma.ad
+      .deleteMany({
+        where: { id: { in: createdAdIds } },
+      })
+      .catch(() => {});
 
     if (userId) {
-      await prisma.user.deleteMany({
-        where: { id: userId },
-      }).catch(() => {});
+      await prisma.user
+        .deleteMany({
+          where: { id: userId },
+        })
+        .catch(() => {});
     }
   });
 
@@ -110,7 +116,10 @@ describe('Ad alternative zip availability', () => {
     expect(Array.isArray(res.body?.alternatives)).toBe(true);
 
     const byZip = new Map(
-      (res.body.alternatives as Array<{ zip: string; available: boolean }>).map((entry) => [entry.zip, entry.available])
+      (res.body.alternatives as Array<{ zip: string; available: boolean }>).map(entry => [
+        entry.zip,
+        entry.available,
+      ])
     );
 
     expect(byZip.has('10101')).toBe(false);

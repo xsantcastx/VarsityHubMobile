@@ -11,6 +11,7 @@ const mockCheckAuth = jest.fn(async () => ({
   email_verified: true,
   role: 'fan',
   onboarding_completed: true,
+  username: 'fan-1',
   preferences: { role: 'fan', onboarding_completed: true },
 }));
 const mockSetOB = jest.fn();
@@ -56,7 +57,9 @@ jest.mock('@/components/ui/PrimaryButton', () => (props: any) => (
   </Pressable>
 ));
 
-jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => <>{props.children}</>);
+jest.mock('../app/onboarding/components/OnboardingLayout', () => (props: any) => (
+  <>{props.children}</>
+));
 jest.mock('@/components/ZipCodeMapPreview', () => ({ ZipCodeMapPreview: () => null }));
 jest.mock('@/hooks/useColorScheme', () => ({ useColorScheme: () => 'light' }));
 jest.mock('@/utils/navigation', () => ({ safeGoBack: jest.fn() }));
@@ -96,7 +99,7 @@ jest.mock('@/context/AuthProvider', () => ({
 }));
 jest.mock('@/context/OnboardingContext', () => ({
   useOnboarding: () => ({
-    state: mockOnboardingState,
+    state: { role: 'fan', ...mockOnboardingState },
     setState: mockSetOB,
     setProgress: mockSetProgress,
     dispatch: mockDispatch,
@@ -126,17 +129,20 @@ describe('Onboarding Flow', () => {
       email_verified: true,
       role: 'fan',
       onboarding_completed: true,
+      username: 'fan-1',
       preferences: { role: 'fan', onboarding_completed: true },
     });
   });
 
   it('routes coaches from step-2 to coach-application after saving canonical coach fields', async () => {
     mockOnboardingState = { role: 'coach', affiliation: undefined, dob: '' };
-    mockUserMe.mockResolvedValue({
+    mockCheckAuth.mockResolvedValue({
       id: 'coach-1',
       email_verified: true,
+      role: 'coach',
+      onboarding_completed: false,
       username: 'coachuser',
-      preferences: {},
+      preferences: { role: 'coach', onboarding_completed: false },
     });
 
     const screen = render(<Step2Basic />);
@@ -168,11 +174,13 @@ describe('Onboarding Flow', () => {
 
   it('completes fan onboarding and routes to tabs from step-2', async () => {
     mockOnboardingState = { role: 'fan', affiliation: undefined, dob: '' };
-    mockUserMe.mockResolvedValue({
+    mockCheckAuth.mockResolvedValue({
       id: 'fan-1',
       email_verified: true,
+      role: 'fan',
+      onboarding_completed: true,
       username: 'fanuser',
-      preferences: {},
+      preferences: { role: 'fan', onboarding_completed: true },
     });
 
     const screen = render(<Step2Basic />);

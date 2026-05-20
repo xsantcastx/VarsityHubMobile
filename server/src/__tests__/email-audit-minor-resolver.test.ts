@@ -15,17 +15,15 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
-let resolveMinorAuditMetadata: (email: string | null | undefined) => Promise<Record<string, string> | undefined>;
+let resolveMinorAuditMetadata: (
+  email: string | null | undefined
+) => Promise<Record<string, string> | undefined>;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
 const createdUserIds: string[] = [];
 
 function yearsAgo(years: number): Date {
@@ -113,9 +111,7 @@ describeDb('resolveMinorAuditMetadata (email audit redaction resolver)', () => {
   });
 
   it('is case-insensitive on the email lookup', async () => {
-    const result = await resolveMinorAuditMetadata(
-      `MINOR-REDACT-${ts}@EXAMPLE.COM`
-    );
+    const result = await resolveMinorAuditMetadata(`MINOR-REDACT-${ts}@EXAMPLE.COM`);
     expect(result).toEqual({ audit_privacy: 'minor' });
   });
 

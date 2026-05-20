@@ -158,7 +158,7 @@
       "eas": {
         "projectId": "64489ed7-a8c0-41de-91ec-5846ea79a27f"
       },
-      "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
+      "EXPO_PUBLIC_API_URL": "",
       "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
       "EXPO_PUBLIC_NODE_ENV": "production",
       "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",

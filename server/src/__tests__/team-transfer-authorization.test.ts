@@ -2,14 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { app } from '../teamGateTestApp.js';
-
+import { describeDb } from './dbTestGuard.js';
 let prisma: any;
 let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
 
-describe('Team transfer authorization boundaries', () => {
+describeDb('Team transfer authorization boundaries', () => {
   let moverId = '';
   let moverToken = '';
   let sourceOrgId = '';
@@ -92,13 +92,19 @@ describe('Team transfer authorization boundaries', () => {
   afterAll(async () => {
     await prisma.teamMembership.deleteMany({ where: { team_id: teamId } }).catch(() => {});
     await prisma.team.deleteMany({ where: { id: teamId } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({
-      where: { organization_id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.organization.deleteMany({
-      where: { id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
-    }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [moverId].filter(Boolean) } } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({
+        where: { organization_id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.organization
+      .deleteMany({
+        where: { id: { in: [sourceOrgId, targetOrgId].filter(Boolean) } },
+      })
+      .catch(() => {});
+    await prisma.user
+      .deleteMany({ where: { id: { in: [moverId].filter(Boolean) } } })
+      .catch(() => {});
   });
 
   it('blocks moving a team into a target org when requester is only a non-admin member there', async () => {

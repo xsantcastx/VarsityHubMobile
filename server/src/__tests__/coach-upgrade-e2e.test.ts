@@ -5,7 +5,7 @@
  * verifies every server-side state transition the client relies on:
  *
  *   1. preferences.role flips from 'fan' to 'coach'
-   *   2. preferences.plan / pending_plan reflect whether billing is deferred
+ *   2. preferences.plan / pending_plan reflect whether billing is deferred
  *   3. preferences.onboarding_completed resets to false (so coach must
  *      complete coach-specific onboarding steps)
  *   4. approval_status resets to 'PENDING' (coach must be approved
@@ -25,6 +25,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let request: any;
@@ -33,11 +34,6 @@ let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
 /** An adult DOB so the 18+ coach age gate passes. */
 function adultDob(): Date {
   const d = new Date();
@@ -156,9 +152,7 @@ describeDb('POST /auth/upgrade-to-coach — fan → coach state transition', () 
       .set('Authorization', `Bearer ${fanToken}`)
       .send({ plan: 'rookie' });
 
-    const meRes = await request(app)
-      .get('/auth/me')
-      .set('Authorization', `Bearer ${fanToken}`);
+    const meRes = await request(app).get('/auth/me').set('Authorization', `Bearer ${fanToken}`);
 
     expect(meRes.status).toBe(200);
     // The DISC-2 fix: client reads this number to decide whether the

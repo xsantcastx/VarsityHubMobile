@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let request: any;
@@ -8,10 +9,6 @@ let signJwt: any;
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
 function adultDob(): Date {
   const d = new Date();
   d.setUTCFullYear(d.getUTCFullYear() - 30);
@@ -31,7 +28,9 @@ describeDb('POST /auth/downgrade-to-fan', () => {
 
   afterAll(async () => {
     await prisma.teamMembership.deleteMany({ where: { user_id: { in: userIds } } }).catch(() => {});
-    await prisma.organizationMembership.deleteMany({ where: { user_id: { in: userIds } } }).catch(() => {});
+    await prisma.organizationMembership
+      .deleteMany({ where: { user_id: { in: userIds } } })
+      .catch(() => {});
     await prisma.organization.deleteMany({ where: { id: { in: orgIds } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: userIds } } }).catch(() => {});
   });

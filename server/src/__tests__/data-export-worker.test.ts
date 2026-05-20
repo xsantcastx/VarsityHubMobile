@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jes
 import bcrypt from 'bcrypt';
 import type { ObjectStorageAdapter } from '../lib/objectStorage.js';
 import { prisma } from '../lib/prisma.js';
+import { describeDb } from './dbTestGuard.js';
 
 class MockObjectStorageNotConfiguredError extends Error {}
 
@@ -27,11 +28,6 @@ const { processExportJob } = await import('../workers/dataExportWorker.js');
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
 function makeFakeStorage(opts: { configured?: boolean } = {}): {
   adapter: ObjectStorageAdapter;
   puts: Array<{ key: string; contentType: string; sizeBytes: number }>;
@@ -166,9 +162,11 @@ describeDb('GDPR data export — worker', () => {
     await processExportJob({
       data: { exportId: row.id, userId },
     } as any);
-    const firstKey = (await (prisma as any).dataExport.findUnique({
-      where: { id: row.id },
-    })).storage_key;
+    const firstKey = (
+      await (prisma as any).dataExport.findUnique({
+        where: { id: row.id },
+      })
+    ).storage_key;
 
     await processExportJob({
       data: { exportId: row.id, userId },

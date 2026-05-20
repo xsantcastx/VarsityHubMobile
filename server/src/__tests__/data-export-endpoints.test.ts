@@ -16,6 +16,7 @@ import bcrypt from 'bcrypt';
 import request from 'supertest';
 import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
+import { describeDb } from './dbTestGuard.js';
 
 const mockQueueDataExport = jest.fn(async () => `test-job-${Date.now()}`);
 
@@ -27,11 +28,6 @@ const { app } = await import('../testApp.js');
 
 const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
 describeDb('GDPR data export — HTTP endpoints', () => {
   let userAId: string;
   let userAToken: string;

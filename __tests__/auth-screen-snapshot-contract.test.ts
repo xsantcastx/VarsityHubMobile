@@ -1,9 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
 
-const read = (...parts: string[]) =>
-  fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+
+const collectTsTsxFiles = (...rootParts: string[]): string[] => {
+  const root = path.join(process.cwd(), ...rootParts);
+  const out: string[] = [];
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || !fs.existsSync(current)) continue;
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (!/\.(ts|tsx)$/.test(entry.name)) continue;
+      out.push(path.relative(process.cwd(), fullPath).replace(/\\/g, '/'));
+    }
+  }
+  return out;
+};
 
 describe('auth screen snapshot contract', () => {
   it('keeps inbox and thread screens on the AuthProvider snapshot path', () => {
@@ -106,12 +126,12 @@ describe('auth screen snapshot contract', () => {
   });
 
   it('limits direct User.me calls in app/hooks/context to the explicit force-refresh allowlist', () => {
-    const output = execSync(
-      "rg -l 'User\\.me\\(' app hooks context -g '*.{ts,tsx}'",
-      { cwd: process.cwd(), encoding: 'utf8' }
-    ).trim();
-
-    const matches = output ? output.split('\n').sort() : [];
+    const files = [
+      ...collectTsTsxFiles('app'),
+      ...collectTsTsxFiles('hooks'),
+      ...collectTsTsxFiles('context'),
+    ];
+    const matches = files.filter(file => /User\.me\(/.test(read(file))).sort();
 
     expect(matches).toEqual([
       'app/(tabs)/edit-profile.tsx',
