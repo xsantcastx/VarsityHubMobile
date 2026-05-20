@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const read = (...parts: string[]) =>
-  fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
+const read = (...parts: string[]) => fs.readFileSync(path.join(process.cwd(), ...parts), 'utf8');
 
 const collectTsTsxFiles = (...rootParts: string[]): string[] => {
   const root = path.join(process.cwd(), ...rootParts);
@@ -132,9 +131,7 @@ describe('auth screen snapshot contract', () => {
       ...collectTsTsxFiles('hooks'),
       ...collectTsTsxFiles('context'),
     ];
-    const matches = files
-      .filter((file) => /User\.me\(/.test(read(file)))
-      .sort();
+    const matches = files.filter(file => /User\.me\(/.test(read(file))).sort();
 
     expect(matches).toEqual([
       'app/(tabs)/edit-profile.tsx',
