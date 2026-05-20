@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let runFinalizeFromSession: (session: any) => Promise<void>;
@@ -28,11 +29,6 @@ let releaseAdInventoryAfterSlotFullRefund: (adId: string) => Promise<void>;
 let releaseAdInventoryAfterSlotFullRefundWithRetry: (adId: string) => Promise<void>;
 let recoverSlotFullRefundReleaseFailures: (referenceTime?: Date) => Promise<number>;
 let dbReady = false;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
-
 describeDb('Checkout session finalization', () => {
   const createdUserIds: string[] = [];
   const createdAdIds: string[] = [];

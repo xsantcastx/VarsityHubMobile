@@ -1,13 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { updateTransactionStatus } from '../lib/transactionLogger.js';
+import { describeDb } from './dbTestGuard.js';
 
 let prisma: any;
 let dbReady = false;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
-
 describeDb('updateTransactionStatus transaction reference coverage', () => {
   const createdIds: string[] = [];
 

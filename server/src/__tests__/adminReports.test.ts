@@ -1,11 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
 import bcrypt from 'bcrypt';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
-
+import { describeDb } from './dbTestGuard.js';
 /**
  * Unit tests for adminReports severity-gated suspension logic.
  * 
