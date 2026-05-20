@@ -47,8 +47,9 @@ All iOS purchases are presented inside the app and use Apple In-App Purchase.
 1. **Subscriptions**
    - Sign in with the demo account.
    - Open **Settings**.
-   - Open **Billing**.
-   - Tap **Manage Subscription**.
+   - Open **Billing & Plans**.
+   - Tap **View Subscription Plans** (direct path to purchase buttons).
+   - Optional: coaches can also tap **Manage Subscription**.
    - The subscription purchase buttons are:
      - **Upgrade to Veteran**
      - **Upgrade to Legend**
