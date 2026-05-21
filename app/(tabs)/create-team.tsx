@@ -81,9 +81,24 @@ function CreateTeamScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const { user: authUser, checkAuth } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ fallback?: string; orgId?: string }>();
+  const params = useLocalSearchParams<{
+    fallback?: string;
+    orgId?: string;
+    organization_id?: string;
+    organization_name?: string;
+  }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  const routeOrganizationId =
+    typeof params.orgId === 'string' && params.orgId.trim().length > 0
+      ? params.orgId.trim()
+      : typeof params.organization_id === 'string' && params.organization_id.trim().length > 0
+        ? params.organization_id.trim()
+        : null;
+  const routeOrganizationName =
+    typeof params.organization_name === 'string' && params.organization_name.trim().length > 0
+      ? params.organization_name.trim()
+      : '';
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [sport, setSport] = useState('');
@@ -123,8 +138,8 @@ function CreateTeamScreen() {
       ? params.fallback.trim()
       : selectedOrgId
         ? `/organization?id=${encodeURIComponent(selectedOrgId)}&tab=teams`
-        : typeof params.orgId === 'string' && params.orgId.trim().length > 0
-          ? `/organization?id=${encodeURIComponent(params.orgId.trim())}&tab=teams`
+        : routeOrganizationId
+          ? `/organization?id=${encodeURIComponent(routeOrganizationId)}&tab=teams`
           : '/organization?tab=teams';
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
@@ -184,6 +199,22 @@ function CreateTeamScreen() {
   useEffect(() => {
     if (selectedOrgId) return; // Already selected
     void (async () => {
+      if (routeOrganizationId) {
+        setSelectedOrgId(routeOrganizationId);
+        if (routeOrganizationName) setOrganizationName(routeOrganizationName);
+        try {
+          const { Organization } = await import('@/api/entities');
+          const org = await Organization.get(routeOrganizationId);
+          if (org?.id && org?.name) {
+            setSelectedOrgId(org.id);
+            setOrganizationName(org.name);
+          }
+        } catch {
+          // Keep the handed-off org context even if the refresh lookup fails.
+        }
+        return;
+      }
+
       try {
         const me = (await getAuthSnapshot(checkAuth, authUser)) as UserOrgPreference | null;
         const orgId = me?.preferences?.organization_id;
@@ -197,7 +228,7 @@ function CreateTeamScreen() {
         }
       } catch { /* ignore — user may not have an org yet */ }
     })();
-  }, [authUser, checkAuth, selectedOrgId]);
+  }, [authUser, checkAuth, routeOrganizationId, routeOrganizationName, selectedOrgId]);
 
   // Auto-suggest year based on season selection
   const getSuggestedYear = (seasonName: string) => {

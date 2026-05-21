@@ -59,6 +59,9 @@ describe('coach/org navigation contracts', () => {
 
   it('team creation fallback routes back to organization tools, not manage-teams', () => {
     expect(createTeam).toContain('params.fallback');
+    expect(createTeam).toContain('organization_id?: string');
+    expect(createTeam).toContain('const routeOrganizationId =');
+    expect(createTeam).toContain("typeof params.organization_id === 'string'");
     expect(createTeam).toContain("pathname: '/organization'");
     expect(createTeam).toContain("tab: 'teams'");
     expect(createTeam).not.toContain("'/(tabs)/manage-teams'");
