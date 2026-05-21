@@ -13,11 +13,18 @@ const MAX_HISTORY = 50;
 
 /** Module-level fallback for safeGoBack(router) when used outside React tree (e.g. Alert callbacks) */
 let globalGetFallback: (() => string) | null = null;
+let globalGetCurrentHref: (() => string | null) | null = null;
 export function setNavigationFallbackGetter(fn: (() => string) | null) {
   globalGetFallback = fn;
 }
 export function getNavigationFallback(): string {
   return globalGetFallback?.() ?? DEFAULT_FALLBACK;
+}
+export function setCurrentHrefGetter(fn: (() => string | null) | null) {
+  globalGetCurrentHref = fn;
+}
+export function getCurrentHref(): string | null {
+  return globalGetCurrentHref?.() ?? null;
 }
 
 type TabRoute = (typeof TAB_ROUTES)[number];
@@ -138,6 +145,11 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
     setNavigationFallbackGetter(getFallbackRoute);
     return () => setNavigationFallbackGetter(null);
   }, [getFallbackRoute]);
+
+  React.useEffect(() => {
+    setCurrentHrefGetter(() => currentHref);
+    return () => setCurrentHrefGetter(null);
+  }, [currentHref]);
 
   return (
     <NavigationHistoryContext.Provider value={value}>

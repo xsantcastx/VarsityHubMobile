@@ -933,7 +933,7 @@ export default function SettingsScreen() {
                 isLast
                 onPress={() => {
                   if (coachUpgradeCta.kind === 'resume') {
-                    router.push(coachUpgradeCta.route as any);
+                    router.replace(coachUpgradeCta.route as any);
                     return;
                   }
                   Alert.alert(
@@ -950,7 +950,7 @@ export default function SettingsScreen() {
                           ) => {
                             try {
                               if (preferredRoute && preferredRoute !== '/(tabs)') {
-                                router.push(preferredRoute as any);
+                                router.replace(preferredRoute as any);
                                 return;
                               }
                               const fresh =
@@ -979,12 +979,12 @@ export default function SettingsScreen() {
                               }
                               setPlan((prefs.plan as string | null) ?? 'rookie');
                               if (hasUsername && hasDob && hasZip) {
-                                router.push('/onboarding/coach-application' as any);
+                                router.replace('/onboarding/coach-application' as any);
                               } else {
-                                router.push('/onboarding/step-2-basic');
+                                router.replace('/onboarding/step-2-basic');
                               }
                             } catch {
-                              router.push('/onboarding/step-2-basic');
+                              router.replace('/onboarding/step-2-basic');
                             }
                           };
                           try {

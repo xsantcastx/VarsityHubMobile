@@ -2,7 +2,7 @@ import { Alert } from 'react-native';
 import { getCoachRecoveryRoute, type CoachUserLike } from './roleChecks';
 
 type NavigationTarget = {
-  push: (href: any) => void;
+  replace: (href: any) => void;
 };
 
 function getCoachAccessCode(error: any): string | null {
@@ -34,7 +34,7 @@ export function handleCoachAccessError(
       `You need to accept the coach agreement before ${actionLabel}.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
+        { text: 'Review Agreement', onPress: () => router.replace('/onboarding/coach-agreement') },
       ]
     );
     return true;
@@ -45,7 +45,7 @@ export function handleCoachAccessError(
       recoveryRoute
         ? {
             text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
-            onPress: () => router.push(recoveryRoute),
+            onPress: () => router.replace(recoveryRoute),
           }
         : null;
     Alert.alert(
@@ -61,7 +61,7 @@ export function handleCoachAccessError(
       recoveryRoute
         ? {
             text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
-            onPress: () => router.push(recoveryRoute),
+            onPress: () => router.replace(recoveryRoute),
           }
         : null;
     Alert.alert(
@@ -78,7 +78,7 @@ export function handleCoachAccessError(
       `Please complete your subscription checkout before ${actionLabel}.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
+        { text: 'Go to Billing', onPress: () => router.replace('/settings/manage-subscription') },
       ]
     );
     return true;

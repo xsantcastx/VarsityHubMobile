@@ -23,6 +23,7 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { getConfig } from '@/config/env';
+import { getCurrentHref } from '@/context/NavigationHistoryContext';
 
 // App scheme and web domain (must match app.json scheme and shared URLs)
 const APP_SCHEME = getConfig().appScheme || 'varsityhubmobile';
@@ -198,6 +199,36 @@ function buildRouteParams(type: string, queryParams: Record<string, unknown>): R
     if (typeof value === 'string') params[key] = value;
   }
   return params;
+}
+
+function normalizeHref(href: string): string {
+  const [pathnamePart, queryPart = ''] = href.split('?');
+  const params = new URLSearchParams(queryPart);
+  const sortedParams = new URLSearchParams();
+  Array.from(params.entries())
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      if (leftKey === rightKey) return leftValue.localeCompare(rightValue);
+      return leftKey.localeCompare(rightKey);
+    })
+    .forEach(([key, value]) => {
+      sortedParams.append(key, value);
+    });
+  const normalizedQuery = sortedParams.toString();
+  return normalizedQuery ? `${pathnamePart}?${normalizedQuery}` : pathnamePart;
+}
+
+function getParsedDeepLinkHref(parsed: ParsedDeepLink): string {
+  const sortedParams = new URLSearchParams();
+  Object.entries(parsed.params)
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      if (leftKey === rightKey) return leftValue.localeCompare(rightValue);
+      return leftKey.localeCompare(rightKey);
+    })
+    .forEach(([key, value]) => {
+      sortedParams.append(key, value);
+    });
+  const query = sortedParams.toString();
+  return query ? `${parsed.screen}?${query}` : parsed.screen;
 }
 
 /**
@@ -431,6 +462,12 @@ export function handleDeepLink(url: string): boolean {
   }
 
   try {
+    const currentHref = getCurrentHref();
+    const targetHref = getParsedDeepLinkHref(parsed);
+    if (currentHref && normalizeHref(currentHref) === targetHref) {
+      deepLinkLog('[DeepLinks] Skipping duplicate navigation to current route:', targetHref);
+      return true;
+    }
     router.push({
       pathname: parsed.screen as never,
       params: parsed.params,

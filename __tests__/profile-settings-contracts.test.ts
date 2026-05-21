@@ -67,6 +67,17 @@ describe('profile/settings note contracts', () => {
     expect(settingsScreen).toContain("setShowCoachBilling(coachAccess.isApprovedCoach || billingState.selected_plan !== 'rookie');");
   });
 
+  it('settings re-enters coach onboarding with replace-based handoffs so setup does not stack on top of settings', () => {
+    expect(settingsScreen).toContain("router.replace(coachUpgradeCta.route as any);");
+    expect(settingsScreen).toContain("router.replace(preferredRoute as any);");
+    expect(settingsScreen).toContain("router.replace('/onboarding/coach-application' as any);");
+    expect(settingsScreen).toContain("router.replace('/onboarding/step-2-basic');");
+    expect(settingsScreen).not.toContain("router.push(coachUpgradeCta.route as any);");
+    expect(settingsScreen).not.toContain("router.push(preferredRoute as any);");
+    expect(settingsScreen).not.toContain("router.push('/onboarding/coach-application' as any);");
+    expect(settingsScreen).not.toContain("router.push('/onboarding/step-2-basic');");
+  });
+
   it('settings keeps the private-profile toggle wired to the persisted profile_private preference', () => {
     expect(settingsScreen).toContain('profile_private: !!serverPrefs?.profile_private');
     expect(settingsScreen).toContain('value={!!prefs.profile_private}');

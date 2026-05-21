@@ -3,11 +3,11 @@ import { handleCoachAccessError } from '@/utils/coachAccess';
 
 describe('handleCoachAccessError', () => {
   const alertSpy = jest.spyOn(Alert, 'alert');
-  const router = { push: jest.fn() };
+  const router = { replace: jest.fn() };
 
   beforeEach(() => {
     alertSpy.mockClear();
-    router.push.mockReset();
+    router.replace.mockReset();
   });
 
   it('routes approval-required coaches to the league pending screen when org context exists', () => {
@@ -26,7 +26,7 @@ describe('handleCoachAccessError', () => {
     const [, , buttons] = alertSpy.mock.calls[0];
     expect(buttons?.[1]?.text).toBe('View Status');
     buttons?.[1]?.onPress?.();
-    expect(router.push).toHaveBeenCalledWith('/onboarding/league-pending-approval');
+    expect(router.replace).toHaveBeenCalledWith('/onboarding/league-pending-approval');
   });
 
   it('sends proceeding-as-fan coaches home instead of resurfacing approval status', () => {
@@ -45,7 +45,7 @@ describe('handleCoachAccessError', () => {
     const [, , buttons] = alertSpy.mock.calls[0];
     expect(buttons?.[1]?.text).toBe('Go Home');
     buttons?.[1]?.onPress?.();
-    expect(router.push).toHaveBeenCalledWith('/(tabs)');
+    expect(router.replace).toHaveBeenCalledWith('/(tabs)');
   });
 
   it('preserves the legacy generic pending route when no user context is provided', () => {
@@ -56,6 +56,6 @@ describe('handleCoachAccessError', () => {
     const [, , buttons] = alertSpy.mock.calls[0];
     expect(buttons?.[1]?.text).toBe('View Status');
     buttons?.[1]?.onPress?.();
-    expect(router.push).toHaveBeenCalledWith('/onboarding/pending-approval');
+    expect(router.replace).toHaveBeenCalledWith('/onboarding/pending-approval');
   });
 });

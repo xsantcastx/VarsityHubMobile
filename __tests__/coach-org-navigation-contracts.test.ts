@@ -24,6 +24,7 @@ const organizationJoinRequests = read('app/organization-join-requests.tsx');
 const step3League = read('app/onboarding/step-3-league.tsx');
 const mobileCommunity = read('app/(tabs)/discover/mobile-community.tsx');
 const createEntry = read('app/create.tsx');
+const coachAccess = read('utils/coachAccess.ts');
 
 describe('coach/org navigation contracts', () => {
   it('team page routes the organization button to the canonical organization tools screen', () => {
@@ -145,6 +146,16 @@ describe('coach/org navigation contracts', () => {
     expect(manageSeason).toContain("pathname: '/create-team'");
     expect(manageSeason).not.toContain("void router.push('/create-team')");
     expect(manageSeason).toContain("backFallback ?? '/organization?tab=teams'");
+  });
+
+  it('coach access recovery prompts replace blocked screens instead of stacking onboarding or billing on top', () => {
+    expect(coachAccess).toContain("replace: (href: any) => void;");
+    expect(coachAccess).toContain("router.replace('/onboarding/coach-agreement')");
+    expect(coachAccess).toContain('onPress: () => router.replace(recoveryRoute)');
+    expect(coachAccess).toContain("router.replace('/settings/manage-subscription')");
+    expect(coachAccess).not.toContain("router.push('/onboarding/coach-agreement')");
+    expect(coachAccess).not.toContain('onPress: () => router.push(recoveryRoute)');
+    expect(coachAccess).not.toContain("router.push('/settings/manage-subscription')");
   });
 
   it('event moderation and editing routes preserve a canonical return path', () => {
