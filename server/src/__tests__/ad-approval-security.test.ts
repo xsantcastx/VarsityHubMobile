@@ -183,7 +183,7 @@ describe('Ad Approval Security', () => {
     });
   }
 
-  it('allows token-based approval without an authenticated admin session', async () => {
+  it('rejects token-based approval without an authenticated admin session', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -192,11 +192,11 @@ describe('Ad Approval Security', () => {
       .query({ token })
       .send({});
 
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Ad Approved/i);
+    expect(res.status).toBe(401);
+    expect(res.text).toMatch(/Admin Sign-In Required/i);
 
     const updated = await prisma.ad.findUnique({ where: { id: ad.id } });
-    expect(updated?.status).toBe('approved');
+    expect(updated?.status).toBe('pending');
   });
 
   it('burns a tokenized approval link after the first successful POST', async () => {
@@ -206,11 +206,13 @@ describe('Ad Approval Security', () => {
     const first = await request(app)
       .post(`/ads/${ad.id}/approve`)
       .query({ token })
+      .set('Authorization', `Bearer ${verifiedAdminToken}`)
       .send({});
 
     const second = await request(app)
       .post(`/ads/${ad.id}/approve`)
       .query({ token })
+      .set('Authorization', `Bearer ${verifiedAdminToken}`)
       .send({});
 
     expect(first.status).toBe(200);
@@ -218,7 +220,7 @@ describe('Ad Approval Security', () => {
     expect(second.text).toMatch(/Link Already Used/i);
   });
 
-  it('renders a browser confirmation page for tokenized GET approval links', async () => {
+  it('requires an authenticated admin session for tokenized GET approval links', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -226,19 +228,47 @@ describe('Ad Approval Security', () => {
       .get(`/ads/${ad.id}/approve`)
       .query({ token });
 
+    expect(res.status).toBe(401);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toMatch(/Admin Sign-In Required/i);
+  });
+
+  it('renders approval confirmation for tokenized GET links with an authenticated admin session', async () => {
+    const ad = await createAd('pending');
+    const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
+
+    const res = await request(app)
+      .get(`/ads/${ad.id}/approve`)
+      .query({ token })
+      .set('Authorization', `Bearer ${verifiedAdminToken}`);
+
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');
     expect(res.text).toMatch(/Approve this ad\?/i);
     expect(res.text).toContain('Approve Ad');
   });
 
-  it('renders a browser confirmation page for tokenized GET rejection links', async () => {
+  it('requires an authenticated admin session for tokenized GET rejection links', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'reject_ad' }, '7d');
 
     const res = await request(app)
       .get(`/ads/${ad.id}/reject`)
       .query({ token });
+
+    expect(res.status).toBe(401);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toMatch(/Admin Sign-In Required/i);
+  });
+
+  it('renders rejection confirmation for tokenized GET links with an authenticated admin session', async () => {
+    const ad = await createAd('pending');
+    const token = signJwt({ adId: ad.id, action: 'reject_ad' }, '7d');
+
+    const res = await request(app)
+      .get(`/ads/${ad.id}/reject`)
+      .query({ token })
+      .set('Authorization', `Bearer ${verifiedAdminToken}`);
 
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');
@@ -261,7 +291,7 @@ describe('Ad Approval Security', () => {
     expect(res.text).not.toContain('Unauthorized');
   });
 
-  it('allows a valid token even when the requester is a verified non-admin', async () => {
+  it('rejects a valid token when the requester is a verified non-admin', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -271,11 +301,11 @@ describe('Ad Approval Security', () => {
       .set('Authorization', `Bearer ${verifiedNonAdminToken}`)
       .send({});
 
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Ad Approved/i);
+    expect(res.status).toBe(401);
+    expect(res.text).toMatch(/Admin Sign-In Required/i);
   });
 
-  it('allows a valid token even when the requester has an unverified admin session', async () => {
+  it('rejects a valid token when the requester has an unverified admin session', async () => {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
 
@@ -285,8 +315,8 @@ describe('Ad Approval Security', () => {
       .set('Authorization', `Bearer ${unverifiedAdminToken}`)
       .send({});
 
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Ad Approved/i);
+    expect(res.status).toBe(401);
+    expect(res.text).toMatch(/Admin Sign-In Required/i);
   });
 
   it('allows verified admins to approve with a valid token', async () => {
@@ -296,6 +326,7 @@ describe('Ad Approval Security', () => {
     const res = await request(app)
       .post(`/ads/${ad.id}/approve`)
       .query({ token })
+      .set('Authorization', `Bearer ${verifiedAdminToken}`)
       .send({});
 
     expect(res.status).toBe(200);
@@ -548,6 +579,7 @@ describe('Ad Approval Security', () => {
     const res = await request(app)
       .post(`/ads/${ad.id}/approve`)
       .query({ token })
+      .set('Authorization', `Bearer ${verifiedAdminToken}`)
       .send({ override_banner_flag: true, override_reason: reason });
 
     expect(res.status).toBe(200);

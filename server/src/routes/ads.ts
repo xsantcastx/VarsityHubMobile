@@ -1481,6 +1481,7 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
     const tokenPayload = token ? verifyModerationToken(token, id, 'approve_ad') : null;
+    const signedInAdmin = await getIsAdmin(req);
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
@@ -1496,6 +1497,17 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
             confirmationPage(
               'Invalid Link',
               'This approval link is invalid or has expired.',
+              false
+            )
+          );
+      }
+      if (!signedInAdmin) {
+        return res
+          .status(401)
+          .send(
+            confirmationPage(
+              'Admin Sign-In Required',
+              'You must be signed in as a verified admin to approve this ad.',
               false
             )
           );
@@ -1536,12 +1548,22 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
       }
+      if (!signedInAdmin) {
+        return res
+          .status(401)
+          .send(
+            confirmationPage(
+              'Admin Sign-In Required',
+              'You must be signed in as a verified admin to approve this ad.',
+              false
+            )
+          );
+      }
       if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
         return;
       }
     } else {
-      const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+      if (!signedInAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const body = req.body || {};
@@ -1644,6 +1666,7 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
     const tokenPayload = token ? verifyModerationToken(token, id, 'reject_ad') : null;
+    const signedInAdmin = await getIsAdmin(req);
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
@@ -1659,6 +1682,17 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
             confirmationPage(
               'Invalid Link',
               'This rejection link is invalid or has expired.',
+              false
+            )
+          );
+      }
+      if (!signedInAdmin) {
+        return res
+          .status(401)
+          .send(
+            confirmationPage(
+              'Admin Sign-In Required',
+              'You must be signed in as a verified admin to reject this ad.',
               false
             )
           );
@@ -1693,12 +1727,22 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
       }
+      if (!signedInAdmin) {
+        return res
+          .status(401)
+          .send(
+            confirmationPage(
+              'Admin Sign-In Required',
+              'You must be signed in as a verified admin to reject this ad.',
+              false
+            )
+          );
+      }
       if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
         return;
       }
     } else {
-      const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+      if (!signedInAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);

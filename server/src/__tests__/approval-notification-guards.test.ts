@@ -18,6 +18,10 @@ const games = readFileSync(
   join(process.cwd(), 'src', 'routes', 'games.ts'),
   'utf8'
 );
+const ads = readFileSync(
+  join(process.cwd(), 'src', 'routes', 'ads.ts'),
+  'utf8'
+);
 const adminReports = readFileSync(
   join(process.cwd(), 'src', 'routes', 'adminReports.ts'),
   'utf8'
@@ -92,6 +96,10 @@ describe('approval notification guards', () => {
     expect(adminReports).not.toMatch(/reviewed_by:\s*'email-token'/);
 
     expect(adminRoutes).toMatch(/if \(req\.method === 'GET'\) \{[\s\S]*if \(!signedInAdminSession\)/);
+
+    expect(ads).toMatch(/const signedInAdmin = await getIsAdmin\(req\);/);
+    expect(ads).toMatch(/You must be signed in as a verified admin to approve this ad\./);
+    expect(ads).toMatch(/You must be signed in as a verified admin to reject this ad\./);
   });
 
   it('ad approval and rejection fan out admin confirmation emails', () => {
