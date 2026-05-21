@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
@@ -356,6 +357,9 @@ function AdminAdsScreen() {
             <Text style={[styles.meta, { color: theme.mutedText }]}>
               <Ionicons name="location" size={12} /> Zip: {item.target_zip_code || 'N/A'}
             </Text>
+            <Text style={[styles.meta, { color: theme.mutedText }]}>
+              Reach: {AD_GEOFENCE_RADIUS_KM} km around target ZIP
+            </Text>
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
               <View style={[
                 styles.badgeSmall,
@@ -664,6 +668,7 @@ function AdminAdsScreen() {
               <View style={{ gap: 6, marginBottom: 16 }}>
                 <Text style={{ fontSize: 14, color: theme.mutedText }}>Contact: {detailAd?.contact_name} · {detailAd?.contact_email}</Text>
                 <Text style={{ fontSize: 14, color: theme.mutedText }}>Target Zip: {detailAd?.target_zip_code || 'N/A'}</Text>
+                <Text style={{ fontSize: 14, color: theme.mutedText }}>Reach: {AD_GEOFENCE_RADIUS_KM} km around target ZIP</Text>
                 {detailAd?.target_url ? <Text style={{ fontSize: 14, color: theme.tint }}>URL: {detailAd.target_url}</Text> : null}
               </View>
               {detailAd?.status === 'pending' && (

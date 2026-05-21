@@ -1,5 +1,6 @@
 import { Advertisement } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { flushPendingAdVerifications } from '@/hooks/useAdIAP';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -118,6 +119,12 @@ function AdConfirmationScreen() {
   const _parsedDays = parseInt(params.purchasedDays ?? '', 10);
   const purchasedDays = Number.isFinite(_parsedDays) ? _parsedDays : null;
   const bannerUrl = adDetails?.banner_url;
+  const coverageZip =
+    typeof adDetails?.target_zip_code === 'string'
+      ? adDetails.target_zip_code
+      : typeof adDetails?.zip_code === 'string'
+        ? adDetails.zip_code
+        : null;
 
   return (
     <SafeAreaView
@@ -299,6 +306,23 @@ function AdConfirmationScreen() {
                         {purchasedDays !== null
                           ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
                           : ''}
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {coverageZip && (
+                <>
+                  <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                  <View style={styles.detailRow}>
+                    <MaterialIcons name="location-on" size={24} color="#10B981" />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
+                        Coverage
+                      </Text>
+                      <Text style={[styles.detailValue, { color: theme.text }]}>
+                        {AD_GEOFENCE_RADIUS_KM} km around ZIP {coverageZip}
                       </Text>
                     </View>
                   </View>

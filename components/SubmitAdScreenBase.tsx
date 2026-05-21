@@ -128,7 +128,6 @@ export function SubmitAdScreenBase({
           banner_fit_mode: normalizeBannerFitMode(bannerFitMode),
           target_url: normalizeUrl(targetUrl) || undefined,
           target_zip_code: zip.trim(),
-          radius: AD_GEOFENCE_RADIUS_KM,
           description: sanitizeText(desc) || undefined,
         });
         serverId = String(created?.id || '');

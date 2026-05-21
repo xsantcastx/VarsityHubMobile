@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Advertisement, Payments, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAdScheduleBucket } from '@/utils/adStatusBadge';
@@ -424,7 +425,9 @@ function PaymentSuccessScreen() {
                     {adDetails.zip_code && (
                       <>
                         <Text style={[styles.cardLabel, { color: theme.mutedText, marginTop: 12 }]}>COVERAGE</Text>
-                        <Text style={[styles.cardValue, { color: theme.text }]}>Zip {adDetails.zip_code}</Text>
+                        <Text style={[styles.cardValue, { color: theme.text }]}>
+                          Zip {adDetails.zip_code} ({AD_GEOFENCE_RADIUS_KM} km reach)
+                        </Text>
                       </>
                     )}
 

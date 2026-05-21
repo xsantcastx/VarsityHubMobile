@@ -17,7 +17,7 @@ export default function SubmitAdWebScreen() {
     <SubmitAdScreenBase
       zip={zip}
       setZip={setZip}
-      showReachPreview={false}
+      showReachPreview={true}
       safeAreaEdges={['bottom']}
       respectTopInset={true}
     />

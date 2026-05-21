@@ -1,4 +1,5 @@
 import { Colors } from '@/constants/Colors';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -283,6 +284,12 @@ function MyAdsScreen() {
           <View style={styles.metaRow}>
             <MaterialIcons name="location-on" size={14} color={Colors[colorScheme].mutedText} />
             <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>Zip {item.zip_code}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <MaterialIcons name="radio-button-checked" size={12} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>
+              Reach {AD_GEOFENCE_RADIUS_KM} km around this ZIP
+            </Text>
           </View>
 
           {/* Status Badges */}
