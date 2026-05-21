@@ -3,7 +3,7 @@ import { httpGet } from '@/api/http';
 import { Advertisement as AdsApi } from '@/api/entities';
 import { BannerUpload } from '@/components/BannerUpload';
 import { ReachMapPreview } from '@/components/ReachMapPreview';
-import { AD_GEOFENCE_RADIUS_MILES } from '@/constants/adGeofencing';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { sanitizeText } from '@/utils/formUtils';
@@ -128,7 +128,7 @@ export function SubmitAdScreenBase({
           banner_fit_mode: normalizeBannerFitMode(bannerFitMode),
           target_url: normalizeUrl(targetUrl) || undefined,
           target_zip_code: zip.trim(),
-          radius: AD_GEOFENCE_RADIUS_MILES,
+          radius: AD_GEOFENCE_RADIUS_KM,
           description: sanitizeText(desc) || undefined,
         });
         serverId = String(created?.id || '');
@@ -287,7 +287,7 @@ export function SubmitAdScreenBase({
             maxLength={12}
           />
 
-          {showReachPreview ? <ReachMapPreview zipCode={zip} radiusMiles={AD_GEOFENCE_RADIUS_MILES} /> : null}
+          {showReachPreview ? <ReachMapPreview zipCode={zip} radiusKm={AD_GEOFENCE_RADIUS_KM} /> : null}
 
           <Text style={[styles.label, { color: theme.text }]}>Ad Banner *</Text>
           <BannerUpload

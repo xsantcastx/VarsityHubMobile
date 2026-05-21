@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { useAuth } from '@/context/AuthProvider';
 import Notifications from '@/utils/notifications';
+import { getCoachApprovalNotificationRoute, getCoachRecoveryRoute } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -153,8 +154,7 @@ export function NotificationTapHandler() {
           break;
 
         case 'coach_approved':
-          // Route to coach-agreement — AuthProvider will handle onboarding flow
-          pushRoute('/onboarding/coach-agreement');
+          pushRoute(getCoachApprovalNotificationRoute(user as any));
           break;
 
         case 'coach_rejected':
@@ -178,13 +178,13 @@ export function NotificationTapHandler() {
         }
 
         case 'org_approved':
-          // Route through coach-agreement first — AuthProvider will redirect if already accepted
-          pushRoute('/onboarding/coach-agreement');
+          pushRoute(getCoachApprovalNotificationRoute(user as any));
           break;
 
         case 'org_rejected':
-          // Land on league-pending-approval where the rejection reason + Try Again CTA renders
-          pushRoute('/onboarding/league-pending-approval');
+          // Reuse the auth recovery route so fan-mode users do not get shoved
+          // back into the rejected waiting screen after opting into fan mode.
+          pushRoute(getCoachRecoveryRoute(user as any) || '/onboarding/league-pending-approval');
           break;
 
         case 'event_approved':
@@ -201,10 +201,7 @@ export function NotificationTapHandler() {
           break;
 
         case 'join_request_approved': {
-          // Approved join requests are not immediately "org tools ready" if the
-          // coach has not accepted the agreement yet. Route through the
-          // continuation screen that can finish the approval flow safely.
-          pushRoute('/onboarding/coach-agreement');
+          pushRoute(getCoachApprovalNotificationRoute(user as any));
           break;
         }
 

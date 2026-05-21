@@ -1934,7 +1934,7 @@ organizationsRouter.post(
             message: true,
             created_at: true,
             user: {
-              select: { id: true, display_name: true, email: true },
+              select: { id: true, display_name: true, username: true, email: true },
             },
           },
         }),
@@ -1968,6 +1968,7 @@ organizationsRouter.post(
             ownerEmail: owner.email!,
             ownerName: owner.display_name || 'League Owner',
             coachName: joinRequest.user.display_name || 'A coach',
+            coachUsername: joinRequest.user.username || undefined,
             coachEmail: joinRequest.user.email || '',
             organizationName: organization.name,
             organizationId: organization.id,
@@ -2435,23 +2436,76 @@ ${body}
 </body></html>`;
 }
 
-function renderJoinRequestStatePage(
-  joinRequest: { status: string | null },
-  action: 'approve' | 'reject'
-) {
-  if (joinRequest.status === 'approved') {
+function renderJoinRequestDecisionButtons(status: 'approved' | 'denied') {
+  const approveStyle =
+    status === 'approved'
+      ? 'background:#16A34A;color:#fff;border:1px solid #16A34A;'
+      : 'background:#E5E7EB;color:#6B7280;border:1px solid #D1D5DB;';
+  const rejectStyle =
+    status === 'denied'
+      ? 'background:#DC2626;color:#fff;border:1px solid #DC2626;'
+      : 'background:#E5E7EB;color:#6B7280;border:1px solid #D1D5DB;';
+
+  return `<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:24px;">
+<span style="display:inline-block;padding:12px 24px;border-radius:999px;font-weight:700;${approveStyle}">Approve</span>
+<span style="display:inline-block;padding:12px 24px;border-radius:999px;font-weight:700;${rejectStyle}">Deny</span>
+</div>`;
+}
+
+function renderJoinRequestResultPage(params: {
+  status: 'approved' | 'denied';
+  coachName?: string | null;
+  coachUsername?: string | null;
+  organizationName?: string | null;
+}) {
+  const coachName = escapeHtml(params.coachName || 'This coach');
+  const username =
+    typeof params.coachUsername === 'string' && params.coachUsername.trim()
+      ? `<p style="margin:10px 0 0;color:#64748B;font-size:14px;">@${escapeHtml(params.coachUsername.trim())}</p>`
+      : '';
+  const organizationName = params.organizationName
+    ? `<p style="margin:14px 0 0;font-size:16px;color:#111827;">League: <strong>${escapeHtml(params.organizationName)}</strong></p>`
+    : '';
+
+  if (params.status === 'approved') {
     return joinReviewHtml(
-      'Already Approved',
-      '<h1>Already Approved</h1><p>This request was already approved.</p>',
-      action === 'approve' ? '#16A34A' : '#111827'
+      'Coach Approved',
+      `<h1 style="color:#16A34A">Coach Approved</h1><p><strong>${coachName}</strong> has been added to the organization.</p>${username}${organizationName}${renderJoinRequestDecisionButtons('approved')}`,
+      '#16A34A'
     );
   }
+
+  return joinReviewHtml(
+    'Request Declined',
+    `<h1 style="color:#DC2626">Request Declined</h1><p><strong>${coachName}</strong> was not approved for this organization.</p>${username}${organizationName}${renderJoinRequestDecisionButtons('denied')}`,
+    '#DC2626'
+  );
+}
+
+function renderJoinRequestStatePage(
+  joinRequest: { status: string | null },
+  action: 'approve' | 'reject',
+  details?: {
+    coachName?: string | null;
+    coachUsername?: string | null;
+    organizationName?: string | null;
+  }
+) {
+  if (joinRequest.status === 'approved') {
+    return renderJoinRequestResultPage({
+      status: 'approved',
+      coachName: details?.coachName,
+      coachUsername: details?.coachUsername,
+      organizationName: details?.organizationName,
+    });
+  }
   if (joinRequest.status === 'denied') {
-    return joinReviewHtml(
-      'Already Rejected',
-      '<h1>Already Rejected</h1><p>This request was already denied.</p>',
-      action === 'reject' ? '#16A34A' : '#DC2626'
-    );
+    return renderJoinRequestResultPage({
+      status: 'denied',
+      coachName: details?.coachName,
+      coachUsername: details?.coachUsername,
+      organizationName: details?.organizationName,
+    });
   }
   return joinReviewHtml(
     'Already Reviewed',
@@ -2768,7 +2822,7 @@ async function joinRequestEmailReviewHandler(
     joinRequest
       ? prisma.user.findUnique({
           where: { id: joinRequest.user_id },
-          select: { id: true, display_name: true, email: true },
+          select: { id: true, display_name: true, username: true, email: true },
         })
       : Promise.resolve(null),
   ]);
@@ -2796,18 +2850,13 @@ async function joinRequestEmailReviewHandler(
   }
 
   if (joinRequest.status !== 'pending') {
-    return res.send(renderJoinRequestStatePage(joinRequest, action));
-  }
-
-  if (req.method === 'GET') {
-    const verb = action === 'approve' ? 'Approve' : 'Reject';
-    const color = action === 'approve' ? '#16A34A' : '#DC2626';
-    const form = `<h2>${verb} this coach request?</h2>
-<p style="margin:16px 0"><strong>${escapeHtml(user.display_name || 'Unknown coach')}</strong> wants to join <strong>${escapeHtml(organization.name)}</strong>.</p>
-<form method="POST" action="?token=${encodeURIComponent(token)}" style="margin-top:24px">
-  <button type="submit" style="background:${color};color:#fff;border:none;padding:14px 36px;border-radius:8px;font-size:16px;cursor:pointer;font-weight:600;">${verb}</button>
-</form>`;
-    return res.send(joinReviewHtml(`${verb} Coach Request`, form));
+    return res.send(
+      renderJoinRequestStatePage(joinRequest, action, {
+        coachName: user.display_name,
+        coachUsername: user.username,
+        organizationName: organization.name,
+      })
+    );
   }
 
   const ownerMembership = await prisma.organizationMembership.findFirst({
@@ -2869,17 +2918,21 @@ async function joinRequestEmailReviewHandler(
 
   if (action === 'approve') {
     return res.send(
-      joinReviewHtml(
-        'Coach Approved',
-        `<h1 style="color:#16A34A">Coach Approved</h1><p><strong>${escapeHtml(user.display_name || 'Coach')}</strong> has been added to <strong>${escapeHtml(organization.name)}</strong>.</p>`
-      )
+      renderJoinRequestResultPage({
+        status: 'approved',
+        coachName: user.display_name || 'Coach',
+        coachUsername: user.username,
+        organizationName: organization.name,
+      })
     );
   }
   return res.send(
-    joinReviewHtml(
-      'Request Declined',
-      `<h1>Request Declined</h1><p>${escapeHtml(user.display_name || 'Coach')}'s request to join <strong>${escapeHtml(organization.name)}</strong> was declined.</p>`
-    )
+    renderJoinRequestResultPage({
+      status: 'denied',
+      coachName: user.display_name || 'Coach',
+      coachUsername: user.username,
+      organizationName: organization.name,
+    })
   );
 }
 

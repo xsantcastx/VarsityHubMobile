@@ -31,6 +31,7 @@ import { Calendar } from 'react-native-calendars';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 import { getAuthSnapshot } from '@/utils/authState';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getCoachAccessState } from '@/utils/roleChecks';
@@ -710,36 +711,8 @@ function CommunityDiscoverScreen() {
       } catch (error: any) {
         if (__DEV__) console.error('Error adding quick game:', error);
 
-        const code = error?.data?.code || error?.code;
-        if (code === 'COACH_AGREEMENT_REQUIRED') {
-          Alert.alert(
-            'Coach Agreement Required',
-            'You need to accept the coach agreement before creating games.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Review Agreement',
-                onPress: () => router.push('/onboarding/coach-agreement'),
-              },
-            ]
-          );
-        } else if (code === 'APPROVAL_REQUIRED') {
-          Alert.alert(
-            'Approval Required',
-            'Your coach account is pending approval. You can create games once a league admin approves your application.'
-          );
-        } else if (code === 'PAYMENT_REQUIRED') {
-          Alert.alert(
-            'Checkout Required',
-            'Please complete your subscription checkout before creating games.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Go to Billing',
-                onPress: () => router.push('/settings/manage-subscription'),
-              },
-            ]
-          );
+        if (handleCoachAccessError(router, error, 'creating games', user as any)) {
+          return;
         } else {
           const errorMessage = error?.data?.error || error?.message || 'Failed to add event.';
           Alert.alert('Error', errorMessage);
@@ -748,7 +721,7 @@ function CommunityDiscoverScreen() {
         setIsCreatingGame(false);
       }
     },
-    [load, isCreatingGame, router]
+    [load, isCreatingGame, router, user]
   );
 
   const filtered = useMemo(() => {

@@ -1943,6 +1943,7 @@ async function sendJoinRequestAdminTemplate(params: {
   leagueName: string;
   /** Name shown in the "Coach" row of the email (the person being reviewed). */
   requesterName: string;
+  requesterUsername?: string;
   /** Contact email of the requester — shown or linked in the request details. */
   requesterEmail: string;
   /** Only platform-admin review flows should expose the requester's email. */
@@ -1981,6 +1982,7 @@ async function sendJoinRequestAdminTemplate(params: {
       ...getCommonTemplateData(),
       // Canonical keys that match join-request-admin.html
       requester_name: params.requesterName,
+      requester_username: params.requesterUsername || '',
       org_name: params.leagueName,
       admin_name: params.adminName || 'Admin',
       approve_url: params.approveUrl || '',
@@ -2226,6 +2228,7 @@ export async function sendCoachJoinRequestEmail(params: {
   ownerEmail: string;
   ownerName: string;
   coachName: string;
+  coachUsername?: string;
   coachEmail: string;
   organizationName: string;
   organizationId: string;
@@ -2245,6 +2248,7 @@ export async function sendCoachJoinRequestEmail(params: {
       subject,
       leagueName: params.organizationName,
       requesterName: params.coachName,
+      requesterUsername: params.coachUsername,
       requesterEmail: params.coachEmail,
       adminName: params.ownerName,
       sport: 'N/A',
@@ -2277,6 +2281,7 @@ export async function sendCoachJoinRequestEmail(params: {
 export async function sendCoachApplicationAdminEmail(params: {
   to: string;
   applicantName: string;
+  applicantUsername?: string;
   applicantEmail: string;
   applicantUserId?: string;
   organizationName?: string;
@@ -2290,6 +2295,7 @@ export async function sendCoachApplicationAdminEmail(params: {
     subject: `New coach application: ${params.applicantName}`,
     leagueName: params.organizationName || 'VarsityHub Coach Application',
     requesterName: params.applicantName,
+    requesterUsername: params.applicantUsername,
     requesterEmail: params.applicantEmail,
     adminName: 'Admin',
     sport: 'N/A',
@@ -2305,8 +2311,9 @@ export async function sendEventPendingReviewEmail(params: {
   to: string;
   reviewerName?: string;
   requesterName?: string;
-    requesterEmail?: string;
-    eventTitle: string;
+  requesterUsername?: string;
+  requesterEmail?: string;
+  eventTitle: string;
   eventType?: string;
   teamName?: string;
   reviewId: string;
@@ -2342,6 +2349,7 @@ export async function sendEventPendingReviewEmail(params: {
       subject,
       leagueName: params.teamName || 'VarsityHub Event Review',
       requesterName: params.requesterName || 'VarsityHub User',
+      requesterUsername: params.requesterUsername,
       requesterEmail: params.requesterEmail || '',
       adminName: params.reviewerName || 'Reviewer',
       sport: params.eventType || 'Event',

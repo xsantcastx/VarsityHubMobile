@@ -12,7 +12,7 @@ import { httpPost } from '@/api/http';
 import { format } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
-import { AD_GEOFENCE_RADIUS_MILES } from '@/constants/adGeofencing';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement, Payments } from '@/api/entities';
@@ -870,7 +870,7 @@ function AdCalendarScreen() {
               <Text style={[styles.cardTitle, { color: theme.text }]}>Coverage Area</Text>
             </View>
             <Text style={{ color: theme.text, fontSize: 14 }}>
-              Your ad will reach approximately <Text style={{ fontWeight: '700' }}>{AD_GEOFENCE_RADIUS_MILES} miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>. Booking remains reserved for this exact zip code.
+              Your ad will reach approximately <Text style={{ fontWeight: '700' }}>{AD_GEOFENCE_RADIUS_KM} km</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>. Booking remains reserved for this exact zip code.
             </Text>
           </View>
         )}

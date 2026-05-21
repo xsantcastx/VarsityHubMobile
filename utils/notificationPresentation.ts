@@ -1,3 +1,9 @@
+import {
+  getCoachApprovalNotificationRoute,
+  getCoachRecoveryRoute,
+  type CoachUserLike,
+} from './roleChecks';
+
 type NotificationActor = {
   id?: string | null;
   username?: string | null;
@@ -145,6 +151,10 @@ export function getNotificationSubtitle(item: NotificationItem) {
 }
 
 export function getNotificationHref(item: NotificationItem): any | null {
+  return getNotificationHrefForUser(item, null);
+}
+
+export function getNotificationHrefForUser(item: NotificationItem, user: CoachUserLike | null | undefined): any | null {
   const type = String(item.type || '');
 
   if ((type === 'FOLLOW' || type === 'FOLLOW_REQUEST') && item.actor?.id) {
@@ -167,9 +177,7 @@ export function getNotificationHref(item: NotificationItem): any | null {
     return '/organization?tab=requests';
   }
   if (type === 'TEAM_INVITE' && item.meta?.coach_approved) {
-    // Coach approval still requires the agreement gate before any coach-tool
-    // route is safe. Send the user through the dedicated continuation screen.
-    return '/onboarding/coach-agreement';
+    return getCoachApprovalNotificationRoute(user);
   }
   if (type === 'TEAM_INVITE') {
     return '/team-invites';
@@ -184,20 +192,15 @@ export function getNotificationHref(item: NotificationItem): any | null {
     return `/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}`;
   }
   if (type === 'ORG_APPROVED') {
-    // Route through coach-agreement — AuthProvider forwards if already
-    // accepted. `/role-onboarding` (the previous target) is the role/tier
-    // selection flow for new users, not the continuation path for an
-    // approved coach. See components/NotificationTapHandler.tsx for the
-    // push-tap side that this now matches.
-    return '/onboarding/coach-agreement';
+    return getCoachApprovalNotificationRoute(user);
   }
   if (type === 'ORG_REJECTED') {
-    return '/onboarding/league-pending-approval';
+    return getCoachRecoveryRoute(user) || '/onboarding/league-pending-approval';
   }
   if (type === 'JOIN_REQUEST_APPROVED') {
     return item.meta?.denied
       ? '/(tabs)'
-      : '/onboarding/coach-agreement';
+      : getCoachApprovalNotificationRoute(user);
   }
   if (type === 'JOIN_REQUEST_DENIED') {
     return '/(tabs)';

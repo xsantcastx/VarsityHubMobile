@@ -32,6 +32,26 @@ describe('getCoachUpgradeCta', () => {
     });
   });
 
+  it('hides the CTA when a pending coach chose to continue as fan', () => {
+    expect(
+      getCoachUpgradeCta({
+        role: 'coach',
+        approval_status: 'PENDING',
+        preferences: { role: 'coach', proceeding_as_fan: true, organization_id: 'org_123' },
+      })
+    ).toBeNull();
+  });
+
+  it('hides the CTA when a rejected coach is already proceeding as fan', () => {
+    expect(
+      getCoachUpgradeCta({
+        role: 'coach',
+        approval_status: 'REJECTED',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      })
+    ).toBeNull();
+  });
+
   it('routes rejected coaches back into coach recovery instead of hiding the pathway', () => {
     expect(
       getCoachUpgradeCta({

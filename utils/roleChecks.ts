@@ -356,3 +356,24 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
 
   return null;
 }
+
+export function getCoachApprovalNotificationRoute(user: CoachUserLike | null | undefined): string {
+  if (!user) {
+    return '/onboarding/coach-agreement';
+  }
+
+  if (user.is_admin === true) {
+    return '/(tabs)';
+  }
+
+  if (user.preferences?.proceeding_as_fan === true) {
+    return '/(tabs)';
+  }
+
+  const coachAccess = getCoachAccessState(user);
+  if (coachAccess.hasAcceptedCoachAgreement) {
+    return getCoachOrganizationId(user) ? '/organization' : '/(tabs)';
+  }
+
+  return '/onboarding/coach-agreement';
+}

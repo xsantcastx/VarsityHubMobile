@@ -45,6 +45,11 @@ export function useRequireCoach() {
       return;
     }
 
+    if (coachAccess.isProceedingAsFan) {
+      router.replace('/(tabs)');
+      return;
+    }
+
     if (coachAccess.needsPaidPlanCheckout) {
       const recoveryRoute = getCoachRecoveryRoute(coachUser);
       if (recoveryRoute) {

@@ -1,87 +1,106 @@
-/**
- * Tests for the coach approval flow logic.
- * Validates the critical state transitions that were causing navigation loops.
- */
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getCoachApprovalNotificationRoute } from '@/utils/roleChecks';
 
 describe('Coach approval flow', () => {
-  // Simulates the AuthProvider routing logic
-  const getRouteTarget = (user: {
-    approval_status: string;
-    preferences: {
-      role?: string;
-      onboarding_completed?: boolean;
-      proceeding_as_fan?: boolean;
-      coach_agreement_accepted_at?: string;
-    };
-  }) => {
-    const prefs = user.preferences;
-    const isPendingCoach = prefs.role === 'coach' && user.approval_status === 'PENDING';
-    const isApprovedProceedingAsFan = user.approval_status === 'APPROVED' && prefs.proceeding_as_fan === true;
-    const isCoachWithoutAgreement = prefs.role === 'coach' && user.approval_status === 'APPROVED' && !prefs.coach_agreement_accepted_at;
-    const needsOnboarding = prefs.onboarding_completed !== true;
-
-    if (isPendingCoach) return '/onboarding/pending-approval';
-    if (isApprovedProceedingAsFan) return '/onboarding/coach-agreement';
-    if (isCoachWithoutAgreement) return '/onboarding/coach-agreement';
-    if (needsOnboarding) return '/onboarding/step-1-role';
-    return '/(tabs)';
-  };
-
-  it('routes pending coach to pending-approval', () => {
-    expect(getRouteTarget({
+  it('routes pending coaches to the pending-approval screen', () => {
+    const decision = getPostAuthRouteDecision({
+      email_verified: true,
       approval_status: 'PENDING',
-      preferences: { role: 'coach', onboarding_completed: true, proceeding_as_fan: true },
-    })).toBe('/onboarding/pending-approval');
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        join_request_pending: true,
+      },
+    } as any);
+
+    expect(decision.route).toBe('/onboarding/pending-approval');
   });
 
-  it('routes approved coach with proceeding_as_fan to coach-agreement', () => {
-    expect(getRouteTarget({
+  it('routes freshly approved coaches into the app instead of forcing coach-agreement', () => {
+    const decision = getPostAuthRouteDecision({
+      email_verified: true,
       approval_status: 'APPROVED',
-      preferences: { role: 'coach', onboarding_completed: true, proceeding_as_fan: true },
-    })).toBe('/onboarding/coach-agreement');
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        proceeding_as_fan: false,
+      },
+    } as any);
+
+    expect(decision.route).toBe('/(tabs)');
   });
 
-  it('routes approved coach after proceeding_as_fan cleared to coach-agreement (no agreement yet)', () => {
-    expect(getRouteTarget({
+  it('routes approved coaches who were previously proceeding as fan into the app', () => {
+    const decision = getPostAuthRouteDecision({
+      email_verified: true,
       approval_status: 'APPROVED',
-      preferences: { role: 'coach', onboarding_completed: true, proceeding_as_fan: false },
-    })).toBe('/onboarding/coach-agreement');
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        proceeding_as_fan: true,
+      },
+    } as any);
+
+    expect(decision.route).toBe('/(tabs)');
   });
 
-  it('routes approved coach with agreement to main app', () => {
-    expect(getRouteTarget({
-      approval_status: 'APPROVED',
-      preferences: { role: 'coach', onboarding_completed: true, proceeding_as_fan: false, coach_agreement_accepted_at: '2026-01-01' },
-    })).toBe('/(tabs)');
+  it('keeps approval notifications on coach-agreement only while agreement acceptance is still missing', () => {
+    expect(
+      getCoachApprovalNotificationRoute({
+        approval_status: 'APPROVED',
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+        },
+      } as any)
+    ).toBe('/onboarding/coach-agreement');
+
+    expect(
+      getCoachApprovalNotificationRoute({
+        approval_status: 'APPROVED',
+        organization_id: 'org_123',
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          organization_id: 'org_123',
+          coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+        },
+      } as any)
+    ).toBe('/organization');
   });
 
-  it('BUG FIX: completeOnboarding must include proceeding_as_fan: false', () => {
-    // This is the payload that pending-approval.tsx sends after detecting approval
+  it('completeOnboarding payload must clear proceeding_as_fan when approval is granted', () => {
     const payload = {
       role: 'coach',
-      proceeding_as_fan: false, // <-- This was missing before the fix
+      proceeding_as_fan: false,
       username: 'test_coach',
       dob: '1990-01-01',
     };
+
     expect(payload.proceeding_as_fan).toBe(false);
   });
 
-  it('BUG FIX: checkAuth must be called before navigating from pending-approval', () => {
-    // After approval detected, AuthProvider has stale state (PENDING).
-    // Without checkAuth(), navigating to coach-agreement triggers
-    // AuthProvider to redirect back to pending-approval (loop).
-    const staleUser = {
-      approval_status: 'PENDING', // stale — not refreshed
-      preferences: { role: 'coach', onboarding_completed: true, proceeding_as_fan: true },
-    };
-    // With stale state, routing sends back to pending-approval
-    expect(getRouteTarget(staleUser)).toBe('/onboarding/pending-approval');
+  it('fresh auth state after approval resolves to app home instead of the stale pending route', () => {
+    const staleDecision = getPostAuthRouteDecision({
+      email_verified: true,
+      approval_status: 'PENDING',
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        join_request_pending: true,
+      },
+    } as any);
+    expect(staleDecision.route).toBe('/onboarding/pending-approval');
 
-    // After checkAuth(), state is fresh
-    const freshUser = {
-      approval_status: 'APPROVED', // refreshed from server
-      preferences: { role: 'coach', onboarding_completed: true, proceeding_as_fan: false },
-    };
-    expect(getRouteTarget(freshUser)).toBe('/onboarding/coach-agreement');
+    const freshDecision = getPostAuthRouteDecision({
+      email_verified: true,
+      approval_status: 'APPROVED',
+      preferences: {
+        role: 'coach',
+        onboarding_completed: true,
+        proceeding_as_fan: false,
+      },
+    } as any);
+    expect(freshDecision.route).toBe('/(tabs)');
   });
 });

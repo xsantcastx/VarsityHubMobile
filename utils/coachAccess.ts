@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import { getCoachRecoveryRoute, type CoachUserLike } from './roleChecks';
 
 type NavigationTarget = {
   push: (href: any) => void;
@@ -21,9 +22,11 @@ function getCoachAccessCode(error: any): string | null {
 export function handleCoachAccessError(
   router: NavigationTarget,
   error: any,
-  actionLabel: string
+  actionLabel: string,
+  user?: CoachUserLike | null
 ): boolean {
   const code = getCoachAccessCode(error);
+  const recoveryRoute = user === undefined ? '/onboarding/pending-approval' : getCoachRecoveryRoute(user);
 
   if (code === 'COACH_AGREEMENT_REQUIRED') {
     Alert.alert(
@@ -38,25 +41,33 @@ export function handleCoachAccessError(
   }
 
   if (code === 'APPROVAL_REQUIRED') {
+    const statusAction =
+      recoveryRoute
+        ? {
+            text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
+            onPress: () => router.push(recoveryRoute),
+          }
+        : null;
     Alert.alert(
       'Approval Required',
       'Your coach account is pending approval. You can continue once a league admin approves it.',
-      [
-        { text: 'OK' },
-        { text: 'View Status', onPress: () => router.push('/onboarding/pending-approval') },
-      ]
+      [{ text: 'OK' }, ...(statusAction ? [statusAction] : [])]
     );
     return true;
   }
 
   if (code === 'APPROVAL_REJECTED') {
+    const statusAction =
+      recoveryRoute
+        ? {
+            text: recoveryRoute === '/(tabs)' ? 'Go Home' : 'View Status',
+            onPress: () => router.push(recoveryRoute),
+          }
+        : null;
     Alert.alert(
       'Approval Rejected',
       'Your coach application was rejected. Contact support if you need help reapplying.',
-      [
-        { text: 'OK' },
-        { text: 'View Status', onPress: () => router.push('/onboarding/pending-approval') },
-      ]
+      [{ text: 'OK' }, ...(statusAction ? [statusAction] : [])]
     );
     return true;
   }

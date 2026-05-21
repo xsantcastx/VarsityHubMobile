@@ -88,6 +88,24 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     expect(mockReplace.mock.calls[0][0]).toMatch(/pending-approval$/);
   });
 
+  it('pending coach proceeding as fan routes to /(tabs), not pending-approval', () => {
+    mockUseAuth.mockReturnValue({
+      loading: false,
+      user: {
+        id: 'user-1b',
+        is_admin: false,
+        role: 'coach',
+        approval_status: 'PENDING',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      },
+    });
+
+    renderHook(() => useRequireCoach());
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+  });
+
   it('non-admin PENDING coach still routes to pending-approval (behavior preserved)', () => {
     mockUseAuth.mockReturnValue({
       loading: false,
@@ -104,6 +122,24 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
 
     expect(mockReplace).toHaveBeenCalledTimes(1);
     expect(mockReplace.mock.calls[0][0]).toMatch(/pending-approval$/);
+  });
+
+  it('rejected coach proceeding as fan routes to /(tabs), not pending-approval', () => {
+    mockUseAuth.mockReturnValue({
+      loading: false,
+      user: {
+        id: 'user-2b',
+        is_admin: false,
+        role: 'coach',
+        approval_status: 'REJECTED',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      },
+    });
+
+    renderHook(() => useRequireCoach());
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
   });
 
   it('approved coach is not redirected after approval even without an agreement', () => {

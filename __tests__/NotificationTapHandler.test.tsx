@@ -148,4 +148,51 @@ describe('NotificationTapHandler', () => {
       expect(mockPush).toHaveBeenCalledWith('/onboarding/coach-agreement');
     });
   });
+
+  it('routes coach_approved notifications to organization when the agreement was already accepted', async () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user_1',
+        approval_status: 'APPROVED',
+        organization_id: 'org_123',
+        preferences: {
+          role: 'coach',
+          organization_id: 'org_123',
+          coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+        },
+      },
+      loading: false,
+      hasSession: true,
+    });
+
+    render(<NotificationTapHandler />);
+    expect(listener).toBeTruthy();
+
+    listener?.(makeResponse('coach_approved', { organization_id: 'org_123' }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/organization');
+    });
+  });
+
+  it('routes org_rejected notifications to tabs for coaches proceeding as fans', async () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user_1',
+        approval_status: 'REJECTED',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      },
+      loading: false,
+      hasSession: true,
+    });
+
+    render(<NotificationTapHandler />);
+    expect(listener).toBeTruthy();
+
+    listener?.(makeResponse('org_rejected', { organization_id: 'org_123' }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/(tabs)');
+    });
+  });
 });

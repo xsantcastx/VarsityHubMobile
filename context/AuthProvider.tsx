@@ -1083,6 +1083,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       const serverSaysIncomplete = !isOnboardingComplete(user);
       const needsOnboarding = serverSaysIncomplete && !coachAccess.isProceedingAsFan;
       const isOnAgreementScreen = currentPath.includes('coach-agreement');
+      const needsCoachAgreementAcceptance =
+        isOnAgreementScreen && !hasAcceptedCoachAgreement(user as any);
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (
@@ -1107,7 +1109,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         firstSegment === 'onboarding' &&
         !isPendingCoach &&
         !isOnPendingScreen &&
-        !isOnAgreementScreen
+        !needsCoachAgreementAcceptance
       ) {
         if (__DEV__)
           console.log('[AuthProvider] User completed onboarding, redirecting to main app');

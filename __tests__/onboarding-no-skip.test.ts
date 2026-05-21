@@ -176,6 +176,11 @@ describe('onboarding flow — no screens can be skipped', () => {
     it('AuthProvider no longer checks agreement state before routing approved coaches to tabs', () => {
       expect(authProvider).not.toMatch(/hasCurrentCoachAgreement\(/);
     });
+
+    it('AuthProvider only keeps coach-agreement mounted while acceptance is still missing', () => {
+      expect(authProvider).toMatch(/const needsCoachAgreementAcceptance =[\s\S]*!hasAcceptedCoachAgreement\(user as any\)/);
+      expect(authProvider).toMatch(/!needsCoachAgreementAcceptance/);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────────────

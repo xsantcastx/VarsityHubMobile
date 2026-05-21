@@ -1,5 +1,5 @@
-export const AD_GEOFENCE_RADIUS_MILES = 9;
-export const AD_GEOFENCE_RADIUS_KM = Number((AD_GEOFENCE_RADIUS_MILES * 1.60934).toFixed(3));
+export const AD_GEOFENCE_RADIUS_KM = 9;
+export const AD_GEOFENCE_RADIUS_MILES = Number((AD_GEOFENCE_RADIUS_KM / 1.60934).toFixed(3));
 
 export function getAdBoundingBoxDegrees(latitude: number, paddingMultiplier: number = 1.15) {
   const paddedRadiusMiles = AD_GEOFENCE_RADIUS_MILES * paddingMultiplier;

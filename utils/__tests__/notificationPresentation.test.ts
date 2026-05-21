@@ -19,6 +19,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   getNotificationActorLabel,
   getNotificationHref,
+  getNotificationHrefForUser,
   getNotificationSubtitle,
   getNotificationTitle,
   isSystemNotification,
@@ -159,12 +160,53 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/onboarding/coach-agreement');
   });
 
+  it('ORG_APPROVED sends coaches with an accepted agreement to organization', () => {
+    const href = getNotificationHrefForUser(
+      { type: 'ORG_APPROVED' },
+      {
+        approval_status: 'APPROVED',
+        organization_id: 'org-1',
+        preferences: {
+          role: 'coach',
+          organization_id: 'org-1',
+          coach_agreement_accepted_at: '2026-01-01T00:00:00.000Z',
+        },
+      } as any
+    );
+    expect(href).toBe('/organization');
+  });
+
+  it('ORG_REJECTED sends proceeding-as-fan coaches to tabs instead of the rejection screen', () => {
+    const href = getNotificationHrefForUser(
+      { type: 'ORG_REJECTED' },
+      {
+        approval_status: 'REJECTED',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      } as any
+    );
+    expect(href).toBe('/(tabs)');
+  });
+
   it('JOIN_REQUEST_APPROVED → coach-agreement continuation', () => {
     const href = getNotificationHref({
       type: 'JOIN_REQUEST_APPROVED',
       meta: { organization_id: 'org-1' },
     });
     expect(href).toBe('/onboarding/coach-agreement');
+  });
+
+  it('JOIN_REQUEST_APPROVED sends proceeding-as-fan coaches to tabs', () => {
+    const href = getNotificationHrefForUser(
+      {
+        type: 'JOIN_REQUEST_APPROVED',
+        meta: { organization_id: 'org-1' },
+      },
+      {
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      } as any
+    );
+    expect(href).toBe('/(tabs)');
   });
 
   it('JOIN_REQUEST_APPROVED with denied flag → tabs (legacy denial shape)', () => {

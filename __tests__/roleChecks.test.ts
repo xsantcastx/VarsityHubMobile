@@ -15,6 +15,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   getCoachAccessState,
+  getCoachApprovalNotificationRoute,
   getCoachRecoveryRoute,
   getPendingCoachRoute,
   isOrganizationAdminMember,
@@ -216,6 +217,35 @@ describe('getPendingCoachRoute', () => {
   it('defaults to /onboarding/pending-approval for missing preferences', () => {
     expect(getPendingCoachRoute({} as any)).toBe('/onboarding/pending-approval');
     expect(getPendingCoachRoute(null)).toBe('/onboarding/pending-approval');
+  });
+});
+
+describe('getCoachApprovalNotificationRoute', () => {
+  it('defaults to coach-agreement when there is no user context', () => {
+    expect(getCoachApprovalNotificationRoute(null)).toBe('/onboarding/coach-agreement');
+  });
+
+  it('sends proceeding-as-fan users to tabs instead of reopening coach-agreement', () => {
+    expect(
+      getCoachApprovalNotificationRoute({
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      })
+    ).toBe('/(tabs)');
+  });
+
+  it('sends coaches with an accepted agreement to organization instead of coach-agreement', () => {
+    expect(
+      getCoachApprovalNotificationRoute({
+        approval_status: 'APPROVED',
+        organization_id: 'org_123',
+        preferences: {
+          role: 'coach',
+          organization_id: 'org_123',
+          coach_agreement_accepted_at: new Date().toISOString(),
+        },
+      })
+    ).toBe('/organization');
   });
 });
 

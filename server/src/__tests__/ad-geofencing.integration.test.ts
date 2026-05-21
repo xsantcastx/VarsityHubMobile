@@ -57,7 +57,7 @@ describeDb('Ad geofencing integration', () => {
         target_lat: origin.lat + 0.08,
         target_lng: origin.lng,
         radius: 9,
-        description: 'Inside the 9 mile radius',
+        description: 'Inside the 9 km radius',
         status: 'active',
         payment_status: 'paid',
         reservations: {
@@ -80,7 +80,7 @@ describeDb('Ad geofencing integration', () => {
         target_lat: origin.lat + 0.15,
         target_lng: origin.lng,
         radius: 9,
-        description: 'Outside the 9 mile radius',
+        description: 'Outside the 9 km radius',
         status: 'active',
         payment_status: 'paid',
         reservations: {
@@ -149,7 +149,7 @@ describeDb('Ad geofencing integration', () => {
     }).catch(() => {});
   });
 
-  it('returns only ads within the 9 mile radius from the viewer in /ads/for-feed', async () => {
+  it('returns only ads within the 9 km radius from the viewer in /ads/for-feed', async () => {
     const res = await request(app)
       .get('/ads/for-feed')
       .set('Authorization', `Bearer ${viewerToken}`)
@@ -166,7 +166,7 @@ describeDb('Ad geofencing integration', () => {
     expect(businessNames).not.toContain(`Outside Radius ${ts}`);
   });
 
-  it('returns only ads within the 9 mile radius from the viewer in /feed/bundle', async () => {
+  it('returns only ads within the 9 km radius from the viewer in /feed/bundle', async () => {
     const res = await request(app)
       .get('/feed/bundle')
       .set('Authorization', `Bearer ${viewerToken}`)

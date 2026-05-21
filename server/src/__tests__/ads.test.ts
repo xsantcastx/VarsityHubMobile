@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AD_GEOFENCE_RADIUS_MILES } from '../lib/adGeofencing.js';
+import { AD_GEOFENCE_RADIUS_KM, AD_GEOFENCE_RADIUS_MILES } from '../lib/adGeofencing.js';
 
 const adsRouteSource = readFileSync(join(process.cwd(), 'src', 'routes', 'ads.ts'), 'utf8');
 
@@ -34,8 +34,8 @@ describe('Advertisements', () => {
       expect(ad.target_zip_code).toMatch(/^\d{5}$/);
     });
 
-    it('should have a fixed 9 mile ad radius', () => {
-      expect(AD_GEOFENCE_RADIUS_MILES).toBe(9);
+    it('should have a fixed 9 km ad radius', () => {
+      expect(AD_GEOFENCE_RADIUS_KM).toBe(9);
     });
   });
 
@@ -81,7 +81,7 @@ describe('Advertisements', () => {
       });
     });
 
-    it('should validate radius in miles', () => {
+    it('should derive a positive mile radius from the shared 9 km source of truth', () => {
       const radius = AD_GEOFENCE_RADIUS_MILES;
       expect(radius).toBeGreaterThan(0);
       expect(radius).toBeLessThanOrEqual(250);

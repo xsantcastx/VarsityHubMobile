@@ -4,19 +4,19 @@
  */
 
 import { Colors } from '@/constants/Colors';
-import { AD_GEOFENCE_RADIUS_MILES } from '@/constants/adGeofencing';
+import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface ReachMapPreviewProps {
   zipCode: string;
-  radiusMiles?: number;
+  radiusKm?: number;
 }
 
 export function ReachMapPreview({
   zipCode,
-  radiusMiles = AD_GEOFENCE_RADIUS_MILES,
+  radiusKm = AD_GEOFENCE_RADIUS_KM,
 }: ReachMapPreviewProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
@@ -28,7 +28,7 @@ export function ReachMapPreview({
           Map Preview
         </Text>
         <Text style={[styles.description, { color: Colors[colorScheme].mutedText }]}>
-          Your ad will reach users within {radiusMiles} miles of ZIP code {zipCode}. Booking stays tied to this ZIP code.
+          Your ad will reach users within {radiusKm} km of ZIP code {zipCode}. Booking stays tied to this ZIP code.
         </Text>
         <Text style={[styles.note, { color: Colors[colorScheme].mutedText }]}>
           Interactive maps are available on the mobile app

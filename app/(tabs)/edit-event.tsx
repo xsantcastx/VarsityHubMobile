@@ -1,5 +1,6 @@
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Event } from '@/api/entities';
 
 export default function EditEventScreen() {
+  const { user } = useAuth();
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const { id, fallback } = useLocalSearchParams<{ id?: string; fallback?: string }>();
@@ -67,7 +69,7 @@ export default function EditEventScreen() {
         }
       }
     } catch (e: any) {
-      if (handleCoachAccessError(router, e, 'editing events')) {
+      if (handleCoachAccessError(router, e, 'editing events', user)) {
         return;
       }
       if (__DEV__) console.error('[edit-event] Failed to load event:', e);
@@ -228,7 +230,7 @@ export default function EditEventScreen() {
         { text: 'OK', onPress: () => safeGoBack(router, backFallback) },
       ]);
     } catch (e: any) {
-      if (handleCoachAccessError(router, e, 'editing events')) {
+      if (handleCoachAccessError(router, e, 'editing events', user)) {
         return;
       }
       if (__DEV__) console.error('[edit-event] Update failed:', e);

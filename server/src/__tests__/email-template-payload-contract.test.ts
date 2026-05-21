@@ -274,6 +274,7 @@ describe('SendGrid template payload contract', () => {
     expect(result).toBe(true);
     const payload = mockSend.mock.calls[0]![0] as any;
     expectAllVarsCovered(getTemplateVars('join-request-admin.html'), payload.templateData);
+    expect(payload.templateData.requester_username).toBe('');
     expect(payload.templateData.requester_email).toBe('');
     expect(payload.templateData.owner_email).toBe('');
   });
@@ -302,6 +303,7 @@ describe('SendGrid template payload contract', () => {
       ownerEmail: 'owner@example.com',
       ownerName: 'League Owner',
       coachName: 'Pending Coach',
+      coachUsername: 'pending_coach',
       coachEmail: 'coach@example.com',
       organizationName: 'Westhill Athletics',
       organizationId: 'org_123',
@@ -312,6 +314,7 @@ describe('SendGrid template payload contract', () => {
     });
     expect(result).toBe(true);
     const payload = mockSend.mock.calls[0]![0] as any;
+    expect(payload.templateData.requester_username).toBe('pending_coach');
     expect(payload.templateData.coach_email ?? '').toBe('');
   });
 

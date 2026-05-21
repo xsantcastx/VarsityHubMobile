@@ -1,6 +1,7 @@
 import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -87,6 +88,7 @@ interface PlayoffMatchup {
 }
 
 function ManageSeasonScreen() {
+  const { user } = useAuth();
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
@@ -178,7 +180,7 @@ function ManageSeasonScreen() {
           });
       }
     } catch (error) {
-      if (handleCoachAccessError(router, error, 'managing your season')) {
+      if (handleCoachAccessError(router, error, 'managing your season', user)) {
         return;
       }
       if (__DEV__) console.error('Error loading team:', error);
@@ -236,7 +238,7 @@ function ManageSeasonScreen() {
 
       setGames(convertedGames);
     } catch (error) {
-      if (handleCoachAccessError(router, error, 'managing your season')) {
+      if (handleCoachAccessError(router, error, 'managing your season', user)) {
         return;
       }
       if (__DEV__) console.error('Error loading games:', error);
@@ -495,7 +497,7 @@ function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             } catch (error) {
-              if (handleCoachAccessError(router, error, 'deleting games')) {
+              if (handleCoachAccessError(router, error, 'deleting games', user)) {
                 return;
               }
               setActionModal({
@@ -541,7 +543,7 @@ function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             } catch (err: any) {
-              if (handleCoachAccessError(router, err, 'updating game status')) {
+              if (handleCoachAccessError(router, err, 'updating game status', user)) {
                 return;
               }
               setActionModal({
@@ -625,7 +627,7 @@ function ManageSeasonScreen() {
                   options: [{ label: 'OK', onPress: () => {}, color: undefined }],
                 });
               } catch (error: any) {
-                if (handleCoachAccessError(router, error, 'saving game scores')) {
+                if (handleCoachAccessError(router, error, 'saving game scores', user)) {
                   return;
                 }
                 setActionModal({
@@ -674,7 +676,7 @@ function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {} }],
       });
     } catch (error: any) {
-      if (handleCoachAccessError(router, error, 'approving games')) {
+      if (handleCoachAccessError(router, error, 'approving games', user)) {
         return;
       }
       if (__DEV__) console.error('Error approving game:', error);
@@ -709,7 +711,7 @@ function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {} }],
               });
             } catch (error: any) {
-              if (handleCoachAccessError(router, error, 'rejecting games')) {
+              if (handleCoachAccessError(router, error, 'rejecting games', user)) {
                 return;
               }
               if (__DEV__) console.error('Error rejecting game:', error);
@@ -918,7 +920,7 @@ function ManageSeasonScreen() {
       setShowQuickAddModal(false);
       setEditingGame(null);
     } catch (error: any) {
-      if (handleCoachAccessError(router, error, isEditing ? 'updating games' : 'creating games')) {
+      if (handleCoachAccessError(router, error, isEditing ? 'updating games' : 'creating games', user)) {
         return;
       }
       if (__DEV__) console.error('Error adding quick game:', error);
@@ -985,7 +987,7 @@ function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     } catch (error) {
-      if (handleCoachAccessError(router, error, 'creating games')) {
+      if (handleCoachAccessError(router, error, 'creating games', user)) {
         return;
       }
       setActionModal({
@@ -1065,7 +1067,7 @@ function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     } catch (error) {
-      if (handleCoachAccessError(router, error, 'creating games')) {
+      if (handleCoachAccessError(router, error, 'creating games', user)) {
         return;
       }
       setActionModal({

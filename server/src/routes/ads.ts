@@ -1,6 +1,6 @@
 import escapeHtml from 'escape-html';
 import { Router, type Response } from 'express';
-import { AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
+import { AD_GEOFENCE_RADIUS_KM, AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
@@ -234,7 +234,7 @@ adsRouter.post(
         target_zip_code,
         target_lat: zipCoords?.lat ?? null,
         target_lng: zipCoords?.lon ?? null,
-        radius: AD_GEOFENCE_RADIUS_MILES, // Fixed 9-mile radius for all ads
+        radius: AD_GEOFENCE_RADIUS_KM, // Fixed 9 km radius for all ads
         description: description ?? null,
         status: bypassApproval ? 'approved' : 'draft',
         payment_status: 'unpaid',
@@ -458,7 +458,7 @@ adsRouter.get('/for-feed', requireAuth as any, asyncHandler(async (req: AuthedRe
     return res.json({ date: dateISO, ads: [] });
   }
 
-  // DB-level bounding box: a padded 9-mile prefilter around the viewer location.
+  // DB-level bounding box: a padded prefilter around the viewer location using the shared 9 km radius.
   // This dramatically reduces rows fetched before the precise Haversine JS filter below.
   // Ads created before this column was added (target_lat IS NULL) fall back to JS-only filtering.
   const { lat: BBOX_LAT, lng: BBOX_LNG } = getAdBoundingBoxDegrees(userCoords.lat);

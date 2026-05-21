@@ -72,7 +72,7 @@ function ManageTeamsSimpleScreen() {
       }));
       setTeams(formattedTeams);
     } catch (e: any) {
-      if (handleCoachAccessError(router, e, 'loading your teams')) {
+      if (handleCoachAccessError(router, e, 'loading your teams', user)) {
         return;
       }
       if (__DEV__) console.error('Failed to load teams:', e);

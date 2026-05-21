@@ -41,6 +41,12 @@
                         <td style="padding:8px 0;font-size:14px;color:#64748b;">Coach</td>
                         <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;">{{requester_name}}</td>
                       </tr>
+                      {{#if requester_username}}
+                      <tr>
+                        <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">Username</td>
+                        <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e0f2fe;">@{{requester_username}}</td>
+                      </tr>
+                      {{/if}}
                       <tr>
                         <td style="padding:8px 0;font-size:14px;color:#64748b;border-top:1px solid #e0f2fe;">League</td>
                         <td style="padding:8px 0;font-size:14px;color:#0f172a;font-weight:600;text-align:right;border-top:1px solid #e0f2fe;">{{org_name}}</td>

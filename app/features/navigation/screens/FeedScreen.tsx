@@ -42,7 +42,7 @@ import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
 import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
-  getNotificationHref,
+  getNotificationHrefForUser,
   getNotificationSubtitle,
   getNotificationTitle,
   isSystemNotification,
@@ -2137,7 +2137,7 @@ export default function FeedScreen() {
                         }
 
                         setNotificationsMenuOpen(false);
-                        const href = getNotificationHref(item);
+                        const href = getNotificationHrefForUser(item, authUser);
                         if (href) {
                           router.push(href as any);
                         }

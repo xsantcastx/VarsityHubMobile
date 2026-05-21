@@ -1,8 +1,8 @@
 import { geocodeLocation } from '@/api/geocoding';
 import { Colors } from '@/constants/Colors';
 import {
+  AD_GEOFENCE_RADIUS_KM,
   AD_GEOFENCE_RADIUS_METERS,
-  AD_GEOFENCE_RADIUS_MILES,
   getAdReachPreviewRegion,
 } from '@/constants/adGeofencing';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -14,7 +14,7 @@ import { getMapProvider } from '@/utils/maps';
 
 interface ReachMapPreviewProps {
   zipCode: string;
-  radiusMiles?: number;
+  radiusKm?: number;
 }
 
 interface GeoLocation {
@@ -32,7 +32,7 @@ interface GeoLocation {
  */
 export function ReachMapPreview({
   zipCode,
-  radiusMiles = AD_GEOFENCE_RADIUS_MILES,
+  radiusKm = AD_GEOFENCE_RADIUS_KM,
 }: ReachMapPreviewProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const [location, setLocation] = useState<GeoLocation | null>(null);
@@ -116,12 +116,10 @@ export function ReachMapPreview({
     };
   }, [zipCode]);
 
-  const radiusMeters = useMemo(() => {
-    if (radiusMiles === AD_GEOFENCE_RADIUS_MILES) {
-      return AD_GEOFENCE_RADIUS_METERS;
-    }
-    return Math.round(radiusMiles * 1609.34);
-  }, [radiusMiles]);
+  const radiusMeters = useMemo(
+    () => (radiusKm === AD_GEOFENCE_RADIUS_KM ? AD_GEOFENCE_RADIUS_METERS : radiusKm * 1000),
+    [radiusKm]
+  );
 
   const previewRegion = useMemo(
     () =>
@@ -145,7 +143,7 @@ export function ReachMapPreview({
             Ad Reach Area
           </Text>
           <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
-            Your ad will be shown to users within {radiusMiles} miles of ZIP {zipCode}. Booking stays tied to this ZIP code.
+            Your ad will be shown to users within {radiusKm} km of ZIP {zipCode}. Booking stays tied to this ZIP code.
           </Text>
         </View>
       </View>
@@ -228,7 +226,7 @@ export function ReachMapPreview({
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: 'rgba(59, 130, 246, 0.4)' }]} />
             <Text style={[styles.legendText, { color: Colors[colorScheme].mutedText }]}>
-              Ad reach area ({radiusMiles} miles)
+              Ad reach area ({radiusKm} km)
             </Text>
           </View>
         </View>

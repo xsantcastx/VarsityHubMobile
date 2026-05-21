@@ -34,6 +34,7 @@ import { uploadFile } from '@/api/upload';
 import { sanitizeText } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { getFreshAuthSnapshot } from '@/utils/authState';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import MatchBanner from './components/MatchBanner';
 import AppearancePicker, { AppearancePreset } from './components/AppearancePicker';
@@ -611,18 +612,8 @@ function CreateFanEventScreen() {
       const errorCode = e?.code || e?.data?.code;
       const errorMessage = e?.message || e?.data?.message;
 
-      if (errorCode === 'COACH_AGREEMENT_REQUIRED') {
-        Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating events.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
-        ]);
-      } else if (errorCode === 'APPROVAL_REQUIRED') {
-        Alert.alert('Approval Required', 'Your coach account is pending approval. You can create events once a league admin approves your application.');
-      } else if (errorCode === 'PAYMENT_REQUIRED') {
-        Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating events.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
-        ]);
+      if (handleCoachAccessError(router, e, 'creating events', authUser as any)) {
+        return;
       } else if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
         Alert.alert(
           'Event Limit Reached',

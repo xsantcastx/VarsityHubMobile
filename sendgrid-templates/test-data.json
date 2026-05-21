@@ -71,6 +71,7 @@
       "admin_name": "Coach Williams",
       "org_name": "Westside Youth Basketball League",
       "requester_name": "Sarah Johnson",
+      "requester_username": "sarah_johnson",
       "org_logo_url": "https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png",
       "coach_notes": "I coach the U12 girls team and was referred by Coach Davis.",
       "approve_url": "https://your-api.up.railway.app/admin/join-requests/xyz789/approve",

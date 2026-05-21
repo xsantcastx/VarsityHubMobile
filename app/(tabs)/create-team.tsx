@@ -19,6 +19,7 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { getApiBaseUrl } from '@/api/http';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
 import { getCanonicalBillingState } from '@/utils/billingState';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
 
@@ -427,18 +428,9 @@ function CreateTeamScreen() {
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
       if (__DEV__) console.error('Team creation error:', e);
-      if (e?.data?.code === 'COACH_AGREEMENT_REQUIRED' || e?.code === 'COACH_AGREEMENT_REQUIRED') {
-        Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating teams.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
-        ]);
-      } else if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
-        Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
-      } else if (e?.data?.code === 'PAYMENT_REQUIRED' || e?.code === 'PAYMENT_REQUIRED') {
-        Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating teams.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
-        ]);
+      if (handleCoachAccessError(router, e, 'creating teams', authUser as any)) {
+        setSubmitting(false);
+        return;
       } else if (e?.data?.code === 'ORG_CREATION_FAILED' || e?.code === 'ORG_CREATION_FAILED') {
         Alert.alert('Organization Error', 'Could not create your organization. Please try again or select an existing organization.');
       } else {
@@ -512,18 +504,8 @@ function CreateTeamScreen() {
           if (__DEV__) console.error('Failed to roll back subscription quantity after team creation error:', rollbackError);
         }
       }
-      if (e?.data?.code === 'COACH_AGREEMENT_REQUIRED' || e?.code === 'COACH_AGREEMENT_REQUIRED') {
-        Alert.alert('Coach Agreement Required', 'You need to accept the coach agreement before creating teams.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Review Agreement', onPress: () => router.push('/onboarding/coach-agreement') },
-        ]);
-      } else if (e?.data?.code === 'APPROVAL_REQUIRED' || e?.code === 'APPROVAL_REQUIRED') {
-        Alert.alert('Approval Required', 'Your coach account is pending approval. You can create teams once a league admin approves your application.');
-      } else if (e?.data?.code === 'PAYMENT_REQUIRED' || e?.code === 'PAYMENT_REQUIRED') {
-        Alert.alert('Checkout Required', 'Please complete your subscription checkout before creating teams.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Go to Billing', onPress: () => router.push('/settings/manage-subscription') },
-        ]);
+      if (handleCoachAccessError(router, e, 'creating teams', authUser as any)) {
+        return;
       } else if (e?.data?.code === 'ORG_CREATION_FAILED' || e?.code === 'ORG_CREATION_FAILED') {
         Alert.alert('Organization Error', 'Could not create your organization. Please try again or select an existing organization.');
       } else {

@@ -11,14 +11,16 @@ const adCalendar = read('app/ad-calendar.tsx');
 const editAd = read('app/edit-ad.tsx');
 
 describe('ad geofence UI', () => {
-  it('uses the shared 9 mile radius on submit and edit flows', () => {
-    expect(submitAd).toMatch(/AD_GEOFENCE_RADIUS_MILES/);
-    expect(editAd).toMatch(/AD_GEOFENCE_RADIUS_MILES/);
+  it('uses the shared 9 km radius on submit and edit flows', () => {
+    expect(submitAd).toMatch(/AD_GEOFENCE_RADIUS_KM/);
+    expect(editAd).toMatch(/AD_GEOFENCE_RADIUS_KM/);
   });
 
-  it('does not advertise the old 6 mile radius in the ad flow', () => {
-    expect(reachPreview).not.toContain('6 miles');
-    expect(adCalendar).not.toContain('6 miles');
+  it('does not advertise the old 6 km or 9 mile radius in the ad flow', () => {
+    expect(reachPreview).not.toContain('6 km');
+    expect(reachPreview).not.toContain('9 miles');
+    expect(adCalendar).not.toContain('6 km');
+    expect(adCalendar).not.toContain('9 miles');
   });
 
   it('keeps the map preview copy tied to the entered zip code', () => {

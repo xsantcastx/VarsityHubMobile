@@ -281,7 +281,7 @@ function LeaguePendingApproval() {
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      await User.updatePreferences({ proceeding_as_fan: true });
+      await User.updatePreferences({ proceeding_as_fan: true, role: 'fan' });
       const freshUser = await checkAuth();
       const decision = getPostAuthRouteDecision(freshUser ?? null);
       router.replace(decision.route as any);

@@ -33,6 +33,14 @@ export function getCoachUpgradeCta(
     return null;
   }
 
+  // When a pending/rejected coach explicitly chose "Continue as Fan", do not
+  // keep surfacing the resume CTA in settings. They can still re-enter the
+  // flow from notifications/deep links, but the app should stop pulling them
+  // back toward the waiting screen while they're using fan mode.
+  if (coachAccess.isProceedingAsFan) {
+    return null;
+  }
+
   if (coachAccess.isPendingCoach) {
     const recoveryRoute = getCoachRecoveryRoute(user);
     const route =

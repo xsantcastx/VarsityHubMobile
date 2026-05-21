@@ -1,6 +1,7 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { handleCoachAccessError } from '@/utils/coachAccess';
@@ -125,6 +126,7 @@ function getRoleBadgeColor(role: string): { bg: string; text: string } {
 }
 
 function MyTeamScreen() {
+  const { user } = useAuth();
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
@@ -196,7 +198,7 @@ function MyTeamScreen() {
       return nextSelectedTeamId;
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
-      if (handleCoachAccessError(router, e, 'loading your teams')) {
+      if (handleCoachAccessError(router, e, 'loading your teams', user)) {
         return null;
       }
       if (__DEV__) console.error('Failed to load teams:', e);
@@ -230,7 +232,7 @@ function MyTeamScreen() {
       );
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
-      if (handleCoachAccessError(router, e, 'loading team members')) {
+      if (handleCoachAccessError(router, e, 'loading team members', user)) {
         return;
       }
       if (__DEV__) console.error('Failed to load members:', e);
@@ -278,7 +280,7 @@ function MyTeamScreen() {
         setSelectedMember(null);
       } catch (error: unknown) {
         const e = error as ApiErrorLike;
-        if (handleCoachAccessError(router, e, 'updating team roles')) {
+        if (handleCoachAccessError(router, e, 'updating team roles', user)) {
           return;
         }
         Alert.alert('Error', e?.message || 'Failed to update role.');
@@ -300,7 +302,7 @@ function MyTeamScreen() {
       setPositionInput('');
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
-      if (handleCoachAccessError(router, e, 'updating team positions')) {
+      if (handleCoachAccessError(router, e, 'updating team positions', user)) {
         return;
       }
       Alert.alert('Error', e?.message || 'Failed to update position.');
@@ -319,7 +321,7 @@ function MyTeamScreen() {
       setSelectedMember(null);
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
-      if (handleCoachAccessError(router, e, 'removing team members')) {
+      if (handleCoachAccessError(router, e, 'removing team members', user)) {
         return;
       }
       Alert.alert('Error', e?.message || 'Failed to remove member.');
@@ -340,7 +342,7 @@ function MyTeamScreen() {
       await loadMembers(selectedTeamId);
     } catch (error: unknown) {
       const e = error as ApiErrorLike;
-      if (handleCoachAccessError(router, e, 'sending team invites')) {
+      if (handleCoachAccessError(router, e, 'sending team invites', user)) {
         return;
       }
       Alert.alert('Error', e?.message || 'Failed to send invitation.');

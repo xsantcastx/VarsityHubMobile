@@ -2462,6 +2462,7 @@ authRouter.post(
       sendCoachApplicationAdminEmail({
         to: adminEmail,
         applicantName: result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
+        applicantUsername: result.updatedUser.username || undefined,
         applicantEmail: result.updatedUser.email,
         applicantUserId: result.updatedUser.id,
         organizationName: data.organization_name,
@@ -3641,6 +3642,7 @@ authRouter.post(
         sendCoachApplicationAdminEmail({
           to: adminEmail,
           applicantName: updated.display_name || updated.email,
+          applicantUsername: updated.username || undefined,
           applicantEmail: updated.email,
           applicantUserId: updated.id,
           organizationName:

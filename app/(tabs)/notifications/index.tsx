@@ -13,7 +13,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import {
   getNotificationActorLabel,
-  getNotificationHref,
+  getNotificationHrefForUser,
   getNotificationSubtitle,
   getNotificationTitle,
   isSystemNotification,
@@ -37,7 +37,7 @@ type Notif = {
 };
 
 function NotificationsScreen() {
-  const { user: _user } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme];
@@ -129,7 +129,7 @@ function NotificationsScreen() {
     const title = getNotificationTitle(item);
     const subtitle = getNotificationSubtitle(item);
     const onPress = () => {
-      const href = getNotificationHref(item);
+      const href = getNotificationHrefForUser(item, user);
       if (href) {
         router.push(href as any);
       }

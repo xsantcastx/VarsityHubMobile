@@ -31,7 +31,18 @@ describe('organization email review token order', () => {
     expect(slice).toContain("const linkLabel = action === 'approve' ? 'approval' : 'rejection'");
     expect(slice).toContain('This ${linkLabel} link is missing or invalid.');
     expect(slice).toContain('This ${linkLabel} link is no longer valid.');
-    expect(slice).toContain('return res.send(renderJoinRequestStatePage(joinRequest, action));');
+    expect(slice).toContain('return res.send(');
+    expect(slice).toContain('renderJoinRequestStatePage(joinRequest, action, {');
+  });
+
+  it('join-request email links execute directly and render final button state without a second confirmation form', () => {
+    const slice = sliceBetween(
+      'async function joinRequestEmailReviewHandler',
+      "organizationsRouter.get('/join-requests/:requestId/email/approve'"
+    );
+    expect(src).toContain('function renderJoinRequestDecisionButtons(');
+    expect(src).toContain('function renderJoinRequestResultPage(');
+    expect(slice).not.toContain('<form method="POST"');
   });
 
   it('consumes league approval tokens only after approveOrganization completes', () => {
