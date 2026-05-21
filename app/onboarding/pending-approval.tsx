@@ -10,6 +10,7 @@ import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { getCanonicalOrganizationId, getCanonicalRole, isProceedingAsFanSnapshot } from '@/utils/authState';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import {
   CoachSetupActions,
   FanFallbackActions,
@@ -44,6 +45,14 @@ function PendingApproval() {
   const lastLifecycleCheckRef = useRef(0);
   const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(null);
 
+  const reportPendingApprovalFailure = useCallback((task: string, error: unknown) => {
+    if (__DEV__) console.warn(`[pending-approval] ${task} failed:`, error);
+    captureBreadcrumb('Pending approval deferred task failed', 'onboarding.pending_approval', { task }, 'warning');
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      tags: { context: 'pending-approval', task },
+    });
+  }, []);
+
   const stopPolling = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
@@ -76,7 +85,7 @@ function PendingApproval() {
       const me: any = await User.refresh();
       const role = String(getCanonicalRole(me) || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
-      const isProceedingAsFan = isProceedingAsFanSnapshot(me) || role === 'fan';
+      const isProceedingAsFan = isProceedingAsFanSnapshot(me);
       if (isProceedingAsFan || proceedingAsFanRef.current) {
         stopPolling();
         return;
@@ -113,7 +122,9 @@ function PendingApproval() {
         stopPolling();
         // Do not auto-complete coach onboarding here. Approval only unlocks
         // the real coach setup flow; the user still needs agreement + setup.
-        void registerPushToken().catch(() => {});
+        void registerPushToken().catch((error: unknown) => {
+          reportPendingApprovalFailure('register_push_token', error);
+        });
       }
     } catch {
       // ignore polling errors
@@ -121,7 +132,7 @@ function PendingApproval() {
       approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
-  }, [ob.organization_id, redirectToOnboarding, registerPushToken, stopPolling]);
+  }, [ob.organization_id, redirectToOnboarding, registerPushToken, reportPendingApprovalFailure, stopPolling]);
 
   useEffect(() => {
     // Initial check
@@ -173,10 +184,29 @@ function PendingApproval() {
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      await User.updatePreferences({ proceeding_as_fan: true, role: 'fan' });
-      const freshUser = await checkAuth();
-      const decision = getPostAuthRouteDecision(freshUser ?? null);
-      router.replace(decision.route as any);
+      await User.updatePreferences({ proceeding_as_fan: true });
+      let nextRoute: string = '/(tabs)';
+      try {
+        const freshUser = await checkAuth({ skipSubscriptionRefresh: true });
+        const decision = getPostAuthRouteDecision(freshUser ?? null);
+        if (
+          freshUser &&
+          ![
+            '/onboarding/pending-approval',
+            '/onboarding/league-pending-approval',
+            '/onboarding/step-1-role',
+            '/onboarding/step-2-basic',
+            '/onboarding/step-3-league',
+            '/onboarding/coach-application',
+          ].includes(decision.route)
+        ) {
+          nextRoute = decision.route;
+        }
+      } catch {
+        // The fan-mode write already succeeded. Fall back to tabs instead of
+        // trapping the user on a stale pending route.
+      }
+      router.replace(nextRoute as any);
     } catch (err: any) {
       proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[pending-approval] Failed to proceed as fan:', err);

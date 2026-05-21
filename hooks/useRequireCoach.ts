@@ -12,7 +12,6 @@ import { useEffect, useMemo } from 'react';
 import {
   getCoachAccessState,
   getCoachRecoveryRoute,
-  getPendingCoachRoute,
   type CoachUserLike,
 } from '@/utils/roleChecks';
 
@@ -58,10 +57,9 @@ export function useRequireCoach() {
       }
     }
 
-    const pendingRoute = getPendingCoachRoute(coachUser);
-
     if (coachAccess.isPendingCoach || coachAccess.isRejectedCoach) {
-      router.replace(pendingRoute as never);
+      const recoveryRoute = getCoachRecoveryRoute(coachUser);
+      router.replace((recoveryRoute || '/onboarding/pending-approval') as never);
     }
   }, [coachAccess, coachUser, isCoach, loading, router, user]);
 

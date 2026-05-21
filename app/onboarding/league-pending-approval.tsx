@@ -7,9 +7,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getCanonicalRole, isProceedingAsFanSnapshot } from '@/utils/authState';
 // @ts-ignore
 import { User, Notification as NotificationApi, Organization } from '@/api/entities';
-import { captureException } from '@/utils/sentry';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import {
   CoachSetupActions,
   FanFallbackActions,
@@ -58,6 +59,14 @@ function LeaguePendingApproval() {
   const approvalCheckInFlightRef = useRef(false);
   const lastLifecycleCheckRef = useRef(0);
   const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(null);
+
+  const reportPendingApprovalFailure = useCallback((task: string, error: unknown) => {
+    if (__DEV__) console.warn(`[league-pending-approval] ${task} failed:`, error);
+    captureBreadcrumb('League pending approval deferred task failed', 'onboarding.pending_approval', { task }, 'warning');
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      tags: { context: 'league-pending-approval', task },
+    });
+  }, []);
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -182,9 +191,9 @@ function LeaguePendingApproval() {
       }
 
       const org: any = await Organization.get(orgId);
-      const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
+      const role = String(getCanonicalRole(me) || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
-      const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+      const isProceedingAsFan = isProceedingAsFanSnapshot(me);
       if (isProceedingAsFan || proceedingAsFanRef.current) {
         stopPolling();
         return;
@@ -224,7 +233,9 @@ function LeaguePendingApproval() {
         setApproved(true);
         stopPolling();
         // Approval only unlocks real coach setup. Do not mark onboarding complete here.
-        void registerPushToken().catch(() => {});
+        void registerPushToken().catch((error: unknown) => {
+          reportPendingApprovalFailure('register_push_token', error);
+        });
       }
     } catch {
       // ignore polling errors
@@ -232,7 +243,7 @@ function LeaguePendingApproval() {
       approvalCheckInFlightRef.current = false;
       setChecking(false);
     }
-  }, [orgId, redirectToLeagueSetup, registerPushToken, stopPolling]);
+  }, [orgId, redirectToLeagueSetup, registerPushToken, reportPendingApprovalFailure, stopPolling]);
 
   useEffect(() => {
     void checkApproval('initial');
@@ -281,10 +292,29 @@ function LeaguePendingApproval() {
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      await User.updatePreferences({ proceeding_as_fan: true, role: 'fan' });
-      const freshUser = await checkAuth();
-      const decision = getPostAuthRouteDecision(freshUser ?? null);
-      router.replace(decision.route as any);
+      await User.updatePreferences({ proceeding_as_fan: true });
+      let nextRoute: string = '/(tabs)';
+      try {
+        const freshUser = await checkAuth({ skipSubscriptionRefresh: true });
+        const decision = getPostAuthRouteDecision(freshUser ?? null);
+        if (
+          freshUser &&
+          ![
+            '/onboarding/pending-approval',
+            '/onboarding/league-pending-approval',
+            '/onboarding/step-1-role',
+            '/onboarding/step-2-basic',
+            '/onboarding/step-3-league',
+            '/onboarding/coach-application',
+          ].includes(decision.route)
+        ) {
+          nextRoute = decision.route;
+        }
+      } catch {
+        // The fan-mode write already succeeded. Fall back to tabs instead of
+        // trapping the user on a stale pending route.
+      }
+      router.replace(nextRoute as any);
     } catch (err) {
       proceedingAsFanRef.current = false;
       if (__DEV__) console.warn('[league-pending-approval] Failed to proceed as fan:', err);
@@ -357,12 +387,20 @@ function LeaguePendingApproval() {
           ) : null}
 
           {!orgId && hydrating ? (
-            <View style={{ marginTop: 12, alignItems: 'center' }}>
-              <ActivityIndicator color={isDark ? '#60A5FA' : '#2563EB'} />
-              <Text style={[styles.supportText, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 8 }]}>
-                Loading your application…
-              </Text>
-            </View>
+            <>
+              <View style={{ marginTop: 12, alignItems: 'center' }}>
+                <ActivityIndicator color={isDark ? '#60A5FA' : '#2563EB'} />
+                <Text style={[styles.supportText, { color: isDark ? '#9CA3AF' : '#6B7280', marginTop: 8 }]}>
+                  Loading your application…
+                </Text>
+              </View>
+              <FanFallbackActions
+                isDark={isDark}
+                onProceedAsFan={handleProceedAsFan}
+                onLogout={handleLogout}
+                supportText="You can continue as a fan right now while we load your application."
+              />
+            </>
           ) : null}
 
           {!orgId && !hydrating && !isApplicationFlow && !approved && !rejected ? (

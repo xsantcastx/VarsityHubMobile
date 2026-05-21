@@ -210,6 +210,10 @@ export function getPostAuthRouteDecision(
     };
   }
 
+  if ((coachAccess.isPendingCoach || coachAccess.isRejectedCoach) && coachAccess.isProceedingAsFan) {
+    return { kind: 'app_home', route: POST_AUTH_ROUTE_BY_KIND.app_home };
+  }
+
   if (needsOnboarding && !coachAccess.isApprovedCoach) {
     return {
       kind: 'generic_onboarding_required',

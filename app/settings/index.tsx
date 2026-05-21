@@ -24,6 +24,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { getFreshAuthSnapshot, getLinkedProvidersSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachUpgradeCta, type CoachUpgradeCta } from '@/utils/coachUpgradeCta';
+import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import { safeGoBack } from '@/utils/navigation';
 
 interface PendingHostRequest {
@@ -314,19 +315,13 @@ export default function SettingsScreen() {
     });
     const billingState = getCanonicalBillingState(me as any);
     setPlan(billingState.selected_plan);
-    const effectiveRole = (serverPrefs?.role || me?.role || null) as
-      | string
-      | null;
+    const effectiveRole = getCanonicalCoachRole(me as any);
     setRole(effectiveRole);
     const coachAccess = {
       isApprovedCoach: effectiveRole === 'coach' && me?.approval_status === 'APPROVED',
     };
     setShowCoachBilling(coachAccess.isApprovedCoach || billingState.selected_plan !== 'rookie');
-    const nextCoachUpgradeCta = getCoachUpgradeCta({
-      ...me,
-      role: effectiveRole,
-      preferences: serverPrefs,
-    } as any);
+    const nextCoachUpgradeCta = getCoachUpgradeCta(me as any);
     setCoachUpgradeCta(nextCoachUpgradeCta);
     const linkedProviders = getLinkedProvidersSnapshot(me);
     setDeleteRequiresPassword(linkedProviders.password);
@@ -360,7 +355,7 @@ export default function SettingsScreen() {
       const me = (await getFreshSettingsUser()) as UserMeResponse;
       const prefsFromServer = (me?.preferences || {}) as Record<string, unknown>;
       const preload: Record<string, unknown> = {
-        role: prefsFromServer.role || me?.role || 'fan',
+        role: getCanonicalCoachRole(me as any) || 'fan',
         display_name: prefsFromServer.display_name ?? me?.display_name ?? '',
         affiliation: prefsFromServer.affiliation ?? me?.affiliation ?? '',
         dob: prefsFromServer.dob ?? me?.dob ?? null,
@@ -467,9 +462,7 @@ export default function SettingsScreen() {
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
         const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
-        const effectiveRole = (serverPrefs?.role || me?.role || null) as
-          | string
-          | null;
+        const effectiveRole = getCanonicalCoachRole(me as any);
 
         // Fetch pending host event requests for coaches
         if (effectiveRole === 'coach') {
@@ -1005,14 +998,7 @@ export default function SettingsScreen() {
                               msg.toLowerCase().includes('already a coach')
                             ) {
                               const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
-                              const nextCta = getCoachUpgradeCta({
-                                ...fresh,
-                                role:
-                                  fresh?.preferences?.role ||
-                                  fresh?.role ||
-                                  null,
-                                preferences: fresh?.preferences || {},
-                              });
+                              const nextCta = getCoachUpgradeCta(fresh as any);
                               if (fresh) {
                                 applyMeSnapshot(fresh, true);
                               }

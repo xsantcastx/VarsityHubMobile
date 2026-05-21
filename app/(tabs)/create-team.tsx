@@ -22,7 +22,7 @@ import { getCanonicalBillingState } from '@/utils/billingState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
-import { getCoachRecoveryRoute } from '@/utils/roleChecks';
+import { getCanonicalCoachRole, getCoachRecoveryRoute } from '@/utils/roleChecks';
 
 type TeamLimitSummary = {
   owned_teams: number;
@@ -405,7 +405,7 @@ function CreateTeamScreen() {
       }
 
       // Check plan tier limits
-      const userRole = user?.preferences?.role;
+      const userRole = getCanonicalCoachRole(user as any);
       const userPlan = getCanonicalBillingState(user).selected_plan;
 
       let latestLimits: TeamLimitSummary | null = teamLimits;

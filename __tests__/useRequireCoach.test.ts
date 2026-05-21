@@ -142,6 +142,27 @@ describe('useRequireCoach — admin override (commit follow-up to 7c875eb6)', ()
     expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
   });
 
+  it('pending coach with stale pending next_step but fan mode still routes to /(tabs)', () => {
+    mockUseAuth.mockReturnValue({
+      loading: false,
+      user: {
+        id: 'user-2c',
+        is_admin: false,
+        role: 'coach',
+        approval_status: 'PENDING',
+        account_state: 'coach_application_submitted',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: { role: 'coach', proceeding_as_fan: false },
+      },
+    });
+
+    renderHook(() => useRequireCoach());
+
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+  });
+
   it('approved coach is not redirected after approval even without an agreement', () => {
     mockUseAuth.mockReturnValue({
       loading: false,

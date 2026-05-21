@@ -195,4 +195,28 @@ describe('NotificationTapHandler', () => {
       expect(mockPush).toHaveBeenCalledWith('/(tabs)');
     });
   });
+
+  it('routes org_rejected notifications to tabs when top-level fan mode beats stale preferences', async () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user_2',
+        approval_status: 'REJECTED',
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: { role: 'coach', proceeding_as_fan: false },
+      },
+      loading: false,
+      hasSession: true,
+    });
+
+    render(<NotificationTapHandler />);
+    expect(listener).toBeTruthy();
+
+    listener?.(makeResponse('org_rejected', { organization_id: 'org_123' }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/(tabs)');
+    });
+  });
 });

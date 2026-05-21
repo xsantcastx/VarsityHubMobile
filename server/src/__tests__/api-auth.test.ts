@@ -26,6 +26,7 @@ describe('API Authentication Endpoints', () => {
   let accessToken: string;
   let verificationCode: string;
   const cleanupUserIds = new Set<string>();
+  const cleanupOrgIds = new Set<string>();
 
   beforeAll(async () => {
     ({ prisma } = await import('../lib/prisma.js'));
@@ -48,6 +49,11 @@ describe('API Authentication Endpoints', () => {
           email: TEST_EMAIL,
         },
       });
+      if (cleanupOrgIds.size > 0) {
+        await prisma.organization
+          .deleteMany({ where: { id: { in: Array.from(cleanupOrgIds) } } })
+          .catch(() => {});
+      }
     } catch (error) {
       console.warn('Cleanup error (non-critical):', error);
     }
@@ -150,6 +156,20 @@ describe('API Authentication Endpoints', () => {
       } else {
         expect(response.status).toBe(409); // Already exists (normalized)
       }
+    });
+
+    it('should reject direct coach registration and require the upgrade flow', async () => {
+      const response = await request(app)
+        .post('/auth/register')
+        .send({
+          email: `test-direct-coach-${Date.now()}@example.com`,
+          password: TEST_PASSWORD,
+          role: 'coach',
+        })
+        .expect(400);
+
+      expect(response.body.code).toBe('COACH_REGISTRATION_DISABLED');
+      expect(response.body.error).toMatch(/upgrade-to-coach|fan accounts/i);
     });
   });
 
@@ -266,15 +286,27 @@ describe('API Authentication Endpoints', () => {
       expect(response.body.sports_interests).toEqual(['Basketball']);
     });
 
-    it('should return canonical onboarding state in both top-level and preferences payloads', async () => {
+    it('should return canonical auth state in both top-level and preferences payloads', async () => {
+      const org = await prisma.organization.create({
+        data: {
+          name: `Auth Me Contract Org ${Date.now()}`,
+          org_type: 'club',
+          updated_at: new Date(),
+        },
+      });
+      cleanupOrgIds.add(org.id);
+
       await prisma.user.update({
         where: { id: userId },
         data: {
           role: 'coach',
           onboarding_completed: true,
+          organization_id: org.id,
+          approval_status: 'PENDING',
           preferences: {
             role: 'fan',
             onboarding_completed: false,
+            organization_id: 'org-stale-preferences',
           },
         },
       });
@@ -285,9 +317,12 @@ describe('API Authentication Endpoints', () => {
         .expect(200);
 
       expect(response.body.role).toBe('coach');
+      expect(response.body.approval_status).toBe('PENDING');
       expect(response.body.onboarding_completed).toBe(true);
+      expect(response.body.organization_id).toBe(org.id);
       expect(response.body.preferences.role).toBe('coach');
       expect(response.body.preferences.onboarding_completed).toBe(true);
+      expect(response.body.preferences.organization_id).toBe(org.id);
     });
 
     it('should preserve stored preferences, send no-store headers, and hide internal auth fields', async () => {
@@ -691,6 +726,110 @@ describe('API Authentication Endpoints', () => {
 
       expect(prefs.plan).not.toBe('legend');
       expect(prefs.notifications_enabled).toBe(false);
+    });
+
+    it('keeps /auth/me canonical after a preferences patch when stored columns and prefs disagree', async () => {
+      const org = await prisma.organization.create({
+        data: {
+          name: `Canonical Patch Org ${Date.now()}`,
+          org_type: 'club',
+          updated_at: new Date(),
+        },
+      });
+      cleanupOrgIds.add(org.id);
+      const verifiedEmail = `test-api-auth-canonical-patch-${Date.now()}@example.com`;
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const verifiedUser = await prisma.user.create({
+        data: {
+          email: verifiedEmail,
+          password_hash: passwordHash,
+          display_name: 'Canonical Patch User',
+          email_verified: true,
+          role: 'coach',
+          approval_status: 'PENDING',
+          onboarding_completed: false,
+          organization_id: org.id,
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+            organization_id: 'org-stale',
+          },
+        },
+      });
+      cleanupUserIds.add(verifiedUser.id);
+      const verifiedAccessToken = signJwt({ id: verifiedUser.id });
+
+      await request(app)
+        .patch('/me/preferences')
+        .set('Authorization', `Bearer ${verifiedAccessToken}`)
+        .send({
+          notifications_enabled: false,
+        })
+        .expect(200);
+
+      const response = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${verifiedAccessToken}`)
+        .expect(200);
+
+      expect(response.body.role).toBe('coach');
+      expect(response.body.approval_status).toBe('PENDING');
+      expect(response.body.onboarding_completed).toBe(false);
+      expect(response.body.organization_id).toBe(org.id);
+      expect(response.body.preferences.role).toBe('coach');
+      expect(response.body.preferences.onboarding_completed).toBe(false);
+      expect(response.body.preferences.organization_id).toBe(org.id);
+      expect(response.body.preferences.notifications_enabled).toBe(false);
+    });
+
+    it('keeps /auth/me canonical for coach fan-mode even when stored prefs are stale', async () => {
+      const org = await prisma.organization.create({
+        data: {
+          name: `Canonical Fan Mode Org ${Date.now()}`,
+          org_type: 'club',
+          updated_at: new Date(),
+        },
+      });
+      cleanupOrgIds.add(org.id);
+      const verifiedEmail = `test-api-auth-fan-mode-${Date.now()}@example.com`;
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const verifiedUser = await prisma.user.create({
+        data: {
+          email: verifiedEmail,
+          password_hash: passwordHash,
+          display_name: 'Canonical Fan Mode User',
+          email_verified: true,
+          role: 'coach',
+          approval_status: 'PENDING',
+          onboarding_completed: false,
+          organization_id: org.id,
+          proceeding_as_fan: true,
+          preferences: {
+            role: 'fan',
+            onboarding_completed: true,
+            organization_id: 'org-stale',
+            proceeding_as_fan: false,
+          },
+        },
+      });
+      cleanupUserIds.add(verifiedUser.id);
+      const verifiedAccessToken = signJwt({ id: verifiedUser.id });
+
+      const response = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${verifiedAccessToken}`)
+        .expect(200);
+
+      expect(response.body.role).toBe('coach');
+      expect(response.body.approval_status).toBe('PENDING');
+      expect(response.body.organization_id).toBe(org.id);
+      expect(response.body.proceeding_as_fan).toBe(true);
+      expect(response.body.account_state).toBe('coach_pending_approval');
+      expect(response.body.next_step).toBe('/(tabs)');
+      expect(response.body.preferences.role).toBe('coach');
+      expect(response.body.preferences.onboarding_completed).toBe(false);
+      expect(response.body.preferences.organization_id).toBe(org.id);
+      expect(response.body.preferences.proceeding_as_fan).toBe(true);
     });
   });
 

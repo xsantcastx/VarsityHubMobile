@@ -9,7 +9,7 @@ import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
-import { getAuthSnapshot, isApprovedCoach } from '@/utils/authState';
+import { getAuthSnapshot, getCanonicalRole, isApprovedCoach } from '@/utils/authState';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
@@ -474,7 +474,7 @@ export default function ProfileScreen() {
         isInitialMount.current = false;
 
         // Extract theme color from preferences - only for coach/organization accounts
-        const userRole = (u?.preferences?.role || u?.role || '').toLowerCase();
+        const userRole = String(getCanonicalRole(u as any) || '').toLowerCase();
         const isCoachOrOrg =
           userRole === 'coach' || userRole === 'admin' || userRole === 'organization';
         const themeColor = isCoachOrOrg ? u?.preferences?.theme_color || '#3B82F6' : '#6B7280'; // Default gray for fans
@@ -735,7 +735,7 @@ export default function ProfileScreen() {
   );
 
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
-  const rawRole = preferences?.role ?? (me as any)?.role ?? '';
+  const rawRole = getCanonicalRole(me as any) ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
   const approvedCoach = isApprovedCoach(me as any);
   // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.

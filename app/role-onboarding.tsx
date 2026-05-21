@@ -210,11 +210,7 @@ function RoleOnboardingScreenInner() {
         e?.data?.code === 'COACH_ALREADY_APPROVED'
       ) {
       const fresh = (await getFreshAuthSnapshot(checkAuth, user).catch(() => null)) as any;
-      const nextCta = getCoachUpgradeCta({
-        ...fresh,
-        role: fresh?.preferences?.role || fresh?.role || null,
-          preferences: fresh?.preferences || {},
-        });
+      const nextCta = getCoachUpgradeCta(fresh as any);
         if (nextCta?.route) {
           router.replace(nextCta.route as any);
           return;

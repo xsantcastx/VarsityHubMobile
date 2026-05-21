@@ -61,6 +61,22 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'pending_coach_waiting',
     },
     {
+      label: 'keeps pending coaches in fan mode on app home even without server next_step',
+      user: {
+        email_verified: true,
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        proceeding_as_fan: true,
+        preferences: {
+          onboarding_completed: false,
+          role: 'coach',
+          proceeding_as_fan: false,
+        },
+      },
+      expected: '/(tabs)',
+      kind: 'app_home',
+    },
+    {
       label: 'respects server-directed league pending approvals',
       user: {
         email_verified: true,

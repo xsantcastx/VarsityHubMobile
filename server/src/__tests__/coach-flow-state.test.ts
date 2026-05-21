@@ -70,6 +70,44 @@ describe('getCoachFlowState', () => {
     });
   });
 
+  it('prefers the canonical proceeding_as_fan column over stale preferences', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        proceeding_as_fan: true,
+        preferences: {
+          role: 'fan',
+          proceeding_as_fan: false,
+        },
+      } as any,
+      {
+        id: 'app_1',
+        status: 'submitted',
+        organization_name: 'Westhill',
+        org_type: 'school',
+        location: 'Stamford, CT',
+        zip_code: '06902',
+        place_id: null,
+        supporting_document_url: null,
+        background_url: null,
+        payload: {},
+        submitted_at: new Date(),
+        reviewed_at: null,
+        reviewed_by: null,
+        review_note: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      }
+    );
+
+    expect(state).toEqual({
+      account_state: 'coach_application_submitted',
+      next_step: '/(tabs)',
+    });
+  });
+
   it('lets a rejected applicant continue as a fan without pretending onboarding is complete', () => {
     const state = getCoachFlowState(
       {

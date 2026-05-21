@@ -3,6 +3,8 @@
  * Handles age-based messaging restrictions per Safe Zone Policy
  */
 
+import { getCanonicalRole } from './authState';
+
 export type DMRestrictionResult = {
   allowed: boolean;
   reason?: 'adult_to_minor' | 'coach_verified' | 'both_minors' | 'admin_bypass' | 'allowed';
@@ -44,7 +46,7 @@ export function isMinor(dateOfBirth: string | Date | null | undefined): boolean 
  * Check if user is verified coach
  */
 export function isVerifiedCoach(user: any): boolean {
-  const role = user?.preferences?.role || user?.role || '';
+  const role = getCanonicalRole(user);
   const isCoach = String(role).toLowerCase() === 'coach';
   const isVerified = user?.is_verified || user?.coach_verified || false;
   return isCoach && isVerified;
@@ -55,6 +57,10 @@ export function isVerifiedCoach(user: any): boolean {
  */
 export function isAdmin(user: any): boolean {
   return user?.is_admin === true || user?.role === 'super_admin';
+}
+
+function isCoachRole(user: any): boolean {
+  return String(getCanonicalRole(user) || '').toLowerCase() === 'coach';
 }
 
 /**
@@ -104,7 +110,7 @@ export function checkDMRestriction(
       reason: 'adult_to_minor',
       showWarning: true,
       warningMessage: `You cannot message users under 18. Direct messaging between adults and minors is restricted for safety reasons.${
-        sender?.preferences?.role === 'coach' ? '\n\nIf you are a coach, please verify your account to message your team members.' : ''
+        isCoachRole(sender) ? '\n\nIf you are a coach, please verify your account to message your team members.' : ''
       }`,
     };
   }

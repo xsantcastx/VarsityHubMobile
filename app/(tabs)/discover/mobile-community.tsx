@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Game, Organization, Post, Search, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
+import { getCanonicalRole } from '@/utils/authState';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { Calendar } from 'react-native-calendars';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
@@ -35,6 +36,7 @@ import { handleCoachAccessError } from '@/utils/coachAccess';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getCoachAccessState } from '@/utils/roleChecks';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 // Guard against internal IDs (cuid / UUID) being leaked as display text
 const isInternalId = (s: string) =>
@@ -164,6 +166,14 @@ function CommunityDiscoverScreen() {
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
+  const reportDiscoverFailure = useCallback((task: string, error: unknown) => {
+    if (__DEV__) console.warn(`[discover] ${task} failed:`, error);
+    captureBreadcrumb('Discover deferred task failed', 'discover.community', { task }, 'warning');
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      tags: { context: 'discover-mobile-community', task },
+    });
+  }, []);
+
   // Load recent searches from AsyncStorage on mount
   useEffect(() => {
     AsyncStorage.getItem('vh_recent_searches')
@@ -171,10 +181,14 @@ function CommunityDiscoverScreen() {
         if (val)
           try {
             setRecentSearches(JSON.parse(val));
-          } catch {}
+          } catch (error) {
+            reportDiscoverFailure('parse_recent_searches', error);
+          }
       })
-      .catch(() => {});
-  }, []);
+      .catch(error => {
+        reportDiscoverFailure('load_recent_searches', error);
+      });
+  }, [reportDiscoverFailure]);
 
   const saveRecentSearch = useCallback((term: string) => {
     const trimmed = term.trim();
@@ -184,10 +198,12 @@ function CommunityDiscoverScreen() {
         trimmed,
         ...prev.filter(s => s.toLowerCase() !== trimmed.toLowerCase()),
       ].slice(0, 5);
-      AsyncStorage.setItem('vh_recent_searches', JSON.stringify(updated)).catch(() => {});
+      void AsyncStorage.setItem('vh_recent_searches', JSON.stringify(updated)).catch(error => {
+        reportDiscoverFailure('save_recent_searches', error);
+      });
       return updated;
     });
-  }, []);
+  }, [reportDiscoverFailure]);
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -451,8 +467,10 @@ function CommunityDiscoverScreen() {
   );
 
   useEffect(() => {
-    void load().catch(() => {});
-  }, [load]);
+    void load().catch(error => {
+      reportDiscoverFailure('initial_load', error);
+    });
+  }, [load, reportDiscoverFailure]);
 
   // Debounced unified search (users, teams, organizations, games, events)
   useEffect(() => {
@@ -946,7 +964,9 @@ function CommunityDiscoverScreen() {
             <Pressable
               onPress={() => {
                 setRecentSearches([]);
-                AsyncStorage.removeItem('vh_recent_searches').catch(() => {});
+                void AsyncStorage.removeItem('vh_recent_searches').catch(error => {
+                  reportDiscoverFailure('clear_recent_searches', error);
+                });
               }}
             >
               <Text style={{ color: Colors[colorScheme].tint, fontSize: 13, fontWeight: '600' }}>
@@ -1741,7 +1761,7 @@ function CommunityDiscoverScreen() {
           ) : (
             <>
               {/* Organizer-only card (shown before fan actions for organizer role) */}
-              {me?.preferences?.role === 'organizer' && (
+              {String(getCanonicalRole(me as any) || '').toLowerCase() === 'organizer' && (
                 <Pressable
                   style={[
                     styles.coachActionCard,
@@ -1767,7 +1787,8 @@ function CommunityDiscoverScreen() {
                   {
                     backgroundColor: Colors[colorScheme].tint + '10',
                     borderColor: Colors[colorScheme].tint + '30',
-                    marginLeft: me?.preferences?.role === 'organizer' ? 12 : 0,
+                    marginLeft:
+                      String(getCanonicalRole(me as any) || '').toLowerCase() === 'organizer' ? 12 : 0,
                   },
                 ]}
                 onPress={() => void router.push('/create-fan-event')}

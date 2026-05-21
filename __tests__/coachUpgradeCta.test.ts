@@ -52,6 +52,17 @@ describe('getCoachUpgradeCta', () => {
     ).toBeNull();
   });
 
+  it('prefers canonical top-level coach fan-mode over stale preferences', () => {
+    expect(
+      getCoachUpgradeCta({
+        role: 'coach',
+        approval_status: 'PENDING',
+        proceeding_as_fan: true,
+        preferences: { role: 'fan', proceeding_as_fan: false, organization_id: 'org_123' },
+      } as any)
+    ).toBeNull();
+  });
+
   it('routes rejected coaches back into coach recovery instead of hiding the pathway', () => {
     expect(
       getCoachUpgradeCta({

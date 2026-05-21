@@ -85,8 +85,14 @@ describe('coach approval UI guards', () => {
   it.each([
     ['pending-approval.tsx', pendingApprovalScreen],
     ['league-pending-approval.tsx', leaguePendingApprovalScreen],
-  ])('%s persists fan role when the user chooses Continue as Fan', (_name, source) => {
-    expect(source).toMatch(/User\.updatePreferences\(\{\s*proceeding_as_fan:\s*true,\s*role:\s*'fan'\s*\}\)/);
+  ])('%s enables fan mode without rewriting the account role', (_name, source) => {
+    expect(source).toMatch(/User\.updatePreferences\(\{\s*proceeding_as_fan:\s*true\s*\}\)/);
+    expect(source).not.toMatch(/User\.updatePreferences\(\{\s*proceeding_as_fan:\s*true,\s*role:\s*'fan'\s*\}\)/);
+  });
+
+  it('pending approval screen keys fan mode off proceeding_as_fan instead of a raw role fallback', () => {
+    expect(pendingApprovalScreen).toContain('const isProceedingAsFan = isProceedingAsFanSnapshot(me);');
+    expect(pendingApprovalScreen).not.toContain("isProceedingAsFanSnapshot(me) || role === 'fan'");
   });
 
   it('coach application submission routes to waiting instead of locally completing onboarding', () => {

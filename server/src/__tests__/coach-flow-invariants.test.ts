@@ -157,6 +157,27 @@ describe('coach flow structural invariants', () => {
       expect(/prefs\?\.role\s*===\s*['"]coach['"]/.test(requireOnboarded)).toBe(false);
     });
 
+    it('admin pending-coach query searches both role column and legacy preferences.role', () => {
+      const snippet =
+        admin.match(/approval_status:\s*'PENDING'[\s\S]{0,300}preferences:\s*\{\s*path:\s*\['role'\],\s*equals:\s*'coach'\s*\}/)
+          ?.at(0) || '';
+      expect(snippet).toContain("approval_status: 'PENDING'");
+      expect(snippet).toContain("{ role: 'coach' as any }");
+      expect(snippet).toContain("preferences: { path: ['role'], equals: 'coach' }");
+    });
+
+    it('approval-service stale/expired coach queries search both role column and legacy preferences.role', () => {
+      const reminderFn =
+        approvalService.match(/export async function remindPendingCoachApprovals[\s\S]*?^\}/m)?.[0] || '';
+      const autoExpireFn =
+        approvalService.match(/export async function autoExpirePendingCoaches[\s\S]*?^\}/m)?.[0] || '';
+
+      expect(reminderFn).toContain("{ role: 'coach' as any }");
+      expect(reminderFn).toContain("preferences: { path: ['role'], equals: 'coach' }");
+      expect(autoExpireFn).toContain("{ role: 'coach' as any }");
+      expect(autoExpireFn).toContain("preferences: { path: ['role'], equals: 'coach' }");
+    });
+
     it('teams create route uses canonical role/onboarding helpers for approval gating', () => {
       expect(/getCanonicalUserRole/.test(teams)).toBe(true);
       expect(/isUserOnboardingComplete/.test(teams)).toBe(true);
@@ -282,7 +303,7 @@ describe('coach flow structural invariants', () => {
     it('submitting a coach application does not mutate User.role', () => {
       const fn = auth.match(/\/coach-applications[\s\S]*?return res\.status\(201\)\.json/m)?.[0];
       expect(fn).toBeTruthy();
-      expect(fn).toMatch(/currentRole !== 'coach'/);
+      expect(fn).toMatch(/currentUserState\.role !== 'coach'/);
       expect(fn).not.toMatch(/role:\s*'coach'/);
     });
 
@@ -320,10 +341,13 @@ describe('coach flow structural invariants', () => {
 
     it('organization writes flow through an explicit create-data sanitizer', () => {
       expect(/function buildOrganizationCreateData/.test(organizations)).toBe(true);
-      const createDataCalls =
-        organizations.match(/data:\s*buildOrganizationCreateData\(data,\s*req\.user!\.id,\s*\{/g) ||
+      expect(organizations).toMatch(
+        /const org = await tx\.organization\.create\(\{[\s\S]*data:\s*buildOrganizationCreateData\(data,\s*userId,\s*\{/
+      );
+      const helperRouteCalls =
+        organizations.match(/handleOrganizationCreateRequest\(req,\s*res,\s*parsed\.data,\s*\{/g) ||
         [];
-      expect(createDataCalls.length).toBeGreaterThanOrEqual(2);
+      expect(helperRouteCalls.length).toBeGreaterThanOrEqual(2);
     });
 
     it('organization create routes do not spread parsed onboarding payloads into Prisma writes', () => {

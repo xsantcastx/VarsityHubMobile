@@ -8,16 +8,17 @@ import {
 describe('coach approval lifecycle', () => {
   const pendingFanModeUser = {
     email_verified: true,
-    role: 'fan',
+    role: 'coach',
     approval_status: 'PENDING',
     account_state: 'coach_pending_approval',
     next_step: '/(tabs)',
     organization_id: 'org_123',
+    proceeding_as_fan: true,
     preferences: {
       role: 'fan',
       onboarding_completed: true,
       organization_id: 'org_123',
-      proceeding_as_fan: true,
+      proceeding_as_fan: false,
     },
   };
 
