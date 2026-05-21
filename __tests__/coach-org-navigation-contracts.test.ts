@@ -82,7 +82,8 @@ describe('coach/org navigation contracts', () => {
   });
 
   it('organization coach-request review returns to the canonical organization requests tab and uses coach-first copy', () => {
-    expect(organizationJoinRequests).toContain("'/organization?tab=requests'");
+    expect(organizationJoinRequests).toContain("`/organization?id=${encodeURIComponent(params.organization_id)}`");
+    expect(organizationJoinRequests).toContain(": '/organization';");
     expect(organizationJoinRequests).toContain("title: 'Coach Requests'");
     expect(organizationJoinRequests).not.toContain("title: 'Team Join Requests'");
   });
@@ -181,11 +182,16 @@ describe('coach/org navigation contracts', () => {
     expect(organizationScreen).toContain('buildOrganizationJoinRequestsRoute');
     expect(organizationScreen).toContain("pathname: '/organization-join-requests'");
     expect(organizationScreen).not.toContain("onPress={() => router.push('/approvals')}");
+    expect(approvals).toContain('/organization-join-requests?organization_id=${encodeURIComponent(id)}');
   });
 
   it('coach setup copy points users to live team/org management tools instead of a dead authorized-user onboarding step', () => {
     expect(step3League).toContain('invite managers and members from organization tools');
     expect(step3League).toContain('manage roster and staff invites from your team tools');
     expect(step3League).not.toContain('Continue to add authorized users and complete your setup.');
+  });
+
+  it('join-request onboarding path sends users directly to pending approval on continue', () => {
+    expect(step3League).toContain("router.replace('/onboarding/pending-approval' as any)");
   });
 });

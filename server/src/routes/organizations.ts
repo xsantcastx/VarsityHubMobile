@@ -3699,7 +3699,7 @@ organizationsRouter.post(
             where: { id: joinRequest.id, status: 'pending' },
             data: {
               status: 'denied',
-              message: reason,
+              rejection_reason: reason || null,
               reviewed_at: new Date(),
               reviewed_by: req.user!.id,
             },

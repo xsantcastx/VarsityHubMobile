@@ -1,6 +1,6 @@
 import { Organization } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
-import { getOrganizationAccess } from '@/utils/roleChecks';
+import { canReviewCoachRequests } from '@/utils/roleChecks';
 import { getFreshAuthSnapshot } from '@/utils/authState';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -51,8 +51,8 @@ function OrganizationJoinRequestsScreen() {
     action?: 'approve' | 'reject';
   }>();
   const fallbackRoute = params.organization_id
-    ? `/organization?id=${encodeURIComponent(params.organization_id)}&tab=requests`
-    : '/organization?tab=requests';
+    ? `/organization?id=${encodeURIComponent(params.organization_id)}`
+    : '/organization';
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,7 +94,7 @@ function OrganizationJoinRequestsScreen() {
         getFreshAuthSnapshot(checkAuth, authUser).catch(() => null),
         Organization.members(params.organization_id).catch(() => []),
       ]);
-      if (!getOrganizationAccess(currentUser as any, Array.isArray(members) ? members : []).isOwner) {
+      if (!canReviewCoachRequests(currentUser as any, Array.isArray(members) ? members : [])) {
         setLoading(false);
         setError('Only the organization owner can review coach requests for this organization.');
         return;
