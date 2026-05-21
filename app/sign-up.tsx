@@ -17,7 +17,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { useAuth } from '@/context/AuthProvider';
-import { captureException } from '@/utils/sentry';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { PUBLIC_PRIVACY_POLICY_URL, PUBLIC_TERMS_URL } from '@/constants/legal';
 import { consumePendingDeepLink, handleDeepLink } from '@/utils/deepLinks';
 import { openExternalUrl } from '@/utils/openExternalUrl';
@@ -51,6 +51,26 @@ export default function SignUpScreen() {
   const submitting = useRef(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [confirmedAge, setConfirmedAge] = useState(false);
+
+  const getErrorMessage = (error: unknown, fallback = ''): string => {
+    if (typeof error === 'string') return error;
+    if (error && typeof error === 'object') {
+      const candidate = error as {
+        message?: unknown;
+        data?: { error?: unknown; message?: unknown };
+      };
+      if (typeof candidate.message === 'string' && candidate.message.trim()) {
+        return candidate.message;
+      }
+      if (typeof candidate.data?.error === 'string' && candidate.data.error.trim()) {
+        return candidate.data.error;
+      }
+      if (typeof candidate.data?.message === 'string' && candidate.data.message.trim()) {
+        return candidate.data.message;
+      }
+    }
+    return fallback;
+  };
 
   const routeCurrentUser = async (resolvedUser?: any) => {
     const effectiveUser = resolvedUser || user;
@@ -175,25 +195,49 @@ export default function SignUpScreen() {
       const sanitizedEmail = sanitizeEmail(email);
       return await User.register(sanitizedEmail, password);
     } catch (e: any) {
-      const errMsg = e?.message || '';
+      const errMsg = getErrorMessage(e);
+      const sanitizedEmail = sanitizeEmail(email);
+      const isDuplicateEmailError =
+        errMsg.includes('Email already registered') ||
+        e?.status === 409 ||
+        e?.data?.errorCode === 'EMAIL_ALREADY_REGISTERED';
+      const isRecoverableRegisterResponseError =
+        errMsg.includes('Invalid auth response') ||
+        errMsg.includes('Premature close');
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-attempt' },
         extra: { attempt },
       });
-      
-      // Handle the race condition: if we get "Email already registered" on retry,
-      // it likely means the first attempt actually succeeded but we didn't get the response
-      if (attempt > 1 && e?.message?.includes('Email already registered')) {
-        try {
-          // Try to sign in with the same credentials
-          const loginResult = await User.loginViaEmailPassword(email, password);
-          // Return the login result as if it was a successful registration
+
+      try {
+        const loginResult = await User.loginViaEmailPassword(sanitizedEmail, password);
+        if (loginResult?.needs_verification) {
           return loginResult;
+        }
+      } catch (loginRecoveryError: any) {
+        if (__DEV__) {
+          console.error('[sign-up] Verification-flow recovery login failed:', loginRecoveryError?.message || loginRecoveryError);
+        }
+      }
+      
+      // Recover stranded sign-up attempts by logging into the existing account
+      // and only treating it as success when the account is still awaiting
+      // verification. This covers duplicate-email responses after a network/
+      // response race without silently signing users into fully-active accounts.
+      if (isDuplicateEmailError || isRecoverableRegisterResponseError) {
+        try {
+          const loginResult = await User.loginViaEmailPassword(sanitizedEmail, password);
+          if (loginResult?.needs_verification) {
+            return loginResult;
+          }
         } catch (loginError: any) {
           if (__DEV__) console.error(`[sign-up] Recovery login failed:`, loginError?.message);
-          // If login fails, the user might not have been created after all
-          // Or there might be a password issue - throw a helpful error
-          throw new Error('Registration may have partially succeeded but login failed. Please try signing in directly or contact support.');
+          if (attempt > 1) {
+            throw new Error('Registration may have partially succeeded but login failed. Please try signing in directly or contact support.');
+          }
+        }
+        if (attempt > 1) {
+          throw new Error('Registration may have partially succeeded but verification state could not be recovered. Please try signing in directly.');
         }
       }
       
@@ -203,7 +247,8 @@ export default function SignUpScreen() {
         errMsg.startsWith('Cannot connect to server') ||
         errMsg.includes('Request timeout') ||
         errMsg.includes('Network request failed') ||
-        errMsg.includes('fetch');
+        errMsg.includes('fetch') ||
+        isRecoverableRegisterResponseError;
       
       if (isRetryableError && attempt < 3) {
         setRetryCount(attempt);
@@ -245,27 +290,47 @@ export default function SignUpScreen() {
     setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
 
     try {
+      const sanitizedEmail = sanitizeEmail(email);
       const res: any = await attemptRegistration();
+      captureBreadcrumb('Sign-up registration succeeded', 'auth.sign_up', {
+        has_access_token: !!res?.access_token,
+        needs_verification: !!res?.needs_verification,
+        verification_email_sent:
+          typeof res?.verification_email_sent === 'boolean'
+            ? String(res.verification_email_sent)
+            : 'unknown',
+        verification_email_error: res?.verification_email_error || 'none',
+        response_keys: Object.keys(res || {}).join(','),
+      });
+
+      await checkAuth({ email: sanitizedEmail, pendingVerification: true });
+
       // Registration response already saved tokens — AuthProvider will pick them up.
-      // Don't call checkAuth() here to avoid a navigation race with router.replace below.
       analytics.track(ANALYTICS_EVENTS.USER_SIGNED_UP, { method: 'email', role: 'fan' });
-      const verifyParams = new URLSearchParams();
+      const verifyParams: Record<string, string> = {};
       if (res?.verification_email_sent === false) {
-        verifyParams.set('delivery', String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED'));
+        verifyParams.delivery = String(res?.verification_email_error || 'EMAIL_DELIVERY_FAILED');
       }
       // After successful signup, redirect to email verification screen
       // Pass dev code only in __DEV__ for easier testing (never in production)
       if (__DEV__ && res?.dev_verification_code) {
-        verifyParams.set('devCode', String(res.dev_verification_code));
-        router.replace(`/verify?${verifyParams.toString()}`);
-      } else {
-        router.replace(verifyParams.size > 0 ? `/verify?${verifyParams.toString()}` : '/verify');
+        verifyParams.devCode = String(res.dev_verification_code);
       }
+      router.replace(
+        Object.keys(verifyParams).length > 0
+          ? { pathname: '/verify', params: verifyParams }
+          : '/verify'
+      );
     } catch (e: any) {
       if (__DEV__) console.error('[sign-up] Registration failed after all attempts:', e);
-      const errMsg = e?.message || 'Sign up failed';
+      const errMsg = getErrorMessage(e, 'Sign up failed');
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-final' },
+        extra: {
+          normalized_message: errMsg,
+          status: e?.status,
+          data: e?.data,
+        },
       });
       
       // Handle specific error types with better messaging

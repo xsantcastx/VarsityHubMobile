@@ -72,6 +72,12 @@ describe('account boundary invariants', () => {
       expect(authProvider).toMatch(/fresh_install_token_cleanup_failed/);
       expect(authProvider).toMatch(/skipping persisted-session bootstrap/);
     });
+
+    it('bootstrap does not abort active auth-establishing requests when no token is present yet', () => {
+      expect(authProvider).toMatch(/clearLocalAuthState = useCallback\(\(options\?: \{ abortInflight\?: boolean \}\)/);
+      expect(authProvider).toMatch(/if \(options\?\.abortInflight !== false\) \{\s*abortAllInflight\('sign_out_or_session_expiry'\);/);
+      expect(authProvider).toMatch(/if \(!token\) \{[\s\S]{0,400}clearLocalAuthState\(\{\s*abortInflight:\s*false\s*\}\)/);
+    });
   });
 
   describe('Sign-in and sign-up routing', () => {
@@ -114,6 +120,11 @@ describe('account boundary invariants', () => {
 
     it('sign-up uses replaceSession when completing OAuth account creation', () => {
       expect(signUp).toMatch(/checkAuth\(\{\s*replaceSession:\s*true\s*\}\)/);
+    });
+
+    it('sign-up seeds pending verification state through AuthProvider before routing to verify', () => {
+      expect(signUp).toMatch(/await checkAuth\(\{\s*email:\s*sanitizedEmail,\s*pendingVerification:\s*true\s*\}\)/);
+      expect(signUp).toMatch(/pathname:\s*'\/verify'/);
     });
 
     it('sign-in blocks Google OAuth when a user session already exists', () => {

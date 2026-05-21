@@ -332,7 +332,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const pushTokenTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscriptionFetchTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearLocalAuthState = useCallback(() => {
+  const clearLocalAuthState = useCallback((options?: { abortInflight?: boolean }) => {
     if (pushTokenTimeoutRef.current) {
       clearTimeout(pushTokenTimeoutRef.current);
       pushTokenTimeoutRef.current = null;
@@ -347,7 +347,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // subscriber (or the GET-dedup cache) could observe user A's response.
     // AbortController cancellation causes fetch() to throw AbortError so
     // the resolution path never delivers the body.
-    abortAllInflight('sign_out_or_session_expiry');
+    if (options?.abortInflight !== false) {
+      abortAllInflight('sign_out_or_session_expiry');
+    }
     clearPostCacheOnLogout();
     setUser(null);
     setHasSession(false);
@@ -417,7 +419,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         // Try to fetch current user only if we have a token
         const token = await auth.getToken();
         if (!token) {
-          clearLocalAuthState();
+          // Startup/bootstrap can legitimately race with auth-establishing
+          // requests like sign-in/sign-up on web. Clearing local auth state is
+          // correct here, but aborting every in-flight request would cancel the
+          // very registration/login call that is about to establish the token.
+          clearLocalAuthState({ abortInflight: false });
           return;
         }
 
