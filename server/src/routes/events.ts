@@ -175,6 +175,30 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
     return res.send(renderEventReviewPage(action, event.title || 'Unknown', token));
   }
 
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(
+        renderEventResultPage(
+          'Link Already Used',
+          `This ${action} link has already been used.`,
+          false
+        )
+      );
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(
+        renderEventResultPage(
+          'Temporarily Unavailable',
+          'This review link cannot be completed right now. Please use the admin dashboard instead.',
+          false
+        )
+      );
+  }
+
   const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : undefined;
   const reviewerUserId = req.user?.id ?? null;
   const result =
@@ -193,15 +217,6 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
     return res
       .status(result.status || 400)
       .send(renderEventResultPage('Error', result.error, false));
-  }
-
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult !== 'consumed') {
-    console.warn('[events] review token could not be marked consumed after success:', {
-      event_id: eventId,
-      action,
-      consumeResult,
-    });
   }
 
   return res.send(

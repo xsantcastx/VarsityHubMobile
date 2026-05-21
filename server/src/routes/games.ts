@@ -258,6 +258,30 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
     return res.send(renderGameReviewPage(action, game.title || 'Unknown', token));
   }
 
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(
+        renderGameResultPage(
+          'Link Already Used',
+          `This ${action} link has already been used.`,
+          false
+        )
+      );
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(
+        renderGameResultPage(
+          'Temporarily Unavailable',
+          'This review link cannot be completed right now. Please use the admin dashboard instead.',
+          false
+        )
+      );
+  }
+
   const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).trim() : undefined;
   const reviewerUserId = req.user?.id ?? null;
   const result = await applyGameApprovalDecision(
@@ -278,15 +302,6 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
     return res
       .status(result.status!)
       .send(renderGameResultPage('Error', result.error!, false));
-  }
-
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult !== 'consumed') {
-    console.warn('[games] review token could not be marked consumed after success:', {
-      game_id: id,
-      action,
-      consumeResult,
-    });
   }
 
   return res.send(

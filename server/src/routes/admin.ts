@@ -59,6 +59,14 @@ function renderCoachResultPage(title: string, message: string, success: boolean)
 </body></html>`;
 }
 
+function renderCoachAdminLoginRequiredPage(action: 'approve' | 'reject', coachName: string) {
+  return renderCoachResultPage(
+    'Admin Sign-In Required',
+    `You must be signed in as a verified admin to ${action} ${coachName || 'this coach'}.`,
+    false
+  );
+}
+
 async function handleCoachReview(
   req: AuthedRequest,
   res: express.Response,
@@ -92,6 +100,7 @@ async function handleCoachReview(
       select: { id: true, email: true, email_verified: true },
     });
     if (me?.email_verified && isEmailAdmin(me.email)) {
+      signedInAdmin = true;
       signedInAdminSession = { id: me.id, email: me.email };
     }
   }
@@ -139,9 +148,37 @@ async function handleCoachReview(
     return res.send(renderCoachReviewPage(action, coachName, token!));
   }
 
+  if (tokenValid && !signedInAdminSession) {
+    return res
+      .status(401)
+      .send(renderCoachAdminLoginRequiredPage(action, coachName));
+  }
+
+  if (tokenValid) {
+    const consumeResult = await consumeReviewToken(token!, payload!);
+    if (consumeResult === 'already_used') {
+      return res.status(409).send(
+        renderCoachResultPage(
+          'Link Already Used',
+          `This ${action} link has already been used.`,
+          false
+        )
+      );
+    }
+    if (consumeResult === 'store_unavailable') {
+      return res.status(503).send(
+        renderCoachResultPage(
+          'Temporarily Unavailable',
+          'This review link cannot be completed right now. Please use the admin dashboard instead.',
+          false
+        )
+      );
+    }
+  }
+
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : undefined;
   const reviewerUserId = signedInAdminSession?.id ?? null;
-  let reviewerEmail = 'email-token';
+  let reviewerEmail = 'unknown-admin';
   if (signedInAdminSession?.email) {
     reviewerEmail = signedInAdminSession.email;
   }
@@ -156,19 +193,8 @@ async function handleCoachReview(
       .send(renderCoachResultPage('Error', result.error, false));
   }
 
-  if (tokenValid) {
-    const consumeResult = await consumeReviewToken(token!, payload!);
-    if (consumeResult !== 'consumed') {
-      console.warn('[admin] coach review token could not be marked consumed after success:', {
-        coach_id: id,
-        action,
-        consumeResult,
-      });
-    }
-  }
-
   await logAdminActivity(
-    reviewerUserId || 'email-token',
+    reviewerUserId || 'unknown-admin',
     reviewerEmail,
     action === 'approve' ? 'APPROVE_COACH' : 'REJECT_COACH',
     'user',

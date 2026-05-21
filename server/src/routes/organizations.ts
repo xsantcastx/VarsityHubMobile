@@ -2879,6 +2879,30 @@ async function joinRequestEmailReviewHandler(
       );
   }
 
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(
+        joinReviewHtml(
+          'Link Already Used',
+          `<h1 style="color:#DC2626">Link Already Used</h1><p>This ${linkLabel} link has already been used.</p>`,
+          '#DC2626'
+        )
+      );
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(
+        joinReviewHtml(
+          'Temporarily Unavailable',
+          '<h1 style="color:#DC2626">Temporarily Unavailable</h1><p>This review link cannot be completed right now. Please try again from the app.</p>',
+          '#DC2626'
+        )
+      );
+  }
+
   const result =
     action === 'approve'
       ? await _executeJoinRequestApprovalByToken(requestId, ownerMembership.user_id)
@@ -2894,26 +2918,6 @@ async function joinRequestEmailReviewHandler(
           '#DC2626'
         )
       );
-  }
-
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult === 'already_used') {
-    return res
-      .status(409)
-      .send(
-        joinReviewHtml(
-          'Link Already Used',
-          `<h1 style="color:#DC2626">Link Already Used</h1><p>This ${linkLabel} link has already been used.</p>`,
-          '#DC2626'
-        )
-      );
-  }
-  if (consumeResult === 'store_unavailable') {
-    console.warn('[organizations] join request review token could not be marked consumed:', {
-      request_id: requestId,
-      action,
-      consumeResult,
-    });
   }
 
   if (action === 'approve') {
@@ -3074,6 +3078,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
           );
       }
       if (req.method === 'GET') {
+        if (!adminSession) {
+          return res
+            .status(401)
+            .send(renderAdminLoginRequiredPage('approve', 'this league'));
+        }
         addBreadcrumb('League approval confirmation page rendered', 'approval.organization_route', 'info', {
           action: 'approve',
           organization_id: orgId,
@@ -3100,6 +3109,12 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
 </form></body></html>`);
       }
 
+      if (!adminSession) {
+        return res
+          .status(401)
+          .send(renderAdminLoginRequiredPage('approve', 'this league'));
+      }
+
       const orgInfo = await prisma.organization.findUnique({
         where: { id: orgId },
         select: { name: true, admin_approved: true, status: true },
@@ -3111,7 +3126,25 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
         );
       }
 
-      const adminUserId = adminSession?.id || 'email-token';
+      const consumeResult = await consumeReviewToken(token, payload);
+      if (consumeResult === 'already_used') {
+        return res
+          .status(409)
+          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This approval link has already been used.</p></body></html>`);
+      }
+      if (consumeResult === 'store_unavailable') {
+        return res
+          .status(503)
+          .send(
+            renderLeagueActionResultPage(
+              'Temporarily Unavailable',
+              'This review link cannot be completed right now. Please use the admin dashboard instead.',
+              false
+            )
+          );
+      }
+
+      const adminUserId = adminSession.id;
       const adminNote: string | undefined = req.body?.note || undefined;
       const result = await approveOrganization(orgId, adminUserId, prisma, { note: adminNote });
       if (result.error) {
@@ -3134,19 +3167,6 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
           renderLeagueActionResultPage('Already Approved', 'This league was already approved.', false)
         );
       }
-      const consumeResult = await consumeReviewToken(token, payload);
-      if (consumeResult === 'already_used') {
-        return res
-          .status(409)
-          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This approval link has already been used.</p></body></html>`);
-      }
-      if (consumeResult === 'store_unavailable') {
-        console.warn('[organizations] league approval token could not be marked consumed:', {
-          organization_id: orgId,
-          action: 'approve',
-          consumeResult,
-        });
-      }
       addBreadcrumb('League approval endpoint completed', 'approval.organization_route', 'info', {
         action: 'approve',
         organization_id: orgId,
@@ -3154,7 +3174,7 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
       });
 
       const org = (result as any).org;
-      const approverEmail = adminSession?.email || 'email-token';
+      const approverEmail = adminSession.email || 'unknown-admin';
       await logAdminActivity(
         adminUserId,
         approverEmail,
@@ -3274,6 +3294,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
           );
       }
       if (req.method === 'GET') {
+        if (!adminSession) {
+          return res
+            .status(401)
+            .send(renderAdminLoginRequiredPage('reject', 'this league'));
+        }
         addBreadcrumb('League rejection confirmation page rendered', 'approval.organization_route', 'info', {
           action: 'reject',
           organization_id: orgId,
@@ -3300,6 +3325,12 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
 </form></body></html>`);
       }
 
+      if (!adminSession) {
+        return res
+          .status(401)
+          .send(renderAdminLoginRequiredPage('reject', 'this league'));
+      }
+
       const orgInfo = await prisma.organization.findUnique({
         where: { id: orgId },
         select: { name: true, admin_approved: true, status: true },
@@ -3311,7 +3342,25 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
         );
       }
 
-      const adminUserId = adminSession?.id || 'email-token';
+      const consumeResult = await consumeReviewToken(token, payload);
+      if (consumeResult === 'already_used') {
+        return res
+          .status(409)
+          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This rejection link has already been used.</p></body></html>`);
+      }
+      if (consumeResult === 'store_unavailable') {
+        return res
+          .status(503)
+          .send(
+            renderLeagueActionResultPage(
+              'Temporarily Unavailable',
+              'This review link cannot be completed right now. Please use the admin dashboard instead.',
+              false
+            )
+          );
+      }
+
+      const adminUserId = adminSession.id;
       const result = await rejectOrganization(orgId, adminUserId, prisma, { reason });
       if (result.error) {
         const finalState = (result as any).finalState;
@@ -3333,19 +3382,6 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
           renderLeagueActionResultPage('Already Rejected', 'This league was already rejected.', false)
         );
       }
-      const consumeResult = await consumeReviewToken(token, payload);
-      if (consumeResult === 'already_used') {
-        return res
-          .status(409)
-          .send(`<!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:60px"><h1 style="color:#DC2626">Link Already Used</h1><p>This rejection link has already been used.</p></body></html>`);
-      }
-      if (consumeResult === 'store_unavailable') {
-        console.warn('[organizations] league rejection token could not be marked consumed:', {
-          organization_id: orgId,
-          action: 'reject',
-          consumeResult,
-        });
-      }
       addBreadcrumb('League rejection endpoint completed', 'approval.organization_route', 'info', {
         action: 'reject',
         organization_id: orgId,
@@ -3353,7 +3389,7 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
       });
 
       const org = (result as any).org;
-      const rejecterEmail = adminSession?.email || 'email-token';
+      const rejecterEmail = adminSession.email || 'unknown-admin';
       await logAdminActivity(
         adminUserId,
         rejecterEmail,

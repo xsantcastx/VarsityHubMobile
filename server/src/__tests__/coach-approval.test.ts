@@ -721,8 +721,8 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('League approval sets league owner to APPROVED', () => {
-    it('allows the email approval token to approve the league without an admin session', async () => {
+  describe('League approval token requires authenticated admin session', () => {
+    it('rejects the email approval token when no admin session is present', async () => {
       const ownerHash = await bcrypt.hash(PASSWORD, 10);
       const owner = await prisma.user.create({
         data: {
@@ -758,14 +758,14 @@ describe('Coach Approval Workflow', () => {
           .post(`/organizations/${org.id}/approve?token=${token}`)
           .send();
 
-        expect(tokenOnlyRes.status).toBe(200);
-        expect(tokenOnlyRes.text).toMatch(/League Approved/i);
+        expect(tokenOnlyRes.status).toBe(401);
+        expect(tokenOnlyRes.text).toMatch(/Admin Sign-In Required/i);
 
         const userAfter = await prisma.user.findUnique({
           where: { id: owner.id },
           select: { approval_status: true },
         });
-        expect(userAfter?.approval_status).toBe('APPROVED');
+        expect(userAfter?.approval_status).toBe('PENDING');
       } finally {
         await prisma.organizationMembership.deleteMany({ where: { organization_id: org.id } });
         await prisma.organization.deleteMany({ where: { id: org.id } });
@@ -774,8 +774,8 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Coach email-token reviewer attribution', () => {
-    it('leaves reviewed_by null when a token-only approval has no authenticated actor', async () => {
+  describe('Coach token review requires authenticated admin session', () => {
+    it('rejects token-only approval when no authenticated admin actor is present', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
         data: {
@@ -807,14 +807,14 @@ describe('Coach Approval Workflow', () => {
           .post(`/admin/coaches/${coach.id}/approve?token=${reviewToken}`)
           .send();
 
-        expect(res.status).toBe(200);
-        expect(res.text).toMatch(/Coach Approved/i);
+        expect(res.status).toBe(401);
+        expect(res.text).toMatch(/Admin Sign-In Required/i);
 
         const applicationAfter = await prisma.coachApplication.findUnique({
           where: { id: application.id },
           select: { status: true, reviewed_by: true },
         });
-        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.status).toBe('submitted');
         expect(applicationAfter?.reviewed_by).toBeNull();
       } finally {
         await prisma.adminActivityLog.deleteMany({ where: { target_id: coach.id } }).catch(() => {});
@@ -823,7 +823,7 @@ describe('Coach Approval Workflow', () => {
       }
     });
 
-    it('does not attribute token approval to a non-admin signed-in session', async () => {
+    it('rejects token approval for a non-admin signed-in session', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const actorHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
@@ -870,14 +870,14 @@ describe('Coach Approval Workflow', () => {
           .set('Authorization', `Bearer ${sessionToken}`)
           .send();
 
-        expect(res.status).toBe(200);
-        expect(res.text).toMatch(/Coach Approved/i);
+        expect(res.status).toBe(401);
+        expect(res.text).toMatch(/Admin Sign-In Required/i);
 
         const applicationAfter = await prisma.coachApplication.findUnique({
           where: { id: application.id },
           select: { status: true, reviewed_by: true },
         });
-        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.status).toBe('submitted');
         expect(applicationAfter?.reviewed_by).toBeNull();
 
         const auditLog = await prisma.adminActivityLog.findFirst({
@@ -885,8 +885,7 @@ describe('Coach Approval Workflow', () => {
           orderBy: { timestamp: 'desc' },
           select: { admin_id: true, admin_email: true },
         });
-        expect(auditLog?.admin_id).toBe('email-token');
-        expect(auditLog?.admin_email).toBe('email-token');
+        expect(auditLog).toBeNull();
       } finally {
         await prisma.adminActivityLog.deleteMany({
           where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
