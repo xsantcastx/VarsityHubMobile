@@ -61,6 +61,40 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'pending_coach_waiting',
     },
     {
+      label: 'keeps stale pending fan-mode snapshots on tabs even without server account_state',
+      user: {
+        email_verified: true,
+        role: 'fan',
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        preferences: {
+          role: 'fan',
+          onboarding_completed: false,
+          proceeding_as_fan: true,
+        },
+      },
+      expected: '/(tabs)',
+      kind: 'server_pending_approval_fan_mode',
+    },
+    {
+      label: 'treats proceeding-as-fan as canonical when server next_step is stale pending',
+      user: {
+        email_verified: true,
+        approval_status: 'PENDING',
+        account_state: 'coach_pending_approval',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          role: 'coach',
+          proceeding_as_fan: false,
+          onboarding_completed: true,
+          organization_id: 'org_123',
+        },
+      },
+      expected: '/(tabs)',
+      kind: 'server_pending_approval_fan_mode',
+    },
+    {
       label: 'respects server-directed league pending approvals',
       user: {
         email_verified: true,

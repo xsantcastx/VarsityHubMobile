@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getCanonicalRole, isProceedingAsFanSnapshot } from '@/utils/authState';
 // @ts-ignore
 import { User, Notification as NotificationApi, Organization } from '@/api/entities';
 import { captureException } from '@/utils/sentry';
@@ -182,9 +183,9 @@ function LeaguePendingApproval() {
       }
 
       const org: any = await Organization.get(orgId);
-      const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
+      const role = String(getCanonicalRole(me as any) || '').toLowerCase();
       const approvalStatus = String(me?.approval_status || '').toUpperCase();
-      const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+      const isProceedingAsFan = isProceedingAsFanSnapshot(me as any) || role === 'fan';
       if (isProceedingAsFan || proceedingAsFanRef.current) {
         stopPolling();
         return;

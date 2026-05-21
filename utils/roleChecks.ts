@@ -327,6 +327,11 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
     return null;
   }
 
+  const coachAccess = getCoachAccessState(user);
+  if (coachAccess.isProceedingAsFan) {
+    return '/(tabs)';
+  }
+
   const explicitNextStep =
     typeof user?.next_step === 'string' && user.next_step.trim().startsWith('/')
       ? user.next_step.trim()
@@ -358,12 +363,6 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
     return getPendingCoachRoute(user);
   }
 
-  const coachAccess = getCoachAccessState(user);
-
-  if (coachAccess.isProceedingAsFan) {
-    return '/(tabs)';
-  }
-
   if (coachAccess.needsPaidPlanCheckout) {
     return '/settings/manage-subscription';
   }
@@ -384,11 +383,11 @@ export function getCoachApprovalNotificationRoute(user: CoachUserLike | null | u
     return '/(tabs)';
   }
 
-  if (user.preferences?.proceeding_as_fan === true) {
+  const coachAccess = getCoachAccessState(user);
+  if (coachAccess.isProceedingAsFan) {
     return '/(tabs)';
   }
 
-  const coachAccess = getCoachAccessState(user);
   if (coachAccess.hasAcceptedCoachAgreement) {
     return getCoachOrganizationId(user) ? '/organization' : '/(tabs)';
   }

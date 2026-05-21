@@ -261,13 +261,31 @@ describe('getCoachApprovalNotificationRoute', () => {
     expect(getCoachApprovalNotificationRoute(null)).toBe('/onboarding/coach-agreement');
   });
 
-  it('sends proceeding-as-fan users to tabs instead of reopening coach-agreement', () => {
+  it('sends pending/rejected proceeding-as-fan users to tabs instead of coach recovery walls', () => {
     expect(
       getCoachApprovalNotificationRoute({
-        approval_status: 'APPROVED',
+        approval_status: 'PENDING',
         preferences: { role: 'coach', proceeding_as_fan: true },
       })
     ).toBe('/(tabs)');
+  });
+
+  it('uses canonical proceeding_as_fan precedence over stale preferences', () => {
+    expect(
+      getCoachApprovalNotificationRoute({
+        approval_status: 'PENDING',
+        proceeding_as_fan: true,
+        preferences: { role: 'coach', proceeding_as_fan: false },
+      })
+    ).toBe('/(tabs)');
+
+    expect(
+      getCoachApprovalNotificationRoute({
+        approval_status: 'APPROVED',
+        proceeding_as_fan: false,
+        preferences: { role: 'coach', proceeding_as_fan: true },
+      })
+    ).toBe('/onboarding/coach-agreement');
   });
 
   it('sends coaches with an accepted agreement to organization instead of coach-agreement', () => {
@@ -350,6 +368,18 @@ describe('getCoachRecoveryRoute', () => {
         preferences: { role: 'coach' },
       })
     ).toBe('/onboarding/league-pending-approval');
+  });
+
+  it('prioritizes proceeding-as-fan over stale server next_step pending walls', () => {
+    expect(
+      getCoachRecoveryRoute({
+        account_state: 'coach_pending_approval',
+        next_step: '/onboarding/league-pending-approval',
+        approval_status: 'PENDING',
+        proceeding_as_fan: true,
+        preferences: { role: 'coach', proceeding_as_fan: false },
+      })
+    ).toBe('/(tabs)');
   });
 
   it('routes application-required coaches back to the application flow', () => {
