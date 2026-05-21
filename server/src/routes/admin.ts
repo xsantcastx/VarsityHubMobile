@@ -145,6 +145,11 @@ async function handleCoachReview(
 
   if (req.method === 'GET') {
     if (!tokenValid) return res.status(405).json({ error: 'Method not allowed' });
+    if (!signedInAdminSession) {
+      return res
+        .status(401)
+        .send(renderCoachAdminLoginRequiredPage(action, coachName));
+    }
     return res.send(renderCoachReviewPage(action, coachName, token!));
   }
 

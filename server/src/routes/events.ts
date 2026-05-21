@@ -127,6 +127,14 @@ function renderEventResultPage(title: string, message: string, success: boolean)
 </body></html>`;
 }
 
+function renderEventAdminLoginRequiredPage(action: 'approve' | 'reject', eventTitle: string) {
+  return renderEventResultPage(
+    'Admin Sign-In Required',
+    `You must be signed in as a verified admin to ${action} ${eventTitle || 'this event'}.`,
+    false
+  );
+}
+
 async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'approve' | 'reject') {
   const eventId = String(req.params.id);
   const token = typeof req.query?.token === 'string' ? req.query.token : undefined;
@@ -169,6 +177,13 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
     return res.send(
       renderEventResultPage('Already Rejected', `${event.title || 'This event'} was already rejected.`, true)
     );
+  }
+
+  const signedInAdmin = await getIsAdmin(req as any);
+  if (!signedInAdmin) {
+    return res
+      .status(401)
+      .send(renderEventAdminLoginRequiredPage(action, event.title || 'this event'));
   }
 
   if (req.method === 'GET') {

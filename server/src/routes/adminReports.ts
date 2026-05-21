@@ -108,15 +108,18 @@ async function handleEmailReportReview(
   );
 
   // Two callers: (1) email-link clicks render HTML; (2) admin dashboard sends JSON.
-  // Allow signed-in admins through without a token; keep email-link semantics otherwise.
-  let signedInAdmin = false;
-  if (!tokenValid && !token && req.user) {
+  // Both paths require an authenticated, verified admin identity.
+  let signedInAdminSession: { id: string; email: string | null } | null = null;
+  if (req.user) {
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { email: true, email_verified: true },
+      select: { id: true, email: true, email_verified: true },
     });
-    signedInAdmin = !!(me?.email_verified && isEmailAdmin(me.email));
+    if (me?.email_verified && isEmailAdmin(me.email)) {
+      signedInAdminSession = { id: me.id, email: me.email };
+    }
   }
+  const signedInAdmin = !!signedInAdminSession;
 
   if (!tokenValid && !signedInAdmin) {
     if (token) {
@@ -149,6 +152,18 @@ async function handleEmailReportReview(
     return res
       .status(404)
       .send(renderReportResultPage('Not Found', 'Abuse report not found.', false));
+  }
+
+  if (tokenValid && !signedInAdminSession) {
+    return res
+      .status(401)
+      .send(
+        renderReportResultPage(
+          'Admin Sign-In Required',
+          `You must be signed in as a verified admin to ${action} report ${report.id}.`,
+          false
+        )
+      );
   }
 
   const nextStatus = action === 'dismiss' ? 'dismissed' : 'resolved';
@@ -218,15 +233,8 @@ async function handleEmailReportReview(
   }
 
   const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
-  const reviewerUserId = req.user?.id ?? 'email-token';
-  let reviewerEmail = 'email-token';
-  if (req.user?.id) {
-    const reviewer = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true },
-    });
-    reviewerEmail = reviewer?.email || reviewerEmail;
-  }
+  const reviewerUserId = signedInAdminSession!.id;
+  const reviewerEmail = signedInAdminSession!.email || 'unknown-admin';
 
   const transition = await prisma.abuseReport.updateMany({
     where: { id, status: { notIn: [...FINAL_REPORT_STATUSES] } },

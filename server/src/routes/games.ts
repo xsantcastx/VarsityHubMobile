@@ -59,6 +59,14 @@ function renderGameResultPage(title: string, message: string, success: boolean) 
 </body></html>`;
 }
 
+function renderGameAdminLoginRequiredPage(action: 'approve' | 'reject', gameTitle: string) {
+  return renderGameResultPage(
+    'Admin Sign-In Required',
+    `You must be signed in as a verified admin to ${action} ${gameTitle || 'this game'}.`,
+    false
+  );
+}
+
 function renderGameFinalStatePage(
   game: { title: string | null; approval_status: string | null },
   action: 'approve' | 'reject'
@@ -252,6 +260,13 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
     return res.send(
       renderGameResultPage('Already Rejected', `${game.title || 'This game'} was already rejected.`, true)
     );
+  }
+
+  const signedInAdmin = await getIsAdmin(req as any);
+  if (!signedInAdmin) {
+    return res
+      .status(401)
+      .send(renderGameAdminLoginRequiredPage(action, game.title || 'this game'));
   }
 
   if (req.method === 'GET') {
