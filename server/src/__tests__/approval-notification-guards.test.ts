@@ -22,6 +22,10 @@ const ads = readFileSync(
   join(process.cwd(), 'src', 'routes', 'ads.ts'),
   'utf8'
 );
+const reviewFlow = readFileSync(
+  join(process.cwd(), 'src', 'lib', 'reviewFlow.ts'),
+  'utf8'
+);
 const adminReports = readFileSync(
   join(process.cwd(), 'src', 'routes', 'adminReports.ts'),
   'utf8'
@@ -97,9 +101,14 @@ describe('approval notification guards', () => {
 
     expect(adminRoutes).toMatch(/if \(req\.method === 'GET'\) \{[\s\S]*if \(!signedInAdminSession\)/);
 
-    expect(ads).toMatch(/const signedInAdmin = await getIsAdmin\(req\);/);
-    expect(ads).toMatch(/You must be signed in as a verified admin to approve this ad\./);
-    expect(ads).toMatch(/You must be signed in as a verified admin to reject this ad\./);
+    expect(ads).toMatch(/const signedInAdminSession = await resolveVerifiedAdminSession\(req\);/);
+    expect(ads).toMatch(/const signedInAdmin = !!signedInAdminSession;/);
+    expect(ads).toMatch(/sendAdminSignInRequiredHtml\(res,\s*confirmationPage,\s*'approve',\s*'this ad'\)/);
+    expect(ads).toMatch(/sendAdminSignInRequiredHtml\(res,\s*confirmationPage,\s*'reject',\s*'this ad'\)/);
+
+    expect(reviewFlow).toMatch(/export async function resolveVerifiedAdminSession/);
+    expect(reviewFlow).toMatch(/export function sendAdminSignInRequiredHtml/);
+    expect(reviewFlow).toMatch(/You must be signed in as a verified admin to/);
   });
 
   it('ad approval and rejection fan out admin confirmation emails', () => {

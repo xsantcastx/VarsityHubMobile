@@ -6,14 +6,18 @@ import { sendPushNotification } from '../lib/notifications.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
 import {
-  consumeReviewToken,
   verifyReviewToken,
 } from '../lib/reviewTokens.js';
+import {
+  consumeReviewTokenOrRenderHtml,
+  resolveVerifiedAdminSession,
+  sendAdminSignInRequiredHtml,
+} from '../lib/reviewFlow.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { adModerationLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -109,16 +113,7 @@ async function handleEmailReportReview(
 
   // Two callers: (1) email-link clicks render HTML; (2) admin dashboard sends JSON.
   // Both paths require an authenticated, verified admin identity.
-  let signedInAdminSession: { id: string; email: string | null } | null = null;
-  if (req.user) {
-    const me = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, email: true, email_verified: true },
-    });
-    if (me?.email_verified && isEmailAdmin(me.email)) {
-      signedInAdminSession = { id: me.id, email: me.email };
-    }
-  }
+  const signedInAdminSession = await resolveVerifiedAdminSession(req);
   const signedInAdmin = !!signedInAdminSession;
 
   if (!tokenValid && !signedInAdmin) {
@@ -155,15 +150,13 @@ async function handleEmailReportReview(
   }
 
   if (tokenValid && !signedInAdminSession) {
-    return res
-      .status(401)
-      .send(
-        renderReportResultPage(
-          'Admin Sign-In Required',
-          `You must be signed in as a verified admin to ${action} report ${report.id}.`,
-          false
-        )
-      );
+    sendAdminSignInRequiredHtml(
+      res,
+      renderReportResultPage,
+      action,
+      `report ${report.id}`
+    );
+    return;
   }
 
   const nextStatus = action === 'dismiss' ? 'dismissed' : 'resolved';
@@ -207,28 +200,17 @@ async function handleEmailReportReview(
   }
 
   if (tokenValid) {
-    const consumeResult = await consumeReviewToken(token!, payload!);
-    if (consumeResult === 'already_used') {
-      return res
-        .status(409)
-        .send(
-          renderReportResultPage(
-            'Link Already Used',
-            `This ${action} link was already used. Open the latest email if you need a fresh review link.`,
-            false
-          )
-        );
-    }
-    if (consumeResult === 'store_unavailable') {
-      return res
-        .status(503)
-        .send(
-          renderReportResultPage(
-            'Temporarily Unavailable',
-            'This review link cannot be completed right now. Please use the admin dashboard instead.',
-            false
-          )
-        );
+    const consumed = await consumeReviewTokenOrRenderHtml(
+      res,
+      token!,
+      payload!,
+      renderReportResultPage,
+      {
+        alreadyUsed: `This ${action} link was already used. Open the latest email if you need a fresh review link.`,
+      }
+    );
+    if (!consumed) {
+      return;
     }
   }
 

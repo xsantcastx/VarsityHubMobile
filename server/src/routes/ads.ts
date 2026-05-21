@@ -33,6 +33,10 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { addBreadcrumb } from '../lib/sentry.js';
 import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
+import {
+  resolveVerifiedAdminSession,
+  sendAdminSignInRequiredHtml,
+} from '../lib/reviewFlow.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -1481,7 +1485,8 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
     const tokenPayload = token ? verifyModerationToken(token, id, 'approve_ad') : null;
-    const signedInAdmin = await getIsAdmin(req);
+    const signedInAdminSession = await resolveVerifiedAdminSession(req);
+    const signedInAdmin = !!signedInAdminSession;
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
@@ -1502,15 +1507,8 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           );
       }
       if (!signedInAdmin) {
-        return res
-          .status(401)
-          .send(
-            confirmationPage(
-              'Admin Sign-In Required',
-              'You must be signed in as a verified admin to approve this ad.',
-              false
-            )
-          );
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'approve', 'this ad');
+        return;
       }
       addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
         action: 'approve',
@@ -1549,15 +1547,8 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
       }
       if (!signedInAdmin) {
-        return res
-          .status(401)
-          .send(
-            confirmationPage(
-              'Admin Sign-In Required',
-              'You must be signed in as a verified admin to approve this ad.',
-              false
-            )
-          );
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'approve', 'this ad');
+        return;
       }
       if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
         return;
@@ -1666,7 +1657,8 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
     const tokenPayload = token ? verifyModerationToken(token, id, 'reject_ad') : null;
-    const signedInAdmin = await getIsAdmin(req);
+    const signedInAdminSession = await resolveVerifiedAdminSession(req);
+    const signedInAdmin = !!signedInAdminSession;
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
@@ -1687,15 +1679,8 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           );
       }
       if (!signedInAdmin) {
-        return res
-          .status(401)
-          .send(
-            confirmationPage(
-              'Admin Sign-In Required',
-              'You must be signed in as a verified admin to reject this ad.',
-              false
-            )
-          );
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'reject', 'this ad');
+        return;
       }
       addBreadcrumb('Ad rejection confirmation page rendered', 'approval.ad_route', 'info', {
         action: 'reject',
@@ -1728,15 +1713,8 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
       }
       if (!signedInAdmin) {
-        return res
-          .status(401)
-          .send(
-            confirmationPage(
-              'Admin Sign-In Required',
-              'You must be signed in as a verified admin to reject this ad.',
-              false
-            )
-          );
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'reject', 'this ad');
+        return;
       }
       if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
         return;
