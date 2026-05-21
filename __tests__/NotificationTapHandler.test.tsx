@@ -195,4 +195,26 @@ describe('NotificationTapHandler', () => {
       expect(mockPush).toHaveBeenCalledWith('/(tabs)');
     });
   });
+
+  it('uses canonical proceeding_as_fan when org_rejected snapshots have stale preferences', async () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user_2',
+        approval_status: 'PENDING',
+        proceeding_as_fan: true,
+        preferences: { role: 'coach', proceeding_as_fan: false },
+      },
+      loading: false,
+      hasSession: true,
+    });
+
+    render(<NotificationTapHandler />);
+    expect(listener).toBeTruthy();
+
+    listener?.(makeResponse('org_rejected', { organization_id: 'org_999' }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/(tabs)');
+    });
+  });
 });

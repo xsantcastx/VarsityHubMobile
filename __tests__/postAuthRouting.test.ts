@@ -73,6 +73,23 @@ describe('getPostAuthLandingRoute', () => {
     ).toBe('/onboarding/league-pending-approval');
   });
 
+  it('does not send proceeding-as-fan snapshots back to stale pending next_step walls', () => {
+    expect(
+      getPostAuthLandingRoute({
+        email_verified: true,
+        approval_status: 'PENDING',
+        account_state: 'coach_pending_approval',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          role: 'coach',
+          proceeding_as_fan: false,
+          onboarding_completed: true,
+        },
+      })
+    ).toBe('/(tabs)');
+  });
+
   it('ignores stale final-setup server state once the coach is approved', () => {
     expect(
       getPostAuthLandingRoute({
