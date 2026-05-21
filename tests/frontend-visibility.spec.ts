@@ -128,4 +128,39 @@ test.describe('Front-End Visibility Tests', () => {
     await expect(page.getByLabel('Password')).toBeVisible();
     await expect(page.getByLabel('Create account')).toBeVisible();
   });
+
+  test('Payment-success stays on the public handoff screen without bouncing anonymous users into auth', async ({ page }) => {
+    const consoleMessages: string[] = [];
+    page.on('console', (msg) => {
+      consoleMessages.push(msg.text());
+    });
+
+    await gotoAndWait(page, '/payment-success?type=ad');
+
+    await expect(page).toHaveURL(/\/payment-success\?type=ad$/);
+    const pageText = await page.locator('body').innerText();
+    expect(pageText).toContain('Verification Issue');
+    expect(pageText).toContain(
+      'Payment session information is missing. If you completed payment, please contact support.'
+    );
+    expect(pageText).not.toContain('Create Account');
+
+    const redirectLogs = consoleMessages.filter((message) =>
+      message.includes('Redirecting to /sign-up (unauthenticated)')
+    );
+    expect(redirectLogs).toHaveLength(0);
+  });
+
+  test('Payment-cancel stays readable as a public screen for anonymous visitors', async ({ page }) => {
+    await gotoAndWait(page, '/payment-cancel?type=subscription');
+
+    await expect(page).toHaveURL(/\/payment-cancel\?type=subscription$/);
+    const pageText = await page.locator('body').innerText();
+    expect(pageText).toContain('Payment Cancelled');
+    expect(pageText).toContain(
+      'Your payment was cancelled. You can try again or continue with limited features.'
+    );
+    expect(pageText).toContain('Try Payment Again');
+    expect(pageText).toContain('Continue with Free Version');
+  });
 });

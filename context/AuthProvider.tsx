@@ -934,6 +934,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       'forgot-password',
       'reset-password',
       'reset',
+      'payment-success',
+      'payment-cancel',
     ]);
     const isPublic = publicRoutes.has(firstSegment);
 

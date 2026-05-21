@@ -122,6 +122,13 @@ function PaymentSuccessScreen() {
 
     let mounted = true;
     const verify = async () => {
+      const showOwnerRecovery = (message: string) => {
+        if (!mounted) return;
+        setShowSignInAction(true);
+        setError(message);
+        setLoading(false);
+      };
+
       try {
         setShowSignInAction(false);
         if (!paymentType) {
@@ -144,11 +151,12 @@ function PaymentSuccessScreen() {
           return;
         }
 
-        if (isSubscription && !user) {
-          if (!mounted) return;
-          setShowSignInAction(true);
-          setError('Sign in with the account that started this purchase to confirm your subscription and unlock premium features.');
-          setLoading(false);
+        if (!user) {
+          showOwnerRecovery(
+            isAdPayment
+              ? 'Sign in with the account that purchased this ad to confirm the booking and load its details.'
+              : 'Sign in with the account that started this purchase to confirm your subscription and unlock premium features.'
+          );
           return;
         }
 
@@ -176,11 +184,12 @@ function PaymentSuccessScreen() {
           }
         } catch (err: any) {
           if (__DEV__) console.warn('[payment-success] finalize attempt failed:', err?.message);
-          if (isSubscription && isAuthError(err)) {
-            if (!mounted) return;
-            setShowSignInAction(true);
-            setError('We could not verify this subscription on your current session. Sign in with the purchasing account and try again.');
-            setLoading(false);
+          if (isAuthError(err)) {
+            showOwnerRecovery(
+              isAdPayment
+                ? 'We could not verify this ad payment on your current session. Sign in with the purchasing account and try again.'
+                : 'We could not verify this subscription on your current session. Sign in with the purchasing account and try again.'
+            );
             return;
           }
         }
@@ -199,8 +208,14 @@ function PaymentSuccessScreen() {
                 showSuccessState();
                 return;
               }
-            } catch (e) {
+            } catch (e: any) {
               if (__DEV__) console.warn('[payment-success] ad status poll:', e);
+              if (isAuthError(e)) {
+                showOwnerRecovery(
+                  'We need you to sign in with the account that purchased this ad before we can confirm its status.'
+                );
+                return;
+              }
             }
           }
         } else {

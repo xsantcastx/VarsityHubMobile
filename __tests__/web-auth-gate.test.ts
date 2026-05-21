@@ -21,4 +21,10 @@ describe('web auth gate', () => {
     expect(publicEvent).toMatch(/const requiresWebLogin = Platform\.OS === 'web' && !authLoading && !user/);
     expect(publicEvent).toMatch(/router\.replace\('\/sign-up'/);
   });
+
+  it('keeps payment redirect routes public so checkout handoff screens can reconcile before auth redirects fire', () => {
+    expect(authProvider).toMatch(/'payment-success'/);
+    expect(authProvider).toMatch(/'payment-cancel'/);
+    expect(authProvider).toMatch(/const isPaymentRedirectScreen =\s*firstSegment === 'payment-success' \|\| firstSegment === 'payment-cancel';/);
+  });
 });

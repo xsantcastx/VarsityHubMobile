@@ -230,6 +230,15 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(paymentSuccessScreen).toMatch(/if \(!paymentType\) \{/);
       expect(paymentSuccessScreen).toMatch(/This payment link is invalid or incomplete/);
     });
+
+    it('prompts account recovery for both ad and subscription confirmations when the current session cannot finalize the owner-bound payment', () => {
+      expect(paymentSuccessScreen).toMatch(/if \(!user\) \{/);
+      expect(paymentSuccessScreen).toMatch(/Sign in with the account that purchased this ad to confirm the booking and load its details\./);
+      expect(paymentSuccessScreen).toMatch(/Sign in with the account that started this purchase to confirm your subscription and unlock premium features\./);
+      expect(paymentSuccessScreen).toMatch(/if \(isAuthError\(err\)\) \{/);
+      expect(paymentSuccessScreen).toMatch(/We could not verify this ad payment on your current session\./);
+      expect(paymentSuccessScreen).toMatch(/We could not verify this subscription on your current session\./);
+    });
   });
 
   describe('payment sheet subscription confirmation flow', () => {
