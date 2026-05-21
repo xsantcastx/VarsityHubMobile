@@ -2413,13 +2413,13 @@ organizationsRouter.post(
 );
 
 // =====================================================
-// EMAIL-TOKEN COACH JOIN REQUEST REVIEW (no app login)
+// EMAIL-TOKEN COACH JOIN REQUEST REVIEW
 // =====================================================
 //
 // Mirrors the league-approval pattern: signed review token in the email link
-// IS the authorization. Lets the league owner approve/reject a coach join
-// request directly from their inbox without needing the app to be reachable
-// or to be signed in. The reviewer of record is the org's active owner.
+// plus an authenticated active owner session. This keeps inbox links convenient
+// while preserving the same authenticated-actor trust boundary used by other
+// privileged email review routes.
 //
 // Email URL builder: buildCoachJoinRequestReviewUrl in server/src/lib/email.ts
 
@@ -2504,6 +2504,42 @@ function renderJoinRequestStatePage(
   return joinReviewHtml(
     'Already Reviewed',
     `<h1>Already Reviewed</h1><p>This request was already ${escapeHtml(String(joinRequest.status || 'reviewed'))}.</p>`
+  );
+}
+
+type VerifiedOwnerSession = {
+  id: string;
+  email: string | null;
+};
+
+async function resolveVerifiedOwnerSessionForOrg(
+  req: AuthedRequest,
+  organizationId: string
+): Promise<VerifiedOwnerSession | null> {
+  if (!req.user?.id) return null;
+  const me = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, email: true, email_verified: true },
+  });
+  if (!me?.email_verified) return null;
+  const ownership = await prisma.organizationMembership.findFirst({
+    where: {
+      organization_id: organizationId,
+      user_id: me.id,
+      role: 'owner',
+      status: 'active',
+    },
+    select: { id: true },
+  });
+  if (!ownership) return null;
+  return { id: me.id, email: me.email };
+}
+
+function renderJoinRequestOwnerSignInRequiredPage(action: 'approve' | 'reject') {
+  return joinReviewHtml(
+    'Owner Sign-In Required',
+    `<h1 style="color:#DC2626">Owner Sign-In Required</h1><p>You must be signed in as the verified active league owner to ${escapeHtml(action)} this coach request.</p>`,
+    '#DC2626'
   );
 }
 
@@ -2805,6 +2841,11 @@ async function joinRequestEmailReviewHandler(
       );
   }
 
+  const ownerSession = await resolveVerifiedOwnerSessionForOrg(req, payload.orgId);
+  if (!ownerSession) {
+    return res.status(401).send(renderJoinRequestOwnerSignInRequiredPage(action));
+  }
+
   const joinRequest = await getOrganizationJoinRequestState(requestId);
   const [organization, user] = await Promise.all([
     joinRequest
@@ -2853,26 +2894,6 @@ async function joinRequestEmailReviewHandler(
     );
   }
 
-  const ownerMembership = await prisma.organizationMembership.findFirst({
-    where: {
-      organization_id: joinRequest.organization_id,
-      role: 'owner',
-      status: 'active',
-    },
-    select: { user_id: true },
-  });
-  if (!ownerMembership) {
-    return res
-      .status(500)
-      .send(
-        joinReviewHtml(
-          'Owner Not Found',
-          '<h1 style="color:#DC2626">Error</h1><p>Could not identify the league owner. Please contact support.</p>',
-          '#DC2626'
-        )
-      );
-  }
-
   const consumeResult = await consumeReviewToken(token, payload);
   if (consumeResult === 'already_used') {
     return res
@@ -2899,8 +2920,8 @@ async function joinRequestEmailReviewHandler(
 
   const result =
     action === 'approve'
-      ? await _executeJoinRequestApprovalByToken(requestId, ownerMembership.user_id)
-      : await _executeJoinRequestDenialByToken(requestId, ownerMembership.user_id);
+      ? await _executeJoinRequestApprovalByToken(requestId, ownerSession.id)
+      : await _executeJoinRequestDenialByToken(requestId, ownerSession.id);
 
   if (!result.ok) {
     return res
