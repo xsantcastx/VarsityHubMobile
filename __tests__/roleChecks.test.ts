@@ -14,6 +14,7 @@
  */
 import { describe, expect, it } from '@jest/globals';
 import {
+  canAccessCreateTeamSurface,
   getCoachAccessState,
   getCoachApprovalNotificationRoute,
   getCoachRecoveryRoute,
@@ -80,6 +81,41 @@ describe('getCoachAccessState — approval states', () => {
     const s = getCoachAccessState({ ...base, approval_status: 'APPROVED' });
     expect(s.isApprovedCoach).toBe(true);
     expect(s.canAccessCoachTools).toBe(true);
+  });
+});
+
+describe('canAccessCreateTeamSurface', () => {
+  it('allows approved coaches into create-team', () => {
+    expect(
+      canAccessCreateTeamSurface({
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', onboarding_completed: true },
+      })
+    ).toBe(true);
+  });
+
+  it('allows non-coach users who manage an organization into create-team', () => {
+    expect(
+      canAccessCreateTeamSurface(
+        {
+          approval_status: 'APPROVED',
+          preferences: { role: 'fan', onboarding_completed: true },
+        },
+        { hasManagedOrganizationAccess: true }
+      )
+    ).toBe(true);
+  });
+
+  it('keeps pending coaches on recovery routes even if they still manage an organization', () => {
+    expect(
+      canAccessCreateTeamSurface(
+        {
+          approval_status: 'PENDING',
+          preferences: { role: 'coach', onboarding_completed: true },
+        },
+        { hasManagedOrganizationAccess: true }
+      )
+    ).toBe(false);
   });
 });
 

@@ -29,6 +29,7 @@ import BulkScheduleModal from '@/components/BulkScheduleModal';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { EmptyState, GameCard, SectionHeader } from '@/components/ui';
 import type { Game as GameCardGame } from '@/components/ui/GameCard';
+import { captureBreadcrumb, captureException } from '@/utils/sentry';
 
 type GameStatus = 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'live' | 'in-progress';
 
@@ -136,6 +137,14 @@ function ManageSeasonScreen() {
   const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string } | null>(null);
   const [managedTeams, setManagedTeams] = useState<Array<{ id: string; name: string }>>([]);
   const [teamSelectorOpen, setTeamSelectorOpen] = useState<boolean>(false);
+
+  const reportSeasonFailure = useCallback((task: string, error: unknown) => {
+    if (__DEV__) console.warn(`[manage-season] ${task} failed:`, error);
+    captureBreadcrumb('Manage season deferred task failed', 'manage_season.screen', { task }, 'warning');
+    captureException(error instanceof Error ? error : new Error(String(error)), {
+      tags: { context: 'manage-season', task },
+    });
+  }, []);
 
   const loadTeam = useCallback(async () => {
     setLoading(true);
@@ -260,14 +269,18 @@ function ManageSeasonScreen() {
 
   // Load team and then games
   useEffect(() => {
-    void loadTeam().catch(() => {});
-  }, [loadTeam, router]);
+    void loadTeam().catch((error) => {
+      reportSeasonFailure('load_team', error);
+    });
+  }, [loadTeam, reportSeasonFailure]);
 
   useEffect(() => {
     if (currentTeam?.id) {
-      void loadGames().catch(() => {});
+      void loadGames().catch((error) => {
+        reportSeasonFailure('load_games_for_team', error);
+      });
     }
-  }, [currentTeam?.id, loadGames]);
+  }, [currentTeam?.id, loadGames, reportSeasonFailure]);
 
   // Compute season stats from real game data
   const _seasonStats: SeasonStats = (() => {
@@ -448,11 +461,6 @@ function ManageSeasonScreen() {
     today.setHours(0, 0, 0, 0);
     return gameDate < today || g.status === 'completed' || g.status === 'cancelled';
   });
-
-  // Load games on mount
-  useEffect(() => {
-    void loadGames().catch(() => {});
-  }, [loadGames]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -1273,7 +1281,12 @@ function ManageSeasonScreen() {
                 {
                   label: 'Create Team',
                   onPress: () => {
-                    void router.push('/create-team');
+                    void router.push({
+                      pathname: '/create-team',
+                      params: {
+                        fallback: backFallback ?? '/organization?tab=teams',
+                      },
+                    } as any);
                   },
                   color: Colors[colorScheme].tint,
                 },

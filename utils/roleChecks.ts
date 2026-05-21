@@ -50,6 +50,24 @@ export type CoachAccessState = {
   needsPaidPlanCheckout: boolean;
 };
 
+export function canAccessCreateTeamSurface(
+  user: CoachUserLike | null | undefined,
+  options?: { hasManagedOrganizationAccess?: boolean }
+): boolean {
+  if (!user) return false;
+
+  const coachAccess = getCoachAccessState(user);
+  if (coachAccess.isProceedingAsFan || coachAccess.needsPaidPlanCheckout) {
+    return false;
+  }
+
+  if (coachAccess.canAccessCoachTools) {
+    return true;
+  }
+
+  return !coachAccess.isCoach && options?.hasManagedOrganizationAccess === true;
+}
+
 function normalizeString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();

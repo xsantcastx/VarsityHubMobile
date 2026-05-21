@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
 import { useAuth } from '@/context/AuthProvider';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,6 +22,7 @@ import { getCanonicalBillingState } from '@/utils/billingState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
+import { getCoachRecoveryRoute } from '@/utils/roleChecks';
 
 type TeamLimitSummary = {
   owned_teams: number;
@@ -78,8 +79,12 @@ const formatPlanDisplay = (tier?: string | null) => {
 };
 
 function CreateTeamScreen() {
-  const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const { user: authUser, checkAuth } = useAuth();
+  const {
+    canAccessCreateTeam,
+    hasManagedOrganizationAccess,
+    loading: createTeamAccessLoading,
+  } = useCreateTeamAccess();
   const router = useRouter();
   const params = useLocalSearchParams<{
     fallback?: string;
@@ -141,6 +146,12 @@ function CreateTeamScreen() {
         : routeOrganizationId
           ? `/organization?id=${encodeURIComponent(routeOrganizationId)}&tab=teams`
           : '/organization?tab=teams';
+
+  useEffect(() => {
+    if (createTeamAccessLoading || canAccessCreateTeam) return;
+    const recoveryRoute = getCoachRecoveryRoute(authUser as any);
+    router.replace((recoveryRoute || '/(tabs)') as never);
+  }, [authUser, canAccessCreateTeam, createTeamAccessLoading, router]);
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
   
@@ -384,16 +395,17 @@ function CreateTeamScreen() {
         setSubmitting(false); 
         return; 
       }
-      // Guard: Only coaches may create teams
-      const role = user?.preferences?.role;
-      if (role !== 'coach') {
-        Alert.alert('Access Restricted', 'Only coach accounts can create teams.');
+      if (!canAccessCreateTeam) {
+        Alert.alert(
+          'Access Restricted',
+          'Only approved coaches or active organization managers can create teams.'
+        );
         setSubmitting(false);
         return;
       }
-      
+
       // Check plan tier limits
-      const userRole = user?.preferences?.role; // Already guaranteed coach above
+      const userRole = user?.preferences?.role;
       const userPlan = getCanonicalBillingState(user).selected_plan;
 
       let latestLimits: TeamLimitSummary | null = teamLimits;
@@ -407,7 +419,7 @@ function CreateTeamScreen() {
       const teamCount = latestLimits?.owned_teams ?? user?._count?.teams ?? 0;
       const canCreateMore = latestLimits?.can_create_more ?? true;
       
-      // Only enforce limits for coaches
+      // Only surface local billing prompts for coach-owned flows.
       if (userRole === 'coach') {
         if (!canCreateMore) {
           Alert.alert(
@@ -552,7 +564,7 @@ function CreateTeamScreen() {
     }
   };
 
-  if (coachLoading) {
+  if (createTeamAccessLoading) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
@@ -565,12 +577,17 @@ function CreateTeamScreen() {
     );
   }
 
-  if (!canAccessCoachTools) {
+  if (!canAccessCreateTeam) {
     return (
       <CoachAccessRedirecting
         backgroundColor={Colors[colorScheme].background}
         spinnerColor={Colors[colorScheme].tint}
         textColor={Colors[colorScheme].mutedText}
+        message={
+          hasManagedOrganizationAccess
+            ? 'Loading your team creation tools...'
+            : 'Redirecting to the right coach screen...'
+        }
         edges={['bottom']}
       />
     );

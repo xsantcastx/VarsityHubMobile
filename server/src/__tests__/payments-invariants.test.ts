@@ -238,6 +238,7 @@ describe('payments & subscriptions — structural invariants', () => {
       expect(paymentSuccessScreen).toMatch(/if \(isAuthError\(err\)\) \{/);
       expect(paymentSuccessScreen).toMatch(/We could not verify this ad payment on your current session\./);
       expect(paymentSuccessScreen).toMatch(/We could not verify this subscription on your current session\./);
+      expect(paymentSuccessScreen).toMatch(/router\.replace\('\/sign-in'\)/);
     });
   });
 

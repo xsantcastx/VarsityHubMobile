@@ -23,6 +23,7 @@ const organizationDetail = read('app/organizations/[id].tsx');
 const organizationJoinRequests = read('app/organization-join-requests.tsx');
 const step3League = read('app/onboarding/step-3-league.tsx');
 const mobileCommunity = read('app/(tabs)/discover/mobile-community.tsx');
+const createEntry = read('app/create.tsx');
 
 describe('coach/org navigation contracts', () => {
   it('team page routes the organization button to the canonical organization tools screen', () => {
@@ -58,6 +59,13 @@ describe('coach/org navigation contracts', () => {
   });
 
   it('team creation fallback routes back to organization tools, not manage-teams', () => {
+    expect(createEntry).toContain("import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';");
+    expect(createEntry).toContain('const { canAccessCreateTeam } = useCreateTeamAccess();');
+    expect(createEntry).not.toContain('isApprovedCoach &&');
+    expect(createEntry).toContain("router.replace('/verify-identity?method=email')");
+    expect(createEntry).toContain('router.replace(path as any);');
+    expect(createEntry).not.toContain('router.push(path as any);');
+    expect(createTeam).toContain("import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';");
     expect(createTeam).toContain('params.fallback');
     expect(createTeam).toContain('organization_id?: string');
     expect(createTeam).toContain('const routeOrganizationId =');
@@ -135,6 +143,7 @@ describe('coach/org navigation contracts', () => {
     expect(organizationScreen).toContain("pathname: '/edit-organization'");
     expect(organizationScreen).toContain("tab=overview");
     expect(manageSeason).toContain("pathname: '/create-team'");
+    expect(manageSeason).not.toContain("void router.push('/create-team')");
     expect(manageSeason).toContain("backFallback ?? '/organization?tab=teams'");
   });
 

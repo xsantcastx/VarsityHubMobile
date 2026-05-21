@@ -86,7 +86,7 @@ function PaymentSuccessScreen() {
     if (params.session_id) queryParams.session_id = params.session_id;
     if (params.type) queryParams.type = params.type;
     setPendingDeepLink(ExpoLinking.createURL('payment-success', { queryParams }));
-    router.push('/sign-in');
+    router.replace('/sign-in');
   };
 
   const showSuccessState = () => {

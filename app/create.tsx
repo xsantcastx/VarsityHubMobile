@@ -1,25 +1,23 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getAuthSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
-import { getCoachAccessState } from '@/utils/roleChecks';
 
 function CreateScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { user: authUser, checkAuth } = useAuth();
+  const { canAccessCreateTeam } = useCreateTeamAccess();
   const [me, setMe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const verified = !!me?.email_verified;
-  const coachAccess = getCoachAccessState(me);
-  // Coach-only options: only show when approved (backend requireOnboarded enforces this; UI should match)
-  const isApprovedCoach = coachAccess.isApprovedCoach;
   const isAdmin = !!(me as any)?.is_admin;
   useEffect(() => {
     let mounted = true;
@@ -39,8 +37,8 @@ function CreateScreen() {
     return () => { mounted = false; };
   }, [authUser, checkAuth]);
   const go = (path: string) => {
-    if (!verified) return router.push('/verify-identity?method=email');
-    router.push(path as any);
+    if (!verified) return router.replace('/verify-identity?method=email');
+    router.replace(path as any);
   };
 
   const safeBack = () => safeGoBack(router);
@@ -90,8 +88,7 @@ function CreateScreen() {
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')} accessibilityRole="button" accessibilityLabel="Create Post" accessibilityHint="Double tap to create a new post">
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>
         </Pressable>
-        {/* Team creation - APPROVED COACH ONLY (pending coaches are blocked by backend requireOnboarded) */}
-        {isApprovedCoach && (
+        {canAccessCreateTeam && (
           <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')} accessibilityRole="button" accessibilityLabel="Create Team" accessibilityHint="Double tap to create a new team">
             <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
           </Pressable>
