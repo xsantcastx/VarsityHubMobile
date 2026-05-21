@@ -2013,7 +2013,7 @@ const GameDetailsScreen = () => {
         if (rollback) setVoteSummary(rollback);
         else setVoteSummary(null);
         if (err?.status === 401) {
-          void router.push('/sign-in');
+          void router.replace('/sign-in');
         } else {
           if (__DEV__) console.error('Failed to submit vote', err);
           Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');
@@ -2064,7 +2064,7 @@ const GameDetailsScreen = () => {
     } catch (err: any) {
       if (rollback) setVoteSummary(rollback);
       if (err?.status === 401) {
-        void router.push('/sign-in');
+        void router.replace('/sign-in');
       } else {
         if (__DEV__) console.error('Failed to clear vote', err);
         Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');

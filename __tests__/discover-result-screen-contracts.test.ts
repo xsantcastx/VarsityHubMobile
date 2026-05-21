@@ -7,7 +7,10 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const discoverScreen = read('app/(tabs)/discover/mobile-community.tsx');
 const profileScreen = read('app/features/navigation/screens/ProfileScreen.tsx');
+const feedScreen = read('app/features/navigation/screens/FeedScreen.tsx');
+const gameDetailsScreen = read('app/game-details/GameDetailsScreen.tsx');
 const teamScreen = read('app/team-page.tsx');
+const eventDetailScreen = read('app/(tabs)/event-detail.tsx');
 
 describe('discover result screen contracts', () => {
   it('discover result taps route to the canonical user, team, organization, game, and event screens', () => {
@@ -25,6 +28,8 @@ describe('discover result screen contracts', () => {
     expect(profileScreen).toContain('setLoading(false);');
     expect(profileScreen).toContain("<Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>");
     expect(profileScreen).toContain('<Button onPress={() => void loadProfile()}>');
+    expect(profileScreen).toContain("router.replace('/sign-in')");
+    expect(profileScreen).not.toContain("router.push('/sign-in')");
   });
 
   it('team screen rejects invalid or missing params and exits loading in all cases', () => {
@@ -42,5 +47,18 @@ describe('discover result screen contracts', () => {
     expect(teamScreen).toContain("pathname: '/organizations/[id]'");
     expect(teamScreen).toContain("Ionicons name=\"location-outline\"");
     expect(teamScreen).toContain("Ionicons name=\"business-outline\"");
+  });
+
+  it('event detail replaces into sign-in for RSVP auth prompts instead of stacking auth over the detail screen', () => {
+    expect(eventDetailScreen).toContain("const routeToSignIn = useCallback(() => {");
+    expect(eventDetailScreen).toContain("router.replace('/sign-in');");
+    expect(eventDetailScreen).not.toContain("void router.push('/sign-in')");
+  });
+
+  it('feed and game details replace into sign-in from error or 401 prompts instead of stacking auth', () => {
+    expect(feedScreen).toContain("router.replace('/sign-in')");
+    expect(feedScreen).not.toContain("router.push('/sign-in')");
+    expect(gameDetailsScreen).toContain("router.replace('/sign-in')");
+    expect(gameDetailsScreen).not.toContain("router.push('/sign-in')");
   });
 });

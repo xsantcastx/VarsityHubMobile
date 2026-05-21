@@ -1422,7 +1422,7 @@ export default function ProfileScreen() {
           </Text>
           <View style={{ height: 16 }} />
           {error.includes('sign in') ? (
-            <Button onPress={() => void router.push('/sign-in')}>
+            <Button onPress={() => void router.replace('/sign-in')}>
               <Text style={{ color: '#fff' }}>Sign In</Text>
             </Button>
           ) : (

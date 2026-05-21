@@ -40,6 +40,7 @@ type EventItem = {
 export default function EventDetailScreen() {
   const { user: authUser, checkAuth } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
@@ -57,6 +58,9 @@ export default function EventDetailScreen() {
   const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [rsvping, setRsvping] = useState(false);
+  const routeToSignIn = useCallback(() => {
+    router.replace('/sign-in');
+  }, [router]);
 
   const load = useCallback(async () => {
     if (!id) {
@@ -123,8 +127,6 @@ export default function EventDetailScreen() {
     return date.getTime() < Date.now();
   }, [event?.date]);
 
-  const router = useRouter();
-
   const eventShareContext = useMemo(() => {
     if (!event) return [];
     const lines: string[] = [];
@@ -149,7 +151,7 @@ export default function EventDetailScreen() {
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+        { text: 'Sign In', onPress: routeToSignIn },
       ]);
       return;
     }
@@ -173,7 +175,7 @@ export default function EventDetailScreen() {
       } else if (status === 401 || message.includes('Unauthorized')) {
         Alert.alert('Session Expired', 'Please sign in again to RSVP.', [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+          { text: 'Sign In', onPress: routeToSignIn },
         ]);
       } else {
         Alert.alert('Error', 'Unable to update RSVP. Please try again.');
@@ -191,7 +193,7 @@ export default function EventDetailScreen() {
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+        { text: 'Sign In', onPress: routeToSignIn },
       ]);
       return;
     }

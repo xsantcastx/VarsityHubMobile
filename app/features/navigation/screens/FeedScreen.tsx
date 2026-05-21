@@ -1897,7 +1897,7 @@ export default function FeedScreen() {
             {(error.includes('sign in') || error.includes('Sign in')) && (
               <Pressable
                 testID="feed-signin-button"
-                onPress={() => void router.push('/sign-in')}
+                onPress={() => void router.replace('/sign-in')}
                 style={{ marginTop: 10, paddingVertical: 8 }}
                 accessibilityLabel="Sign in"
                 accessibilityRole="button"
