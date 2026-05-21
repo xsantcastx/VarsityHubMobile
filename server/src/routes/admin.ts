@@ -41,25 +41,35 @@ const adminRouter = express.Router();
 registerIdValidation(adminRouter);
 adminRouter.use(adminLimiter);
 
-function renderCoachReviewPage(action: 'approve' | 'reject', coachName: string, token: string) {
-  const title = action === 'approve' ? 'Approve Coach' : 'Reject Coach';
-  const button = action === 'approve' ? 'Approve Coach' : 'Reject Coach';
-  const color = action === 'approve' ? '#16A34A' : '#DC2626';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
-<h2>${title}?</h2>
-<p style="color:#374151;">Coach: <strong>${escapeHtml(coachName || 'Unknown')}</strong></p>
-<form method="POST" action="?token=${encodeURIComponent(token)}">
-<button type="submit" style="background:${color};color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:16px;cursor:pointer;">${button}</button>
-</form>
-</body></html>`;
-}
-
 function renderCoachResultPage(title: string, message: string, success: boolean) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:60px auto;padding:20px;text-align:center;">
 <h2 style="color:${success ? '#16A34A' : '#DC2626'};">${escapeHtml(title)}</h2>
 <p style="color:#374151;">${escapeHtml(message)}</p>
+</body></html>`;
+}
+
+function renderCoachEmailResultPage(params: {
+  action: 'approve' | 'reject';
+  title: string;
+  message: string;
+  success: boolean;
+}) {
+  const approveSelected = params.action === 'approve';
+  const rejectSelected = params.action === 'reject';
+  const selectedStyle = (color: string) =>
+    `background:${color};color:#FFFFFF;border-color:${color};font-weight:700;`;
+  const neutralStyle =
+    'background:#F3F4F6;color:#6B7280;border-color:#D1D5DB;font-weight:600;';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(params.title)}</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:560px;margin:60px auto;padding:20px;text-align:center;">
+<h2 style="color:${params.success ? '#16A34A' : '#DC2626'};">${escapeHtml(params.title)}</h2>
+<p style="color:#374151;line-height:1.5;">${escapeHtml(params.message)}</p>
+<div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+  <span data-action="approve" data-selected="${approveSelected ? 'true' : 'false'}" style="display:inline-block;padding:10px 20px;border-radius:999px;border:1px solid;${approveSelected ? selectedStyle('#16A34A') : neutralStyle}">Approve</span>
+  <span data-action="reject" data-selected="${rejectSelected ? 'true' : 'false'}" style="display:inline-block;padding:10px 20px;border-radius:999px;border:1px solid;${rejectSelected ? selectedStyle('#DC2626') : neutralStyle}">Deny</span>
+</div>
 </body></html>`;
 }
 
@@ -109,33 +119,6 @@ async function handleCoachReview(
   }
 
   const coachName = coach.display_name || coach.username || coach.email || 'Unknown Coach';
-  if (coach.approval_status === 'APPROVED') {
-    if (signedInAdmin) {
-      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already approved` });
-    }
-    return res.send(renderCoachResultPage('Already Approved', `${coachName} was already approved.`, true));
-  }
-  if (coach.approval_status === 'REJECTED') {
-    if (signedInAdmin) {
-      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already rejected` });
-    }
-    return res.send(renderCoachResultPage('Already Rejected', `${coachName} was already rejected.`, true));
-  }
-
-  if (req.method === 'GET') {
-    if (!tokenValid) return res.status(405).json({ error: 'Method not allowed' });
-    if (!signedInAdminSession) {
-      sendAdminSignInRequiredHtml(
-        res,
-        renderCoachResultPage,
-        action,
-        coachName || 'this coach'
-      );
-      return;
-    }
-    return res.send(renderCoachReviewPage(action, coachName, token!));
-  }
-
   if (tokenValid && !signedInAdminSession) {
     sendAdminSignInRequiredHtml(
       res,
@@ -144,6 +127,45 @@ async function handleCoachReview(
       coachName || 'this coach'
     );
     return;
+  }
+
+  if (coach.approval_status === 'APPROVED') {
+    if (tokenValid) {
+      return res.send(
+        renderCoachEmailResultPage({
+          action,
+          title: 'Already Approved',
+          message: `${coachName} was already approved.`,
+          success: true,
+        })
+      );
+    }
+    if (signedInAdmin) {
+      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already approved` });
+    }
+    return res.send(renderCoachResultPage('Already Approved', `${coachName} was already approved.`, true));
+  }
+  if (coach.approval_status === 'REJECTED') {
+    if (tokenValid) {
+      return res.send(
+        renderCoachEmailResultPage({
+          action,
+          title: 'Already Rejected',
+          message: `${coachName} was already rejected.`,
+          success: true,
+        })
+      );
+    }
+    if (signedInAdmin) {
+      return res.json({ ok: true, already_final: true, message: `Coach ${coachName} already rejected` });
+    }
+    return res.send(renderCoachResultPage('Already Rejected', `${coachName} was already rejected.`, true));
+  }
+
+  if (req.method === 'GET') {
+    if (!tokenValid) {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
   }
 
   if (tokenValid) {
@@ -170,6 +192,32 @@ async function handleCoachReview(
       ? await approveCoach(id, reviewerUserId, prisma, { note })
       : await rejectCoach(id, reviewerUserId, prisma, { reason: note });
   if (result.error) {
+    if (tokenValid) {
+      const latest = await prisma.user.findUnique({
+        where: { id },
+        select: { approval_status: true },
+      });
+      if (latest?.approval_status === 'APPROVED') {
+        return res.send(
+          renderCoachEmailResultPage({
+            action,
+            title: 'Already Approved',
+            message: `${coachName} was already approved.`,
+            success: true,
+          })
+        );
+      }
+      if (latest?.approval_status === 'REJECTED') {
+        return res.send(
+          renderCoachEmailResultPage({
+            action,
+            title: 'Already Rejected',
+            message: `${coachName} was already rejected.`,
+            success: true,
+          })
+        );
+      }
+    }
     if (signedInAdmin) return res.status(result.status || 500).json({ error: result.error });
     return res
       .status(result.status || 500)
@@ -184,6 +232,17 @@ async function handleCoachReview(
     id,
     `${action === 'approve' ? 'Approved' : 'Rejected'} coach: ${coachName}${note ? ` — ${note}` : ''}`
   );
+
+  if (tokenValid) {
+    return res.send(
+      renderCoachEmailResultPage({
+        action,
+        title: action === 'approve' ? 'Coach Approved' : 'Coach Rejected',
+        message: `${coachName} has been ${action === 'approve' ? 'approved' : 'rejected'}.`,
+        success: true,
+      })
+    );
+  }
 
   if (signedInAdmin) {
     return res.json({

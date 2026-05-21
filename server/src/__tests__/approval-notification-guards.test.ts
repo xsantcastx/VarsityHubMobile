@@ -99,7 +99,8 @@ describe('approval notification guards', () => {
     expect(adminReports).toMatch(/if \(tokenValid && !signedInAdminSession\)/);
     expect(adminReports).not.toMatch(/reviewed_by:\s*'email-token'/);
 
-    expect(adminRoutes).toMatch(/if \(req\.method === 'GET'\) \{[\s\S]*if \(!signedInAdminSession\)/);
+    expect(adminRoutes).toMatch(/const signedInAdminSession = await resolveVerifiedAdminSession\(req\);/);
+    expect(adminRoutes).toMatch(/if \(tokenValid && !signedInAdminSession\)/);
 
     expect(ads).toMatch(/const signedInAdminSession = await resolveVerifiedAdminSession\(req\);/);
     expect(ads).toMatch(/const signedInAdmin = !!signedInAdminSession;/);
