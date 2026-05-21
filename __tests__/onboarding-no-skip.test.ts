@@ -256,6 +256,15 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(authProvider).toMatch(/approval_status|isPendingCoach|isRejectedCoach/);
     });
 
+    it('AuthProvider does not force stale server next_step pending walls for coaches proceeding as fan', () => {
+      // Regression guard: explicit next_step redirects must defer to canonical
+      // proceeding_as_fan state, otherwise stale snapshots can bounce
+      // /(tabs) users back into league-pending-approval.
+      expect(authProvider).toMatch(/server_next_step/);
+      expect(authProvider).toMatch(/!coachAccess\.isProceedingAsFan/);
+      expect(authProvider).toMatch(/postAuthDecision\.route !== '\/\(tabs\)'/);
+    });
+
     it('AuthProvider exempts admins from the pending-coach block', () => {
       // Admins with dirty coach state should not get trapped on pending
       // recovery routes during bootstrap or while sitting on onboarding paths.

@@ -158,7 +158,6 @@ export interface CreateAdPayload {
   banner_fit_mode?: 'cover' | 'contain' | 'fill';
   target_url?: string;
   target_zip_code: string;
-  radius?: number;
   description?: string;
 }
 

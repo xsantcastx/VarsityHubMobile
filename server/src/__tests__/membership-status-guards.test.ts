@@ -64,6 +64,15 @@ describe('membership status guards', () => {
     expect(orgsSrc).toMatch(/\/:id\/coaches\/:userId\/reject[\s\S]{0,2500}?role:\s*'owner'/);
   });
 
+  it('owner reject route stores denial reason in rejection_reason, not requester message', () => {
+    expect(orgsSrc).toMatch(
+      /\/:id\/coaches\/:userId\/reject[\s\S]{0,2500}?organizationJoinRequest\.updateMany[\s\S]{0,600}?rejection_reason:\s*reason\s*\|\|\s*null/
+    );
+    expect(orgsSrc).not.toMatch(
+      /\/:id\/coaches\/:userId\/reject[\s\S]{0,2500}?organizationJoinRequest\.updateMany[\s\S]{0,600}?message:\s*reason/
+    );
+  });
+
   it('org transfer-ownership requires active current + new owner memberships', () => {
     // Allow whitespace between post( and the path string — the org route is
     // declared across several lines (organizations.ts:2038), unlike the teams

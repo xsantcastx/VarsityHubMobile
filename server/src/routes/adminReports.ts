@@ -6,15 +6,18 @@ import { sendPushNotification } from '../lib/notifications.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
 import {
-  consumeReviewToken,
-  getReviewTokenReplayState,
   verifyReviewToken,
 } from '../lib/reviewTokens.js';
+import {
+  consumeReviewTokenOrRenderHtml,
+  resolveVerifiedAdminSession,
+  sendAdminSignInRequiredHtml,
+} from '../lib/reviewFlow.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { adModerationLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { requireAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -92,14 +95,6 @@ function renderReportResultPage(title: string, message: string, success: boolean
 </body></html>`;
 }
 
-async function isReplayTokenAlreadyUsed(
-  token: string,
-  payload: { jti?: string; exp?: number; iat?: number }
-) {
-  const replayState = await getReviewTokenReplayState(token, payload);
-  return replayState === 'already_used';
-}
-
 async function handleEmailReportReview(
   req: AuthedRequest,
   res: express.Response,
@@ -117,15 +112,9 @@ async function handleEmailReportReview(
   );
 
   // Two callers: (1) email-link clicks render HTML; (2) admin dashboard sends JSON.
-  // Allow signed-in admins through without a token; keep email-link semantics otherwise.
-  let signedInAdmin = false;
-  if (!tokenValid && !token && req.user) {
-    const me = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true, email_verified: true },
-    });
-    signedInAdmin = !!(me?.email_verified && isEmailAdmin(me.email));
-  }
+  // Both paths require an authenticated, verified admin identity.
+  const signedInAdminSession = await resolveVerifiedAdminSession(req);
+  const signedInAdmin = !!signedInAdminSession;
 
   if (!tokenValid && !signedInAdmin) {
     if (token) {
@@ -160,16 +149,14 @@ async function handleEmailReportReview(
       .send(renderReportResultPage('Not Found', 'Abuse report not found.', false));
   }
 
-  if (req.method === 'POST' && tokenValid && (await isReplayTokenAlreadyUsed(token!, payload!))) {
-    return res
-      .status(409)
-      .send(
-        renderReportResultPage(
-          'Link Already Used',
-          `This ${action} link was already used. Open the latest email if you need a fresh review link.`,
-          false
-        )
-      );
+  if (tokenValid && !signedInAdminSession) {
+    sendAdminSignInRequiredHtml(
+      res,
+      renderReportResultPage,
+      action,
+      `report ${report.id}`
+    );
+    return;
   }
 
   const nextStatus = action === 'dismiss' ? 'dismissed' : 'resolved';
@@ -212,16 +199,24 @@ async function handleEmailReportReview(
     return res.send(renderReportReviewPage(action, report, token!));
   }
 
-  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
-  const reviewerUserId = req.user?.id ?? 'email-token';
-  let reviewerEmail = 'email-token';
-  if (req.user?.id) {
-    const reviewer = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { email: true },
-    });
-    reviewerEmail = reviewer?.email || reviewerEmail;
+  if (tokenValid) {
+    const consumed = await consumeReviewTokenOrRenderHtml(
+      res,
+      token!,
+      payload!,
+      renderReportResultPage,
+      {
+        alreadyUsed: `This ${action} link was already used. Open the latest email if you need a fresh review link.`,
+      }
+    );
+    if (!consumed) {
+      return;
+    }
   }
+
+  const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+  const reviewerUserId = signedInAdminSession!.id;
+  const reviewerEmail = signedInAdminSession!.email || 'unknown-admin';
 
   const transition = await prisma.abuseReport.updateMany({
     where: { id, status: { notIn: [...FINAL_REPORT_STATUSES] } },
@@ -253,17 +248,6 @@ async function handleEmailReportReview(
           false
         )
       );
-  }
-
-  if (tokenValid) {
-    const consumeResult = await consumeReviewToken(token!, payload!);
-    if (consumeResult !== 'consumed') {
-      console.warn('[adminReports] review token could not be marked consumed after success:', {
-        report_id: id,
-        action,
-        consumeResult,
-      });
-    }
   }
 
   await logAdminActivity(

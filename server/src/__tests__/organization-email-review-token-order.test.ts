@@ -11,13 +11,25 @@ function sliceBetween(startMarker: string, endMarker: string): string {
 }
 
 describe('organization email review token order', () => {
-  it('consumes coach join request tokens only after a successful email review action', () => {
+  it('requires an authenticated owner session for coach join request email links', () => {
     const slice = sliceBetween(
       'async function joinRequestEmailReviewHandler',
       "organizationsRouter.get('/join-requests/:requestId/email/approve'"
     );
+    expect(src).toContain('async function resolveVerifiedOwnerSessionForOrg(');
+    expect(src).toContain('function renderJoinRequestOwnerSignInRequiredPage(');
+    expect(slice).toContain('const ownerSession = await resolveVerifiedOwnerSessionForOrg(req, payload.orgId);');
+    expect(slice).toContain('renderJoinRequestOwnerSignInRequiredPage(action)');
+  });
+
+  it('consumes coach join request tokens before executing the email review action', () => {
+    const slice = sliceBetween(
+      'async function joinRequestEmailReviewHandler',
+      "organizationsRouter.get('/join-requests/:requestId/email/approve'"
+    );
+    expect(slice.indexOf('const consumeResult = await consumeReviewToken')).toBeGreaterThan(0);
     expect(slice.indexOf('const result =')).toBeGreaterThan(0);
-    expect(slice.indexOf('const consumeResult = await consumeReviewToken')).toBeGreaterThan(
+    expect(slice.indexOf('const consumeResult = await consumeReviewToken')).toBeLessThan(
       slice.indexOf('const result =')
     );
   });
@@ -45,13 +57,14 @@ describe('organization email review token order', () => {
     expect(slice).not.toContain('<form method="POST"');
   });
 
-  it('consumes league approval tokens only after approveOrganization completes', () => {
+  it('consumes league approval tokens before approveOrganization executes', () => {
     const slice = sliceBetween(
       'async function approveLeagueHandler',
       "organizationsRouter.get('/:id/reject'"
     );
+    expect(slice.indexOf('const consumed = await consumeReviewTokenOrRenderHtml')).toBeGreaterThan(0);
     expect(slice.indexOf('const result = await approveOrganization')).toBeGreaterThan(0);
-    expect(slice.indexOf('const consumeResult = await consumeReviewToken')).toBeGreaterThan(
+    expect(slice.indexOf('const consumed = await consumeReviewTokenOrRenderHtml')).toBeLessThan(
       slice.indexOf('const result = await approveOrganization')
     );
   });
@@ -64,13 +77,14 @@ describe('organization email review token order', () => {
     expect(src).toContain("title: 'Already Approved'");
   });
 
-  it('consumes league rejection tokens only after rejectOrganization completes', () => {
+  it('consumes league rejection tokens before rejectOrganization executes', () => {
     const slice = sliceBetween(
       'async function rejectLeagueHandler',
       '// Legacy path used by the mobile app'
     );
+    expect(slice.indexOf('const consumed = await consumeReviewTokenOrRenderHtml')).toBeGreaterThan(0);
     expect(slice.indexOf('const result = await rejectOrganization')).toBeGreaterThan(0);
-    expect(slice.indexOf('const consumeResult = await consumeReviewToken')).toBeGreaterThan(
+    expect(slice.indexOf('const consumed = await consumeReviewTokenOrRenderHtml')).toBeLessThan(
       slice.indexOf('const result = await rejectOrganization')
     );
   });

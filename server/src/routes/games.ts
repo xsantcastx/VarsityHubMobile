@@ -59,6 +59,14 @@ function renderGameResultPage(title: string, message: string, success: boolean) 
 </body></html>`;
 }
 
+function renderGameAdminLoginRequiredPage(action: 'approve' | 'reject', gameTitle: string) {
+  return renderGameResultPage(
+    'Admin Sign-In Required',
+    `You must be signed in as a verified admin to ${action} ${gameTitle || 'this game'}.`,
+    false
+  );
+}
+
 function renderGameFinalStatePage(
   game: { title: string | null; approval_status: string | null },
   action: 'approve' | 'reject'
@@ -254,8 +262,39 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
     );
   }
 
+  const signedInAdmin = await getIsAdmin(req as any);
+  if (!signedInAdmin) {
+    return res
+      .status(401)
+      .send(renderGameAdminLoginRequiredPage(action, game.title || 'this game'));
+  }
+
   if (req.method === 'GET') {
     return res.send(renderGameReviewPage(action, game.title || 'Unknown', token));
+  }
+
+  const consumeResult = await consumeReviewToken(token, payload);
+  if (consumeResult === 'already_used') {
+    return res
+      .status(409)
+      .send(
+        renderGameResultPage(
+          'Link Already Used',
+          `This ${action} link has already been used.`,
+          false
+        )
+      );
+  }
+  if (consumeResult === 'store_unavailable') {
+    return res
+      .status(503)
+      .send(
+        renderGameResultPage(
+          'Temporarily Unavailable',
+          'This review link cannot be completed right now. Please use the admin dashboard instead.',
+          false
+        )
+      );
   }
 
   const reason = typeof (req.body as any)?.reason === 'string' ? String((req.body as any).reason).trim() : undefined;
@@ -278,15 +317,6 @@ async function handleGameTokenReview(req: AuthedRequest, res: Response, action: 
     return res
       .status(result.status!)
       .send(renderGameResultPage('Error', result.error!, false));
-  }
-
-  const consumeResult = await consumeReviewToken(token, payload);
-  if (consumeResult !== 'consumed') {
-    console.warn('[games] review token could not be marked consumed after success:', {
-      game_id: id,
-      action,
-      consumeResult,
-    });
   }
 
   return res.send(

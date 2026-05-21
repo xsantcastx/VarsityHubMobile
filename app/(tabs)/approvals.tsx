@@ -28,7 +28,7 @@ type OrgApprovalEntry = {
 };
 
 function buildOrganizationRequestsRoute(id: string): Href {
-  return `/organization?id=${encodeURIComponent(id)}&tab=requests` as Href;
+  return `/organization-join-requests?organization_id=${encodeURIComponent(id)}` as Href;
 }
 
 export default function ApprovalsScreen() {
@@ -111,7 +111,7 @@ export default function ApprovalsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <View style={styles.header}>
-          <Pressable onPress={() => safeGoBack(router, '/organization?tab=requests')} hitSlop={12}>
+          <Pressable onPress={() => safeGoBack(router, '/organization')} hitSlop={12}>
             <MaterialIcons name="arrow-back" size={24} color={theme.text} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Approvals</Text>

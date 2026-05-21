@@ -121,7 +121,6 @@ describe('API type contracts', () => {
         banner_url: 'https://example.com/banner.jpg',
         banner_fit_mode: 'cover',
         target_zip_code: '06511',
-        radius: 25,
       };
       expect(payload.banner_fit_mode).toBe('cover');
     });

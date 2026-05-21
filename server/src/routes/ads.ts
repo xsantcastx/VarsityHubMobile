@@ -33,6 +33,10 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { addBreadcrumb } from '../lib/sentry.js';
 import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
+import {
+  resolveVerifiedAdminSession,
+  sendAdminSignInRequiredHtml,
+} from '../lib/reviewFlow.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -66,7 +70,6 @@ const adCreateSchema = z.object({
     .min(2)
     .max(12)
     .regex(/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/, 'Must be a valid postal code'),
-  radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
 });
 
@@ -88,7 +91,6 @@ const adUpdateSchema = z.object({
     .max(12)
     .regex(/^[A-Za-z0-9][A-Za-z0-9\s\-]{0,10}[A-Za-z0-9]$/, 'Must be a valid postal code')
     .optional(),
-  radius: z.number().optional(),
   description: z.string().max(1000).nullish(),
   // status intentionally excluded — owners cannot set status directly.
   // Status transitions: banner change → 'pending' (auto), admin approve → 'active', admin reject → 'rejected'.
@@ -681,7 +683,7 @@ adsRouter.put(
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
     const bypassApproval = await isAppReviewDemoUser(req.user?.id);
-    const { payment_status, status: _status, ...safeBody } = req.body || {};
+    const { payment_status, status: _status, radius: _radius, ...safeBody } = req.body || {};
     const parsed = adUpdateSchema.safeParse(safeBody);
     if (!parsed.success) {
       return res
@@ -1481,6 +1483,8 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
     const tokenPayload = token ? verifyModerationToken(token, id, 'approve_ad') : null;
+    const signedInAdminSession = await resolveVerifiedAdminSession(req);
+    const signedInAdmin = !!signedInAdminSession;
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
@@ -1499,6 +1503,10 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
               false
             )
           );
+      }
+      if (!signedInAdmin) {
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'approve', 'this ad');
+        return;
       }
       addBreadcrumb('Ad approval confirmation page rendered', 'approval.ad_route', 'info', {
         action: 'approve',
@@ -1536,12 +1544,15 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This approval link is invalid or has expired.', false));
       }
+      if (!signedInAdmin) {
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'approve', 'this ad');
+        return;
+      }
       if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
         return;
       }
     } else {
-      const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+      if (!signedInAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const body = req.body || {};
@@ -1644,6 +1655,8 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
     const id = String(req.params.id);
     const token = (req.query?.token as string) || undefined;
     const tokenPayload = token ? verifyModerationToken(token, id, 'reject_ad') : null;
+    const signedInAdminSession = await resolveVerifiedAdminSession(req);
+    const signedInAdmin = !!signedInAdminSession;
 
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
@@ -1662,6 +1675,10 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
               false
             )
           );
+      }
+      if (!signedInAdmin) {
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'reject', 'this ad');
+        return;
       }
       addBreadcrumb('Ad rejection confirmation page rendered', 'approval.ad_route', 'info', {
         action: 'reject',
@@ -1693,12 +1710,15 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
           .status(401)
           .send(confirmationPage('Invalid Link', 'This rejection link is invalid or has expired.', false));
       }
+      if (!signedInAdmin) {
+        sendAdminSignInRequiredHtml(res, confirmationPage, 'reject', 'this ad');
+        return;
+      }
       if (!(await guardAdModerationReplayToken(res, token, tokenPayload))) {
         return;
       }
     } else {
-      const isAdmin = await getIsAdmin(req);
-      if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+      if (!signedInAdmin) return res.status(403).json({ error: 'Admin only' });
     }
 
     const result = await rejectAd(id, req.body?.reason || (req.query?.reason as string) || null);

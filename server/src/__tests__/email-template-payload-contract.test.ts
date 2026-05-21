@@ -80,6 +80,7 @@ const {
   sendCoachApprovedEmail,
   sendCoachRejectedEmail,
   sendCoachJoinRequestEmail,
+  sendCoachApplicationAdminEmail,
   sendAdPendingReviewEmail,
   sendAdApprovedEmail,
   sendAdRejectedEmail,
@@ -316,6 +317,23 @@ describe('SendGrid template payload contract', () => {
     const payload = mockSend.mock.calls[0]![0] as any;
     expect(payload.templateData.requester_username).toBe('pending_coach');
     expect(payload.templateData.coach_email ?? '').toBe('');
+  });
+
+  it('sendCoachApplicationAdminEmail includes requester_username in template payload', async () => {
+    const result = await sendCoachApplicationAdminEmail({
+      to: 'admin@example.com',
+      applicantName: 'Pending Coach',
+      applicantUsername: 'pending_coach_2',
+      applicantEmail: 'coach2@example.com',
+      organizationName: 'Westhill Athletics',
+      approveUrl: 'https://varsityhub.app/approve',
+      rejectUrl: 'https://varsityhub.app/reject',
+      coachNotes: 'Certified and background checked',
+      supportingDocumentUrl: 'https://example.com/doc.pdf',
+    });
+    expect(result).toBe(true);
+    const payload = mockSend.mock.calls[0]![0] as any;
+    expect(payload.templateData.requester_username).toBe('pending_coach_2');
   });
 
   it('ad-pending-review.html — sendAdPendingReviewEmail covers every {{var}}', async () => {

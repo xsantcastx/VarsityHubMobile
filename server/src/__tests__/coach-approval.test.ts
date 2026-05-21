@@ -721,8 +721,8 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('League approval sets league owner to APPROVED', () => {
-    it('allows the email approval token to approve the league without an admin session', async () => {
+  describe('League approval token requires authenticated admin session', () => {
+    it('rejects the email approval token when no admin session is present', async () => {
       const ownerHash = await bcrypt.hash(PASSWORD, 10);
       const owner = await prisma.user.create({
         data: {
@@ -758,14 +758,14 @@ describe('Coach Approval Workflow', () => {
           .post(`/organizations/${org.id}/approve?token=${token}`)
           .send();
 
-        expect(tokenOnlyRes.status).toBe(200);
-        expect(tokenOnlyRes.text).toMatch(/League Approved/i);
+        expect(tokenOnlyRes.status).toBe(401);
+        expect(tokenOnlyRes.text).toMatch(/Admin Sign-In Required/i);
 
         const userAfter = await prisma.user.findUnique({
           where: { id: owner.id },
           select: { approval_status: true },
         });
-        expect(userAfter?.approval_status).toBe('APPROVED');
+        expect(userAfter?.approval_status).toBe('PENDING');
       } finally {
         await prisma.organizationMembership.deleteMany({ where: { organization_id: org.id } });
         await prisma.organization.deleteMany({ where: { id: org.id } });
@@ -774,8 +774,8 @@ describe('Coach Approval Workflow', () => {
     });
   });
 
-  describe('Coach email-token reviewer attribution', () => {
-    it('leaves reviewed_by null when a token-only approval has no authenticated actor', async () => {
+  describe('Coach token review requires authenticated admin session', () => {
+    it('rejects token-only approval when no authenticated admin actor is present', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
         data: {
@@ -807,14 +807,14 @@ describe('Coach Approval Workflow', () => {
           .post(`/admin/coaches/${coach.id}/approve?token=${reviewToken}`)
           .send();
 
-        expect(res.status).toBe(200);
-        expect(res.text).toMatch(/Coach Approved/i);
+        expect(res.status).toBe(401);
+        expect(res.text).toMatch(/Admin Sign-In Required/i);
 
         const applicationAfter = await prisma.coachApplication.findUnique({
           where: { id: application.id },
           select: { status: true, reviewed_by: true },
         });
-        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.status).toBe('submitted');
         expect(applicationAfter?.reviewed_by).toBeNull();
       } finally {
         await prisma.adminActivityLog.deleteMany({ where: { target_id: coach.id } }).catch(() => {});
@@ -823,7 +823,7 @@ describe('Coach Approval Workflow', () => {
       }
     });
 
-    it('does not attribute token approval to a non-admin signed-in session', async () => {
+    it('rejects token approval for a non-admin signed-in session', async () => {
       const coachHash = await bcrypt.hash(PASSWORD, 10);
       const actorHash = await bcrypt.hash(PASSWORD, 10);
       const coach = await prisma.user.create({
@@ -870,14 +870,14 @@ describe('Coach Approval Workflow', () => {
           .set('Authorization', `Bearer ${sessionToken}`)
           .send();
 
-        expect(res.status).toBe(200);
-        expect(res.text).toMatch(/Coach Approved/i);
+        expect(res.status).toBe(401);
+        expect(res.text).toMatch(/Admin Sign-In Required/i);
 
         const applicationAfter = await prisma.coachApplication.findUnique({
           where: { id: application.id },
           select: { status: true, reviewed_by: true },
         });
-        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.status).toBe('submitted');
         expect(applicationAfter?.reviewed_by).toBeNull();
 
         const auditLog = await prisma.adminActivityLog.findFirst({
@@ -885,14 +885,155 @@ describe('Coach Approval Workflow', () => {
           orderBy: { timestamp: 'desc' },
           select: { admin_id: true, admin_email: true },
         });
-        expect(auditLog?.admin_id).toBe('email-token');
-        expect(auditLog?.admin_email).toBe('email-token');
+        expect(auditLog).toBeNull();
       } finally {
         await prisma.adminActivityLog.deleteMany({
           where: { OR: [{ target_id: coach.id }, { admin_id: actor.id }] },
         }).catch(() => {});
         await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
         await prisma.user.deleteMany({ where: { id: { in: [coach.id, actor.id] } } }).catch(() => {});
+      }
+    });
+
+    it('executes tokenized GET approval for authenticated admins and marks selected action', async () => {
+      const coachHash = await bcrypt.hash(PASSWORD, 10);
+      const adminHash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `token-get-coach-${ts}@example.com`,
+          password_hash: coachHash,
+          display_name: 'Token GET Coach',
+          email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+      const admin = await prisma.user.create({
+        data: {
+          email: `token-get-admin-${ts}@example.com`,
+          password_hash: adminHash,
+          display_name: 'Token GET Admin',
+          email_verified: true,
+          role: 'fan',
+          onboarding_completed: true,
+          preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
+      });
+      const application = await prisma.coachApplication.create({
+        data: {
+          user_id: coach.id,
+          status: 'submitted',
+          organization_name: `Token GET League ${ts}`,
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+        },
+      });
+      const reviewToken = signJwt({ coachId: coach.id, action: 'approve_coach' }, '48h');
+      const sessionToken = signJwt({ id: admin.id });
+      const savedAdminEmails = process.env.ADMIN_EMAILS || '';
+      process.env.ADMIN_EMAILS = [admin.email, savedAdminEmails].filter(Boolean).join(',');
+
+      try {
+        const res = await request(fullApp)
+          .get(`/admin/coaches/${coach.id}/approve?token=${reviewToken}`)
+          .set('Authorization', `Bearer ${sessionToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.text).toMatch(/Coach Approved/i);
+        expect(res.text).toMatch(/data-action="approve" data-selected="true"/);
+        expect(res.text).toMatch(/data-action="reject" data-selected="false"/);
+
+        const applicationAfter = await prisma.coachApplication.findUnique({
+          where: { id: application.id },
+          select: { status: true, reviewed_by: true },
+        });
+        expect(applicationAfter?.status).toBe('approved');
+        expect(applicationAfter?.reviewed_by).toBe(admin.id);
+
+        const second = await request(fullApp)
+          .get(`/admin/coaches/${coach.id}/approve?token=${reviewToken}`)
+          .set('Authorization', `Bearer ${sessionToken}`);
+
+        expect(second.status).toBe(200);
+        expect(second.text).toMatch(/Already Approved/i);
+        expect(second.text).toMatch(/data-action="approve" data-selected="true"/);
+      } finally {
+        process.env.ADMIN_EMAILS = savedAdminEmails;
+        await prisma.adminActivityLog.deleteMany({
+          where: { OR: [{ target_id: coach.id }, { admin_id: admin.id }] },
+        }).catch(() => {});
+        await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: { in: [coach.id, admin.id] } } }).catch(() => {});
+      }
+    });
+
+    it('executes tokenized GET rejection for authenticated admins and marks selected action', async () => {
+      const coachHash = await bcrypt.hash(PASSWORD, 10);
+      const adminHash = await bcrypt.hash(PASSWORD, 10);
+      const coach = await prisma.user.create({
+        data: {
+          email: `token-get-reject-coach-${ts}@example.com`,
+          password_hash: coachHash,
+          display_name: 'Token GET Reject Coach',
+          email_verified: true,
+          role: 'coach',
+          onboarding_completed: true,
+          preferences: { role: 'coach', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'PENDING',
+        },
+      });
+      const admin = await prisma.user.create({
+        data: {
+          email: `token-get-reject-admin-${ts}@example.com`,
+          password_hash: adminHash,
+          display_name: 'Token GET Reject Admin',
+          email_verified: true,
+          role: 'fan',
+          onboarding_completed: true,
+          preferences: { role: 'fan', plan: 'rookie', onboarding_completed: true },
+          approval_status: 'APPROVED',
+        },
+      });
+      const application = await prisma.coachApplication.create({
+        data: {
+          user_id: coach.id,
+          status: 'submitted',
+          organization_name: `Token GET Reject League ${ts}`,
+          org_type: 'club',
+          supporting_document_url: 'https://example.com/doc.pdf',
+        },
+      });
+      const reviewToken = signJwt({ coachId: coach.id, action: 'reject_coach' }, '48h');
+      const sessionToken = signJwt({ id: admin.id });
+      const savedAdminEmails = process.env.ADMIN_EMAILS || '';
+      process.env.ADMIN_EMAILS = [admin.email, savedAdminEmails].filter(Boolean).join(',');
+
+      try {
+        const res = await request(fullApp)
+          .get(`/admin/coaches/${coach.id}/reject?token=${reviewToken}`)
+          .set('Authorization', `Bearer ${sessionToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.text).toMatch(/Coach Rejected/i);
+        expect(res.text).toMatch(/data-action="approve" data-selected="false"/);
+        expect(res.text).toMatch(/data-action="reject" data-selected="true"/);
+
+        const applicationAfter = await prisma.coachApplication.findUnique({
+          where: { id: application.id },
+          select: { status: true, reviewed_by: true },
+        });
+        expect(applicationAfter?.status).toBe('rejected');
+        expect(applicationAfter?.reviewed_by).toBe(admin.id);
+      } finally {
+        process.env.ADMIN_EMAILS = savedAdminEmails;
+        await prisma.adminActivityLog.deleteMany({
+          where: { OR: [{ target_id: coach.id }, { admin_id: admin.id }] },
+        }).catch(() => {});
+        await prisma.coachApplication.deleteMany({ where: { user_id: coach.id } }).catch(() => {});
+        await prisma.user.deleteMany({ where: { id: { in: [coach.id, admin.id] } } }).catch(() => {});
       }
     });
   });

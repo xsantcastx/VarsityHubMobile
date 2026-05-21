@@ -4,6 +4,7 @@ import request from 'supertest';
 
 let prisma: any;
 let signReviewToken: any;
+let signJwt: any;
 let app: import('express').Express;
 let getOrganizationJoinRequestState: any;
 let getOrganizationMembership: any;
@@ -13,14 +14,18 @@ const PASSWORD = 'TestPassword123!';
 
 describe('Coach join request email-token review routes', () => {
   let ownerId = '';
+  let nonOwnerId = '';
   let coachId = '';
   let orgId = '';
   let requestId = '';
+  let ownerSessionToken = '';
+  let nonOwnerSessionToken = '';
 
   beforeAll(async () => {
     ({ app } = await import('../testApp.js'));
     ({ prisma } = await import('../lib/prisma.js'));
     ({ signReviewToken } = await import('../lib/reviewTokens.js'));
+    ({ signJwt } = await import('../lib/jwt.js'));
     ({ getOrganizationJoinRequestState } = await import('../lib/organizationWorkflowState.js'));
     ({ getOrganizationMembership } = await import('../lib/organizationAuthorization.js'));
 
@@ -39,6 +44,7 @@ describe('Coach join request email-token review routes', () => {
       },
     });
     ownerId = owner.id;
+    ownerSessionToken = signJwt({ id: owner.id });
 
     const coach = await prisma.user.create({
       data: {
@@ -53,6 +59,21 @@ describe('Coach join request email-token review routes', () => {
       },
     });
     coachId = coach.id;
+
+    const nonOwner = await prisma.user.create({
+      data: {
+        email: `coach-join-non-owner-${ts}@example.com`,
+        password_hash: hash,
+        display_name: 'Non Owner Reviewer',
+        email_verified: true,
+        role: 'coach',
+        onboarding_completed: true,
+        approval_status: 'APPROVED',
+        preferences: { role: 'coach', onboarding_completed: true },
+      },
+    });
+    nonOwnerId = nonOwner.id;
+    nonOwnerSessionToken = signJwt({ id: nonOwner.id });
 
     const org = await prisma.organization.create({
       data: {
@@ -84,12 +105,12 @@ describe('Coach join request email-token review routes', () => {
 
   afterAll(async () => {
     await prisma.notification
-      .deleteMany({ where: { user_id: { in: [ownerId, coachId] } } })
+      .deleteMany({ where: { user_id: { in: [ownerId, coachId, nonOwnerId] } } })
       .catch(() => {});
     await prisma.organizationJoinRequest.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
     await prisma.organizationMembership.deleteMany({ where: { organization_id: orgId } }).catch(() => {});
     await prisma.organization.deleteMany({ where: { id: orgId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ownerId, coachId] } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: { in: [ownerId, coachId, nonOwnerId] } } }).catch(() => {});
   });
 
   it('rejects requests without a token', async () => {
@@ -124,7 +145,7 @@ describe('Coach join request email-token review routes', () => {
     expect(res.text).toMatch(/Link Expired/i);
   });
 
-  it('renders a confirmation page on GET with a valid approve token', async () => {
+  it('requires an authenticated owner session for valid token links', async () => {
     const token = signReviewToken(
       { requestId, orgId, action: 'approve_join_request' },
       '48h'
@@ -132,19 +153,34 @@ describe('Coach join request email-token review routes', () => {
     const res = await request(app).get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
     );
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Approve this coach request/i);
-    expect(res.text).toMatch(/Pending Coach/);
+    expect(res.status).toBe(401);
+    expect(res.text).toMatch(/Owner Sign-In Required/i);
   });
 
-  it('approves the coach on POST with a valid token (no app login required)', async () => {
+  it('rejects valid token links for signed-in non-owners', async () => {
     const token = signReviewToken(
       { requestId, orgId, action: 'approve_join_request' },
       '48h'
     );
-    const res = await request(app).post(
+    const res = await request(app)
+      .get(
       `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
+      )
+      .set('Authorization', `Bearer ${nonOwnerSessionToken}`);
+    expect(res.status).toBe(401);
+    expect(res.text).toMatch(/Owner Sign-In Required/i);
+  });
+
+  it('approves the coach on GET with a valid token and owner session', async () => {
+    const token = signReviewToken(
+      { requestId, orgId, action: 'approve_join_request' },
+      '48h'
     );
+    const res = await request(app)
+      .get(
+      `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
+      )
+      .set('Authorization', `Bearer ${ownerSessionToken}`);
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Coach Approved/i);
 
@@ -169,9 +205,9 @@ describe('Coach join request email-token review routes', () => {
       { requestId, orgId, action: 'approve_join_request' },
       '48h'
     );
-    const res = await request(app).post(
-      `/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`
-    );
+    const res = await request(app)
+      .post(`/organizations/join-requests/${requestId}/email/approve?token=${encodeURIComponent(token)}`)
+      .set('Authorization', `Bearer ${ownerSessionToken}`);
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Already Approved|Already Reviewed/i);
   });

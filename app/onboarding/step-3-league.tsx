@@ -556,7 +556,7 @@ function Step3League() {
       Alert.alert(
         'Request Sent!',
         `Your request to join "${selectedOrg.name}" has been sent. You'll see a waiting screen while the league admin reviews your request, then you'll be walked through the coach agreement and setup.`,
-        [{ text: 'Continue' }]
+        [{ text: 'Continue', onPress: () => router.replace('/onboarding/pending-approval' as any) }]
       );
       captureBreadcrumb('Join organization request succeeded', 'onboarding.step3', {
         org_type: selectedOrg.org_type || orgType || 'unknown',
@@ -1472,8 +1472,8 @@ function Step3League() {
                       No organizations found for that search
                     </Text>
                     <Text style={styles.searchEmptyText}>
-                      This clean test slate does not have any active leagues yet. Tap Create New
-                      Instead to set up the first organization.
+                      Try another search, adjust your location, or create a new organization if one
+                      doesn't exist yet.
                     </Text>
                   </View>
                 )}

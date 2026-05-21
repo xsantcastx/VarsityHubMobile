@@ -103,4 +103,20 @@ describe('Coach approval flow', () => {
     } as any);
     expect(freshDecision.route).toBe('/(tabs)');
   });
+
+  it('stale pending snapshots still stay on tabs when proceeding_as_fan is true', () => {
+    const decision = getPostAuthRouteDecision({
+      email_verified: true,
+      role: 'fan',
+      approval_status: 'REJECTED',
+      onboarding_completed: false,
+      preferences: {
+        role: 'fan',
+        onboarding_completed: false,
+        proceeding_as_fan: true,
+      },
+    } as any);
+
+    expect(decision.route).toBe('/(tabs)');
+  });
 });

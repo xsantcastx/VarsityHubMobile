@@ -1,5 +1,6 @@
 import type { OnboardingState } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
+import { isProceedingAsFanSnapshot } from './authState';
 import {
   getCoachAccessState,
   getCoachOrganizationId,
@@ -162,6 +163,18 @@ function resolvePendingRouteKind(route: string, baseKind: 'pending_coach_waiting
   return baseKind;
 }
 
+function isPendingOrRejectedApprovalStatus(value: unknown): boolean {
+  const approvalStatus = String(value || '').trim().toUpperCase();
+  return approvalStatus === 'PENDING' || approvalStatus === 'REJECTED';
+}
+
+function getFanModePostAuthFallbackKind(user: RoutingUserLike): PostAuthRouteKind {
+  const accountState = String(user.account_state || '').trim();
+  if (accountState === 'coach_application_submitted') return 'server_application_submitted_fan_mode';
+  if (accountState === 'coach_application_rejected') return 'server_application_rejected_fan_mode';
+  return 'server_pending_approval_fan_mode';
+}
+
 export function getPostAuthRouteDecision(
   user: RoutingUserLike | null | undefined,
   options?: { pendingVerification?: boolean }
@@ -192,6 +205,11 @@ export function getPostAuthRouteDecision(
           route: POST_AUTH_ROUTE_BY_KIND.generic_onboarding_required,
         }
       : { kind: 'app_home', route: POST_AUTH_ROUTE_BY_KIND.app_home };
+  }
+
+  if (isPendingOrRejectedApprovalStatus(user.approval_status) && isProceedingAsFanSnapshot(user as any)) {
+    const kind = getFanModePostAuthFallbackKind(user);
+    return { kind, route: POST_AUTH_ROUTE_BY_KIND[kind] };
   }
 
   const serverDirectedKind = resolveServerDirectedPostAuthKind(user);
@@ -249,6 +267,17 @@ export function getOnboardingIndexRouteDecision(
   user: RoutingUserLike,
   state: OnboardingState
 ): OnboardingIndexRouteDecision {
+  if (isPendingOrRejectedApprovalStatus(user.approval_status) && isProceedingAsFanSnapshot(user as any)) {
+    const kind = getFanModePostAuthFallbackKind(user);
+    const onboardingKind: OnboardingIndexRouteKind =
+      kind === 'server_application_submitted_fan_mode'
+        ? 'server_application_submitted_fan_mode'
+        : kind === 'server_application_rejected_fan_mode'
+          ? 'server_application_rejected_fan_mode'
+          : 'server_pending_approval_fan_mode';
+    return { kind: onboardingKind, route: ONBOARDING_INDEX_ROUTE_BY_KIND[onboardingKind] };
+  }
+
   const serverDirectedKind = resolveServerDirectedPostAuthKind(user);
   if (serverDirectedKind) {
     const serverKindMap: Record<PostAuthRouteKind, OnboardingIndexRouteKind> = {

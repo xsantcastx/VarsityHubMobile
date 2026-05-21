@@ -73,7 +73,7 @@ describe('Admin abuse-report email review routes', () => {
     return report;
   }
 
-  it('renders an HTML confirmation page for tokenized GET review links', async () => {
+  it('requires an authenticated admin session for tokenized GET review links', async () => {
     const report = await createReport();
     const token = signJwt({ reportId: report.id, action: 'resolve_abuse_report' }, '7d');
 
@@ -81,13 +81,27 @@ describe('Admin abuse-report email review routes', () => {
       .get(`/admin/reports/${report.id}/resolve`)
       .query({ token });
 
+    expect(res.status).toBe(401);
+    expect(String(res.headers['content-type'] || '')).toContain('text/html');
+    expect(res.text).toMatch(/Admin Sign-In Required/i);
+  });
+
+  it('renders confirmation page when a valid token is used by an authenticated admin', async () => {
+    const report = await createReport();
+    const token = signJwt({ reportId: report.id, action: 'resolve_abuse_report' }, '7d');
+
+    const res = await request(app)
+      .get(`/admin/reports/${report.id}/resolve`)
+      .query({ token })
+      .set('Authorization', `Bearer ${adminToken}`);
+
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'] || '')).toContain('text/html');
     expect(res.text).toMatch(/Resolve Abuse Report/i);
     expect(res.text).toContain('Resolve Report');
   });
 
-  it('allows token-only resolution and records email-token attribution', async () => {
+  it('rejects token-only resolution attempts without an authenticated admin session', async () => {
     const report = await createReport();
     const token = signJwt({ reportId: report.id, action: 'resolve_abuse_report' }, '7d');
 
@@ -96,12 +110,12 @@ describe('Admin abuse-report email review routes', () => {
       .query({ token })
       .send({});
 
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Report Resolved/i);
+    expect(res.status).toBe(401);
+    expect(res.text).toMatch(/Admin Sign-In Required/i);
 
     const updated = await prisma.abuseReport.findUnique({ where: { id: report.id } });
-    expect(updated?.status).toBe('resolved');
-    expect(updated?.reviewed_by).toBe('email-token');
+    expect(updated?.status).toBe('pending');
+    expect(updated?.reviewed_by).toBeNull();
 
     const audit = await prisma.adminActivityLog.findFirst({
       where: {
@@ -111,26 +125,28 @@ describe('Admin abuse-report email review routes', () => {
       },
       orderBy: { timestamp: 'desc' },
     });
-    expect(audit?.admin_email).toBe('email-token');
+    expect(audit).toBeNull();
   });
 
-  it('burns an abuse-report review token after first successful use', async () => {
+  it('treats repeated abuse-report token submissions as already reviewed after first success', async () => {
     const report = await createReport();
     const token = signJwt({ reportId: report.id, action: 'dismiss_abuse_report' }, '7d');
 
     const first = await request(app)
       .post(`/admin/reports/${report.id}/dismiss`)
       .query({ token })
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({});
 
     const second = await request(app)
       .post(`/admin/reports/${report.id}/dismiss`)
       .query({ token })
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({});
 
     expect(first.status).toBe(200);
-    expect(second.status).toBe(409);
-    expect(second.text).toMatch(/Link Already Used/i);
+    expect(second.status).toBe(200);
+    expect(second.text).toMatch(/Already Dismissed|Already Reviewed/i);
   });
 
   it('records the authenticated reviewer when a valid token is used with an admin session', async () => {
