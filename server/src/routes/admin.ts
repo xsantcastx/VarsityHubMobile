@@ -22,10 +22,14 @@ import {
 } from '../lib/transactionLogger.js';
 import { wipeCloudinary, wipeDatabase } from '../lib/wipeProduction.js';
 import { updateUserAndInvalidate } from '../lib/userCache.js';
-import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import { verifyReviewToken } from '../lib/reviewTokens.js';
+import {
+  consumeReviewTokenOrRenderHtml,
+  resolveVerifiedAdminSession,
+  sendAdminSignInRequiredHtml,
+} from '../lib/reviewFlow.js';
 import {
   requireAdmin as requireAdminMiddleware,
-  isEmailAdmin,
 } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
@@ -59,14 +63,6 @@ function renderCoachResultPage(title: string, message: string, success: boolean)
 </body></html>`;
 }
 
-function renderCoachAdminLoginRequiredPage(action: 'approve' | 'reject', coachName: string) {
-  return renderCoachResultPage(
-    'Admin Sign-In Required',
-    `You must be signed in as a verified admin to ${action} ${coachName || 'this coach'}.`,
-    false
-  );
-}
-
 async function handleCoachReview(
   req: AuthedRequest,
   res: express.Response,
@@ -85,25 +81,8 @@ async function handleCoachReview(
 
   // Two callers: (1) email-link clicks render HTML; (2) admin dashboard sends JSON.
   // Allow signed-in admins through without a token; keep email-link semantics otherwise.
-  let signedInAdmin = false;
-  let signedInAdminSession: { id: string; email: string | null } | null = null;
-  if (!tokenValid && !token && req.user) {
-    const me = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, email: true, email_verified: true },
-    });
-    signedInAdmin = !!(me?.email_verified && isEmailAdmin(me.email));
-    signedInAdminSession = signedInAdmin && me ? { id: me.id, email: me.email } : null;
-  } else if (tokenValid && req.user) {
-    const me = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, email: true, email_verified: true },
-    });
-    if (me?.email_verified && isEmailAdmin(me.email)) {
-      signedInAdmin = true;
-      signedInAdminSession = { id: me.id, email: me.email };
-    }
-  }
+  const signedInAdminSession = await resolveVerifiedAdminSession(req);
+  const signedInAdmin = !!signedInAdminSession;
 
   if (!tokenValid && !signedInAdmin) {
     if (token) {
@@ -146,38 +125,37 @@ async function handleCoachReview(
   if (req.method === 'GET') {
     if (!tokenValid) return res.status(405).json({ error: 'Method not allowed' });
     if (!signedInAdminSession) {
-      return res
-        .status(401)
-        .send(renderCoachAdminLoginRequiredPage(action, coachName));
+      sendAdminSignInRequiredHtml(
+        res,
+        renderCoachResultPage,
+        action,
+        coachName || 'this coach'
+      );
+      return;
     }
     return res.send(renderCoachReviewPage(action, coachName, token!));
   }
 
   if (tokenValid && !signedInAdminSession) {
-    return res
-      .status(401)
-      .send(renderCoachAdminLoginRequiredPage(action, coachName));
+    sendAdminSignInRequiredHtml(
+      res,
+      renderCoachResultPage,
+      action,
+      coachName || 'this coach'
+    );
+    return;
   }
 
   if (tokenValid) {
-    const consumeResult = await consumeReviewToken(token!, payload!);
-    if (consumeResult === 'already_used') {
-      return res.status(409).send(
-        renderCoachResultPage(
-          'Link Already Used',
-          `This ${action} link has already been used.`,
-          false
-        )
-      );
-    }
-    if (consumeResult === 'store_unavailable') {
-      return res.status(503).send(
-        renderCoachResultPage(
-          'Temporarily Unavailable',
-          'This review link cannot be completed right now. Please use the admin dashboard instead.',
-          false
-        )
-      );
+    const consumed = await consumeReviewTokenOrRenderHtml(
+      res,
+      token!,
+      payload!,
+      renderCoachResultPage,
+      { alreadyUsed: `This ${action} link has already been used.` }
+    );
+    if (!consumed) {
+      return;
     }
   }
 
