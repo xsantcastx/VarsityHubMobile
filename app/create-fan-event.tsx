@@ -26,7 +26,7 @@ import { safeGoBack } from '@/utils/navigation';
 import { APP_ROUTES } from '@/utils/appRoutes';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
-import { Event, Game, Team as TeamAPI, User } from '@/api/entities';
+import { Event, Game, Team as TeamAPI } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { getApiBaseUrl } from '@/api/http';

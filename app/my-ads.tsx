@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Advertisement as AdsApi, User } from '@/api/entities';
+import { Advertisement as AdsApi } from '@/api/entities';
 import settings from '@/api/settings';
 import { getAuthSnapshot } from '@/utils/authState';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';

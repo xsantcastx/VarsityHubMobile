@@ -208,7 +208,7 @@ function MyTeamScreen() {
       setMembers([]);
       return null;
     }
-  }, [routeTeamId, router, selectedTeamId]);
+  }, [routeTeamId, router, selectedTeamId, user]);
 
   const loadMembers = useCallback(async (teamId: string) => {
     try {
@@ -238,7 +238,7 @@ function MyTeamScreen() {
       if (__DEV__) console.error('Failed to load members:', e);
       setMembers([]);
     }
-  }, [router]);
+  }, [router, user]);
 
   const loadAll = useCallback(async () => {
     const nextSelectedTeamId = await loadTeams();
@@ -288,7 +288,7 @@ function MyTeamScreen() {
         setMemberActionLoading(false);
       }
     },
-    [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router],
+    [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router, user],
   );
 
   const handleUpdatePosition = useCallback(async () => {
@@ -309,7 +309,7 @@ function MyTeamScreen() {
     } finally {
       setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, positionInput, loadMembers, memberActionLoading, router]);
+  }, [selectedMember, selectedTeamId, positionInput, loadMembers, memberActionLoading, router, user]);
 
   const handleRemoveMember = useCallback(async () => {
     if (!selectedMember || memberActionLoading) return;
@@ -328,7 +328,7 @@ function MyTeamScreen() {
     } finally {
       setMemberActionLoading(false);
     }
-  }, [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router]);
+  }, [selectedMember, selectedTeamId, loadMembers, memberActionLoading, router, user]);
 
   const handleInvite = useCallback(async () => {
     if (!selectedTeamId || !inviteEmail.trim()) return;
@@ -349,7 +349,7 @@ function MyTeamScreen() {
     } finally {
       setInviting(false);
     }
-  }, [selectedTeamId, inviteEmail, inviteRole, loadMembers, router]);
+  }, [selectedTeamId, inviteEmail, inviteRole, loadMembers, router, user]);
 
   const selectedTeam = teams.find((t) => t.id === selectedTeamId);
 

@@ -78,7 +78,7 @@ export default function EditEventScreen() {
     } finally {
       setLoading(false);
     }
-  }, [backFallback, canAccessCoachTools, coachLoading, id, router]);
+  }, [backFallback, canAccessCoachTools, coachLoading, id, router, user]);
 
   useEffect(() => {
     if (coachLoading || !canAccessCoachTools) return;

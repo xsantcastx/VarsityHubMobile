@@ -87,7 +87,7 @@ function SubscriptionPaywallScreen() {
     return () => {
       mounted = false;
     };
-  }, [checkAuth, user?.id]);
+  }, [checkAuth, user, user?.id]);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const {
     connected: iapConnected,

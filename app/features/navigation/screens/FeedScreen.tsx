@@ -23,7 +23,6 @@ import {
   Game,
   Message,
   Notification as NotificationApi,
-  User,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';

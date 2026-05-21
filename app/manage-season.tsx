@@ -187,7 +187,7 @@ function ManageSeasonScreen() {
     } finally {
       setLoading(false);
     }
-  }, [backFallback, params.teamId, router]);
+  }, [backFallback, params.teamId, router, user]);
 
   const loadGames = useCallback(async () => {
     try {
@@ -256,7 +256,7 @@ function ManageSeasonScreen() {
     } finally {
       setLoading(false);
     }
-  }, [currentTeam?.id, router]);
+  }, [currentTeam?.id, router, user]);
 
   // Load team and then games
   useEffect(() => {

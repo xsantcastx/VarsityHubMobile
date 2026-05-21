@@ -110,7 +110,7 @@ function ManageSubscription() {
     } catch (error) {
       if (__DEV__) console.warn('[manage-subscription] Failed to load plan:', error);
     }
-  }, [checkAuth, user?.id]);
+  }, [checkAuth, user]);
 
   useEffect(() => {
     void refreshPlan();

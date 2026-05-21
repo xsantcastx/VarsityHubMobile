@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -346,11 +346,14 @@ export default function SettingsScreen() {
     showAppleStatus ? 'apple' : null,
   ].filter(Boolean) as Array<'google' | 'apple'>;
   const canDowngradeCoach = String(role || '').trim().toLowerCase() === 'coach';
-  const getFreshSettingsUser = async (fallbackUser?: UserMeResponse | null) =>
-    ((await getFreshAuthSnapshot(
-      checkAuth,
-      (fallbackUser ?? authUser ?? null) as any
-    )) as UserMeResponse | null);
+  const getFreshSettingsUser = useCallback(
+    async (fallbackUser?: UserMeResponse | null) =>
+      ((await getFreshAuthSnapshot(
+        checkAuth,
+        (fallbackUser ?? authUser ?? null) as any
+      )) as UserMeResponse | null),
+    [authUser, checkAuth]
+  );
 
   const _restartOnboarding = async () => {
     try {
@@ -367,7 +370,6 @@ export default function SettingsScreen() {
         bio: me?.bio ?? prefsFromServer.bio ?? '',
         sports_interests: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
         primary_intents: prefsFromServer.primary_intents ?? [],
-        authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
       };
 
       // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
@@ -522,7 +524,7 @@ export default function SettingsScreen() {
     return () => {
       mounted = false;
     };
-  }, [checkAuth]);
+  }, [checkAuth, getFreshSettingsUser]);
 
   return (
     <>

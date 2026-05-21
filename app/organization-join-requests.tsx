@@ -1,4 +1,4 @@
-import { Organization, User } from '@/api/entities';
+import { Organization } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { getOrganizationAccess } from '@/utils/roleChecks';
 import { getFreshAuthSnapshot } from '@/utils/authState';
