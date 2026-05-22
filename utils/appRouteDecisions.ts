@@ -7,6 +7,7 @@ import {
   isCoachOnboardingComplete,
   type CoachUserLike,
 } from './roleChecks';
+import { isProceedingAsFanSnapshot } from './authState';
 
 export type AppRoute =
   | '/sign-in'
@@ -132,20 +133,21 @@ function resolveServerDirectedPostAuthKind(user: RoutingUserLike): PostAuthRoute
     typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
       ? (user.next_step.trim() as AppRoute)
       : null;
+  const isProceedingAsFan = isProceedingAsFanSnapshot(user as any);
 
   switch (accountState) {
     case 'coach_application_required':
       return 'server_application_required';
     case 'coach_application_submitted':
-      return explicitNextStep === '/(tabs)'
+      return isProceedingAsFan || explicitNextStep === '/(tabs)'
         ? 'server_application_submitted_fan_mode'
         : 'server_application_submitted_waiting';
     case 'coach_application_rejected':
-      return explicitNextStep === '/(tabs)'
+      return isProceedingAsFan || explicitNextStep === '/(tabs)'
         ? 'server_application_rejected_fan_mode'
         : 'server_application_rejected_waiting';
     case 'coach_pending_approval':
-      return explicitNextStep === '/(tabs)'
+      return isProceedingAsFan || explicitNextStep === '/(tabs)'
         ? 'server_pending_approval_fan_mode'
         : explicitNextStep === '/onboarding/league-pending-approval'
           ? 'server_pending_approval_league_waiting'

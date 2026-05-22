@@ -6,7 +6,7 @@ const mockRouterReplace = jest.fn();
 const mockRouterPush = jest.fn();
 const mockMarkOnboardingCompleteLocally = jest.fn(async () => undefined);
 const mockRegisterPushToken = jest.fn(async () => undefined);
-const mockCheckAuth = jest.fn(async () => ({
+const mockCheckAuth = jest.fn(async (): Promise<any> => ({
   id: 'fan-1',
   email_verified: true,
   role: 'fan',
@@ -20,7 +20,6 @@ const mockPatchMe = jest.fn();
 const mockUpdatePreferences = jest.fn();
 const mockCompleteOnboarding = jest.fn();
 const mockUsernameAvailable = jest.fn(async () => ({ available: true }));
-const mockUserMe = jest.fn();
 
 let mockOnboardingState: any = {};
 
@@ -105,7 +104,6 @@ jest.mock('@/context/OnboardingContext', () => ({
 }));
 jest.mock('@/api/entities', () => ({
   User: {
-    me: mockUserMe,
     usernameAvailable: mockUsernameAvailable,
     patchMe: mockPatchMe,
     updatePreferences: mockUpdatePreferences,
@@ -132,11 +130,13 @@ describe('Onboarding Flow', () => {
 
   it('routes coaches from step-2 to coach-application after saving canonical coach fields', async () => {
     mockOnboardingState = { role: 'coach', affiliation: undefined, dob: '' };
-    mockUserMe.mockResolvedValue({
+    mockCheckAuth.mockResolvedValue({
       id: 'coach-1',
       email_verified: true,
+      role: 'coach',
+      onboarding_completed: false,
       username: 'coachuser',
-      preferences: {},
+      preferences: { role: 'coach', onboarding_completed: false },
     });
 
     const screen = render(<Step2Basic />);
@@ -168,11 +168,13 @@ describe('Onboarding Flow', () => {
 
   it('completes fan onboarding and routes to tabs from step-2', async () => {
     mockOnboardingState = { role: 'fan', affiliation: undefined, dob: '' };
-    mockUserMe.mockResolvedValue({
+    mockCheckAuth.mockResolvedValue({
       id: 'fan-1',
       email_verified: true,
+      role: 'fan',
+      onboarding_completed: true,
       username: 'fanuser',
-      preferences: {},
+      preferences: { role: 'fan', onboarding_completed: true },
     });
 
     const screen = render(<Step2Basic />);

@@ -515,7 +515,7 @@ teamsRouter.get('/:id/admin-summary', requireAuth as any, asyncHandler(async (re
       return res.status(403).json(buildTeamPlanLockedError(entitlement));
     }
 
-    const [memberships, upcomingGames] = await Promise.all([
+    const [memberships, pendingInvites, upcomingGames] = await Promise.all([
       prisma.teamMembership.findMany({
         where: { team_id: teamId, status: 'active' },
         orderBy: { created_at: 'asc' },
@@ -531,6 +531,18 @@ teamsRouter.get('/:id/admin-summary', requireAuth as any, asyncHandler(async (re
               preferences: true,
             },
           },
+        },
+      }),
+      prisma.teamInvite.findMany({
+        where: { team_id: teamId, status: 'pending' },
+        orderBy: { created_at: 'desc' },
+        take: 100,
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          status: true,
+          created_at: true,
         },
       }),
       prisma.game.findMany({
@@ -576,9 +588,16 @@ teamsRouter.get('/:id/admin-summary', requireAuth as any, asyncHandler(async (re
       counts: {
         members: memberships.length,
         staff: staffCount,
+        pending_invites: pendingInvites.length,
         upcoming_games: upcomingGames.length,
       },
       members: memberships.map((member) => serializeTeamMember(member, true)),
+      pending_invites: pendingInvites.map((invite) => ({
+        ...invite,
+        created_at: invite.created_at instanceof Date
+          ? invite.created_at.toISOString()
+          : String(invite.created_at),
+      })),
       upcoming_games: upcomingGames.map((game) => ({
         ...game,
         date: game.date instanceof Date ? game.date.toISOString() : String(game.date),

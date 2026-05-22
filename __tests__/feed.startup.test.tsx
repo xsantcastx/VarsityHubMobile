@@ -20,10 +20,10 @@ const createDeferred = <T,>(): Deferred<T> => {
 
 const mockRouterPush = jest.fn();
 let capturedFocusEffect: null | (() => void | (() => void)) = null;
-let userDeferred: Deferred<any>;
+let authDeferred: Deferred<any>;
 let firstGameDeferred: Deferred<any>;
 let gameDeferredQueue: Deferred<any>[] = [];
-const mockUserMe = jest.fn(() => userDeferred.promise);
+const mockCheckAuth = jest.fn(() => authDeferred.promise);
 const mockGameList = jest.fn(() => {
   const next = gameDeferredQueue.shift();
   if (!next) throw new Error('No queued Game.list response');
@@ -66,6 +66,9 @@ jest.mock('@/api/entities', () => ({
     list: () => mockGameList(),
     votesSummaryBatch: jest.fn(async () => ({})),
   },
+  Feed: {
+    bundle: jest.fn(async () => null),
+  },
   Highlights: {
     fetch: jest.fn(async () => null),
   },
@@ -81,8 +84,15 @@ jest.mock('@/api/entities', () => ({
     filterPage: jest.fn(async () => ({ items: [] })),
   },
   User: {
-    me: () => mockUserMe(),
+    me: jest.fn(),
   },
+}));
+
+jest.mock('@/context/AuthProvider', () => ({
+  useAuth: () => ({
+    user: null,
+    checkAuth: mockCheckAuth,
+  }),
 }));
 
 jest.mock('@/components/BannerAd', () => ({
@@ -162,7 +172,7 @@ describe('Feed startup performance', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     capturedFocusEffect = null;
-    userDeferred = createDeferred<any>();
+    authDeferred = createDeferred<any>();
     firstGameDeferred = createDeferred<any>();
     gameDeferredQueue = [firstGameDeferred];
     jest.spyOn(Date, 'now').mockImplementation(() => now);
@@ -197,7 +207,7 @@ describe('Feed startup performance', () => {
     });
 
     expect(screen.queryByTestId('feed-skeleton')).toBeNull();
-    expect(mockUserMe).toHaveBeenCalledTimes(1);
+    expect(mockCheckAuth).toHaveBeenCalledTimes(1);
     expect(mockGameList).toHaveBeenCalledTimes(1);
   });
 
@@ -235,7 +245,7 @@ describe('Feed startup performance', () => {
     });
 
     expect(mockGameList).toHaveBeenCalledTimes(2);
-    expect(mockUserMe).toHaveBeenCalledTimes(2);
+    expect(mockCheckAuth).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('feed-game-card-game-1')).toBeTruthy();
     expect(screen.queryByTestId('feed-skeleton')).toBeNull();
 

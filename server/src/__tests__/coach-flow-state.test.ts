@@ -142,6 +142,47 @@ describe('getCoachFlowState', () => {
     });
   });
 
+  it('keeps an org-backed pending coach in fan mode on tabs', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        organization_id: 'org_123',
+        proceeding_as_fan: true,
+      },
+      null
+    );
+
+    expect(state).toEqual({
+      account_state: 'coach_pending_approval',
+      next_step: '/(tabs)',
+    });
+  });
+
+  it('prefers the canonical proceeding_as_fan column for org-backed pending coaches', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        organization_id: 'org_123',
+        proceeding_as_fan: true,
+        preferences: {
+          role: 'fan',
+          organization_id: 'org_123',
+          proceeding_as_fan: false,
+        },
+      } as any,
+      null
+    );
+
+    expect(state).toEqual({
+      account_state: 'coach_pending_approval',
+      next_step: '/(tabs)',
+    });
+  });
+
   it('treats approved coaches as active without extra agreement or setup gates', () => {
     const firstApprovedState = getCoachFlowState(
       {

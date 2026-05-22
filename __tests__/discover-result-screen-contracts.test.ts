@@ -44,7 +44,7 @@ describe('discover result screen contracts', () => {
     expect(teamScreen).toContain('venue_address?: string | null;');
     expect(teamScreen).toContain("const teamVenue = typeof team?.venue_address === 'string' ? team.venue_address.trim() : '';");
     expect(teamScreen).toContain('const teamOrganizationName =');
-    expect(teamScreen).toContain("pathname: '/organizations/[id]'");
+    expect(teamScreen).toContain("pathname: '/organization'");
     expect(teamScreen).toContain("Ionicons name=\"location-outline\"");
     expect(teamScreen).toContain("Ionicons name=\"business-outline\"");
   });

@@ -1528,6 +1528,60 @@ organizationsRouter.get(
   })
 );
 
+organizationsRouter.post(
+  '/:id/invites/:inviteId/cancel',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      const organizationId = String(req.params.id);
+      const inviteId = String(req.params.inviteId);
+      const userId = req.user?.id || null;
+      if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+      const [membership, isPlatformAdmin, invite] = await Promise.all([
+        getOrganizationMembership(userId, organizationId),
+        isCurrentUserPlatformAdmin(req),
+        prisma.organizationInvite.findUnique({
+          where: { id: inviteId },
+          select: { id: true, organization_id: true, status: true },
+        }),
+      ]);
+
+      if (!invite || invite.organization_id !== organizationId) {
+        return res.status(404).json({ error: 'Invite not found' });
+      }
+
+      if (!isPlatformAdmin && (!membership || !isOrganizationAdmin(membership.role))) {
+        return res.status(403).json({
+          error: 'PERMISSION_DENIED',
+          message: 'Only organization admins can cancel invites.',
+        });
+      }
+
+      const updated = await prisma.organizationInvite.updateMany({
+        where: { id: inviteId, organization_id: organizationId, status: 'pending' },
+        data: { status: 'revoked' },
+      });
+
+      if (updated.count === 0) {
+        return res.status(409).json({ error: 'Invite already processed' });
+      }
+
+      return res.json({
+        ok: true,
+        invite: {
+          id: inviteId,
+          status: 'revoked',
+        },
+      });
+    } catch (err) {
+      console.error('[organizations] POST /:id/invites/:inviteId/cancel error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })
+);
+
 // Accept organization invite
 organizationsRouter.post(
   '/invites/:inviteId/accept',

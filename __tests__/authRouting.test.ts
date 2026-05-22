@@ -41,6 +41,88 @@ describe('resolveAuthRouting', () => {
     expect(result.redirectReason).toBe('server_next_step:coach_application_submitted');
   });
 
+  it('ignores stale server next_step when a pending coach is proceeding as fan', () => {
+    const result = resolveAuthRouting({
+      user: {
+        email_verified: true,
+        approval_status: 'PENDING',
+        account_state: 'coach_application_submitted',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          proceeding_as_fan: false,
+        },
+      },
+      pendingVerificationEmail: null,
+      firstSegment: '(tabs)',
+      currentPath: '(tabs)',
+      isPublic: false,
+      healthOk: true,
+      unauthenticatedEntryRoute: '/sign-in',
+    });
+
+    expect(result.redirectTo).toBeNull();
+    expect(result.redirectReason).toBeNull();
+    expect(result.postAuthDecision?.route).toBe('/(tabs)');
+  });
+
+  it('ignores stale rejected-application next_step when the user is proceeding as fan', () => {
+    const result = resolveAuthRouting({
+      user: {
+        email_verified: true,
+        approval_status: 'REJECTED',
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          proceeding_as_fan: false,
+        },
+      },
+      pendingVerificationEmail: null,
+      firstSegment: '(tabs)',
+      currentPath: '(tabs)',
+      isPublic: false,
+      healthOk: true,
+      unauthenticatedEntryRoute: '/sign-in',
+    });
+
+    expect(result.redirectTo).toBeNull();
+    expect(result.redirectReason).toBeNull();
+    expect(result.postAuthDecision?.route).toBe('/(tabs)');
+  });
+
+  it('ignores stale pending-approval next_step when an org-backed coach is proceeding as fan', () => {
+    const result = resolveAuthRouting({
+      user: {
+        email_verified: true,
+        approval_status: 'PENDING',
+        account_state: 'coach_pending_approval',
+        next_step: '/onboarding/pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          role: 'coach',
+          onboarding_completed: true,
+          organization_id: 'org_123',
+          proceeding_as_fan: false,
+        },
+      },
+      pendingVerificationEmail: null,
+      firstSegment: '(tabs)',
+      currentPath: '(tabs)',
+      isPublic: false,
+      healthOk: true,
+      unauthenticatedEntryRoute: '/sign-in',
+    });
+
+    expect(result.redirectTo).toBeNull();
+    expect(result.redirectReason).toBeNull();
+    expect(result.postAuthDecision?.route).toBe('/(tabs)');
+  });
+
   it('flags approved coaches in fan mode for in-place restoration', () => {
     const result = resolveAuthRouting({
       user: {

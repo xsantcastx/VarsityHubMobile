@@ -25,6 +25,7 @@ export type CoachUserLike = {
   approval_status?: string | null;
   account_state?: string | null;
   next_step?: string | null;
+  proceeding_as_fan?: boolean | null;
   paid_by_owner?: boolean;
   is_admin?: boolean;
   onboarding_completed?: boolean | null;

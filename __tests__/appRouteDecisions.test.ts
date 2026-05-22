@@ -46,6 +46,47 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'server_application_rejected_waiting',
     },
     {
+      label: 'keeps submitted coach applicants in fan mode on app home even when next_step is stale',
+      user: {
+        email_verified: true,
+        account_state: 'coach_application_submitted',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: { onboarding_completed: true, role: 'coach', proceeding_as_fan: false },
+      },
+      expected: '/(tabs)',
+      kind: 'server_application_submitted_fan_mode',
+    },
+    {
+      label: 'keeps rejected coach applicants in fan mode on app home even when next_step is stale',
+      user: {
+        email_verified: true,
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: { onboarding_completed: true, role: 'coach', proceeding_as_fan: false },
+      },
+      expected: '/(tabs)',
+      kind: 'server_application_rejected_fan_mode',
+    },
+    {
+      label: 'keeps pending coaches in fan mode on app home even when next_step is stale',
+      user: {
+        email_verified: true,
+        account_state: 'coach_pending_approval',
+        next_step: '/onboarding/pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          onboarding_completed: true,
+          role: 'coach',
+          organization_id: 'org_123',
+          proceeding_as_fan: false,
+        },
+      },
+      expected: '/(tabs)',
+      kind: 'server_pending_approval_fan_mode',
+    },
+    {
       label: 'routes pending coaches to the join-request waiting screen',
       user: {
         email_verified: true,
@@ -192,6 +233,55 @@ describe('getOnboardingIndexRouteDecision', () => {
 
     expect(decision.kind).toBe('draft_pending_waiting');
     expect(decision.route).toBe('/onboarding/league-pending-approval');
+  });
+
+  it('keeps submitted coach applicants in fan mode on tabs even when next_step is stale', () => {
+    const decision = getOnboardingIndexRouteDecision(
+      {
+        email_verified: true,
+        account_state: 'coach_application_submitted',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          onboarding_completed: true,
+          role: 'coach',
+          proceeding_as_fan: false,
+        },
+      } as any,
+      {
+        role: 'coach',
+        step_2_visited: true,
+        organization_id: 'org_123',
+      }
+    );
+
+    expect(decision.kind).toBe('server_application_submitted_fan_mode');
+    expect(decision.route).toBe('/(tabs)');
+  });
+
+  it('keeps pending approved-waiting coaches in fan mode on tabs even when next_step is stale', () => {
+    const decision = getOnboardingIndexRouteDecision(
+      {
+        email_verified: true,
+        account_state: 'coach_pending_approval',
+        next_step: '/onboarding/pending-approval',
+        proceeding_as_fan: true,
+        preferences: {
+          onboarding_completed: true,
+          role: 'coach',
+          organization_id: 'org_123',
+          proceeding_as_fan: false,
+        },
+      } as any,
+      {
+        role: 'coach',
+        step_2_visited: true,
+        organization_id: 'org_123',
+      }
+    );
+
+    expect(decision.kind).toBe('server_pending_approval_fan_mode');
+    expect(decision.route).toBe('/(tabs)');
   });
 
   it('treats top-level onboarding_completed=false as authoritative even when preferences are stale', () => {

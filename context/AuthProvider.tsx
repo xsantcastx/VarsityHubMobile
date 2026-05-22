@@ -1007,6 +1007,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         explicitNextStep &&
         postAuthDecision.kind.startsWith('server_') &&
         explicitNextStep !== '/(tabs)' &&
+        !coachAccess.isProceedingAsFan &&
         [
           'coach_application_submitted',
           'coach_application_rejected',
@@ -1024,7 +1025,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // When a coach taps "Continue as Fan", role is saved as 'fan' with proceeding_as_fan=true.
       // Once the org is approved, we must flip them back to coach without
       // introducing another post-approval gate.
-      if (coachAccess.isApprovedCoach && user.preferences?.proceeding_as_fan === true) {
+      if (coachAccess.isApprovedCoach && isProceedingAsFanSnapshot(user as any)) {
         // Fire-and-forget restore (the effect callback is sync, so we can't await).
         // Two refs prevent two distinct loops:
         //   restoringCoachRef — in-flight guard, prevents concurrent calls

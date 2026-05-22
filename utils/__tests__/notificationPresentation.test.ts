@@ -187,6 +187,20 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/(tabs)');
   });
 
+  it('ORG_REJECTED prefers top-level fan mode over stale preferences', () => {
+    const href = getNotificationHrefForUser(
+      { type: 'ORG_REJECTED' },
+      {
+        approval_status: 'REJECTED',
+        account_state: 'coach_application_rejected',
+        next_step: '/onboarding/league-pending-approval',
+        proceeding_as_fan: true,
+        preferences: { role: 'coach', proceeding_as_fan: false },
+      } as any
+    );
+    expect(href).toBe('/(tabs)');
+  });
+
   it('JOIN_REQUEST_APPROVED → coach-agreement continuation', () => {
     const href = getNotificationHref({
       type: 'JOIN_REQUEST_APPROVED',
@@ -195,7 +209,7 @@ describe('getNotificationHref — routing per type', () => {
     expect(href).toBe('/onboarding/coach-agreement');
   });
 
-  it('JOIN_REQUEST_APPROVED sends proceeding-as-fan coaches to tabs', () => {
+  it('JOIN_REQUEST_APPROVED continues through coach-agreement after approval', () => {
     const href = getNotificationHrefForUser(
       {
         type: 'JOIN_REQUEST_APPROVED',
@@ -206,7 +220,7 @@ describe('getNotificationHref — routing per type', () => {
         preferences: { role: 'coach', proceeding_as_fan: true },
       } as any
     );
-    expect(href).toBe('/(tabs)');
+    expect(href).toBe('/onboarding/coach-agreement');
   });
 
   it('JOIN_REQUEST_APPROVED with denied flag → tabs (legacy denial shape)', () => {
