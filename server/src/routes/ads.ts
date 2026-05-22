@@ -25,29 +25,16 @@ import {
   approveAd as approveAdService,
   rejectAd as rejectAdService,
 } from '../lib/approvalService.js';
-import {
-  releaseExpiredPendingApprovalReservationsForAd,
-} from '../lib/adReservationLifecycle.js';
 import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { addBreadcrumb } from '../lib/sentry.js';
-import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
     console.log(...args);
   }
 };
-
-async function isAppReviewDemoUser(userId: string | null | undefined): Promise<boolean> {
-  if (!userId) return false;
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { email: true },
-  });
-  return String(user?.email || '').trim().toLowerCase() === APP_REVIEW_EMAIL.toLowerCase();
-}
 
 const adCreateSchema = z.object({
   contact_name: z.string().min(1).max(200),
@@ -119,34 +106,6 @@ async function getZipCoordinatesWithFallback(
 
 export const adsRouter = Router();
 registerIdValidation(adsRouter);
-
-async function normalizePendingApprovalAdsForResponse<T extends { id: string; status?: string | null; payment_status?: string | null }>(
-  list: T[],
-): Promise<T[]> {
-  const candidates = list.filter((ad) => ad.payment_status === 'pending_approval');
-  if (candidates.length === 0) return list;
-
-  const cleanupById = new Map(
-    (
-      await Promise.all(
-        candidates.map(async (ad) => [
-          ad.id,
-          await releaseExpiredPendingApprovalReservationsForAd(prisma, ad.id),
-        ] as const)
-      )
-    ).map(([id, result]) => [id, result])
-  );
-
-  return list.map((ad) => {
-    const cleanup = cleanupById.get(ad.id);
-    if (!cleanup || !cleanup.changed) return ad;
-    return {
-      ...ad,
-      status: cleanup.status,
-      payment_status: cleanup.paymentStatus,
-    };
-  });
-}
 
 const shouldRunStartupBackfills =
   process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID == null;
@@ -221,7 +180,6 @@ adsRouter.post(
     } = parsed.data;
 
     const zipCoords = await getZipCoordinatesWithFallback(target_zip_code);
-    const bypassApproval = await isAppReviewDemoUser(req.user?.id);
     const ad = await prisma.ad.create({
       data: {
         user_id: req.user?.id,
@@ -236,14 +194,8 @@ adsRouter.post(
         target_lng: zipCoords?.lon ?? null,
         radius: AD_GEOFENCE_RADIUS_KM, // Fixed 9 km radius for all ads
         description: description ?? null,
-        status: bypassApproval ? 'approved' : 'draft',
+        status: 'draft',
         payment_status: 'unpaid',
-        ...(bypassApproval
-          ? {
-              admin_note:
-                'Auto-approved for App Review demo account to keep review checkout unblocked.',
-            }
-          : {}),
       },
     });
     return res.status(201).json(ad);
@@ -260,40 +212,25 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
-    const bypassApproval = await isAppReviewDemoUser(req.user?.id);
     if (ad.status !== 'draft') {
-      if (!bypassApproval) {
-        return res
-          .status(400)
-          .json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
-      }
+      return res
+        .status(400)
+        .json({ error: `Ad status is '${ad.status}'. Submit for approval only from draft.` });
     }
 
     // Review is now content-only. Dates belong to booking/checkout after the
     // media has been approved, so clear any legacy reservations here instead of
     // carrying stale dates through the moderation workflow.
-    if (bypassApproval) {
-      await prisma.ad.update({
-        where: { id },
-        data: {
-          status: 'approved',
-          payment_status: ad.payment_status === 'pending_approval' ? 'unpaid' : ad.payment_status,
-          admin_note:
-            'Auto-approved for App Review demo account to keep review checkout unblocked.',
-        },
-      });
-    } else {
-      await prisma.$transaction(
-        async tx => {
-          await tx.ad.update({
-            where: { id },
-            data: { status: 'pending', payment_status: 'pending_approval' },
-          });
-          await tx.adReservation.deleteMany({ where: { ad_id: id } });
-        },
-        { isolationLevel: 'Serializable' as any }
-      );
-    }
+    await prisma.$transaction(
+      async tx => {
+        await tx.ad.update({
+          where: { id },
+          data: { status: 'pending', payment_status: 'pending_approval' },
+        });
+        await tx.adReservation.deleteMany({ where: { ad_id: id } });
+      },
+      { isolationLevel: 'Serializable' as any }
+    );
 
     let updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     if (updated?.banner_url) {
@@ -302,32 +239,30 @@ async function handleAdSubmitForApproval(req: AuthedRequest, res: Response) {
       updated = await prisma.ad.findUnique({ where: { id }, include: { reservations: true } });
     }
 
-    if (!bypassApproval) {
-      const { getAllAdminEmails } = await import('../lib/adminEmails.js');
-      const adminEmails = getAllAdminEmails();
-      void Promise.all(
-        adminEmails.map((to) =>
-          sendAdPendingReviewEmail({
-            to,
-            businessName: updated?.business_name || ad.business_name || undefined,
-            contactName: updated?.contact_name || ad.contact_name || undefined,
-            contactEmail: updated?.contact_email || ad.contact_email || undefined,
-            zipCode: updated?.target_zip_code || ad.target_zip_code || undefined,
-            bannerUrl: updated?.banner_url || ad.banner_url || undefined,
-            adId: id,
-          }).then((sent) => {
-            if (!sent) {
-              console.error(
-                '[ads] submit-for-approval email returned false — email NOT delivered for ad',
-                { adId: id, to }
-              );
-            }
-          })
-        )
-      ).catch(err =>
-        console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
-      );
-    }
+    const { getAllAdminEmails } = await import('../lib/adminEmails.js');
+    const adminEmails = getAllAdminEmails();
+    void Promise.all(
+      adminEmails.map((to) =>
+        sendAdPendingReviewEmail({
+          to,
+          businessName: updated?.business_name || ad.business_name || undefined,
+          contactName: updated?.contact_name || ad.contact_name || undefined,
+          contactEmail: updated?.contact_email || ad.contact_email || undefined,
+          zipCode: updated?.target_zip_code || ad.target_zip_code || undefined,
+          bannerUrl: updated?.banner_url || ad.banner_url || undefined,
+          adId: id,
+        }).then((sent) => {
+          if (!sent) {
+            console.error(
+              '[ads] submit-for-approval email returned false — email NOT delivered for ad',
+              { adId: id, to }
+            );
+          }
+        })
+      )
+    ).catch(err =>
+      console.error('[ads] submit-for-approval email failed:', (err as any)?.message || err)
+    );
 
     return res.status(200).json(updated);
   } catch (err) {
@@ -382,9 +317,8 @@ adsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, r
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     // return all ads
     const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
-    const normalizedList = await normalizePendingApprovalAdsForResponse(list);
     debugLog('[ads] GET / admin all ads count:', list.length);
-    return res.json(normalizedList);
+    return res.json(list);
   } else {
     // SECURITY: Default to requiring authentication and returning user's ads only
     debugLog('[ads] GET / no filter provided, defaulting to user ads only');
@@ -397,14 +331,13 @@ adsRouter.get('/', requireAuth as any, asyncHandler(async (req: AuthedRequest, r
   }
 
   const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' }, take: 100 });
-  const normalizedList = await normalizePendingApprovalAdsForResponse(list);
   debugLog('[ads] GET / returning ads:', {
-    count: normalizedList.length,
+    count: list.length,
     where,
-    adIds: normalizedList.map(a => a.id),
-    userIds: normalizedList.map(a => a.user_id),
+    adIds: list.map(a => a.id),
+    userIds: list.map(a => a.user_id),
   });
-  return res.json(normalizedList);
+  return res.json(list);
 }));
 
 // Ads for feed: return ads with a reservation for a specific date (default: today), filtered by location radius
@@ -634,35 +567,11 @@ adsRouter.post(
 // Get a single Ad with its reservations (dates)
 adsRouter.get('/:id([a-z0-9]{15,50})', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  let ad = await prisma.ad.findUnique({ where: { id } });
+  const ad = await prisma.ad.findUnique({ where: { id } });
   if (!ad) return res.status(404).json({ error: 'Not found' });
   const isAdmin = await getIsAdmin(req);
   const isOwner = !!ad.user_id && ad.user_id === req.user!.id;
   if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
-  const bypassApproval = isOwner && (await isAppReviewDemoUser(req.user?.id));
-  if (
-    bypassApproval &&
-    (ad.status === 'draft' ||
-      ad.status === 'pending' ||
-      ad.payment_status === 'pending_approval')
-  ) {
-    ad = await prisma.ad.update({
-      where: { id },
-      data: {
-        status: 'approved',
-        payment_status: ad.payment_status === 'pending_approval' ? 'unpaid' : ad.payment_status,
-        admin_note:
-          'Auto-approved for App Review demo account to keep review checkout unblocked.',
-      },
-    });
-  }
-  if (ad.payment_status === 'pending_approval') {
-    const cleanup = await releaseExpiredPendingApprovalReservationsForAd(prisma, id);
-    if (cleanup.changed) {
-      ad = await prisma.ad.findUnique({ where: { id } });
-      if (!ad) return res.status(404).json({ error: 'Not found' });
-    }
-  }
   const dates = await prisma.adReservation.findMany({
     where: { ad_id: id },
     orderBy: { date: 'asc' },
@@ -680,7 +589,6 @@ adsRouter.put(
     const ad = await prisma.ad.findUnique({ where: { id } });
     if (!ad) return res.status(404).json({ error: 'Ad not found' });
     if (ad.user_id !== req.user!.id) return res.status(403).json({ error: 'Not authorized' });
-    const bypassApproval = await isAppReviewDemoUser(req.user?.id);
     const { payment_status, status: _status, ...safeBody } = req.body || {};
     const parsed = adUpdateSchema.safeParse(safeBody);
     if (!parsed.success) {
@@ -718,9 +626,7 @@ adsRouter.put(
       Object.assign(data, clearBannerModerationFields());
     }
     const requiresReapproval =
-      !bypassApproval &&
-      ad.status !== 'draft' &&
-      ((bannerChanged && data.banner_url) || targetUrlChanged || textChanged);
+      ad.status !== 'draft' && ((bannerChanged && data.banner_url) || targetUrlChanged || textChanged);
     if (requiresReapproval) {
       data.status = 'pending';
       data.admin_note =
@@ -876,9 +782,6 @@ adsRouter.get('/reservations', requireAuth as any, asyncHandler(async (req: Auth
     const isAdmin = await getIsAdmin(req as any);
     if (ad.user_id !== req.user?.id && !isAdmin) {
       return res.status(403).json({ error: 'You can only view reservations for your own ads' });
-    }
-    if (ad.payment_status === 'pending_approval') {
-      await releaseExpiredPendingApprovalReservationsForAd(prisma, adId);
     }
   }
 

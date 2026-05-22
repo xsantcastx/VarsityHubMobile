@@ -3,6 +3,7 @@
 > Every line needs a pass/fail answer. `N/A` is valid only with a reason.
 > Canonical policy lives in [`AUDIT_STANDARD.md`](./AUDIT_STANDARD.md). This
 > file is the operating review gate for PRs.
+> For high-scrutiny reviews, use [`PR_CHECKLIST_STRICT.md`](./PR_CHECKLIST_STRICT.md).
 
 ## Copy/Paste "Secure Borders" Block
 

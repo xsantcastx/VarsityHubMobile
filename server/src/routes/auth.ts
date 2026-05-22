@@ -84,7 +84,10 @@ import {
   buildOAuthExistingAccountConflict,
   getLinkedProviders,
 } from '../lib/oauthAccountLinking.js';
-import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import {
+  accountDeletionPayloadSchema,
+  processSelfAccountDeletion,
+} from '../lib/accountDeletionFlow.js';
 
 export const authRouter = Router();
 
@@ -108,16 +111,6 @@ function authNoStore(_req: AuthedRequest, res: Response, next: () => void) {
 async function invalidateMeCacheForUser(userId: string | null | undefined): Promise<void> {
   const { invalidateMeCacheForUser } = await import('../lib/userCache.js');
   await invalidateMeCacheForUser(userId);
-}
-
-async function assertCanSelfDeleteUser(userId: string): Promise<void> {
-  const { assertCanSelfDeleteUser } = await import('../lib/accountDeletion.js');
-  await assertCanSelfDeleteUser(userId);
-}
-
-async function softDeleteUserAccount(userId: string) {
-  const { softDeleteUserAccount } = await import('../lib/accountDeletion.js');
-  return softDeleteUserAccount(userId);
 }
 
 const ME_USER_SELECT = {
@@ -1119,83 +1112,20 @@ authRouter.post(
  *
  * Response: 200 { ok: true, deleted_at, already_deleted?: true }
  */
-const deleteAccountSchema = z.object({
-  password: z.string().optional(),
-  delete_confirmation: z.string().optional(),
-});
 authRouter.post(
   '/account/delete',
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    const parsed = deleteAccountSchema.safeParse(req.body ?? {});
+    const parsed = accountDeletionPayloadSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid payload' });
     }
     const userId = req.user!.id;
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        password_hash: true,
-        google_id: true,
-        apple_id: true,
-        deleted_at: true,
-        deletion_anonymized: true,
-      },
-    });
-    if (!user) return res.status(404).json({ error: 'Not found' });
-
-    // Idempotent: already deleted → return 200 with already_deleted flag.
-    if (user.deleted_at || user.deletion_anonymized) {
-      return res.json({
-        ok: true,
-        already_deleted: true,
-        deleted_at: user.deleted_at?.toISOString(),
-      });
+    const deletion = await processSelfAccountDeletion(userId, parsed.data);
+    if (deletion.status === 200 && deletion.body.ok === true) {
+      console.log(`[auth] Account soft-deleted and anonymized: ${userId}`);
     }
-
-    const confirmationCheck = getAccountDeletionConfirmationRequirements(user, parsed.data);
-    if (!confirmationCheck.ok) {
-      return res.status(confirmationCheck.status).json(confirmationCheck.body);
-    }
-
-    // Re-authentication gate. Password accounts require the current password
-    // after the destructive confirmation text has been typed correctly.
-    if (confirmationCheck.requiresPassword) {
-      const suppliedPassword = String(parsed.data.password || '');
-      const ok = await bcrypt.compare(suppliedPassword, String(user.password_hash || ''));
-      if (!ok) {
-        return res.status(401).json({
-          error: 'INVALID_PASSWORD',
-          message: 'Password does not match.',
-        });
-      }
-    }
-
-    try {
-      await assertCanSelfDeleteUser(userId);
-    } catch (err) {
-      if ((err as any)?.code === 'SOLE_ORG_OWNER') {
-        return res.status(400).json({
-          error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
-          code: 'SOLE_ORG_OWNER',
-          organization_id: (err as any).organization_id,
-        });
-      }
-      throw err;
-    }
-
-    const result = await softDeleteUserAccount(userId);
-
-    await invalidateMeCacheForUser(userId).catch(() => {});
-
-    console.log(`[auth] Account soft-deleted and anonymized: ${userId}`);
-
-    return res.json({
-      ok: true,
-      deleted_at: result.deletedAt.toISOString(),
-      ...(result.alreadyDeleted ? { already_deleted: true } : {}),
-    });
+    return res.status(deletion.status).json(deletion.body);
   })
 );
 

@@ -32,6 +32,7 @@ import { registerIdValidation } from '../middleware/validateParams.js';
 import { adminLimiter } from '../middleware/rateLimiters.js';
 import { captureException } from '../lib/sentry.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
+import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
 
 const adminRouter = express.Router();
 registerIdValidation(adminRouter);
@@ -1087,7 +1088,7 @@ adminRouter.post(
           .json({ error: 'Missing confirmation header: x-confirm-wipe: YES_WIPE_EVERYTHING' });
       }
 
-      const demo = await prisma.user.findFirst({ where: { email: 'demo@varsityhub.app' } });
+      const demo = await prisma.user.findFirst({ where: { email: APP_REVIEW_EMAIL } });
       const adminEmail =
         (process.env.ADMIN_EMAILS || '')
           .split(',')

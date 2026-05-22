@@ -328,8 +328,8 @@ describeDb('Minors Foundation Integration', () => {
       .set('Authorization', `Bearer ${deleteUserToken}`)
       .send({ password: PASSWORD });
 
-    expect(res.status).toBe(202);
-    expect(res.body?.deleted).toBe(true);
+    expect(res.status).toBe(200);
+    expect(res.body?.ok).toBe(true);
 
     const deletedUser = await prisma.user.findUnique({
       where: { id: deleteUserId },
