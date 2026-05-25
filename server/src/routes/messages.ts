@@ -1,17 +1,18 @@
-import { Router } from 'express';
 import * as Sentry from '@sentry/node';
+import { Router } from 'express';
 import { z } from 'zod';
+import { stripHtml } from '../lib/sanitizeHtml.js';
+import { sendError } from '../lib/http/sendError.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { getUserAge } from '../lib/userAge.js';
-import type { AuthedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { messageLimiter } from '../middleware/rateLimiters.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { messageLimiter } from '../middleware/rateLimiters.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { sendError } from '../lib/http/sendError.js';
 
 export const messagesRouter = Router();
 registerIdValidation(messagesRouter);
@@ -310,7 +311,7 @@ messagesRouter.post(
         conversation_id: convId!,
         sender_id: meId,
         recipient_id: toId!,
-        content,
+        content: stripHtml(content),
       },
       include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
     });
@@ -333,14 +334,20 @@ messagesRouter.post(
           },
         });
 
-        // Send push notification
-        await notifyNewMessage(
+        // Send push notification (fire-and-forget — push failure must not block the response)
+        notifyNewMessage(
           toId!,
           meId,
           created.sender?.display_name || 'Someone',
           content,
           convId!
-        );
+        ).catch(e => {
+          console.error('Failed to send message push notification:', e);
+          Sentry.captureException(e instanceof Error ? e : new Error(String(e)), {
+            tags: { context: 'message_notification' },
+            extra: { message_id: created.id, recipient_id: toId, sender_id: meId },
+          });
+        });
       } catch (e) {
         // Notification failure must not block the message itself, but it
         // also can't be invisible — without Sentry capture, an outage of

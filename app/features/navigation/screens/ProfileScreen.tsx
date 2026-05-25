@@ -1,8 +1,8 @@
 import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
+import ExpandableText from '@/components/ExpandableText';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
-import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
@@ -11,12 +11,12 @@ import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
 import { getAuthSnapshot, getCanonicalRole, isApprovedCoach } from '@/utils/authState';
 import events from '@/utils/events';
+import { goBackToTrackedRoute } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getGradientForColor } from '@/utils/theme';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { goBackToTrackedRoute } from '@/utils/navigation';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -31,6 +31,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
@@ -139,6 +140,7 @@ export default function ProfileScreen() {
   const { user: userFromHook, refresh: refreshUserFromHook } = useUser(false); // Get user from hook but don't auto-load
   const { user: userFromAuth, checkAuth } = useAuth(); // Get user from AuthProvider
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const hasLoadedOnce = useRef(false);
@@ -410,7 +412,7 @@ export default function ProfileScreen() {
       // Use shared upload helper with consistent auth/retry logic
       const { url } = await uploadAvatar(null, manipulated.uri, name);
       await User.updateMe({ avatar_url: url });
-      setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
+      setMe(prev => (prev ? { ...prev, avatar_url: url } : null));
     } catch (error) {
       console.error('[profile] Avatar upload failed:', error);
       showUploadErrorAlert(error, {
@@ -441,10 +443,7 @@ export default function ProfileScreen() {
 
       try {
         // Step 1: Get current user first
-        const currentUser: any = await getAuthSnapshot(
-          checkAuth,
-          userFromAuth ?? userFromHook
-        );
+        const currentUser: any = await getAuthSnapshot(checkAuth, userFromAuth ?? userFromHook);
         setCurrentUserId(currentUser?.id || null);
 
         let u: any;
@@ -518,8 +517,26 @@ export default function ProfileScreen() {
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [activeTab, checkAuth, refreshPosts, refreshReplies, refreshUpvotes, userFromAuth, userFromHook, viewingUserId]
+    [
+      activeTab,
+      checkAuth,
+      refreshPosts,
+      refreshReplies,
+      refreshUpvotes,
+      userFromAuth,
+      userFromHook,
+      viewingUserId,
+    ]
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadProfile({ silent: true });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadProfile]);
 
   // Initial load on mount - only once
   useEffect(() => {
@@ -894,10 +911,7 @@ export default function ProfileScreen() {
             <View style={styles.inlineActionRow}>
               <Pressable
                 testID="profile-message-inline-button"
-                style={[
-                  styles.headerActionButton,
-                  styles.headerActionButtonGhost,
-                ]}
+                style={[styles.headerActionButton, styles.headerActionButtonGhost]}
                 onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Send message"
@@ -1074,18 +1088,13 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.roleBadge,
-                  roleRaw === 'coach' &&
-                    (approvedCoach ? styles.coachBadge : styles.fanBadge),
+                  roleRaw === 'coach' && (approvedCoach ? styles.coachBadge : styles.fanBadge),
                   roleRaw === 'player' && styles.playerBadge,
                   roleRaw === 'fan' && styles.fanBadge,
                 ]}
               >
                 <Text style={styles.roleText}>
-                  {roleRaw === 'coach'
-                    ? approvedCoach
-                      ? 'COACH'
-                      : 'FAN'
-                    : roleRaw.toUpperCase()}
+                  {roleRaw === 'coach' ? (approvedCoach ? 'COACH' : 'FAN') : roleRaw.toUpperCase()}
                 </Text>
               </View>
             )}
@@ -1477,6 +1486,7 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item, index }) => {
             const thumb = item.media_url;
             const isVideo = !!thumb && VIDEO_EXT.test(thumb);
@@ -1582,7 +1592,9 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
+            postsLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
           }
         />
       ) : activeTab === 'replies' ? (
@@ -1600,6 +1612,7 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedReplies}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
@@ -1706,7 +1719,9 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
+            repliesLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
           }
         />
       ) : (
@@ -1724,6 +1739,7 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedUpvotes}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
@@ -1830,7 +1846,9 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
+            upvotesLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
           }
         />
       )}

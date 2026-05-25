@@ -4,16 +4,28 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View, Animated, PanResponder, Platform } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Linking,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getApiBaseUrl } from '@/api/http';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import {
   BIO_MAX_LENGTH,
   DISPLAY_NAME_MAX_LENGTH,
@@ -23,8 +35,9 @@ import {
   validateYear,
   validateZipCode,
 } from '@/utils/formUtils';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
-import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { THEME_COLOR_GRADIENTS, getThemeColorName } from '@/utils/theme';
 
 // Field validation errors
 interface FieldErrors {
@@ -35,18 +48,25 @@ interface FieldErrors {
 }
 
 const SPORTS_OPTIONS = [
-  'Football', 'Basketball', 'Baseball', 'Soccer', 'Volleyball', 
-  'Track & Field', 'Swimming', 'Hockey', 'Tennis', 'Golf', 'Wrestling', 'Other'
+  'Football',
+  'Basketball',
+  'Baseball',
+  'Soccer',
+  'Volleyball',
+  'Track & Field',
+  'Swimming',
+  'Hockey',
+  'Tennis',
+  'Golf',
+  'Wrestling',
+  'Other',
 ];
 
-const THEME_COLORS = [
-  { name: 'VarsityHub Blue', value: '#3B82F6', gradient: ['#1e3a8a', '#3b82f6', '#60a5fa'] },
-  { name: 'Championship Red', value: '#DC2626', gradient: ['#7f1d1d', '#dc2626', '#ef4444'] },
-  { name: 'Victory Green', value: '#10B981', gradient: ['#065f46', '#10b981', '#34d399'] },
-  { name: 'Gold Medal', value: '#F59E0B', gradient: ['#78350f', '#f59e0b', '#fbbf24'] },
-  { name: 'Royal Purple', value: '#8B5CF6', gradient: ['#4c1d95', '#8b5cf6', '#a78bfa'] },
-  { name: 'Classic Gray', value: '#6B7280', gradient: ['#1f2937', '#6b7280', '#9ca3af'] }, // audit: intentional theme preset gradient
-];
+const THEME_COLORS = Object.entries(THEME_COLOR_GRADIENTS).map(([value, gradient]) => ({
+  name: getThemeColorName(value),
+  value,
+  gradient,
+}));
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -55,7 +75,7 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  
+
   // Profile fields - username is edited separately via /settings/edit-username
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
@@ -70,30 +90,33 @@ export default function EditProfileScreen() {
   const [uploadingHeaderImage, setUploadingHeaderImage] = useState(false);
   const [headerImageOffset, setHeaderImageOffset] = useState(0); // normalized -1..1
   const [headerImageOffsetTouched, setHeaderImageOffsetTouched] = useState(false);
-  
+
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
-  
+
   // Theme color
   const [themeColor, setThemeColor] = useState<string>('#3B82F6'); // Default VarsityHub Blue
-  
+
   // Team member fields
   const [position, setPosition] = useState('');
   const [jerseyNumber, setJerseyNumber] = useState('');
-  
+
   // Athlete-specific fields
-  const [gradeLevel, setGradeLevel] = useState<'Freshman' | 'Sophomore' | 'Junior' | 'Senior' | ''>('');
+  const [gradeLevel, setGradeLevel] = useState<'Freshman' | 'Sophomore' | 'Junior' | 'Senior' | ''>(
+    ''
+  );
   const [graduationYear, setGraduationYear] = useState('');
   const [accolades, setAccolades] = useState(''); // Comma-separated string
   const [primarySport, setPrimarySport] = useState('');
-  
+
   // User info
   const [userRole, setUserRole] = useState<string | null>(null);
   const [hasTeamMembership, setHasTeamMembership] = useState(false);
   const [me, setMe] = useState<any>(null);
 
   const HEADER_IMAGE_DRAG_LIMIT = 120;
-  const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const clampValue = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value));
   const headerImagePanStart = useRef(0);
   const headerImageAnimatedOffset = useRef(new Animated.Value(0)).current;
 
@@ -107,15 +130,18 @@ export default function EditProfileScreen() {
     setFieldErrors(prev => ({ ...prev, graduationYear: result.error }));
   }, [graduationYear]);
 
-  const handleGradYearChange = useCallback((text: string) => {
-    // Only allow digits
-    const cleaned = text.replace(/\D/g, '').substring(0, 4);
-    setGraduationYear(cleaned);
-    // Clear error when user starts typing
-    if (fieldErrors.graduationYear) {
-      setFieldErrors(prev => ({ ...prev, graduationYear: undefined }));
-    }
-  }, [fieldErrors.graduationYear]);
+  const handleGradYearChange = useCallback(
+    (text: string) => {
+      // Only allow digits
+      const cleaned = text.replace(/\D/g, '').substring(0, 4);
+      setGraduationYear(cleaned);
+      // Clear error when user starts typing
+      if (fieldErrors.graduationYear) {
+        setFieldErrors(prev => ({ ...prev, graduationYear: undefined }));
+      }
+    },
+    [fieldErrors.graduationYear]
+  );
 
   const loadUserData = useCallback(async () => {
     setLoading(true);
@@ -129,16 +155,21 @@ export default function EditProfileScreen() {
       setDisplayName(me?.display_name || '');
       setBio(me?.bio || '');
       setAvatarUrl(me?.avatar_url || null);
-      const headerImagePref = prefs?.header_image_url || prefs?.profile_header_image_url || me?.header_image_url;
+      const headerImagePref =
+        prefs?.header_image_url || prefs?.profile_header_image_url || me?.header_image_url;
       setHeaderImageUrl(headerImagePref || null);
       setHeaderImageTouched(false);
-      setHeaderImageOffset(typeof prefs?.header_image_focus_y === 'number' ? clampValue(prefs.header_image_focus_y, -1, 1) : 0);
+      setHeaderImageOffset(
+        typeof prefs?.header_image_focus_y === 'number'
+          ? clampValue(prefs.header_image_focus_y, -1, 1)
+          : 0
+      );
       setHeaderImageOffsetTouched(false);
-      
+
       // Fields from preferences
       setLocation(prefs?.location || me?.location || '');
       setZipCode(prefs?.zip_code || me?.zip_code || '');
-      
+
       // Handle date of birth from preferences or direct field
       const dobValue = prefs?.dob || prefs?.date_of_birth || me?.dob || me?.date_of_birth;
       if (dobValue) {
@@ -150,26 +181,32 @@ export default function EditProfileScreen() {
           setDateOfBirth(null);
         }
       }
-      
+
       // Handle sports interests - check preferences first, then direct field, then legacy location
-      const interests = prefs?.sports_interests || 
-                       me?.sports_interests || 
-                       [];
+      const interests = prefs?.sports_interests || me?.sports_interests || [];
       setSportsInterests(Array.isArray(interests) ? interests : []);
-      
+
       // Theme color from preferences
       setThemeColor(prefs?.theme_color || '#3B82F6');
-      
+
       // Team member fields from preferences
       setPosition(prefs?.position || me?.position || '');
-      setJerseyNumber(prefs?.jersey_number ? String(prefs.jersey_number) : (me?.jersey_number ? String(me.jersey_number) : ''));
-      
+      setJerseyNumber(
+        prefs?.jersey_number
+          ? String(prefs.jersey_number)
+          : me?.jersey_number
+            ? String(me.jersey_number)
+            : ''
+      );
+
       // Athlete-specific fields from preferences
       setGradeLevel(prefs?.grade_level || '');
       setGraduationYear(prefs?.graduation_year ? String(prefs.graduation_year) : '');
-      setAccolades(prefs?.accolades && Array.isArray(prefs.accolades) ? prefs.accolades.join(', ') : '');
+      setAccolades(
+        prefs?.accolades && Array.isArray(prefs.accolades) ? prefs.accolades.join(', ') : ''
+      );
       setPrimarySport(prefs?.primary_sport || prefs?.sport || '');
-      
+
       const membershipArrays = [
         prefs?.team_roles,
         prefs?.memberships,
@@ -188,11 +225,12 @@ export default function EditProfileScreen() {
         me?.primary_team_id,
       ];
       const detectedMembership =
-        membershipArrays.some((value) => Array.isArray(value) && value.length > 0) ||
-        membershipHints.some((value) => Boolean(value));
+        membershipArrays.some(value => Array.isArray(value) && value.length > 0) ||
+        membershipHints.some(value => Boolean(value));
       setHasTeamMembership(detectedMembership);
 
-      let derivedRole = prefs?.role || me?.role || me?.user_role || me?.initial_role_selection || null;
+      let derivedRole =
+        prefs?.role || me?.role || me?.user_role || me?.initial_role_selection || null;
       if (detectedMembership && (!derivedRole || derivedRole === 'fan')) {
         derivedRole = 'team_member';
       }
@@ -217,12 +255,13 @@ export default function EditProfileScreen() {
   );
 
   const toggleSport = (sport: string) => {
-    setSportsInterests(prev => 
-      prev.includes(sport) 
-        ? prev.filter(s => s !== sport)
-        : prev.length < 3 
-          ? [...prev, sport]
-          : prev // Don't add more if already at max
+    setSportsInterests(
+      prev =>
+        prev.includes(sport)
+          ? prev.filter(s => s !== sport)
+          : prev.length < 3
+            ? [...prev, sport]
+            : prev // Don't add more if already at max
     );
   };
 
@@ -234,10 +273,14 @@ export default function EditProfileScreen() {
   const pickAvatarImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission required', 'Gallery permission is needed to select a profile picture.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
+      Alert.alert(
+        'Permission required',
+        'Gallery permission is needed to select a profile picture.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
       return;
     }
 
@@ -290,8 +333,13 @@ export default function EditProfileScreen() {
       );
 
       // Upload to server
-      const uploadResult = await uploadFile(getApiBaseUrl(), manipulatedImage.uri, 'avatar.jpg', 'image/jpeg');
-      
+      const uploadResult = await uploadFile(
+        getApiBaseUrl(),
+        manipulatedImage.uri,
+        'avatar.jpg',
+        'image/jpeg'
+      );
+
       if (uploadResult?.url) {
         setAvatarUrl(uploadResult.url);
         setAvatarTouched(true);
@@ -301,31 +349,34 @@ export default function EditProfileScreen() {
       }
     } catch (error: any) {
       if (__DEV__) console.error('Avatar upload error:', error);
-      Alert.alert('Upload Failed', error?.message || 'Failed to upload profile picture. Please try again.');
+      Alert.alert(
+        'Upload Failed',
+        error?.message || 'Failed to upload profile picture. Please try again.'
+      );
     } finally {
       setUploadingAvatar(false);
     }
   };
 
   const showAvatarOptions = () => {
-    Alert.alert(
-      'Profile Picture',
-      'Choose how you\'d like to update your profile picture',
-      [
-        { text: 'Take Photo', onPress: takeAvatarPhoto },
-        { text: 'Choose from Gallery', onPress: pickAvatarImage },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+    Alert.alert('Profile Picture', "Choose how you'd like to update your profile picture", [
+      { text: 'Take Photo', onPress: takeAvatarPhoto },
+      { text: 'Choose from Gallery', onPress: pickAvatarImage },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const pickHeaderImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission required', 'Gallery permission is needed to select a background image.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
+      Alert.alert(
+        'Permission required',
+        'Gallery permission is needed to select a background image.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
       return;
     }
 
@@ -353,7 +404,12 @@ export default function EditProfileScreen() {
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      const uploadResult = await uploadFile(getApiBaseUrl(), manipulatedImage.uri, 'profile-cover.jpg', 'image/jpeg');
+      const uploadResult = await uploadFile(
+        getApiBaseUrl(),
+        manipulatedImage.uri,
+        'profile-cover.jpg',
+        'image/jpeg'
+      );
       if (uploadResult?.url) {
         setHeaderImageUrl(uploadResult.url);
         setHeaderImageTouched(true);
@@ -363,7 +419,10 @@ export default function EditProfileScreen() {
       }
     } catch (error: any) {
       if (__DEV__) console.error('Header image upload error:', error);
-      Alert.alert('Upload Failed', error?.message || 'Failed to upload background image. Please try again.');
+      Alert.alert(
+        'Upload Failed',
+        error?.message || 'Failed to upload background image. Please try again.'
+      );
     } finally {
       setUploadingHeaderImage(false);
     }
@@ -383,26 +442,38 @@ export default function EditProfileScreen() {
     }).start();
   }, [headerImageOffset, headerImageAnimatedOffset]);
 
-  const headerImagePanResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => Boolean(headerImageUrl),
-    onMoveShouldSetPanResponder: () => Boolean(headerImageUrl),
-    onPanResponderGrant: () => {
-      headerImagePanStart.current = headerImageOffset;
-    },
-    onPanResponderMove: (_evt, gestureState) => {
-      if (!headerImageUrl) return;
-      const next = clampValue(headerImagePanStart.current + gestureState.dy / HEADER_IMAGE_DRAG_LIMIT, -1, 1);
-      headerImageAnimatedOffset.setValue(next * HEADER_IMAGE_DRAG_LIMIT);
-    },
-    onPanResponderRelease: (_evt, gestureState) => {
-      if (!headerImageUrl) return;
-      const next = clampValue(headerImagePanStart.current + gestureState.dy / HEADER_IMAGE_DRAG_LIMIT, -1, 1);
-      setHeaderImageOffset(next);
-      setHeaderImageOffsetTouched(true);
-    },
-    onPanResponderTerminationRequest: () => true,
-    onPanResponderTerminate: () => {},
-  }), [headerImageUrl, headerImageOffset, headerImageAnimatedOffset]);
+  const headerImagePanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => Boolean(headerImageUrl),
+        onMoveShouldSetPanResponder: () => Boolean(headerImageUrl),
+        onPanResponderGrant: () => {
+          headerImagePanStart.current = headerImageOffset;
+        },
+        onPanResponderMove: (_evt, gestureState) => {
+          if (!headerImageUrl) return;
+          const next = clampValue(
+            headerImagePanStart.current + gestureState.dy / HEADER_IMAGE_DRAG_LIMIT,
+            -1,
+            1
+          );
+          headerImageAnimatedOffset.setValue(next * HEADER_IMAGE_DRAG_LIMIT);
+        },
+        onPanResponderRelease: (_evt, gestureState) => {
+          if (!headerImageUrl) return;
+          const next = clampValue(
+            headerImagePanStart.current + gestureState.dy / HEADER_IMAGE_DRAG_LIMIT,
+            -1,
+            1
+          );
+          setHeaderImageOffset(next);
+          setHeaderImageOffsetTouched(true);
+        },
+        onPanResponderTerminationRequest: () => true,
+        onPanResponderTerminate: () => {},
+      }),
+    [headerImageUrl, headerImageOffset, headerImageAnimatedOffset]
+  );
 
   const onSave = async () => {
     // Validate fields before saving
@@ -452,7 +523,10 @@ export default function EditProfileScreen() {
       if (dateOfBirth) preferences.dob = formatDateForAPI(dateOfBirth);
       preferences.sports_interests = sportsInterests.length > 0 ? sportsInterests : [];
       // Only save theme_color for coach/organization accounts
-      if (themeColor && (userRole === 'coach' || userRole === 'admin' || userRole === 'organization')) {
+      if (
+        themeColor &&
+        (userRole === 'coach' || userRole === 'admin' || userRole === 'organization')
+      ) {
         preferences.theme_color = themeColor;
       }
       if (headerImageTouched) {
@@ -474,7 +548,12 @@ export default function EditProfileScreen() {
       } else {
         preferences.graduation_year = null;
       }
-      const accoladesList = accolades.trim() ? accolades.split(',').map(a => a.trim()).filter(Boolean) : [];
+      const accoladesList = accolades.trim()
+        ? accolades
+            .split(',')
+            .map(a => a.trim())
+            .filter(Boolean)
+        : [];
       preferences.accolades = accoladesList.length > 0 ? accoladesList : null;
       preferences.primary_sport = primarySport.trim() ? primarySport.trim().toLowerCase() : null;
 
@@ -524,8 +603,8 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen 
-        options={{ 
+      <Stack.Screen
+        options={{
           title: 'Edit Profile',
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
@@ -534,9 +613,9 @@ export default function EditProfileScreen() {
               <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].tint} />
             </Pressable>
           ),
-        }} 
+        }}
       />
-      
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
@@ -545,7 +624,12 @@ export default function EditProfileScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.headerSection}>
@@ -558,53 +642,64 @@ export default function EditProfileScreen() {
             </View>
 
             {error ? (
-              <View style={[styles.errorContainer, { backgroundColor: Colors[colorScheme].surface }]}>
+              <View
+                style={[styles.errorContainer, { backgroundColor: Colors[colorScheme].surface }]}
+              >
                 <Text style={[styles.error, { color: '#EF4444' }]}>{error}</Text>
               </View>
             ) : null}
 
             {/* Profile Picture Section */}
-            <View style={[styles.section, { 
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border,
-            }]}>
+            <View
+              style={[
+                styles.section,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <MaterialIcons name="camera-alt" size={20} color={Colors[colorScheme].tint} />
-                {' '}Profile Picture
+                <MaterialIcons name="camera-alt" size={20} color={Colors[colorScheme].tint} />{' '}
+                Profile Picture
               </Text>
-              
+
               <View style={styles.avatarSection}>
                 <View style={styles.avatarContainer}>
                   {avatarUrl ? (
-                    <Image 
-                      source={{ uri: avatarUrl }} 
-                      style={styles.avatar}
-                      contentFit="cover"
-                    />
+                    <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" />
                   ) : (
-                    <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
-                      <MaterialIcons 
-                        name="person-outline" 
-                        size={40} 
-                        color={Colors[colorScheme].mutedText} 
+                    <View
+                      style={[
+                        styles.avatarPlaceholder,
+                        { backgroundColor: Colors[colorScheme].surface },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name="person-outline"
+                        size={40}
+                        color={Colors[colorScheme].mutedText}
                       />
                     </View>
                   )}
-                  
+
                   {uploadingAvatar && (
                     <View style={styles.avatarLoader}>
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     </View>
                   )}
                 </View>
-                
-                <Pressable 
+
+                <Pressable
                   onPress={showAvatarOptions}
                   disabled={uploadingAvatar}
-                  style={[styles.changeAvatarButton, { 
-                    backgroundColor: Colors[colorScheme].tint,
-                    opacity: uploadingAvatar ? 0.6 : 1,
-                  }]}
+                  style={[
+                    styles.changeAvatarButton,
+                    {
+                      backgroundColor: Colors[colorScheme].tint,
+                      opacity: uploadingAvatar ? 0.6 : 1,
+                    },
+                  ]}
                 >
                   <MaterialIcons name="camera-alt" size={16} color="#FFFFFF" />
                   <Text style={styles.changeAvatarText}>
@@ -616,13 +711,18 @@ export default function EditProfileScreen() {
               {/* Profile Background Image */}
               <View style={styles.bannerSection}>
                 <Text style={[styles.bannerLabel, { color: Colors[colorScheme].text }]}>
-                  <MaterialIcons name="image" size={18} color={Colors[colorScheme].tint} /> {' '}
-                  Profile Background
+                  <MaterialIcons name="image" size={18} color={Colors[colorScheme].tint} /> Profile
+                  Background
                 </Text>
-                <View style={[
-                  styles.bannerPreview, 
-                  { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }
-                ]}>
+                <View
+                  style={[
+                    styles.bannerPreview,
+                    {
+                      borderColor: Colors[colorScheme].border,
+                      backgroundColor: Colors[colorScheme].surface,
+                    },
+                  ]}
+                >
                   {headerImageUrl ? (
                     <Animated.View
                       style={[
@@ -633,21 +733,30 @@ export default function EditProfileScreen() {
                       ]}
                       {...headerImagePanResponder.panHandlers}
                     >
-                      <Image 
-                        source={{ uri: headerImageUrl }} 
+                      <Image
+                        source={{ uri: headerImageUrl }}
                         style={styles.bannerImage}
                         contentFit="cover"
                       />
                     </Animated.View>
                   ) : (
                     <View style={styles.bannerPlaceholder}>
-                      <MaterialIcons name="auto-fix-high" size={32} color={Colors[colorScheme].mutedText} />
-                      <Text style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}>
+                      <MaterialIcons
+                        name="auto-fix-high"
+                        size={32}
+                        color={Colors[colorScheme].mutedText}
+                      />
+                      <Text
+                        style={[
+                          styles.bannerPlaceholderText,
+                          { color: Colors[colorScheme].mutedText },
+                        ]}
+                      >
                         Add a wide highlight photo to appear behind your avatar
                       </Text>
                     </View>
                   )}
-                  {(uploadingHeaderImage) && (
+                  {uploadingHeaderImage && (
                     <View style={styles.bannerOverlay}>
                       <ActivityIndicator color="#FFFFFF" />
                     </View>
@@ -659,12 +768,19 @@ export default function EditProfileScreen() {
                     disabled={uploadingHeaderImage}
                     style={[
                       styles.bannerButton,
-                      { backgroundColor: Colors[colorScheme].tint, opacity: uploadingHeaderImage ? 0.6 : 1 },
+                      {
+                        backgroundColor: Colors[colorScheme].tint,
+                        opacity: uploadingHeaderImage ? 0.6 : 1,
+                      },
                     ]}
                   >
                     <MaterialIcons name="image" size={16} color="#FFFFFF" />
                     <Text style={styles.bannerButtonText}>
-                      {uploadingHeaderImage ? 'Uploading...' : headerImageUrl ? 'Change Background' : 'Add Background'}
+                      {uploadingHeaderImage
+                        ? 'Uploading...'
+                        : headerImageUrl
+                          ? 'Change Background'
+                          : 'Add Background'}
                     </Text>
                   </Pressable>
                   {headerImageUrl ? (
@@ -679,46 +795,71 @@ export default function EditProfileScreen() {
                 </View>
                 {headerImageUrl ? (
                   <View style={styles.bannerAdjustmentRow}>
-                    <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText, flex: 1 }]}>
+                    <Text
+                      style={[styles.fieldNote, { color: Colors[colorScheme].mutedText, flex: 1 }]}
+                    >
                       Drag the image to fine-tune what shows in your profile hero.
                     </Text>
                     <Pressable
-                      onPress={() => { setHeaderImageOffset(0); setHeaderImageOffsetTouched(true); }}
+                      onPress={() => {
+                        setHeaderImageOffset(0);
+                        setHeaderImageOffsetTouched(true);
+                      }}
                       style={styles.bannerResetButton}
                     >
                       <MaterialIcons name="refresh" size={16} color={Colors[colorScheme].tint} />
-                      <Text style={[styles.bannerButtonText, { color: Colors[colorScheme].tint }]}>Reset Position</Text>
+                      <Text style={[styles.bannerButtonText, { color: Colors[colorScheme].tint }]}>
+                        Reset Position
+                      </Text>
                     </Pressable>
                   </View>
                 ) : (
                   <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
-                    Recommended 3:2 photo (at least 1200px wide) so your profile hero matches the latest design.
+                    Recommended 3:2 photo (at least 1200px wide) so your profile hero matches the
+                    latest design.
                   </Text>
                 )}
               </View>
             </View>
 
             {/* Basic Information Section */}
-            <View style={[styles.section, { 
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border,
-            }]}>
+            <View
+              style={[
+                styles.section,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <MaterialIcons name="account-circle" size={20} color={Colors[colorScheme].tint} />
-                {' '}Basic Information
+                <MaterialIcons name="account-circle" size={20} color={Colors[colorScheme].tint} />{' '}
+                Basic Information
               </Text>
-              
+
               {/* Username is edited via Settings > Edit Username */}
               <View style={styles.fieldGroup}>
                 <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Display Name</Text>
-                  <Text style={[styles.charCount, { color: displayName.length > DISPLAY_NAME_MAX_LENGTH ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                    Display Name
+                  </Text>
+                  <Text
+                    style={[
+                      styles.charCount,
+                      {
+                        color:
+                          displayName.length > DISPLAY_NAME_MAX_LENGTH
+                            ? '#DC2626'
+                            : Colors[colorScheme].mutedText,
+                      },
+                    ]}
+                  >
                     {displayName.length}/{DISPLAY_NAME_MAX_LENGTH}
                   </Text>
                 </View>
                 <Input
                   value={displayName}
-                  onChangeText={(text) => {
+                  onChangeText={text => {
                     if (text.length <= DISPLAY_NAME_MAX_LENGTH) {
                       setDisplayName(text);
                     }
@@ -729,37 +870,56 @@ export default function EditProfileScreen() {
                   placeholder="How should your name appear?"
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   maxLength={DISPLAY_NAME_MAX_LENGTH}
-                  style={[styles.input, {
-                    borderColor: fieldErrors.displayName ? '#DC2626' : Colors[colorScheme].border,
-                    backgroundColor: Colors[colorScheme].surface,
-                    color: Colors[colorScheme].text,
-                  }]}
+                  style={[
+                    styles.input,
+                    {
+                      borderColor: fieldErrors.displayName ? '#DC2626' : Colors[colorScheme].border,
+                      backgroundColor: Colors[colorScheme].surface,
+                      color: Colors[colorScheme].text,
+                    },
+                  ]}
                 />
                 {fieldErrors.displayName && (
-                  <Text style={[styles.errorText, { color: '#DC2626' }]}>{fieldErrors.displayName}</Text>
+                  <Text style={[styles.errorText, { color: '#DC2626' }]}>
+                    {fieldErrors.displayName}
+                  </Text>
                 )}
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: Colors[colorScheme].mutedText }]}>Username</Text>
-                <Pressable 
+                <Text style={[styles.label, { color: Colors[colorScheme].mutedText }]}>
+                  Username
+                </Text>
+                <Pressable
                   onPress={() => router.push('/settings/edit-username')}
-                  style={[styles.input, { 
-                    borderColor: Colors[colorScheme].border,
-                    backgroundColor: Colors[colorScheme].surface,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingHorizontal: 12,
-                    minHeight: 44,
-                  }]}
+                  style={[
+                    styles.input,
+                    {
+                      borderColor: Colors[colorScheme].border,
+                      backgroundColor: Colors[colorScheme].surface,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingHorizontal: 12,
+                      minHeight: 44,
+                    },
+                  ]}
                 >
                   <Text style={{ color: Colors[colorScheme].text }}>
                     @{(me as any)?.username || 'not set'}
                   </Text>
-                  <MaterialIcons name="chevron-right" size={20} color={Colors[colorScheme].mutedText} />
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={20}
+                    color={Colors[colorScheme].mutedText}
+                  />
                 </Pressable>
-                <Text style={[styles.hint, { color: Colors[colorScheme].mutedText, marginTop: 4, fontSize: 12 }]}>
+                <Text
+                  style={[
+                    styles.hint,
+                    { color: Colors[colorScheme].mutedText, marginTop: 4, fontSize: 12 },
+                  ]}
+                >
                   Tap to edit your username
                 </Text>
               </View>
@@ -767,30 +927,41 @@ export default function EditProfileScreen() {
               <View style={styles.fieldGroup}>
                 <View style={styles.labelRow}>
                   <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Bio</Text>
-                  <Text style={[styles.charCount, { color: bio.length > BIO_MAX_LENGTH ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                  <Text
+                    style={[
+                      styles.charCount,
+                      {
+                        color:
+                          bio.length > BIO_MAX_LENGTH ? '#DC2626' : Colors[colorScheme].mutedText,
+                      },
+                    ]}
+                  >
                     {bio.length}/{BIO_MAX_LENGTH}
                   </Text>
                 </View>
-                <Input 
-                  value={bio} 
-                  onChangeText={(text) => {
+                <Input
+                  value={bio}
+                  onChangeText={text => {
                     if (text.length <= BIO_MAX_LENGTH) {
                       setBio(text);
                     }
                     if (fieldErrors.bio) {
                       setFieldErrors(prev => ({ ...prev, bio: undefined }));
                     }
-                  }} 
-                  placeholder="Tell everyone about yourself..." 
+                  }}
+                  placeholder="Tell everyone about yourself..."
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   multiline
                   numberOfLines={3}
                   maxLength={BIO_MAX_LENGTH}
-                  style={[styles.textArea, { 
-                    borderColor: fieldErrors.bio ? '#DC2626' : Colors[colorScheme].border,
-                    backgroundColor: Colors[colorScheme].surface,
-                    color: Colors[colorScheme].text,
-                  }]} 
+                  style={[
+                    styles.textArea,
+                    {
+                      borderColor: fieldErrors.bio ? '#DC2626' : Colors[colorScheme].border,
+                      backgroundColor: Colors[colorScheme].surface,
+                      color: Colors[colorScheme].text,
+                    },
+                  ]}
                 />
                 {fieldErrors.bio && (
                   <Text style={[styles.errorText, { color: '#DC2626' }]}>{fieldErrors.bio}</Text>
@@ -799,43 +970,50 @@ export default function EditProfileScreen() {
             </View>
 
             {/* Sports & Interests Section */}
-            <View style={[styles.section, { 
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border,
-            }]}>
+            <View
+              style={[
+                styles.section,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <MaterialIcons name="sports-football" size={20} color={Colors[colorScheme].tint} />
-                {' '}Sports & Interests
+                <MaterialIcons name="sports-football" size={20} color={Colors[colorScheme].tint} />{' '}
+                Sports & Interests
               </Text>
               <Text style={[styles.sectionNote, { color: Colors[colorScheme].mutedText }]}>
                 Select up to 3 sports you're interested in
               </Text>
-              
+
               <View style={styles.sportsGrid}>
-                {SPORTS_OPTIONS.map((sport) => (
+                {SPORTS_OPTIONS.map(sport => (
                   <Pressable
                     key={sport}
                     style={[
                       styles.sportChip,
                       {
-                        backgroundColor: sportsInterests.includes(sport) 
-                          ? Colors[colorScheme].tint 
+                        backgroundColor: sportsInterests.includes(sport)
+                          ? Colors[colorScheme].tint
                           : Colors[colorScheme].surface,
-                        borderColor: sportsInterests.includes(sport) 
-                          ? Colors[colorScheme].tint 
+                        borderColor: sportsInterests.includes(sport)
+                          ? Colors[colorScheme].tint
                           : Colors[colorScheme].border,
-                      }
+                      },
                     ]}
                     onPress={() => toggleSport(sport)}
                   >
-                    <Text style={[
-                      styles.sportChipText,
-                      {
-                        color: sportsInterests.includes(sport) 
-                          ? '#FFFFFF' 
-                          : Colors[colorScheme].text,
-                      }
-                    ]}>
+                    <Text
+                      style={[
+                        styles.sportChipText,
+                        {
+                          color: sportsInterests.includes(sport)
+                            ? '#FFFFFF'
+                            : Colors[colorScheme].text,
+                        },
+                      ]}
+                    >
                       {sport}
                     </Text>
                   </Pressable>
@@ -848,148 +1026,188 @@ export default function EditProfileScreen() {
 
             {/* Theme Color Section - Only for coach/organization accounts */}
             {(userRole === 'coach' || userRole === 'admin' || userRole === 'organization') && (
-            <View style={[styles.section, { 
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border,
-            }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <MaterialIcons name="palette" size={20} color={Colors[colorScheme].tint} />
-                {' '}Profile Theme Color
-              </Text>
-              <Text style={[styles.sectionNote, { color: Colors[colorScheme].mutedText }]}>
-                Choose a color that represents you
-              </Text>
-              
-              <View style={styles.colorGrid}>
-                {THEME_COLORS.map((color) => (
-                  <Pressable
-                    key={color.value}
-                    style={[
-                      styles.colorOption,
-                      {
-                        borderColor: themeColor === color.value 
-                          ? color.value
-                          : Colors[colorScheme].border,
-                        borderWidth: themeColor === color.value ? 3 : 1,
-                      }
-                    ]}
-                    onPress={() => setThemeColor(color.value)}
-                  >
-                    <View style={[styles.colorSwatch, { backgroundColor: color.value }]}>
-                      {themeColor === color.value && (
-                        <MaterialIcons name="check-circle" size={24} color="#FFFFFF" />
-                      )}
-                    </View>
-                    <Text style={[
-                      styles.colorName,
-                      {
-                        color: Colors[colorScheme].text,
-                        fontWeight: themeColor === color.value ? '700' : '500',
-                      }
-                    ]}>
-                      {color.name}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              
-              <View style={[styles.colorPreview, { 
-                backgroundColor: Colors[colorScheme].surface,
-                borderColor: Colors[colorScheme].border,
-              }]}>
-                <Text style={[styles.colorPreviewLabel, { color: Colors[colorScheme].mutedText }]}>
-                  Preview:
+              <View
+                style={[
+                  styles.section,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
+                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                  <MaterialIcons name="palette" size={20} color={Colors[colorScheme].tint} />{' '}
+                  Profile Theme Color
                 </Text>
-                <View style={[styles.colorPreviewBox, { backgroundColor: themeColor }]}>
-                  <Text style={styles.colorPreviewText}>Your Profile</Text>
+                <Text style={[styles.sectionNote, { color: Colors[colorScheme].mutedText }]}>
+                  Choose a color that represents you
+                </Text>
+
+                <View style={styles.colorGrid}>
+                  {THEME_COLORS.map(color => (
+                    <Pressable
+                      key={color.value}
+                      style={[
+                        styles.colorOption,
+                        {
+                          borderColor:
+                            themeColor === color.value ? color.value : Colors[colorScheme].border,
+                          borderWidth: themeColor === color.value ? 3 : 1,
+                        },
+                      ]}
+                      onPress={() => setThemeColor(color.value)}
+                    >
+                      <View style={[styles.colorSwatch, { backgroundColor: color.value }]}>
+                        {themeColor === color.value && (
+                          <MaterialIcons name="check-circle" size={24} color="#FFFFFF" />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.colorName,
+                          {
+                            color: Colors[colorScheme].text,
+                            fontWeight: themeColor === color.value ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {color.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <View
+                  style={[
+                    styles.colorPreview,
+                    {
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderColor: Colors[colorScheme].border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.colorPreviewLabel, { color: Colors[colorScheme].mutedText }]}
+                  >
+                    Preview:
+                  </Text>
+                  <View style={[styles.colorPreviewBox, { backgroundColor: themeColor }]}>
+                    <Text style={styles.colorPreviewText}>Your Profile</Text>
+                  </View>
                 </View>
               </View>
-            </View>
             )}
 
             {/* Team Member Section */}
             {isTeamMember && (
-              <View style={[styles.section, { 
-                backgroundColor: Colors[colorScheme].card,
-                borderColor: Colors[colorScheme].border,
-              }]}>
+              <View
+                style={[
+                  styles.section,
+                  {
+                    backgroundColor: Colors[colorScheme].card,
+                    borderColor: Colors[colorScheme].border,
+                  },
+                ]}
+              >
                 <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                  <MaterialIcons name="group" size={20} color={Colors[colorScheme].tint} />
-                  {' '}Team Member Info
+                  <MaterialIcons name="group" size={20} color={Colors[colorScheme].tint} /> Team
+                  Member Info
                 </Text>
-                
+
                 <View style={styles.fieldRow}>
                   <View style={[styles.fieldGroup, { flex: 2 }]}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Position</Text>
-                    <Input 
-                      value={position} 
-                      onChangeText={setPosition} 
-                      placeholder="e.g., Point Guard" 
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                      Position
+                    </Text>
+                    <Input
+                      value={position}
+                      onChangeText={setPosition}
+                      placeholder="e.g., Point Guard"
                       placeholderTextColor={Colors[colorScheme].mutedText}
-                      style={[styles.input, { 
-                        borderColor: Colors[colorScheme].border,
-                        backgroundColor: Colors[colorScheme].surface,
-                        color: Colors[colorScheme].text,
-                      }]} 
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: Colors[colorScheme].border,
+                          backgroundColor: Colors[colorScheme].surface,
+                          color: Colors[colorScheme].text,
+                        },
+                      ]}
                     />
                   </View>
-                  
+
                   <View style={[styles.fieldGroup, { flex: 1 }]}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Jersey #</Text>
-                    <Input 
-                      value={jerseyNumber} 
-                      onChangeText={setJerseyNumber} 
-                      placeholder="23" 
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                      Jersey #
+                    </Text>
+                    <Input
+                      value={jerseyNumber}
+                      onChangeText={setJerseyNumber}
+                      placeholder="23"
                       placeholderTextColor={Colors[colorScheme].mutedText}
                       keyboardType="numeric"
                       maxLength={3}
-                      style={[styles.input, { 
-                        borderColor: Colors[colorScheme].border,
-                        backgroundColor: Colors[colorScheme].surface,
-                        color: Colors[colorScheme].text,
-                      }]} 
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: Colors[colorScheme].border,
+                          backgroundColor: Colors[colorScheme].surface,
+                          color: Colors[colorScheme].text,
+                        },
+                      ]}
                     />
                   </View>
                 </View>
-                
+
                 {/* Athlete-Specific Fields */}
                 <View style={styles.athleteSection}>
                   <Text style={[styles.subsectionTitle, { color: Colors[colorScheme].mutedText }]}>
                     Athlete Details (Optional)
                   </Text>
-                  
+
                   {/* Grade Level Picker */}
                   <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Grade Level</Text>
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                      Grade Level
+                    </Text>
                     <View style={styles.gradeOptions}>
-                      {['Freshman', 'Sophomore', 'Junior', 'Senior'].map((grade) => (
+                      {['Freshman', 'Sophomore', 'Junior', 'Senior'].map(grade => (
                         <Pressable
                           key={grade}
                           onPress={() => setGradeLevel(grade as any)}
                           style={[
                             styles.gradeOption,
                             {
-                              backgroundColor: gradeLevel === grade ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                              borderColor: gradeLevel === grade ? Colors[colorScheme].tint : Colors[colorScheme].border,
-                            }
+                              backgroundColor:
+                                gradeLevel === grade
+                                  ? Colors[colorScheme].tint
+                                  : Colors[colorScheme].surface,
+                              borderColor:
+                                gradeLevel === grade
+                                  ? Colors[colorScheme].tint
+                                  : Colors[colorScheme].border,
+                            },
                           ]}
                         >
-                          <Text style={[
-                            styles.gradeOptionText,
-                            {
-                              color: gradeLevel === grade ? '#FFFFFF' : Colors[colorScheme].text,
-                            }
-                          ]}>
+                          <Text
+                            style={[
+                              styles.gradeOptionText,
+                              {
+                                color: gradeLevel === grade ? '#FFFFFF' : Colors[colorScheme].text,
+                              },
+                            ]}
+                          >
                             {grade}
                           </Text>
                         </Pressable>
                       ))}
                     </View>
                   </View>
-                  
+
                   {/* Graduation Year */}
                   <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Graduation Year</Text>
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                      Graduation Year
+                    </Text>
                     <Input
                       value={graduationYear}
                       onChangeText={handleGradYearChange}
@@ -998,11 +1216,16 @@ export default function EditProfileScreen() {
                       placeholderTextColor={Colors[colorScheme].mutedText}
                       keyboardType="numeric"
                       maxLength={4}
-                      style={[styles.input, {
-                        borderColor: fieldErrors.graduationYear ? '#DC2626' : Colors[colorScheme].border,
-                        backgroundColor: Colors[colorScheme].surface,
-                        color: Colors[colorScheme].text,
-                      }]}
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: fieldErrors.graduationYear
+                            ? '#DC2626'
+                            : Colors[colorScheme].border,
+                          backgroundColor: Colors[colorScheme].surface,
+                          color: Colors[colorScheme].text,
+                        },
+                      ]}
                     />
                     {fieldErrors.graduationYear && (
                       <Text style={[styles.fieldNote, { color: '#DC2626' }]}>
@@ -1010,38 +1233,49 @@ export default function EditProfileScreen() {
                       </Text>
                     )}
                   </View>
-                  
+
                   {/* Primary Sport */}
                   <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Primary Sport</Text>
-                    <Input 
-                      value={primarySport} 
-                      onChangeText={setPrimarySport} 
-                      placeholder="e.g., basketball, football, soccer" 
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                      Primary Sport
+                    </Text>
+                    <Input
+                      value={primarySport}
+                      onChangeText={setPrimarySport}
+                      placeholder="e.g., basketball, football, soccer"
                       placeholderTextColor={Colors[colorScheme].mutedText}
-                      style={[styles.input, { 
-                        borderColor: Colors[colorScheme].border,
-                        backgroundColor: Colors[colorScheme].surface,
-                        color: Colors[colorScheme].text,
-                      }]} 
+                      style={[
+                        styles.input,
+                        {
+                          borderColor: Colors[colorScheme].border,
+                          backgroundColor: Colors[colorScheme].surface,
+                          color: Colors[colorScheme].text,
+                        },
+                      ]}
                     />
                   </View>
-                  
+
                   {/* Accolades */}
                   <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Accolades</Text>
-                    <Input 
-                      value={accolades} 
-                      onChangeText={setAccolades} 
-                      placeholder="e.g., All-State Guard, Team MVP (comma separated)" 
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                      Accolades
+                    </Text>
+                    <Input
+                      value={accolades}
+                      onChangeText={setAccolades}
+                      placeholder="e.g., All-State Guard, Team MVP (comma separated)"
                       placeholderTextColor={Colors[colorScheme].mutedText}
                       multiline
                       numberOfLines={2}
-                      style={[styles.input, styles.textArea, { 
-                        borderColor: Colors[colorScheme].border,
-                        backgroundColor: Colors[colorScheme].surface,
-                        color: Colors[colorScheme].text,
-                      }]} 
+                      style={[
+                        styles.input,
+                        styles.textArea,
+                        {
+                          borderColor: Colors[colorScheme].border,
+                          backgroundColor: Colors[colorScheme].surface,
+                          color: Colors[colorScheme].text,
+                        },
+                      ]}
                     />
                     <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
                       Separate multiple accolades with commas
@@ -1053,15 +1287,17 @@ export default function EditProfileScreen() {
 
             {/* Save Button */}
             <View style={styles.saveSection}>
-              <Pressable 
-                onPress={onSave} 
+              <Pressable
+                onPress={onSave}
                 disabled={saving}
                 style={[
-                  styles.saveButton, 
-                  { 
-                    backgroundColor: saving ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
+                  styles.saveButton,
+                  {
+                    backgroundColor: saving
+                      ? Colors[colorScheme].mutedText
+                      : Colors[colorScheme].tint,
                     opacity: saving ? 0.6 : 1,
-                  }
+                  },
                 ]}
               >
                 <Text style={[styles.saveButtonText, { color: '#FFFFFF' }]}>
@@ -1077,7 +1313,7 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
   },
   loadingContainer: {
@@ -1304,7 +1540,7 @@ const styles = StyleSheet.create({
     right: 12,
   },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  
+
   // Avatar styles
   avatarSection: {
     alignItems: 'center',
@@ -1435,7 +1671,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: 'rgba(59,130,246,0.08)',
   },
-  
+
   // Athlete section styles
   athleteSection: {
     marginTop: 16,

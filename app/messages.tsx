@@ -5,7 +5,21 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  type AppStateStatus,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
@@ -53,6 +67,7 @@ function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<MiniUser | null>(null);
   const [messages, setMessages] = useState<UIMsg[]>([]);
@@ -100,7 +115,9 @@ function MessagesScreen() {
         // Non-critical: silently ignore
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [composeOpen, suggestedLoaded, me]);
 
   const load = useCallback(async () => {
@@ -132,8 +149,24 @@ function MessagesScreen() {
     }
   }, [authUser, checkAuth]);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
+        ? Message.list('-created_at', 50)
+        : Message.filter({}, '-created_at'));
+      if (result && !('_isNotModified' in result)) {
+        setMessages(Array.isArray(result) ? result : []);
+      }
+    } catch {
+      // Silently ignore pull-to-refresh errors; existing data stays visible
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
+    const subscription = AppState.addEventListener('change', nextState => {
       setAppState(nextState);
     });
     return () => subscription.remove();
@@ -195,7 +228,7 @@ function MessagesScreen() {
           id: convKey,
           other,
           lastMessage: msg,
-          unreadCount: (!mine && !msg.read) ? 1 : 0,
+          unreadCount: !mine && !msg.read ? 1 : 0,
           messages: [msg],
         });
       } else {
@@ -212,8 +245,9 @@ function MessagesScreen() {
     });
 
     // Sort by last message date
-    return Array.from(convMap.values()).sort((a, b) =>
-      new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
+    return Array.from(convMap.values()).sort(
+      (a, b) =>
+        new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
     );
   }, [messages, me]);
 
@@ -326,7 +360,7 @@ function MessagesScreen() {
         style={[
           styles.conversationRow,
           hasUnread && styles.conversationUnread,
-          { borderBottomColor: Colors[colorScheme].border }
+          { borderBottomColor: Colors[colorScheme].border },
         ]}
         onPress={() => openThread(item)}
       >
@@ -337,7 +371,11 @@ function MessagesScreen() {
           </View>
           {/* Overlay actual image — if it fails to load, letter fallback stays visible */}
           {avatar ? (
-            <Image source={{ uri: avatar }} style={[styles.avatar, styles.avatarOverlay]} contentFit="cover" />
+            <Image
+              source={{ uri: avatar }}
+              style={[styles.avatar, styles.avatarOverlay]}
+              contentFit="cover"
+            />
           ) : null}
           {hasUnread && <View style={styles.unreadDot} />}
         </View>
@@ -348,7 +386,7 @@ function MessagesScreen() {
               style={[
                 styles.conversationName,
                 { color: Colors[colorScheme].text },
-                hasUnread && styles.conversationNameBold
+                hasUnread && styles.conversationNameBold,
               ]}
               numberOfLines={1}
             >
@@ -364,7 +402,7 @@ function MessagesScreen() {
               style={[
                 styles.messagePreview,
                 { color: Colors[colorScheme].tabIconDefault },
-                hasUnread && styles.messagePreviewBold
+                hasUnread && styles.messagePreviewBold,
               ]}
               numberOfLines={2}
             >
@@ -395,7 +433,11 @@ function MessagesScreen() {
             <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
           </View>
           {avatar ? (
-            <Image source={{ uri: avatar }} style={[styles.avatar, styles.avatarOverlay]} contentFit="cover" />
+            <Image
+              source={{ uri: avatar }}
+              style={[styles.avatar, styles.avatarOverlay]}
+              contentFit="cover"
+            />
           ) : null}
         </View>
         <View style={{ flex: 1 }}>
@@ -412,7 +454,10 @@ function MessagesScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
+      edges={['bottom']}
+    >
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Enhanced header with gradient and safe area */}
@@ -421,17 +466,36 @@ function MessagesScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={() => { safeGoBack(router); }} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable
+            onPress={() => {
+              safeGoBack(router);
+            }}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
             <MaterialIcons name="chevron-left" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>
-          <Pressable onPress={() => setSafetyOpen(true)} style={styles.iconButton} accessibilityLabel="Safety">
+          <Pressable
+            onPress={() => setSafetyOpen(true)}
+            style={styles.iconButton}
+            accessibilityLabel="Safety"
+          >
             <MaterialIcons name="verified-user" size={24} color={Colors[colorScheme].text} />
           </Pressable>
         </View>
 
         {/* Search bar */}
-        <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+        <View
+          style={[
+            styles.searchContainer,
+            {
+              backgroundColor:
+                colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+            },
+          ]}
+        >
           <MaterialIcons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
           <TextInput
             placeholder="Search conversations..."
@@ -449,12 +513,21 @@ function MessagesScreen() {
       </LinearGradient>
 
       <View style={styles.contentContainer}>
-        {loading && <View style={styles.center}><ActivityIndicator color={Colors[colorScheme].tint} /></View>}
+        {loading && (
+          <View style={styles.center}>
+            <ActivityIndicator color={Colors[colorScheme].tint} />
+          </View>
+        )}
         {error && !loading && (
           <View style={styles.errorState}>
             <MaterialIcons name="error-outline" size={48} color="#DC2626" />
-            <Text style={[styles.errorStateText, { color: Colors[colorScheme].text }]}>{error}</Text>
-            <Pressable style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => void load()}>
+            <Text style={[styles.errorStateText, { color: Colors[colorScheme].text }]}>
+              {error}
+            </Text>
+            <Pressable
+              style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={() => void load()}
+            >
               <Text style={styles.retryButtonText}>Try Again</Text>
             </Pressable>
           </View>
@@ -483,9 +556,10 @@ function MessagesScreen() {
         {!loading && filtered.length > 0 && (
           <FlatList
             data={filtered}
-            keyExtractor={(item) => item.id}
+            keyExtractor={item => item.id}
             renderItem={renderConversation}
             contentContainerStyle={{ paddingBottom: 80 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           />
         )}
       </View>
@@ -493,7 +567,10 @@ function MessagesScreen() {
       {/* Floating compose button */}
       {!loading && (
         <Pressable
-          style={[styles.fab, { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 }]}
+          style={[
+            styles.fab,
+            { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 },
+          ]}
           onPress={() => setComposeOpen(true)}
         >
           <MaterialIcons name="edit" size={24} color="white" />
@@ -501,18 +578,40 @@ function MessagesScreen() {
       )}
 
       {/* Compose Modal */}
-      <Modal visible={composeOpen} transparent animationType="slide" onRequestClose={() => setComposeOpen(false)}>
+      <Modal
+        visible={composeOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setComposeOpen(false)}
+      >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.composeModal, { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top + 16 }]}>
+          <View
+            style={[
+              styles.composeModal,
+              { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top + 16 },
+            ]}
+          >
             <View style={styles.composeHeader}>
               <Pressable onPress={() => setComposeOpen(false)} style={styles.modalCloseButton}>
                 <MaterialIcons name="close" size={28} color={Colors[colorScheme].text} />
               </Pressable>
-              <Text style={[styles.composeTitle, { color: Colors[colorScheme].text }]}>New Message</Text>
+              <Text style={[styles.composeTitle, { color: Colors[colorScheme].text }]}>
+                New Message
+              </Text>
               <View style={{ width: 28 }} />
             </View>
 
-            <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', marginHorizontal: 16, marginBottom: 8 }]}>
+            <View
+              style={[
+                styles.searchContainer,
+                {
+                  backgroundColor:
+                    colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  marginHorizontal: 16,
+                  marginBottom: 8,
+                },
+              ]}
+            >
               <MaterialIcons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
               <TextInput
                 placeholder="Search users by username..."
@@ -524,7 +623,11 @@ function MessagesScreen() {
               />
               {searchUserQuery.length > 0 && (
                 <Pressable onPress={() => setSearchUserQuery('')}>
-                  <MaterialIcons name="cancel" size={20} color={Colors[colorScheme].tabIconDefault} />
+                  <MaterialIcons
+                    name="cancel"
+                    size={20}
+                    color={Colors[colorScheme].tabIconDefault}
+                  />
                 </Pressable>
               )}
             </View>
@@ -538,7 +641,9 @@ function MessagesScreen() {
             {!searchingUsers && searchUserQuery.length >= 2 && searchResults.length === 0 && (
               <View style={styles.emptyState}>
                 <MaterialIcons name="group" size={48} color={Colors[colorScheme].tabIconDefault} />
-                <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
+                <Text
+                  style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
+                >
                   No users found
                 </Text>
               </View>
@@ -547,7 +652,7 @@ function MessagesScreen() {
             {!searchingUsers && searchResults.length > 0 && (
               <FlatList
                 data={searchResults}
-                keyExtractor={(item) => item.id}
+                keyExtractor={item => item.id}
                 renderItem={renderUserSearchItem}
               />
             )}
@@ -555,18 +660,26 @@ function MessagesScreen() {
             {searchUserQuery.length < 2 && suggested.length > 0 && (
               <FlatList
                 data={suggested}
-                keyExtractor={(item) => item.id}
+                keyExtractor={item => item.id}
                 renderItem={renderUserSearchItem}
                 ListHeaderComponent={
-                  <Text style={[styles.suggestedHeader, { color: Colors[colorScheme].mutedText }]}>Suggested</Text>
+                  <Text style={[styles.suggestedHeader, { color: Colors[colorScheme].mutedText }]}>
+                    Suggested
+                  </Text>
                 }
               />
             )}
 
             {searchUserQuery.length < 2 && suggested.length === 0 && (
               <View style={styles.emptyState}>
-                <MaterialIcons name="mail-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
-                <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
+                <MaterialIcons
+                  name="mail-outline"
+                  size={48}
+                  color={Colors[colorScheme].tabIconDefault}
+                />
+                <Text
+                  style={[styles.emptyTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}
+                >
                   Search for someone
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -579,25 +692,65 @@ function MessagesScreen() {
       </Modal>
 
       {/* Safety sheet */}
-      <Modal visible={safetyOpen} transparent animationType="fade" onRequestClose={() => setSafetyOpen(false)}>
+      <Modal
+        visible={safetyOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSafetyOpen(false)}
+      >
         <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
-          <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]} onPress={() => {}}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]}
+            onPress={() => {}}
+          >
             <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety</Text>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void router.push('/report-abuse'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void router.push('/report-abuse');
+              }}
+            >
               <MaterialIcons name="flag" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report a message</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                Report a message
+              </Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void router.push('/blocked-users'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void router.push('/blocked-users');
+              }}
+            >
               <MaterialIcons name="person-remove" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Blocked users</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                Blocked users
+              </Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void router.push('/dm-restrictions'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void router.push('/dm-restrictions');
+              }}
+            >
               <MaterialIcons name="tune" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>DM restrictions</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                DM restrictions
+              </Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void router.push('/settings'); }}>
+            <Pressable
+              style={styles.sheetRow}
+              onPress={() => {
+                setSafetyOpen(false);
+                void router.push('/settings');
+              }}
+            >
               <MaterialIcons name="settings" size={18} color={Colors[colorScheme].text} />
-              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Privacy & settings</Text>
+              <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>
+                Privacy & settings
+              </Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -871,7 +1024,12 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'flex-end' },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   sheet: { width: '100%', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 10 },
   sheetTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
   sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },

@@ -57,6 +57,9 @@ export interface SerializeTeamOptions {
 
   /** Whether the viewer is an org admin for the team's org. */
   isOrgAdmin?: boolean;
+
+  /** The viewer's pending join request status, if any. null = no request. */
+  viewerJoinRequestStatus?: string | null;
 }
 
 export const TEAM_SERIALIZE_SAFE_SELECT = {
@@ -90,14 +93,10 @@ type BuildTeamSerializeSelectOptions = {
   includeMembershipsForUserId?: string | null;
 };
 
-export function buildTeamSerializeSelect(
-  opts: BuildTeamSerializeSelectOptions = {},
-) {
+export function buildTeamSerializeSelect(opts: BuildTeamSerializeSelectOptions = {}) {
   return {
     ...TEAM_SERIALIZE_SAFE_SELECT,
-    ...(opts.includeCounts
-      ? { _count: { select: { memberships: true, followers: true } } }
-      : {}),
+    ...(opts.includeCounts ? { _count: { select: { memberships: true, followers: true } } } : {}),
     ...(opts.includeOrganization
       ? {
           organization: {
@@ -197,6 +196,7 @@ export function serializeTeam(team: any, opts: SerializeTeamOptions = {}) {
     base.is_following = opts.isFollowing ?? null;
     base.can_manage_team = opts.canManageTeam === true;
     base.is_org_admin = opts.isOrgAdmin === true;
+    base.viewer_join_request_status = opts.viewerJoinRequestStatus ?? null;
   }
 
   return base;

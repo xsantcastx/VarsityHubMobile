@@ -4,7 +4,8 @@
   "version": "1.0.3",
   "scripts": {
     "start": "expo start",
-    "dev": "concurrently -n app,server -c green,cyan \"npm run dev:expo\" \"npm run server:dev\"",
+    "predev": "lsof -ti:8081 | xargs kill -9 2>/dev/null || true; lsof -ti:4000 | xargs kill -9 2>/dev/null || true",
+    "dev": "concurrently --kill-others-on-fail -n app,server -c green,cyan \"npm run dev:expo\" \"npm run server:dev\"",
     "dev:expo": "expo start --dev-client --scheme varsityhubmobile --host localhost --port 8081 --clear",
     "dev:local": "expo start --dev-client --scheme varsityhubmobile --host localhost --port 8081",
     "dev:server": "bash scripts/start-dev-server.sh",

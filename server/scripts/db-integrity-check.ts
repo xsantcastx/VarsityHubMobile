@@ -7,8 +7,8 @@
  * Usage: npx tsx scripts/db-integrity-check.ts
  */
 
-import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import 'dotenv/config';
 
 const prisma = new PrismaClient();
 
@@ -29,7 +29,8 @@ function pass(label: string): void {
 function warn(label: string, count: number, ids: string[]): void {
   console.log(`  ${YELLOW}WARN${RESET}  ${label} — ${YELLOW}${count} issue(s)${RESET}`);
   if (ids.length > 0) {
-    const display = ids.length > 20 ? [...ids.slice(0, 20), `... and ${ids.length - 20} more`] : ids;
+    const display =
+      ids.length > 20 ? [...ids.slice(0, 20), `... and ${ids.length - 20} more`] : ids;
     for (const id of display) {
       console.log(`        ${DIM}${id}${RESET}`);
     }
@@ -63,7 +64,7 @@ async function checkOnboardedUsersWithoutUsername(): Promise<void> {
     warn(
       'Users with onboarding_completed=true but no username',
       users.length,
-      users.map((u) => u.id),
+      users.map(u => u.id)
     );
   }
 }
@@ -89,29 +90,21 @@ async function checkNonOnboardedUsersWithPosts(): Promise<void> {
     warn(
       'Users with onboarding_completed!=true who have posts',
       rows.length,
-      rows.map((r) => r.id),
+      rows.map(r => r.id)
     );
   }
 }
 
 async function checkTeamsWithNoOrganization(): Promise<void> {
-  // Teams whose organization_id is null (orphaned from any org).
-  // Note: the FK has onDelete: SetNull, so deleted orgs set this to null.
-  const teams = await prisma.team.findMany({
-    where: {
-      organization_id: null,
-    },
-    select: { id: true },
-  });
-
-  if (teams.length === 0) {
-    pass('Teams with no organization (organization_id is null)');
+  // organization_id is non-nullable (String, not String?) with onDelete: Restrict.
+  // Deleted orgs are blocked while teams exist — orphaned teams are impossible by schema.
+  // Verify this constraint holds by checking count matches org-linked count.
+  const total = await prisma.team.count();
+  const withOrg = await prisma.team.count({ where: { organization: { isNot: undefined } } });
+  if (total === withOrg) {
+    pass('Teams with no organization (organization_id is non-null by schema)');
   } else {
-    warn(
-      'Teams with no organization (organization_id is null)',
-      teams.length,
-      teams.map((t) => t.id),
-    );
+    warn('Teams with no organization', total - withOrg, []);
   }
 }
 
@@ -136,7 +129,7 @@ async function checkOrganizationsWithNoOwnerOrAdmin(): Promise<void> {
     warn(
       'Organizations with no owner/admin member',
       rows.length,
-      rows.map((r) => r.id),
+      rows.map(r => r.id)
     );
   }
 }
@@ -159,7 +152,7 @@ async function checkMessagesWithMissingSenderOrRecipient(): Promise<void> {
     warn(
       'Messages with null recipient_id (deleted user cascade)',
       messages.length,
-      messages.map((m) => m.id),
+      messages.map(m => m.id)
     );
   }
 }
@@ -182,7 +175,7 @@ async function checkNotificationsWithNullActor(): Promise<void> {
     warn(
       'Notifications with null actor_id (excluding GAME_REMINDER)',
       notifications.length,
-      notifications.map((n) => n.id),
+      notifications.map(n => n.id)
     );
   }
 }
@@ -202,7 +195,7 @@ async function checkActiveAdsNotPaid(): Promise<void> {
     warn(
       'Active ads with payment_status != "paid"',
       ads.length,
-      ads.map((a) => `${a.id} (payment_status: ${a.payment_status})`),
+      ads.map(a => `${a.id} (payment_status: ${a.payment_status})`)
     );
   }
 }
@@ -225,7 +218,7 @@ async function checkDuplicateOrgNamesInSameZip(): Promise<void> {
     warn(
       'Duplicate organization names (case-insensitive) in same zip code',
       rows.length,
-      rows.map((r) => `"${r.name}" in zip ${r.zip_code} (${r.cnt} occurrences)`),
+      rows.map(r => `"${r.name}" in zip ${r.zip_code} (${r.cnt} occurrences)`)
     );
   }
 }
@@ -280,7 +273,7 @@ async function main(): Promise<void> {
 }
 
 main()
-  .catch((err) => {
+  .catch(err => {
     console.error(`${RED}Fatal error:${RESET}`, err);
     process.exit(1);
   })

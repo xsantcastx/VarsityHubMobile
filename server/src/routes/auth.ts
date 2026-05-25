@@ -1,66 +1,63 @@
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import { isAdminEmail } from '../lib/adminEmails.js';
+import { cacheGet, cacheSet } from '../lib/cache.js';
+import { sendError } from '../lib/http/sendError.js';
+import {
+  getCoachFlowState,
+  getLatestCoachApplication,
+  serializeCoachApplication,
+} from '../lib/coachApplications.js';
 import {
   buildCoachApplicationReviewUrl,
   sendCoachApplicationAdminEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '../lib/email.js';
-import { ConflictError } from '../lib/errors/ConflictError.js';
 import { AppError } from '../lib/errors/AppError.js';
+import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
 import {
-  signJwt,
-  signAccessTokenForSession,
-  generateRefreshToken,
   generateRefreshTokenV2,
   hashRefreshToken,
   hashRefreshTokenSecret,
   parseRefreshToken,
-  verifyRefreshTokenHash,
   REFRESH_TOKEN_EXPIRY_DAYS,
   REFRESH_TOKEN_HASH_VERSION_V2,
+  signAccessTokenForSession,
+  verifyRefreshTokenHash,
 } from '../lib/jwt.js';
-import { revokeAllSessions, startNewSession } from '../lib/session.js';
+import {
+  buildOAuthExistingAccountConflict,
+  getLinkedProviders,
+} from '../lib/oauthAccountLinking.js';
+import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { prisma } from '../lib/prisma.js';
+import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
+import { rlDel, rlGet, rlIncr, rlSet } from '../lib/redisRateLimit.js';
 import { captureException } from '../lib/sentry.js';
+import { revokeAllSessions, startNewSession } from '../lib/session.js';
 import {
   buildSessionFingerprint,
   verifyStoredSessionFingerprint,
 } from '../lib/sessionFingerprint.js';
 import { mustSucceed } from '../lib/sideEffect.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import {
-  authLimiter,
-  oauthLimiter,
-  passwordResetLimiter,
-  refreshTokenLimiter,
-  verificationConfirmLimiter,
-} from '../middleware/rateLimiters.js';
-import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
-import { cacheGet, cacheSet } from '../lib/cache.js';
-import { isAdminEmail } from '../lib/adminEmails.js';
-import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
-import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import {
   evaluateDobUpdate,
   formatDobYmd,
   getCanonicalDob,
-  getUserAge,
-  isVerifiedAdult,
   requiresParentalConsent,
 } from '../lib/userAge.js';
 import {
   buildAuthStateColumns,
   getCanonicalAuthState,
+  getCanonicalOrganizationId,
   getCanonicalUserRole,
   getPreferencesObject,
   isProceedingAsFan,
@@ -75,16 +72,19 @@ import {
   isPaymentPending,
   mergeBillingStateIntoPreferences,
 } from '../lib/userBillingState.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 import {
-  getCoachFlowState,
-  getLatestCoachApplication,
-  serializeCoachApplication,
-} from '../lib/coachApplications.js';
-import {
-  buildOAuthExistingAccountConflict,
-  getLinkedProviders,
-} from '../lib/oauthAccountLinking.js';
-import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+  authLimiter,
+  oauthLimiter,
+  passwordResetLimiter,
+  refreshTokenLimiter,
+  verificationConfirmLimiter,
+} from '../middleware/rateLimiters.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
+import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
 
 export const authRouter = Router();
 
@@ -210,11 +210,7 @@ function parseResetFailureRecord(raw: string | null): ResetFailureRecord | null 
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      typeof parsed.attempts === 'number' &&
-      typeof parsed.lockedUntil === 'number'
-    ) {
+    if (parsed && typeof parsed.attempts === 'number' && typeof parsed.lockedUntil === 'number') {
       return parsed as ResetFailureRecord;
     }
     return null;
@@ -242,8 +238,7 @@ async function checkResetAttempt(
 async function recordResetFailure(email: string): Promise<void> {
   const key = `resetfail:${email}`;
   const raw = await rlGet(key);
-  let record: ResetFailureRecord =
-    parseResetFailureRecord(raw) ?? { attempts: 0, lockedUntil: 0 };
+  let record: ResetFailureRecord = parseResetFailureRecord(raw) ?? { attempts: 0, lockedUntil: 0 };
 
   record.attempts++;
   if (record.attempts >= MAX_RESET_FAILURES) {
@@ -369,7 +364,12 @@ async function verifyGoogleIdentityToken(idToken: string) {
     ticket = await googleOAuthClient.verifyIdToken({
       idToken,
       ...(GOOGLE_ALLOWED_AUDIENCES.length
-        ? { audience: GOOGLE_ALLOWED_AUDIENCES.length === 1 ? GOOGLE_ALLOWED_AUDIENCES[0] : GOOGLE_ALLOWED_AUDIENCES }
+        ? {
+            audience:
+              GOOGLE_ALLOWED_AUDIENCES.length === 1
+                ? GOOGLE_ALLOWED_AUDIENCES[0]
+                : GOOGLE_ALLOWED_AUDIENCES,
+          }
         : {}),
     });
   } catch (err: any) {
@@ -532,7 +532,7 @@ function deriveParentalConsentFields(dob: Date | null) {
 function resolveEffectiveDob(
   currentDob: Date | string | null | undefined,
   currentPrefs: Record<string, any>,
-  incomingDob?: string | null,
+  incomingDob?: string | null
 ): Date | null {
   if (incomingDob) return parseDobLocal(incomingDob);
   return getCanonicalDob({
@@ -844,7 +844,11 @@ authRouter.post(
       if (!stored) return res.status(401).json({ error: 'Invalid refresh token' });
 
       // Constant-time verification against the stored hash.
-      const matches = await verifyRefreshTokenHash(refresh_token, stored.token_hash, stored.hash_version);
+      const matches = await verifyRefreshTokenHash(
+        refresh_token,
+        stored.token_hash,
+        stored.hash_version
+      );
       if (!matches) return res.status(401).json({ error: 'Invalid refresh token' });
 
       if (stored.expires_at < new Date()) {
@@ -1044,9 +1048,7 @@ authRouter.post(
             fullRow.token_hash,
             fullRow.hash_version
           ).catch(() => false));
-        verifiedRow = tokenMatches
-          ? { id: fullRow!.id, user_id: fullRow!.user_id }
-          : null;
+        verifiedRow = tokenMatches ? { id: fullRow!.id, user_id: fullRow!.user_id } : null;
       }
 
       if (verifiedRow) {
@@ -1082,10 +1084,7 @@ authRouter.post(
           // user keeps receiving pushes after signing out. Failure here
           // means the token wasn't cleared; surfacing to Sentry so it
           // gets triaged instead of buried in container stdout.
-          console.warn(
-            '[auth] logout push_token clear failed:',
-            (err as any)?.message || err
-          );
+          console.warn('[auth] logout push_token clear failed:', (err as any)?.message || err);
           captureException(err instanceof Error ? err : new Error(String(err)), {
             context: 'logout_push_token_clear_failed',
             userId: verifiedRow.user_id,
@@ -1177,7 +1176,8 @@ authRouter.post(
     } catch (err) {
       if ((err as any)?.code === 'SOLE_ORG_OWNER') {
         return res.status(400).json({
-          error: 'You are the sole owner of an organization. Transfer ownership before deleting your account.',
+          error:
+            'You are the sole owner of an organization. Transfer ownership before deleting your account.',
           code: 'SOLE_ORG_OWNER',
           organization_id: (err as any).organization_id,
         });
@@ -1225,10 +1225,7 @@ authRouter.post(
       // signed for a different Google OAuth client (e.g. some random third-party
       // app) would successfully authenticate a user in our app. In dev/test we
       // accept any audience so local sign-in works without client-id config.
-      if (
-        process.env.NODE_ENV === 'production' &&
-        GOOGLE_ALLOWED_AUDIENCES.length === 0
-      ) {
+      if (process.env.NODE_ENV === 'production' && GOOGLE_ALLOWED_AUDIENCES.length === 0) {
         console.error('[auth/google] Rejecting token: GOOGLE_OAUTH_CLIENT_IDS not configured');
         return res.status(503).json({ error: 'Google Sign-In is not configured' });
       }
@@ -1267,8 +1264,15 @@ authRouter.post(
         if (avatarUrl && !user.avatar_url) syncUpdates.avatar_url = avatarUrl;
         if (displayNameSource && !user.display_name) syncUpdates.display_name = displayNameSource;
         if (Object.keys(syncUpdates).length) {
-          user = await prisma.user.update({ where: { id: user.id }, data: syncUpdates });
-          await invalidateMeCacheForUser(user.id);
+          try {
+            user = await prisma.user.update({ where: { id: user.id }, data: syncUpdates }); // cache-invalidation-exempt — invalidateMeCacheForUser called on next line
+            await invalidateMeCacheForUser(user.id);
+          } catch (syncErr: any) {
+            // P2002 means a concurrent request claimed the email between our findFirst check
+            // and this update. Skip the sync — the user still logs in successfully.
+            if (syncErr?.code !== 'P2002') throw syncErr;
+            debugLog('[auth/google] Email sync skipped due to concurrent claim (P2002)');
+          }
         }
       }
 
@@ -1282,15 +1286,13 @@ authRouter.post(
         });
 
         if (existingByEmail) {
-          return res
-            .status(409)
-            .json(
-              buildOAuthExistingAccountConflict({
-                email,
-                user: existingByEmail,
-                providerLabel: 'Google',
-              })
-            );
+          return res.status(409).json(
+            buildOAuthExistingAccountConflict({
+              email,
+              user: existingByEmail,
+              providerLabel: 'Google',
+            })
+          );
         } else {
           stage = 'create-user';
           const randomSecret = crypto.randomBytes(32).toString('hex');
@@ -1304,10 +1306,13 @@ authRouter.post(
                 display_name: displayNameSource,
                 avatar_url: avatarUrl,
                 email_verified: true,
-                preferences: mergeAuthStateIntoPreferences({}, {
-                  role: 'fan',
-                  onboarding_completed: false,
-                }),
+                preferences: mergeAuthStateIntoPreferences(
+                  {},
+                  {
+                    role: 'fan',
+                    onboarding_completed: false,
+                  }
+                ),
                 role: 'fan',
                 onboarding_completed: false,
               },
@@ -1318,15 +1323,13 @@ authRouter.post(
                 where: { email: { equals: email, mode: 'insensitive' } },
               });
               if (existingUser) {
-                return res
-                  .status(409)
-                  .json(
-                    buildOAuthExistingAccountConflict({
-                      email,
-                      user: existingUser,
-                      providerLabel: 'Google',
-                    })
-                  );
+                return res.status(409).json(
+                  buildOAuthExistingAccountConflict({
+                    email,
+                    user: existingUser,
+                    providerLabel: 'Google',
+                  })
+                );
               }
             }
             throw createErr;
@@ -1335,6 +1338,7 @@ authRouter.post(
         }
       } else if (!user.email_verified) {
         stage = 'verify-existing';
+        // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
         user = await prisma.user.update({
           where: { id: user.id },
           data: {
@@ -1352,7 +1356,7 @@ authRouter.post(
       const sanitized = sanitizeUser(user);
       const { access_token, refresh_token: rawRefresh } = await startNewSession(
         sanitized.id,
-        buildSessionFingerprint(req),
+        buildSessionFingerprint(req)
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
 
@@ -1424,15 +1428,13 @@ authRouter.post(
         }
 
         if (existingByEmail) {
-          return res
-            .status(409)
-            .json(
-              buildOAuthExistingAccountConflict({
-                email: email || existingByEmail.email,
-                user: existingByEmail,
-                providerLabel: 'Apple',
-              })
-            );
+          return res.status(409).json(
+            buildOAuthExistingAccountConflict({
+              email: email || existingByEmail.email,
+              user: existingByEmail,
+              providerLabel: 'Apple',
+            })
+          );
         } else {
           // Create new user
           const randomSecret = crypto.randomBytes(32).toString('hex');
@@ -1450,10 +1452,13 @@ authRouter.post(
                 apple_id: appleId,
                 display_name: null,
                 email_verified: true,
-                preferences: mergeAuthStateIntoPreferences({}, {
-                  role: 'fan',
-                  onboarding_completed: false,
-                }),
+                preferences: mergeAuthStateIntoPreferences(
+                  {},
+                  {
+                    role: 'fan',
+                    onboarding_completed: false,
+                  }
+                ),
                 role: 'fan',
                 onboarding_completed: false,
               },
@@ -1468,15 +1473,13 @@ authRouter.post(
                 where: { email: { equals: userEmail, mode: 'insensitive' } },
               });
               if (existingUser) {
-                return res
-                  .status(409)
-                  .json(
-                    buildOAuthExistingAccountConflict({
-                      email: userEmail,
-                      user: existingUser,
-                      providerLabel: 'Apple',
-                    })
-                  );
+                return res.status(409).json(
+                  buildOAuthExistingAccountConflict({
+                    email: userEmail,
+                    user: existingUser,
+                    providerLabel: 'Apple',
+                  })
+                );
               } else {
                 throw createErr; // Re-throw if we still can't find the user
               }
@@ -1493,7 +1496,7 @@ authRouter.post(
       // Mint a fresh pair for this login without invalidating other devices.
       const { access_token, refresh_token: appleRawRefresh } = await startNewSession(
         sanitized.id,
-        buildSessionFingerprint(req),
+        buildSessionFingerprint(req)
       );
       const needsOnboarding = !isUserOnboardingComplete(user as any);
       const isAppleOAuthAdmin = isAdminEmail(sanitized.email);
@@ -1544,7 +1547,9 @@ authRouter.post(
     const { googleId, email, displayName, avatarUrl } = await verifyGoogleIdentityToken(
       parsed.data.id_token
     );
-    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+    const normalizedCurrentEmail = String(currentUser.email || '')
+      .trim()
+      .toLowerCase();
     if (normalizedCurrentEmail !== email) {
       return res.status(409).json({
         code: 'OAUTH_EMAIL_MISMATCH',
@@ -1617,15 +1622,21 @@ authRouter.post(
     });
     if (!currentUser) return res.status(404).json({ error: 'Not found' });
 
-    const { appleId, email } = await verifyAppleIdentityToken(parsed.data.identity_token, APPLE_CLIENT_ID);
+    const { appleId, email } = await verifyAppleIdentityToken(
+      parsed.data.identity_token,
+      APPLE_CLIENT_ID
+    );
     if (!email) {
       return res.status(400).json({
         code: 'APPLE_EMAIL_REQUIRED_FOR_LINK',
-        error: 'Apple did not provide an email address for this sign-in. Try again and share your email with Apple Sign-In enabled.',
+        error:
+          'Apple did not provide an email address for this sign-in. Try again and share your email with Apple Sign-In enabled.',
       });
     }
 
-    const normalizedCurrentEmail = String(currentUser.email || '').trim().toLowerCase();
+    const normalizedCurrentEmail = String(currentUser.email || '')
+      .trim()
+      .toLowerCase();
     if (normalizedCurrentEmail !== String(email).trim().toLowerCase()) {
       return res.status(409).json({
         code: 'OAUTH_EMAIL_MISMATCH',
@@ -1751,12 +1762,7 @@ authRouter.post(
     // SECURITY: Check dedicated failure-based lockout before anything else
     const attemptCheck = await checkResetAttempt(sanitizedEmail);
     if (!attemptCheck.allowed) {
-      return sendAuthError(
-        res,
-        429,
-        'Too many attempts. Try again in 15 minutes.',
-        'RESET_LOCKED'
-      );
+      return sendAuthError(res, 429, 'Too many attempts. Try again in 15 minutes.', 'RESET_LOCKED');
     }
 
     // Also keep the general rate limit as a secondary guard
@@ -1900,6 +1906,7 @@ authRouter.post(
       where: { id: req.user!.id },
       select: {
         id: true,
+        username: true,
         preferences: true,
         role: true,
         approval_status: true,
@@ -1920,6 +1927,10 @@ authRouter.post(
     // If already a coach, reject
     if (currentRole === 'coach') {
       const latestApplication = await getLatestCoachApplication(prisma, user.id);
+      const joinRequest = await getOrganizationJoinRequestStateForUser(
+        getCanonicalOrganizationId(user as any),
+        user.id
+      );
       const flowState = getCoachFlowState(user as any, latestApplication);
       const approvalStatus = String(user.approval_status || '').toUpperCase();
       const code =
@@ -2300,7 +2311,11 @@ authRouter.post(
     // Strip the dead organization pointer so step-3-league starts fresh — otherwise
     // the coach's /me keeps pointing at the rejected org and the onboarding UI
     // shows stale league info.
-    const { organization_id: _oid, organization_name: _oname, ...scrubbedPrefs } = prefs as Record<string, unknown>;
+    const {
+      organization_id: _oid,
+      organization_name: _oname,
+      ...scrubbedPrefs
+    } = prefs as Record<string, unknown>;
     const merged = { ...scrubbedPrefs, onboarding_completed: false, join_request_pending: false };
     const updated = await prisma.user.update({
       where: { id: user.id },
@@ -2372,8 +2387,8 @@ authRouter.post(
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const currentRole = getCanonicalUserRole(user as any);
-    if (currentRole !== 'coach') {
+    const currentUserState = { role: getCanonicalUserRole(user as any) };
+    if (currentUserState.role !== 'coach') {
       return res.status(400).json({
         error: 'Upgrade to coach before submitting an application.',
         code: 'NOT_COACH',
@@ -2461,7 +2476,8 @@ authRouter.post(
     for (const adminEmail of adminEmails) {
       sendCoachApplicationAdminEmail({
         to: adminEmail,
-        applicantName: result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
+        applicantName:
+          result.updatedUser.display_name || result.updatedUser.username || data.organization_name,
         applicantUsername: result.updatedUser.username || undefined,
         applicantEmail: result.updatedUser.email,
         applicantUserId: result.updatedUser.id,
@@ -2554,10 +2570,13 @@ authRouter.get(
     // state is already injected into `safe.preferences` by sanitizeUser.
     const prefs = mergePreferences(defaults, userPrefs);
     const normalizedRole = getCanonicalUserRole(user as any);
-    const requiredCoachAgreementVersion = Number(
-      process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
-    );
+    const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
     const serializedApplication = serializeCoachApplication(coachApplication);
+    const currentOrganizationId = getCanonicalOrganizationId(user as any);
+    const joinRequest = await getOrganizationJoinRequestStateForUser(
+      currentOrganizationId,
+      req.user!.id
+    );
     const flowState = getCoachFlowState(
       {
         ...user,
@@ -2592,6 +2611,7 @@ const updateMeSchema = z.object({
     .string()
     .min(1)
     .max(120)
+    .transform(val => stripHtml(val))
     .refine(val => val.trim().length > 0, { message: 'Display name cannot be only whitespace' })
     .optional()
     .nullable(),
@@ -2635,6 +2655,7 @@ const updateMeSchema = z.object({
   bio: z
     .string()
     .max(300)
+    .transform(val => stripHtml(val))
     .transform(val => (val === '' ? null : val))
     .optional()
     .nullable(),
@@ -2678,8 +2699,7 @@ authRouter.put(
         select: { id: true },
       });
       if (exists) {
-        return res.status(400).json({
-          error: 'Username taken',
+        return sendError(res, 400, 'Username taken', {
           message: 'This username is already in use.',
         });
       }
@@ -2692,10 +2712,35 @@ authRouter.put(
       patch.username = data.username;
     }
     const { preferences, ...rest } = patch;
-    const user = await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { ...rest, ...(preferences ? { preferences } : {}) },
-    });
+
+    // Fetch the current avatar_url before overwriting so we can clean up the old
+    // Cloudinary asset if the user is replacing their profile photo.
+    let priorAvatarUrl: string | null = null;
+    if (data.avatar_url !== undefined) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { avatar_url: true },
+      });
+      priorAvatarUrl = currentUser?.avatar_url ?? null;
+    }
+
+    // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { ...rest, ...(preferences ? { preferences } : {}) },
+      });
+    } catch (err: any) {
+      // P2002 = unique constraint violation — username was claimed by a concurrent request
+      // between our findFirst check above and this update.
+      if (err?.code === 'P2002' && err?.meta?.target?.includes('username')) {
+        return sendError(res, 400, 'Username taken', {
+          message: 'This username is already in use.',
+        });
+      }
+      throw err;
+    }
     await invalidateMeCacheForUser(req.user!.id);
 
     // v1.0.2 pass 9: rewrite @mentions in existing posts + comments so old @oldname becomes @newname.
@@ -2722,6 +2767,27 @@ authRouter.put(
             '[auth] mention rewrite after username change failed:',
             err?.message || err
           );
+        }
+      })();
+    }
+
+    // Fire-and-forget: destroy the old Cloudinary avatar if it was replaced.
+    // Only destroy res.cloudinary.com URLs we own — skip Google/Apple CDN avatars.
+    if (
+      priorAvatarUrl &&
+      priorAvatarUrl !== (data.avatar_url ?? null) &&
+      priorAvatarUrl.includes('res.cloudinary.com')
+    ) {
+      (async () => {
+        try {
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
+            await import('../lib/cloudinary.js');
+          const parsed = extractCloudinaryPublicId(priorAvatarUrl!);
+          if (parsed) {
+            await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+          }
+        } catch (err: any) {
+          console.warn('[auth] old avatar Cloudinary cleanup failed:', err?.message || err);
         }
       })();
     }
@@ -2775,11 +2841,55 @@ authRouter.patch(
       patch.username = data.username;
     }
     const { preferences: prefs2, ...rest } = patch;
-    const user = await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) },
-    });
+
+    // Capture old avatar_url before overwriting for Cloudinary cleanup.
+    let priorAvatarUrlPatch: string | null = null;
+    if (data.avatar_url !== undefined) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { avatar_url: true },
+      });
+      priorAvatarUrlPatch = currentUser?.avatar_url ?? null;
+    }
+
+    // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) },
+      });
+    } catch (err: any) {
+      // P2002 = unique constraint violation — username claimed by a concurrent request.
+      if (err?.code === 'P2002' && err?.meta?.target?.includes('username')) {
+        return sendError(res, 400, 'Username taken', {
+          message: 'This username is already in use.',
+        });
+      }
+      throw err;
+    }
     await invalidateMeCacheForUser(req.user!.id);
+
+    // Fire-and-forget: destroy replaced Cloudinary avatar.
+    if (
+      priorAvatarUrlPatch &&
+      priorAvatarUrlPatch !== (data.avatar_url ?? null) &&
+      priorAvatarUrlPatch.includes('res.cloudinary.com')
+    ) {
+      (async () => {
+        try {
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
+            await import('../lib/cloudinary.js');
+          const parsedUrl = extractCloudinaryPublicId(priorAvatarUrlPatch!);
+          if (parsedUrl) {
+            await destroyCloudinaryAsset(parsedUrl.publicId, parsedUrl.resourceType);
+          }
+        } catch (err: any) {
+          console.warn('[auth] old avatar Cloudinary cleanup failed (PATCH):', err?.message || err);
+        }
+      })();
+    }
+
     return res.json(sanitizeUser(user));
   })
 );
@@ -2955,10 +3065,7 @@ authRouter.patch(
     // write at the endpoint boundary instead of relying on downstream reads
     // to ignore it. Only after passing the gate do we stamp the version.
     if (incoming.coach_agreement_accepted_at !== undefined) {
-      if (
-        currentAuthState.role !== 'coach' ||
-        current?.approval_status !== 'APPROVED'
-      ) {
+      if (currentAuthState.role !== 'coach' || current?.approval_status !== 'APPROVED') {
         return res.status(403).json({
           error: 'You must be an approved coach to accept the coach agreement.',
           code: 'COACH_AGREEMENT_NOT_ELIGIBLE',
@@ -2968,15 +3075,12 @@ authRouter.patch(
       // stamp the CURRENT required version alongside it so the client never
       // has to know the version number. Without this, bumping
       // REQUIRED_COACH_AGREEMENT_VERSION would loop coaches in re-accept.
-      incoming.coach_agreement_version = Number(
-        process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1
-      );
+      incoming.coach_agreement_version = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
     }
 
-    // Canonical DOB gate: once the column is set and the 24h grace window has
-    // lapsed, DOB is locked to normal users. Admins can still update via admin
-    // routes. Within-window edits and first-time writes both flow through
-    // `evaluateDobUpdate`, which returns the Date object + timestamp to write.
+    // Canonical DOB gate: under-13 users are blocked, but DOB itself remains
+    // editable after first set. `evaluateDobUpdate` normalizes the date and
+    // preserves the original first-set timestamp when applicable.
     let patchDobColumnWrite: { date_of_birth: Date; dob_set_at?: Date } | null = null;
     if (incoming.dob !== undefined && incoming.dob !== null && incoming.dob !== '') {
       const decision = evaluateDobUpdate({
@@ -2985,13 +3089,6 @@ authRouter.patch(
         incomingDob: incoming.dob,
       });
       if (!decision.ok) {
-        if (decision.reason === 'dob_locked') {
-          return res.status(403).json({
-            error: 'DOB_LOCKED',
-            message:
-              'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
-          });
-        }
         return res.status(400).json({
           error: 'INVALID_DOB',
           message: 'Date of birth is not a valid date.',
@@ -3114,7 +3211,8 @@ authRouter.patch(
     if (incoming.onboarding_completed !== undefined) {
       authStatePatch.onboarding_completed = incoming.onboarding_completed;
     }
-    if (incoming.organization_id !== undefined) authStatePatch.organization_id = incoming.organization_id;
+    if (incoming.organization_id !== undefined)
+      authStatePatch.organization_id = incoming.organization_id;
     if (incoming.proceeding_as_fan !== undefined) {
       authStatePatch.proceeding_as_fan = incoming.proceeding_as_fan;
     }
@@ -3365,7 +3463,7 @@ authRouter.post(
       });
     }
 
-    // Canonical DOB gate — same grace-window logic as PATCH /me/preferences.
+    // Canonical DOB gate — same normalization logic as PATCH /me/preferences.
     let onboardingDobColumnWrite: { date_of_birth: Date; dob_set_at?: Date } | null = null;
     if (data.dob !== undefined && data.dob !== null && data.dob !== '') {
       const decision = evaluateDobUpdate({
@@ -3374,13 +3472,6 @@ authRouter.post(
         incomingDob: data.dob,
       });
       if (!decision.ok) {
-        if (decision.reason === 'dob_locked') {
-          return res.status(403).json({
-            error: 'DOB_LOCKED',
-            message:
-              'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
-          });
-        }
         return res.status(400).json({
           error: 'INVALID_DOB',
           message: 'Date of birth is not a valid date.',
@@ -3472,12 +3563,9 @@ authRouter.post(
         // path-specific message instead of a generic 400. Previously users
         // hitting this branch (e.g. via a deep-link that skipped step-3) saw
         // "Failed to complete onboarding" with no direction.
-        return res
-          .status(400)
-          .json({
-            error: 'Team or organization required for coach onboarding',
-            code: 'ORG_TEAM_REQUIRED',
-          });
+        return sendError(res, 400, 'Team or organization required for coach onboarding', {
+          code: 'ORG_TEAM_REQUIRED',
+        });
       }
       // Use DB values as fallback if not in payload
       if (!data.username && effectiveUsername) data.username = effectiveUsername;
@@ -3796,12 +3884,7 @@ authRouter.post(
     if (!user) return res.status(404).json({ error: 'Not found' });
     if (user.email_verified) return res.json({ ok: true, already_verified: true });
     if (!user.email_verification_code || !user.email_verification_expires)
-      return sendAuthError(
-        res,
-        400,
-        'No verification in progress',
-        'VERIFY_NO_CODE'
-      );
+      return sendAuthError(res, 400, 'No verification in progress', 'VERIFY_NO_CODE');
     if (new Date() > user.email_verification_expires)
       return sendAuthError(res, 400, 'Code expired', 'VERIFY_CODE_EXPIRED');
     // AUTH-5: Compare hash of submitted code against stored hash
@@ -3830,7 +3913,9 @@ function sanitizeUser(u: any): SanitizedUser {
   const source = (u || {}) as Record<string, any>;
   const normalizedDob = formatDobYmd(getCanonicalDob(source));
   const normalizedPreferences =
-    source.preferences && typeof source.preferences === 'object' && !Array.isArray(source.preferences)
+    source.preferences &&
+    typeof source.preferences === 'object' &&
+    !Array.isArray(source.preferences)
       ? { ...(source.preferences as Record<string, unknown>) }
       : {};
   const canonicalAuthState = getCanonicalAuthState(source);
