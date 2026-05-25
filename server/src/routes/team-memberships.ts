@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { sendError } from '../lib/http/sendError.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { canManageTeam as canManageTeamShared } from '../lib/teamAuthorization.js';
 import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -10,8 +12,6 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { stripHtml } from '../lib/sanitizeHtml.js';
-import { sendError } from '../lib/http/sendError.js';
 
 // 'owner' is intentionally excluded — ownership can only be assigned through org creation or transfer-ownership endpoint
 const VALID_ROLES = [
@@ -447,6 +447,7 @@ teamMembershipsRouter.get(
     const existingMembers = await prisma.teamMembership.findMany({
       where: { team_id: teamId },
       select: { user_id: true },
+      take: 500,
     });
     const existingUserIds = existingMembers.map(m => m.user_id);
 
