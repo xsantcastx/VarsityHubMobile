@@ -1,90 +1,87 @@
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router, type Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
-import {
-  buildCoachApplicationReviewUrl,
-  sendCoachApplicationAdminEmail,
-  sendPasswordResetEmail,
-  sendVerificationEmail,
-} from '../lib/email.js';
-import { ConflictError } from '../lib/errors/ConflictError.js';
-import { AppError } from '../lib/errors/AppError.js';
-import { ValidationError } from '../lib/errors/ValidationError.js';
-import {
-  signJwt,
-  signAccessTokenForSession,
-  generateRefreshToken,
-  generateRefreshTokenV2,
-  hashRefreshToken,
-  hashRefreshTokenSecret,
-  parseRefreshToken,
-  verifyRefreshTokenHash,
-  REFRESH_TOKEN_EXPIRY_DAYS,
-  REFRESH_TOKEN_HASH_VERSION_V2,
-} from '../lib/jwt.js';
-import { revokeAllSessions, startNewSession } from '../lib/session.js';
-import { prisma } from '../lib/prisma.js';
-import { captureException } from '../lib/sentry.js';
-import {
-  buildSessionFingerprint,
-  verifyStoredSessionFingerprint,
-} from '../lib/sessionFingerprint.js';
-import { mustSucceed } from '../lib/sideEffect.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import {
-  authLimiter,
-  oauthLimiter,
-  passwordResetLimiter,
-  refreshTokenLimiter,
-  verificationConfirmLimiter,
-} from '../middleware/rateLimiters.js';
-import { rlIncr, rlGet, rlSet, rlDel } from '../lib/redisRateLimit.js';
-import { cacheGet, cacheSet } from '../lib/cache.js';
+import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
-import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
-import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
+import { cacheGet, cacheSet } from '../lib/cache.js';
 import {
-  evaluateDobUpdate,
-  formatDobYmd,
-  getCanonicalDob,
-  getUserAge,
-  isVerifiedAdult,
-  requiresParentalConsent,
-} from '../lib/userAge.js';
-import {
-  buildAuthStateColumns,
-  getCanonicalAuthState,
-  getCanonicalUserRole,
-  getPreferencesObject,
-  isProceedingAsFan,
-  isUserOnboardingComplete,
-  mergeAuthStateIntoPreferences,
-} from '../lib/userAuthState.js';
-import {
-  buildBillingStateColumns,
-  getCanonicalBillingState,
-  getCanonicalPlan,
-  getSelectedPlan,
-  isPaymentPending,
-  mergeBillingStateIntoPreferences,
-} from '../lib/userBillingState.js';
-import {
-  getCoachFlowState,
-  getLatestCoachApplication,
-  serializeCoachApplication,
+    getCoachFlowState,
+    getLatestCoachApplication,
+    serializeCoachApplication,
 } from '../lib/coachApplications.js';
 import {
-  buildOAuthExistingAccountConflict,
-  getLinkedProviders,
+    buildCoachApplicationReviewUrl,
+    sendCoachApplicationAdminEmail,
+    sendPasswordResetEmail,
+    sendVerificationEmail,
+} from '../lib/email.js';
+import { AppError } from '../lib/errors/AppError.js';
+import { ConflictError } from '../lib/errors/ConflictError.js';
+import { ValidationError } from '../lib/errors/ValidationError.js';
+import {
+    generateRefreshTokenV2,
+    hashRefreshToken,
+    hashRefreshTokenSecret,
+    parseRefreshToken,
+    REFRESH_TOKEN_EXPIRY_DAYS,
+    REFRESH_TOKEN_HASH_VERSION_V2,
+    signAccessTokenForSession,
+    verifyRefreshTokenHash
+} from '../lib/jwt.js';
+import {
+    buildOAuthExistingAccountConflict,
+    getLinkedProviders,
 } from '../lib/oauthAccountLinking.js';
-import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
+import { prisma } from '../lib/prisma.js';
+import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
+import { rlDel, rlGet, rlIncr, rlSet } from '../lib/redisRateLimit.js';
+import { captureException } from '../lib/sentry.js';
+import { revokeAllSessions, startNewSession } from '../lib/session.js';
+import {
+    buildSessionFingerprint,
+    verifyStoredSessionFingerprint,
+} from '../lib/sessionFingerprint.js';
+import { mustSucceed } from '../lib/sideEffect.js';
+import {
+    evaluateDobUpdate,
+    formatDobYmd,
+    getCanonicalDob,
+    requiresParentalConsent
+} from '../lib/userAge.js';
+import {
+    buildAuthStateColumns,
+    getCanonicalAuthState,
+    getCanonicalUserRole,
+    getPreferencesObject,
+    isProceedingAsFan,
+    isUserOnboardingComplete,
+    mergeAuthStateIntoPreferences,
+} from '../lib/userAuthState.js';
+import {
+    buildBillingStateColumns,
+    getCanonicalBillingState,
+    getCanonicalPlan,
+    getSelectedPlan,
+    isPaymentPending,
+    mergeBillingStateIntoPreferences,
+} from '../lib/userBillingState.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import {
+    authLimiter,
+    oauthLimiter,
+    passwordResetLimiter,
+    refreshTokenLimiter,
+    verificationConfirmLimiter,
+} from '../middleware/rateLimiters.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 
 export const authRouter = Router();
 
@@ -1267,8 +1264,15 @@ authRouter.post(
         if (avatarUrl && !user.avatar_url) syncUpdates.avatar_url = avatarUrl;
         if (displayNameSource && !user.display_name) syncUpdates.display_name = displayNameSource;
         if (Object.keys(syncUpdates).length) {
-          user = await prisma.user.update({ where: { id: user.id }, data: syncUpdates });
-          await invalidateMeCacheForUser(user.id);
+          try {
+            user = await prisma.user.update({ where: { id: user.id }, data: syncUpdates });
+            await invalidateMeCacheForUser(user.id);
+          } catch (syncErr: any) {
+            // P2002 means a concurrent request claimed the email between our findFirst check
+            // and this update. Skip the sync — the user still logs in successfully.
+            if (syncErr?.code !== 'P2002') throw syncErr;
+            debugLog('[auth/google] Email sync skipped due to concurrent claim (P2002)');
+          }
         }
       }
 
@@ -2592,6 +2596,7 @@ const updateMeSchema = z.object({
     .string()
     .min(1)
     .max(120)
+    .transform(val => stripHtml(val))
     .refine(val => val.trim().length > 0, { message: 'Display name cannot be only whitespace' })
     .optional()
     .nullable(),
@@ -2635,6 +2640,7 @@ const updateMeSchema = z.object({
   bio: z
     .string()
     .max(300)
+    .transform(val => stripHtml(val))
     .transform(val => (val === '' ? null : val))
     .optional()
     .nullable(),
@@ -2692,10 +2698,32 @@ authRouter.put(
       patch.username = data.username;
     }
     const { preferences, ...rest } = patch;
-    const user = await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { ...rest, ...(preferences ? { preferences } : {}) },
-    });
+
+    // Fetch the current avatar_url before overwriting so we can clean up the old
+    // Cloudinary asset if the user is replacing their profile photo.
+    let priorAvatarUrl: string | null = null;
+    if (data.avatar_url !== undefined) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { avatar_url: true },
+      });
+      priorAvatarUrl = currentUser?.avatar_url ?? null;
+    }
+
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { ...rest, ...(preferences ? { preferences } : {}) },
+      });
+    } catch (err: any) {
+      // P2002 = unique constraint violation — username was claimed by a concurrent request
+      // between our findFirst check above and this update.
+      if (err?.code === 'P2002' && err?.meta?.target?.includes('username')) {
+        return res.status(400).json({ error: 'Username taken', message: 'This username is already in use.' });
+      }
+      throw err;
+    }
     await invalidateMeCacheForUser(req.user!.id);
 
     // v1.0.2 pass 9: rewrite @mentions in existing posts + comments so old @oldname becomes @newname.
@@ -2722,6 +2750,28 @@ authRouter.put(
             '[auth] mention rewrite after username change failed:',
             err?.message || err
           );
+        }
+      })();
+    }
+
+    // Fire-and-forget: destroy the old Cloudinary avatar if it was replaced.
+    // Only destroy res.cloudinary.com URLs we own — skip Google/Apple CDN avatars.
+    if (
+      priorAvatarUrl &&
+      priorAvatarUrl !== (data.avatar_url ?? null) &&
+      priorAvatarUrl.includes('res.cloudinary.com')
+    ) {
+      (async () => {
+        try {
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
+            '../lib/cloudinary.js'
+          );
+          const parsed = extractCloudinaryPublicId(priorAvatarUrl!);
+          if (parsed) {
+            await destroyCloudinaryAsset(parsed.publicId, parsed.resourceType);
+          }
+        } catch (err: any) {
+          console.warn('[auth] old avatar Cloudinary cleanup failed:', err?.message || err);
         }
       })();
     }
@@ -2775,11 +2825,53 @@ authRouter.patch(
       patch.username = data.username;
     }
     const { preferences: prefs2, ...rest } = patch;
-    const user = await prisma.user.update({
-      where: { id: req.user!.id },
-      data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) },
-    });
+
+    // Capture old avatar_url before overwriting for Cloudinary cleanup.
+    let priorAvatarUrlPatch: string | null = null;
+    if (data.avatar_url !== undefined) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { avatar_url: true },
+      });
+      priorAvatarUrlPatch = currentUser?.avatar_url ?? null;
+    }
+
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id: req.user!.id },
+        data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) },
+      });
+    } catch (err: any) {
+      // P2002 = unique constraint violation — username claimed by a concurrent request.
+      if (err?.code === 'P2002' && err?.meta?.target?.includes('username')) {
+        return res.status(400).json({ error: 'Username taken', message: 'This username is already in use.' });
+      }
+      throw err;
+    }
     await invalidateMeCacheForUser(req.user!.id);
+
+    // Fire-and-forget: destroy replaced Cloudinary avatar.
+    if (
+      priorAvatarUrlPatch &&
+      priorAvatarUrlPatch !== (data.avatar_url ?? null) &&
+      priorAvatarUrlPatch.includes('res.cloudinary.com')
+    ) {
+      (async () => {
+        try {
+          const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
+            '../lib/cloudinary.js'
+          );
+          const parsedUrl = extractCloudinaryPublicId(priorAvatarUrlPatch!);
+          if (parsedUrl) {
+            await destroyCloudinaryAsset(parsedUrl.publicId, parsedUrl.resourceType);
+          }
+        } catch (err: any) {
+          console.warn('[auth] old avatar Cloudinary cleanup failed (PATCH):', err?.message || err);
+        }
+      })();
+    }
+
     return res.json(sanitizeUser(user));
   })
 );

@@ -1,45 +1,46 @@
+import { MembershipStatus } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
-import { MembershipStatus } from '@prisma/client';
-import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
-import { sendPushNotification } from '../lib/pushNotifications.js';
-import { prisma } from '../lib/prisma.js';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
-import { requirePlan } from '../middleware/subscription.js';
-import { teamCreationLimiter, followLimiter, inviteLimiter } from '../middleware/rateLimiters.js';
-import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
-import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
 import { isOrganizationApproved } from '../lib/approvalService.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
-import {
-  buildTeamPlanLockedError,
-  getTeamEntitlementState,
-  isAuthorizedTeamRole,
-  isManagementRole,
-  TEAM_AUTHORIZED_ROLES,
-} from '../lib/teamEntitlements.js';
-import {
-  canManageTeam as canManageTeamScoped,
-  isOrgAdmin as isOrgAdminScoped,
-} from '../lib/teamAuthorization.js';
-import {
-  getExcludedPrivateTeamIds,
-  isTeamHiddenFromViewer,
-} from '../lib/privacyUtils.js';
-import { registerIdValidation } from '../middleware/validateParams.js';
+import { sendStaffMemberJoinedEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { sendError } from '../lib/http/sendError.js';
-import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
-import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
-import { getTeamState, listTeamStates } from '../lib/teamState.js';
-import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
 import { getVeteranTotalTeamAllowance } from '../lib/paymentInternals.js';
+import { SERVER_ROOKIE_TEAM_LIMIT } from '../lib/planDefinitions.js';
+import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimits.js';
+import { prisma } from '../lib/prisma.js';
+import {
+    getExcludedPrivateTeamIds,
+    isTeamHiddenFromViewer,
+} from '../lib/privacyUtils.js';
+import { sendPushNotification } from '../lib/pushNotifications.js';
+import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
+import {
+    canManageTeam as canManageTeamScoped,
+    isOrgAdmin as isOrgAdminScoped,
+} from '../lib/teamAuthorization.js';
+import {
+    buildTeamPlanLockedError,
+    getTeamEntitlementState,
+    isAuthorizedTeamRole,
+    isManagementRole,
+    TEAM_AUTHORIZED_ROLES,
+} from '../lib/teamEntitlements.js';
+import { getTeamState, listTeamStates } from '../lib/teamState.js';
+import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
+import { getEffectiveEntitledPlan } from '../lib/userBillingState.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { followLimiter, inviteLimiter, teamCreationLimiter } from '../middleware/rateLimiters.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { requireVerified } from '../middleware/requireVerified.js';
+import { requirePlan } from '../middleware/subscription.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
@@ -1360,8 +1361,8 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
 
       const newTeam = await tx.team.create({
         data: {
-          name: data.name.trim(),
-          description: data.description?.trim() || null,
+          name: stripHtml(data.name.trim()),
+          description: data.description ? stripHtml(data.description.trim()) : null,
           sport: data.sport?.trim() || null,
           club_type: data.club_type || 'sport',
           extracurricular_category: data.extracurricular_category?.trim() || null,
@@ -1371,13 +1372,13 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
           season_end: data.season_end ? new Date(data.season_end) : null,
           organization_id: organizationId,
           logo_url: data.logo_url || null,
-          city: data.city?.trim() || null,
-          state: data.state?.trim() || null,
-          league: data.league?.trim() || null,
+          city: data.city ? stripHtml(data.city.trim()) : null,
+          state: data.state ? stripHtml(data.state.trim()) : null,
+          league: data.league ? stripHtml(data.league.trim()) : null,
           venue_place_id: data.venue_place_id || null,
           venue_lat: data.venue_lat || null,
           venue_lng: data.venue_lng || null,
-          venue_address: data.venue_address?.trim() || null,
+          venue_address: data.venue_address ? stripHtml(data.venue_address.trim()) : null,
         },
         select: {
           id: true,
@@ -1541,10 +1542,10 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   
   const updateData: any = {};
   if (parsed.data.name !== undefined) {
-    updateData.name = parsed.data.name;
+    updateData.name = stripHtml(parsed.data.name);
   }
   if (parsed.data.description !== undefined) {
-    updateData.description = parsed.data.description;
+    updateData.description = parsed.data.description ? stripHtml(parsed.data.description) : parsed.data.description;
   }
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
@@ -1617,16 +1618,16 @@ teamsRouter.put('/:id', requireVerified as any, requireOnboarded as any, asyncHa
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
   
   // Venue fields
-  if (parsed.data.city !== undefined) updateData.city = parsed.data.city;
-  if (parsed.data.state !== undefined) updateData.state = parsed.data.state;
-  if (parsed.data.league !== undefined) updateData.league = parsed.data.league;
+  if (parsed.data.city !== undefined) updateData.city = parsed.data.city ? stripHtml(parsed.data.city) : parsed.data.city;
+  if (parsed.data.state !== undefined) updateData.state = parsed.data.state ? stripHtml(parsed.data.state) : parsed.data.state;
+  if (parsed.data.league !== undefined) updateData.league = parsed.data.league ? stripHtml(parsed.data.league) : parsed.data.league;
   if (parsed.data.venue_place_id !== undefined) {
     updateData.venue_place_id = parsed.data.venue_place_id;
     updateData.venue_updated_at = new Date();
   }
   if (parsed.data.venue_lat !== undefined) updateData.venue_lat = parsed.data.venue_lat;
   if (parsed.data.venue_lng !== undefined) updateData.venue_lng = parsed.data.venue_lng;
-  if (parsed.data.venue_address !== undefined) updateData.venue_address = parsed.data.venue_address;
+  if (parsed.data.venue_address !== undefined) updateData.venue_address = parsed.data.venue_address ? stripHtml(parsed.data.venue_address) : parsed.data.venue_address;
   if (parsed.data.is_private !== undefined) updateData.is_private = parsed.data.is_private;
   
   debugLog('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
