@@ -75,7 +75,6 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
-<<<<<<< Updated upstream
   authLimiter,
   oauthLimiter,
   passwordResetLimiter,
@@ -85,17 +84,7 @@ import {
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
-=======
-  getCoachFlowState,
-  getLatestCoachApplication,
-  serializeCoachApplication,
-} from '../lib/coachApplications.js';
-import {
-  buildOAuthExistingAccountConflict,
-  getLinkedProviders,
-} from '../lib/oauthAccountLinking.js';
 import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
->>>>>>> Stashed changes
 
 export const authRouter = Router();
 
@@ -1940,7 +1929,7 @@ authRouter.post(
       const latestApplication = await getLatestCoachApplication(prisma, user.id);
       const joinRequest = await getOrganizationJoinRequestStateForUser(
         getCanonicalOrganizationId(user as any),
-        user.id,
+        user.id
       );
       const flowState = getCoachFlowState(user as any, latestApplication, joinRequest);
       const approvalStatus = String(user.approval_status || '').toUpperCase();
@@ -2586,7 +2575,7 @@ authRouter.get(
     const currentOrganizationId = getCanonicalOrganizationId(user as any);
     const joinRequest = await getOrganizationJoinRequestStateForUser(
       currentOrganizationId,
-      req.user!.id,
+      req.user!.id
     );
     const flowState = getCoachFlowState(
       {
@@ -2595,7 +2584,7 @@ authRouter.get(
         coach_agreement_version: (safe as any).coach_agreement_version,
       } as any,
       coachApplication,
-      joinRequest,
+      joinRequest
     );
     const payload = {
       ...safe,

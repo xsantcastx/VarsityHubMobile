@@ -280,8 +280,8 @@ async function handleOrganizationCreateRequest(
         },
         select: { id: true },
       });
+      // cache-invalidation-exempt — invalidateMeCacheForUser(userId) called after $transaction
       await tx.user.update({
-        where: { id: userId },
         data: {
           preferences: buildPendingLeagueOwnerPreferences(applicantPrefs, {
             id: org.id,
@@ -401,7 +401,7 @@ async function handleOrganizationCreateRequest(
     return res.status(201).json(organization);
   } catch (err) {
     console.error(`[organizations] POST ${routeTag} error:`, err);
-    return res.status(500).json({ error: 'Internal server error' });
+    return sendError(res, 500, 'Internal server error');
   }
 }
 
@@ -1856,9 +1856,11 @@ organizationsRouter.post(
         const timeSinceRejection = Date.now() - new Date(existingRequest.reviewed_at).getTime();
         if (timeSinceRejection < cooldownMs) {
           const daysLeft = Math.ceil((cooldownMs - timeSinceRejection) / (24 * 60 * 60 * 1000));
-          return res.status(429).json({
-            error: `Your previous request was denied. You can re-apply in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`,
-          });
+          return sendError(
+            res,
+            429,
+            `Your previous request was denied. You can re-apply in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`
+          );
         }
       }
 
@@ -3212,9 +3214,11 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user)
-      return res.status(401).json({
-        error: 'Admin login required. Please log in to the admin dashboard before approving.',
-      });
+      return sendError(
+        res,
+        401,
+        'Admin login required. Please log in to the admin dashboard before approving.'
+      );
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { email: true, email_verified: true },
@@ -3438,9 +3442,11 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     }
 
     if (!req.user)
-      return res.status(401).json({
-        error: 'Admin login required. Please log in to the admin dashboard before rejecting.',
-      });
+      return sendError(
+        res,
+        401,
+        'Admin login required. Please log in to the admin dashboard before rejecting.'
+      );
     const me = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { email: true, email_verified: true },
@@ -3518,8 +3524,7 @@ organizationsRouter.get(
         where: { organization_id: orgId, user_id: req.user.id, role: 'owner', status: 'active' },
         select: { id: true },
       });
-      if (!membership)
-        return res.status(403).json({ error: 'Only the league owner can view pending coaches' });
+      if (!membership) return sendError(res, 403, 'Only the league owner can view pending coaches');
 
       const pendingRequests = await listOrganizationJoinRequestsForOrganization(orgId, 'pending');
 
