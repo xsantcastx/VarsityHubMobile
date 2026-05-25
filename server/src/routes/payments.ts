@@ -361,6 +361,17 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     if (canceledUser) {
       const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
       const previousPlan = getCanonicalPlan(canceledUser as any);
+
+      // PAY-9: Only downgrade users who were actually on a paid plan.
+      // Ignoring this event for rookie users prevents spurious DB writes when
+      // Stripe deletes an incomplete/expired subscription they never paid for.
+      if (previousPlan !== 'veteran' && previousPlan !== 'legend') {
+        console.log('[webhook] customer.subscription.deleted: user was not on paid plan, skipping downgrade', {
+          user_id: canceledUser.id,
+          previous_plan: previousPlan,
+          subscription_id: subscription.id,
+        });
+      } else {
       delete prefs.subscription_id;
       delete prefs.subscription_period_end;
       const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
@@ -404,6 +415,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         }),
       ]);
       await invalidateMeCacheForUser(canceledUser.id);
+      } // end else (was on paid plan)
     }
   }
 

@@ -1323,6 +1323,12 @@ organizationsRouter.post(
       if (!membership || !isOrganizationAdmin(membership.role)) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
+
+      // PERMISSION-001: Managers can invite members but not other managers.
+      // Only owners can elevate someone to manager role.
+      if (role === 'manager' && membership.role !== 'owner') {
+        return res.status(403).json({ error: 'Only organization owners can invite managers.' });
+      }
       // PLAN LIMITS: Enforce authorized user caps based on ORG OWNER's plan (Rule B).
       // Authorized users are covered by the coach's plan — never charged individually.
       const ownerMembership = await prisma.organizationMembership.findFirst({

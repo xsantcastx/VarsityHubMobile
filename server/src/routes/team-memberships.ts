@@ -543,6 +543,11 @@ teamMembershipsRouter.post(
     const canManage = await canManageTeam(req, joinRequest.team_id);
     if (!canManage) return sendError(res, 403, 'PERMISSION_DENIED');
 
+    // IDOR-001: Prevent self-approval — a manager cannot approve their own join request
+    if (joinRequest.user_id === req.user.id) {
+      return sendError(res, 403, 'PERMISSION_DENIED', { message: 'You cannot approve your own join request.' });
+    }
+
     // Approve atomically: update request + create membership
     const [, membership] = await prisma.$transaction([
       prisma.teamJoinRequest.update({
@@ -617,6 +622,11 @@ teamMembershipsRouter.post(
 
     const canManage = await canManageTeam(req, joinRequest.team_id);
     if (!canManage) return sendError(res, 403, 'PERMISSION_DENIED');
+
+    // IDOR-001: Prevent self-rejection — a manager cannot reject their own join request
+    if (joinRequest.user_id === req.user.id) {
+      return sendError(res, 403, 'PERMISSION_DENIED', { message: 'You cannot reject your own join request.' });
+    }
 
     await prisma.teamJoinRequest.update({
       where: { id },
