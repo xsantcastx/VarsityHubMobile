@@ -51,7 +51,7 @@ teamMembershipsRouter.post(
   requirePlan('rookie') as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
       const parsed = createMembershipSchema.safeParse(req.body);
       if (!parsed.success)
         return res
@@ -70,16 +70,16 @@ teamMembershipsRouter.post(
       // Validate role against whitelist
       const assignedRole = String(role || 'member') as ValidRole;
       if (!VALID_ROLES.includes(assignedRole)) {
-        return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
+        return sendError(res, 400, 'Invalid role', { details: { valid_roles: VALID_ROLES } });
       }
 
       const team = await prisma.team.findUnique({
         where: { id: String(team_id) },
         select: { id: true },
       });
-      if (!team) return res.status(404).json({ error: 'Team not found' });
+      if (!team) return sendError(res, 404, 'Team not found');
       const user = await prisma.user.findUnique({ where: { id: String(user_id) } });
-      if (!user) return res.status(404).json({ error: 'User not found' });
+      if (!user) return sendError(res, 404, 'User not found');
 
       // Enforce roster size limit and create membership atomically
       const teamIdStr = String(team_id);
@@ -124,7 +124,7 @@ teamMembershipsRouter.post(
         return res.status(err.status).json(err.body);
       }
       console.error('[team-memberships] POST / error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -141,9 +141,9 @@ teamMembershipsRouter.patch(
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
       const id = String(req.params.id || '');
-      if (!id) return res.status(400).json({ error: 'membership id required' });
+      if (!id) return sendError(res, 400, 'membership id required');
       const parsed = updateMembershipSchema.safeParse(req.body);
       if (!parsed.success)
         return res
@@ -152,7 +152,7 @@ teamMembershipsRouter.patch(
       const { role, custom_position } = parsed.data;
 
       const membership = await prisma.teamMembership.findUnique({ where: { id } });
-      if (!membership) return res.status(404).json({ error: 'Membership not found' });
+      if (!membership) return sendError(res, 404, 'Membership not found');
 
       const canManage = await canManageTeam(req, membership.team_id);
       if (!canManage) {
@@ -163,13 +163,13 @@ teamMembershipsRouter.patch(
       }
 
       if (!role && custom_position === undefined)
-        return res.status(400).json({ error: 'role or custom_position is required' });
+        return sendError(res, 400, 'role or custom_position is required');
 
       const data: Record<string, any> = {};
       if (role) {
         const validatedRole = String(role) as ValidRole;
         if (!VALID_ROLES.includes(validatedRole)) {
-          return res.status(400).json({ error: 'Invalid role', valid_roles: VALID_ROLES });
+          return sendError(res, 400, 'Invalid role', { details: { valid_roles: VALID_ROLES } });
         }
 
         const guard = await guardTeamMembershipMutation(prisma, {
@@ -225,7 +225,7 @@ teamMembershipsRouter.patch(
       return res.json(updated);
     } catch (err) {
       console.error('[team-memberships] PATCH /:id error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -237,12 +237,12 @@ teamMembershipsRouter.delete(
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
       const id = String(req.params.id || '');
-      if (!id) return res.status(400).json({ error: 'membership id required' });
+      if (!id) return sendError(res, 400, 'membership id required');
 
       const membership = await prisma.teamMembership.findUnique({ where: { id } });
-      if (!membership) return res.status(404).json({ error: 'Membership not found' });
+      if (!membership) return sendError(res, 404, 'Membership not found');
 
       const canManage = await canManageTeam(req, membership.team_id);
       const isSelf = req.user.id === membership.user_id;
@@ -302,7 +302,7 @@ teamMembershipsRouter.delete(
       return res.json({ ok: true });
     } catch (err) {
       console.error('[team-memberships] DELETE /:id error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );

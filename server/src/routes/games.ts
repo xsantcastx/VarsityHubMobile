@@ -814,7 +814,7 @@ gamesRouter.get(
       res.json(gamesResponse);
     } catch (err) {
       console.error('[games] GET / error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -826,7 +826,7 @@ gamesRouter.post(
   requireOnboarded as any,
   gameCreationLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
 
     const schema = z.object({
       title: z.string().trim().min(1).max(200),
@@ -979,12 +979,10 @@ gamesRouter.post(
 
       // Require team association for non-admin users
       if (!parsed.data.home_team_id && !parsed.data.away_team_id && !isAdmin) {
-        return res
-          .status(400)
-          .json({
-            error:
-              'A home_team_id or away_team_id is required. Games must be associated with a team.',
-          });
+        return res.status(400).json({
+          error:
+            'A home_team_id or away_team_id is required. Games must be associated with a team.',
+        });
       }
 
       if (!isAdmin) {
@@ -1174,7 +1172,7 @@ gamesRouter.post(
       res.status(201).json(response);
     } catch (error) {
       console.error('Error creating game:', error);
-      res.status(500).json({ error: 'Failed to create game' });
+      sendError(res, 500, 'Failed to create game');
     }
   })
 );
@@ -1389,14 +1387,13 @@ gamesRouter.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const idsParam = String(req.query.ids || '').trim();
-      if (!idsParam)
-        return res.status(400).json({ error: 'ids required (comma-separated game IDs)' });
+      if (!idsParam) return sendError(res, 400, 'ids required (comma-separated game IDs)');
       const ids = idsParam
         .split(',')
         .map(s => s.trim())
         .filter(Boolean);
       if (ids.length === 0) return res.json({});
-      if (ids.length > 50) return res.status(400).json({ error: 'Max 50 ids per request' });
+      if (ids.length > 50) return sendError(res, 400, 'Max 50 ids per request');
       const userId = req.user?.id ?? null;
       const eligibleGames = await prisma.game.findMany({
         where: {
@@ -1453,7 +1450,7 @@ gamesRouter.get(
       return res.json(result);
     } catch (err) {
       console.error('[games] votes-summary error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -1473,9 +1470,9 @@ gamesRouter.get(
           awayTeam: { select: { id: true, name: true, avatar_url: true } },
         },
       });
-      if (!game) return res.status(404).json({ error: 'Not found' });
+      if (!game) return sendError(res, 404, 'Not found');
       if (!(await canViewGameRecord(game as GameVisibilityRecord, authedReq.user?.id ?? null))) {
-        return res.status(404).json({ error: 'Not found' });
+        return sendError(res, 404, 'Not found');
       }
       const gameData = game as any; // Type assertion for relation fields
       const event = gameData.events[0] ?? null;
@@ -1487,7 +1484,7 @@ gamesRouter.get(
       });
     } catch (err) {
       console.error('[games] get-by-id error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -1509,9 +1506,9 @@ gamesRouter.get(
           awayTeam: { select: { id: true, name: true, avatar_url: true } },
         },
       });
-      if (!game) return res.status(404).json({ error: 'Not found' });
+      if (!game) return sendError(res, 404, 'Not found');
       if (!(await canViewGameRecord(game as GameVisibilityRecord, req.user?.id ?? null))) {
-        return res.status(404).json({ error: 'Not found' });
+        return sendError(res, 404, 'Not found');
       }
 
       const g = game as any; // Type assertion for relation fields
@@ -1631,7 +1628,7 @@ gamesRouter.get(
       });
     } catch (err) {
       console.error('[games] summary error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -1649,7 +1646,7 @@ gamesRouter.get(
       res.json(summary);
     } catch (err) {
       console.error('[games] votes-summary-single error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -1660,7 +1657,7 @@ gamesRouter.post(
   voteLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
       const gameId = String(req.params.id);
       const eligibility = await getPollEligibility(gameId);
       if (!eligibility.ok) {
@@ -1670,7 +1667,7 @@ gamesRouter.post(
         .trim()
         .toUpperCase();
       if (teamInput !== 'A' && teamInput !== 'B') {
-        return res.status(400).json({ error: 'Invalid team option' });
+        return sendError(res, 400, 'Invalid team option');
       }
 
       await prisma.gameVote.upsert({
@@ -1683,7 +1680,7 @@ gamesRouter.post(
       res.json(summary);
     } catch (err) {
       console.error('[games] cast-vote error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -1693,7 +1690,7 @@ gamesRouter.delete(
   requireAuth as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
       const gameId = String(req.params.id);
       const eligibility = await getPollEligibility(gameId);
       if (!eligibility.ok) {
@@ -1704,7 +1701,7 @@ gamesRouter.delete(
       res.json(summary);
     } catch (err) {
       console.error('[games] delete-vote error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -1715,7 +1712,7 @@ gamesRouter.delete(
   requireAuth as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
     const id = String(req.params.id);
 
     try {
@@ -1733,7 +1730,7 @@ gamesRouter.delete(
         },
       });
 
-      if (!game) return res.status(404).json({ error: 'Game not found' });
+      if (!game) return sendError(res, 404, 'Game not found');
 
       // CRITICAL: Check authorization before allowing deletion
       // Only allow: game creator, team coaches, or admins
@@ -1868,7 +1865,7 @@ gamesRouter.delete(
       res.json({ message: 'Game deleted successfully' });
     } catch (error) {
       console.error('Error deleting game:', error);
-      res.status(500).json({ error: 'Failed to delete game' });
+      sendError(res, 500, 'Failed to delete game');
     }
   })
 );
@@ -1899,7 +1896,7 @@ gamesRouter.get(
       res.json(posts.map(serializePost));
     } catch (err) {
       console.error('[games] get-posts error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -1913,7 +1910,7 @@ gamesRouter.delete(
   requireAuth as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
 
     const gameId = String(req.params.id);
     const mediaId = String(req.params.mediaId);
@@ -1926,17 +1923,17 @@ gamesRouter.delete(
       });
 
       if (!story) {
-        return res.status(404).json({ error: 'Story not found' });
+        return sendError(res, 404, 'Story not found');
       }
 
       // Verify the story belongs to this game
       if (story.game_id !== gameId) {
-        return res.status(400).json({ error: 'Story does not belong to this game' });
+        return sendError(res, 400, 'Story does not belong to this game');
       }
 
       // Verify the user owns this story
       if (story.user_id !== req.user.id) {
-        return res.status(403).json({ error: 'You can only delete your own stories' });
+        return sendError(res, 403, 'You can only delete your own stories');
       }
 
       // Delete the story
@@ -1946,7 +1943,7 @@ gamesRouter.delete(
       res.json({ message: 'Story deleted successfully' });
     } catch (error) {
       console.error('Error deleting story:', error);
-      res.status(500).json({ error: 'Failed to delete story' });
+      sendError(res, 500, 'Failed to delete story');
     }
   })
 );
@@ -1968,7 +1965,7 @@ gamesRouter.patch(
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
       const actingUserId = req.user.id;
 
       const id = String(req.params.id);
@@ -1978,8 +1975,7 @@ gamesRouter.patch(
         winner: z.enum(['home', 'away', 'tie']).optional().nullable(),
       });
       const parsed = schema.safeParse(req.body || {});
-      if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+      if (!parsed.success) return sendError(res, 400, 'Invalid payload', { details: parsed.error });
 
       const game = await prisma.game.findUnique({
         where: { id },
@@ -1994,7 +1990,7 @@ gamesRouter.patch(
         },
       });
 
-      if (!game) return res.status(404).json({ error: 'Game not found' });
+      if (!game) return sendError(res, 404, 'Game not found');
 
       const teamIds = [game.home_team_id, game.away_team_id].filter(Boolean) as string[];
       const isCoach = await canManageAnyTeam(req.user.id, teamIds);
@@ -2051,7 +2047,7 @@ gamesRouter.patch(
       return res.json(updated);
     } catch (err) {
       console.error('[games] update-result error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
@@ -2062,7 +2058,7 @@ gamesRouter.patch(
   requireAuth as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
 
     const id = String(req.params.id);
     const schema = z.object({
@@ -2070,7 +2066,7 @@ gamesRouter.patch(
       appearance: z.string().optional(),
     });
     const parsed = schema.safeParse(req.body || {});
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+    if (!parsed.success) return sendError(res, 400, 'Invalid payload');
 
     try {
       // CRITICAL: Check authorization before allowing updates
@@ -2079,7 +2075,7 @@ gamesRouter.patch(
         select: { id: true, created_by_id: true, home_team_id: true, away_team_id: true },
       });
 
-      if (!game) return res.status(404).json({ error: 'Game not found' });
+      if (!game) return sendError(res, 404, 'Game not found');
 
       // Only allow: game creator, team coaches, or admins
       const isCreator = game.created_by_id === req.user.id;
@@ -2116,7 +2112,7 @@ gamesRouter.patch(
       return res.json(updatedGame);
     } catch (error) {
       console.error('Error updating game:', error);
-      return res.status(500).json({ error: 'Failed to update game' });
+      return sendError(res, 500, 'Failed to update game');
     }
   })
 );
@@ -2127,7 +2123,7 @@ gamesRouter.put(
   requireAuth as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
 
     const id = String(req.params.id);
 
@@ -2177,7 +2173,7 @@ gamesRouter.put(
 
     const parsed = schema.safeParse(req.body || {});
     if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid game data', issues: parsed.error.issues });
+      return sendError(res, 400, 'Invalid game data', { details: parsed.error.issues });
     }
 
     try {
@@ -2194,7 +2190,7 @@ gamesRouter.put(
         },
       });
 
-      if (!game) return res.status(404).json({ error: 'Game not found' });
+      if (!game) return sendError(res, 404, 'Game not found');
 
       const isCreator = game.created_by_id === req.user.id;
 
@@ -2314,7 +2310,7 @@ gamesRouter.put(
       return res.json({ ...rest, event_id: event?.id ?? null });
     } catch (error) {
       console.error('Error updating game:', error);
-      return res.status(500).json({ error: 'Failed to update game' });
+      return sendError(res, 500, 'Failed to update game');
     }
   })
 );
@@ -2338,7 +2334,7 @@ gamesRouter.put(
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
-      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      if (!req.user) return sendError(res, 401, 'Unauthorized');
       const actingUserId = req.user.id;
 
       const id = String(req.params.id);
@@ -2347,8 +2343,7 @@ gamesRouter.put(
       });
 
       const parsed = schema.safeParse(req.body || {});
-      if (!parsed.success)
-        return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+      if (!parsed.success) return sendError(res, 400, 'Invalid payload', { details: parsed.error });
 
       // Get the game to check permissions
       const game = await (prisma.game.findUnique as any)({
@@ -2356,7 +2351,7 @@ gamesRouter.put(
         select: { id: true, home_team_id: true, away_team_id: true, approval_status: true },
       });
 
-      if (!game) return res.status(404).json({ error: 'Event not found' });
+      if (!game) return sendError(res, 404, 'Event not found');
 
       // Check if user is coach/manager of either the home or away team,
       // or an owner/manager of the organization that owns either team.
@@ -2384,7 +2379,7 @@ gamesRouter.put(
       return res.json(result.game);
     } catch (err) {
       console.error('[games] approve error:', err);
-      return res.status(500).json({ error: 'Internal server error' });
+      return sendError(res, 500, 'Internal server error');
     }
   })
 );
