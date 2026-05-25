@@ -4,7 +4,7 @@ import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { safeGoBack } from '@/utils/navigation';
@@ -164,12 +164,91 @@ function AdminUserDetailScreen() {
   const datesByAd = detail?.datesByAd || {};
   const warnings = moderation?.warnings || [];
   const palette = Colors[colorScheme];
+  const modalCardBackground = colorScheme === 'dark' ? '#1F2937' : 'white';
+  const modalInputBackground = colorScheme === 'dark' ? '#111827' : '#F9FAFB';
 
   const severityColor = (s: string) => {
     if (s === 'strike') return '#F59E0B';
     if (s === 'final_warning') return '#EF4444';
     return '#3B82F6';
   };
+
+  const renderActionModal = ({
+    visible,
+    title,
+    subtitle,
+    children,
+  }: {
+    visible: boolean;
+    title: string;
+    subtitle: string;
+    children: ReactNode;
+  }) => (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: modalCardBackground }]}>
+          <Text style={[styles.modalTitle, { color: palette.text }]}>{title}</Text>
+          <Text style={[styles.meta, { color: palette.mutedText, marginBottom: 12 }]}>
+            {subtitle}
+          </Text>
+          {children}
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderReasonInput = ({
+    value,
+    onChangeText,
+    placeholder,
+  }: {
+    value: string;
+    onChangeText: (text: string) => void;
+    placeholder: string;
+  }) => (
+    <TextInput
+      style={[styles.textInput, {
+        color: palette.text,
+        borderColor: palette.border,
+        backgroundColor: modalInputBackground,
+      }]}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={palette.mutedText}
+      multiline
+      numberOfLines={3}
+    />
+  );
+
+  const renderModalActions = ({
+    onCancel,
+    onConfirm,
+    disabled,
+    confirmColor,
+    confirmLabel,
+  }: {
+    onCancel: () => void;
+    onConfirm: () => void;
+    disabled: boolean;
+    confirmColor: string;
+    confirmLabel: string;
+  }) => (
+    <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+      <Pressable style={[styles.modalBtn, { backgroundColor: palette.border }]} onPress={onCancel}>
+        <Text style={{ color: palette.text, fontWeight: '700' }}>Cancel</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.modalBtn, { backgroundColor: confirmColor, flex: 1 }]}
+        onPress={onConfirm}
+        disabled={disabled}
+      >
+        {actionLoading ? <ActivityIndicator color="white" size="small" /> : (
+          <Text style={{ color: 'white', fontWeight: '700' }}>{confirmLabel}</Text>
+        )}
+      </Pressable>
+    </View>
+  );
 
   if (adminLoading) {
     return (
@@ -322,14 +401,12 @@ function AdminUserDetailScreen() {
       ) : null}
 
       {/* Warn Modal */}
-      <Modal visible={warnModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
-            <Text style={[styles.modalTitle, { color: palette.text }]}>Issue Warning</Text>
-            <Text style={[styles.meta, { color: palette.mutedText, marginBottom: 12 }]}>
-              To: {detail?.user?.display_name || detail?.user?.email}
-            </Text>
-
+      {renderActionModal({
+        visible: warnModalVisible,
+        title: 'Issue Warning',
+        subtitle: `To: ${detail?.user?.display_name || detail?.user?.email || ''}`,
+        children: (
+          <>
             <Text style={[styles.label, { color: palette.text }]}>Severity</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
               {(['warning', 'strike', 'final_warning'] as Severity[]).map((s) => (
@@ -349,47 +426,30 @@ function AdminUserDetailScreen() {
             </View>
 
             <Text style={[styles.label, { color: palette.text }]}>Reason</Text>
-            <TextInput
-              style={[styles.textInput, {
-                color: palette.text,
-                borderColor: palette.border,
-                backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB',
-              }]}
-              value={warnReason}
-              onChangeText={setWarnReason}
-              placeholder="Describe the violation..."
-              placeholderTextColor={palette.mutedText}
-              multiline
-              numberOfLines={3}
-            />
+            {renderReasonInput({
+              value: warnReason,
+              onChangeText: setWarnReason,
+              placeholder: 'Describe the violation...',
+            })}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <Pressable style={[styles.modalBtn, { backgroundColor: palette.border }]} onPress={() => setWarnModalVisible(false)}>
-                <Text style={{ color: palette.text, fontWeight: '700' }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalBtn, { backgroundColor: severityColor(warnSeverity), flex: 1 }]}
-                onPress={onWarn}
-                disabled={actionLoading || !warnReason.trim()}
-              >
-                {actionLoading ? <ActivityIndicator color="white" size="small" /> : (
-                  <Text style={{ color: 'white', fontWeight: '700' }}>Send Warning</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+            {renderModalActions({
+              onCancel: () => setWarnModalVisible(false),
+              onConfirm: onWarn,
+              disabled: actionLoading || !warnReason.trim(),
+              confirmColor: severityColor(warnSeverity),
+              confirmLabel: 'Send Warning',
+            })}
+          </>
+        ),
+      })}
 
       {/* Suspend Modal */}
-      <Modal visible={suspendModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
-            <Text style={[styles.modalTitle, { color: palette.text }]}>Suspend User</Text>
-            <Text style={[styles.meta, { color: palette.mutedText, marginBottom: 12 }]}>
-              Temporarily suspend: {detail?.user?.display_name || detail?.user?.email}
-            </Text>
-
+      {renderActionModal({
+        visible: suspendModalVisible,
+        title: 'Suspend User',
+        subtitle: `Temporarily suspend: ${detail?.user?.display_name || detail?.user?.email || ''}`,
+        children: (
+          <>
             <Text style={[styles.label, { color: palette.text }]}>Duration (days)</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
               {['1', '3', '7', '14', '30'].map((d) => (
@@ -407,79 +467,47 @@ function AdminUserDetailScreen() {
             </View>
 
             <Text style={[styles.label, { color: palette.text }]}>Reason</Text>
-            <TextInput
-              style={[styles.textInput, {
-                color: palette.text,
-                borderColor: palette.border,
-                backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB',
-              }]}
-              value={suspendReason}
-              onChangeText={setSuspendReason}
-              placeholder="Reason for suspension..."
-              placeholderTextColor={palette.mutedText}
-              multiline
-              numberOfLines={3}
-            />
+            {renderReasonInput({
+              value: suspendReason,
+              onChangeText: setSuspendReason,
+              placeholder: 'Reason for suspension...',
+            })}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <Pressable style={[styles.modalBtn, { backgroundColor: palette.border }]} onPress={() => setSuspendModalVisible(false)}>
-                <Text style={{ color: palette.text, fontWeight: '700' }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalBtn, { backgroundColor: '#F59E0B', flex: 1 }]}
-                onPress={onSuspend}
-                disabled={actionLoading || !suspendReason.trim()}
-              >
-                {actionLoading ? <ActivityIndicator color="white" size="small" /> : (
-                  <Text style={{ color: 'white', fontWeight: '700' }}>Suspend {suspendDays} Day(s)</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+            {renderModalActions({
+              onCancel: () => setSuspendModalVisible(false),
+              onConfirm: onSuspend,
+              disabled: actionLoading || !suspendReason.trim(),
+              confirmColor: '#F59E0B',
+              confirmLabel: `Suspend ${suspendDays} Day(s)`,
+            })}
+          </>
+        ),
+      })}
 
       {/* Ban Modal */}
-      <Modal visible={banModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
-            <Text style={[styles.modalTitle, { color: palette.text }]}>Ban User</Text>
-            <Text style={[styles.meta, { color: palette.mutedText, marginBottom: 12 }]}>
-              Permanently ban: {detail?.user?.display_name || detail?.user?.email}
-            </Text>
-
+      {renderActionModal({
+        visible: banModalVisible,
+        title: 'Ban User',
+        subtitle: `Permanently ban: ${detail?.user?.display_name || detail?.user?.email || ''}`,
+        children: (
+          <>
             <Text style={[styles.label, { color: palette.text }]}>Reason (optional)</Text>
-            <TextInput
-              style={[styles.textInput, {
-                color: palette.text,
-                borderColor: palette.border,
-                backgroundColor: colorScheme === 'dark' ? '#111827' : '#F9FAFB',
-              }]}
-              value={banReason}
-              onChangeText={setBanReason}
-              placeholder="Reason for ban..."
-              placeholderTextColor={palette.mutedText}
-              multiline
-              numberOfLines={3}
-            />
+            {renderReasonInput({
+              value: banReason,
+              onChangeText: setBanReason,
+              placeholder: 'Reason for ban...',
+            })}
 
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-              <Pressable style={[styles.modalBtn, { backgroundColor: palette.border }]} onPress={() => setBanModalVisible(false)}>
-                <Text style={{ color: palette.text, fontWeight: '700' }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalBtn, { backgroundColor: '#EF4444', flex: 1 }]}
-                onPress={confirmBan}
-                disabled={actionLoading}
-              >
-                {actionLoading ? <ActivityIndicator color="white" size="small" /> : (
-                  <Text style={{ color: 'white', fontWeight: '700' }}>Ban Permanently</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+            {renderModalActions({
+              onCancel: () => setBanModalVisible(false),
+              onConfirm: confirmBan,
+              disabled: actionLoading,
+              confirmColor: '#EF4444',
+              confirmLabel: 'Ban Permanently',
+            })}
+          </>
+        ),
+      })}
     </SafeAreaView>
   );
 }

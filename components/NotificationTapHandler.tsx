@@ -138,7 +138,10 @@ export function NotificationTapHandler() {
         }
 
         case 'team_invite':
-          pushRoute('/team-invites');
+          pushRoute({
+            pathname: '/team-invites',
+            params: { fallback: '/(tabs)/notifications/index' },
+          });
           break;
 
         case 'game_reminder': {

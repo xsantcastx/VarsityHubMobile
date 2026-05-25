@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { defineEmailValidationCases } from './helpers/emailValidationShared.js';
 
 describe('Authentication', () => {
   describe('Password Hashing', () => {
@@ -80,19 +81,7 @@ describe('Authentication', () => {
       'invalid@example',
     ];
 
-    validEmails.forEach((email) => {
-      it(`should accept valid email: ${email}`, () => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        expect(email).toMatch(emailRegex);
-      });
-    });
-
-    invalidEmails.forEach((email) => {
-      it(`should reject invalid email: ${email}`, () => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        expect(email).not.toMatch(emailRegex);
-      });
-    });
+    defineEmailValidationCases(validEmails, invalidEmails);
   });
 
   describe('Password Validation', () => {

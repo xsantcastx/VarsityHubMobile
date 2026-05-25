@@ -46,6 +46,10 @@ interface AuthUser {
   email: string;
   email_verified?: boolean;
   username?: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  affiliation?: string | null;
   role?: string;
   account_state?: string;
   next_step?: string | null;

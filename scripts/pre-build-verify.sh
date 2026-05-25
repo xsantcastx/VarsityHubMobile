@@ -67,7 +67,7 @@ echo ""
 echo -e "${BLUE}🔍 Linting${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-LINT_OUTPUT=$(npm run lint 2>&1)
+LINT_OUTPUT=$(npm run lint 2>&1 || true)
 if echo "$LINT_OUTPUT" | grep -Eq "[1-9][0-9]* errors?"; then
     echo -e "${RED}❌ Linting errors found!${NC}"
     echo "$LINT_OUTPUT" | grep -E "[1-9][0-9]* errors?" | head -10

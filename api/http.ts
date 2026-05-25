@@ -6,6 +6,7 @@
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import Constants from 'expo-constants';
 import { isEmailVerificationRequiredError, openVerificationGate } from '@/hooks/useVerificationGate';
+import { Platform } from 'react-native';
 import { emitSessionExpired } from '@/utils/sessionEvents';
 import { getClientDeviceId } from './deviceIdentity';
 
@@ -202,9 +203,16 @@ export function getApiBaseUrl(): string {
   const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
   const processEnv =
     typeof process !== 'undefined' && process?.env ? (process.env as Record<string, string | undefined>) : {};
+  const processUseLocalApi = processEnv.EXPO_PUBLIC_USE_LOCAL_API;
+  const constantsUseLocalApi = Constants.expoConfig?.extra?.EXPO_PUBLIC_USE_LOCAL_API;
   const processForceRemoteApi = processEnv.EXPO_PUBLIC_FORCE_REMOTE_API;
   const constantsForceRemoteApi = Constants.expoConfig?.extra?.EXPO_PUBLIC_FORCE_REMOTE_API;
+  const useLocalApiRaw = processUseLocalApi || constantsUseLocalApi;
   const forceRemoteApiRaw = processForceRemoteApi || constantsForceRemoteApi;
+  const useLocalApi =
+    typeof useLocalApiRaw === 'string'
+      ? ['1', 'true', 'yes', 'on'].includes(useLocalApiRaw.toLowerCase())
+      : false;
   const forceRemoteApi =
     typeof forceRemoteApiRaw === 'string'
       ? ['1', 'true', 'yes', 'on'].includes(forceRemoteApiRaw.toLowerCase())
@@ -223,10 +231,16 @@ export function getApiBaseUrl(): string {
       : null;
   const localWindowHost =
     browserHostname && /^(localhost|127\.0\.0\.1)$/.test(browserHostname) ? browserHostname : null;
-  const localDevUrl = localWindowHost ? `http://${localWindowHost}:4000` : null;
+  const localDevUrl = localWindowHost
+    ? `http://${localWindowHost}:4000`
+    : Platform.OS === 'android'
+      ? 'http://10.0.2.2:4000'
+      : 'http://localhost:4000';
+  if (__DEV__ && useLocalApi) {
+    return localDevUrl;
+  }
   const preferLocalDevUrl =
     __DEV__ &&
-    localDevUrl &&
     !forceRemoteApi &&
     (!normalizedEnvUrl || isLocalhostEnv || normalizedEnvUrl === PRODUCTION_URL);
   const finalUrl = preferLocalDevUrl

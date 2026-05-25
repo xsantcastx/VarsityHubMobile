@@ -25,7 +25,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
-import bcrypt from 'bcrypt';
+import { createTestUser } from './helpers/createTestUser.js';
 
 /* ---------- lazy imports (ESM compat) ---------- */
 let prisma: any;
@@ -63,30 +63,16 @@ async function createUser(
   plan?: 'rookie' | 'veteran' | 'legend',
   extras?: Record<string, any>,
 ) {
-  const hash = await bcrypt.hash(PASSWORD, 10);
-  const preferences: any = { role, onboarding_completed: true };
-  if (plan) preferences.plan = plan;
-  if (role === 'coach') {
-    preferences.coach_agreement_accepted_at = new Date().toISOString();
-  }
-  const user = await prisma.user.create({
-    data: {
-      email,
-      password_hash: hash,
-      display_name: displayName,
-      email_verified: true,
-      // Mirror canonical role + onboarding columns; the runtime readers
-      // prefer column over preferences JSON and the column defaults to
-      // (fan, false), so prefs-only fixtures get misread.
-      role,
-      onboarding_completed: true,
-      ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
-      preferences,
-      ...extras,
-    },
+  return createTestUser({
+    prisma,
+    signJwt,
+    password: PASSWORD,
+    email,
+    displayName,
+    role,
+    plan,
+    extras,
   });
-  const token = signJwt({ id: user.id });
-  return { id: user.id, token };
 }
 
 // ─────────────────────────────────────────────

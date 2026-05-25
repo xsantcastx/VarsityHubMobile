@@ -1,7 +1,11 @@
 import type { Href } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { useContext } from 'react';
-import { getNavigationFallback, NavigationHistoryContext } from '@/context/NavigationHistoryContext';
+import {
+  getNavigationFallback,
+  NavigationHistoryContext,
+  performTrackedSafeBack,
+} from '@/context/NavigationHistoryContext';
 
 /**
  * Standalone safe back for imperative use — pass the router from useRouter().
@@ -9,14 +13,19 @@ import { getNavigationFallback, NavigationHistoryContext } from '@/context/Navig
  */
 export function safeGoBack(
   router: ReturnType<typeof useRouter>,
-  explicitFallback?: string
+  explicitFallback?: Href
 ) {
   if (router.canGoBack()) {
     router.back();
-  } else {
-    const fallback = explicitFallback ?? getNavigationFallback();
-    router.replace(fallback as Href);
+    return;
   }
+
+  if (performTrackedSafeBack(explicitFallback)) {
+    return;
+  }
+
+  const fallback = explicitFallback ?? getNavigationFallback();
+  router.replace(fallback as Href);
 }
 
 /**
@@ -27,7 +36,7 @@ export function goBackToTrackedRoute(
   router: ReturnType<typeof useRouter>,
   currentHref: string | null | undefined,
   trackedPreviousHref: string | null | undefined,
-  explicitFallback?: string
+  explicitFallback?: Href
 ) {
   if (trackedPreviousHref && trackedPreviousHref !== currentHref) {
     router.replace(trackedPreviousHref as Href);
@@ -46,12 +55,18 @@ export function useSafeNavigation() {
   const navHistory = useContext(NavigationHistoryContext);
 
   const safeBack = () => {
+    if (navHistory?.safeGoBack) {
+      navHistory.safeGoBack();
+      return;
+    }
+
     if (router.canGoBack()) {
       router.back();
-    } else {
-      const fallback = navHistory?.getFallbackRoute?.() ?? getNavigationFallback();
-      router.replace(fallback as Href);
+      return;
     }
+
+    const fallback = navHistory?.getFallbackRoute?.() ?? getNavigationFallback();
+    router.replace(fallback as Href);
   };
 
   return {
@@ -66,7 +81,7 @@ export function useSafeNavigation() {
  */
 export function createSafeBack(
   router: ReturnType<typeof useRouter>,
-  explicitFallback?: string
+  explicitFallback?: Href
 ) {
   return () => {
     safeGoBack(router, explicitFallback);

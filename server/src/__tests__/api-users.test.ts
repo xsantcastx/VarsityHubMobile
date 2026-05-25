@@ -8,13 +8,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
+import { describeDb } from './helpers/dbTestSuite.js';
 
 let prisma: any;
 let signJwt: any;
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
 describeDb('Users API Endpoints', () => {
   let testUser: any;

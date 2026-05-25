@@ -614,6 +614,7 @@ export async function approveCoach(
       coachName: user.display_name || user.username || 'Coach',
       leagueName: orgName,
       note: note || undefined,
+      destination: orgId ? 'organization' : 'coach_agreement',
     }).catch((err) => reportEmailFailure('coach_approved', err, { user_id: user.id }));
   }
 

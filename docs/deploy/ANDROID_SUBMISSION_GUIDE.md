@@ -8,14 +8,17 @@
 
 ## Submission Options
 
-### Option 1: Automated Submission (Requires Service Account Key)
+### Option 1: Automated Submission (Requires Linked Play Service Account)
 
 **Setup Service Account Key:**
 1. Go to Google Play Console: https://play.google.com/console
-2. Navigate to: **Settings** → **API access**
-3. Create or select a service account
+2. Navigate to: **Setup** → **API access**
+3. Create or select a dedicated service account
 4. Download the JSON key file
 5. Save it as `service-account-key.json` in the project root
+6. Run `npm run verify:play-submit-access`
+
+Do not use a default `...-compute@developer.gserviceaccount.com` account. Those commonly fail with `PERMISSION_DENIED` during `eas submit`.
 
 **Then submit:**
 ```bash
@@ -66,14 +69,16 @@ eas submit --platform android --latest --profile production
    - Navigate to: **IAM & Admin** → **Service Accounts**
    - Click: **Create Service Account**
    - Name: `varsityhub-play-store`
-   - Grant role: **Editor** (or **Service Account User**)
+   - Use a dedicated account for Play submission, not the default compute account
+   - You do not need broad project roles for Expo submission; Play Console app access is what matters
 
 2. **Link to Play Console:**
    - Go to Play Console: https://play.google.com/console
-   - **Settings** → **API access**
+   - **Setup** → **API access**
    - Click: **Link service account**
    - Select the service account you created
-   - Grant permissions: **Release apps to production**
+   - Grant app access for `com.varsityhub.varsityhub`
+   - Recommended role: **Release Manager**
 
 3. **Download Key:**
    - In Google Cloud Console, go to the service account
@@ -84,11 +89,7 @@ eas submit --platform android --latest --profile production
 
 4. **Verify:**
    ```bash
-   # Check file exists
-   ls -la service-account-key.json
-   
-   # File should be valid JSON
-   cat service-account-key.json | jq .
+   npm run verify:play-submit-access
    ```
 
 ## Troubleshooting
@@ -99,8 +100,10 @@ eas submit --platform android --latest --profile production
 - Check file permissions (should be readable)
 
 **Error: "Permission denied"**
-- Verify service account has "Release apps to production" permission in Play Console
-- Check that the service account is linked in Play Console API access
+- Check whether `service-account-key.json` is a default compute account such as `...-compute@developer.gserviceaccount.com`
+- Verify the service account is linked in Play Console API access
+- Verify it has app access for `com.varsityhub.varsityhub`
+- Run `npm run verify:play-submit-access` before trying `eas submit`
 
 **Build still in progress:**
 - Wait for build to complete (check EAS dashboard)

@@ -66,6 +66,30 @@ class MockXHR {
 
 describe('uploadFile routing', () => {
   const fetchMock = jest.fn() as any;
+  const mockSignatureThenFallbackUpload = () =>
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          cloudName: 'varsityhub',
+          apiKey: 'key',
+          signature: 'sig',
+          timestamp: 123,
+          folder: 'uploads',
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        text: async () =>
+          JSON.stringify({
+            url: 'https://api.test/uploads/fallback.jpg',
+            type: 'image',
+            mime: 'image/jpeg',
+            storage: 'cloudinary',
+          }),
+      });
 
   beforeEach(() => {
     jest.resetModules();
@@ -232,28 +256,7 @@ describe('uploadFile routing', () => {
   it('falls back to the server proxy when Cloudinary rejects the direct upload', async () => {
     MockXHR.nextStatus = 401;
     MockXHR.nextResponseText = JSON.stringify({ error: { message: 'Invalid Signature' } });
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          cloudName: 'varsityhub',
-          apiKey: 'key',
-          signature: 'sig',
-          timestamp: 123,
-          folder: 'uploads',
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        text: async () => JSON.stringify({
-          url: 'https://api.test/uploads/fallback.jpg',
-          type: 'image',
-          mime: 'image/jpeg',
-          storage: 'cloudinary',
-        }),
-      });
+    mockSignatureThenFallbackUpload();
 
     const { uploadFile } = await import('../upload');
     const result = await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg');
@@ -272,28 +275,7 @@ describe('uploadFile routing', () => {
   it('carries onboarding upload context into the media fallback query string', async () => {
     MockXHR.nextStatus = 401;
     MockXHR.nextResponseText = JSON.stringify({ error: { message: 'Invalid Signature' } });
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          cloudName: 'varsityhub',
-          apiKey: 'key',
-          signature: 'sig',
-          timestamp: 123,
-          folder: 'uploads',
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        text: async () => JSON.stringify({
-          url: 'https://api.test/uploads/fallback.jpg',
-          type: 'image',
-          mime: 'image/jpeg',
-          storage: 'cloudinary',
-        }),
-      });
+    mockSignatureThenFallbackUpload();
 
     const { uploadFile } = await import('../upload');
     await uploadFile('https://api.test', 'file:///tmp/pic.jpg', 'pic.jpg', 'image/jpeg', {

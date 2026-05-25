@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
+import { useVerificationScreenActions } from '@/hooks/useVerificationScreenActions';
 import { extractApiError } from '@/utils/apiErrors';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { VerificationCodeScreenBase } from '@/components/VerificationCodeScreenBase';
@@ -141,6 +142,14 @@ export default function VerifyScreen() {
     },
   });
   const setGateCode = gate.setCode;
+  const devCodeParam =
+    __DEV__ && typeof params.devCode === 'string'
+      ? String(params.devCode).slice(0, 6)
+      : undefined;
+  const clearMessages = () => {
+    setScreenError(null);
+    setScreenInfo(null);
+  };
 
   useEffect(() => {
     const deliveryStatus = typeof params.delivery === 'string' ? params.delivery : '';
@@ -158,23 +167,13 @@ export default function VerifyScreen() {
     );
   }, [params.delivery]);
 
-  useEffect(() => {
-    if (__DEV__ && typeof params.devCode === 'string') {
-      setGateCode(String(params.devCode).slice(0, 6));
-    }
-  }, [params.devCode, setGateCode]);
-
-  const onVerify = async () => {
-    setScreenError(null);
-    setScreenInfo(null);
-    await gate.verify();
-  };
-
-  const onResend = async () => {
-    setScreenError(null);
-    setScreenInfo(null);
-    await gate.resend();
-  };
+  const { onVerify, onResend } = useVerificationScreenActions({
+    devCodeParam,
+    setGateCode,
+    clearMessages,
+    verify: gate.verify,
+    resend: gate.resend,
+  });
 
   const onContinue = async () => {
     await checkAuth();

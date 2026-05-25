@@ -371,6 +371,15 @@ describe('getCoachRecoveryRoute', () => {
     ).toBe('/onboarding/coach-application');
   });
 
+  it('routes basic-info-required coaches back to step 2', () => {
+    expect(
+      getCoachRecoveryRoute({
+        account_state: 'coach_basic_info_required',
+        preferences: { role: 'coach' },
+      })
+    ).toBe('/onboarding/step-2-basic');
+  });
+
   it('routes pending or rejected coaches to their waiting screen', () => {
     expect(
       getCoachRecoveryRoute({

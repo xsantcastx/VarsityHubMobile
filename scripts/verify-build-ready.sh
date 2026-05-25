@@ -10,6 +10,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+source "$(cd "$(dirname "$0")" && pwd)/android-java-env.sh"
+
 ERRORS=0
 WARNINGS=0
 
@@ -172,10 +174,17 @@ echo ""
 
 # Android build config
 echo -e "${BLUE}Step 6: Android build configuration...${NC}"
-if grep -q "namespace.*com.varsityhub.varsityhub" android/app/build.gradle; then
+if grep -q "namespace.*com.xsantcastx.varsityhub" android/app/build.gradle; then
     echo -e "${GREEN}✅ Android namespace configured${NC}"
 else
     echo -e "${RED}❌ Android namespace missing${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+if ensure_android_java 17; then
+    echo -e "${GREEN}✅ Android tooling can run with JDK 17${NC}"
+else
+    echo -e "${RED}❌ Android tooling requires JDK 17 locally (current Java is incompatible)${NC}"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -358,6 +367,11 @@ if grep -q '"serviceAccountKeyPath":' eas.json; then
     SERVICE_ACCOUNT_PATH=$(grep -o '"serviceAccountKeyPath": "[^"]*"' eas.json | cut -d'"' -f4)
     if [ -n "$SERVICE_ACCOUNT_PATH" ] && [ -f "$SERVICE_ACCOUNT_PATH" ]; then
         echo -e "${GREEN}✅ Android service account key file exists${NC}"
+        if node scripts/verify-play-service-account.js >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ Android Play submit service account has Android Publisher access${NC}"
+        else
+            mark_warning_or_error "Android service account is present but cannot access Android Publisher for com.xsantcastx.varsityhub"
+        fi
     else
         echo -e "${YELLOW}⚠️  Android service account key file not found at: $SERVICE_ACCOUNT_PATH (only needed for Play Store submission)${NC}"
         WARNINGS=$((WARNINGS + 1))
@@ -861,7 +875,7 @@ IOS_BUNDLE_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.
 ANDROID_PACKAGE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.android.package || '')" 2>/dev/null)
 
 if [ -n "$IOS_BUNDLE_ID" ] && [ -n "$ANDROID_PACKAGE" ]; then
-    # iOS 'com.varsithub.varsityhub-ios' and Android 'com.varsityhub.varsityhub' are intentionally
+    # iOS 'com.varsithub.varsityhub-ios' and Android 'com.xsantcastx.varsityhub' are intentionally
     # different — the iOS ID is registered with Apple (legacy spelling). Validate each individually.
     if [ "$IOS_BUNDLE_ID" = "com.varsithub.varsityhub-ios" ]; then
         echo -e "${GREEN}✅ iOS bundle ID correct: $IOS_BUNDLE_ID${NC}"
@@ -869,10 +883,10 @@ if [ -n "$IOS_BUNDLE_ID" ] && [ -n "$ANDROID_PACKAGE" ]; then
         echo -e "${RED}❌ iOS bundle ID unexpected: $IOS_BUNDLE_ID (expected com.varsithub.varsityhub-ios)${NC}"
         ERRORS=$((ERRORS + 1))
     fi
-    if [ "$ANDROID_PACKAGE" = "com.varsityhub.varsityhub" ]; then
+    if [ "$ANDROID_PACKAGE" = "com.xsantcastx.varsityhub" ]; then
         echo -e "${GREEN}✅ Android package correct: $ANDROID_PACKAGE${NC}"
     else
-        echo -e "${RED}❌ Android package unexpected: $ANDROID_PACKAGE (expected com.varsityhub.varsityhub)${NC}"
+        echo -e "${RED}❌ Android package unexpected: $ANDROID_PACKAGE (expected com.xsantcastx.varsityhub)${NC}"
         ERRORS=$((ERRORS + 1))
     fi
 else

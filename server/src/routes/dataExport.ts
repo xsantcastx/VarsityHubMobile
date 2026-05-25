@@ -70,6 +70,34 @@ function serializeExport(row: any) {
   };
 }
 
+function parseExportId(params: unknown) {
+  return idParamSchema.safeParse(params);
+}
+
+async function findOwnedExport(userId: string, exportId: string) {
+  return p.dataExport.findFirst({
+    where: { id: exportId, user_id: userId },
+  });
+}
+
+async function resolveOwnedExportRequest(req: AuthedRequest) {
+  if (!req.user) {
+    return { error: { status: 401, body: { error: 'Unauthorized' } } } as const;
+  }
+
+  const parsed = parseExportId(req.params);
+  if (!parsed.success) {
+    return { error: { status: 400, body: { error: 'Invalid id' } } } as const;
+  }
+
+  const row = await findOwnedExport(req.user.id, parsed.data.id);
+  if (!row) {
+    return { error: { status: 404, body: { error: 'Not found' } } } as const;
+  }
+
+  return { row } as const;
+}
+
 // ─── POST /me/data-export ────────────────────────────────────────────────────
 
 dataExportRouter.post(
@@ -193,15 +221,9 @@ dataExportRouter.get(
   requireAuth,
   requireVerified,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const parsed = idParamSchema.safeParse(req.params);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid id' });
-
-    const row = await p.dataExport.findFirst({
-      where: { id: parsed.data.id, user_id: req.user.id },
-    });
-    if (!row) return res.status(404).json({ error: 'Not found' });
-    return res.json(serializeExport(row));
+    const resolved = await resolveOwnedExportRequest(req);
+    if (resolved.error) return res.status(resolved.error.status).json(resolved.error.body);
+    return res.json(serializeExport(resolved.row));
   })
 );
 
@@ -212,14 +234,9 @@ dataExportRouter.get(
   requireAuth,
   requireVerified,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const parsed = idParamSchema.safeParse(req.params);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid id' });
-
-    const row = await p.dataExport.findFirst({
-      where: { id: parsed.data.id, user_id: req.user.id },
-    });
-    if (!row) return res.status(404).json({ error: 'Not found' });
+    const resolved = await resolveOwnedExportRequest(req);
+    if (resolved.error) return res.status(resolved.error.status).json(resolved.error.body);
+    const { row } = resolved;
 
     if (row.status === 'expired') {
       return res.status(410).json({
@@ -297,14 +314,9 @@ dataExportRouter.delete(
   requireAuth,
   requireVerified,
   asyncHandler(async (req: AuthedRequest, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const parsed = idParamSchema.safeParse(req.params);
-    if (!parsed.success) return res.status(400).json({ error: 'Invalid id' });
-
-    const row = await p.dataExport.findFirst({
-      where: { id: parsed.data.id, user_id: req.user.id },
-    });
-    if (!row) return res.status(404).json({ error: 'Not found' });
+    const resolved = await resolveOwnedExportRequest(req);
+    if (resolved.error) return res.status(resolved.error.status).json(resolved.error.body);
+    const { row } = resolved;
 
     // Best-effort storage delete. If the object's already gone (or the
     // backend is unhappy), mark the row expired anyway — the user asked to

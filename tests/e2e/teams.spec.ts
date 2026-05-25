@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { API_BASE_URL, createAuthRequest, registerTestUser } from './helpers/apiTestUtils';
 
 /**
  * Team Management E2E Tests
@@ -9,39 +10,15 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  * - team creation is gated behind verification + onboarding + coach/org state
  */
 
-const API_BASE_URL = (process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000')
-  .replace('://localhost', '://127.0.0.1');
-
-function createAuthRequest(request: APIRequestContext, token: string) {
-  const withAuth = (options: Record<string, any> = {}) => ({
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  return {
-    get: (url: string, options?: Record<string, any>) => request.get(url, withAuth(options)),
-    post: (url: string, options?: Record<string, any>) => request.post(url, withAuth(options)),
-  };
-}
-
 async function createTestUser(request: APIRequestContext, role: 'fan' | 'coach' = 'fan') {
-  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const response = await request.post(`${API_BASE_URL}/auth/register`, {
-    data: {
-      email: `teams-${role}-${nonce}@varsityhub-test.app`,
-      password: 'TestPassword123!',
-      display_name: `Teams ${role} ${nonce}`,
-      role,
-      ...(role === 'coach' ? { dob: '1990-01-15' } : {}),
-    },
+  const user = await registerTestUser({
+    request,
+    prefix: 'teams',
+    password: 'TestPassword123!',
+    displayNamePrefix: 'Teams',
+    role,
   });
-
-  expect(response.status()).toBe(201);
-  const body = await response.json();
-  return { token: body.access_token };
+  return { token: user.token };
 }
 
 async function fetchTeams(request: APIRequestContext) {

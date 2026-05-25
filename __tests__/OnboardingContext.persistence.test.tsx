@@ -113,4 +113,38 @@ describe('OnboardingContext persistence', () => {
       expect(persisted?.pending_plan).toBeNull();
     });
   });
+
+  it('clears local-only step_3_visited during server hydration so stale completion cannot survive', async () => {
+    await renderProvider();
+    await initializeReducer();
+
+    await act(async () => {
+      latestContext?.setState({
+        role: 'coach',
+        organization_id: 'org_123',
+        join_request_pending: true,
+        step_3_visited: true,
+      });
+    });
+
+    await act(async () => {
+      latestContext?.hydrateFromServer({
+        role: 'coach',
+        organization_id: null,
+        join_request_pending: false,
+        step_3_visited: true,
+      });
+    });
+
+    await waitFor(async () => {
+      expect((latestContext?.state as any)?.organization_id).toBeNull();
+      expect((latestContext?.state as any)?.join_request_pending).toBe(false);
+      expect((latestContext?.state as any)?.step_3_visited).toBe(false);
+
+      const raw = await AsyncStorage.getItem('onboarding_state');
+      const persisted = raw ? JSON.parse(raw) : null;
+
+      expect(persisted?.step_3_visited).toBe(false);
+    });
+  });
 });

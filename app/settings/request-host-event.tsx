@@ -2,10 +2,11 @@ import { Event, Message } from '@/api/entities';
 import { getConfig } from '@/config/env';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import EventPreviewImageField from '@/components/EventPreviewImageField';
+import { EventFormHeader, LocationSuggestionList } from '@/components/EventFormShared';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useUserProfile } from '@/hooks/useUser';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -28,7 +29,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 function RequestHostEventScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { displayName, email: profileEmail } = useUserProfile();
+  const { user } = useAuth();
+  const displayName = user?.display_name || '';
+  const profileEmail = user?.email || '';
 
   // Form state
   const [title, setTitle] = useState('');
@@ -180,10 +183,12 @@ function RequestHostEventScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Request to Host Event', headerBackTitle: 'Back', headerShown: true }} />
       <KeyboardAwareScreen style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Request to Host Event</Text>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Submit your request to host an event. A coach or admin will review your request.</Text>
-        </View>
+        <EventFormHeader
+          title="Request to Host Event"
+          subtitle="Submit your request to host an event. A coach or admin will review your request."
+          textColor={Colors[colorScheme].text}
+          mutedTextColor={Colors[colorScheme].mutedText}
+        />
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Title *</Text>
           <TextInput
@@ -278,36 +283,16 @@ function RequestHostEventScreen() {
               autoCapitalize="words"
               autoCorrect={false}
             />
-            {locationQuerying && (
-              <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
-            )}
-            {locationSuggestions.length > 0 && (
-              <View style={[styles.locationSuggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}> 
-                {locationSuggestions.map((suggestion, index) => (
-                  <Pressable
-                    key={suggestion.place_id}
-                    style={[
-                      styles.locationSuggestionItem,
-                      { borderBottomColor: Colors[colorScheme].border },
-                      index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
-                    ]}
-                    onPress={() => handleSelectLocation(suggestion)}
-                  >
-                    <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.locationSuggestionMain, { color: Colors[colorScheme].text }]}>
-                        {suggestion.structured_formatting?.main_text || suggestion.description}
-                      </Text>
-                      {suggestion.structured_formatting?.secondary_text && (
-                        <Text style={[styles.locationSuggestionSecondary, { color: Colors[colorScheme].mutedText }]}> 
-                          {suggestion.structured_formatting.secondary_text}
-                        </Text>
-                      )}
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            )}
+            <LocationSuggestionList
+              suggestions={locationSuggestions}
+              querying={locationQuerying}
+              onSelect={handleSelectLocation}
+              tintColor={Colors[colorScheme].tint}
+              textColor={Colors[colorScheme].text}
+              mutedTextColor={Colors[colorScheme].mutedText}
+              cardColor={Colors[colorScheme].card}
+              borderColor={Colors[colorScheme].border}
+            />
           </View>
           {errors.location && <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>{errors.location}</Text>}
           {!selectedPlace && locationTouched && location.length >= 3 && locationSuggestions.length === 0 && !locationQuerying && (
@@ -343,9 +328,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16 },
-  header: { marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: { fontSize: 14, lineHeight: 20 },
   section: { marginBottom: 20 },
   label: { fontWeight: '700', marginBottom: 4 },
   input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 4 },
@@ -354,12 +336,6 @@ const styles = StyleSheet.create({
   dateTimeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, padding: 12, marginRight: 8 },
   dateTimeText: { marginLeft: 8, fontSize: 16 },
   locationFieldWrapper: { position: 'relative' },
-  locationSpinner: { position: 'absolute', right: 12, top: 16 },
-  locationSuggestionList: { position: 'absolute', top: 48, left: 0, right: 0, zIndex: 10, borderWidth: 1, borderRadius: 8, maxHeight: 180 },
-  locationSuggestionItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1 },
-  locationSuggestionItemLast: { borderBottomWidth: 0 },
-  locationSuggestionMain: { fontSize: 16 },
-  locationSuggestionSecondary: { fontSize: 12 },
   errorText: { marginTop: 2, marginBottom: 2 },
   inputHelperText: { fontSize: 12, marginTop: 2 },
   infoBox: { flexDirection: 'row', alignItems: 'center', padding: 12, borderWidth: 1, borderRadius: 8, marginBottom: 16 },

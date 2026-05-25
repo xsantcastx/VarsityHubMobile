@@ -23,8 +23,9 @@
  * without the test DB). Integration tests require the describeDb
  * pattern used elsewhere in the suite.
  */
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { PASSWORD, adultDob, describeDb, loadAuthE2eDeps } from './helpers/authE2eTestUtils.js';
 
 let prisma: any;
 let request: any;
@@ -32,28 +33,13 @@ let app: import('express').Express;
 let signJwt: any;
 
 const ts = Date.now();
-const PASSWORD = 'TestPassword123!';
-
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
-/** An adult DOB so the 18+ coach age gate passes. */
-function adultDob(): Date {
-  const d = new Date();
-  d.setUTCFullYear(d.getUTCFullYear() - 25);
-  return d;
-}
 
 describeDb('POST /auth/upgrade-to-coach — fan → coach state transition', () => {
   let fanUserId: string;
   let fanToken: string;
 
   beforeAll(async () => {
-    ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt } = await import('../lib/jwt.js'));
-    request = (await import('supertest')).default;
-    ({ app } = await import('../authTestApp.js'));
+    ({ prisma, signJwt, request, app } = await loadAuthE2eDeps());
 
     const hash = await bcrypt.hash(PASSWORD, 10);
     const fan = await prisma.user.create({

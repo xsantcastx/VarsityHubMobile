@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { API_BASE_URL, createAuthRequest, registerTestUser } from './helpers/apiTestUtils';
 
 /**
  * Highlights E2E Tests
@@ -9,47 +10,15 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
  * - creating highlight posts is gated by the current auth/verification/onboarding rules
  */
 
-const API_BASE_URL = (process.env.API_URL || process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000')
-  .replace('://localhost', '://127.0.0.1');
-
-function createAuthRequest(request: APIRequestContext, token: string) {
-  const withAuth = (options: Record<string, any> = {}) => ({
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  return {
-    get: (url: string, options?: Record<string, any>) => request.get(url, withAuth(options)),
-    post: (url: string, options?: Record<string, any>) => request.post(url, withAuth(options)),
-  };
-}
-
 async function createTestUser(request: APIRequestContext) {
-  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const response = await request.post(`${API_BASE_URL}/auth/register`, {
-    data: {
-      email: `highlights-${nonce}@varsityhub-test.app`,
-      password: 'HighlightsTestPassword123!',
-      display_name: `Highlights ${nonce}`,
-    },
+  const user = await registerTestUser({
+    request,
+    prefix: 'highlights',
+    password: 'HighlightsTestPassword123!',
+    displayNamePrefix: 'Highlights',
+    verifyIfPossible: true,
   });
-
-  expect(response.status()).toBe(201);
-  const body = await response.json();
-  const token = body.access_token;
-
-  if (body.dev_verification_code) {
-    const verifyResponse = await request.post(`${API_BASE_URL}/auth/verify/confirm`, {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { code: String(body.dev_verification_code) },
-    });
-    expect([200, 204, 429]).toContain(verifyResponse.status());
-  }
-
-  return { token };
+  return { token: user.token };
 }
 
 async function fetchHighlights(

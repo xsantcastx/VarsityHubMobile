@@ -9,6 +9,12 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
+import {
+  AdFormHeader,
+  AdFormLoading,
+  AdFormPrimaryCta,
+  adFormSharedStyles as sharedStyles,
+} from '@/components/AdFormShared';
 import { uploadFile } from '@/api/upload';
 import settings from '@/api/settings';
 import { Colors } from '@/constants/Colors';
@@ -183,7 +189,7 @@ export function EditAdScreenBase({
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+    <SafeAreaView style={[sharedStyles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: 'Edit Ad',
@@ -198,36 +204,35 @@ export function EditAdScreenBase({
         }}
       />
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
-          <Text style={[styles.loadingText, { color: theme.mutedText }]}>Loading ad details...</Text>
-        </View>
+        <AdFormLoading title="Edit Ad" message="Loading ad details..." textColor={theme.mutedText} />
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={sharedStyles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           automaticallyAdjustKeyboardInsets
         >
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text }]}>Edit Advertisement</Text>
-            <Text style={[styles.subtitle, { color: theme.mutedText }]}>Update your ad details and settings</Text>
-          </View>
+          <AdFormHeader
+            title="Edit Advertisement"
+            subtitle="Update your ad details and settings"
+            textColor={theme.text}
+            mutedTextColor={theme.mutedText}
+          />
 
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.label, { color: theme.text }]}>Business Name *</Text>
+          <View style={[sharedStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[sharedStyles.label, { color: theme.text }]}>Business Name *</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={business}
               onChangeText={setBusiness}
               placeholder="Acme Pizza"
               placeholderTextColor={theme.mutedText}
             />
 
-            <Text style={[styles.label, { color: theme.text }]}>Contact Name</Text>
+            <Text style={[sharedStyles.label, { color: theme.text }]}>Contact Name</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={contactName}
               onChangeText={setContactName}
               placeholder="John Smith"
@@ -236,9 +241,9 @@ export function EditAdScreenBase({
               maxLength={200}
             />
 
-            <Text style={[styles.label, { color: theme.text }]}>Contact Email *</Text>
+            <Text style={[sharedStyles.label, { color: theme.text }]}>Contact Email *</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={contactEmail}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -248,9 +253,9 @@ export function EditAdScreenBase({
               maxLength={320}
             />
 
-            <Text style={[styles.label, { color: theme.text }]}>Target Zip Code</Text>
+            <Text style={[sharedStyles.label, { color: theme.text }]}>Target Zip Code</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={zip}
               onChangeText={setZip}
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
@@ -261,7 +266,7 @@ export function EditAdScreenBase({
 
             {renderReachPreview?.(zip)}
 
-            <Text style={[styles.label, { color: theme.text }]}>Banner Image</Text>
+            <Text style={[sharedStyles.label, { color: theme.text }]}>Banner Image</Text>
             {bannerUrl ? (
               <View style={[styles.bannerPreview, { backgroundColor: theme.surface }]}>
                 <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="contain" />
@@ -269,7 +274,7 @@ export function EditAdScreenBase({
             ) : (
               <View style={[styles.bannerPlaceholder, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Text style={[styles.bannerPlaceholderText, { color: theme.mutedText }]}>No banner uploaded</Text>
-                <Text style={[styles.muted, { color: theme.mutedText }]}>Recommended: 16:9 ratio, PNG/JPG</Text>
+                <Text style={[sharedStyles.muted, { color: theme.mutedText }]}>Recommended: 16:9 ratio, PNG/JPG</Text>
               </View>
             )}
             <Pressable style={[styles.uploadBtn, uploading && styles.uploadBtnDisabled]} onPress={pickBanner} disabled={uploading}>
@@ -280,9 +285,9 @@ export function EditAdScreenBase({
               )}
             </Pressable>
 
-            <Text style={[styles.label, { color: theme.text }]}>Website Link (Optional)</Text>
+            <Text style={[sharedStyles.label, { color: theme.text }]}>Website Link (Optional)</Text>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={targetUrl}
               onChangeText={setTargetUrl}
               placeholder="https://example.com"
@@ -291,12 +296,12 @@ export function EditAdScreenBase({
               placeholderTextColor={theme.mutedText}
             />
             {targetUrl.trim() ? (
-              <Text style={[styles.helperText, { color: theme.mutedText }]}>Users can tap your ad to visit this website</Text>
+              <Text style={[sharedStyles.helperText, { color: theme.mutedText }]}>Users can tap your ad to visit this website</Text>
             ) : null}
 
-            <Text style={[styles.label, { color: theme.text }]}>Description</Text>
+            <Text style={[sharedStyles.label, { color: theme.text }]}>Description</Text>
             <TextInput
-              style={[styles.input, styles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[sharedStyles.input, sharedStyles.textArea, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               value={desc}
               onChangeText={setDesc}
               multiline
@@ -318,9 +323,7 @@ export function EditAdScreenBase({
             </View>
           </View>
 
-          <Pressable onPress={save} disabled={!canSave || saving} style={[styles.cta, (!canSave || saving) && styles.ctaDisabled]}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Save Changes</Text>}
-          </Pressable>
+          <AdFormPrimaryCta label="Save Changes" onPress={save} disabled={!canSave || saving} loading={saving} />
 
           {payment === 'paid' && bookedDates.length > 0 ? (
             <View style={[styles.bookedDatesCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -350,50 +353,6 @@ export function EditAdScreenBase({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: { fontSize: 15 },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 12,
-    marginBottom: 20,
-  },
-  label: {
-    fontWeight: '700',
-    fontSize: 15,
-    marginBottom: 6,
-  },
-  input: {
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    fontSize: 16,
-  },
   infoCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -409,20 +368,6 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 14,
     fontWeight: '700',
-  },
-  textArea: {
-    height: 100,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  helperText: {
-    fontSize: 13,
-    marginTop: -4,
-    marginBottom: 4,
-  },
-  muted: {
-    fontSize: 13,
-    lineHeight: 18,
   },
   bannerPreview: {
     width: '100%',
@@ -465,32 +410,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
-  cta: {
-    height: 52,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#111827',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 12,
-  },
   ctaSecondary: {
     height: 52,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-  },
-  ctaDisabled: { opacity: 0.5 },
-  ctaText: {
-    color: 'white',
-    fontWeight: '800',
-    fontSize: 17,
-    letterSpacing: 0.3,
   },
   ctaSecondaryText: {
     fontWeight: '800',

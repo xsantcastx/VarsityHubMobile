@@ -1,11 +1,9 @@
 import { autocompleteLocations, geocodeLocation, PlaceSuggestion } from '@/api/geocoding';
+import { LocationSuggestionListShared } from '@/components/LocationSuggestionListShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -152,61 +150,22 @@ export default function LocationPicker({
         autoCapitalize="words"
         autoCorrect={false}
       />
-
-      {querying && (
-        <ActivityIndicator
-          size="small"
-          color={theme.tint}
-          style={styles.spinner}
-        />
-      )}
-
-      {suggestions.length > 0 && (
-        <View
-          style={[
-            styles.listView,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-            },
-          ]}
-        >
-          {suggestions.map((suggestion, index) => (
-            <Pressable
-              key={suggestion.place_id}
-              style={[
-                styles.row,
-                { borderBottomColor: theme.border },
-                index === suggestions.length - 1 && styles.rowLast,
-              ]}
-              onPress={() => handleSelect(suggestion)}
-            >
-              <MaterialIcons
-                name="location-on"
-                size={16}
-                color={theme.tint}
-                style={{ marginRight: 8 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.mainText, { color: theme.text }]}>
-                  {suggestion.structured_formatting?.main_text ||
-                    suggestion.description}
-                </Text>
-                {suggestion.structured_formatting?.secondary_text && (
-                  <Text
-                    style={[
-                      styles.secondaryText,
-                      { color: theme.mutedText },
-                    ]}
-                  >
-                    {suggestion.structured_formatting.secondary_text}
-                  </Text>
-                )}
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      )}
+      <LocationSuggestionListShared
+        suggestions={suggestions}
+        querying={querying}
+        onSelect={handleSelect}
+        tintColor={theme.tint}
+        textColor={theme.text}
+        mutedTextColor={theme.mutedText}
+        backgroundColor={theme.surface}
+        borderColor={theme.border}
+        spinnerStyle={styles.spinner}
+        listStyle={styles.listView}
+        itemStyle={styles.row}
+        lastItemStyle={styles.rowLast}
+        mainTextStyle={styles.mainText}
+        secondaryTextStyle={styles.secondaryText}
+      />
 
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>

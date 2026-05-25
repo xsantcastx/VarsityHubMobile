@@ -243,6 +243,16 @@ const genericHandoffRoutes: Array<{ path: string; title: string; description: st
     description: 'Open VarsityHub to continue in organization tools.',
   },
   {
+    path: '/onboarding/coach-agreement',
+    title: 'Accept Coach Agreement',
+    description: 'Open VarsityHub to review and accept the coach agreement.',
+  },
+  {
+    path: '/onboarding/step-3-league',
+    title: 'Finish Coach Setup',
+    description: 'Open VarsityHub to create your approved organization and finish coach setup.',
+  },
+  {
     path: '/approvals',
     title: 'Open Organization Requests',
     description: 'Open VarsityHub to review organization requests.',

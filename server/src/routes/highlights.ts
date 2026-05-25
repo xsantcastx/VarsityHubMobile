@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { sendError } from '../lib/http/sendError.js';
+import { highlightPostSelect } from '../lib/highlightPostSelect.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
@@ -31,21 +32,6 @@ highlightsRouter.get(
       const since = new Date(Date.now() - SINCE_DAYS * 864e5);
       const RADIUS_KM = 100; // Wider radius for more posts
 
-      const baseSelect = {
-        id: true,
-        title: true,
-        content: true,
-        media_url: true,
-        upvotes_count: true,
-        created_at: true,
-        author_id: true,
-        author: { select: { id: true, username: true, display_name: true, avatar_url: true } },
-        lat: true,
-        lng: true,
-        country_code: true,
-        _count: { select: { comments: true } },
-      } as const;
-
       // Privacy: exclude posts from private-profile authors the viewer doesn't follow
       const excludedIds = await getExcludedPrivateAuthorIds(req.user?.id ?? null);
       const privacyWhere = excludedIds.length ? { author_id: { notIn: excludedIds } } : {};
@@ -62,7 +48,7 @@ highlightsRouter.get(
         },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: 10,
-        select: baseSelect,
+        select: highlightPostSelect,
       });
 
       // Fill with global top posts if not enough national posts
@@ -78,7 +64,7 @@ highlightsRouter.get(
           },
           orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
           take: 10 - nationalTop.length,
-          select: baseSelect,
+          select: highlightPostSelect,
         });
         nationalTop = nationalTop.concat(fill);
       }
@@ -103,7 +89,7 @@ highlightsRouter.get(
             },
             orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
             take: Math.min(limit, 100),
-            select: baseSelect,
+          select: highlightPostSelect,
           });
         } else {
           // Get more national posts for better variety
@@ -118,7 +104,7 @@ highlightsRouter.get(
             },
             orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
             take: Math.min(limit, 100),
-            select: baseSelect,
+            select: highlightPostSelect,
           });
         }
         res.set('Cache-Control', 'no-store, private');
@@ -144,7 +130,7 @@ highlightsRouter.get(
         },
         orderBy: [{ created_at: 'desc' }],
         take: 500, // Increased pool size
-        select: baseSelect,
+        select: highlightPostSelect,
       });
 
       // Local bbox predicate

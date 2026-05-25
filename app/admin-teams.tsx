@@ -1,11 +1,15 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import {
+  AdminGuardState,
+  AdminScreenShell,
+  adminScreenSharedStyles as sharedStyles,
+} from '@/components/AdminScreenShared';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
@@ -108,65 +112,67 @@ function AdminTeamsScreen() {
 
   if (adminLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator color={Colors[colorScheme].tint} />
-      </SafeAreaView>
+      <AdminGuardState
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+        loading
+      />
     );
   }
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Admin access required</Text>
-      </SafeAreaView>
+      <AdminGuardState
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+      />
     );
   }
 
+  const renderHeaderRight = () => (
+    <View style={{ flexDirection: 'row', gap: 12, marginRight: 8 }}>
+      {bulkMode && (
+        <>
+          <Pressable onPress={selectAll} style={{ padding: 8 }}>
+            <Text style={{ color: theme.tint, fontWeight: '600' }}>
+              {selectedTeams.size === teams.length ? 'Deselect All' : 'Select All'}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={bulkDelete}
+            disabled={selectedTeams.size === 0 || deleting}
+            style={{ padding: 8 }}
+          >
+            <Text
+              style={{
+                color: selectedTeams.size > 0 ? Colors[colorScheme].destructive : Colors[colorScheme].mutedText,
+                fontWeight: '600',
+              }}
+            >
+              Delete ({selectedTeams.size})
+            </Text>
+          </Pressable>
+        </>
+      )}
+      <Pressable onPress={() => setBulkMode(!bulkMode)} style={{ padding: 8 }}>
+        <Ionicons
+          name={bulkMode ? 'close' : 'checkmark-circle-outline'}
+          size={24}
+          color={bulkMode ? '#dc2626' : theme.tint}
+        />
+      </Pressable>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen
-        options={{
-          title: 'Admin · All Teams',
-          headerShown: true,
-          headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
-            </Pressable>
-          ),
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 12, marginRight: 8 }}>
-              {bulkMode && (
-                <>
-                  <Pressable onPress={selectAll} style={{ padding: 8 }}>
-                    <Text style={{ color: theme.tint, fontWeight: '600' }}>
-                      {selectedTeams.size === teams.length ? 'Deselect All' : 'Select All'}
-                    </Text>
-                  </Pressable>
-                  <Pressable 
-                    onPress={bulkDelete} 
-                    disabled={selectedTeams.size === 0 || deleting}
-                    style={{ padding: 8 }}
-                  >
-                    <Text style={{ 
-                      color: selectedTeams.size > 0 ? Colors[colorScheme].destructive : Colors[colorScheme].mutedText, 
-                      fontWeight: '600' 
-                    }}>
-                      Delete ({selectedTeams.size})
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-              <Pressable onPress={() => setBulkMode(!bulkMode)} style={{ padding: 8 }}>
-                <Ionicons 
-                  name={bulkMode ? 'close' : 'checkmark-circle-outline'}
-                  size={24} 
-                  color={bulkMode ? '#dc2626' : theme.tint} 
-                />
-              </Pressable>
-            </View>
-          )
-        }} 
-      />
+    <AdminScreenShell
+      title="Admin · All Teams"
+      backgroundColor={theme.background}
+      onBack={() => {
+        safeGoBack(router);
+      }}
+      headerRight={renderHeaderRight}
+    >
       
       {loading ? (
         <View style={{ padding: 24, alignItems: 'center' }}>
@@ -175,7 +181,7 @@ function AdminTeamsScreen() {
       ) : null}
       
       {error ? (
-        <Text style={[styles.error, { color: Colors[colorScheme].destructive }]}>{error}</Text>
+        <Text style={[sharedStyles.centeredError, { color: Colors[colorScheme].destructive }]}>{error}</Text>
       ) : null}
       
       {!loading && !error && (
@@ -185,7 +191,7 @@ function AdminTeamsScreen() {
           renderItem={({ item }) => (
             <Pressable 
               style={[
-                styles.row, 
+                styles.row,
                 { 
                   backgroundColor: theme.card, 
                   borderColor: theme.border 
@@ -261,40 +267,14 @@ function AdminTeamsScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </AdminScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  row: { 
-    padding: 16, 
-    borderRadius: 12, 
-    borderWidth: 1,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-        }),
-    elevation: 1
-  },
-  title: { 
-    fontWeight: '800', 
-    fontSize: 16,
-    marginBottom: 4
-  },
-  meta: { 
-    fontSize: 13,
-    marginTop: 2
-  },
-  error: { 
-    padding: 16,
-    textAlign: 'center',
-    fontWeight: '600'
-  },
+  row: sharedStyles.elevatedListCard,
+  title: sharedStyles.listTitle,
+  meta: sharedStyles.listMeta,
 });
 
 export default AdminTeamsScreen;

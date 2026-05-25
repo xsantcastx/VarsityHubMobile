@@ -1,4 +1,13 @@
 import { getPreferencesObject } from './userAuthState.js';
+import {
+  getCanonicalBillingState as getCanonicalBillingStateShared,
+  getCanonicalPendingPlan as getCanonicalPendingPlanShared,
+  getCanonicalPlan as getCanonicalPlanShared,
+  getEffectiveEntitledPlan as getEffectiveEntitledPlanShared,
+  getSelectedPlan as getSelectedPlanShared,
+  isPaymentApproved as isPaymentApprovedShared,
+  isPaymentPending as isPaymentPendingShared,
+} from '../../../shared/runtime/billingCore.js';
 
 export type CanonicalMembershipPlan = 'rookie' | 'veteran' | 'legend';
 
@@ -18,65 +27,36 @@ export type UserBillingStatePatch = {
   payment_approved?: boolean | null;
 };
 
-function normalizePlan(raw: unknown): CanonicalMembershipPlan | null {
-  if (typeof raw !== 'string') return null;
-  const value = raw.trim().toLowerCase();
-  if (!value) return null;
-  if (value === 'legend' || value === 'pro') return 'legend';
-  if (value === 'veteran' || value === 'premium') return 'veteran';
-  if (value === 'rookie' || value === 'free') return 'rookie';
-  return null;
-}
-
-function asNullableBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null;
-}
-
 export function getCanonicalPlan(
   source: UserBillingStateSource | null | undefined,
 ): CanonicalMembershipPlan {
-  const fromColumn = normalizePlan(source?.plan);
-  if (fromColumn) return fromColumn;
-  const prefs = getPreferencesObject(source?.preferences);
-  const fromPrefs = normalizePlan(prefs.plan);
-  if (fromPrefs) return fromPrefs;
-  return normalizePlan(source?.subscription_tier) ?? 'rookie';
+  return getCanonicalPlanShared(source);
 }
 
 export function getCanonicalPendingPlan(
   source: UserBillingStateSource | null | undefined,
 ): CanonicalMembershipPlan | null {
-  const fromColumn = normalizePlan(source?.pending_plan);
-  if (fromColumn) return fromColumn;
-  const prefs = getPreferencesObject(source?.preferences);
-  return normalizePlan(prefs.pending_plan);
+  return getCanonicalPendingPlanShared(source);
 }
 
 export function isPaymentPending(source: UserBillingStateSource | null | undefined): boolean {
-  const fromColumn = asNullableBoolean(source?.payment_pending);
-  if (fromColumn !== null) return fromColumn;
-  const prefs = getPreferencesObject(source?.preferences);
-  return prefs.payment_pending === true;
+  return isPaymentPendingShared(source);
 }
 
 export function isPaymentApproved(source: UserBillingStateSource | null | undefined): boolean {
-  const fromColumn = asNullableBoolean(source?.payment_approved);
-  if (fromColumn !== null) return fromColumn;
-  const prefs = getPreferencesObject(source?.preferences);
-  return prefs.payment_approved === true;
+  return isPaymentApprovedShared(source);
 }
 
 export function getSelectedPlan(
   source: UserBillingStateSource | null | undefined,
 ): CanonicalMembershipPlan {
-  return getCanonicalPendingPlan(source) ?? getCanonicalPlan(source);
+  return getSelectedPlanShared(source);
 }
 
 export function getEffectiveEntitledPlan(
   source: UserBillingStateSource | null | undefined,
 ): CanonicalMembershipPlan {
-  if (isPaymentPending(source)) return 'rookie';
-  return getCanonicalPlan(source);
+  return getEffectiveEntitledPlanShared(source);
 }
 
 export function mergeBillingStateIntoPreferences(
@@ -125,17 +105,5 @@ export function buildBillingStateColumns(
 export function getCanonicalBillingState(
   source: UserBillingStateSource | null | undefined,
 ) {
-  const plan = getCanonicalPlan(source);
-  const pending_plan = getCanonicalPendingPlan(source);
-  const payment_pending = isPaymentPending(source);
-  const payment_approved = isPaymentApproved(source);
-
-  return {
-    plan,
-    pending_plan,
-    payment_pending,
-    payment_approved,
-    selected_plan: pending_plan ?? plan,
-    effective_plan: payment_pending ? 'rookie' : plan,
-  };
+  return getCanonicalBillingStateShared(source);
 }

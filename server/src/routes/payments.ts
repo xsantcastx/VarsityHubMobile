@@ -3649,7 +3649,7 @@ const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
   MIDTIER: 'veteran',
   TOPTIER: 'legend',
 };
-const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub')
+const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.xsantcastx.varsityhub')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);

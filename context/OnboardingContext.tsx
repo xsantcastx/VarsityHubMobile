@@ -17,6 +17,20 @@ type ServerOnboardingPatch = Partial<{
   [K in keyof OnboardingState]: OnboardingState[K] | null;
 }>;
 
+function normalizeServerOnboardingPatch(serverPrefs: Record<string, unknown>): ServerOnboardingPatch {
+  const filtered = Object.fromEntries(
+    Object.entries(serverPrefs).filter(([, v]) => v !== undefined)
+  ) as ServerOnboardingPatch;
+
+  // `step_3_visited` is a local draft milestone, not a server-owned field.
+  // Always clear it on server hydration so stale local completion cannot
+  // survive once canonical auth state has been fetched.
+  delete filtered.step_3_visited;
+  filtered.step_3_visited = false;
+
+  return filtered;
+}
+
 export type Affiliation = 'none' | 'other' | 'school' | 'independent' | 'university' | 'high_school' | 'club' | 'youth' | 'professional';
 export type Plan = 'rookie' | 'veteran' | 'legend';
 // Rookie is a plan, not a role
@@ -185,9 +199,7 @@ export function OBProvider({ children }: PropsWithChildren) {
     if (!serverPrefs || Object.keys(serverPrefs).length === 0) return;
     // Apply all defined values, including nulls, so server-side clears wipe stale
     // local draft data instead of leaving old IDs/plans behind.
-    const filtered = Object.fromEntries(
-      Object.entries(serverPrefs).filter(([, v]) => v !== undefined)
-    ) as ServerOnboardingPatch;
+    const filtered = normalizeServerOnboardingPatch(serverPrefs);
     if (Object.keys(filtered).length === 0) return;
     setState(prev => {
       const merged = { ...prev, ...filtered } as OnboardingState;

@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, expect, it } from '@jest/globals';
 import bcrypt from 'bcrypt';
+import { PASSWORD, adultDob, describeDb, loadAuthE2eDeps } from './helpers/authE2eTestUtils.js';
 
 let prisma: any;
 let request: any;
@@ -7,26 +8,13 @@ let app: import('express').Express;
 let signJwt: any;
 
 const ts = Date.now();
-const PASSWORD = 'TestPassword123!';
-const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
-const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
-const describeDb = shouldSkip ? describe.skip : describe;
-
-function adultDob(): Date {
-  const d = new Date();
-  d.setUTCFullYear(d.getUTCFullYear() - 30);
-  return d;
-}
 
 describeDb('POST /auth/downgrade-to-fan', () => {
   const userIds: string[] = [];
   const orgIds: string[] = [];
 
   beforeAll(async () => {
-    ({ prisma } = await import('../lib/prisma.js'));
-    ({ signJwt } = await import('../lib/jwt.js'));
-    request = (await import('supertest')).default;
-    ({ app } = await import('../authTestApp.js'));
+    ({ prisma, signJwt, request, app } = await loadAuthE2eDeps());
   });
 
   afterAll(async () => {
@@ -46,7 +34,7 @@ describeDb('POST /auth/downgrade-to-fan', () => {
         approval_status: 'APPROVED',
         role: 'coach',
         onboarding_completed: true,
-        date_of_birth: adultDob(),
+        date_of_birth: adultDob(30),
         preferences: {
           role: 'coach',
           plan: 'rookie',
@@ -90,7 +78,7 @@ describeDb('POST /auth/downgrade-to-fan', () => {
         approval_status: 'APPROVED',
         role: 'coach',
         onboarding_completed: true,
-        date_of_birth: adultDob(),
+        date_of_birth: adultDob(30),
         preferences: {
           role: 'coach',
           plan: 'rookie',

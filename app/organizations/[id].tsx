@@ -170,7 +170,7 @@ function OrganizationDetailScreen() {
         <Text style={{ fontSize: 48, marginBottom: 12 }}>🏫</Text>
         <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 8, color: theme.text }}>Not Found</Text>
         <Text style={{ color: theme.mutedText, textAlign: 'center', marginBottom: 20 }}>This organization doesn't exist or the link is invalid.</Text>
-        <Pressable onPress={() => { safeGoBack(router); }} style={{ backgroundColor: theme.tint, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
+        <Pressable onPress={() => { safeGoBack(router, '/(tabs)/discover'); }} style={{ backgroundColor: theme.tint, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 10 }}>
           <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
         </Pressable>
       </View>
@@ -222,7 +222,15 @@ function OrganizationDetailScreen() {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/request-join-organization', params: { orgId: org.id } } as any)}
+          onPress={() =>
+            router.push({
+              pathname: '/request-join-organization',
+              params: {
+                orgId: org.id,
+                fallback: `/organizations/${encodeURIComponent(org.id)}`,
+              },
+            } as any)
+          }
           style={{ backgroundColor: theme.tint, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 }}
         >
           <Text style={{ color: '#fff', fontWeight: '600' }}>Request to Join</Text>

@@ -17,6 +17,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import EventPreviewImageField from '@/components/EventPreviewImageField';
+import { EventFormHeader, LocationSuggestionList } from '@/components/EventFormShared';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import { Team } from '@/api/entities';
@@ -320,12 +321,12 @@ function CreateEventScreen() {
     >
       <Stack.Screen options={{ title: 'Create Official Event' }} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" automaticallyAdjustKeyboardInsets>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Official Event</Text>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-            As an administrator, this event will be automatically approved and published.
-          </Text>
-        </View>
+        <EventFormHeader
+          title="Create Official Event"
+          subtitle="As an administrator, this event will be automatically approved and published."
+          textColor={Colors[colorScheme].text}
+          mutedTextColor={Colors[colorScheme].mutedText}
+        />
 
         {/* Event Type */}
         <View style={styles.section}>
@@ -437,32 +438,16 @@ function CreateEventScreen() {
               autoCapitalize="words"
               autoCorrect={false}
             />
-            {locationQuerying && (
-              <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={{ position: 'absolute', right: 12, top: 12 }} />
-            )}
-            {locationSuggestions.length > 0 && (
-              <View style={[styles.suggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                {locationSuggestions.map((suggestion, index) => (
-                  <Pressable
-                    key={suggestion.place_id}
-                    style={[styles.suggestionItem, { borderBottomColor: Colors[colorScheme].border }, index === locationSuggestions.length - 1 && { borderBottomWidth: 0 }]}
-                    onPress={() => handleSelectLocation(suggestion)}
-                  >
-                    <MaterialIcons name="location-on" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '500', color: Colors[colorScheme].text }}>
-                        {suggestion.structured_formatting?.main_text || suggestion.description}
-                      </Text>
-                      {suggestion.structured_formatting?.secondary_text && (
-                        <Text style={{ fontSize: 13, color: Colors[colorScheme].mutedText, marginTop: 2 }}>
-                          {suggestion.structured_formatting.secondary_text}
-                        </Text>
-                      )}
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            )}
+            <LocationSuggestionList
+              suggestions={locationSuggestions}
+              querying={locationQuerying}
+              onSelect={handleSelectLocation}
+              tintColor={Colors[colorScheme].tint}
+              textColor={Colors[colorScheme].text}
+              mutedTextColor={Colors[colorScheme].mutedText}
+              cardColor={Colors[colorScheme].card}
+              borderColor={Colors[colorScheme].border}
+            />
           </View>
           {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
         </View>
@@ -531,18 +516,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
   },
   section: {
     marginBottom: 20,

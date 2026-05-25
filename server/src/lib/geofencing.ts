@@ -35,6 +35,18 @@ export type PostingPermissionResult = {
 
 export type PostPostingWindowState = 'before_open' | 'live' | 'grace' | 'closed';
 
+const postingEventSelect = {
+  id: true,
+  title: true,
+  date: true,
+  latitude: true,
+  longitude: true,
+  location: true,
+  game_id: true,
+} as const;
+
+type PostingEvent = Awaited<ReturnType<typeof loadPostingEvent>>;
+
 const formatWindowDateTime = (date: Date) =>
   date.toLocaleString('en-US', {
     month: 'numeric',
@@ -150,6 +162,29 @@ export function isPostingWindowOpen(eventDate: Date): boolean {
   return now >= windowOpenTime;
 }
 
+async function loadPostingEvent(eventId: string) {
+  return prisma.event.findUnique({
+    where: { id: eventId },
+    select: postingEventSelect,
+  });
+}
+
+async function resolveVenueCoordinates(event: PostingEvent) {
+  let venueLat = typeof event?.latitude === 'number' ? event.latitude : null;
+  let venueLon = typeof event?.longitude === 'number' ? event.longitude : null;
+  if (venueLat == null || venueLon == null) {
+    const game = event?.game_id
+      ? await prisma.game.findUnique({
+          where: { id: event.game_id },
+          select: { latitude: true, longitude: true, venue_lat: true, venue_lng: true },
+        })
+      : null;
+    venueLat = venueLat ?? game?.latitude ?? game?.venue_lat ?? null;
+    venueLon = venueLon ?? game?.longitude ?? game?.venue_lng ?? null;
+  }
+  return { venueLat, venueLon };
+}
+
 /**
  * Verify user can post a story to an event based on location and time
  * Stories: event day through +48h, 1km radius
@@ -194,19 +229,7 @@ export async function verifyStoryPostingPermission(
   userLon: number | null,
   ipAddress?: string | null,
 ): Promise<PostingPermissionResult> {
-  // Get event details
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: {
-      id: true,
-      title: true,
-      date: true,
-      latitude: true,
-      longitude: true,
-      location: true,
-      game_id: true,
-    },
-  });
+  const event = await loadPostingEvent(eventId);
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
@@ -223,19 +246,7 @@ export async function verifyStoryPostingPermission(
     };
   }
 
-  // Resolve venue coordinates: event first, then fall back to game
-  let venueLat = typeof event.latitude === 'number' ? event.latitude : null;
-  let venueLon = typeof event.longitude === 'number' ? event.longitude : null;
-  if (venueLat == null || venueLon == null) {
-    const game = event.game_id
-      ? await prisma.game.findUnique({
-          where: { id: event.game_id },
-          select: { latitude: true, longitude: true, venue_lat: true, venue_lng: true },
-        })
-      : null;
-    venueLat = venueLat ?? game?.latitude ?? game?.venue_lat ?? null;
-    venueLon = venueLon ?? game?.longitude ?? game?.venue_lng ?? null;
-  }
+  const { venueLat, venueLon } = await resolveVenueCoordinates(event);
   if (venueLat == null || venueLon == null) {
     console.warn(`Event ${eventId} and game missing coordinates - allowing story without geofence`);
     return { allowed: true };
@@ -291,19 +302,7 @@ export async function verifyEventPostingPermission(
   userLat: number | null,
   userLon: number | null
 ): Promise<PostingPermissionResult> {
-  // Get event details
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: {
-      id: true,
-      title: true,
-      date: true,
-      latitude: true,
-      longitude: true,
-      location: true,
-      game_id: true,
-    },
-  });
+  const event = await loadPostingEvent(eventId);
 
   if (!event) {
     return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
@@ -345,19 +344,7 @@ export async function verifyEventPostingPermission(
     }
   }
 
-  // Resolve venue coordinates: event first, then fall back to game
-  let venueLat = typeof event.latitude === 'number' ? event.latitude : null;
-  let venueLon = typeof event.longitude === 'number' ? event.longitude : null;
-  if (venueLat == null || venueLon == null) {
-    const game = event.game_id
-      ? await prisma.game.findUnique({
-          where: { id: event.game_id },
-          select: { latitude: true, longitude: true, venue_lat: true, venue_lng: true },
-        })
-      : null;
-    venueLat = venueLat ?? game?.latitude ?? game?.venue_lat ?? null;
-    venueLon = venueLon ?? game?.longitude ?? game?.venue_lng ?? null;
-  }
+  const { venueLat, venueLon } = await resolveVenueCoordinates(event);
   if (venueLat == null || venueLon == null) {
     console.warn(`Event ${eventId} and game missing coordinates - allowing post without geofence`);
     return { allowed: true };

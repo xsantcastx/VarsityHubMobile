@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { screenHeaderSharedStyles } from '@/components/ScreenHeaderShared';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -204,23 +205,9 @@ export default function OnboardingLayout({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
+  container: screenHeaderSharedStyles.container,
+  header: screenHeaderSharedStyles.header,
+  backButton: screenHeaderSharedStyles.backButtonLeading,
   verifyButton: {
     flexDirection: 'row',
     alignItems: 'center',
