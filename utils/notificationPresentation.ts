@@ -1,7 +1,7 @@
 import {
-  getCoachApprovalNotificationRoute,
-  getCoachRecoveryRoute,
-  type CoachUserLike,
+    getCoachApprovalNotificationRoute,
+    getCoachRecoveryRoute,
+    type CoachUserLike,
 } from './roleChecks';
 
 type NotificationActor = {
@@ -187,6 +187,13 @@ export function getNotificationHrefForUser(item: NotificationItem, user: CoachUs
     (item.event?.id || item.meta?.event_id)
   ) {
     return `/event-detail?id=${encodeURIComponent(item.event?.id || item.meta?.event_id || '')}`;
+  }
+  // Fallback: game has no linked event — route directly to the game detail screen.
+  if (
+    (type === 'GAME_REMINDER' || type === 'EVENT_APPROVED' || type === 'EVENT_REJECTED') &&
+    item.meta?.game_id
+  ) {
+    return `/game/${encodeURIComponent(String(item.meta.game_id))}`;
   }
   if ((type === 'AD_APPROVED' || type === 'AD_REJECTED') && item.meta?.ad_id) {
     return `/ad-calendar?adId=${encodeURIComponent(item.meta.ad_id)}`;
