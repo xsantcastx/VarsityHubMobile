@@ -651,8 +651,8 @@ export const Organization = {
     httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
   myJoinRequests: () => httpGet('/organizations/join-requests/me'),
   // Organization join requests (coach/admin workflows)
-  requestToJoin: (organizationId: string, message?: string, role?: string) =>
-    httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, role }),
+  requestToJoin: (organizationId: string, message?: string, teamId?: string) =>
+    httpPost(`/organizations/join-requests`, { organization_id: organizationId, message, team_id: teamId }),
   getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
     const params: string[] = [];
     if (status) params.push('status=' + encodeURIComponent(status));

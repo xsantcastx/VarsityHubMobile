@@ -1814,6 +1814,7 @@ organizationsRouter.post(
 const createJoinRequestSchema = z.object({
   organization_id: z.string(),
   message: z.string().max(500).optional(),
+  team_id: z.string().optional(),
 });
 
 organizationsRouter.post(
@@ -1825,7 +1826,7 @@ organizationsRouter.post(
       const parsed = createJoinRequestSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
-      const { organization_id, message } = parsed.data;
+      const { organization_id, message, team_id } = parsed.data;
 
       // Check if organization exists
       const organization = await prisma.organization.findUnique({
@@ -1916,6 +1917,19 @@ organizationsRouter.post(
       }
 
       // Create join request + set coach to PENDING atomically
+      // If a team_id is provided, embed team context in message for league owner visibility.
+      // (OrganizationJoinRequest has no team_id column — no schema migration needed.)
+      let effectiveMessage = message;
+      if (team_id) {
+        const team = await prisma.team.findFirst({
+          where: { id: team_id, organization_id },
+          select: { name: true },
+        });
+        if (team?.name) {
+          const teamContext = `[Team: ${team.name}]`;
+          effectiveMessage = message ? `${teamContext} ${message}` : teamContext;
+        }
+      }
       const ownerMembership = await prisma.organizationMembership.findFirst({
         where: {
           organization_id,
@@ -1940,11 +1954,11 @@ organizationsRouter.post(
           create: {
             organization_id,
             user_id: req.user!.id,
-            message,
+            message: effectiveMessage,
             status: 'pending',
           },
           update: {
-            message,
+            message: effectiveMessage,
             status: 'pending',
             created_at: new Date(),
             reviewed_at: null,
@@ -3568,7 +3582,7 @@ organizationsRouter.post(
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const { id: orgId, userId: coachId } = req.params;
-      const { team_id: teamId } = req.body || {};
+      const { team_id: teamId, note } = req.body || {};
 
       // Existing-org coach admission is decided by the league owner only.
       const membership = await prisma.organizationMembership.findFirst({
@@ -3725,6 +3739,14 @@ organizationsRouter.post(
         .catch(err => {
           console.error('[notif] coach approval push failed:', (err as any)?.message || err);
         });
+
+      await logAdminActivityFromReq(
+        req,
+        'APPROVE_COACH',
+        'user',
+        coachId,
+        `League owner approved coach${note ? ` — ${String(note).trim()}` : ''}`
+      );
 
       return res.json({ message: 'Coach approved', coach_id: coachId });
     } catch (err: any) {
