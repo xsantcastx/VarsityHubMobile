@@ -687,13 +687,14 @@ export const Team = {
   list: (
     q?: string,
     mine?: boolean,
-    options?: { directory?: boolean; limit?: number }
+    options?: { directory?: boolean; limit?: number; organization_id?: string }
   ): Promise<any> => {
     const params: string[] = [];
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     if (mine) params.push('mine=1');
     if (options?.directory) params.push('directory=1');
     if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
+    if (options?.organization_id) params.push(`organization_id=${encodeURIComponent(options.organization_id)}`);
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs).then(data => validateTeamArray('teams.list', data));
   },

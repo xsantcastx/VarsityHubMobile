@@ -13,17 +13,18 @@ import { getMaxTeamsForPlan, planSupportsExtracurricular } from '../lib/planLimi
 import { prisma } from '../lib/prisma.js';
 import { getExcludedPrivateTeamIds, isTeamHiddenFromViewer } from '../lib/privacyUtils.js';
 import { sendPushNotification } from '../lib/pushNotifications.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { buildTeamSerializeSelect, serializeTeam } from '../lib/serializeTeam.js';
 import {
-  canManageTeam as canManageTeamScoped,
-  isOrgAdmin as isOrgAdminScoped,
+    canManageTeam as canManageTeamScoped,
+    isOrgAdmin as isOrgAdminScoped,
 } from '../lib/teamAuthorization.js';
 import {
-  buildTeamPlanLockedError,
-  getTeamEntitlementState,
-  isAuthorizedTeamRole,
-  isManagementRole,
-  TEAM_AUTHORIZED_ROLES,
+    buildTeamPlanLockedError,
+    getTeamEntitlementState,
+    isAuthorizedTeamRole,
+    isManagementRole,
+    TEAM_AUTHORIZED_ROLES,
 } from '../lib/teamEntitlements.js';
 import { getTeamState, listTeamStates } from '../lib/teamState.js';
 import { getCanonicalUserRole, isUserOnboardingComplete } from '../lib/userAuthState.js';
@@ -37,7 +38,6 @@ import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { stripHtml } from '../lib/sanitizeHtml.js';
 
 export const teamsRouter = Router();
 registerIdValidation(teamsRouter);
@@ -741,6 +741,7 @@ teamsRouter.get(
       const all = String((req.query as any).all || '') === '1';
       const mine = String((req.query as any).mine || '') === '1';
       const directory = String((req.query as any).directory || '') === '1'; // Team directory search
+      const orgIdFilter = String((req.query as any).organization_id || '').trim() || null;
       const limitRaw = Number.parseInt(String((req.query as any).limit ?? ''), 10);
       const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
 
@@ -789,6 +790,11 @@ teamsRouter.get(
             status: MembershipStatus.active,
           },
         };
+      }
+
+      // Filter by organization if requested
+      if (orgIdFilter) {
+        where.organization_id = orgIdFilter;
       }
 
       const rows = await prisma.team.findMany({

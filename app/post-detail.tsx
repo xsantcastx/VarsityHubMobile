@@ -560,6 +560,13 @@ export default function PostDetailScreen() {
       const nextReal = [created, ...prevComments];
       setComments(nextReal);
       setCommentsById(prev => ({ ...prev, [currentPostId]: nextReal }));
+      // Increment comment count on the post object
+      setPost((p: any) => p ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p);
+      setPostsById(prev => {
+        const existing = prev[currentPostId];
+        if (!existing) return prev;
+        return { ...prev, [currentPostId]: { ...existing, comments_count: (existing.comments_count || 0) + 1 } };
+      });
     } catch (error) {
       // Revert optimistic insert on failure
       setComments(prevComments);

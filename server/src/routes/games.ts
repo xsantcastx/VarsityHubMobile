@@ -5,22 +5,22 @@ import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
-  sendEventApprovedEmail,
-  sendEventCanceledEmail,
-  sendEventDeniedEmail,
-  sendEventSubmissionReceivedEmail,
-  sendEventUpdatedEmail,
+    sendEventApprovedEmail,
+    sendEventCanceledEmail,
+    sendEventDeniedEmail,
+    sendEventSubmissionReceivedEmail,
+    sendEventUpdatedEmail,
 } from '../lib/email.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 import { sendError } from '../lib/http/sendError.js';
-import { stripHtml } from '../lib/sanitizeHtml.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import {
-  canManageAnyTeam,
-  canManageTeam as canManageTeamScoped,
+    canManageAnyTeam,
+    canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
@@ -2333,6 +2333,7 @@ gamesRouter.post(
 gamesRouter.put(
   '/:id/approve',
   requireAuth as any,
+  requireVerified as any,
   requireOnboarded as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {

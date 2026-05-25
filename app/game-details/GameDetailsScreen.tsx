@@ -1488,6 +1488,19 @@ const GameDetailsScreen = () => {
     if (!permissionGranted || (Platform.OS === 'android' && needsPreciseAccuracy)) {
       const granted = await requestPermission();
       if (!granted) {
+        // If the game has a linked event and it's not a demo, location is REQUIRED by the server.
+        // Block the upload early to avoid wasting a Cloudinary upload.
+        if (hasEvent && !isDemoMatchup) {
+          Alert.alert(
+            'Location Required',
+            'Location access is required to post stories at live events. Enable it in Settings to continue.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+          return;
+        }
         Alert.alert(
           'Location Permission',
           'Stories can still post without location, but pins and discovery will be less accurate until you enable it.',

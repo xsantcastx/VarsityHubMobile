@@ -1,30 +1,30 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
-import {
-  AdFormHeader,
-  AdFormLoading,
-  AdFormPrimaryCta,
-  adFormSharedStyles as sharedStyles,
-} from '@/components/AdFormShared';
-import { uploadFile } from '@/api/upload';
+import { getApiBaseUrl } from '@/api/http';
 import settings from '@/api/settings';
+import { uploadFile } from '@/api/upload';
+import {
+    AdFormHeader,
+    AdFormLoading,
+    AdFormPrimaryCta,
+    adFormSharedStyles as sharedStyles,
+} from '@/components/AdFormShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getApiBaseUrl } from '@/api/http';
+import { getAdPaymentStatusLabel } from '@/utils/adPaymentStatusLabel';
 import { sanitizeText } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { getAdPaymentStatusLabel } from '@/utils/adPaymentStatusLabel';
 
 type AdStatus = 'draft' | 'pending' | 'approved' | 'active' | 'rejected' | 'archived';
 type PaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'pending_approval' | 'hold' | 'refund_pending';
@@ -174,7 +174,11 @@ export function EditAdScreenBase({
         contact_email: contactEmail.trim(),
         business_name: sanitizeText(business),
         banner_url: bannerUrl || undefined,
-        target_url: targetUrl.trim() || undefined,
+        target_url: targetUrl.trim()
+          ? /^https?:\/\//i.test(targetUrl.trim())
+            ? targetUrl.trim()
+            : 'https://' + targetUrl.trim()
+          : undefined,
         target_zip_code: zip.trim(),
         description: sanitizeText(desc) || undefined,
       });
@@ -287,7 +291,7 @@ export function EditAdScreenBase({
 
             <Text style={[sharedStyles.label, { color: theme.text }]}>Website Link (Optional)</Text>
             <TextInput
-              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+              style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: urlValid ? theme.border : '#cc0000', color: theme.text }]}
               value={targetUrl}
               onChangeText={setTargetUrl}
               placeholder="https://example.com"
@@ -295,7 +299,9 @@ export function EditAdScreenBase({
               keyboardType="url"
               placeholderTextColor={theme.mutedText}
             />
-            {targetUrl.trim() ? (
+            {targetUrl.trim() && !urlValid ? (
+              <Text style={[sharedStyles.helperText, { color: '#cc0000' }]}>Must start with https:// (e.g. https://example.com)</Text>
+            ) : targetUrl.trim() ? (
               <Text style={[sharedStyles.helperText, { color: theme.mutedText }]}>Users can tap your ad to visit this website</Text>
             ) : null}
 

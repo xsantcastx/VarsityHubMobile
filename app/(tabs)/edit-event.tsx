@@ -1,27 +1,27 @@
+import { getApiBaseUrl } from '@/api/http';
+import { uploadFile } from '@/api/upload';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import {
-  EditScreenHeader,
-  EditScreenLoading,
-  EditTextField,
-  EditScreenSubmitButton,
-  editScreenSharedStyles as sharedStyles,
+    EditScreenHeader,
+    EditScreenLoading,
+    EditScreenSubmitButton,
+    EditTextField,
+    editScreenSharedStyles as sharedStyles,
 } from '@/components/EditScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
+import { handleCoachAccessError } from '@/utils/coachAccess';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { handleCoachAccessError } from '@/utils/coachAccess';
-import { safeGoBack } from '@/utils/navigation';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { getApiBaseUrl } from '@/api/http';
-import { uploadFile } from '@/api/upload';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore
 import { Event } from '@/api/entities';
 
@@ -42,6 +42,8 @@ export default function EditEventScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [title, setTitle] = useState('');
+  const [originalTitle, setOriginalTitle] = useState('');
+  const [isApprovedEvent, setIsApprovedEvent] = useState(false);
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -63,6 +65,8 @@ export default function EditEventScreen() {
         return;
       }
       setTitle(data.title || '');
+      setOriginalTitle(data.title || '');
+      setIsApprovedEvent(data.approval_status === 'approved');
       setDescription(data.description || '');
       setLocation(data.location || '');
       setBannerUrl(data.banner_url || data.cover_image_url || null);
@@ -212,7 +216,7 @@ export default function EditEventScreen() {
   }
 
   const onSubmit = async () => {
-    if (!title.trim()) {
+    if (!title.trim() && !isApprovedEvent) {
       Alert.alert('Title required', 'Please enter an event title.');
       return;
     }
@@ -231,11 +235,14 @@ export default function EditEventScreen() {
     setSubmitting(true);
     try {
       const updateData: Record<string, any> = {
-        title: title.trim(),
         description: description.trim() || undefined,
         location: location.trim() || undefined,
         banner_url: bannerUrl ?? null,
       };
+      // Only include title if it changed — approved events reject title changes from coaches
+      if (title.trim() !== originalTitle) {
+        updateData.title = title.trim();
+      }
       if (parsedDate) {
         updateData.date = parsedDate;
       }
@@ -290,11 +297,14 @@ export default function EditEventScreen() {
           {/* Form Fields */}
           <View style={styles.formSection}>
             <View style={sharedStyles.inputGroup}>
-              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Title *</Text>
+              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>
+                Title {isApprovedEvent ? '(locked — event is approved)' : '*'}
+              </Text>
               <TextInput
-                style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+                style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: isApprovedEvent ? Colors[colorScheme].mutedText : Colors[colorScheme].text, opacity: isApprovedEvent ? 0.6 : 1 }]}
                 value={title}
-                onChangeText={setTitle}
+                onChangeText={isApprovedEvent ? undefined : setTitle}
+                editable={!isApprovedEvent}
                 placeholder="Event title"
                 placeholderTextColor={Colors[colorScheme].mutedText}
               />

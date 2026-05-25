@@ -1,16 +1,16 @@
 import { Game, Organization, Team } from '@/api/entities';
-import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { getCanonicalOrganizationId } from '@/utils/authState';
+import { goBackToTrackedRoute } from '@/utils/navigation';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { goBackToTrackedRoute } from '@/utils/navigation';
-import { getCanonicalOrganizationId } from '@/utils/authState';
 
 type OrganizationData = {
   id: string;
@@ -191,7 +191,7 @@ export default function OrganizationScreen() {
 
       let allTeams: any[] = [];
       try {
-        allTeams = await Team.list(undefined, undefined, { limit: 100 });
+        allTeams = await Team.list(undefined, undefined, { organization_id: orgId as string, limit: 100 });
       } catch (err: any) {
         if (__DEV__) console.error('[organization] Failed to load teams list:', err);
         allTeams = [];
@@ -200,7 +200,6 @@ export default function OrganizationScreen() {
       if (!mounted.current) return;
 
       const orgTeams: TeamItem[] = allTeams
-        .filter((t: any) => t.organization_id === orgId)
         .map((t: any) => ({
           id: String(t.id),
           name: t.name || 'Team',

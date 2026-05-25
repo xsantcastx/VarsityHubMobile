@@ -1,29 +1,28 @@
 import { Payments, Subscriptions, User } from '@/api/entities';
+import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/context/AuthProvider';
-import { useVHubIAP } from '@/hooks/useIAP';
-import { useFocusEffect } from '@react-navigation/native';
-import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
-import { SubscriptionDisclosureCard } from '@/components/subscription/SubscriptionDisclosureCard';
-import { getFreshAuthSnapshot } from '@/utils/authState';
+import { useAuth } from '@/context/AuthProvider';
+import { useVHubIAP } from '@/hooks/useIAP';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { openExternalUrl } from '@/utils/openExternalUrl';
 import { captureBreadcrumb } from '@/utils/sentry';
 import { usePaymentSheet } from '@/utils/stripe';
+import { useFocusEffect } from '@react-navigation/native';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+    Alert,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useColorScheme,
+    useWindowDimensions,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PaymentSheetResponse {
   paymentIntent?: string;
@@ -196,6 +195,8 @@ function ManageSubscription() {
               "Your subscription is being processed. You'll receive a confirmation email shortly."
             );
           }
+        } else {
+          Alert.alert('Purchase Cancelled', 'No charge was made.');
         }
       } catch (err: any) {
         captureBreadcrumb(

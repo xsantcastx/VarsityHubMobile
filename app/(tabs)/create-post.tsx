@@ -644,11 +644,11 @@ function CreatePostScreen() {
         );
         return;
       }
-      // Permission granted but no coords yet — show a warning and let the server validate
+      // Permission granted but coords not yet acquired — block submit and prompt retry
       Alert.alert(
-        'Getting Your Location',
-        'We couldn\'t get your location. The server will verify your position. If you\'re at the venue, proceed.',
-        [{ text: 'Continue', onPress: () => void doConfirmPost() }],
+        'Location Not Ready',
+        'Your location is still loading. Please wait a moment and try again.',
+        [{ text: 'OK' }],
       );
       return;
     }
