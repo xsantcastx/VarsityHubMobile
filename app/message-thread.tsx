@@ -55,12 +55,17 @@ function MessageThreadScreen() {
     conversation_id,
     with: withParam,
     prefill,
-  } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
+    fallback,
+  } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string; fallback?: string }>();
   const router = useRouter();
+  const { user, checkAuth } = useAuth();
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
-  const { user: authUser, checkAuth } = useAuth();
+  const explicitFallback =
+    typeof fallback === 'string' && fallback.trim().startsWith('/')
+      ? fallback.trim()
+      : '/messages';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
@@ -91,8 +96,8 @@ function MessageThreadScreen() {
     setLoading(true);
     setError(null);
     try {
-      const user = await getAuthSnapshot(checkAuth, authUser);
-      setMe(user);
+      const currentUser = ((await checkAuth().catch(() => null)) ?? user) as any;
+      setMe(currentUser);
       let list: Msg[] = [];
       if (conversation_id)
         list = await MessageApi.threadByConversation(String(conversation_id), 100);
@@ -110,7 +115,7 @@ function MessageThreadScreen() {
     } finally {
       setLoading(false);
     }
-  }, [authUser, checkAuth, conversation_id, withParam]);
+  }, [checkAuth, conversation_id, user, withParam]);
 
   useEffect(() => {
     void load();
@@ -382,7 +387,7 @@ function MessageThreadScreen() {
                 },
               ]}
             >
-              <Pressable onPress={() => safeGoBack(router)} style={styles.backButton}>
+              <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={styles.backButton}>
                 <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].text} />
               </Pressable>
 
@@ -445,7 +450,7 @@ function MessageThreadScreen() {
                     {error}
                   </Text>
                   <Pressable
-                    onPress={() => safeGoBack(router)}
+                    onPress={() => safeGoBack(router, explicitFallback)}
                     style={{
                       marginTop: 16,
                       paddingVertical: 12,
@@ -578,7 +583,7 @@ function MessageThreadScreen() {
                                   'User Blocked',
                                   'This user can no longer send you messages.'
                                 );
-                                safeGoBack(router);
+                                safeGoBack(router, explicitFallback);
                               } catch (error: any) {
                                 Alert.alert('Error', error.message || 'Failed to block user');
                               }

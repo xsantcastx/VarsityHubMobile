@@ -5,13 +5,13 @@ import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useUser } from '@/hooks/useUser';
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { getLinkedProvidersSnapshot } from '@/utils/authState';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
-  const { refresh: refreshUser, user } = useUser(true);
+  const { user, checkAuth } = useAuth();
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -25,14 +25,15 @@ export default function ResetPasswordScreen() {
     google_id?: string;
     linked_providers?: { password?: boolean; google?: boolean; apple?: boolean };
   } | null;
+  const linked = getLinkedProvidersSnapshot(userRecord);
+  const hasPassword = linked.password;
+  const hasApple = linked.apple;
+  const hasGoogle = linked.google;
   let authProvider = userRecord?.auth_provider || userRecord?.preferences?.auth_provider;
   if (!authProvider && userRecord) {
-    const linked = getLinkedProvidersSnapshot(userRecord);
-    const hasApple = linked.apple;
-    const hasGoogle = linked.google;
     authProvider = hasApple && hasGoogle ? 'apple,google' : hasApple ? 'apple' : hasGoogle ? 'google' : undefined;
   }
-  const isOAuth = authProvider === 'apple' || authProvider === 'google' || authProvider === 'apple,google';
+  const isOAuthOnly = !hasPassword && (hasApple || hasGoogle);
 
   const onSave = async () => {
     const currentValue = current.trim();
@@ -43,10 +44,7 @@ export default function ResetPasswordScreen() {
     setSaving(true);
     try {
       await auth.changePassword(currentValue, p);
-      // Refresh the canonical auth snapshot once; useUser reads from AuthProvider.
-      await refreshUser().catch((e) => {
-        if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e);
-      });
+      await checkAuth().catch((e) => { if (__DEV__) console.warn('[reset-password] Auth refresh failed:', e); }); // VAL-2
       Alert.alert('Password updated', 'Your password has been changed. A confirmation email has been sent to your account.');
       setCurrent('');
       setPassword('');
@@ -61,7 +59,7 @@ export default function ResetPasswordScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {isOAuth ? (
+        {isOAuthOnly ? (
           <View style={{ alignItems: 'center', paddingTop: 32 }}>
             <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].text, fontSize: 16, textAlign: 'center', marginBottom: 12 }]}>
               Password change is not available

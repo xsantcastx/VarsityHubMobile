@@ -169,24 +169,24 @@ function ManageSeasonScreen() {
       if (normalized.length > 0) {
         setTeamSelectorOpen(true);
       } else {
-          setActionModal({
-            visible: true,
-            title: 'No Managed Teams',
-            message: "You don't manage any teams yet. Create one to continue.",
-            options: [
-              {
-                label: 'Create Team',
-                onPress: () =>
-                  router.push({
-                    pathname: '/create-team',
-                    params: {
-                      fallback: backFallback ?? '/organization?tab=teams',
-                    },
-                  } as any),
-              },
-              { label: 'Close', onPress: () => {} },
-            ],
-          });
+        setActionModal({
+          visible: true,
+          title: 'No Managed Teams',
+          message: "You don't manage any teams yet. Create one to continue.",
+          options: [
+            {
+              label: 'Create Team',
+              onPress: () =>
+                router.push({
+                  pathname: '/create-team',
+                  params: {
+                    fallback: backFallback ?? '/organization?tab=teams',
+                  },
+                } as any),
+            },
+            { label: 'Close', onPress: () => {} },
+          ],
+        });
       }
     } catch (error) {
       if (handleCoachAccessError(router, error, 'managing your season', user)) {

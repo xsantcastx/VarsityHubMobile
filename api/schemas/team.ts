@@ -65,17 +65,19 @@ const followedTeamArraySchema = z.array(followedTeamSchema);
 export type FollowedTeamResponse = z.infer<typeof followedTeamSchema>;
 export type FollowedTeamArrayResponse = z.infer<typeof followedTeamArraySchema>;
 
+const teamPermissionsSchema = z
+  .object({
+    can_manage: z.boolean(),
+    membership_role: z.string().nullable().optional(),
+    via_org_admin: z.boolean().optional(),
+    is_platform_admin: z.boolean().optional(),
+  })
+  .passthrough();
+
 const teamAdminSummarySchema = z
   .object({
     team: teamSchema,
-    permissions: z
-      .object({
-        can_manage: z.boolean(),
-        membership_role: z.string().nullable().optional(),
-        via_org_admin: z.boolean().optional(),
-        is_platform_admin: z.boolean().optional(),
-      })
-      .passthrough(),
+    permissions: teamPermissionsSchema,
     counts: z
       .object({
         members: z.number(),
@@ -95,14 +97,7 @@ export type TeamAdminSummaryResponse = z.infer<typeof teamAdminSummarySchema>;
 const teamScreenSummarySchema = z
   .object({
     team: teamSchema,
-    permissions: z
-      .object({
-        can_manage: z.boolean(),
-        membership_role: z.string().nullable().optional(),
-        via_org_admin: z.boolean().optional(),
-        is_platform_admin: z.boolean().optional(),
-      })
-      .passthrough(),
+    permissions: teamPermissionsSchema,
     counts: z
       .object({
         members: z.number(),

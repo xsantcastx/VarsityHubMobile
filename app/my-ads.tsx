@@ -1,16 +1,8 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Image } from 'expo-image';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-// @ts-ignore
-import { Advertisement as AdsApi } from '@/api/entities';
-import settings from '@/api/settings';
 import { getAuthSnapshot } from '@/utils/authState';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -33,7 +25,7 @@ function MyAdsScreen() {
   const router = useRouter();
   const { payment_success } = useLocalSearchParams<{ payment_success?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<ManagedAd[]>([]);
   const [datesByAd, setDatesByAd] = useState<Record<string, string[]>>({});
@@ -48,7 +40,7 @@ function MyAdsScreen() {
     let mounted = true;
     void (async () => {
       try {
-        const me: any = await getAuthSnapshot(checkAuth, authUser);
+        const me: any = await getAuthSnapshot(checkAuth, user);
         if (!mounted) return;
         setUserId(me?.id ? String(me.id) : null);
       } catch {
@@ -61,7 +53,7 @@ function MyAdsScreen() {
     return () => {
       mounted = false;
     };
-  }, [authUser, checkAuth]);
+  }, [checkAuth, user]);
 
   const getLocalAdsKey = useCallback(() => {
     const base = settings.SETTINGS_KEYS.LOCAL_ADS;
@@ -229,6 +221,19 @@ function MyAdsScreen() {
     }
   };
 
+  const MetaRow = ({
+    icon,
+    text,
+  }: {
+    icon: React.ComponentProps<typeof MaterialIcons>['name'];
+    text: string;
+  }) => (
+    <View style={styles.metaRow}>
+      <MaterialIcons name={icon} size={14} color={Colors[colorScheme].mutedText} />
+      <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{text}</Text>
+    </View>
+  );
+
   const renderAd = ({ item }: { item: ManagedAd }) => {
     const dates = datesByAd[item.id] || [];
     const { past, future } = categorizeAdDates(dates);
@@ -269,21 +274,10 @@ function MyAdsScreen() {
         {/* Info Section */}
         <View style={styles.infoContainer}>
           <Text style={[styles.businessName, { color: Colors[colorScheme].text }]}>{item.business_name}</Text>
-          
-          <View style={styles.metaRow}>
-            <MaterialIcons name="person-outline" size={14} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_name}</Text>
-          </View>
-          
-          <View style={styles.metaRow}>
-            <MaterialIcons name="mail-outline" size={14} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_email}</Text>
-          </View>
-          
-          <View style={styles.metaRow}>
-            <MaterialIcons name="location-on" size={14} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>Zip {item.zip_code}</Text>
-          </View>
+
+          <MetaRow icon="person-outline" text={item.contact_name} />
+          <MetaRow icon="mail-outline" text={item.contact_email} />
+          <MetaRow icon="location-on" text={`Zip ${item.zip_code}`} />
 
           {/* Status Badges */}
           <View style={styles.badgesContainer}>

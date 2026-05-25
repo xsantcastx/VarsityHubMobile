@@ -16,16 +16,22 @@ type Policy = 'everyone' | 'following' | 'no_one';
 function DMRestrictionsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const [policy, setPolicy] = useState<Policy>('everyone');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     void (async () => {
+      const authPolicy = (user?.preferences as any)?.dm_policy;
+      if (authPolicy && ['everyone', 'following', 'no_one'].includes(authPolicy)) {
+        if (!mounted) return;
+        setPolicy(authPolicy as Policy);
+        await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, authPolicy);
+        return;
+      }
       try {
-        // Load from server (source of truth), fall back to local cache
-        const me = await getFreshAuthSnapshot(checkAuth, authUser);
+        const me = (await checkAuth().catch(() => null)) as any;
         const serverPolicy = (me?.preferences as any)?.dm_policy;
         if (!mounted) return;
         if (serverPolicy && ['everyone', 'following', 'no_one'].includes(serverPolicy)) {
@@ -43,7 +49,7 @@ function DMRestrictionsScreen() {
       setPolicy((p as Policy) || 'everyone');
     })();
     return () => { mounted = false; };
-  }, [authUser, checkAuth]);
+  }, [checkAuth, user]);
 
   const save = async (p: Policy) => {
     setSaving(true);
@@ -51,6 +57,7 @@ function DMRestrictionsScreen() {
     try {
       // Persist to server so it's enforced on message send
       await User.updatePreferences({ dm_policy: p });
+      await checkAuth().catch(() => {});
       // Also cache locally for fast loading
       await settingsStore.setString(SETTINGS_KEYS.DM_POLICY, p);
     } catch {

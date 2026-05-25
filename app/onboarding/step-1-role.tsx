@@ -8,9 +8,8 @@ import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -165,7 +164,6 @@ export default function Step1Role() {
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [confirmedCoachAge, setConfirmedCoachAge] = useState(false);
-  const serverFetchDoneRef = useRef(false);
 
   // CRITICAL: Redirect if not authenticated
   useEffect(() => {
@@ -182,45 +180,19 @@ export default function Step1Role() {
     }
   }, [ob.role]);
 
-  // One-time server fetch on mount only (guarded)
+  // Bootstrap the local role draft from the canonical auth snapshot.
   useEffect(() => {
-    if (ob.role || serverFetchDoneRef.current) return;
-    serverFetchDoneRef.current = true;
+    if (ob.role || !user) return;
+    const canonicalRole = getCanonicalCoachRole(user as any);
+    if (canonicalRole === 'fan' || canonicalRole === 'coach') {
+      setRole(canonicalRole);
+      setOB(prev => ({ ...prev, role: canonicalRole }));
+    }
+  }, [ob.role, setOB, user]);
 
-    let cancelled = false;
-    void (async () => {
-      try {
-        const me: any = await getAuthSnapshot(checkAuth, user);
-        if (cancelled) return;
-        const canonicalRole = getCanonicalCoachRole(me);
-        if (canonicalRole === 'fan' || canonicalRole === 'coach') {
-          setRole(canonicalRole);
-          setOB(prev => ({ ...prev, role: canonicalRole }));
-        }
-      } catch {
-        // ignore - user will select role
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial mount only; ob.role and setOB are stable context values
-  }, [checkAuth, setOB, user, ob.role]);
-
-  // Check email verification status on mount and when screen focuses
-  useFocusEffect(
-    useCallback(() => {
-      void (async () => {
-        try {
-          const me: any = await getFreshAuthSnapshot(checkAuth, user);
-          setEmailVerified(me?.email_verified ?? null);
-        } catch (error) {
-          if (__DEV__) console.error('Failed to check email verification:', error);
-        }
-      })();
-    }, [checkAuth, user])
-  );
+  useEffect(() => {
+    setEmailVerified(user?.email_verified ?? null);
+  }, [user?.email_verified]);
 
   // Reset coach age confirmation when switching away from coach
   useEffect(() => {
@@ -285,7 +257,7 @@ export default function Step1Role() {
       // so step-1 keeps role selection local until step-2/step-3 commit the canonical
       // coach state. Only already-onboarded accounts should hit the server here for
       // upgrade/recovery flows.
-      let freshServerUser: any | null = null;
+      let freshServerUser: any | null = user ?? null;
       const persistRole = async (attempt = 1): Promise<void> => {
         try {
           if (!freshServerUser) {
@@ -308,10 +280,11 @@ export default function Step1Role() {
           // upgrade endpoint here instead of surfacing the generic save alert.
           if (shouldUseCoachUpgradeFlow) {
             await User.upgradeToCoach('rookie');
-            freshServerUser = await getFreshAuthSnapshot(checkAuth, freshServerUser ?? user);
+            freshServerUser = (await checkAuth().catch(() => null)) ?? freshServerUser;
             return;
           }
           await User.updatePreferences({ role });
+          freshServerUser = (await checkAuth().catch(() => null)) ?? freshServerUser;
         } catch (error: any) {
           const isTransient =
             error?.status === 0 ||
@@ -340,7 +313,7 @@ export default function Step1Role() {
         const isRoleChangeBlocked = error?.status === 403 && errMsg.includes('cannot change role');
         if (isRoleChangeBlocked) {
           const freshUser: any =
-            freshServerUser ?? (await getFreshAuthSnapshot(checkAuth, user));
+            freshServerUser ?? (await checkAuth().catch(() => null)) ?? user;
           const recoveryRoute = getPostAuthRouteDecision(freshUser).route;
           if (recoveryRoute && recoveryRoute !== '/onboarding/step-1-role') {
             const canonicalRole = getCanonicalCoachRole(freshUser);

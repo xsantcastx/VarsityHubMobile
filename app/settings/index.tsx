@@ -25,6 +25,7 @@ import { getFreshAuthSnapshot, getLinkedProvidersSnapshot } from '@/utils/authSt
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachUpgradeCta, type CoachUpgradeCta } from '@/utils/coachUpgradeCta';
 import { getCanonicalCoachRole } from '@/utils/roleChecks';
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { safeGoBack } from '@/utils/navigation';
 
 interface PendingHostRequest {
@@ -36,6 +37,7 @@ interface PendingHostRequest {
 
 interface UserMeResponse {
   email?: string;
+  username?: string;
   role?: string;
   approval_status?: string;
   account_state?: string | null;
@@ -186,10 +188,10 @@ function SwitchRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { user: authUser, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
+  const { user, checkAuth, markOnboardingIncompleteLocally, signOut, isAdmin } = useAuth();
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
-  const initialLinkedProviders = getLinkedProvidersSnapshot(authUser);
+  const initialLinkedProviders = getLinkedProvidersSnapshot(user);
 
   const [_loading, setLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
@@ -234,11 +236,11 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
-    if (!authUser) return;
-    const snapshot = getLinkedProvidersSnapshot(authUser);
+    if (!user) return;
+    const snapshot = getLinkedProvidersSnapshot(user);
     setDeleteRequiresPassword(snapshot.password);
     setLinkedProviders(snapshot);
-  }, [authUser]);
+  }, [user]);
 
   // Debounced PATCH updater for preferences
   // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
@@ -345,14 +347,15 @@ export default function SettingsScreen() {
     async (fallbackUser?: UserMeResponse | null) =>
       ((await getFreshAuthSnapshot(
         checkAuth,
-        (fallbackUser ?? authUser ?? null) as any
+        (fallbackUser ?? user ?? null) as any
       )) as UserMeResponse | null),
-    [authUser, checkAuth]
+    [user, checkAuth]
   );
 
   const _restartOnboarding = async () => {
     try {
-      const me = (await getFreshSettingsUser()) as UserMeResponse;
+      const me = ((user as UserMeResponse | null) ??
+        ((await checkAuth().catch(() => null)) as UserMeResponse | null)) as UserMeResponse | null;
       const prefsFromServer = (me?.preferences || {}) as Record<string, unknown>;
       const preload: Record<string, unknown> = {
         role: getCanonicalCoachRole(me as any) || 'fan',
@@ -458,7 +461,11 @@ export default function SettingsScreen() {
       setLoading(true);
       setError(null);
       try {
-        const me = (await getFreshSettingsUser()) as UserMeResponse;
+        const me = ((user as UserMeResponse | null) ??
+          ((await checkAuth().catch(() => null)) as UserMeResponse | null)) as UserMeResponse | null;
+        if (!me) {
+          return;
+        }
         if (!mounted) return;
         applyMeSnapshot(me, mounted);
         const serverPrefs = ((me && me.preferences) || {}) as Record<string, any>;
@@ -517,7 +524,7 @@ export default function SettingsScreen() {
     return () => {
       mounted = false;
     };
-  }, [checkAuth, getFreshSettingsUser]);
+  }, [checkAuth, user]);
 
   return (
     <>
@@ -568,7 +575,8 @@ export default function SettingsScreen() {
               <NavRow
                 key={provider}
                 title={provider === 'google' ? 'Google Sign-In' : 'Apple Sign-In'}
-                subtitle={`Signed in with ${provider === 'google' ? 'Google' : 'Apple'}`}
+                subtitle={`Connected to ${provider === 'google' ? 'Google' : 'Apple'} Sign-In`}
+                isLast={index === visibleProviderStatuses.length - 1}
                 onPress={() => {}}
               />
             ))}
@@ -874,14 +882,14 @@ export default function SettingsScreen() {
                           try {
                             setDowngradingToFan(true);
                             await User.downgradeToFan();
-                            const fresh = (await getFreshSettingsUser().catch(() => null)) as
-                              | UserMeResponse
-                              | null;
+                            const fresh = (await checkAuth().catch(() => null)) as UserMeResponse | null;
                             if (fresh) {
                               applyMeSnapshot(fresh, true);
+                            } else {
+                              setRole('fan');
+                              setPlan('rookie');
                             }
-                            setRole('fan');
-                            setPlan('rookie');
+
                             Alert.alert('Account updated', 'Your account is now a fan account.');
                           } catch (e: any) {
                             const code = e?.data?.code;
@@ -938,7 +946,7 @@ export default function SettingsScreen() {
                         text: 'Continue',
                         onPress: async () => {
                           const routeCoachOnboarding = async (
-                            freshUser?: any,
+                            freshUser?: UserMeResponse | null,
                             preferredRoute?: string | null
                           ) => {
                             try {
@@ -946,9 +954,8 @@ export default function SettingsScreen() {
                                 router.replace(preferredRoute as any);
                                 return;
                               }
-                              const fresh =
-                                freshUser ?? ((await getFreshSettingsUser().catch(() => null)) as any);
-                              const prefs = fresh?.preferences || {};
+                              const fresh = freshUser;
+                              const prefs = (fresh?.preferences || {}) as Record<string, any>;
                               const hasUsername = !!(
                                 fresh?.username && String(fresh.username).trim()
                               );
@@ -957,6 +964,12 @@ export default function SettingsScreen() {
                               const hasDob = !!dob && String(dob).trim().length > 0;
                               const hasZip = !!zip && String(zip).trim().length > 0;
                               const hasCompletedBasicStep = hasUsername && hasDob && hasZip;
+                              const nextRoute =
+                                preferredRoute && preferredRoute !== '/(tabs)'
+                                  ? preferredRoute
+                                  : fresh
+                                    ? getPostAuthRouteDecision(fresh as any).route
+                                    : null;
                               if (setOB) {
                                 setOB(prev => ({
                                   ...prev,
@@ -971,11 +984,11 @@ export default function SettingsScreen() {
                                 }));
                               }
                               setPlan((prefs.plan as string | null) ?? 'rookie');
-                              if (hasUsername && hasDob && hasZip) {
-                                router.replace('/onboarding/coach-application' as any);
-                              } else {
-                                router.replace('/onboarding/step-2-basic');
+                              if (nextRoute && nextRoute !== '/(tabs)') {
+                                router.push(nextRoute as any);
+                                return;
                               }
+                              router.push(hasCompletedBasicStep ? '/onboarding/coach-application' as any : '/onboarding/step-2-basic');
                             } catch {
                               router.replace('/onboarding/step-2-basic');
                             }
@@ -983,10 +996,13 @@ export default function SettingsScreen() {
                           try {
                             setUpgradingToCoach(true);
                             await User.upgradeToCoach('rookie');
-                            const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
                             setRole('coach');
                             setPlan('rookie');
                             await markOnboardingIncompleteLocally();
+                            const fresh = (await checkAuth().catch(() => null)) as UserMeResponse | null;
+                            if (fresh) {
+                              applyMeSnapshot(fresh, true);
+                            }
                             await routeCoachOnboarding(fresh);
                           } catch (e: any) {
                             const msg = e?.data?.error || e?.message || '';
@@ -997,8 +1013,15 @@ export default function SettingsScreen() {
                               code === 'COACH_ALREADY_APPROVED' ||
                               msg.toLowerCase().includes('already a coach')
                             ) {
-                              const fresh = (await getFreshSettingsUser().catch(() => null)) as any;
-                              const nextCta = getCoachUpgradeCta(fresh as any);
+                              const fresh = (await checkAuth().catch(() => null)) as UserMeResponse | null;
+                              const nextCta = getCoachUpgradeCta({
+                                ...fresh,
+                                role:
+                                  (fresh?.preferences as Record<string, any> | undefined)?.role ||
+                                  fresh?.role ||
+                                  null,
+                                preferences: fresh?.preferences || {},
+                              });
                               if (fresh) {
                                 applyMeSnapshot(fresh, true);
                               }
@@ -1162,8 +1185,8 @@ export default function SettingsScreen() {
                   ]}
                 >
                   {deleteRequiresPassword
-                    ? 'This permanently deletes your account. Type DELETE and enter your password to confirm.'
-                    : 'This permanently deletes your account. Type DELETE to confirm.'}
+                    ? 'This permanently deletes your account. Enter your password to confirm.'
+                    : 'This permanently deletes your account. No password is required for Apple/Google-only accounts.'}
                 </Text>
                 <TextInput
                   value={deleteConfirmation}

@@ -4,6 +4,7 @@
  * Expo Router's canGoBack() returns false in Tabs when navigating to nested screens.
  * We track every screen visit and use that stack when back is pressed.
  */
+import type { Href } from 'expo-router';
 import { useRouter, useSegments, useUnstableGlobalHref } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useRef } from 'react';
 
@@ -14,6 +15,7 @@ const MAX_HISTORY = 50;
 /** Module-level fallback for safeGoBack(router) when used outside React tree (e.g. Alert callbacks) */
 let globalGetFallback: (() => string) | null = null;
 let globalGetCurrentHref: (() => string | null) | null = null;
+let globalSafeBack: ((explicitFallback?: Href) => boolean) | null = null;
 export function setNavigationFallbackGetter(fn: (() => string) | null) {
   globalGetFallback = fn;
 }
@@ -25,6 +27,12 @@ export function setCurrentHrefGetter(fn: (() => string | null) | null) {
 }
 export function getCurrentHref(): string | null {
   return globalGetCurrentHref?.() ?? null;
+}
+export function setNavigationSafeBackHandler(fn: ((explicitFallback?: Href) => boolean) | null) {
+  globalSafeBack = fn;
+}
+export function performTrackedSafeBack(explicitFallback?: Href): boolean {
+  return globalSafeBack?.(explicitFallback) ?? false;
 }
 
 type TabRoute = (typeof TAB_ROUTES)[number];
@@ -44,7 +52,7 @@ function segmentsToRoute(segments: string[]): string {
 
 
 interface NavigationHistoryContextType {
-  safeGoBack: () => void;
+  safeGoBack: (explicitFallback?: Href) => void;
   getFallbackRoute: () => string;
 }
 
@@ -62,17 +70,23 @@ export function useNavigationHistory() {
  * Hook that returns a safeGoBack function.
  * @param explicitFallback - When provided, use this route when canGoBack is false (e.g. '/(tabs)/my-ads')
  */
-export function useSafeGoBack(explicitFallback?: string): () => void {
+export function useSafeGoBack(explicitFallback?: Href): () => void {
   const router = useRouter();
   const context = useContext(NavigationHistoryContext);
 
   return useCallback(() => {
+    if (context?.safeGoBack) {
+      context.safeGoBack(explicitFallback);
+      return;
+    }
+
     if (router.canGoBack()) {
       router.back();
-    } else {
-      const fallback = explicitFallback ?? context?.getFallbackRoute?.() ?? DEFAULT_FALLBACK;
-      router.replace(fallback as any);
+      return;
     }
+
+    const fallback = explicitFallback ?? context?.getFallbackRoute?.() ?? DEFAULT_FALLBACK;
+    router.replace(fallback as any);
   }, [router, context, explicitFallback]);
 }
 
@@ -120,10 +134,10 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
     return lastTabRouteRef.current;
   }, []);
 
-  const safeGoBack = useCallback(() => {
+  const safeGoBack = useCallback((explicitFallback?: Href) => {
     if (router.canGoBack()) {
       router.back();
-      return;
+      return true;
     }
     const hist = historyRef.current;
     if (hist.length > 0) {
@@ -131,8 +145,10 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
       historyRef.current = hist.slice(0, -1);
       isNavigatingBackRef.current = true;
       router.replace(target as any);
+      return true;
     } else {
-      router.replace(lastTabRouteRef.current as any);
+      router.replace((explicitFallback ?? lastTabRouteRef.current) as any);
+      return true;
     }
   }, [router]);
 
@@ -143,8 +159,12 @@ export function NavigationHistoryProvider({ children }: NavigationHistoryProvide
 
   React.useEffect(() => {
     setNavigationFallbackGetter(getFallbackRoute);
-    return () => setNavigationFallbackGetter(null);
-  }, [getFallbackRoute]);
+    setNavigationSafeBackHandler(safeGoBack);
+    return () => {
+      setNavigationFallbackGetter(null);
+      setNavigationSafeBackHandler(null);
+    };
+  }, [getFallbackRoute, safeGoBack]);
 
   React.useEffect(() => {
     setCurrentHrefGetter(() => currentHref);

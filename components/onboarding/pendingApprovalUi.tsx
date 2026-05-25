@@ -1,7 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { Stack } from 'expo-router';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function PendingApprovalShell({
   isDark,
@@ -27,7 +29,25 @@ export function PendingApprovalShell({
           : '#D1FAE5'
         : isDark
           ? 'rgba(218,165,32,0.15)'
-          : '#FEF9C3';
+        : '#FEF9C3';
+  const statusIconName =
+    status === 'rejected'
+      ? 'cancel'
+      : status === 'approved'
+        ? 'check-circle'
+        : 'check-circle';
+  const statusIconColor =
+    status === 'rejected'
+      ? isDark
+        ? '#F87171'
+        : '#DC2626'
+      : status === 'approved'
+        ? isDark
+          ? '#4ADE80'
+          : '#16A34A'
+        : isDark
+          ? '#D1D5DB'
+          : '#9CA3AF';
 
   return (
     <>
@@ -41,17 +61,46 @@ export function PendingApprovalShell({
       </View>
 
       <View style={[styles.iconCircle, { backgroundColor: iconBackground }]}>
-        <Image
-          source={require('../../assets/images/icon.png')}
-          style={{ width: 56, height: 56 }}
-          contentFit="contain"
-        />
+        <MaterialIcons name={statusIconName} size={56} color={statusIconColor} />
       </View>
 
       <Text style={[styles.heading, { color: isDark ? '#F9FAFB' : '#111827' }]}>{heading}</Text>
       <Text style={[styles.subheading, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>{subheading}</Text>
       {children}
     </>
+  );
+}
+
+export function PendingApprovalScreenScaffold({
+  isDark,
+  status,
+  heading,
+  subheading,
+  children,
+}: {
+  isDark: boolean;
+  status: 'pending' | 'approved' | 'rejected';
+  heading: string;
+  subheading: string;
+  children: ReactNode;
+}) {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScrollView
+        contentContainerStyle={styles.screenContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <PendingApprovalShell
+          isDark={isDark}
+          status={status}
+          heading={heading}
+          subheading={subheading}
+        >
+          {children}
+        </PendingApprovalShell>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -238,6 +287,12 @@ export function InfoCardRow({
 
 export const pendingApprovalStyles = StyleSheet.create({
   container: { flex: 1 },
+  screenContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
   content: { flex: 1, paddingHorizontal: 24, paddingTop: 40, alignItems: 'center' },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 40 },
   logoText: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },

@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -127,7 +128,7 @@ type EventCreatePayload = {
 function CreateFanEventScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
 
   // Detect user role to differentiate Pitch Event (fan) vs Create Event (coach)
   const [userRole, setUserRole] = useState<string>('fan');
@@ -137,8 +138,8 @@ function CreateFanEventScreen() {
   const eventLimitReached = userRole !== 'coach' && pendingEventCount !== null && pendingEventCount >= 3;
 
   useEffect(() => {
-    getFreshAuthSnapshot(checkAuth, authUser)
-      .then((u: MeResponse | null) => {
+    getAuthSnapshot(checkAuth, user)
+      .then((u: MeResponse) => {
         const coachAccess = getCoachAccessState(u);
         const canCreateCoachEvents = coachAccess.isApprovedCoach && coachAccess.onboardingCompleted;
         setUserRole(canCreateCoachEvents ? 'coach' : 'fan');
@@ -163,7 +164,7 @@ function CreateFanEventScreen() {
         // If count check fails, allow creation — server enforces the real limit
         setPendingEventCount(0);
       });
-  }, [authUser, checkAuth]);
+  }, [checkAuth, user]);
   const isCoach = userRole === 'coach';
 
   // Load followed teams

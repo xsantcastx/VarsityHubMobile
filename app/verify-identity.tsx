@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
+import { useVerificationScreenActions } from '@/hooks/useVerificationScreenActions';
 import { safeGoBack } from '@/utils/navigation';
 import { getFreshAuthSnapshot } from '@/utils/authState';
 import { getPostAuthLandingRoute } from '@/utils/postAuthRouting';
@@ -20,7 +21,7 @@ const toSingleValue = (value: ParamValue): string | undefined => {
 
 function VerifyScreen() {
   const router = useRouter();
-  const { checkAuth, user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const params = useLocalSearchParams<{ devCode?: ParamValue }>();
 
   const [screenInfo, setScreenInfo] = useState<string | null>(null);
@@ -49,13 +50,16 @@ function VerifyScreen() {
     getConfirmErrorMessage: (e: any) => e?.message || e?.data?.error || 'Verification failed',
     getRequestErrorMessage: (e: any) => e?.message || e?.data?.error || 'Resend failed',
     onVerified: async () => {
-      const freshUser = await checkAuth().catch(() => null);
+      const freshUser = (await checkAuth().catch(() => null)) as any;
       setScreenInfo('Email verified successfully!');
       setScreenError(null);
       setIsVerified(true);
 
       try {
-        const userInfo = freshUser ?? (await getFreshAuthSnapshot(checkAuth, user));
+        const userInfo = freshUser ?? user;
+        if (!userInfo) {
+          throw new Error('missing_user');
+        }
         const targetRoute = getPostAuthLandingRoute(userInfo);
         redirectTimerRef.current = setTimeout(() => {
           router.replace(targetRoute as any);
@@ -72,30 +76,27 @@ function VerifyScreen() {
     },
   });
   const setGateCode = gate.setCode;
-
-  useEffect(() => {
-    const fromParams = toSingleValue(params.devCode);
-    if (fromParams) {
-      setDevCode(fromParams);
-      setGateCode(fromParams);
-    }
-  }, [params.devCode, setGateCode]);
-
-  const onVerify = async () => {
+  const devCodeParam = toSingleValue(params.devCode);
+  const clearMessages = () => {
     setScreenError(null);
     setScreenInfo(null);
-    await gate.verify();
   };
 
-  const onResend = async () => {
-    setScreenError(null);
-    setScreenInfo(null);
-    await gate.resend();
-  };
+  const { onVerify, onResend } = useVerificationScreenActions({
+    devCodeParam,
+    setGateCode,
+    setDevCode,
+    clearMessages,
+    verify: gate.verify,
+    resend: gate.resend,
+  });
 
   const onContinue = async () => {
     try {
-      const userInfo = await getFreshAuthSnapshot(checkAuth, user);
+      const userInfo = ((await checkAuth().catch(() => null)) ?? user) as any;
+      if (!userInfo) {
+        throw new Error('missing_user');
+      }
       router.replace(getPostAuthLandingRoute(userInfo) as any);
     } catch (err: any) {
       const status = err?.status ?? err?.response?.status ?? null;

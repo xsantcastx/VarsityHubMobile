@@ -39,8 +39,8 @@ describe('IAP product configuration invariants', () => {
   });
 
   it('server maps MIDTIER/TOPTIER for Apple and Google subscription verification', () => {
-    expect(paymentInternals).toMatch(/const APPLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
-    expect(paymentInternals).toMatch(/const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
+    expect(paymentInternals).toMatch(/export const APPLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
+    expect(paymentInternals).toMatch(/export const APPLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
     expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*MIDTIER:\s*'veteran'/);
     expect(payments).toMatch(/const GOOGLE_PRODUCT_TO_PLAN[\s\S]*TOPTIER:\s*'legend'/);
   });
@@ -51,8 +51,8 @@ describe('IAP product configuration invariants', () => {
     expect(clientAdIapWeb).toMatch(/weekday:\s*'MOND_THURS'/);
     expect(clientAdIapWeb).toMatch(/weekend:\s*'FRI_SUN'/);
     expect(payments).toMatch(/const APPLE_AD_PRODUCTS = \['MOND_THURS', 'FRI_SUN'\]/);
-    expect(paymentInternals).toMatch(/MOND_THURS:\s*499/);
-    expect(paymentInternals).toMatch(/FRI_SUN:\s*799/);
+    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*MOND_THURS:\s*499/);
+    expect(paymentInternals).toMatch(/export const AD_PRODUCT_CENTS[\s\S]*FRI_SUN:\s*799/);
   });
 
   it('mobile ad checkout uses Apple IAP on iOS and Stripe PaymentSheet elsewhere', () => {

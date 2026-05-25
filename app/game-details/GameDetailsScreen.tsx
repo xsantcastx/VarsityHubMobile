@@ -48,6 +48,7 @@ import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { useAuth } from '@/context/AuthProvider';
+import { getAuthSnapshot } from '@/utils/authState';
 import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 import {
   applyClearVote,
@@ -101,6 +102,7 @@ function StoriesViewer({
   currentUserId,
 }: StoriesViewerProps) {
   const insets = useSafeAreaInsets();
+  const { user, checkAuth } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
   const [current, setCurrent] = useState(index);
@@ -108,6 +110,22 @@ function StoriesViewer({
   const progress = useRef(new Animated.Value(0)).current;
   const [paused, setPaused] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // v1.0.2 audit fix: guard setState against resolution after unmount / visibility change.
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    getAuthSnapshot(checkAuth, user)
+      .then((user: any) => {
+        if (!cancelled) setCurrentUserId(user?.id || null);
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUserId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [checkAuth, user, visible]);
 
   // Sync starting index when viewer opens or caller changes it
   useEffect(() => {

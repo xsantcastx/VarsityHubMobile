@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
+import { useAuth } from '@/context/AuthProvider';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAuthSnapshot } from '@/utils/authState';
@@ -348,7 +349,7 @@ function HighlightsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -372,7 +373,7 @@ function HighlightsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const me: any = await getAuthSnapshot(checkAuth, authUser).catch((error: any) => {
+      const me: any = await getAuthSnapshot(checkAuth, user).catch((error: any) => {
         if (__DEV__) {
           if (__DEV__) console.warn('[Highlights] Failed to load user:', error?.message || error);
         }
@@ -436,7 +437,7 @@ function HighlightsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [authUser, checkAuth, postCache]);
+  }, [checkAuth, postCache, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

@@ -41,6 +41,23 @@ import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import OnboardingLayout from './components/OnboardingLayout';
 
+const COACH_ORG_TYPES = [
+  'school',
+  'club',
+  'league',
+  'university',
+  'college',
+  'professional',
+] as const;
+
+function isCoachOrgType(value: unknown): value is (typeof COACH_ORG_TYPES)[number] {
+  return typeof value === 'string' && COACH_ORG_TYPES.includes(value as (typeof COACH_ORG_TYPES)[number]);
+}
+
+function normalizeDateString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
 function Step3League() {
   const router = useRouter();
   const pathname = usePathname();
@@ -49,6 +66,7 @@ function Step3League() {
   const { user, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob, setState: setOB } = useOnboarding();
   const accountState = String(user?.account_state || '').trim();
+  const canonicalStep3Route = user ? getPostAuthRouteDecision(user as any).route : null;
   const canEnterStep3FromServer =
     accountState === 'coach_application_required' ||
     accountState === 'coach_agreement_required' ||
@@ -152,58 +170,66 @@ function Step3League() {
   const [supportingDocumentName, setSupportingDocumentName] = useState<string | null>(null);
   const [supportingDocumentMimeType, setSupportingDocumentMimeType] = useState<string | null>(null);
   const [_uploadingDocument, setUploadingDocument] = useState(false);
-  const isCoachApplicationRoute = pathname === '/onboarding/coach-application';
-  const isFinalSetupRoute = pathname === '/onboarding/step-3-league';
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
+  const canSearchForExistingOrganization = !isFinalCoachSetup;
 
-  // Check email verification status
+  // Hydrate the shared step-3 screen from canonical auth state. This file is
+  // mounted for both /coach-application and /step-3-league, so route mode
+  // must follow server-directed routing rather than a second local state machine.
   useEffect(() => {
-    void (async () => {
-      try {
-        const me: any = await getFreshAuthSnapshot(checkAuth, user);
-        setEmailVerified(me?.email_verified ?? null);
-        const accountState = String(me?.account_state || '').trim();
-        const coachApplication = me?.coach_application || null;
-        const finalSetupRequired =
-          accountState === 'coach_final_setup_required' ||
-          (String(me?.approval_status || '').toUpperCase() === 'APPROVED' && !me?.organization_id);
+    setEmailVerified(user?.email_verified ?? null);
 
-        if (finalSetupRequired && isCoachApplicationRoute) {
-          router.replace('/onboarding/step-3-league');
-          return;
-        }
+    if (
+      canonicalStep3Route &&
+      canonicalStep3Route !== pathname &&
+      (canonicalStep3Route === '/onboarding/coach-application' ||
+        canonicalStep3Route === '/onboarding/step-3-league' ||
+        canonicalStep3Route === '/onboarding/coach-agreement')
+    ) {
+      router.replace(canonicalStep3Route as any);
+      return;
+    }
 
-        if (!finalSetupRequired && isFinalSetupRoute) {
-          router.replace('/onboarding/coach-application' as any);
-          return;
-        }
+    const finalSetupRequired = canonicalStep3Route === '/onboarding/step-3-league';
+    const coachApplication = user?.coach_application || null;
 
-        setIsFinalCoachSetup(finalSetupRequired);
-        setSubmittedApplicationName(coachApplication?.organization_name || null);
-        if (finalSetupRequired) {
-          if (coachApplication?.organization_name && !orgName.trim()) {
-            setOrgName(coachApplication.organization_name);
-          }
-          if (coachApplication?.location && !location.trim()) {
-            setLocation(coachApplication.location);
-          }
-          if (coachApplication?.org_type && !orgType) {
-            setOrgType(coachApplication.org_type);
-          }
-          if (coachApplication?.supporting_document_url && !supportingDocumentUrl) {
-            setSupportingDocumentUrl(coachApplication.supporting_document_url);
-          }
-          if (coachApplication?.zip_code && !searchZip.trim()) {
-            setSearchZip(coachApplication.zip_code);
-          }
-        }
-      } catch {
-        // ignore
+    setIsFinalCoachSetup(finalSetupRequired);
+    setSubmittedApplicationName(coachApplication?.organization_name || null);
+    if (finalSetupRequired) {
+      setShowSearch(false);
+      clearOrganizations();
+      setHasSearchedNearby(false);
+      setSelectedOrg(null);
+      setShowOrgDropdown(false);
+      if (coachApplication?.organization_name && !orgName.trim()) {
+        setOrgName(coachApplication.organization_name);
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per route mode
-  }, [isCoachApplicationRoute, isFinalSetupRoute, router]);
+      if (coachApplication?.location && !location.trim()) {
+        setLocation(coachApplication.location);
+      }
+      if (coachApplication?.org_type && !orgType && isCoachOrgType(coachApplication.org_type)) {
+        setOrgType(coachApplication.org_type);
+      }
+      if (coachApplication?.supporting_document_url && !supportingDocumentUrl) {
+        setSupportingDocumentUrl(coachApplication.supporting_document_url);
+      }
+      if (coachApplication?.zip_code && !searchZip.trim()) {
+        setSearchZip(coachApplication.zip_code);
+      }
+    }
+  }, [
+    canonicalStep3Route,
+    clearOrganizations,
+    location,
+    orgName,
+    orgType,
+    pathname,
+    router,
+    searchZip,
+    supportingDocumentUrl,
+    user,
+  ]);
 
   // Check if user already has a team or organization in the database
   useEffect(() => {
@@ -585,6 +611,80 @@ function Step3League() {
     }
   };
 
+  const routeFromDecision = useCallback(
+    (
+      route: string,
+      options?: {
+        organizationId?: string;
+        organizationName?: string;
+        agreementRedirect?: 'organization' | 'create-team';
+      }
+    ) => {
+      if (route === '/onboarding/pending-approval') {
+        router.replace({
+          pathname: route,
+          params: {
+            leagueName: options?.organizationName || 'this organization',
+            ownerName: 'the league owner',
+          },
+        } as any);
+        return;
+      }
+
+      if (route === '/onboarding/league-pending-approval') {
+        router.replace({
+          pathname: route,
+          params: {
+            ...(options?.organizationName ? { leagueName: options.organizationName } : {}),
+            ...(options?.organizationId ? { orgId: options.organizationId } : {}),
+          },
+        } as any);
+        return;
+      }
+
+      if (route === '/onboarding/coach-agreement') {
+        router.replace({
+          pathname: route,
+          params: {
+            redirect: options?.agreementRedirect || 'organization',
+          },
+        } as any);
+        return;
+      }
+
+      router.replace(route as any);
+    },
+    [router]
+  );
+
+  const buildCoachCompletionPayload = useCallback(
+    (patch?: {
+      organizationId?: string;
+      organizationName?: string;
+      joinRequestPending?: boolean;
+    }) => ({
+      role: 'coach' as const,
+      proceeding_as_fan: false,
+      username: user?.username || ob.username,
+      dob:
+        normalizeDateString(user?.dob) ||
+        normalizeDateString((user as any)?.date_of_birth)?.slice(0, 10) ||
+        ob.dob,
+      zip_code:
+        normalizeDateString(user?.zip_code) ||
+        normalizeDateString(user?.preferences?.zip_code) ||
+        ob.zip_code ||
+        ob.zip,
+      affiliation:
+        normalizeDateString((user?.preferences as Record<string, unknown> | undefined)?.affiliation) ||
+        ob.affiliation,
+      organization_id: patch?.organizationId || undefined,
+      organization_name: patch?.organizationName || undefined,
+      join_request_pending: patch?.joinRequestPending,
+    }),
+    [ob.affiliation, ob.dob, ob.username, ob.zip, ob.zip_code, user]
+  );
+
   const onContinue = async () => {
     if (!canContinue || saving) return;
 
@@ -613,35 +713,7 @@ function Step3League() {
         );
         const resolvedOrgName =
           ob.organization_name || existingTeam?.organization_name || existingOrg?.name || '';
-        // Only proceed as fan when there's a pending join request (coach waits for approval).
-        // If org/team already exists and is approved, coach should go through normal approval flow.
         const isPendingJoin = !!ob.join_request_pending;
-        const freshUser: any = await getFreshAuthSnapshot(checkAuth, user);
-        const mergedUserForRouting = freshUser
-          ? {
-              ...freshUser,
-              preferences: {
-                ...(freshUser?.preferences || {}),
-                organization_id:
-                  freshUser?.preferences?.organization_id || resolvedOrgId || undefined,
-                join_request_pending: freshUser?.preferences?.join_request_pending ?? isPendingJoin,
-              },
-            }
-          : null;
-        const recoveryDecision = getPostAuthRouteDecision(mergedUserForRouting);
-        const recoveryRoute = recoveryDecision.route;
-        const accountState = String(freshUser?.account_state || '').trim();
-        const approvalStatus = String(freshUser?.approval_status || '').toUpperCase();
-        const shouldResumeRecoveryFlow =
-          isPendingJoin ||
-          accountState === 'coach_application_required' ||
-          accountState === 'coach_application_submitted' ||
-          accountState === 'coach_application_rejected' ||
-          accountState === 'coach_pending_approval' ||
-          accountState === 'coach_agreement_required' ||
-          recoveryRoute === '/(tabs)' ||
-          approvalStatus === 'PENDING' ||
-          approvalStatus === 'REJECTED';
 
         if (resolvedOrgId || resolvedOrgName) {
           await User.updatePreferences({
@@ -651,69 +723,31 @@ function Step3League() {
           }).catch(() => {});
         }
 
-        if (!isPendingJoin && !shouldResumeRecoveryFlow) {
+        if (!isPendingJoin) {
           try {
-            const completionUser: any = freshUser || user;
-            await User.completeOnboarding({
-              role: 'coach',
-              proceeding_as_fan: false,
-              username: completionUser?.username || ob.username,
-              dob: completionUser?.dob || ob.dob,
-              zip_code: completionUser?.zip_code || ob.zip_code || ob.zip,
-              affiliation: completionUser?.preferences?.affiliation || ob.affiliation,
-              organization_id: resolvedOrgId || undefined,
-              organization_name: resolvedOrgName || undefined,
-            });
+            await User.completeOnboarding(
+              buildCoachCompletionPayload({
+                organizationId: resolvedOrgId || undefined,
+                organizationName: resolvedOrgName || undefined,
+              })
+            );
             await markOnboardingCompleteLocally();
             registerPushToken().catch(() => {});
           } catch (err) {
             if (__DEV__) console.warn('[step-3] Failed to complete onboarding (existing):', err);
           }
         }
-        void checkAuth().catch(() => {});
-        if (isPendingJoin) {
-          captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
-            mode: 'pending-join',
-            next: 'pending-approval',
-          });
-          // v1.0.2 pass 5 fix: coach with pending join request goes to pending-approval screen
-          // (was incorrectly routing to /(tabs), which skipped the waiting UI entirely and left the
-          // user confused about what state they were in). pending-approval polls for approval and
-          // then routes to coach-agreement → tools on approval.
-          router.replace({
-            pathname: '/onboarding/pending-approval',
-            params: {
-              leagueName: resolvedOrgName || 'this organization',
-              ownerName: 'the league owner',
-            },
-          } as any);
-        } else if (recoveryRoute && recoveryRoute !== '/onboarding/coach-agreement') {
-          captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
-            mode: 'existing-org-recovery',
-            next: recoveryRoute,
-          });
-          if (recoveryRoute === '/onboarding/league-pending-approval') {
-            router.replace({
-              pathname: '/onboarding/league-pending-approval',
-              params: {
-                ...(resolvedOrgName ? { leagueName: resolvedOrgName } : {}),
-                ...(resolvedOrgId ? { orgId: resolvedOrgId } : {}),
-              },
-            } as any);
-          } else {
-            router.replace(recoveryRoute as any);
-          }
-        } else {
-          // Existing org/team — go to coach agreement
-          captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
-            mode: 'existing-org',
-            next: 'coach-agreement',
-          });
-          router.replace({
-            pathname: '/onboarding/coach-agreement',
-            params: { redirect: 'organization' },
-          } as any);
-        }
+        const authUser = (await checkAuth().catch(() => null)) ?? user;
+        const nextDecision = getPostAuthRouteDecision(authUser);
+        captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
+          mode: isPendingJoin ? 'pending-join' : 'existing-org',
+          next: nextDecision.route,
+        });
+        routeFromDecision(nextDecision.route, {
+          organizationId: resolvedOrgId || undefined,
+          organizationName: resolvedOrgName || undefined,
+          agreementRedirect: 'organization',
+        });
         return;
       }
 
@@ -796,7 +830,7 @@ function Step3League() {
           supporting_document_url: docUrl,
         };
 
-        await httpPost('/auth/coach-applications', applicationPayload);
+        const submissionResult = await httpPost('/auth/coach-applications', applicationPayload);
         setOB(prev => ({
           ...prev,
           organization_name: orgName.trim(),
@@ -804,36 +838,16 @@ function Step3League() {
           organization_location: locationLabel || null,
           step_3_visited: true,
         }));
-        const fallbackSubmittedApplicationUser = {
-          ...(user || {}),
-          account_state: 'coach_application_submitted',
-          next_step: '/onboarding/league-pending-approval',
-          coach_application: {
-            ...(user?.coach_application || {}),
-            organization_name: orgName.trim(),
-            org_type: orgType || undefined,
-            location: locationLabel || undefined,
-            zip_code: selectedPlaceZip || searchZip.trim() || undefined,
-            supporting_document_url: docUrl,
-          },
-        };
-        const { decision: nextDecision } = await getFreshPostAuthState(
-          () => checkAuth(),
-          undefined,
-          fallbackSubmittedApplicationUser as any
-        );
+        const authUser = (await checkAuth().catch(() => null)) ?? submissionResult?.user ?? user;
+        const nextDecision = getPostAuthRouteDecision(authUser);
         captureBreadcrumb('Onboarding step 3 completed', 'onboarding.step3', {
           mode: 'submit-application',
           next: nextDecision.route,
         });
-        if (nextDecision.route === '/onboarding/league-pending-approval') {
-          router.replace({
-            pathname: nextDecision.route,
-            params: { leagueName: orgName.trim() },
-          } as any);
-        } else {
-          router.replace(nextDecision.route as any);
-        }
+        routeFromDecision(nextDecision.route, {
+          organizationName: orgName.trim(),
+          agreementRedirect: 'organization',
+        });
         return;
       }
 
@@ -863,17 +877,12 @@ function Step3League() {
       }));
 
       try {
-        const completionUser: any = user;
-        await User.completeOnboarding({
-          role: 'coach',
-          proceeding_as_fan: false,
-          username: completionUser?.username || ob.username,
-          dob: completionUser?.dob || ob.dob,
-          zip_code: completionUser?.zip_code || ob.zip_code || ob.zip,
-          affiliation: completionUser?.preferences?.affiliation || ob.affiliation,
-          organization_id: orgId,
-          organization_name: orgName.trim(),
-        });
+        await User.completeOnboarding(
+          buildCoachCompletionPayload({
+            organizationId: orgId,
+            organizationName: orgName.trim(),
+          })
+        );
         await markOnboardingCompleteLocally();
         registerPushToken().catch(() => {});
       } catch (err) {
@@ -1054,110 +1063,293 @@ function Step3League() {
       ) : (
         // Show creation form
         <>
-          <View style={styles.howItWorksCard} accessibilityRole="summary">
-            <View style={styles.howItWorksHeaderRow}>
-              <MaterialIcons
-                name="grid-view"
-                size={22}
-                color={colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8'}
-                style={{ marginRight: 10 }}
-              />
-              <Text style={styles.howItWorksTitle}>How It Works</Text>
-            </View>
-            <View style={styles.howItWorksTreeBox}>
-              <Text style={styles.howItWorksTreeLine}>🏫 Stamford HS (Organization Page)</Text>
-              <Text style={styles.howItWorksTreeLine}> └🏈 Varsity Football (Team Page)</Text>
-              <Text style={styles.howItWorksTreeLine}> └🏀 JV Basketball (Team Page)</Text>
-              <Text style={styles.howItWorksTreeLine}> └⚽ Girls Soccer (Team Page)</Text>
-            </View>
-            <Text style={styles.howItWorksDescLine}>
-              <Text style={styles.howItWorksDescStrong}>Organization Page:</Text> Managed by
-              administrator, displays all programs
-            </Text>
-            <Text style={styles.howItWorksDescLine}>
-              <Text style={styles.howItWorksDescStrong}>Team Pages:</Text> Managed by Authorized
-              Users you assign
-            </Text>
-          </View>
-
-          {/* Organization creation/search form - for all coaches */}
-          {!showSearch ? (
-            <>
-              {/* Bracket Toggle: Search vs Create */}
-              <View style={styles.modeToggleWrapper}>
-                <View style={styles.modeToggleBracket}>
-                  <Pressable
-                    style={[styles.modeToggleOption, showSearch && styles.modeToggleOptionActive]}
-                    onPress={() => {
-                      setShowSearch(true);
-                      // Symmetric reset: switching BACK to Search should also clear any
-                      // stale pending flag so the user is searching fresh. Without this,
-                      // rehydrated state from a prior session routed to pending-approval
-                      // without a new request being submitted.
-                      setOB(prev => ({
-                        ...prev,
-                        join_request_pending: false,
-                        organization_id: undefined,
-                        organization_name: undefined,
-                      }));
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Search for existing organization"
-                  >
-                    <MaterialIcons
-                      name="search"
-                      size={16}
-                      color={showSearch ? '#fff' : isDark ? '#E2E8F0' : '#0F172A'}
-                    />
-                    <Text
-                      style={[styles.modeToggleText, showSearch && styles.modeToggleTextActive]}
-                    >
-                      Search
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.modeToggleOption, !showSearch && styles.modeToggleOptionActive]}
-                    onPress={() => {
-                      setShowSearch(false);
-                      clearOrganizations();
-                      // Reset stale join-request state from a prior session/attempt so
-                      // Continue proceeds to org creation instead of routing to the
-                      // pending-approval screen based on an orphaned pending flag.
-                      setOB(prev => ({
-                        ...prev,
-                        join_request_pending: false,
-                        organization_id: undefined,
-                        organization_name: undefined,
-                      }));
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Create a new organization"
-                  >
-                    <MaterialIcons
-                      name="add"
-                      size={16}
-                      color={!showSearch ? '#fff' : isDark ? '#E2E8F0' : '#0F172A'}
-                    />
-                    <Text
-                      style={[styles.modeToggleText, !showSearch && styles.modeToggleTextActive]}
-                    >
-                      Create New
-                    </Text>
-                  </Pressable>
-                </View>
+          {isFinalCoachSetup ? (
+            <View style={styles.finalSetupCard} accessibilityRole="summary">
+              <View style={styles.finalSetupHeaderRow}>
+                <MaterialIcons
+                  name="verified"
+                  size={22}
+                  color={colorScheme === 'dark' ? '#93C5FD' : '#1D4ED8'}
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.finalSetupTitle}>Approved Coach Setup</Text>
               </View>
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: isDark ? '#94A3B8' : '#64748B',
-                  textAlign: 'center',
-                  marginBottom: 12,
-                }}
-              >
-                {showSearch
-                  ? 'My league already exists on VarsityHub \u2014 I want to request to join it'
-                  : "I'm starting a new league \u2014 I'll be the owner and admin"}
+              <Text style={styles.finalSetupBody}>
+                Your coach application has already been approved. This step creates the live
+                organization page for{' '}
+                <Text style={styles.finalSetupBodyStrong}>
+                  {submittedApplicationName || orgName.trim() || 'your organization'}
+                </Text>
+                .
               </Text>
+              <Text style={styles.finalSetupBody}>
+                You do not need to apply again or search for an existing league here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.howItWorksCard} accessibilityRole="summary">
+              <View style={styles.howItWorksHeaderRow}>
+                <MaterialIcons
+                  name="grid-view"
+                  size={22}
+                  color={colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8'}
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.howItWorksTitle}>How It Works</Text>
+              </View>
+              <View style={styles.howItWorksTreeBox}>
+                <Text style={styles.howItWorksTreeLine}>🏫 Stamford HS (Organization Page)</Text>
+                <Text style={styles.howItWorksTreeLine}> └🏈 Varsity Football (Team Page)</Text>
+                <Text style={styles.howItWorksTreeLine}> └🏀 JV Basketball (Team Page)</Text>
+                <Text style={styles.howItWorksTreeLine}> └⚽ Girls Soccer (Team Page)</Text>
+              </View>
+              <Text style={styles.howItWorksDescLine}>
+                <Text style={styles.howItWorksDescStrong}>Organization Page:</Text> Managed by
+                administrator, displays all programs
+              </Text>
+              <Text style={styles.howItWorksDescLine}>
+                <Text style={styles.howItWorksDescStrong}>Team Pages:</Text> Managed by Authorized
+                Users you assign
+              </Text>
+            </View>
+          )}
+
+          {/* Organization creation/search form */}
+          {canSearchForExistingOrganization && showSearch ? (
+            <>
+              {/* Search interface */}
+              <View style={styles.searchBox}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => {
+                    setShowSearch(false);
+                    setHasSearchedNearby(false);
+                    clearOrganizations();
+                    setSelectedOrg(null);
+                    setShowOrgDropdown(false);
+                  }}
+                >
+                  <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].tint} />
+                  <Text style={styles.backButtonText}>Create New Instead</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.label}>Search by Name or Zip Code</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                  <Input
+                    value={searchZip}
+                    onChangeText={handleSearchInput}
+                    placeholder="e.g., Westhill or 06902"
+                    style={{ flex: 1, minHeight: 56, paddingVertical: 16, fontSize: 16 }}
+                    autoCorrect={false}
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    inputAccessoryViewID=""
+                  />
+                  <TouchableOpacity
+                    style={styles.searchActionButton}
+                    onPress={() => executeNearbySearch()}
+                    disabled={searching || !searchZip.trim()}
+                  >
+                    {searching ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <MaterialIcons name="search" size={20} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <ZipCodeMapPreview
+                  zipCode={searchZip}
+                  title="Search Area"
+                  subtitle="Searching for organizations near ZIP {zip}"
+                  showCircle={false}
+                />
+
+                {nearbyOrgs.length > 0 && (
+                  <>
+                    <Text style={styles.label}>Select organization to join</Text>
+                    <Pressable
+                      style={[
+                        styles.selectField,
+                        {
+                          borderColor: isDark ? '#374151' : '#E2E8F0',
+                          backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
+                          marginBottom: 8,
+                        },
+                      ]}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setShowOrgDropdown(v => !v);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Select organization to join"
+                    >
+                      <Text style={styles.selectFieldText}>
+                        {selectedOrg
+                          ? selectedOrg.name
+                          : `${nearbyOrgs.length} organization${nearbyOrgs.length !== 1 ? 's' : ''} found — tap to select`}
+                      </Text>
+                      <MaterialIcons
+                        name={showOrgDropdown ? 'expand-less' : 'expand-more'}
+                        size={18}
+                        color={isDark ? '#CBD5E1' : '#475569'}
+                      />
+                    </Pressable>
+                    {showOrgDropdown && (
+                      <ScrollView style={styles.orgList} showsVerticalScrollIndicator={false}>
+                        {nearbyOrgs.map(org => (
+                          <Pressable
+                            key={org.id}
+                            style={[
+                              styles.orgCard,
+                              selectedOrg?.id === org.id && {
+                                borderWidth: 2,
+                                borderColor: Colors[colorScheme].tint,
+                              },
+                            ]}
+                            onPress={() => {
+                              setSelectedOrg(org);
+                              setShowOrgDropdown(false);
+                            }}
+                          >
+                            <View style={styles.orgCardContent}>
+                              <Text style={styles.orgCardName}>{org.name}</Text>
+                              {org.location && (
+                                <Text style={styles.orgCardLocation}>
+                                  <MaterialIcons name="location-on" size={14} /> {org.location}
+                                </Text>
+                              )}
+                              {(org.org_type || org.type) && (
+                                <Text style={styles.orgCardSport}>
+                                  {formatOrgType(org.org_type || org.type)}
+                                </Text>
+                              )}
+                              <Text style={styles.orgCardMeta}>
+                                {org._count?.teams ?? 0} team
+                                {(org._count?.teams ?? 0) !== 1 ? 's' : ''} •{' '}
+                                {org._count?.memberships ?? 0} member
+                                {(org._count?.memberships ?? 0) !== 1 ? 's' : ''}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.joinButton}
+                              onPress={() => {
+                                setSelectedOrg(org);
+                                setShowOrgDropdown(false);
+                                void requestToJoin(org);
+                              }}
+                            >
+                              <Text style={styles.joinButtonText}>Request to Join</Text>
+                            </TouchableOpacity>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </>
+                )}
+
+                {hasSearchedNearby && !searching && nearbyOrgs.length === 0 && (
+                  <View
+                    style={[
+                      styles.searchEmptyState,
+                      {
+                        borderColor: isDark ? '#374151' : '#E2E8F0',
+                        backgroundColor: isDark ? '#111827' : '#F8FAFC',
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="travel-explore"
+                      size={22}
+                      color={isDark ? '#93C5FD' : '#2563EB'}
+                    />
+                    <Text style={styles.searchEmptyTitle}>
+                      No organizations found for that search
+                    </Text>
+                    <Text style={styles.searchEmptyText}>
+                      This clean test slate does not have any active leagues yet. Tap Create New
+                      Instead to set up the first organization.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
+          ) : (
+            <>
+              {canSearchForExistingOrganization ? (
+                <>
+                  <View style={styles.modeToggleWrapper}>
+                    <View style={styles.modeToggleBracket}>
+                      <Pressable
+                        style={[styles.modeToggleOption, showSearch && styles.modeToggleOptionActive]}
+                        onPress={() => {
+                          setShowSearch(true);
+                          setOB(prev => ({
+                            ...prev,
+                            join_request_pending: false,
+                            organization_id: undefined,
+                            organization_name: undefined,
+                            step_3_visited: false,
+                          }));
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Search for existing organization"
+                      >
+                        <MaterialIcons
+                          name="search"
+                          size={16}
+                          color={showSearch ? '#fff' : isDark ? '#E2E8F0' : '#0F172A'}
+                        />
+                        <Text
+                          style={[styles.modeToggleText, showSearch && styles.modeToggleTextActive]}
+                        >
+                          Search
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.modeToggleOption, !showSearch && styles.modeToggleOptionActive]}
+                        onPress={() => {
+                          setShowSearch(false);
+                          clearOrganizations();
+                          setOB(prev => ({
+                            ...prev,
+                            join_request_pending: false,
+                            organization_id: undefined,
+                            organization_name: undefined,
+                            step_3_visited: false,
+                          }));
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Create a new organization"
+                      >
+                        <MaterialIcons
+                          name="add"
+                          size={16}
+                          color={!showSearch ? '#fff' : isDark ? '#E2E8F0' : '#0F172A'}
+                        />
+                        <Text
+                          style={[styles.modeToggleText, !showSearch && styles.modeToggleTextActive]}
+                        >
+                          Create New
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: isDark ? '#94A3B8' : '#64748B',
+                      textAlign: 'center',
+                      marginBottom: 12,
+                    }}
+                  >
+                    {showSearch
+                      ? 'My league already exists on VarsityHub \u2014 I want to request to join it'
+                      : "I'm starting a new league \u2014 I'll be the owner and admin"}
+                  </Text>
+                </>
+              ) : null}
 
               <Text style={styles.label}>Organization Name</Text>
               <Input
@@ -1319,169 +1511,9 @@ function Step3League() {
               </Pressable>
               <View style={{ height: 12 }} />
             </>
-          ) : (
-            <>
-              {/* Search interface */}
-              <View style={styles.searchBox}>
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => {
-                    setShowSearch(false);
-                    setHasSearchedNearby(false);
-                    clearOrganizations();
-                    setSelectedOrg(null);
-                    setShowOrgDropdown(false);
-                  }}
-                >
-                  <MaterialIcons name="arrow-back" size={20} color={Colors[colorScheme].tint} />
-                  <Text style={styles.backButtonText}>Create New Instead</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.label}>Search by Name or Zip Code</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                  <Input
-                    value={searchZip}
-                    onChangeText={handleSearchInput}
-                    placeholder="e.g., Westhill or 06902"
-                    style={{ flex: 1, minHeight: 56, paddingVertical: 16, fontSize: 16 }}
-                    autoCorrect={false}
-                    autoComplete="off"
-                    spellCheck={false}
-                    autoCapitalize="none"
-                    inputAccessoryViewID=""
-                  />
-                  <TouchableOpacity
-                    style={styles.searchActionButton}
-                    onPress={() => executeNearbySearch()}
-                    disabled={searching || !searchZip.trim()}
-                  >
-                    {searching ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <MaterialIcons name="search" size={20} color="#fff" />
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                <ZipCodeMapPreview
-                  zipCode={searchZip}
-                  title="Search Area"
-                  subtitle="Searching for organizations near ZIP {zip}"
-                  showCircle={false}
-                />
-
-                {nearbyOrgs.length > 0 && (
-                  <>
-                    <Text style={styles.label}>Select organization to join</Text>
-                    <Pressable
-                      style={[
-                        styles.selectField,
-                        {
-                          borderColor: isDark ? '#374151' : '#E2E8F0',
-                          backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-                          marginBottom: 8,
-                        },
-                      ]}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        setShowOrgDropdown(v => !v);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Select organization to join"
-                    >
-                      <Text style={styles.selectFieldText}>
-                        {selectedOrg
-                          ? selectedOrg.name
-                          : `${nearbyOrgs.length} organization${nearbyOrgs.length !== 1 ? 's' : ''} found — tap to select`}
-                      </Text>
-                      <MaterialIcons
-                        name={showOrgDropdown ? 'expand-less' : 'expand-more'}
-                        size={18}
-                        color={isDark ? '#CBD5E1' : '#475569'}
-                      />
-                    </Pressable>
-                    {showOrgDropdown && (
-                      <ScrollView style={styles.orgList} showsVerticalScrollIndicator={false}>
-                        {nearbyOrgs.map(org => (
-                          <Pressable
-                            key={org.id}
-                            style={[
-                              styles.orgCard,
-                              selectedOrg?.id === org.id && {
-                                borderWidth: 2,
-                                borderColor: Colors[colorScheme].tint,
-                              },
-                            ]}
-                            onPress={() => {
-                              setSelectedOrg(org);
-                              setShowOrgDropdown(false);
-                            }}
-                          >
-                            <View style={styles.orgCardContent}>
-                              <Text style={styles.orgCardName}>{org.name}</Text>
-                              {org.location && (
-                                <Text style={styles.orgCardLocation}>
-                                  <MaterialIcons name="location-on" size={14} /> {org.location}
-                                </Text>
-                              )}
-                              {(org.org_type || org.type) && (
-                                <Text style={styles.orgCardSport}>
-                                  {formatOrgType(org.org_type || org.type)}
-                                </Text>
-                              )}
-                              <Text style={styles.orgCardMeta}>
-                                {org._count?.teams ?? 0} team
-                                {(org._count?.teams ?? 0) !== 1 ? 's' : ''} •{' '}
-                                {org._count?.memberships ?? 0} member
-                                {(org._count?.memberships ?? 0) !== 1 ? 's' : ''}
-                              </Text>
-                            </View>
-                            <TouchableOpacity
-                              style={styles.joinButton}
-                              onPress={() => {
-                                setSelectedOrg(org);
-                                setShowOrgDropdown(false);
-                                void requestToJoin(org);
-                              }}
-                            >
-                              <Text style={styles.joinButtonText}>Request to Join</Text>
-                            </TouchableOpacity>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    )}
-                  </>
-                )}
-
-                {hasSearchedNearby && !searching && nearbyOrgs.length === 0 && (
-                  <View
-                    style={[
-                      styles.searchEmptyState,
-                      {
-                        borderColor: isDark ? '#374151' : '#E2E8F0',
-                        backgroundColor: isDark ? '#111827' : '#F8FAFC',
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name="travel-explore"
-                      size={22}
-                      color={isDark ? '#93C5FD' : '#2563EB'}
-                    />
-                    <Text style={styles.searchEmptyTitle}>
-                      No organizations found for that search
-                    </Text>
-                    <Text style={styles.searchEmptyText}>
-                      This clean test slate does not have any active leagues yet. Tap Create New
-                      Instead to set up the first organization.
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </>
           )}
 
-          {!showSearch && (
+          {(!canSearchForExistingOrganization || !showSearch) && (
             <>
               <Text style={styles.label}>Zip Code</Text>
               <Input
@@ -1729,7 +1761,7 @@ function Step3League() {
             </View>
           )}
 
-          {!showSearch && (
+          {(!canSearchForExistingOrganization || !showSearch) && (
             <PrimaryButton
               label={saving ? 'Creating...' : 'Continue'}
               onPress={onContinue}
@@ -2009,6 +2041,34 @@ const createStyles = (colorScheme: 'light' | 'dark') =>
       borderRadius: 16,
       padding: 18,
       marginBottom: 24,
+    },
+    finalSetupCard: {
+      borderWidth: 1,
+      borderColor: colorScheme === 'dark' ? '#1D4ED8' : '#93C5FD',
+      backgroundColor: colorScheme === 'dark' ? 'rgba(29,78,216,0.18)' : '#EFF6FF',
+      borderRadius: 16,
+      padding: 18,
+      marginBottom: 20,
+    },
+    finalSetupHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    finalSetupTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colorScheme === 'dark' ? '#DBEAFE' : '#1E3A8A',
+    },
+    finalSetupBody: {
+      fontSize: 14,
+      lineHeight: 20,
+      color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
+      marginBottom: 6,
+    },
+    finalSetupBodyStrong: {
+      fontWeight: '700',
+      color: colorScheme === 'dark' ? '#EFF6FF' : '#1E3A8A',
     },
     howItWorksCard: {
       borderWidth: 1,

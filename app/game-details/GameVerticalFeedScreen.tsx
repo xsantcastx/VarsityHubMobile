@@ -235,6 +235,7 @@ const FeedCard = memo(
     onPrev: () => void;
     onNext: () => void;
   }) => {
+    const { user, checkAuth } = useAuth();
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -256,6 +257,19 @@ const FeedCard = memo(
         if (deleteTimer) clearTimeout(deleteTimer);
       };
     }, []);
+
+    // Load current user
+    useEffect(() => {
+      const loadUser = async () => {
+        try {
+          const currentUser = await getAuthSnapshot(checkAuth, user);
+          setCurrentUser(currentUser);
+        } catch (error) {
+          if (__DEV__) console.error('Failed to load user:', error);
+        }
+      };
+      void loadUser();
+    }, [checkAuth, user]);
 
     // Check if current user is the author of the post
     const isAuthor = Boolean(meInfo?.id && post.author?.id && meInfo.id === post.author.id);
@@ -672,11 +686,11 @@ function GameVerticalFeedScreen({
   excludeMediaUrls = [],
   title,
 }: GameVerticalFeedScreenProps = {}) {
+  const { user, checkAuth } = useAuth();
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user: authUser, checkAuth } = useAuth();
   const gameId = externalGameId ? String(externalGameId) : gameIdParam ? String(gameIdParam) : null;
   const usingInitial = useMemo(
     () => Array.isArray(initialPosts) && initialPosts.length > 0,
@@ -739,6 +753,16 @@ function GameVerticalFeedScreen({
     display_name?: string | null;
     username?: string | null;
   } | null>(null);
+  const resolveMeInfo = useCallback(async () => {
+    const me: any = await getAuthSnapshot(checkAuth, user);
+    return me
+      ? {
+          id: me?.id ? String(me.id) : undefined,
+          display_name: me?.display_name ?? null,
+          username: me?.username ?? null,
+        }
+      : null;
+  }, [checkAuth, user]);
   const headerTitle = title || game?.title || 'Game';
 
   // Store VideoPlayer instances by post id
@@ -1239,8 +1263,8 @@ function GameVerticalFeedScreen({
         // Load current user info (for display name) if missing
         if (!meInfo) {
           try {
-            const me: any = await getAuthSnapshot(checkAuth, authUser);
-            setMeInfo({ id: me?.id ? String(me.id) : undefined, username: me?.username ?? null });
+            const me = await resolveMeInfo();
+            setMeInfo(me ? { ...me } : null);
           } catch (error: any) {
             if (__DEV__) {
               if (__DEV__)
@@ -1259,7 +1283,7 @@ function GameVerticalFeedScreen({
         setCommentsLoading(false);
       }
     },
-    [authUser, checkAuth, meInfo]
+    [meInfo, resolveMeInfo]
   );
 
   const loadMoreComments = useCallback(async () => {
@@ -1387,13 +1411,9 @@ function GameVerticalFeedScreen({
     let cancelled = false;
     void (async () => {
       try {
-        const me: any = await getAuthSnapshot(checkAuth, authUser);
+        const me = await resolveMeInfo();
         if (!cancelled && me) {
-          setMeInfo({
-            id: me?.id ? String(me.id) : undefined,
-            display_name: me?.display_name ?? null,
-            username: me?.username ?? null,
-          });
+          setMeInfo(me);
         }
       } catch (error) {
         // User info load failed - non-critical for feed viewing
@@ -1403,7 +1423,7 @@ function GameVerticalFeedScreen({
     return () => {
       cancelled = true;
     };
-  }, [authUser, checkAuth]);
+  }, [resolveMeInfo]);
 
   // Note: We allow missing gameId - the component will load general highlights instead
   // The loadFeed function handles this case gracefully (lines 612-642)

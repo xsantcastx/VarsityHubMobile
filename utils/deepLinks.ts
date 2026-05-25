@@ -231,6 +231,72 @@ function getParsedDeepLinkHref(parsed: ParsedDeepLink): string {
   return query ? `${parsed.screen}?${query}` : parsed.screen;
 }
 
+function resolveWholePathRoute(
+  pathParts: string[],
+  queryParams: Record<string, unknown>,
+  source: ParsedDeepLink['source'],
+): ParsedDeepLink | null {
+  const wholePathKey = pathParts.join('/');
+  const screen = ROUTE_MAP[wholePathKey];
+  if (!screen) return null;
+  return {
+    screen,
+    params: buildRouteParams(wholePathKey, queryParams),
+    source,
+  };
+}
+
+function resolveResourceRoute(
+  pathParts: string[],
+  source: ParsedDeepLink['source'],
+  {
+    warnOnExactMatch,
+    warnOnUnknownType,
+    warnOnInvalidId,
+  }: {
+    warnOnExactMatch?: boolean;
+    warnOnUnknownType?: boolean;
+    warnOnInvalidId?: boolean;
+  } = {},
+): ParsedDeepLink | null {
+  let type: string;
+  let id: string;
+  const twoSegmentType = pathParts.length >= 3 ? `${pathParts[0]}/${pathParts[1]}` : '';
+  if (twoSegmentType && ROUTE_MAP[twoSegmentType]) {
+    type = twoSegmentType;
+    id = pathParts[2];
+  } else {
+    type = pathParts[0];
+    if (EXACT_MATCH_ROUTE_KEYS.has(type)) {
+      if (warnOnExactMatch) {
+        deepLinkWarn('[DeepLinks] Exact-match route cannot consume an ID:', type);
+      }
+      return null;
+    }
+    id = pathParts[1];
+  }
+
+  const screen = ROUTE_MAP[type];
+  if (!screen) {
+    if (warnOnUnknownType) {
+      deepLinkWarn('[DeepLinks] Unknown content type:', type);
+    }
+    return null;
+  }
+  if (!isValidDeepLinkId(id)) {
+    if (warnOnInvalidId) {
+      deepLinkWarn('[DeepLinks] Invalid ID format:', type);
+    }
+    return null;
+  }
+
+  return {
+    screen,
+    params: { id },
+    source,
+  };
+}
+
 /**
  * Parse a deep link URL into screen and params
  */
@@ -288,44 +354,14 @@ function parseSchemeLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     return null;
   }
 
-  // Multi-segment routes that have NO resource ID — same handling as the path-link parser.
-  const wholePathKey = pathParts.join('/');
-  if (ROUTE_MAP[wholePathKey]) {
-    const params = buildRouteParams(wholePathKey, queryParams);
-    return { screen: ROUTE_MAP[wholePathKey], params, source: 'scheme' };
-  }
-
-  // Support multi-segment types like 'join/org' (3 parts: join, org, id)
-  let type: string;
-  let id: string;
-  const twoSegmentType = pathParts.length >= 3 ? `${pathParts[0]}/${pathParts[1]}` : '';
-  if (twoSegmentType && ROUTE_MAP[twoSegmentType]) {
-    type = twoSegmentType;
-    id = pathParts[2];
-  } else {
-    type = pathParts[0];
-    if (EXACT_MATCH_ROUTE_KEYS.has(type)) {
-      deepLinkWarn('[DeepLinks] Exact-match route cannot consume an ID:', type);
-      return null;
-    }
-    id = pathParts[1];
-  }
-  const screen = ROUTE_MAP[type];
-
-  if (!screen) {
-    deepLinkWarn('[DeepLinks] Unknown content type:', type);
-    return null;
-  }
-  if (!isValidDeepLinkId(id)) {
-    deepLinkWarn('[DeepLinks] Invalid ID format:', type);
-    return null;
-  }
-
-  return {
-    screen,
-    params: { id },
-    source: 'scheme',
-  };
+  return (
+    resolveWholePathRoute(pathParts, queryParams, 'scheme') ||
+    resolveResourceRoute(pathParts, 'scheme', {
+      warnOnExactMatch: true,
+      warnOnUnknownType: true,
+      warnOnInvalidId: true,
+    })
+  );
 }
 
 /**
@@ -400,47 +436,8 @@ function parsePathLink(parsed: Linking.ParsedURL): ParsedDeepLink | null {
     return null;
   }
 
-  // Multi-segment routes that have NO resource ID (e.g., /settings/manage-subscription).
-  // Match the full joined path against ROUTE_MAP first; only fall through to the
-  // type+id pattern if no whole-path key exists.
-  const wholePathKey = pathParts.join('/');
-  if (ROUTE_MAP[wholePathKey]) {
-    const params = buildRouteParams(wholePathKey, queryParams);
-    return {
-      screen: ROUTE_MAP[wholePathKey],
-      params,
-      source: parsed.scheme === 'https' || parsed.scheme === 'http' ? 'universal' : 'unknown',
-    };
-  }
-
-  // Support multi-segment types like 'join/org' (3 parts: join, org, id)
-  let type: string;
-  let id: string;
-  const twoSegmentType = pathParts.length >= 3 ? `${pathParts[0]}/${pathParts[1]}` : '';
-  if (twoSegmentType && ROUTE_MAP[twoSegmentType]) {
-    type = twoSegmentType;
-    id = pathParts[2];
-  } else {
-    type = pathParts[0];
-    if (EXACT_MATCH_ROUTE_KEYS.has(type)) {
-      return null;
-    }
-    id = pathParts[1];
-  }
-  const screen = ROUTE_MAP[type];
-
-  if (!screen) {
-    return null;
-  }
-  if (!isValidDeepLinkId(id)) {
-    return null;
-  }
-
-  return {
-    screen,
-    params: { id },
-    source: 'unknown',
-  };
+  const source = parsed.scheme === 'https' || parsed.scheme === 'http' ? 'universal' : 'unknown';
+  return resolveWholePathRoute(pathParts, queryParams, source) || resolveResourceRoute(pathParts, source);
 }
 
 /**

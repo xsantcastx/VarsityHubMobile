@@ -21,7 +21,7 @@ import { Stack, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { openExternalUrl } from '@/utils/openExternalUrl';
 import { usePaymentSheet } from '@/utils/stripe';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { captureBreadcrumb } from '@/utils/sentry';
 import {
   ActivityIndicator,
@@ -58,7 +58,6 @@ function SubscriptionPaywallScreen() {
   const [isNonOwnerCoach, setIsNonOwnerCoach] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
 
-  // Check if user is a league owner — non-owners cannot purchase
   useEffect(() => {
     let mounted = true;
     void (async () => {
@@ -88,6 +87,26 @@ function SubscriptionPaywallScreen() {
       mounted = false;
     };
   }, [checkAuth, user, user?.id]);
+
+  const waitForPaidPlanActivation = useCallback(async () => {
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const fresh: any = await checkAuth().catch(() => null);
+        const billing = getCanonicalBillingState(fresh);
+        if (
+          (billing.plan === 'veteran' || billing.plan === 'legend') &&
+          !billing.payment_pending &&
+          !billing.pending_plan
+        ) {
+          return true;
+        }
+      } catch {
+        /* ignore — keep polling */
+      }
+    }
+    return false;
+  }, [checkAuth]);
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const {
     connected: iapConnected,
@@ -149,26 +168,7 @@ function SubscriptionPaywallScreen() {
           entry: 'subscription_paywall',
         });
         if (success) {
-          // Poll for plan activation before showing success (webhook may lag IAP confirmation)
-          let planActivated = false;
-          for (let i = 0; i < 15; i++) {
-            await new Promise(r => setTimeout(r, 2000));
-            try {
-              const me: any = await User.refresh();
-              const billing = getCanonicalBillingState(me);
-              if (
-                (billing.plan === 'veteran' || billing.plan === 'legend') &&
-                !billing.payment_pending &&
-                !billing.pending_plan
-              ) {
-                planActivated = true;
-                break;
-              }
-            } catch {
-              /* ignore — keep polling */
-            }
-          }
-          checkAuth().catch(() => {});
+          const planActivated = await waitForPaidPlanActivation();
           if (planActivated) {
             captureBreadcrumb(
               'Subscription activation confirmed after native purchase',
@@ -318,24 +318,7 @@ function SubscriptionPaywallScreen() {
           entry: 'subscription_paywall',
         });
         // Poll for plan activation (webhook may take a moment) — 15 attempts × 2s = 30s max
-        let planActivated = false;
-        for (let i = 0; i < 15; i++) {
-          await new Promise(r => setTimeout(r, 2000));
-          try {
-            const me: any = await User.refresh();
-            const billing = getCanonicalBillingState(me);
-            if (
-              (billing.plan === 'veteran' || billing.plan === 'legend') &&
-              !billing.payment_pending &&
-              !billing.pending_plan
-            ) {
-              planActivated = true;
-              break;
-            }
-          } catch {
-            /* ignore */
-          }
-        }
+        const planActivated = await waitForPaidPlanActivation();
         if (!planActivated) {
           captureBreadcrumb(
             'Subscription activation pending after payment sheet',
@@ -763,7 +746,7 @@ function SubscriptionPaywallScreen() {
                   setLoading(true);
                   try {
                     const restoreStatus = await iapRestore();
-                    checkAuth().catch(() => {});
+                    await checkAuth().catch(() => {});
                     if (restoreStatus === 'restored') {
                       Alert.alert('Restore Complete', 'Your subscription has been restored.', [
                         { text: 'OK', onPress: () => safeGoBack(router) },

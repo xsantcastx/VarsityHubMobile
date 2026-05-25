@@ -1,14 +1,16 @@
+import { Message as MsgApi } from '@/api/entities';
+import {
+  AdminGuardState,
+  AdminScreenShell,
+  adminScreenSharedStyles as sharedStyles,
+} from '@/components/AdminScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { safeGoBack } from '@/utils/navigation';
-// @ts-ignore
-import { Message as MsgApi } from '@/api/entities';
 
 function AdminMessagesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -19,68 +21,91 @@ function AdminMessagesScreen() {
   const [items, setItems] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-      if (!isAdmin) return;
-    setLoading(true); setError(null);
+    if (!isAdmin) return;
+    setLoading(true);
+    setError(null);
     try {
       const list = await MsgApi.listAll(200);
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
-      setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load messages'));
-    } finally { setLoading(false); }
+      setError(e?.status === 403 ? 'Access denied (admin only).' : e?.message || 'Failed to load messages');
+    } finally {
+      setLoading(false);
+    }
   }, [isAdmin]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (adminLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator color={Colors[colorScheme].tint} />
-      </SafeAreaView>
+      <AdminGuardState
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+        loading
+      />
     );
   }
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Admin access required</Text>
-      </SafeAreaView>
+      <AdminGuardState
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+      />
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Admin · All Messages', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ) }} />
-      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={Colors[colorScheme].tint} /></View> : null}
-      {error ? <Text style={[styles.error, { color: Colors[colorScheme].mutedText }]}>{error}</Text> : null}
-      {!loading && !error && (
+    <AdminScreenShell
+      title="Admin · All Messages"
+      backgroundColor={Colors[colorScheme].background}
+      onBack={() => {
+        safeGoBack(router);
+      }}
+    >
+      {loading ? <View style={sharedStyles.listLoading}><ActivityIndicator /></View> : null}
+      {error ? <Text style={[sharedStyles.error, { color: Colors[colorScheme].mutedText }]}>{error}</Text> : null}
+      {!loading && !error ? (
         <FlatList
           data={items}
-          keyExtractor={(m) => String(m.id)}
+          keyExtractor={m => String(m.id)}
           renderItem={({ item }) => (
-            <View style={[styles.row, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.msg, { color: Colors[colorScheme].text }]} numberOfLines={2}>{item.content || ''}</Text>
-              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{(item.sender?.display_name || item.sender?.username || item.sender_email || 'unknown') + ' → ' + (item.recipient?.display_name || item.recipient?.username || item.recipient_email || 'unknown')}</Text>
-              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{new Date(item.created_date || item.created_at || Date.now()).toLocaleString()}</Text>
+            <View
+              style={[
+                styles.row,
+                {
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <Text style={[styles.msg, { color: Colors[colorScheme].text }]} numberOfLines={2}>
+                {item.content || ''}
+              </Text>
+              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>
+                {(item.sender?.display_name || item.sender?.username || item.sender_email || 'unknown') +
+                  ' → ' +
+                  (item.recipient?.display_name || item.recipient?.username || item.recipient_email || 'unknown')}
+              </Text>
+              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>
+                {new Date(item.created_date || item.created_at || Date.now()).toLocaleString()}
+              </Text>
             </View>
           )}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          contentContainerStyle={sharedStyles.listContent}
         />
-      )}
-    </SafeAreaView>
+      ) : null}
+    </AdminScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   row: { padding: 12, borderRadius: 12, borderWidth: 1 },
   msg: { fontWeight: '600' },
   meta: {},
-  error: { padding: 12 },
 });
 
 export default AdminMessagesScreen;

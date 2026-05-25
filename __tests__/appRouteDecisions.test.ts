@@ -35,6 +35,17 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'app_home',
     },
     {
+      label: 'routes server-directed coach basic info requirements to step 2',
+      user: {
+        email_verified: true,
+        account_state: 'coach_basic_info_required',
+        next_step: '/onboarding/step-2-basic',
+        preferences: { onboarding_completed: false, role: 'coach' },
+      },
+      expected: '/onboarding/step-2-basic',
+      kind: 'server_basic_info_required',
+    },
+    {
       label: 'routes server-directed rejected applicants to waiting screen',
       user: {
         email_verified: true,
@@ -133,20 +144,21 @@ describe('getPostAuthRouteDecision', () => {
       kind: 'server_pending_approval_league_waiting',
     },
     {
-      label: 'routes approved coaches with incomplete setup into the app once approved',
+      label: 'routes approved coaches without agreement to coach-agreement even if onboarding is incomplete',
       user: {
         email_verified: true,
         approval_status: 'APPROVED',
         onboarding_completed: false,
         organization_id: 'org_123',
+        required_coach_agreement_version: 1,
         preferences: {
-          onboarding_completed: true,
+          onboarding_completed: false,
           role: 'coach',
-          organization_id: '',
+          organization_id: 'org_123',
         },
       },
-      expected: '/(tabs)',
-      kind: 'app_home',
+      expected: '/onboarding/coach-agreement',
+      kind: 'coach_agreement_required',
     },
     {
       label: 'routes approved coaches without agreement into the app once approved',
@@ -194,8 +206,30 @@ describe('getPostAuthRouteDecision', () => {
       { pendingVerification: true }
     );
 
-    expect(decision.kind).toBe('pending_verification');
-    expect(decision.route).toBe('/verify');
+      expect(decision.kind).toBe('pending_verification');
+      expect(decision.route).toBe('/verify');
+    });
+
+  it('routes approved coaches with a current agreement but incomplete onboarding to the final recovery flow', () => {
+    const decision = getPostAuthRouteDecision(
+      {
+        email_verified: true,
+        approval_status: 'APPROVED',
+        onboarding_completed: false,
+        organization_id: 'org_123',
+        required_coach_agreement_version: 1,
+        preferences: {
+          onboarding_completed: false,
+          role: 'coach',
+          organization_id: 'org_123',
+          coach_agreement_accepted_at: '2026-05-12T12:00:00.000Z',
+          coach_agreement_version: 1,
+        },
+      } as any
+    );
+
+    expect(decision.kind).toBe('approved_coach_finish_setup');
+    expect(decision.route).toBe('/onboarding/league-pending-approval');
   });
 });
 
@@ -218,7 +252,26 @@ describe('getOnboardingIndexRouteDecision', () => {
     expect(decision.route).toBe('/onboarding/step-3-league');
   });
 
-  it('routes incomplete coach drafts with submitted org data to waiting screen', () => {
+  it('uses the server-directed basic-info route before local draft progression', () => {
+    const decision = getOnboardingIndexRouteDecision(
+      {
+        email_verified: true,
+        account_state: 'coach_basic_info_required',
+        next_step: '/onboarding/step-2-basic',
+        preferences: { onboarding_completed: false, role: 'coach' },
+      } as any,
+      {
+        role: 'coach',
+        step_2_visited: true,
+        step_3_visited: true,
+      }
+    );
+
+    expect(decision.kind).toBe('server_basic_info_required');
+    expect(decision.route).toBe('/onboarding/step-2-basic');
+  });
+
+  it('routes incomplete coach drafts with local org data back to step 3 until the server directs a waiting screen', () => {
     const decision = getOnboardingIndexRouteDecision(
       {
         email_verified: true,
@@ -231,8 +284,9 @@ describe('getOnboardingIndexRouteDecision', () => {
       }
     );
 
-    expect(decision.kind).toBe('draft_pending_waiting');
-    expect(decision.route).toBe('/onboarding/league-pending-approval');
+    expect(decision.kind).toBe('draft_step_3');
+    expect(decision.route).toBe('/onboarding/step-3-league');
+    expect(decision.stepIndex).toBe(2);
   });
 
   it('keeps submitted coach applicants in fan mode on tabs even when next_step is stale', () => {
@@ -284,7 +338,7 @@ describe('getOnboardingIndexRouteDecision', () => {
     expect(decision.route).toBe('/(tabs)');
   });
 
-  it('treats top-level onboarding_completed=false as authoritative even when preferences are stale', () => {
+  it('treats top-level onboarding_completed=false as authoritative even when local draft org data exists', () => {
     const decision = getOnboardingIndexRouteDecision(
       {
         email_verified: true,
@@ -298,8 +352,25 @@ describe('getOnboardingIndexRouteDecision', () => {
       }
     );
 
-    expect(decision.kind).toBe('draft_pending_waiting');
-    expect(decision.route).toBe('/onboarding/league-pending-approval');
+    expect(decision.kind).toBe('draft_step_3');
+    expect(decision.route).toBe('/onboarding/step-3-league');
+  });
+
+  it('prefers canonical server completion over stale local onboarding drafts', () => {
+    const decision = getOnboardingIndexRouteDecision(
+      {
+        email_verified: true,
+        onboarding_completed: true,
+        preferences: { onboarding_completed: false, role: 'coach' },
+      } as any,
+      {
+        role: 'coach',
+        step_2_visited: true,
+      }
+    );
+
+    expect(decision.kind).toBe('completed_tabs');
+    expect(decision.route).toBe('/(tabs)');
   });
 
   it('routes ordinary incomplete users to the next draft step', () => {

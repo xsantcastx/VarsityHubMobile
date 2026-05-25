@@ -1,14 +1,16 @@
 import CustomActionModal from '@/components/CustomActionModal';
+import {
+  InviteScreenShell,
+  inviteScreenSharedStyles as sharedStyles,
+} from '@/components/InviteScreenShared';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { safeGoBack } from '@/utils/navigation';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Organization } from '@/api/entities';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 
 type Invite = {
   id: string;
@@ -19,7 +21,11 @@ type Invite = {
 function OrganizationInvitesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; fallback?: string }>();
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : '/(tabs)/notifications/index';
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,28 +99,23 @@ function OrganizationInvitesScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen
-        options={{
-          title: 'Organization Invites',
-          headerShown: true,
-          headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ),
-        }}
-      />
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Organization Invites</Text>
-      {highlightedInviteName ? (
-        <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+    <InviteScreenShell
+      title="Organization Invites"
+      backgroundColor={Colors[colorScheme].background}
+      textColor={Colors[colorScheme].text}
+      onBack={() => {
+        safeGoBack(router, explicitFallback);
+      }}
+      subtitle={highlightedInviteName ? (
+        <Text style={[sharedStyles.subtitle, { color: Colors[colorScheme].mutedText }]}>
           Invitation for {highlightedInviteName}
         </Text>
       ) : null}
-      {loading ? <View style={styles.loading}><ActivityIndicator color={Colors[colorScheme].tint} /></View> : null}
-      {error && !loading ? <Text style={[styles.error, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>{error}</Text> : null}
+    >
+      {loading ? <View style={sharedStyles.loading}><ActivityIndicator /></View> : null}
+      {error && !loading ? <Text style={sharedStyles.error}>{error}</Text> : null}
       {!loading && invites.length === 0 ? (
-        <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>
+        <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>
       ) : null}
       {!loading && invites.length > 0 ? (
         <FlatList
@@ -123,7 +124,7 @@ function OrganizationInvitesScreen() {
           renderItem={({ item }) => (
             <View
               style={[
-                styles.card,
+                sharedStyles.card,
                 {
                   backgroundColor: Colors[colorScheme].card,
                   borderColor: item.id === params.id ? Colors[colorScheme].tint : Colors[colorScheme].border,
@@ -131,14 +132,14 @@ function OrganizationInvitesScreen() {
               ]}
             >
               <View style={{ flex: 1 }}>
-                <Text style={[styles.name, { color: Colors[colorScheme].text }]}>
+                <Text style={[sharedStyles.name, { color: Colors[colorScheme].text }]}>
                   {item.organization?.name || 'Organization'}
                 </Text>
-                <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>
+                <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>
                   Role: {item.role || 'member'}
                 </Text>
               </View>
-              <View style={styles.actions}>
+              <View style={sharedStyles.actions}>
                 <Button size="sm" onPress={() => accept(item.id)} disabled={!!processingId}>
                   <Text>Accept</Text>
                 </Button>
@@ -160,20 +161,8 @@ function OrganizationInvitesScreen() {
           onClose={() => setModal(null)}
         />
       ) : null}
-    </SafeAreaView>
+    </InviteScreenShell>
   );
 }
-
-const styles = StyleSheet.create({
-  actions: { flexDirection: 'row', gap: 8 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
-  container: { flex: 1, padding: 16 },
-  error: { color: '#b91c1c' },
-  loading: { paddingVertical: 16 },
-  muted: {},
-  name: { fontWeight: '700' },
-  subtitle: { marginBottom: 12 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-});
 
 export default OrganizationInvitesScreen;

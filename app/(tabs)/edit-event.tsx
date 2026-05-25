@@ -1,4 +1,11 @@
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
+import {
+  EditScreenHeader,
+  EditScreenLoading,
+  EditTextField,
+  EditScreenSubmitButton,
+  editScreenSharedStyles as sharedStyles,
+} from '@/components/EditScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useRequireCoach } from '@/hooks/useRequireCoach';
@@ -25,12 +32,12 @@ export default function EditEventScreen() {
   const { id, fallback } = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-  const backFallback =
+  const explicitFallback =
     typeof fallback === 'string' && fallback.trim().startsWith('/')
       ? fallback.trim()
       : id
         ? `/event-detail?id=${encodeURIComponent(String(id))}`
-        : undefined;
+        : '/(tabs)/discover';
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -47,12 +54,12 @@ export default function EditEventScreen() {
       const data = await Event.get(String(id));
       if (!data || typeof data.id === 'undefined') {
         Alert.alert('Error', 'Event not found.');
-        safeGoBack(router, backFallback);
+        safeGoBack(router, explicitFallback);
         return;
       }
       if (!data.can_cancel) {
         Alert.alert('Access Denied', 'You do not have permission to edit this event.');
-        safeGoBack(router, backFallback);
+        safeGoBack(router, explicitFallback);
         return;
       }
       setTitle(data.title || '');
@@ -74,11 +81,11 @@ export default function EditEventScreen() {
       }
       if (__DEV__) console.error('[edit-event] Failed to load event:', e);
       Alert.alert('Error', 'Failed to load event data.');
-      safeGoBack(router, backFallback);
+      safeGoBack(router, explicitFallback);
     } finally {
       setLoading(false);
     }
-  }, [backFallback, canAccessCoachTools, coachLoading, id, router, user]);
+  }, [canAccessCoachTools, coachLoading, explicitFallback, id, router]);
 
   useEffect(() => {
     if (coachLoading || !canAccessCoachTools) return;
@@ -112,24 +119,7 @@ export default function EditEventScreen() {
     }
   }, []);
 
-  const pickBannerFromLibrary = useCallback(async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Photo library permission is needed to upload an event photo.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.9,
-      exif: false,
-    });
-
+  const handleBannerPickerResult = useCallback(async (result: ImagePicker.ImagePickerResult) => {
     if (!result.canceled && result.assets[0]) {
       try {
         await uploadBannerFromUri(result.assets[0].uri);
@@ -138,33 +128,55 @@ export default function EditEventScreen() {
       }
     }
   }, [uploadBannerFromUri]);
+
+  const selectBannerImage = useCallback(async ({
+    requestPermission,
+    permissionMessage,
+    launchPicker,
+  }: {
+    requestPermission: () => Promise<ImagePicker.CameraPermissionResponse | ImagePicker.MediaLibraryPermissionResponse>;
+    permissionMessage: string;
+    launchPicker: () => Promise<ImagePicker.ImagePickerResult>;
+  }) => {
+    const { status } = await requestPermission();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', permissionMessage, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+
+    await handleBannerPickerResult(await launchPicker());
+  }, [handleBannerPickerResult]);
+
+  const pickBannerFromLibrary = useCallback(async () => {
+    await selectBannerImage({
+      requestPermission: ImagePicker.requestMediaLibraryPermissionsAsync,
+      permissionMessage: 'Photo library permission is needed to upload an event photo.',
+      launchPicker: () => ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.9,
+        exif: false,
+      }),
+    });
+  }, [selectBannerImage]);
 
   const takeBannerPhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Camera permission is needed to take an event photo.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.9,
-      exif: false,
+    await selectBannerImage({
+      requestPermission: ImagePicker.requestCameraPermissionsAsync,
+      permissionMessage: 'Camera permission is needed to take an event photo.',
+      launchPicker: () => ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.9,
+        exif: false,
+      }),
     });
-
-    if (!result.canceled && result.assets[0]) {
-      try {
-        await uploadBannerFromUri(result.assets[0].uri);
-      } catch (error: any) {
-        Alert.alert('Upload Failed', error?.message || 'Failed to upload event photo. Please try again.');
-      }
-    }
-  }, [uploadBannerFromUri]);
+  }, [selectBannerImage]);
 
   const showBannerOptions = useCallback(() => {
     Alert.alert(
@@ -180,7 +192,10 @@ export default function EditEventScreen() {
 
   if (coachLoading) {
     return (
-      <SafeAreaView style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+      <SafeAreaView
+        style={[styles.container, sharedStyles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}
+        edges={['top', 'bottom']}
+      >
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
       </SafeAreaView>
     );
@@ -227,7 +242,7 @@ export default function EditEventScreen() {
 
       await Event.update(String(id), updateData);
       Alert.alert('Success', 'Event updated successfully.', [
-        { text: 'OK', onPress: () => safeGoBack(router, backFallback) },
+        { text: 'OK', onPress: () => safeGoBack(router, explicitFallback) },
       ]);
     } catch (e: any) {
       if (handleCoachAccessError(router, e, 'editing events', user)) {
@@ -243,11 +258,13 @@ export default function EditEventScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{ title: 'Edit Event', headerShown: false }} />
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading event...</Text>
-      </View>
+      <EditScreenLoading
+        title="Edit Event"
+        message="Loading event..."
+        backgroundColor={Colors[colorScheme].background}
+        tintColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].text}
+      />
     );
   }
 
@@ -263,20 +280,19 @@ export default function EditEventScreen() {
           keyboardDismissMode="interactive"
         >
           {/* Header */}
-          <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
-            <Pressable style={styles.backButton} onPress={() => safeGoBack(router, backFallback)}>
-              <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
-            </Pressable>
-            <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Edit Event</Text>
-            <View style={{ width: 32 }} />
-          </View>
+          <EditScreenHeader
+            title="Edit Event"
+            textColor={Colors[colorScheme].text}
+            topPadding={12 + insets.top}
+            onBack={() => safeGoBack(router, explicitFallback)}
+          />
 
           {/* Form Fields */}
           <View style={styles.formSection}>
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Title *</Text>
+            <View style={sharedStyles.inputGroup}>
+              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Title *</Text>
               <TextInput
-                style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+                style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Event title"
@@ -284,15 +300,15 @@ export default function EditEventScreen() {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
-                <Text style={[styles.charCount, { color: description.length > 1000 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+            <View style={sharedStyles.inputGroup}>
+              <View style={sharedStyles.labelRow}>
+                <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
+                <Text style={[sharedStyles.charCount, { color: description.length > 1000 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
                   {description.length}/1000
                 </Text>
               </View>
               <TextInput
-                style={[styles.textArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 1000 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+                style={[sharedStyles.textArea, styles.eventTextArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 1000 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
                 value={description}
                 onChangeText={(text) => { if (text.length <= 1000) setDescription(text); }}
                 placeholder="Event description (optional)"
@@ -303,9 +319,9 @@ export default function EditEventScreen() {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Event Photo</Text>
-              <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+            <View style={sharedStyles.inputGroup}>
+              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Event Photo</Text>
+              <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
                 Update the image used on the event card and background so edited events do not stay blank.
               </Text>
               <View
@@ -358,21 +374,21 @@ export default function EditEventScreen() {
               </View>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Location</Text>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-                value={location}
-                onChangeText={setLocation}
-                placeholder="Event location (optional)"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-              />
-            </View>
+            <EditTextField
+              label="Location"
+              value={location}
+              onChangeText={setLocation}
+              placeholder="Event location (optional)"
+              textColor={Colors[colorScheme].text}
+              mutedTextColor={Colors[colorScheme].mutedText}
+              surfaceColor={Colors[colorScheme].surface}
+              borderColor={Colors[colorScheme].border}
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Date & Time</Text>
+            <View style={sharedStyles.inputGroup}>
+              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Date & Time</Text>
               <TextInput
-                style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+                style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
                 value={dateStr}
                 onChangeText={setDateStr}
                 placeholder="YYYY-MM-DDTHH:MM (e.g. 2026-04-15T18:00)"
@@ -380,33 +396,19 @@ export default function EditEventScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+              <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
                 Format: YYYY-MM-DDTHH:MM (24-hour time)
               </Text>
             </View>
           </View>
 
-          {/* Submit Button */}
-          <View style={styles.submitSection}>
-            <Pressable
-              style={[
-                styles.submitButton,
-                { backgroundColor: Colors[colorScheme].tint },
-                (submitting || uploadingBanner) && styles.submitButtonDisabled,
-              ]}
-              onPress={onSubmit}
-              disabled={submitting || uploadingBanner}
-            >
-              {submitting || uploadingBanner ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <MaterialIcons name="check-circle" size={20} color="#fff" />
-                  <Text style={styles.submitButtonText}>Update Event</Text>
-                </>
-              )}
-            </Pressable>
-          </View>
+          <EditScreenSubmitButton
+            label="Update Event"
+            tintColor={Colors[colorScheme].tint}
+            disabled={submitting || uploadingBanner}
+            loading={submitting || uploadingBanner}
+            onPress={onSubmit}
+          />
         </ScrollView>
     </SafeAreaView>
   );
@@ -416,76 +418,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  backButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
   formSection: {
     marginBottom: 24,
     paddingHorizontal: 20,
   },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  charCount: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    textAlignVertical: 'top',
-    minHeight: 100,
-  },
-  fieldHint: {
-    fontSize: 13,
-    marginTop: 6,
-    fontStyle: 'italic',
-  },
+  eventTextArea: { minHeight: 100 },
   bannerCard: {
     borderWidth: 1,
     borderRadius: 16,
@@ -541,24 +478,5 @@ const styles = StyleSheet.create({
   bannerSecondaryButtonText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  submitSection: {
-    paddingHorizontal: 20,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
   },
 });

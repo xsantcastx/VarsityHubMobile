@@ -5,7 +5,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -21,6 +21,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackHeader } from '@/components/ui/BackHeader';
 import { getAdScheduleBucket } from '@/utils/adStatusBadge';
 import { safeGoBack } from '@/utils/navigation';
+
+function ConfirmationDetailItem({
+  icon,
+  label,
+  value,
+  textColor,
+  mutedTextColor,
+}: {
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
+  label: string;
+  value: ReactNode;
+  textColor: string;
+  mutedTextColor: string;
+}) {
+  return (
+    <View style={styles.detailRow}>
+      <MaterialIcons name={icon} size={24} color="#10B981" />
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={[styles.detailLabel, { color: mutedTextColor }]}>{label}</Text>
+        <Text style={[styles.detailValue, { color: textColor }]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
 
 function AdConfirmationScreen() {
   const router = useRouter();
@@ -220,128 +244,54 @@ function AdConfirmationScreen() {
               );
             })()}
 
-            {/* Ad Preview Section */}
-            {bannerUrl && (
-              <View
-                style={[
-                  styles.previewSection,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <View style={styles.previewHeader}>
-                  <MaterialIcons name="visibility" size={20} color={theme.text} />
-                  <Text style={[styles.previewTitle, { color: theme.text }]}>
-                    Ad Preview
-                  </Text>
-                </View>
-                <View style={[styles.bannerContainer, { backgroundColor: theme.surface }]}>
-                  <Image source={{ uri: bannerUrl }} style={styles.bannerImage} resizeMode="cover" />
-                </View>
-                {adDetails?.target_url && (
-                  <View style={styles.linkRow}>
-                    <MaterialIcons name="link" size={16} color={theme.mutedText} />
-                    <Text
-                      style={[styles.linkText, { color: theme.mutedText }]}
-                      numberOfLines={1}
-                    >
-                      {adDetails.target_url}
-                    </Text>
-                  </View>
-                )}
-              </View>
+          {/* Details Card */}
+          <LinearGradient
+            colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+            style={[styles.detailsCard, { borderColor: Colors[colorScheme].border }]}
+          >
+            <ConfirmationDetailItem
+              icon="business"
+              label="Business Name"
+              value={businessName}
+              textColor={Colors[colorScheme].text}
+              mutedTextColor={Colors[colorScheme].mutedText}
+            />
+
+            <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
+
+            <ConfirmationDetailItem
+              icon="event"
+              label="Campaign Dates"
+              value={selectedDates}
+              textColor={Colors[colorScheme].text}
+              mutedTextColor={Colors[colorScheme].mutedText}
+            />
+
+            {purchasedHours !== null && (
+              <>
+                <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
+                <ConfirmationDetailItem
+                  icon="schedule"
+                  label="Total Exposure"
+                  value={`${purchasedHours} hours${
+                    purchasedDays !== null
+                      ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
+                      : ''
+                  }`}
+                  textColor={Colors[colorScheme].text}
+                  mutedTextColor={Colors[colorScheme].mutedText}
+                />
+              </>
             )}
 
-            {/* Details Card */}
-            <LinearGradient
-              colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
-              style={[styles.detailsCard, { borderColor: theme.border }]}
-            >
-              <View style={styles.detailRow}>
-                <MaterialIcons name="business" size={24} color="#10B981" />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
-                    Business Name
-                  </Text>
-                  <Text style={[styles.detailValue, { color: theme.text }]}>
-                    {businessName}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-              <View style={styles.detailRow}>
-                <MaterialIcons name="event" size={24} color="#10B981" />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
-                    Campaign Dates
-                  </Text>
-                  <Text style={[styles.detailValue, { color: theme.text }]}>
-                    {selectedDates}
-                  </Text>
-                </View>
-              </View>
-
-              {purchasedHours !== null && (
-                <>
-                  <View style={[styles.divider, { backgroundColor: theme.border }]} />
-                  <View style={styles.detailRow}>
-                    <MaterialIcons name="schedule" size={24} color="#10B981" />
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
-                        Total Exposure
-                      </Text>
-                      <Text style={[styles.detailValue, { color: theme.text }]}>
-                        {purchasedHours} hours
-                        {purchasedDays !== null
-                          ? ` (${purchasedDays} day${purchasedDays === 1 ? '' : 's'})`
-                          : ''}
-                      </Text>
-                    </View>
-                  </View>
-                </>
-              )}
-
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-
-              <View style={styles.detailRow}>
-                <MaterialIcons name="payments" size={24} color="#10B981" />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.detailLabel, { color: theme.mutedText }]}>
-                    Total Paid
-                  </Text>
-                  <Text style={[styles.detailValue, { color: theme.text }]}>
-                    {totalAmount}
-                  </Text>
-                </View>
-              </View>
-            </LinearGradient>
-
-            {/* Info Box */}
-            <View
-              style={[
-                styles.infoBox,
-                {
-                  backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#EFF6FF',
-                  borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
-                },
-              ]}
-            >
-              <MaterialIcons name="info" size={24} color="#3B82F6" />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text
-                  style={[styles.infoText, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}
-                >
-                  <Text style={{ fontWeight: '700' }}>What's Next?</Text>
-                  {'\n'}
-                  Your ad will appear in feeds for users in your target area. You can view campaign
-                  performance and manage your ads in the "My Ads" section.
-                </Text>
-              </View>
-            </View>
+            <ConfirmationDetailItem
+              icon="payments"
+              label="Total Paid"
+              value={totalAmount}
+              textColor={Colors[colorScheme].text}
+              mutedTextColor={Colors[colorScheme].mutedText}
+            />
+          </LinearGradient>
 
             {/* Action Buttons */}
             <View style={styles.actions}>

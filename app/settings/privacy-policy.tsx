@@ -1,23 +1,21 @@
-import { Stack } from 'expo-router';
-import { ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, useColorScheme } from 'react-native';
 import { Colors } from '@/constants/Colors';
+import {
+  LegalDocumentScreen,
+  LegalSectionCard,
+  legalDocumentSharedStyles as sharedStyles,
+} from '@/components/settings/LegalDocumentShared';
 
 export default function PrivacyPolicyScreen() {
   const colorScheme = useColorScheme() ?? 'light';
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
-      edges={['bottom']}
-    >
-      <Stack.Screen options={{ title: 'Privacy Policy' }} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
-          Last updated: May 17, 2026
-        </Text>
+    <LegalDocumentScreen title="Privacy Policy" colorScheme={colorScheme}>
+      <Text style={[sharedStyles.updatedAt, { color: Colors[colorScheme].mutedText }]}>
+          Last updated: March 25, 2026
+      </Text>
 
-        <PolicySection
+      <LegalSectionCard
           colorScheme={colorScheme}
           title="What We Collect"
           body={
@@ -25,7 +23,7 @@ export default function PrivacyPolicyScreen() {
           }
         />
 
-        <PolicySection
+      <LegalSectionCard
           colorScheme={colorScheme}
           title="How We Use It"
           body={
@@ -33,7 +31,7 @@ export default function PrivacyPolicyScreen() {
           }
         />
 
-        <PolicySection
+      <LegalSectionCard
           colorScheme={colorScheme}
           title="Who We Share With"
           body={
@@ -41,7 +39,7 @@ export default function PrivacyPolicyScreen() {
           }
         />
 
-        <PolicySection
+      <LegalSectionCard
           colorScheme={colorScheme}
           title="Your Rights"
           body={
@@ -49,7 +47,7 @@ export default function PrivacyPolicyScreen() {
           }
         />
 
-        <PolicySection
+      <LegalSectionCard
           colorScheme={colorScheme}
           title="Children"
           body={
@@ -57,7 +55,7 @@ export default function PrivacyPolicyScreen() {
           }
         />
 
-        <PolicySection
+      <LegalSectionCard
           colorScheme={colorScheme}
           title="Security & Storage"
           body={
@@ -65,7 +63,7 @@ export default function PrivacyPolicyScreen() {
           }
         />
 
-        <PolicySection
+      <LegalSectionCard
           colorScheme={colorScheme}
           title="Changes & Contact"
           body={
@@ -73,53 +71,9 @@ export default function PrivacyPolicyScreen() {
           }
         />
 
-        <Text style={[styles.footer, { color: Colors[colorScheme].mutedText }]}>
-          © 2025 Lime Productions. All rights reserved.
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
+      <Text style={[sharedStyles.footer, { color: Colors[colorScheme].mutedText }]}>
+        © 2025 Lime Productions. All rights reserved.
+      </Text>
+    </LegalDocumentScreen>
   );
 }
-
-function PolicySection({
-  title,
-  body,
-  colorScheme,
-}: {
-  title: string;
-  body: string;
-  colorScheme: 'light' | 'dark';
-}) {
-  return (
-    <View
-      style={[
-        styles.section,
-        { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card },
-      ]}
-    >
-      <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-      <Text style={[styles.sectionBody, { color: Colors[colorScheme].mutedText }]}>{body}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 16, gap: 12, paddingBottom: 32 },
-  updatedAt: { fontSize: 12, marginBottom: 4 },
-  footer: { fontSize: 12, textAlign: 'center', marginTop: 16 },
-  section: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    gap: 6,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  sectionBody: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-});

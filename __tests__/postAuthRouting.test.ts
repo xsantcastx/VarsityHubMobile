@@ -2,25 +2,27 @@ import { describe, expect, it } from '@jest/globals';
 import { getPostAuthLandingRoute } from '../utils/postAuthRouting';
 
 describe('getPostAuthLandingRoute', () => {
-  it('routes approved coach with incomplete onboarding into the app once approved', () => {
+  it('routes approved coach without the agreement to coach-agreement before pending completion', () => {
     expect(
       getPostAuthLandingRoute({
         email_verified: true,
         approval_status: 'APPROVED',
+        required_coach_agreement_version: 1,
         preferences: {
           role: 'coach',
           onboarding_completed: false,
           organization_id: 'org_123',
         },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/onboarding/coach-agreement');
   });
 
-  it('routes approved join-request coach with incomplete onboarding into the app once approved', () => {
+  it('routes approved join-request coach without the agreement to coach-agreement first', () => {
     expect(
       getPostAuthLandingRoute({
         email_verified: true,
         approval_status: 'APPROVED',
+        required_coach_agreement_version: 1,
         preferences: {
           role: 'coach',
           onboarding_completed: false,
@@ -28,7 +30,7 @@ describe('getPostAuthLandingRoute', () => {
           organization_id: 'org_123',
         },
       })
-    ).toBe('/(tabs)');
+    ).toBe('/onboarding/coach-agreement');
   });
 
   it('keeps generic incomplete users on onboarding step 1', () => {

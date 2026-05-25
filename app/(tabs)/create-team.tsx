@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/Colors';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
-import { useAuth } from '@/context/AuthProvider';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
@@ -387,9 +387,9 @@ function CreateTeamScreen() {
     
     setSubmitting(true);
     try {
-      let user;
+      let currentUser;
       try { 
-        user = (await getFreshAuthSnapshot(checkAuth, authUser)) as UserOrgPreference | null; 
+        currentUser = (await getAuthSnapshot(checkAuth, authUser)) as UserOrgPreference | null; 
       } catch { 
         Alert.alert('Sign in required', 'Please sign in to create a team.'); 
         setSubmitting(false); 
@@ -405,8 +405,8 @@ function CreateTeamScreen() {
       }
 
       // Check plan tier limits
-      const userRole = getCanonicalCoachRole(user as any);
-      const userPlan = getCanonicalBillingState(user).selected_plan;
+      const userRole = currentUser?.preferences?.role; // Already guaranteed coach above
+      const userPlan = getCanonicalBillingState(currentUser).selected_plan;
 
       let latestLimits: TeamLimitSummary | null = teamLimits;
       try {
@@ -416,7 +416,7 @@ function CreateTeamScreen() {
       } catch {
         // non-blocking
       }
-      const teamCount = latestLimits?.owned_teams ?? user?._count?.teams ?? 0;
+      const teamCount = latestLimits?.owned_teams ?? currentUser?._count?.teams ?? 0;
       const canCreateMore = latestLimits?.can_create_more ?? true;
       
       // Only surface local billing prompts for coach-owned flows.

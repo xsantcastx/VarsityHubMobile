@@ -28,6 +28,7 @@ import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
@@ -263,10 +264,10 @@ const buildVotePreviewEntry = (
 
 export default function FeedScreen() {
   const router = useRouter();
+  const { user, checkAuth } = useAuth();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
@@ -391,7 +392,7 @@ export default function FeedScreen() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const userPromise = getAuthSnapshot(checkAuth, authUser)
+      const userPromise = getAuthSnapshot(checkAuth, user)
         .then(user => {
           if (isCurrentRequest()) setMe(user);
           return user;
@@ -573,7 +574,7 @@ export default function FeedScreen() {
         lastLoadTimestampRef.current = Date.now();
       }
     }
-  }, [authUser, checkAuth]);
+  }, [checkAuth, user]);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -2136,7 +2137,7 @@ export default function FeedScreen() {
                         }
 
                         setNotificationsMenuOpen(false);
-                        const href = getNotificationHrefForUser(item, authUser);
+                        const href = getNotificationHrefForUser(item, user);
                         if (href) {
                           router.push(href as any);
                         }

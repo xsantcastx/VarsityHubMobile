@@ -1,14 +1,18 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import {
+  AdminGuardState,
+  AdminScreenShell,
+  adminScreenSharedStyles as sharedStyles,
+} from '@/components/AdminScreenShared';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
 
@@ -239,10 +243,21 @@ function AdminAdsScreen() {
   const theme = Colors[colorScheme];
 
   if (adminLoading) {
-    return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}><ActivityIndicator style={{ marginTop: 40 }} color={theme.tint} /></SafeAreaView>;
+    return (
+      <AdminGuardState
+        backgroundColor={theme.background}
+        textColor={theme.text}
+        loading
+      />
+    );
   }
   if (!isAdmin) {
-    return <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}><Text style={{ textAlign: 'center', marginTop: 40, color: theme.text }}>Admin access required</Text></SafeAreaView>;
+    return (
+      <AdminGuardState
+        backgroundColor={theme.background}
+        textColor={theme.text}
+      />
+    );
   }
 
   const filteredItems = filterStatus === 'all'
@@ -443,69 +458,64 @@ function AdminAdsScreen() {
     );
   };
 
+  const renderHeaderRight = () => (
+    <View style={{ flexDirection: 'row', gap: 12, marginRight: 8 }}>
+      {bulkMode && (
+        <>
+          <Pressable onPress={selectAll} style={{ padding: 8 }}>
+            <Text style={{ color: theme.tint, fontWeight: '600' }}>
+              {selectedAds.size === filteredItems.length ? 'Deselect' : 'Select All'}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={bulkApprove}
+            disabled={selectedAds.size === 0 || updating}
+            style={{ padding: 8 }}
+          >
+            <Text style={{ color: selectedAds.size > 0 ? '#22c55e' : '#9ca3af', fontWeight: '600' }}>
+              Approve ({selectedAds.size})
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={bulkReject}
+            disabled={selectedAds.size === 0 || updating}
+            style={{ padding: 8 }}
+          >
+            <Text style={{ color: selectedAds.size > 0 ? '#f59e0b' : '#9ca3af', fontWeight: '600' }}>
+              Reject ({selectedAds.size})
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={bulkDelete}
+            disabled={selectedAds.size === 0 || updating}
+            style={{ padding: 8 }}
+          >
+            <Text style={{ color: selectedAds.size > 0 ? '#dc2626' : '#9ca3af', fontWeight: '600' }}>
+              Delete ({selectedAds.size})
+            </Text>
+          </Pressable>
+        </>
+      )}
+      <Pressable onPress={() => setBulkMode(!bulkMode)} style={{ padding: 8 }}>
+        <Ionicons
+          name={bulkMode ? 'close' : 'checkmark-circle-outline'}
+          size={24}
+          color={bulkMode ? '#dc2626' : theme.tint}
+        />
+      </Pressable>
+      <Pressable onPress={() => void router.push('/submit-ad')} style={{ padding: 8 }}>
+        <Ionicons name="add-circle" size={24} color={theme.tint} />
+      </Pressable>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen
-        options={{
-          title: 'Admin · Ads',
-          headerShown: true,
-          headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
-              <Ionicons name="chevron-back" size={28} color="#007AFF" />
-            </Pressable>
-          ),
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 12, marginRight: 8 }}>
-              {bulkMode && (
-                <>
-                  <Pressable onPress={selectAll} style={{ padding: 8 }}>
-                    <Text style={{ color: theme.tint, fontWeight: '600' }}>
-                      {selectedAds.size === filteredItems.length ? 'Deselect' : 'Select All'}
-                    </Text>
-                  </Pressable>
-                  <Pressable 
-                    onPress={bulkApprove} 
-                    disabled={selectedAds.size === 0 || updating}
-                    style={{ padding: 8 }}
-                  >
-                    <Text style={{ color: selectedAds.size > 0 ? '#22c55e' : '#9ca3af', fontWeight: '600' }}>
-                      Approve ({selectedAds.size})
-                    </Text>
-                  </Pressable>
-                  <Pressable 
-                    onPress={bulkReject} 
-                    disabled={selectedAds.size === 0 || updating}
-                    style={{ padding: 8 }}
-                  >
-                    <Text style={{ color: selectedAds.size > 0 ? '#f59e0b' : '#9ca3af', fontWeight: '600' }}>
-                      Reject ({selectedAds.size})
-                    </Text>
-                  </Pressable>
-                  <Pressable 
-                    onPress={bulkDelete} 
-                    disabled={selectedAds.size === 0 || updating}
-                    style={{ padding: 8 }}
-                  >
-                    <Text style={{ color: selectedAds.size > 0 ? '#dc2626' : '#9ca3af', fontWeight: '600' }}>
-                      Delete ({selectedAds.size})
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-              <Pressable onPress={() => setBulkMode(!bulkMode)} style={{ padding: 8 }}>
-                <Ionicons 
-                  name={bulkMode ? 'close' : 'checkmark-circle-outline'}
-                  size={24} 
-                  color={bulkMode ? '#dc2626' : theme.tint} 
-                />
-              </Pressable>
-              <Pressable onPress={() => void router.push('/submit-ad')} style={{ padding: 8 }}>
-                <Ionicons name="add-circle" size={24} color={theme.tint} />
-              </Pressable>
-            </View>
-          )
-        }} 
-      />
+    <AdminScreenShell
+      title="Admin · Ads"
+      backgroundColor={theme.background}
+      onBack={() => safeGoBack(router)}
+      headerRight={renderHeaderRight}
+    >
       
       {/* Filter Tabs */}
       <View style={{ flexDirection: 'row', padding: 12, gap: 8, backgroundColor: theme.surface }}>
@@ -540,7 +550,7 @@ function AdminAdsScreen() {
       ) : null}
       
       {error ? (
-        <Text style={[styles.error, { color: '#dc2626' }]}>{error}</Text>
+        <Text style={[sharedStyles.centeredError, { color: '#dc2626' }]}>{error}</Text>
       ) : null}
       
       {!loading && !error && (
@@ -686,28 +696,14 @@ function AdminAdsScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </AdminScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  card: { 
-    padding: 16, 
-    borderRadius: 12, 
-    borderWidth: 1,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-        }),
-    elevation: 1
-  },
-  title: { fontWeight: '800', fontSize: 16, marginBottom: 4 },
-  meta: { fontSize: 13, marginTop: 2 },
+  card: sharedStyles.elevatedListCard,
+  title: sharedStyles.listTitle,
+  meta: sharedStyles.listMeta,
   badgeSmall: { 
     paddingHorizontal: 8, 
     paddingVertical: 3, 
@@ -730,7 +726,6 @@ const styles = StyleSheet.create({
     borderColor: '#D1D5DB' 
   },
   btnText: { color: 'white', fontWeight: '700', fontSize: 14 },
-  error: { padding: 16, textAlign: 'center', fontWeight: '600' },
   bannerPreview: { 
     width: 100, 
     height: 70, 

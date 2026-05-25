@@ -12,7 +12,6 @@ import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
-import { useFocusEffect } from '@react-navigation/native';
 import { safeGoBack } from '@/utils/navigation';
 import OnboardingLayout from './components/OnboardingLayout';
 import * as ImagePicker from 'expo-image-picker';
@@ -92,7 +91,7 @@ function SportBallRow() {
 export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user, checkAuth, markOnboardingCompleteLocally, registerPushToken } = useAuth();
+  const { user, markOnboardingCompleteLocally, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('other');
@@ -122,59 +121,72 @@ export default function Step2Basic() {
   const serverUsernameRef = useRef<string>('');
   const initialLoadDone = useRef(false);
 
-  // AuthProvider owns the canonical /me snapshot; onboarding asks it for a
-  // fresh view when this screen focuses so verification and profile fields
-  // stay aligned with the active session instead of a parallel client cache.
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(() => {
+    setEmailVerified(user?.email_verified ?? null);
+  }, [user?.email_verified]);
+
+  useEffect(() => {
+    if (initialLoadDone.current) return;
+
+    const userPrefs = ((user as any)?.preferences || {}) as Record<string, unknown>;
+    const draftUsername =
+      typeof ob.username === 'string'
+        ? ob.username.trim().toLowerCase().replace(/\s+/g, '_')
+        : '';
+    const existingUsername = typeof user?.username === 'string' ? user.username : '';
+    const normalized = draftUsername || existingUsername.toLowerCase();
+    const draftZip =
+      typeof ob.zip === 'string' && ob.zip.trim().length > 0
+        ? ob.zip
+        : typeof ob.zip_code === 'string' && ob.zip_code.trim().length > 0
+          ? ob.zip_code
+          : '';
+    const storedZip =
+      draftZip ||
+      (typeof user?.zip_code === 'string' ? user.zip_code : '') ||
+      (typeof userPrefs.zip_code === 'string' ? userPrefs.zip_code : '') ||
+      (typeof userPrefs.zip === 'string' ? userPrefs.zip : '');
+    const storedDob =
+      (typeof ob.dob === 'string' && ob.dob) ||
+      (typeof userPrefs.dob === 'string' && userPrefs.dob) ||
+      (typeof (user as any)?.date_of_birth === 'string' && String((user as any).date_of_birth).slice(0, 10)) ||
+      '';
+    const draftBio = typeof ob.bio === 'string' ? ob.bio : '';
+    const hasBootstrapData =
+      !!user ||
+      !!normalized ||
+      !!storedZip ||
+      !!storedDob ||
+      !!draftBio ||
+      !!ob.affiliation;
+
+    if (!hasBootstrapData) return;
+
+    initialLoadDone.current = true;
+    serverUsernameRef.current = existingUsername.toLowerCase();
+    if (normalized) setUsername(normalized);
+    if (storedZip) setZip(storedZip);
+    if (storedDob) setDob(storedDob);
+    if (draftBio) setBio(draftBio);
+    if (ob.affiliation) setAffiliation(ob.affiliation);
+
+    if (normalized && existingUsername && normalized === existingUsername.toLowerCase()) {
+      setAvailable(true);
+      return;
+    }
+
+    if (normalized && usernameRe.test(normalized)) {
       void (async () => {
         try {
-          const me: any = await getFreshAuthSnapshot(checkAuth, user);
-          setEmailVerified(me?.email_verified ?? null);
-
-          // First focus: also load username, zip, DOB, and check availability
-          if (!initialLoadDone.current) {
-            initialLoadDone.current = true;
-            const existingUsername = me?.username || '';
-            const legacyDisplayName = me?.display_name || '';
-            const normalized = existingUsername || legacyDisplayName.trim().toLowerCase().replace(/\s+/g, '_');
-            serverUsernameRef.current = existingUsername.toLowerCase();
-            setUsername(normalized);
-            setZip(me?.preferences?.zip_code || '');
-
-            // v1.0.3: prefill DOB from the server. The backend locks DOB after a
-            // 24-hour grace window (server/src/lib/userAge.ts:184). Returning
-            // users whose DOB was set >24h ago used to see an empty field,
-            // re-enter a value, hit Continue, and get DOB_LOCKED. Loading the
-            // stored value lets them confirm (no-op submit) or see what's on
-            // file before contacting support to change it. Try preferences.dob
-            // first (client legacy), fall back to the canonical date_of_birth
-            // column (ISO datetime string from Prisma).
-            const storedDob =
-              (typeof me?.preferences?.dob === 'string' && me.preferences.dob) ||
-              (me?.date_of_birth ? String(me.date_of_birth).slice(0, 10) : '');
-            if (storedDob) setDob(storedDob);
-
-
-            if (normalized && existingUsername && normalized === existingUsername.toLowerCase()) {
-              setAvailable(true);
-            } else if (normalized && usernameRe.test(normalized)) {
-              try {
-                const r: any = await User.usernameAvailable(normalized);
-                setAvailable(!!r?.available);
-              } catch (error) {
-                if (__DEV__) console.warn('[step-2-basic] Username availability check failed:', error);
-                setAvailable(null);
-              }
-            }
-          }
+          const r: any = await User.usernameAvailable(normalized);
+          setAvailable(!!r?.available);
         } catch (error) {
-          if (__DEV__) console.warn('[step-2-basic] Failed to load user data:', error);
-          setEmailVerified(null);
+          if (__DEV__) console.warn('[step-2-basic] Username availability check failed:', error);
+          setAvailable(null);
         }
       })();
-    }, [checkAuth, user])
-  );
+    }
+  }, [ob.affiliation, ob.bio, ob.dob, ob.username, ob.zip, ob.zip_code, user]);
   useEffect(() => {
     if (ob.affiliation) setAffiliation(ob.affiliation);
     if (ob.dob) setDob(ob.dob || '');

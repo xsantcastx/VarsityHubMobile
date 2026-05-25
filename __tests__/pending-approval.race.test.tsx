@@ -55,12 +55,10 @@ const APPROVED_USER = {
   },
 };
 
-const mockUserRefresh = jest.fn();
 const mockNotificationListPage = jest.fn(async (..._args: any[]) => ({ items: [] }));
 
 jest.mock('@/api/entities', () => ({
   User: {
-    refresh: (...args: any[]) => mockUserRefresh(...args),
     updatePreferences: jest.fn(async () => ({ ok: true })),
     reapplyCoach: jest.fn(),
   },
@@ -139,21 +137,20 @@ describe('pending-approval — admin-approves-during-pending race', () => {
     mockReplace.mockReset();
     mockCheckAuth.mockReset();
     mockRegisterPushToken.mockClear();
-    mockUserRefresh.mockReset();
     capturedFocusCallback = null;
   });
 
-  it('renders Application Submitted when /me returns PENDING', async () => {
-    mockUserRefresh.mockResolvedValue(PENDING_USER);
+  it('renders Application Submitted when canonical auth refresh returns PENDING', async () => {
+    mockCheckAuth.mockResolvedValue(PENDING_USER);
     const screen = render(<PendingApproval />);
     const { findByText } = screen;
     expect(await findByText('Application Submitted')).toBeTruthy();
   });
 
-  it('transitions to approved state when /me later returns APPROVED', async () => {
+  it('transitions to approved state when canonical auth refresh later returns APPROVED', async () => {
     // First call (initial mount) — PENDING
     // Second call onward (focus / interval / foreground) — APPROVED
-    mockUserRefresh.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
+    mockCheckAuth.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
 
     const screen = render(<PendingApproval />);
     const { findByText } = screen;
@@ -167,16 +164,16 @@ describe('pending-approval — admin-approves-during-pending race', () => {
       capturedFocusCallback?.();
     });
 
-    // After the focus-driven checkApproval, /me reports APPROVED → UI swaps
+    // After the focus-driven checkApproval, checkAuth reports APPROVED → UI swaps
     expect(await findByText("You're Approved!")).toBeTruthy();
     expect(await findByText('Continue Coach Setup')).toBeTruthy();
   });
 
-  it('routes into the app when an approved user taps Continue Coach Setup', async () => {
-    mockUserRefresh.mockResolvedValueOnce(PENDING_USER).mockResolvedValue(APPROVED_USER);
-    // checkAuth resolves with the approved user — handleApprovedNavigation
-    // pipes that into getPostAuthRouteDecision.
-    mockCheckAuth.mockResolvedValue(APPROVED_USER);
+  it('routes to coach-agreement when an approved user taps Continue Coach Setup', async () => {
+    mockCheckAuth
+      .mockResolvedValueOnce(PENDING_USER)
+      .mockResolvedValueOnce(APPROVED_USER)
+      .mockResolvedValue(APPROVED_USER);
 
     const screen = render(<PendingApproval />);
     const { findByText } = screen;
