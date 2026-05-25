@@ -8,83 +8,83 @@ import { z } from 'zod';
 import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
 import { cacheGet, cacheSet } from '../lib/cache.js';
-import { sendError } from '../lib/http/sendError.js';
 import {
-  getCoachFlowState,
-  getLatestCoachApplication,
-  serializeCoachApplication,
+    getCoachFlowState,
+    getLatestCoachApplication,
+    serializeCoachApplication,
 } from '../lib/coachApplications.js';
 import {
-  buildCoachApplicationReviewUrl,
-  sendCoachApplicationAdminEmail,
-  sendPasswordResetEmail,
-  sendVerificationEmail,
+    buildCoachApplicationReviewUrl,
+    sendCoachApplicationAdminEmail,
+    sendPasswordResetEmail,
+    sendVerificationEmail,
 } from '../lib/email.js';
 import { AppError } from '../lib/errors/AppError.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
+import { sendError } from '../lib/http/sendError.js';
 import {
-  generateRefreshTokenV2,
-  hashRefreshToken,
-  hashRefreshTokenSecret,
-  parseRefreshToken,
-  REFRESH_TOKEN_EXPIRY_DAYS,
-  REFRESH_TOKEN_HASH_VERSION_V2,
-  signAccessTokenForSession,
-  verifyRefreshTokenHash,
+    generateRefreshTokenV2,
+    hashRefreshToken,
+    hashRefreshTokenSecret,
+    parseRefreshToken,
+    REFRESH_TOKEN_EXPIRY_DAYS,
+    REFRESH_TOKEN_HASH_VERSION_V2,
+    signAccessTokenForSession,
+    verifyRefreshTokenHash,
 } from '../lib/jwt.js';
 import {
-  buildOAuthExistingAccountConflict,
-  getLinkedProviders,
+    buildOAuthExistingAccountConflict,
+    getLinkedProviders,
 } from '../lib/oauthAccountLinking.js';
 import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
+import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
 import { prisma } from '../lib/prisma.js';
 import { invalidatePrivateIdsCache } from '../lib/privacyUtils.js';
 import { rlDel, rlGet, rlIncr, rlSet } from '../lib/redisRateLimit.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { captureException } from '../lib/sentry.js';
 import { revokeAllSessions, startNewSession } from '../lib/session.js';
 import {
-  buildSessionFingerprint,
-  verifyStoredSessionFingerprint,
+    buildSessionFingerprint,
+    verifyStoredSessionFingerprint,
 } from '../lib/sessionFingerprint.js';
 import { mustSucceed } from '../lib/sideEffect.js';
 import {
-  evaluateDobUpdate,
-  formatDobYmd,
-  getCanonicalDob,
-  requiresParentalConsent,
+    evaluateDobUpdate,
+    formatDobYmd,
+    getCanonicalDob,
+    requiresParentalConsent,
 } from '../lib/userAge.js';
 import {
-  buildAuthStateColumns,
-  getCanonicalAuthState,
-  getCanonicalOrganizationId,
-  getCanonicalUserRole,
-  getPreferencesObject,
-  isProceedingAsFan,
-  isUserOnboardingComplete,
-  mergeAuthStateIntoPreferences,
+    buildAuthStateColumns,
+    getCanonicalAuthState,
+    getCanonicalOrganizationId,
+    getCanonicalUserRole,
+    getPreferencesObject,
+    isProceedingAsFan,
+    isUserOnboardingComplete,
+    mergeAuthStateIntoPreferences,
 } from '../lib/userAuthState.js';
 import {
-  buildBillingStateColumns,
-  getCanonicalBillingState,
-  getCanonicalPlan,
-  getSelectedPlan,
-  isPaymentPending,
-  mergeBillingStateIntoPreferences,
+    buildBillingStateColumns,
+    getCanonicalBillingState,
+    getCanonicalPlan,
+    getSelectedPlan,
+    isPaymentPending,
+    mergeBillingStateIntoPreferences,
 } from '../lib/userBillingState.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
-  authLimiter,
-  oauthLimiter,
-  passwordResetLimiter,
-  refreshTokenLimiter,
-  verificationConfirmLimiter,
+    authLimiter,
+    oauthLimiter,
+    passwordResetLimiter,
+    refreshTokenLimiter,
+    verificationConfirmLimiter,
 } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { stripHtml } from '../lib/sanitizeHtml.js';
-import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
 
 export const authRouter = Router();
 
@@ -771,7 +771,7 @@ authRouter.post(
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (user.banned) return res.status(403).json({ error: 'Account banned' });
+    if (user.banned) return res.status(403).json({ error: 'Account banned', ban_reason: user.ban_reason || null, banned_until: user.banned_until || null });
     if (!user.password_hash) {
       await recordLoginFailure(sanitizedEmail);
       return res.status(401).json({ error: 'Invalid credentials' });

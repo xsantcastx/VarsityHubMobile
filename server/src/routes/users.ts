@@ -2,20 +2,20 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
+import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
+import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
+import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { notifyNewFollower, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import { formatDobYmd, getUserAge, parseDobLocal, requiresParentalConsent } from '../lib/userAge.js';
+import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { followLimiter, mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { followLimiter, mentionsSearchLimiter, userLookupLimiter, usernameAvailableLimiter } from '../middleware/rateLimiters.js';
-import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { invalidateMeCacheForUser, updateUserAndInvalidate } from '../lib/userCache.js';
-import { assertCanSelfDeleteUser, softDeleteUserAccount } from '../lib/accountDeletion.js';
-import { getAccountDeletionConfirmationRequirements } from '../lib/accountDeletionConfirmation.js';
-import { formatDobYmd, getUserAge, parseDobLocal, requiresParentalConsent } from '../lib/userAge.js';
 
 export const usersRouter = Router();
 registerIdValidation(usersRouter);
@@ -56,39 +56,10 @@ usersRouter.get('/', requireAdmin as any, asyncHandler(async (req, res) => {
   }
 }));
 
-// Ban/unban (admin only)
-usersRouter.post('/:id/ban', requireAdmin as any, asyncHandler(async (req, res) => {
-  try {
-    const id = String(req.params.id);
-    const { reason } = req.body || {};
-    // session_epoch bump invalidates existing access tokens immediately;
-    // without it the banned user keeps acting until their JWT expires.
-    const u = await updateUserAndInvalidate(prisma, {
-      where: { id },
-      data: {
-        banned: true,
-        ban_reason: reason || 'Banned for violating community guidelines.',
-        session_epoch: { increment: 1 },
-      },
-    });
-    await prisma.refreshToken.deleteMany({ where: { user_id: id } }).catch(() => {});
-    return res.json({ ok: true, id: u.id, banned: true });
-  } catch (err) {
-    console.error('[users] POST /:id/ban error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
-
-usersRouter.post('/:id/unban', requireAdmin as any, asyncHandler(async (req, res) => {
-  try {
-    const id = String(req.params.id);
-    const u = await updateUserAndInvalidate(prisma, { where: { id }, data: { banned: false, ban_reason: null, banned_until: null } });
-    return res.json({ ok: true, id: u.id, banned: false });
-  } catch (err) {
-    console.error('[users] POST /:id/unban error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}));
+// Ban/unban routes are handled by the admin router at POST /admin/users/:id/ban
+// and POST /admin/users/:id/unban — those versions include audit logging and
+// ban notification emails. The redundant routes here have been removed to avoid
+// a dual-path that bypasses the audit trail.
 
 usersRouter.patch('/:id/date-of-birth', requireAdmin as any, asyncHandler(async (req, res) => {
   const schema = z.object({ dob: z.string().min(1) });

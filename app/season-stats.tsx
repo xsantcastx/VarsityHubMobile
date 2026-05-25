@@ -200,7 +200,7 @@ function SeasonStatsScreen() {
       // Fetch team details, games, and members in parallel
       const resolvedTid = tid!;
       const [gamesRes, membersRes] = await Promise.all([
-        GameAPI.list('-date', { limit: 100 }),
+        GameAPI.list('-date', { limit: 100, teamId: resolvedTid }),
         TeamAPI.members(resolvedTid).catch(() => []),
       ]);
 

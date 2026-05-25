@@ -1,66 +1,64 @@
+import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import expressPkg, { Router, type Response } from 'express';
-import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import StripeCtor, { type Stripe } from 'stripe';
-import { AdStatus, Prisma } from '@prisma/client';
+import { z } from 'zod';
+import { recordAppleNotificationReceipt } from '../lib/appleNotificationDedup.js';
 import { debugLog as baseDebugLog } from '../lib/debugLog.js';
 import { withDistributedLock } from '../lib/distributedLock.js';
-import { sendAdPaymentConfirmedEmail, sendBillingNoticeEmail } from '../lib/email.js';
-import { getAllPlanDefinitions, getMaxTeamsForPlan } from '../lib/planLimits.js';
-import { prisma } from '../lib/prisma.js';
+import { sendBillingNoticeEmail } from '../lib/email.js';
+import { redactIdentifier } from '../lib/logRedaction.js';
+import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
+import {
+    AD_PRODUCT_CENTS,
+    APPLE_PRODUCT_TO_PLAN,
+    ensureApplePendingTransactionLog,
+    finalizeAppleAdPurchase,
+    finalizeAppleSubscriptionPurchase,
+    getVeteranBillingSnapshot,
+    getVeteranTotalTeamAllowance,
+    isUniqueConstraintError,
+    normalizeAppleTransactionIds,
+    releaseAdInventoryAfterSlotFullRefund,
+    releaseAdInventoryAfterSlotFullRefundWithRetry,
+    reserveAdSlots,
+    resolveVeteranQuantityUpdate,
+    runFinalizeFromSession,
+    sendAdPaymentEmail,
+    syncStripeSubscriptionState
+} from '../lib/paymentInternals.js';
+import {
+    SERVER_LEGEND_PRICE_CENTS,
+    SERVER_LEGEND_PRICE_LABEL,
+    SERVER_ROOKIE_TEAM_LIMIT,
+    SERVER_VETERAN_MIN_TOTAL_TEAMS,
+    SERVER_VETERAN_PRICE_CENTS,
+    SERVER_VETERAN_PRICE_LABEL,
+} from '../lib/planDefinitions.js';
+import { getAllPlanDefinitions } from '../lib/planLimits.js';
+import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo, reversePromoRedemption } from '../lib/promos.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
-import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
-import { ensureOAuthUserVerified } from '../lib/oauthVerification.js';
+import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
+import { getCanonicalUserRole } from '../lib/userAuthState.js';
 import {
-  SERVER_LEGEND_PRICE_CENTS,
-  SERVER_LEGEND_PRICE_LABEL,
-  SERVER_ROOKIE_TEAM_LIMIT,
-  SERVER_VETERAN_MIN_TOTAL_TEAMS,
-  SERVER_VETERAN_PRICE_CENTS,
-  SERVER_VETERAN_PRICE_LABEL,
-} from '../lib/planDefinitions.js';
+    buildBillingStateColumns,
+    getCanonicalPlan,
+    getSelectedPlan,
+    mergeBillingStateIntoPreferences,
+} from '../lib/userBillingState.js';
+import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { paymentLimiter } from '../middleware/rateLimiters.js';
 import { calculateAdPriceCents } from '../utils/adPricing.js';
 import { getDatesPastBookingHorizon } from '../utils/bookingHorizon.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { invalidateMeCacheForUser, invalidateMeCacheForUsers } from '../lib/userCache.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { recordAppleNotificationReceipt } from '../lib/appleNotificationDedup.js';
-import { redactIdentifier } from '../lib/logRedaction.js';
-import { getCanonicalUserRole } from '../lib/userAuthState.js';
-import {
-  buildBillingStateColumns,
-  getCanonicalPlan,
-  getSelectedPlan,
-  mergeBillingStateIntoPreferences,
-} from '../lib/userBillingState.js';
-import {
-  AD_PRODUCT_CENTS,
-  APPLE_PRODUCT_TO_PLAN,
-  ensureApplePendingTransactionLog,
-  finalizeAppleAdPurchase,
-  finalizeAppleSubscriptionPurchase,
-  getVeteranBillingSnapshot,
-  getVeteranTotalTeamAllowance,
-  isUniqueConstraintError,
-  mergeTransactionMetadata,
-  normalizeAppleTransactionIds,
-  releaseAdInventoryAfterSlotFullRefund,
-  releaseAdInventoryAfterSlotFullRefundWithRetry,
-  resolveVeteranQuantityUpdate,
-  reserveAdSlots,
-  runFinalizeFromSession,
-  syncStripeSubscriptionState,
-  sendAdPaymentEmail,
-} from '../lib/paymentInternals.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_SECRET_KEY) {
   throw new Error('FATAL: STRIPE_SECRET_KEY must be set in production. Server cannot start without payment processing.');
@@ -569,6 +567,37 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
       } catch (releaseErr) {
         console.error('[webhook] Failed to release ad hold on expiry:', (releaseErr as any)?.message);
         captureException(releaseErr as Error, { context: 'release_ad_hold_expired', adId: expiredAdId });
+      }
+    }
+  }
+
+  // Handle canceled payment intents (Android PaymentSheet abandoned by user).
+  // Without this handler the ad slot hold stays locked until the next expiry check.
+  if (event.type === 'payment_intent.canceled') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const meta = pi.metadata || {};
+    await logTransaction({
+      transactionType: meta.ad_id ? 'AD_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
+      status: 'FAILED',
+      stripePaymentIntentId: pi.id,
+      userId: meta.user_id || undefined,
+      totalCents: pi.amount,
+      metadata: { reason: 'payment_intent_canceled', ...meta },
+    }).catch(err => { console.error('[transaction-log] canceled PI log failed:', err); captureException(err as Error, { context: 'transaction_log_canceled_pi' }); });
+
+    if (meta.ad_id) {
+      try {
+        const heldAd = await prisma.ad.findUnique({ where: { id: meta.ad_id }, select: { payment_status: true } });
+        if (heldAd?.payment_status === 'hold') {
+          await prisma.$transaction([
+            prisma.adReservation.deleteMany({ where: { ad_id: meta.ad_id } }),
+            prisma.ad.update({ where: { id: meta.ad_id }, data: { payment_status: 'unpaid' } }),
+          ]);
+          debugLog('[webhook] Released ad slot hold on PI cancellation', { ad_id: meta.ad_id });
+        }
+      } catch (releaseErr) {
+        console.error('[webhook] Failed to release ad hold on PI cancel:', (releaseErr as any)?.message);
+        captureException(releaseErr as Error, { context: 'release_ad_hold_pi_canceled', adId: meta.ad_id });
       }
     }
   }
