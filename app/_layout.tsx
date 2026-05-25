@@ -4,9 +4,9 @@ if (__DEV__ && process.env.EXPO_OS !== 'web') {
 }
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider as NavigationThemeProvider,
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider as NavigationThemeProvider,
 } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
@@ -33,9 +33,9 @@ import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
 import { initAnalytics } from '@/utils/analytics';
 import {
-  handleDeepLinkAuthAware,
-  handleInitialDeepLink,
-  setupDeepLinkListener,
+    handleDeepLinkAuthAware,
+    handleInitialDeepLink,
+    setupDeepLinkListener,
 } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
 import { StripeProvider } from '@/utils/stripe';
@@ -242,6 +242,7 @@ function AppShell() {
               <Stack.Screen name="message-thread" options={{ headerShown: false }} />
               <Stack.Screen name="followers" options={{ headerShown: false }} />
               <Stack.Screen name="following" options={{ headerShown: false }} />
+              <Stack.Screen name="follow-requests" options={{ headerShown: false }} />
               <Stack.Screen name="verify-email" options={{ headerShown: false }} />
               <Stack.Screen name="+not-found" />
             </Stack>

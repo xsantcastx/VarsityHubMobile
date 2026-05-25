@@ -571,7 +571,7 @@ export default function TeamAdminScreen() {
                         disabled={actingMemberId === member.id}
                         style={[styles.actionButton, member.status === 'archived' ? styles.restoreButton : styles.archiveButton]}
                       >
-                        <Text style={styles.actionButtonText}>
+                        <Text style={[styles.actionButtonText, { color: colorScheme === 'dark' ? '#E5E7EB' : '#374151' }]}>
                           {actingMemberId === member.id ? '…' : member.status === 'archived' ? 'Restore' : 'Archive'}
                         </Text>
                       </Pressable>
@@ -877,6 +877,5 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
   },
 });
