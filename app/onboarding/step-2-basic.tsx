@@ -18,7 +18,6 @@ import { BIO_MAX_LENGTH } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
 import Notifications from '@/utils/notifications';
-import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -90,7 +89,7 @@ function SportBallRow() {
 export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user, markOnboardingCompleteLocally, registerPushToken, checkAuth } = useAuth();
+  const { user, markOnboardingCompleteLocally, registerPushToken } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('other');
@@ -529,35 +528,18 @@ export default function Step2Basic() {
           affiliation,
         });
 
-        // Navigate immediately — don't block on non-critical tasks
+        // Route fans through the permissions screen before entering the app.
+        // Permissions (notifications + location) and push token registration
+        // are handled there so iOS dialogs appear in-context, not mid-feed.
         captureBreadcrumb('Onboarding step 2 completed', 'onboarding.step2', {
           role: 'fan',
-          next: 'tabs',
+          next: 'fan-permissions',
         });
         dispatch({ type: 'SAVE_SUCCESS', data: updatedDataWithRole });
-        const { decision } = await getFreshPostAuthState(
-          () => checkAuth(),
-          undefined,
-          {
-            ...(user || {}),
-            username: finalUsername,
-            onboarding_completed: true,
-            zip_code: zip || user?.zip_code || null,
-            preferences: {
-              ...(user?.preferences || {}),
-              role: 'fan',
-              affiliation,
-              onboarding_completed: true,
-              zip_code: zip || user?.preferences?.zip_code || undefined,
-            },
-          } as any
-        );
-        router.replace(decision.route as any);
+        router.replace('/onboarding/fan-permissions' as any);
 
         void persistOptionalProfileMedia('fan');
         markOnboardingCompleteLocally().catch(() => {});
-        requestPermissions().catch(() => {});
-        registerPushToken().catch(() => {});
       }
     } catch (e: any) {
       if (__DEV__) console.error('[step-2-basic] Failed to save:', e, 'data:', e?.data);
