@@ -152,6 +152,38 @@ npm run verify:error-envelope   # no raw res.status().json()
 - Run `npx tsc --noEmit --project server/tsconfig.json` after backend changes
 - Test scripts go in `server/scripts/` — never in `src/`
 
+## Security Invariants (Do Not Break)
+
+- **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
+- **Backend validation is law** — frontend validation is UX only; never rely on client-side checks for security
+- **One source of truth per domain object** — plan from `getCanonicalPlan()`, membership from DB, approval from `AdminActivityLog`
+- **Every protected route must check**: authentication → role → plan → ownership (server-side, not client)
+- **IDOR guard on self-action**: users must never approve/reject/modify their own pending requests
+- **Deep link params use allowlist** — `buildRouteParams()` in `utils/deepLinks.ts` enforces per-route key allowlists; do not bypass
+- **Webhook lock failures return 503** (not 500) so Stripe retries instead of marking failed
+- **Apple IAP cert chain must pin to `CN=Apple Root CA - G3`** exactly — loose substring match is not acceptable
+- **Org invite role escalation**: only owners can invite at `manager` role; managers may only invite `member`
+- **Payment-success inner catch must surface non-auth errors on final retry** — no silent swallowing
+
+## Audit Checklist (Run Before Each PR)
+
+```bash
+# TypeScript errors (server)
+npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -5
+
+# TypeScript errors (client)
+npx tsc --noEmit 2>&1 | tail -5
+
+# Unbounded queries
+grep -rn "findMany" server/src/ --include="*.ts" | grep -v "take"
+
+# Missing requireAuth on routes using req.user
+grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
+
+# Direct sgMail usage outside providers
+rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
+```
+
 ## Working Style
 
 - Be surgical — only change what's needed for the task

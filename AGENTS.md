@@ -116,3 +116,14 @@ npm run format:check
 npx tsc --noEmit --project server/tsconfig.json
 npm run verify:error-envelope
 ```
+
+## Security Invariants (Do Not Break)
+
+- **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
+- **Backend validation is law** — frontend validation is UX only
+- **IDOR guard on self-action** — users must never approve/reject their own pending requests
+- **Deep link params use allowlist** — `buildRouteParams()` in `utils/deepLinks.ts` enforces per-route key allowlists
+- **Webhook lock failures return 503** (not 500) so Stripe retries
+- **Apple IAP cert chain pins to `CN=Apple Root CA - G3`** exactly
+- **Org invite role escalation** — only owners can invite at `manager` role
+- **Payment-success non-auth errors surface on final retry** — no silent swallowing

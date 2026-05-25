@@ -1,28 +1,28 @@
-import { Colors } from '@/constants/Colors';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
+import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { getApiBaseUrl } from '@/api/http';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { getAuthSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
-import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
-import { getCanonicalCoachRole, getCoachRecoveryRoute } from '@/utils/roleChecks';
+import { getCoachRecoveryRoute } from '@/utils/roleChecks';
 
 type TeamLimitSummary = {
   owned_teams: number;
@@ -369,6 +369,10 @@ function CreateTeamScreen() {
   const onSubmit = async () => {
     if (!name.trim()) {
       setNameError('Please enter a team name');
+      return;
+    }
+    if (name.trim().length > 100) {
+      setNameError('Team name must be 100 characters or fewer');
       return;
     }
 

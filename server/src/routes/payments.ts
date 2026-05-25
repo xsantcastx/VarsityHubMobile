@@ -2007,7 +2007,9 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
       eventType: event.type,
       eventId: event.id,
     });
-    return res.status(500).json({ error: 'Webhook lock acquisition failed' });
+    // PAY-1: Return 503 (not 500) so Stripe treats this as a transient failure and retries.
+    // 500 causes Stripe to mark the event as failed after exhausting retries.
+    return res.status(503).json({ error: 'Webhook processing temporarily unavailable — will retry' });
   }
 }));
 
@@ -3351,9 +3353,14 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       // Apple's App Store S2S notifications always chain to "Apple Root CA - G3"
       const rootCert = x5cCerts[x5cCerts.length - 1];
       const rootX509 = new crypto.X509Certificate(rootCert);
-      // Check CN and O fields for Apple Root CA identity
-      if (!rootX509.subject.includes('Apple Root CA') || !rootX509.issuer.includes('Apple Root CA')) {
-        console.error('[apple-s2s] Root cert is NOT Apple Root CA — rejecting. Subject:', rootX509.subject, 'Issuer:', rootX509.issuer);
+      // PAY-2: Pin to exact Apple Root CA - G3 identity (CN + O) to prevent
+      // any other Apple-signed cert (e.g. developer certs) from being accepted.
+      if (
+        !rootX509.subject.includes('CN=Apple Root CA - G3') ||
+        !rootX509.subject.includes('O=Apple Inc.') ||
+        !rootX509.issuer.includes('Apple Root CA - G3')
+      ) {
+        console.error('[apple-s2s] Root cert is NOT Apple Root CA - G3 — rejecting. Subject:', rootX509.subject, 'Issuer:', rootX509.issuer);
         return res.status(403).json({ error: 'Invalid certificate chain' });
       }
       // Verify root is self-signed

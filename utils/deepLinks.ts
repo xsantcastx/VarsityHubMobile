@@ -20,10 +20,10 @@
  * @module utils/deepLinks
  */
 
-import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
 import { getConfig } from '@/config/env';
 import { getCurrentHref } from '@/context/NavigationHistoryContext';
+import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 
 // App scheme and web domain (must match app.json scheme and shared URLs)
 const APP_SCHEME = getConfig().appScheme || 'varsityhubmobile';
@@ -191,12 +191,38 @@ const DEFAULT_ROUTE_PARAMS: Record<string, Record<string, string>> = {
   'team-hub': { tab: 'teams' },
 };
 
+// Per-route allowlist of query param keys that may pass through from deep links.
+// Keys not on this list are silently dropped to prevent param injection.
+// Generic resource routes (post, game, event, team, profile…) accept 'id' and UTM params by default.
+const ROUTE_PARAM_ALLOWLIST: Record<string, Set<string>> = {
+  'reset-password': new Set(['email', 'code']),
+  'verify-email':   new Set(['token', 'email']),
+  'verify':         new Set(['token', 'email']),
+  'payment-success': new Set(['session_id', 'type', 'adId']),
+  'payment-cancel':  new Set(['session_id', 'type']),
+  'organization-invites': new Set(['token', 'orgId', 'email']),
+  'team-invites':         new Set(['token', 'teamId', 'email']),
+};
+
+// Param keys accepted on all routes (resource ID + analytics)
+const UNIVERSAL_ALLOWED_PARAMS = new Set(['id', 'utm_source', 'utm_medium', 'utm_campaign', 'tab', 'ref']);
+
 function buildRouteParams(type: string, queryParams: Record<string, unknown>): Record<string, string> {
   const params: Record<string, string> = {
     ...(DEFAULT_ROUTE_PARAMS[type] || {}),
   };
+  const routeAllowlist = ROUTE_PARAM_ALLOWLIST[type];
   for (const [key, value] of Object.entries(queryParams)) {
-    if (typeof value === 'string') params[key] = value;
+    if (typeof value !== 'string') continue;
+    // Accept the key if it's on the per-route allowlist OR the universal list
+    if ((routeAllowlist && routeAllowlist.has(key)) || UNIVERSAL_ALLOWED_PARAMS.has(key)) {
+      params[key] = value;
+    }
+    // For resource routes without an explicit allowlist, accept any single-word alphanumeric key
+    // (covers dynamic resource IDs like postId, teamId, gameId from server share links)
+    else if (!routeAllowlist && /^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(key)) {
+      params[key] = value;
+    }
   }
   return params;
 }
