@@ -207,6 +207,19 @@ function consentResolutionPage(
   };
 }
 
+function sendConsentCsrfExpired(res: any) {
+  return res
+    .status(403)
+    .type('html')
+    .send(
+      landingPage(
+        'Consent Confirmation Expired',
+        'For security, please reopen the consent email link and submit the form again.',
+        false
+      )
+    );
+}
+
 // GET /consent/:token — landing page for the parent
 consentRouter.get(
   '/:token',
@@ -244,16 +257,7 @@ consentRouter.post(
   asyncHandler(async (req, res) => {
     const token = String(req.params.token || '').trim();
     if (!verifyConsentCsrf(req, token, 'approve')) {
-      return res
-        .status(403)
-        .type('html')
-        .send(
-          landingPage(
-            'Consent Confirmation Expired',
-            'For security, please reopen the consent email link and submit the form again.',
-            false
-          )
-        );
+      return sendConsentCsrfExpired(res);
     }
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {
@@ -281,16 +285,7 @@ consentRouter.post(
   asyncHandler(async (req, res) => {
     const token = String(req.params.token || '').trim();
     if (!verifyConsentCsrf(req, token, 'deny')) {
-      return res
-        .status(403)
-        .type('html')
-        .send(
-          landingPage(
-            'Consent Confirmation Expired',
-            'For security, please reopen the consent email link and submit the form again.',
-            false
-          )
-        );
+      return sendConsentCsrfExpired(res);
     }
     const lookup = await lookupConsentByToken(token);
     if (!lookup.ok) {

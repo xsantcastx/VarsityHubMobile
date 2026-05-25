@@ -108,6 +108,34 @@ function AdminMetricsScreen() {
     </View>
   );
 
+  const DailyChartSection = ({
+    title,
+    items,
+    color,
+  }: {
+    title: string;
+    items?: Array<{ date: string; count: number }>;
+    color: string;
+  }) => {
+    if (!items || items.length === 0) return null;
+
+    return (
+      <View style={{ marginTop: 20 }}>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>{title}</Text>
+        <View style={[styles.chartCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+          {items.map((d) => (
+            <BarRow
+              key={d.date}
+              label={new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              value={d.count}
+              color={color}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top']}>
       <Stack.Screen options={{
@@ -183,53 +211,23 @@ function AdminMetricsScreen() {
             </View>
 
             {/* Daily Charts */}
-            {daily?.users && daily.users.length > 0 && (
-              <View style={{ marginTop: 20 }}>
-                <Text style={[styles.sectionTitle, { color: palette.text }]}>Daily New Users</Text>
-                <View style={[styles.chartCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                  {daily.users.map((d: any) => (
-                    <BarRow
-                      key={d.date}
-                      label={new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      value={d.count}
-                      color="#3B82F6"
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
+            <DailyChartSection
+              title="Daily New Users"
+              items={daily?.users}
+              color="#3B82F6"
+            />
 
-            {daily?.messages && daily.messages.length > 0 && (
-              <View style={{ marginTop: 20 }}>
-                <Text style={[styles.sectionTitle, { color: palette.text }]}>Daily Messages</Text>
-                <View style={[styles.chartCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                  {daily.messages.map((d: any) => (
-                    <BarRow
-                      key={d.date}
-                      label={new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      value={d.count}
-                      color="#8B5CF6"
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
+            <DailyChartSection
+              title="Daily Messages"
+              items={daily?.messages}
+              color="#8B5CF6"
+            />
 
-            {daily?.reports && daily.reports.length > 0 && (
-              <View style={{ marginTop: 20 }}>
-                <Text style={[styles.sectionTitle, { color: palette.text }]}>Daily Reports</Text>
-                <View style={[styles.chartCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                  {daily.reports.map((d: any) => (
-                    <BarRow
-                      key={d.date}
-                      label={new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      value={d.count}
-                      color="#EF4444"
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
+            <DailyChartSection
+              title="Daily Reports"
+              items={daily?.reports}
+              color="#EF4444"
+            />
           </>
         ) : null}
       </ScrollView>

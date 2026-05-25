@@ -88,8 +88,12 @@ jest.mock('@/utils/sentry', () => ({
 }));
 jest.mock('@/context/AuthProvider', () => ({
   useAuth: () => ({
-    user: null,
-    checkAuth: mockCheckAuth,
+    user: {
+      id: 'user-1',
+      email_verified: true,
+      username: 'fanuser',
+      preferences: {},
+    },
     markOnboardingCompleteLocally: mockMarkOnboardingCompleteLocally,
     registerPushToken: mockRegisterPushToken,
   }),

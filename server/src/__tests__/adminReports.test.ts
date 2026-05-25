@@ -21,6 +21,15 @@ describeDb('adminReports Sanctions Logic', () => {
   let testReportId: string;
   let adminUserId: string;
 
+  const getUserPrefs = async () => {
+    const user = await prisma.user.findUnique({
+      where: { id: testUserId },
+    });
+    return (user?.preferences && typeof user.preferences === 'object')
+      ? (user.preferences as Record<string, any>)
+      : {};
+  };
+
   beforeAll(async () => {
     // Create a test user to report against
     const passwordHash = await bcrypt.hash('TestPassword123!', 10);
@@ -95,12 +104,7 @@ describeDb('adminReports Sanctions Logic', () => {
       },
     });
 
-    const user = await prisma.user.findUnique({
-      where: { id: testUserId },
-    });
-    const prefs = (user?.preferences && typeof user.preferences === 'object')
-      ? (user.preferences as Record<string, any>)
-      : {};
+    const prefs = await getUserPrefs();
 
     expect(prefs.offense_count).toBe(1);
     expect(prefs.suspension_until).toBeDefined();
@@ -128,12 +132,7 @@ describeDb('adminReports Sanctions Logic', () => {
       },
     });
 
-    const user = await prisma.user.findUnique({
-      where: { id: testUserId },
-    });
-    const prefs = (user?.preferences && typeof user.preferences === 'object')
-      ? (user.preferences as Record<string, any>)
-      : {};
+    const prefs = await getUserPrefs();
 
     expect(prefs.suspension_until).toBeDefined();
     expect(String(prefs.suspension_reason || '')).toContain('7-day');
@@ -169,12 +168,7 @@ describeDb('adminReports Sanctions Logic', () => {
       },
     });
 
-    const user = await prisma.user.findUnique({
-      where: { id: testUserId },
-    });
-    const prefs = (user?.preferences && typeof user.preferences === 'object')
-      ? (user.preferences as Record<string, any>)
-      : {};
+    const prefs = await getUserPrefs();
 
     expect(prefs.offense_count).toBe(1);
     expect(prefs.suspension_until).toBeNull();

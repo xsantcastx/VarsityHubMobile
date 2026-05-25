@@ -22,6 +22,7 @@ const step3 = read('app/onboarding/step-3-league.tsx');
 const coachAgreement = read('app/onboarding/coach-agreement.tsx');
 const pendingApproval = read('app/onboarding/pending-approval.tsx');
 const leaguePendingApproval = read('app/onboarding/league-pending-approval.tsx');
+const pendingApprovalFlowHook = read('hooks/usePendingApprovalFlow.ts');
 const onboardingLayout = read('app/onboarding/_layout.tsx');
 const onboardingIndex = read('app/onboarding/index.tsx');
 const rootIndex = read('app/index.tsx');
@@ -50,6 +51,8 @@ describe('onboarding flow — no screens can be skipped', () => {
       // instead of hardcoding inline redirects in the screen.
       expect(onboardingIndex).toMatch(/getOnboardingIndexRouteDecision/);
       expect(onboardingIndex).toMatch(/decision\.route/);
+      expect(onboardingIndex).toMatch(/buildServerHydrationPatch\(user\)/);
+      expect(onboardingIndex).not.toMatch(/User\.me\(/);
     });
   });
 
@@ -80,6 +83,13 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(step1).toMatch(/router\.replace\(recoveryRoute/);
     });
 
+    it('step-1-role uses canonical auth state instead of refetching role bootstrap snapshots', () => {
+      expect(step1).toMatch(/const \{ user, signOut, checkAuth \} = useAuth\(\)/);
+      expect(step1).not.toMatch(/User\.me\(\)/);
+      expect(step1).not.toMatch(/User\.refresh\(\)/);
+      expect(step1).not.toMatch(/useFocusEffect/);
+    });
+
     it('step-1-role retries transient network errors before giving up', () => {
       expect(step1).toMatch(/persistRole/);
       expect(step1).toMatch(/attempt\s*<\s*2/);
@@ -94,17 +104,21 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(step2).toMatch(/ob\.role === ['"]coach['"] \? \{ role: ['"]coach['"] \} : \{\}/);
     });
 
-    it('step-2 refreshes auth from the server before exiting onboarding for fans', () => {
-      expect(step2).toMatch(/getFreshPostAuthState/);
-      expect(step2).toMatch(/User\.completeOnboarding/);
-      expect(step2).toMatch(/checkAuth/);
-      expect(step2).toMatch(/decision\.route/);
+    it('step-2 bootstraps from canonical auth state instead of refetching User.me on focus', () => {
+      expect(step2).toMatch(/const \{ user, markOnboardingCompleteLocally, registerPushToken \} = useAuth\(\)/);
+      expect(step2).not.toMatch(/User\.me\(\)/);
+      expect(step2).not.toMatch(/useFocusEffect/);
     });
 
     it('step-3 enforces supporting document for create-new-org path', () => {
       // Coaches creating a new org must attach a supporting document —
       // this is a soft "no skip" gate enforced client-side AND server-side.
       expect(step3).toMatch(/supporting_document|supportingDocument/);
+    });
+
+    it('step-3 mode switches clear stale local completion markers', () => {
+      expect(step3).toMatch(/join_request_pending:\s*false,[\s\S]*step_3_visited:\s*false/);
+      expect(step3).toMatch(/organization_id:\s*undefined,[\s\S]*step_3_visited:\s*false/);
     });
   });
 
@@ -113,10 +127,12 @@ describe('onboarding flow — no screens can be skipped', () => {
   // ──────────────────────────────────────────────────────────────────────
 
   describe('pending approval screens gate on actual pending state', () => {
-    it('pending-approval bypasses the /me client TTL while polling for approval', () => {
-      // Approval is granted externally by an admin/owner, so the waiting
-      // screen must bypass the 30s client cache on every lifecycle/poll check.
-      expect(pendingApproval).toMatch(/User\.refresh\(\)/);
+    it('pending approval screens poll through the shared canonical auth snapshot helper', () => {
+      expect(pendingApproval).toMatch(/getPendingApprovalAuthSnapshot/);
+      expect(leaguePendingApproval).toMatch(/getPendingApprovalAuthSnapshot/);
+      expect(pendingApprovalFlowHook).toMatch(/export async function getPendingApprovalAuthSnapshot/);
+      expect(pendingApproval).not.toMatch(/User\.me\(\)/);
+      expect(leaguePendingApproval).not.toMatch(/User\.refresh\(\)/);
     });
 
     it('league-pending-approval requires an orgId to start polling', () => {
@@ -134,26 +150,20 @@ describe('onboarding flow — no screens can be skipped', () => {
     it('pending approval screens re-check immediately on screen focus', () => {
       // Poll-only waiting screens create a 0-30s stale window after the user
       // returns from background or navigates back from another screen.
-      expect(pendingApproval).toMatch(/useFocusEffect/);
-      expect(pendingApproval).toMatch(/checkApproval\('focus'\)/);
-      expect(leaguePendingApproval).toMatch(/useFocusEffect/);
-      expect(leaguePendingApproval).toMatch(/checkApproval\('focus'\)/);
+      expect(pendingApprovalFlowHook).toMatch(/useFocusEffect/);
+      expect(pendingApprovalFlowHook).toMatch(/runCheck\('focus'\)/);
     });
 
     it('pending approval screens re-check immediately when the app becomes active', () => {
       // Admin approvals frequently happen while the coach has the app in the
       // background. Active-state refresh closes the stale timer gap.
-      expect(pendingApproval).toMatch(/AppState\.addEventListener\('change'/);
-      expect(pendingApproval).toMatch(/checkApproval\('foreground'\)/);
-      expect(leaguePendingApproval).toMatch(/AppState\.addEventListener\('change'/);
-      expect(leaguePendingApproval).toMatch(/checkApproval\('foreground'\)/);
+      expect(pendingApprovalFlowHook).toMatch(/AppState\.addEventListener\('change'/);
+      expect(pendingApprovalFlowHook).toMatch(/runCheck\('foreground'\)/);
     });
 
     it('lifecycle-triggered approval checks are guarded against duplicate storms', () => {
-      expect(pendingApproval).toMatch(/approvalCheckInFlightRef/);
-      expect(pendingApproval).toMatch(/lastLifecycleCheckRef/);
-      expect(leaguePendingApproval).toMatch(/approvalCheckInFlightRef/);
-      expect(leaguePendingApproval).toMatch(/lastLifecycleCheckRef/);
+      expect(pendingApprovalFlowHook).toMatch(/approvalCheckInFlightRef/);
+      expect(pendingApprovalFlowHook).toMatch(/lastLifecycleCheckRef/);
     });
   });
 
@@ -168,9 +178,17 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(coachAgreement).toMatch(/updatePreferences/);
     });
 
-    it('AuthProvider no longer forces approved coaches through coach-agreement', () => {
-      expect(authProvider).not.toMatch(/approved_fan_to_coach_agreement/);
-      expect(authProvider).not.toMatch(/coach_agreement_required/);
+    it('coach-agreement routes from the canonical checkAuth refresh instead of refetching /me', () => {
+      expect(coachAgreement).toMatch(/const freshUser = \(await checkAuth\(\)\)/);
+      expect(coachAgreement).not.toMatch(/await checkAuth\(\);[\s\S]{0,120}User\.me\(\)/);
+    });
+
+    it('AuthProvider routes approved coaches to /onboarding/coach-agreement when unsigned', () => {
+      // This is the "no skip" gate for coach tools. An approved coach who
+      // closes the app mid-flow is routed back to coach-agreement on next
+      // open, not dropped into tabs where requireOnboarded would 403.
+      expect(authProvider).toMatch(/\/onboarding\/coach-agreement/);
+      expect(authProvider).toMatch(/coach_agreement_accepted_at/);
     });
 
     it('AuthProvider no longer checks agreement state before routing approved coaches to tabs', () => {
@@ -296,9 +314,16 @@ describe('onboarding flow — no screens can be skipped', () => {
       expect(step3).toMatch(/role:\s*['"]coach['"]|role:\s*['"]fan['"]/);
     });
 
-    it('existing-org continue path respects coach recovery routes before completing onboarding', () => {
+    it('existing-org continue path routes from fresh canonical auth state before completing onboarding', () => {
       expect(step3).toMatch(/getPostAuthRouteDecision/);
-      expect(step3).toMatch(/shouldResumeRecoveryFlow/);
+      expect(step3).toMatch(/const authUser = \(await checkAuth\(\)\.catch\(\(\) => null\)\) \?\? user/);
+      expect(step3).toMatch(/routeFromDecision\(nextDecision\.route/);
+    });
+
+    it('step-3 builds completion payloads from canonical auth and draft state instead of refetching /me', () => {
+      expect(step3).toMatch(/const buildCoachCompletionPayload = useCallback/);
+      expect(step3).not.toMatch(/User\.me\(\)/);
+      expect(step3).not.toMatch(/User\.refresh\(\)/);
     });
 
     it('final coach setup refreshes auth and routes agreement-first when required', () => {

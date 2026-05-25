@@ -24,7 +24,7 @@ import {
 } from '../lib/teamAuthorization.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
-import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
+import { gameCreationLimiter, storyCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
 import { getIsAdmin, isEmailAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
@@ -1956,6 +1956,7 @@ gamesRouter.post(
   '/:id/stories',
   requireAuth as any,
   requireOnboarded as any,
+  storyCreationLimiter,
   makeCreateStoryHandler({ prisma })
 );
 

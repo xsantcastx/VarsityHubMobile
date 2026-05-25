@@ -159,32 +159,33 @@ export function requiresParentalConsent(user: AgeSource | null | undefined, now:
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// DOB mutability — 24h grace window after first set
+// DOB mutability
 // ────────────────────────────────────────────────────────────────────────────
 
-/** Grace window during which a user may correct a DOB typo without admin help. */
+/**
+ * Legacy constant retained for compatibility with older tests/import sites.
+ * DOB is now editable after first set; the grace-window lock is no longer used.
+ */
 export const DOB_GRACE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type DobUpdateDecision =
   | { ok: true; newDob: Date; newSetAt: Date | null; changed: boolean }
-  | { ok: false; reason: 'invalid_dob' | 'dob_locked'; lockedUntilMs?: number };
+  | { ok: false; reason: 'invalid_dob' };
 
 /**
  * Decide whether a DOB change is allowed.
  *
  * Rules:
  *   - Any write is allowed when the canonical column is still null (first set).
- *   - When the column is set, changes are allowed only within
- *     `DOB_GRACE_WINDOW_MS` of `dob_set_at`. The first-set timestamp is NOT
- *     refreshed on edit — otherwise the window could be extended indefinitely
- *     by successive edits.
  *   - An "edit" that matches the current value is a no-op (always allowed).
+ *   - Subsequent edits remain allowed; product policy is to block under-13
+ *     users, not to permanently lock DOB after first set.
  *   - Invalid / unparseable DOB strings are rejected.
  *
  * Callers should persist the returned `newDob` into `User.date_of_birth` and
  * `newSetAt` into `User.dob_set_at`. `newSetAt` is null when no change to the
- * timestamp is needed (i.e. value unchanged or the existing setAt should be
- * preserved).
+ * timestamp is needed (i.e. value unchanged or an existing first-set timestamp
+ * should be preserved).
  */
 export function evaluateDobUpdate(params: {
   currentDob: Date | null;
@@ -209,17 +210,6 @@ export function evaluateDobUpdate(params: {
     return { ok: true, newDob: parsed, newSetAt: now, changed: true };
   }
 
-  // Within grace window — allowed, preserve the original setAt so the window
-  // can't be extended by making successive edits.
-  const elapsed = now.getTime() - params.currentSetAt.getTime();
-  if (elapsed >= 0 && elapsed <= DOB_GRACE_WINDOW_MS) {
-    return { ok: true, newDob: parsed, newSetAt: null, changed: true };
-  }
-
-  // Past the window — locked. Admin-only beyond this point.
-  return {
-    ok: false,
-    reason: 'dob_locked',
-    lockedUntilMs: 0,
-  };
+  // Subsequent edits remain allowed; preserve the first-set timestamp.
+  return { ok: true, newDob: parsed, newSetAt: null, changed: true };
 }

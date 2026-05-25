@@ -57,7 +57,7 @@
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "versionCode": 3,
-      "package": "com.varsityhub.varsityhub",
+      "package": "com.xsantcastx.varsityhub",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
@@ -67,7 +67,6 @@
         "android.permission.VIBRATE",
         "android.permission.INTERNET",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.ACCESS_MEDIA_LOCATION",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
@@ -114,8 +113,7 @@
         "expo-media-library",
         {
           "photosPermission": "VarsityHub uses your photo library to let you browse and select images and videos for team posts and profiles.",
-          "savePhotosPermission": "VarsityHub uses save access to download shared team photos and game-day images to your device.",
-          "isAccessMediaLocationEnabled": true
+          "savePhotosPermission": "VarsityHub uses save access to download shared team photos and game-day images to your device."
         }
       ],
       "expo-video",

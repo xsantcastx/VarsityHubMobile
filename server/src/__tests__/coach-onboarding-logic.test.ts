@@ -34,8 +34,8 @@ import {
  * can slip past a coach-only gate.
  *
  * Every branch of `evaluateDobUpdate` is also covered. A regression there
- * is how we ended up with the step-2 "DOB_LOCKED" trap that cost a whole
- * session of device testing to diagnose.
+ * can still strand coach onboarding by rejecting valid DOB corrections or
+ * persisting malformed values.
  */
 
 const NOW = new Date('2026-04-23T17:00:00Z');
@@ -213,7 +213,7 @@ describe('coach onboarding logic — universal suite', () => {
       }
     });
 
-    it('past 24h grace window → locked (dob_locked)', () => {
+    it('past 24h since first set → still allowed and preserves the original setAt', () => {
       const current = parseDobLocal('2000-01-23')!;
       const setAt = new Date(TODAY_MS - (DOB_GRACE_WINDOW_MS + 1000)); // over 24h ago
       const result = evaluateDobUpdate({
@@ -222,9 +222,10 @@ describe('coach onboarding logic — universal suite', () => {
         incomingDob: '2000-01-24',
         now: NOW,
       });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe('dob_locked');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.changed).toBe(true);
+        expect(result.newSetAt).toBeNull();
       }
     });
 

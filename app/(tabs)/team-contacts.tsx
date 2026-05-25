@@ -93,10 +93,16 @@ interface TeamMember {
 
 export default function TeamChatScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, fallback } = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const router = useRouter();
   const _insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
+  const explicitFallback =
+    typeof fallback === 'string' && fallback.trim().startsWith('/')
+      ? fallback.trim()
+      : id
+        ? `/my-team?teamId=${encodeURIComponent(String(id))}`
+        : '/organization?tab=teams';
 
   // Modal state for replacing Alert.alert
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
@@ -1490,7 +1496,15 @@ export default function TeamChatScreen() {
         style={styles.messageButton}
         onPress={() => {
           if (item.user?.id) {
-            void router.push(`/message-thread?with=${encodeURIComponent(item.user.id)}` as any);
+            void router.push({
+              pathname: '/message-thread',
+              params: {
+                with: item.user.id,
+                fallback: id
+                  ? `/team-contacts?id=${encodeURIComponent(String(id))}`
+                  : explicitFallback,
+              },
+            } as any);
           }
         }}
         disabled={!item.user?.id}
@@ -1506,7 +1520,7 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
@@ -1530,7 +1544,7 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
@@ -1544,7 +1558,7 @@ export default function TeamChatScreen() {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ) }} />
@@ -1573,7 +1587,7 @@ export default function TeamChatScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => safeGoBack(router)} style={{ paddingRight: 8 }}>
+            <Pressable onPress={() => safeGoBack(router, explicitFallback)} style={{ paddingRight: 8 }}>
               <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
             </Pressable>
           ),

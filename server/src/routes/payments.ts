@@ -361,6 +361,17 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
     if (canceledUser) {
       const prefs = (canceledUser.preferences && typeof canceledUser.preferences === 'object') ? (canceledUser.preferences as any) : {};
       const previousPlan = getCanonicalPlan(canceledUser as any);
+
+      // PAY-9: Only downgrade users who were actually on a paid plan.
+      // Ignoring this event for rookie users prevents spurious DB writes when
+      // Stripe deletes an incomplete/expired subscription they never paid for.
+      if (previousPlan !== 'veteran' && previousPlan !== 'legend') {
+        console.log('[webhook] customer.subscription.deleted: user was not on paid plan, skipping downgrade', {
+          user_id: canceledUser.id,
+          previous_plan: previousPlan,
+          subscription_id: subscription.id,
+        });
+      } else {
       delete prefs.subscription_id;
       delete prefs.subscription_period_end;
       const nextPrefs = mergeBillingStateIntoPreferences(prefs, {
@@ -404,6 +415,7 @@ async function processStripeWebhookEvent(event: Stripe.Event): Promise<WebhookRo
         }),
       ]);
       await invalidateMeCacheForUser(canceledUser.id);
+      } // end else (was on paid plan)
     }
   }
 
@@ -1995,7 +2007,9 @@ paymentsRouter.post('/webhook', asyncHandler(async (req, res) => {
       eventType: event.type,
       eventId: event.id,
     });
-    return res.status(500).json({ error: 'Webhook lock acquisition failed' });
+    // PAY-1: Return 503 (not 500) so Stripe treats this as a transient failure and retries.
+    // 500 causes Stripe to mark the event as failed after exhausting retries.
+    return res.status(503).json({ error: 'Webhook processing temporarily unavailable — will retry' });
   }
 }));
 
@@ -3339,9 +3353,14 @@ paymentsRouter.post(['/apple/notifications', '/apple/server-notifications'], exp
       // Apple's App Store S2S notifications always chain to "Apple Root CA - G3"
       const rootCert = x5cCerts[x5cCerts.length - 1];
       const rootX509 = new crypto.X509Certificate(rootCert);
-      // Check CN and O fields for Apple Root CA identity
-      if (!rootX509.subject.includes('Apple Root CA') || !rootX509.issuer.includes('Apple Root CA')) {
-        console.error('[apple-s2s] Root cert is NOT Apple Root CA — rejecting. Subject:', rootX509.subject, 'Issuer:', rootX509.issuer);
+      // PAY-2: Pin to exact Apple Root CA - G3 identity (CN + O) to prevent
+      // any other Apple-signed cert (e.g. developer certs) from being accepted.
+      if (
+        !rootX509.subject.includes('CN=Apple Root CA - G3') ||
+        !rootX509.subject.includes('O=Apple Inc.') ||
+        !rootX509.issuer.includes('Apple Root CA - G3')
+      ) {
+        console.error('[apple-s2s] Root cert is NOT Apple Root CA - G3 — rejecting. Subject:', rootX509.subject, 'Issuer:', rootX509.issuer);
         return res.status(403).json({ error: 'Invalid certificate chain' });
       }
       // Verify root is self-signed
@@ -3649,7 +3668,7 @@ const GOOGLE_PRODUCT_TO_PLAN: Record<string, string> = {
   MIDTIER: 'veteran',
   TOPTIER: 'legend',
 };
-const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.varsityhub.varsityhub')
+const GOOGLE_ALLOWED_PACKAGES = (process.env.GOOGLE_PLAY_PACKAGE_NAMES || 'com.xsantcastx.varsityhub')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);

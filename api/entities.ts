@@ -897,10 +897,12 @@ export const Subscriptions = {
 export const TeamMemberships = {
   create: (data: { team_id: string; user_id: string; role?: string }) =>
     httpPost('/team-memberships', data),
-  update: (membershipId: string, data: { role?: string; custom_position?: string }) =>
+  update: (membershipId: string, data: { role?: string; custom_position?: string | null; status?: 'active' | 'archived' }) =>
     httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
   delete: (membershipId: string) =>
     httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
+  searchUsers: (teamId: string, q: string) =>
+    httpGet(`/team-memberships/search-users?teamId=${encodeURIComponent(teamId)}&q=${encodeURIComponent(q)}`),
   // Team join requests
   requestToJoin: (teamId: string, message?: string) =>
     httpPost('/team-memberships/join-requests', { team_id: teamId, message }),

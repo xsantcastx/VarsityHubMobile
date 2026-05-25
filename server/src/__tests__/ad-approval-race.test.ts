@@ -16,30 +16,9 @@
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { extractFunctionBody } from './helpers/extractFunctionBody.js';
 
 const serviceSrc = readFileSync(join(process.cwd(), 'src', 'lib', 'approvalService.ts'), 'utf8');
-
-function extractFunctionBody(source: string, name: string): string {
-  const startPattern = new RegExp(`export async function ${name}\\b`);
-  const startMatch = source.match(startPattern);
-  if (!startMatch || startMatch.index === undefined) {
-    throw new Error(`Could not locate function ${name} in approvalService.ts`);
-  }
-  const tail = source.slice(startMatch.index);
-  const bodyStart = tail.search(/\)\s*\{/);
-  const firstBrace = bodyStart === -1 ? -1 : tail.indexOf('{', bodyStart);
-  if (firstBrace === -1) throw new Error(`Malformed function ${name}`);
-  let depth = 0;
-  for (let i = firstBrace; i < tail.length; i++) {
-    const ch = tail[i];
-    if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) return tail.slice(0, i + 1);
-    }
-  }
-  throw new Error(`Could not find end of function ${name}`);
-}
 
 describe('ad approval race guard', () => {
   const approveBody = extractFunctionBody(serviceSrc, 'approveAd');

@@ -3,6 +3,12 @@ import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { captureAnalyticsException } from '@/utils/analytics';
+import {
+  MAX_SENTRY_VALUE_LENGTH as MAX_BREADCRUMB_VALUE_LENGTH,
+  SENSITIVE_SENTRY_KEY_RE as SENSITIVE_BREADCRUMB_KEY_RE,
+  normalizeSentryBreadcrumbData,
+  normalizeSentryValue,
+} from '@/shared/runtime/sentrySanitization.js';
 
 const appConfig = getConfig();
 const envDsn = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim() || '';
@@ -33,10 +39,8 @@ const EXPECTED_AUTH_CONTEXTS = new Set([
 ]);
 
 let sentryReady = false;
-const SENSITIVE_BREADCRUMB_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
 const SENSITIVE_VALUE_RE =
   /\b(?:sntryu_[A-Za-z0-9]{20,}|Bearer\s+[A-Za-z0-9._-]{20,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+\.[A-Za-z0-9._-]+)\b/g;
-const MAX_BREADCRUMB_VALUE_LENGTH = 160;
 const MAX_CONTEXT_DEPTH = 3;
 const MAX_CONTEXT_KEYS = 25;
 const MAX_CONTEXT_ARRAY_ITEMS = 10;
@@ -246,42 +250,7 @@ export function captureException(error: Error | unknown, context?: Record<string
   });
 }
 
-function normalizeBreadcrumbValue(value: unknown): string {
-  if (value == null) return 'null';
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'non-finite';
-  if (typeof value === 'string') {
-    const redacted = redactSensitiveString(value);
-    return redacted.length > MAX_BREADCRUMB_VALUE_LENGTH
-      ? `${redacted.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
-      : redacted;
-  }
-  if (Array.isArray(value)) {
-    return `[${value.slice(0, 5).map((item) => normalizeBreadcrumbValue(item)).join(', ')}${value.length > 5 ? ', ...' : ''}]`;
-  }
-  try {
-    const serialized = JSON.stringify(value);
-    if (!serialized) return 'empty-object';
-    return serialized.length > MAX_BREADCRUMB_VALUE_LENGTH
-      ? `${serialized.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
-      : serialized;
-  } catch {
-    return '[unserializable]';
-  }
-}
 
-function normalizeBreadcrumbData(data?: Record<string, any>) {
-  if (!data) return undefined;
-
-  const normalized: Record<string, string> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (typeof value === 'undefined') continue;
-    normalized[key] = SENSITIVE_BREADCRUMB_KEY_RE.test(key)
-      ? '[redacted]'
-      : normalizeBreadcrumbValue(value);
-  }
-  return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
 
 function sanitizeContextValue(value: unknown, depth = 0): unknown {
   if (value == null || typeof value === 'boolean') return value ?? null;
@@ -293,7 +262,7 @@ function sanitizeContextValue(value: unknown, depth = 0): unknown {
       : redacted;
   }
   if (depth >= MAX_CONTEXT_DEPTH) {
-    return normalizeBreadcrumbValue(value);
+    return normalizeSentryValue(value);
   }
   if (Array.isArray(value)) {
     return value.slice(0, MAX_CONTEXT_ARRAY_ITEMS).map(item => sanitizeContextValue(item, depth + 1));
@@ -312,7 +281,7 @@ function sanitizeContextValue(value: unknown, depth = 0): unknown {
     );
     return Object.keys(sanitized).length > 0 ? sanitized : '[empty-object]';
   }
-  return normalizeBreadcrumbValue(value);
+  return normalizeSentryValue(value);
 }
 
 function sanitizeContextData(data?: Record<string, any>) {
@@ -337,7 +306,7 @@ export function captureBreadcrumb(
   data?: Record<string, any>,
   level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info'
 ) {
-  const normalizedData = normalizeBreadcrumbData(data);
+  const normalizedData = normalizeSentryBreadcrumbData(data);
 
   if (!sentryReady) {
     if (__DEV__) {

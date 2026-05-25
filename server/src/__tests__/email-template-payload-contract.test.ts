@@ -244,6 +244,21 @@ describe('SendGrid template payload contract', () => {
     expect(result).toBe(true);
     const payload = mockSend.mock.calls[0]![0] as any;
     expectAllVarsCovered(getTemplateVars('join-request-approved.html'), payload.templateData);
+    expect(String(payload.templateData.org_url)).toContain('/organization?tab=teams');
+    expect(String(payload.templateData.dashboard_url)).toContain('/organization?tab=teams');
+  });
+
+  it('join-request-approved.html routes no-org approved coaches into the coach agreement handoff', async () => {
+    const result = await sendCoachApprovedEmail({
+      to: 'coach@example.com',
+      coachName: 'Coach Test',
+      leagueName: 'Westhill Athletics',
+      destination: 'coach_agreement',
+    });
+    expect(result).toBe(true);
+    const payload = mockSend.mock.calls[0]![0] as any;
+    expect(String(payload.templateData.org_url)).toContain('/onboarding/coach-agreement');
+    expect(String(payload.templateData.dashboard_url)).toContain('/onboarding/coach-agreement');
   });
 
   it('join-request-denied.html — sendCoachRejectedEmail covers every {{var}}', async () => {

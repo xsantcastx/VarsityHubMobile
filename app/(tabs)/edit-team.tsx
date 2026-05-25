@@ -1,3 +1,10 @@
+import {
+  EditScreenHeader,
+  EditScreenLoading,
+  EditTextField,
+  EditScreenSubmitButton,
+  editScreenSharedStyles as sharedStyles,
+} from '@/components/EditScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -92,53 +99,59 @@ function EditTeamScreen() {
     }
   }, [loadTeam, params?.id]);
 
-  const pickImage = async () => {
-    const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (result.granted === false) {
-      Alert.alert('Permission Required', 'Please allow access to your photos to upload a team logo.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]);
-      return;
-    }
-
-    const pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-      exif: false,
-    });
-
+  const setLogoFromPickerResult = async (pickerResult: ImagePicker.ImagePickerResult) => {
     if (!pickerResult.canceled && pickerResult.assets[0]) {
       const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
       setLogoUri(localUri);
     }
   };
 
-  const takePhoto = async () => {
-    const result = await ImagePicker.requestCameraPermissionsAsync();
-    
+  const pickLogoImage = async ({
+    requestPermission,
+    permissionMessage,
+    launchPicker,
+  }: {
+    requestPermission: () => Promise<ImagePicker.PermissionResponse>;
+    permissionMessage: string;
+    launchPicker: () => Promise<ImagePicker.ImagePickerResult>;
+  }) => {
+    const result = await requestPermission();
     if (result.granted === false) {
-      Alert.alert('Permission Required', 'Please allow camera access to take a team logo photo.', [
+      Alert.alert('Permission Required', permissionMessage, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Open Settings', onPress: () => Linking.openSettings() },
       ]);
       return;
     }
 
-    const pickerResult = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-      exif: false,
-    });
+    await setLogoFromPickerResult(await launchPicker());
+  };
 
-    if (!pickerResult.canceled && pickerResult.assets[0]) {
-      const localUri = await materializeICloudAssetIfNeeded(pickerResult.assets[0].uri);
-      setLogoUri(localUri);
-    }
+  const pickImage = async () => {
+    await pickLogoImage({
+      requestPermission: ImagePicker.requestMediaLibraryPermissionsAsync,
+      permissionMessage: 'Please allow access to your photos to upload a team logo.',
+      launchPicker: () => ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        exif: false,
+      }),
+    });
+  };
+
+  const takePhoto = async () => {
+    await pickLogoImage({
+      requestPermission: ImagePicker.requestCameraPermissionsAsync,
+      permissionMessage: 'Please allow camera access to take a team logo photo.',
+      launchPicker: () => ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        exif: false,
+      }),
+    });
   };
 
   const showImagePicker = () => {
@@ -263,11 +276,13 @@ function EditTeamScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingContainer, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{ title: 'Edit Team', headerShown: false }} />
-        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-        <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading team...</Text>
-      </View>
+      <EditScreenLoading
+        title="Edit Team"
+        message="Loading team..."
+        backgroundColor={Colors[colorScheme].background}
+        tintColor={Colors[colorScheme].tint}
+        textColor={Colors[colorScheme].text}
+      />
     );
   }
 
@@ -282,16 +297,14 @@ function EditTeamScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
-          <Pressable 
-            style={styles.backButton} 
-            onPress={() => { safeGoBack(router, fallbackRoute); }}
-          >
-            <MaterialIcons name="arrow-back" size={24} color={Colors[colorScheme].text} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Edit Team</Text>
-          <View style={{ width: 32 }} />
-        </View>
+        <EditScreenHeader
+          title="Edit Team"
+          textColor={Colors[colorScheme].text}
+          topPadding={12 + insets.top}
+          onBack={() => {
+            safeGoBack(router, fallbackRoute);
+          }}
+        />
 
         {/* Intro Card */}
         <View style={[styles.introCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
@@ -337,26 +350,26 @@ function EditTeamScreen() {
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Team Information</Text>
           
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Team Name *</Text>
-            <TextInput
-              style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter your team name"
-              placeholderTextColor={Colors[colorScheme].mutedText}
-            />
-          </View>
+          <EditTextField
+            label="Team Name *"
+            value={name}
+            onChangeText={setName}
+            placeholder="Enter your team name"
+            textColor={Colors[colorScheme].text}
+            mutedTextColor={Colors[colorScheme].mutedText}
+            surfaceColor={Colors[colorScheme].surface}
+            borderColor={Colors[colorScheme].border}
+          />
 
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
-              <Text style={[styles.charCount, { color: description.length > 500 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+          <View style={sharedStyles.inputGroup}>
+            <View style={sharedStyles.labelRow}>
+              <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
+              <Text style={[sharedStyles.charCount, { color: description.length > 500 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
                 {description.length}/500
               </Text>
             </View>
             <TextInput
-              style={[styles.textArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              style={[sharedStyles.textArea, styles.teamTextArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
               value={description}
               onChangeText={(text) => {
                 if (text.length <= 500) {
@@ -371,22 +384,22 @@ function EditTeamScreen() {
             />
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
+          <View style={sharedStyles.inputGroup}>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
             <TextInput
-              style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              style={[sharedStyles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
               value={organizationName}
               onChangeText={setOrganizationName}
               placeholder="e.g., Duke, UNC, Stamford High School"
               placeholderTextColor={Colors[colorScheme].mutedText}
             />
-            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+            <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
               Link this team to a school or organization
             </Text>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Sport</Text>
+          <View style={sharedStyles.inputGroup}>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Sport</Text>
             <View style={[styles.selectContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContainer}>
                 {sports.map((sportOption) => (
@@ -404,8 +417,8 @@ function EditTeamScreen() {
             </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Season</Text>
+          <View style={sharedStyles.inputGroup}>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Season</Text>
             <View style={[styles.selectContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContainer}>
                 {seasons.map((seasonOption) => (
@@ -424,8 +437,8 @@ function EditTeamScreen() {
           </View>
 
           {/* Privacy Toggle */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Team Privacy</Text>
+          <View style={sharedStyles.inputGroup}>
+            <Text style={[sharedStyles.inputLabel, { color: Colors[colorScheme].text }]}>Team Privacy</Text>
             <Pressable
               style={[
                 styles.privacyToggle,
@@ -448,7 +461,7 @@ function EditTeamScreen() {
                 <Text style={[styles.privacyToggleLabel, { color: Colors[colorScheme].text }]}>
                   {isPrivate ? 'Private team' : 'Public team'}
                 </Text>
-                <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+                <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
                   {isPrivate
                     ? 'Hidden from public search. Only members, followers, and org admins can see the roster and full profile.'
                     : 'Discoverable in search. Anyone can view the team profile and follow.'}
@@ -474,29 +487,19 @@ function EditTeamScreen() {
               <MaterialIcons name="swap-horiz" size={20} color="#DC2626" />
               <Text style={styles.transferButtonText}>Transfer Ownership</Text>
             </Pressable>
-            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+            <Text style={[sharedStyles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
               Transfer team ownership to another team member. You will become a manager.
             </Text>
           </View>
         )}
 
-        {/* Submit Button */}
-        <View style={styles.submitSection}>
-          <Pressable 
-            style={[styles.submitButton, { backgroundColor: Colors[colorScheme].tint }, submitting && styles.submitButtonDisabled]} 
-            onPress={onSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <MaterialIcons name="check-circle" size={20} color="#fff" />
-                <Text style={styles.submitButtonText}>Update Team</Text>
-              </>
-            )}
-          </Pressable>
-        </View>
+        <EditScreenSubmitButton
+          label="Update Team"
+          tintColor={Colors[colorScheme].tint}
+          disabled={submitting}
+          loading={submitting}
+          onPress={onSubmit}
+        />
       </ScrollView>
 
       {/* Transfer Ownership Modal */}
@@ -515,7 +518,15 @@ function EditTeamScreen() {
             </Text>
 
             <TextInput
-              style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, marginBottom: 12 }]}
+              style={[
+                sharedStyles.textInput,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                  marginBottom: 12,
+                },
+              ]}
               value={memberSearch}
               onChangeText={setMemberSearch}
               placeholder="Search by name or email..."
@@ -613,33 +624,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  backButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
   introCard: {
     marginHorizontal: 20,
     marginBottom: 24,
@@ -723,39 +707,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  charCount: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    textAlignVertical: 'top',
-    minHeight: 80,
-  },
+  teamTextArea: { minHeight: 80 },
   selectContainer: {
     borderWidth: 1,
     borderRadius: 12,
@@ -774,30 +726,6 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 14,
     fontWeight: '500',
-  },
-  submitSection: {
-    paddingHorizontal: 20,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  fieldHint: {
-    fontSize: 13,
-    marginTop: 6,
-    fontStyle: 'italic',
   },
   privacyToggle: {
     flexDirection: 'row',

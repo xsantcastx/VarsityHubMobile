@@ -7,6 +7,31 @@ cd "$ROOT_DIR"
 
 echo "Checking regression guardrails..."
 
+# ── Conflict marker guard ─────────────────────────────────────────────────────
+# Catches git merge/stash conflict markers left in source files before commit.
+# Uses rg if available, falls back to grep.
+if command -v rg >/dev/null 2>&1; then
+  conflict_files="$(rg -l "^<<<<<<< |^>>>>>>> |^=======$" \
+    --glob '*.ts' --glob '*.tsx' --glob '*.js' --glob '*.jsx' \
+    app components hooks utils api context constants lib shared server/src \
+    2>/dev/null || true)"
+else
+  conflict_files="$(grep -rl "<<<<<<< \|>>>>>>> \|^=======$" \
+    --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
+    app components hooks utils api context constants lib shared server/src \
+    2>/dev/null || true)"
+fi
+if [ -n "$conflict_files" ]; then
+  echo ""
+  echo "ERROR: Git conflict markers found in the following files:"
+  echo "$conflict_files" | sed 's/^/  /'
+  echo ""
+  echo "Run: git stash list   (to see pending stashes)"
+  echo "     git diff --name-only   (to see all modified files)"
+  echo "Resolve all conflicts before committing."
+  exit 1
+fi
+
 check_no_matches() {
   local description="$1"
   local pattern="$2"

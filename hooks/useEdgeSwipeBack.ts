@@ -18,13 +18,19 @@ export function useEdgeSwipeBack() {
   const startedAtEdge = useSharedValue(false);
 
   const goBack = () => {
+    if (navHistory?.safeGoBack) {
+      navHistory.safeGoBack();
+      return;
+    }
+
     if (router.canGoBack()) {
       router.back();
-    } else {
-      // Use context history if available, then global getter, then tabs root
-      const fallback = navHistory?.getFallbackRoute?.() ?? getNavigationFallback();
-      router.replace(fallback as any);
+      return;
     }
+
+    // Use context history if available, then global getter, then tabs root
+    const fallback = navHistory?.getFallbackRoute?.() ?? getNavigationFallback();
+    router.replace(fallback as any);
   };
 
   const edgeSwipeGesture = Gesture.Pan()

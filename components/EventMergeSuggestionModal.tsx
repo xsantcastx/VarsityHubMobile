@@ -44,6 +44,47 @@ interface EventMergeSuggestionModalProps {
   loading?: boolean;
 }
 
+function EventSummaryCard({
+  event,
+  label,
+  labelColor,
+  backgroundColor,
+  mutedTextColor,
+  textColor,
+  formatEventDate,
+  formatLocation,
+}: {
+  event: MergeableEvent;
+  label: string;
+  labelColor: string;
+  backgroundColor: string;
+  mutedTextColor: string;
+  textColor: string;
+  formatEventDate: (date?: string) => string;
+  formatLocation: (location?: EventLocation) => string;
+}) {
+  return (
+    <View style={[styles.eventCard, { backgroundColor }]}>
+      <Text style={[styles.eventLabel, { color: labelColor }]}>{label}</Text>
+      <Text style={[styles.eventTitle, { color: textColor }]}>
+        {event.title || 'Untitled Event'}
+      </Text>
+      <View style={styles.eventDetail}>
+        <MaterialIcons name="access-time" size={14} color={mutedTextColor} />
+        <Text style={[styles.eventDetailText, { color: mutedTextColor }]}>
+          {formatEventDate(event.date)}
+        </Text>
+      </View>
+      <View style={styles.eventDetail}>
+        <MaterialIcons name="location-on" size={14} color={mutedTextColor} />
+        <Text style={[styles.eventDetailText, { color: mutedTextColor }]}>
+          {formatLocation(event.location)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export function EventMergeSuggestionModal({
   visible,
   suggestion,
@@ -188,44 +229,32 @@ export function EventMergeSuggestionModal({
 
           {/* Event Comparison */}
           <View style={styles.comparisonContainer}>
-            {/* Primary Event */}
-            <View style={[styles.eventCard, { backgroundColor: Colors[colorScheme].background }]}>
-              <Text style={[styles.eventLabel, { color: '#2563EB' }]}>Event 1</Text>
-              <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>
-                {primaryEvent.title || 'Untitled Event'}
-              </Text>
-              <View style={styles.eventDetail}>
-                <MaterialIcons name="access-time" size={14} color={theme.mutedText} />
-                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>{formatEventDate(primaryEvent.date)}</Text>
-              </View>
-              <View style={styles.eventDetail}>
-                <MaterialIcons name="location-on" size={14} color={theme.mutedText} />
-                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>{formatLocation(primaryEvent.location)}</Text>
-              </View>
-            </View>
+            <EventSummaryCard
+              event={primaryEvent}
+              label="Event 1"
+              labelColor="#2563EB"
+              backgroundColor={Colors[colorScheme].background}
+              mutedTextColor={theme.mutedText}
+              textColor={Colors[colorScheme].text}
+              formatEventDate={formatEventDate}
+              formatLocation={formatLocation}
+            />
 
             {/* Merge Icon */}
             <View style={styles.mergeIconContainer}>
               <MaterialIcons name="arrow-downward" size={24} color={theme.mutedText} />
             </View>
 
-            {/* Duplicate Event */}
-            <View style={[styles.eventCard, { backgroundColor: Colors[colorScheme].background }]}>
-              <Text style={[styles.eventLabel, { color: '#DC2626' }]}>Event 2 (Duplicate)</Text>
-              <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>
-                {duplicateEvent.title || 'Untitled Event'}
-              </Text>
-              <View style={styles.eventDetail}>
-                <MaterialIcons name="access-time" size={14} color={theme.mutedText} />
-                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>{formatEventDate(duplicateEvent.date)}</Text>
-              </View>
-              <View style={styles.eventDetail}>
-                <MaterialIcons name="location-on" size={14} color={theme.mutedText} />
-                <Text style={[styles.eventDetailText, { color: theme.mutedText }]}>
-                  {formatLocation(duplicateEvent.location)}
-                </Text>
-              </View>
-            </View>
+            <EventSummaryCard
+              event={duplicateEvent}
+              label="Event 2 (Duplicate)"
+              labelColor="#DC2626"
+              backgroundColor={Colors[colorScheme].background}
+              mutedTextColor={theme.mutedText}
+              textColor={Colors[colorScheme].text}
+              formatEventDate={formatEventDate}
+              formatLocation={formatLocation}
+            />
           </View>
 
           {/* Explanation */}

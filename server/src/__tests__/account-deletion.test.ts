@@ -98,6 +98,22 @@ async function createOAuthOnlyUser(): Promise<{ id: string; email: string; token
   return { id: user.id, email, token };
 }
 
+async function deleteAccount(token: string, body: Record<string, unknown> = {}) {
+  return request(app)
+    .post('/auth/account/delete')
+    .set('Authorization', `Bearer ${token}`)
+    .send(body);
+}
+
+async function expectUserSoftDeleted(id: string) {
+  const after = await prisma.user.findUnique({
+    where: { id },
+    select: { deleted_at: true, deletion_anonymized: true },
+  });
+  expect(after?.deleted_at).toBeTruthy();
+  expect(after?.deletion_anonymized).toBe(true);
+}
+
 afterAll(async () => {
   for (const id of createdUserIds) {
     await prisma.refreshToken.deleteMany({ where: { user_id: id } }).catch(() => {});
@@ -116,10 +132,7 @@ describe('POST /auth/account/delete', () => {
   describe('password account', () => {
     it('rejects with 400 PASSWORD_REQUIRED when password is omitted', async () => {
       const { token } = await createPasswordUser();
-      const res = await request(app)
-        .post('/auth/account/delete')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ delete_confirmation: 'DELETE' });
+      const res = await deleteAccount(token);
       expect(res.status).toBe(400);
       expect(res.body?.error).toBe('PASSWORD_REQUIRED');
     });
@@ -136,33 +149,20 @@ describe('POST /auth/account/delete', () => {
 
     it('rejects with 401 INVALID_PASSWORD when password is wrong', async () => {
       const { token } = await createPasswordUser();
-      const res = await request(app)
-        .post('/auth/account/delete')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ password: WRONG_PASSWORD, delete_confirmation: 'DELETE' });
+      const res = await deleteAccount(token, { password: WRONG_PASSWORD });
       expect(res.status).toBe(401);
       expect(res.body?.error).toBe('INVALID_PASSWORD');
     });
 
     it('soft-deletes + anonymizes the user with correct password and blocks subsequent login', async () => {
       const { id, email, token } = await createPasswordUser();
-
-      const res = await request(app)
-        .post('/auth/account/delete')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
+      const res = await deleteAccount(token, { password: PASSWORD });
 
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
       expect(typeof res.body?.deleted_at).toBe('string');
 
-      // Direct DB inspection — anonymization flags actually set.
-      const after = await prisma.user.findUnique({
-        where: { id },
-        select: { deleted_at: true, deletion_anonymized: true },
-      });
-      expect(after?.deleted_at).toBeTruthy();
-      expect(after?.deletion_anonymized).toBe(true);
+      await expectUserSoftDeleted(id);
 
       // Subsequent login attempt with original credentials must NOT succeed —
       // the email may have been anonymized or the password_hash cleared.
@@ -172,40 +172,21 @@ describe('POST /auth/account/delete', () => {
 
     it('allows an unverified password account to self-delete', async () => {
       const { id, token } = await createUnverifiedPasswordUser();
-
-      const res = await request(app)
-        .post('/auth/account/delete')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
+      const res = await deleteAccount(token, { password: PASSWORD });
 
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
-
-      const after = await prisma.user.findUnique({
-        where: { id },
-        select: { deleted_at: true, deletion_anonymized: true },
-      });
-      expect(after?.deleted_at).toBeTruthy();
-      expect(after?.deletion_anonymized).toBe(true);
+      await expectUserSoftDeleted(id);
     });
   });
 
   describe('OAuth-only account', () => {
     it('soft-deletes without requiring a password (no password_hash on file)', async () => {
       const { id, token } = await createOAuthOnlyUser();
-      const res = await request(app)
-        .post('/auth/account/delete')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ delete_confirmation: 'DELETE' });
+      const res = await deleteAccount(token);
       expect(res.status).toBe(200);
       expect(res.body?.ok).toBe(true);
-
-      const after = await prisma.user.findUnique({
-        where: { id },
-        select: { deleted_at: true, deletion_anonymized: true },
-      });
-      expect(after?.deleted_at).toBeTruthy();
-      expect(after?.deletion_anonymized).toBe(true);
+      await expectUserSoftDeleted(id);
     });
   });
 
@@ -213,20 +194,14 @@ describe('POST /auth/account/delete', () => {
     it('returns 200 with already_deleted=true on a second call', async () => {
       const { token } = await createPasswordUser();
 
-      const first = await request(app)
-        .post('/auth/account/delete')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
+      const first = await deleteAccount(token, { password: PASSWORD });
       expect(first.status).toBe(200);
 
       // Second call uses the same token. The token MAY be invalidated post-
       // delete (session_epoch bump etc.) — accept either 401 (token killed)
       // OR 200 with already_deleted (account already gone). Both are correct
       // observable outcomes.
-      const second = await request(app)
-        .post('/auth/account/delete')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ password: PASSWORD, delete_confirmation: 'DELETE' });
+      const second = await deleteAccount(token, { password: PASSWORD });
 
       if (second.status === 200) {
         expect(second.body?.already_deleted).toBe(true);

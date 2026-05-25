@@ -1,6 +1,10 @@
 import * as Sentry from '@sentry/node';
 import crypto from 'node:crypto';
 import type { Express, Request } from 'express';
+import {
+  SENSITIVE_SENTRY_KEY_RE as SENSITIVE_BREADCRUMB_KEY_RE,
+  normalizeSentryBreadcrumbData,
+} from '../../../shared/runtime/sentrySanitization.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -8,8 +12,6 @@ const debugLog = (...args: Parameters<typeof console.log>) => {
   }
 };
 
-const SENSITIVE_BREADCRUMB_KEY_RE = /password|secret|token|authorization|cookie|email|phone|code/i;
-const MAX_BREADCRUMB_VALUE_LENGTH = 160;
 const SERVER_SERVICE_TAG = 'server';
 
 // Strip ID-like path segments so `route` stays low-cardinality enough to
@@ -166,42 +168,6 @@ export function clearUserContext() {
   Sentry.setUser(null);
 }
 
-function normalizeBreadcrumbValue(value: unknown): string {
-  if (value == null) return 'null';
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'non-finite';
-  if (typeof value === 'string') {
-    return value.length > MAX_BREADCRUMB_VALUE_LENGTH
-      ? `${value.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
-      : value;
-  }
-  if (Array.isArray(value)) {
-    return `[${value.slice(0, 5).map((item) => normalizeBreadcrumbValue(item)).join(', ')}${value.length > 5 ? ', ...' : ''}]`;
-  }
-  try {
-    const serialized = JSON.stringify(value);
-    if (!serialized) return 'empty-object';
-    return serialized.length > MAX_BREADCRUMB_VALUE_LENGTH
-      ? `${serialized.slice(0, MAX_BREADCRUMB_VALUE_LENGTH)}...`
-      : serialized;
-  } catch {
-    return '[unserializable]';
-  }
-}
-
-function normalizeBreadcrumbData(data?: Record<string, any>) {
-  if (!data) return undefined;
-
-  const normalized: Record<string, string> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (typeof value === 'undefined') continue;
-    normalized[key] = SENSITIVE_BREADCRUMB_KEY_RE.test(key)
-      ? '[redacted]'
-      : normalizeBreadcrumbValue(value);
-  }
-  return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
-
 function applyScopeTags(scope: Sentry.Scope, context: Record<string, any>) {
   scope.setTag('service', SERVER_SERVICE_TAG);
 
@@ -268,6 +234,6 @@ export function addBreadcrumb(message: string, category: string = 'custom', leve
     message,
     category,
     level,
-    data: normalizeBreadcrumbData(data),
+    data: normalizeSentryBreadcrumbData(data),
   });
 }

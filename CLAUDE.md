@@ -113,6 +113,22 @@ rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/prov
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 ```
 
+## Git Workflow
+
+**Never run `git stash apply` directly** — use `npm run stash:apply` instead. This applies the stash and immediately scans for unresolved conflict markers, listing every affected file with block counts.
+
+**Before committing**, run `npm run check:conflicts` to ensure no `<<<<<<<` markers are present in source files. The pre-commit hook (`scripts/verify-guardrails.sh`) also enforces this automatically.
+
+**Format before commit**: `npm run format` runs prettier across all source directories. The pre-commit hook (lint-staged) auto-formats staged files, but running it manually first avoids surprises.
+
+**Quick checks before pushing to main**:
+```bash
+npm run check:conflicts         # no merge/stash markers
+npm run format:check            # all files prettier-clean
+npx tsc --noEmit --project server/tsconfig.json  # server TypeScript
+npm run verify:error-envelope   # no raw res.status().json()
+```
+
 ## Known Quirks
 
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production
@@ -135,6 +151,38 @@ grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 - Teams MUST have `organization_id` — no orphaned teams
 - Run `npx tsc --noEmit --project server/tsconfig.json` after backend changes
 - Test scripts go in `server/scripts/` — never in `src/`
+
+## Security Invariants (Do Not Break)
+
+- **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
+- **Backend validation is law** — frontend validation is UX only; never rely on client-side checks for security
+- **One source of truth per domain object** — plan from `getCanonicalPlan()`, membership from DB, approval from `AdminActivityLog`
+- **Every protected route must check**: authentication → role → plan → ownership (server-side, not client)
+- **IDOR guard on self-action**: users must never approve/reject/modify their own pending requests
+- **Deep link params use allowlist** — `buildRouteParams()` in `utils/deepLinks.ts` enforces per-route key allowlists; do not bypass
+- **Webhook lock failures return 503** (not 500) so Stripe retries instead of marking failed
+- **Apple IAP cert chain must pin to `CN=Apple Root CA - G3`** exactly — loose substring match is not acceptable
+- **Org invite role escalation**: only owners can invite at `manager` role; managers may only invite `member`
+- **Payment-success inner catch must surface non-auth errors on final retry** — no silent swallowing
+
+## Audit Checklist (Run Before Each PR)
+
+```bash
+# TypeScript errors (server)
+npx tsc --noEmit --project server/tsconfig.json 2>&1 | tail -5
+
+# TypeScript errors (client)
+npx tsc --noEmit 2>&1 | tail -5
+
+# Unbounded queries
+grep -rn "findMany" server/src/ --include="*.ts" | grep -v "take"
+
+# Missing requireAuth on routes using req.user
+grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
+
+# Direct sgMail usage outside providers
+rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/providers/**'
+```
 
 ## Working Style
 

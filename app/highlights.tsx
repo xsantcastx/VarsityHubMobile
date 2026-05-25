@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
-import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { getAuthSnapshot } from '@/utils/authState';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,8 +11,6 @@ import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-let VideoThumbnails: any = null;
-try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 import {
     ActivityIndicator,
     Alert,
@@ -29,6 +27,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+let VideoThumbnails: any = null;
+try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 // @ts-ignore legacy export shape
 import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
@@ -348,7 +348,7 @@ function HighlightsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -372,7 +372,7 @@ function HighlightsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const me: any = await getAuthSnapshot(checkAuth, authUser).catch((error: any) => {
+      const me: any = await getAuthSnapshot(checkAuth, user).catch((error: any) => {
         if (__DEV__) {
           if (__DEV__) console.warn('[Highlights] Failed to load user:', error?.message || error);
         }
@@ -436,7 +436,7 @@ function HighlightsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [authUser, checkAuth, postCache]);
+  }, [checkAuth, postCache, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

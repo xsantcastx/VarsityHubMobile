@@ -21,7 +21,7 @@ export default function ReportAbuseScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('Report abuse');
@@ -35,7 +35,7 @@ export default function ReportAbuseScreen() {
     let canceled = false;
     void (async () => {
       try {
-        const me: any = await getAuthSnapshot(checkAuth, authUser);
+        const me: any = ((await checkAuth().catch(() => null)) ?? user) as any;
         if (canceled) return;
         if (typeof me?.display_name === 'string') {
           setName((prev) => prev || me.display_name);
@@ -50,7 +50,7 @@ export default function ReportAbuseScreen() {
     return () => {
       canceled = true;
     };
-  }, [authUser, checkAuth]);
+  }, [checkAuth, user]);
 
   const canSubmit = useMemo(() => {
     return Boolean(subject.trim() && details.trim() && email.trim());

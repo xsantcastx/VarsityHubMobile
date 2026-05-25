@@ -16,7 +16,6 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import bcrypt from 'bcrypt';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 
@@ -38,6 +37,7 @@ import { reportsRouter } from '../routes/reports.js';
 import { supportRouter } from '../routes/support.js';
 import { prisma } from '../lib/prisma.js';
 import { signJwt } from '../lib/jwt.js';
+import { createTestUser } from './helpers/createTestUser.js';
 
 const fullApp = express();
 fullApp.use(express.json());
@@ -97,34 +97,19 @@ async function createUser(
   role: 'fan' | 'coach',
   plan?: 'rookie' | 'veteran' | 'legend',
 ) {
-  const hash = await bcrypt.hash(PASSWORD, 10);
-  const preferences: any = { role, onboarding_completed: true };
-  if (plan) preferences.plan = plan;
-  if (role === 'coach') {
-    preferences.coach_agreement_accepted_at = new Date().toISOString();
-  }
-  const user = await prisma.user.create({
-    data: {
-      email,
-      password_hash: hash,
-      display_name: displayName,
-      username:
-        role === 'coach'
-          ? uniqueUsername(
-              `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6)}_`,
-            )
-          : undefined,
-      email_verified: true,
-      // Mirror role + onboarding to canonical columns; canonical readers
-      // prefer the column over preferences JSON, and the column defaults
-      // to (fan, false), so prefs-only fixtures get misread as fan/incomplete.
-      role,
-      onboarding_completed: true,
-      ...(role === 'coach' ? { approval_status: 'APPROVED' } : {}),
-      preferences,
-    },
+  return createTestUser({
+    prisma,
+    signJwt,
+    password: PASSWORD,
+    email,
+    displayName,
+    role,
+    plan,
+    username:
+      role === 'coach'
+        ? uniqueUsername(`${displayName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 6)}_`)
+        : undefined,
   });
-  return { id: user.id as string, token: signJwt({ id: user.id }) as string };
 }
 
 type Verdict = 'GRANTED' | 'DENIED' | 'CRASHED' | 'NOT_FOUND';

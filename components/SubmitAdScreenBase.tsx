@@ -1,6 +1,11 @@
 import settings from '@/api/settings';
 import { httpGet } from '@/api/http';
 import { Advertisement as AdsApi } from '@/api/entities';
+import {
+  AdFormHeader,
+  AdFormPrimaryCta,
+  adFormSharedStyles as sharedStyles,
+} from '@/components/AdFormShared';
 import { BannerUpload } from '@/components/BannerUpload';
 import { ReachMapPreview } from '@/components/ReachMapPreview';
 import { AD_GEOFENCE_RADIUS_KM } from '@/constants/adGeofencing';
@@ -216,7 +221,7 @@ export function SubmitAdScreenBase({
   const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={safeAreaEdges}>
+    <SafeAreaView style={[sharedStyles.container, { backgroundColor: theme.background }]} edges={safeAreaEdges}>
       <Stack.Screen
         options={{
           title: 'Submit Ad',
@@ -230,58 +235,58 @@ export function SubmitAdScreenBase({
       />
       <ScrollView
         scrollEnabled={scrollEnabled}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
+        contentContainerStyle={[sharedStyles.scrollContent, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
       >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>Submit a Local Ad</Text>
-          <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            Promote your business to local teams and families. Submit your ad creative for review first, then book dates after approval.
-          </Text>
-        </View>
+        <AdFormHeader
+          title="Submit a Local Ad"
+          subtitle="Promote your business to local teams and families. Submit your ad creative for review first, then book dates after approval."
+          textColor={theme.text}
+          mutedTextColor={theme.mutedText}
+        />
 
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.label, { color: theme.text }]}>Your Name *</Text>
+        <View style={[sharedStyles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[sharedStyles.label, { color: theme.text }]}>Your Name *</Text>
           <TextInput
             value={name}
             onChangeText={setName}
             placeholder="Jane Doe"
-            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
             placeholderTextColor={theme.mutedText}
             autoCapitalize="words"
             maxLength={200}
           />
 
-          <Text style={[styles.label, { color: theme.text }]}>Email Address *</Text>
+          <Text style={[sharedStyles.label, { color: theme.text }]}>Email Address *</Text>
           <TextInput
             value={email}
             onChangeText={setEmail}
             placeholder="you@business.com"
-            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
             placeholderTextColor={theme.mutedText}
             keyboardType="email-address"
             autoCapitalize="none"
             maxLength={320}
           />
 
-          <Text style={[styles.label, { color: theme.text }]}>Business Name *</Text>
+          <Text style={[sharedStyles.label, { color: theme.text }]}>Business Name *</Text>
           <TextInput
             value={business}
             onChangeText={setBusiness}
             placeholder="Downtown Pizza & Grill"
-            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
             placeholderTextColor={theme.mutedText}
           />
 
-          <Text style={[styles.label, { color: theme.text }]}>Target Zip Code *</Text>
+          <Text style={[sharedStyles.label, { color: theme.text }]}>Target Zip Code *</Text>
           <TextInput
             value={zip}
             onChangeText={setZip}
             placeholder="12345"
-            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
             placeholderTextColor={theme.mutedText}
             keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
             maxLength={12}
@@ -289,7 +294,7 @@ export function SubmitAdScreenBase({
 
           {showReachPreview ? <ReachMapPreview zipCode={zip} radiusKm={AD_GEOFENCE_RADIUS_KM} /> : null}
 
-          <Text style={[styles.label, { color: theme.text }]}>Ad Banner *</Text>
+          <Text style={[sharedStyles.label, { color: theme.text }]}>Ad Banner *</Text>
           <BannerUpload
             value={bannerUrl || ''}
             onChange={handleBannerChange}
@@ -299,32 +304,32 @@ export function SubmitAdScreenBase({
             uploadFormFields={{ purpose: 'ad_banner' }}
           />
           {!bannerUrl ? (
-            <Text style={[styles.muted, { color: theme.mutedText }]}>Banner image is required for your ad</Text>
+            <Text style={[sharedStyles.muted, { color: theme.mutedText }]}>Banner image is required for your ad</Text>
           ) : null}
 
-          <Text style={[styles.label, { color: theme.text }]}>Website Link *</Text>
+          <Text style={[sharedStyles.label, { color: theme.text }]}>Website Link *</Text>
           <TextInput
             value={targetUrl}
             onChangeText={setTargetUrl}
             placeholder="https://yourwebsite.com"
-            style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
+            style={[sharedStyles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
             placeholderTextColor={theme.mutedText}
             keyboardType="url"
             autoCapitalize="none"
             autoCorrect={false}
           />
           {targetUrl.trim() ? (
-            <Text style={[styles.helperText, { color: theme.mutedText }]}>🔗 Users can tap your ad to visit this website</Text>
+            <Text style={[sharedStyles.helperText, { color: theme.mutedText }]}>🔗 Users can tap your ad to visit this website</Text>
           ) : null}
 
-          <Text style={[styles.label, { color: theme.text }]}>Description (Optional)</Text>
+          <Text style={[sharedStyles.label, { color: theme.text }]}>Description (Optional)</Text>
           <TextInput
             value={desc}
             onChangeText={setDesc}
             placeholder="Tell us about your business or message..."
             style={[
-              styles.input,
-              styles.textArea,
+              sharedStyles.input,
+              sharedStyles.textArea,
               { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
             ]}
             placeholderTextColor={theme.mutedText}
@@ -335,90 +340,16 @@ export function SubmitAdScreenBase({
           />
         </View>
 
-        <Pressable onPress={submit} disabled={!canSubmit || busy} style={[styles.cta, (!canSubmit || busy) && styles.ctaDisabled]}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>📅 Continue to Calendar</Text>}
-        </Pressable>
+        <AdFormPrimaryCta
+          label="📅 Continue to Calendar"
+          onPress={submit}
+          disabled={!canSubmit || busy}
+          loading={busy}
+        />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 12,
-    marginBottom: 20,
-  },
-  label: {
-    fontWeight: '700',
-    fontSize: 15,
-    marginBottom: 6,
-  },
-  input: {
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    letterSpacing: 0,
-  },
-  textArea: {
-    height: 100,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  helperText: {
-    fontSize: 13,
-    marginTop: -4,
-    marginBottom: 4,
-  },
-  muted: {
-    fontSize: 13,
-    marginTop: -4,
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  cta: {
-    height: 52,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#111827',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  ctaDisabled: {
-    opacity: 0.5,
-  },
-  ctaText: {
-    color: 'white',
-    fontWeight: '800',
-    fontSize: 17,
-    letterSpacing: 0.3,
-  },
 });

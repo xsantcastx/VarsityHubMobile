@@ -1,16 +1,17 @@
 import { Organization } from '@/api/entities';
+import { screenHeaderSharedStyles } from '@/components/ScreenHeaderShared';
 import { useAuth } from '@/context/AuthProvider';
-import { getOrganizationAccess } from '@/utils/roleChecks';
-import { getFreshAuthSnapshot } from '@/utils/authState';
-import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
+import { safeGoBack } from '@/utils/navigation';
+import { getOrganizationAccess } from '@/utils/roleChecks';
 import { captureException } from '@/utils/sentry';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { safeGoBack } from '@/utils/navigation';
+import { Colors } from '@/constants/Colors';
 
 /** API returns OrganizationJoinRequest (user-based coach requests) */
 type ApiJoinRequest = {
@@ -40,10 +41,10 @@ type JoinRequest = {
 };
 
 function OrganizationJoinRequestsScreen() {
-  const { user: authUser, checkAuth } = useAuth();
-  const colorScheme = useCustomColorScheme();
-  const theme = Colors[colorScheme];
+  const { user, checkAuth } = useAuth();
   const router = useRouter();
+  const colorScheme = useCustomColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const params = useLocalSearchParams<{
     organization_id: string;
     organization_name?: string;
@@ -91,7 +92,7 @@ function OrganizationJoinRequestsScreen() {
       // user is currently allowed to review coach requests BEFORE loading
       // any data. Mirrors the server owner-only gate on the review routes.
       const [currentUser, members] = await Promise.all([
-        getFreshAuthSnapshot(checkAuth, authUser).catch(() => null),
+        getAuthSnapshot(checkAuth, user).catch(() => null),
         Organization.members(params.organization_id).catch(() => []),
       ]);
       if (!getOrganizationAccess(currentUser as any, Array.isArray(members) ? members : []).isOwner) {
@@ -125,7 +126,7 @@ function OrganizationJoinRequestsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [authUser, checkAuth, params.organization_id, params.organization_name, filter]);
+  }, [checkAuth, filter, params.organization_id, params.organization_name, user]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -502,23 +503,9 @@ function OrganizationJoinRequestsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: screenHeaderSharedStyles.container,
+  header: screenHeaderSharedStyles.header,
+  backButton: screenHeaderSharedStyles.backButtonCentered,
   headerTextContainer: {
     flex: 1,
     alignItems: 'center',

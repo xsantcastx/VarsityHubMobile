@@ -1,11 +1,12 @@
+import type { PrismaClient } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import type { AuthedRequest } from '../middleware/auth.js';
-import type { PrismaClient } from '@prisma/client';
 import { verifyStoryPostingPermission } from '../lib/geofencing.js';
 import { getVideoPreviewUrl } from '../lib/mediaUtils.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 export const isVideoUrl = (url?: string | null) => {
   if (!url) return false;
@@ -47,8 +48,23 @@ const locationSchema = z
   .optional();
 
 const storySchema = z.object({
-  media_url: z.string().min(1),
-  caption: z.string().optional(),
+  media_url: z
+    .string()
+    .url({ message: 'media_url must be a valid URL' })
+    .refine(
+      url => {
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== 'https:') return false;
+          const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+          return allowed.some(d => parsed.hostname.endsWith(d));
+        } catch {
+          return false;
+        }
+      },
+      { message: 'media_url must be an HTTPS Cloudinary or VarsityHub CDN URL' }
+    ),
+  caption: z.string().max(500).optional(),
   location: locationSchema,
 });
 
@@ -313,7 +329,7 @@ export const makeCreateStoryHandler =
       game_id: id,
       user_id: req.user.id,
       media_url: parsed.data.media_url,
-      caption: parsed.data.caption,
+      caption: parsed.data.caption ? stripHtml(parsed.data.caption) : undefined,
       // No expires_at — stories persist forever once posted.
     };
     if (typeof lat === 'number') createData.lat = lat;

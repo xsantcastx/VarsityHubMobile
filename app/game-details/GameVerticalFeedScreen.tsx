@@ -1,42 +1,42 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
 import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
-import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
+import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
-import { useEventListener } from 'expo';
 import { useFocusEffect } from '@react-navigation/native';
+import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
 import { Game, Highlights, Post, Report, User } from '@/api/entities';
+import { httpGet } from '@/api/http';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
-import { httpGet } from '@/api/http';
 import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
@@ -235,8 +235,10 @@ const FeedCard = memo(
     onPrev: () => void;
     onNext: () => void;
   }) => {
+    const { user, checkAuth } = useAuth();
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
+    const [currentUser, setCurrentUser] = useState<any>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -256,6 +258,19 @@ const FeedCard = memo(
         if (deleteTimer) clearTimeout(deleteTimer);
       };
     }, []);
+
+    // Load current user
+    useEffect(() => {
+      const loadUser = async () => {
+        try {
+          const currentUser = await getAuthSnapshot(checkAuth, user);
+          setCurrentUser(currentUser);
+        } catch (error) {
+          if (__DEV__) console.error('Failed to load user:', error);
+        }
+      };
+      void loadUser();
+    }, [checkAuth, user]);
 
     // Check if current user is the author of the post
     const isAuthor = Boolean(meInfo?.id && post.author?.id && meInfo.id === post.author.id);
@@ -672,11 +687,11 @@ function GameVerticalFeedScreen({
   excludeMediaUrls = [],
   title,
 }: GameVerticalFeedScreenProps = {}) {
+  const { user, checkAuth } = useAuth();
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user: authUser, checkAuth } = useAuth();
   const gameId = externalGameId ? String(externalGameId) : gameIdParam ? String(gameIdParam) : null;
   const usingInitial = useMemo(
     () => Array.isArray(initialPosts) && initialPosts.length > 0,
@@ -739,6 +754,16 @@ function GameVerticalFeedScreen({
     display_name?: string | null;
     username?: string | null;
   } | null>(null);
+  const resolveMeInfo = useCallback(async () => {
+    const me: any = await getAuthSnapshot(checkAuth, user);
+    return me
+      ? {
+          id: me?.id ? String(me.id) : undefined,
+          display_name: me?.display_name ?? null,
+          username: me?.username ?? null,
+        }
+      : null;
+  }, [checkAuth, user]);
   const headerTitle = title || game?.title || 'Game';
 
   // Store VideoPlayer instances by post id
@@ -1239,8 +1264,8 @@ function GameVerticalFeedScreen({
         // Load current user info (for display name) if missing
         if (!meInfo) {
           try {
-            const me: any = await getAuthSnapshot(checkAuth, authUser);
-            setMeInfo({ id: me?.id ? String(me.id) : undefined, username: me?.username ?? null });
+            const me = await resolveMeInfo();
+            setMeInfo(me ? { ...me } : null);
           } catch (error: any) {
             if (__DEV__) {
               if (__DEV__)
@@ -1259,7 +1284,7 @@ function GameVerticalFeedScreen({
         setCommentsLoading(false);
       }
     },
-    [authUser, checkAuth, meInfo]
+    [meInfo, resolveMeInfo]
   );
 
   const loadMoreComments = useCallback(async () => {
@@ -1387,13 +1412,9 @@ function GameVerticalFeedScreen({
     let cancelled = false;
     void (async () => {
       try {
-        const me: any = await getAuthSnapshot(checkAuth, authUser);
+        const me = await resolveMeInfo();
         if (!cancelled && me) {
-          setMeInfo({
-            id: me?.id ? String(me.id) : undefined,
-            display_name: me?.display_name ?? null,
-            username: me?.username ?? null,
-          });
+          setMeInfo(me);
         }
       } catch (error) {
         // User info load failed - non-critical for feed viewing
@@ -1403,7 +1424,7 @@ function GameVerticalFeedScreen({
     return () => {
       cancelled = true;
     };
-  }, [authUser, checkAuth]);
+  }, [resolveMeInfo]);
 
   // Note: We allow missing gameId - the component will load general highlights instead
   // The loadFeed function handles this case gracefully (lines 612-642)

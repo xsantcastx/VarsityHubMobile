@@ -3,24 +3,26 @@ import * as ExpoLinking from 'expo-linking';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Animated,
+    Linking,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Advertisement, Payments, User } from '@/api/entities';
+import { Advertisement, Payments } from '@/api/entities';
+// @ts-ignore
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getAdScheduleBucket } from '@/utils/adStatusBadge';
+import { getAuthSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { setPendingDeepLink } from '@/utils/deepLinks';
 import { safeGoBack } from '@/utils/navigation';
@@ -36,7 +38,7 @@ type AdDetails = {
 
 function PaymentSuccessScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const { width } = useWindowDimensions();
@@ -102,7 +104,8 @@ function PaymentSuccessScreen() {
   };
 
   const hasActivePremiumPlan = async () => {
-    const me = await User.me({ force: true });
+    const me = await getAuthSnapshot(checkAuth, user);
+    if (!me) return false;
     const billing = getCanonicalBillingState(me);
     return (
       (billing.plan === 'veteran' || billing.plan === 'legend') &&
@@ -192,6 +195,15 @@ function PaymentSuccessScreen() {
             );
             return;
           }
+          // Non-auth error (network, 5xx) — surface to user immediately on last attempt
+          // instead of silently falling through to the polling retry loop.
+          const currentMax = isAdPayment ? adMaxAttempts : maxAttempts;
+          if (verificationAttempt >= currentMax - 1) {
+            if (!mounted) return;
+            setError('We could not reach the server to confirm your payment. Please check your connection and try again.');
+            setLoading(false);
+            return;
+          }
         }
 
         if (!mounted) return;
@@ -231,6 +243,14 @@ function PaymentSuccessScreen() {
               if (!mounted) return;
               setShowSignInAction(true);
               setError('Your purchase may have completed, but we need you to sign in with the purchasing account to confirm the subscription.');
+              setLoading(false);
+              return;
+            }
+            // Non-auth error on last attempt — surface to user
+            const currentMax = maxAttempts;
+            if (verificationAttempt >= currentMax - 1) {
+              if (!mounted) return;
+              setError('We could not reach the server to confirm your subscription. Please check your connection and try again.');
               setLoading(false);
               return;
             }

@@ -1,11 +1,12 @@
 import { useAuth } from '@/context/AuthProvider';
+import { inboxHeaderSharedStyles } from '@/components/InboxHeaderShared';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { safeGoBack } from '@/utils/navigation';
-import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Notification, User } from '@/api/entities';
@@ -270,33 +271,9 @@ function NotificationsScreen() {
 
 const S = StyleSheet.create({
   container: { flex: 1 },
-  headerGradient: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.05)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-        }),
-    elevation: 2,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-  },
+  headerGradient: inboxHeaderSharedStyles.headerGradient,
+  headerRow: inboxHeaderSharedStyles.headerRow,
+  backButton: inboxHeaderSharedStyles.backButton,
   topTitle: { fontSize: 20, fontWeight: '800', flex: 1, textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },

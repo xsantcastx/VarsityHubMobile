@@ -1,97 +1,46 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
-import bcrypt from 'bcrypt';
-import type { ObjectStorageAdapter } from '../lib/objectStorage.js';
+import { describe, expect, it, jest } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
-
-class MockObjectStorageNotConfiguredError extends Error {}
-
-let currentStorage: ObjectStorageAdapter = {
-  isConfigured: () => false,
-  async putObject() {
-    throw new Error('storage not configured');
-  },
-  async getSignedDownloadUrl() {
-    throw new Error('storage not configured');
-  },
-  async deleteObject() {
-    return;
-  },
-};
+import {
+  makeFakeStorage,
+  MockObjectStorageNotConfiguredError,
+  setupDataExportUserLifecycle,
+  storageState,
+} from './helpers/dataExportTestUtils.js';
 
 jest.unstable_mockModule('../lib/objectStorage.js', () => ({
-  getObjectStorageAdapter: () => currentStorage,
+  getObjectStorageAdapter: () => storageState.current,
   ObjectStorageNotConfiguredError: MockObjectStorageNotConfiguredError,
 }));
 
 const { processExportJob } = await import('../workers/dataExportWorker.js');
 
-const ts = Date.now();
 const PASSWORD = 'TestPassword123!';
-
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkip = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
 const describeDb = shouldSkip ? describe.skip : describe;
 
-function makeFakeStorage(opts: { configured?: boolean } = {}): {
-  adapter: ObjectStorageAdapter;
-  puts: Array<{ key: string; contentType: string; sizeBytes: number }>;
-} {
-  const puts: Array<{ key: string; contentType: string; sizeBytes: number }> = [];
-  return {
-    puts,
-    adapter: {
-      isConfigured: () => opts.configured !== false,
-      async putObject(key: string, body: Buffer, contentType: string) {
-        puts.push({
-          key,
-          contentType,
-          sizeBytes: Buffer.isBuffer(body) ? body.byteLength : 0,
-        });
-      },
-      async getSignedDownloadUrl(key: string, ttlSeconds = 300) {
-        return `https://fake-storage.test/${key}?ttl=${ttlSeconds}&sig=fake`;
-      },
-      async deleteObject() {
-        return;
-      },
-    } satisfies ObjectStorageAdapter,
-  };
-}
-
 describeDb('GDPR data export — worker', () => {
-  let userId: string;
-
-  beforeAll(async () => {
-    const hash = await bcrypt.hash(PASSWORD, 10);
-    const user = await prisma.user.create({
-      data: {
-        email: `export-worker-${ts}@example.com`,
-        password_hash: hash,
-        display_name: 'Worker Test User',
-        email_verified: true,
-        approval_status: 'APPROVED',
-        preferences: { role: 'fan', onboarding_completed: true },
-      },
-    });
-    userId = user.id;
+  const { getUserId } = setupDataExportUserLifecycle({
+    emailPrefix: 'export-worker',
+    displayName: 'Worker Test User',
+    password: PASSWORD,
   });
 
-  afterAll(async () => {
-    await prisma.user.delete({ where: { id: userId } }).catch(() => {});
-  });
-
-  afterEach(async () => {
-    await (prisma as any).dataExport.deleteMany({ where: { user_id: userId } });
-    currentStorage = makeFakeStorage({ configured: false }).adapter;
-  });
-
-  it('builds ZIP, uploads via storage adapter, flips row to ready', async () => {
-    const fake = makeFakeStorage({ configured: true });
-    currentStorage = fake.adapter;
-
-    const row = await (prisma as any).dataExport.create({
+  const createPendingExport = async (userId: string) =>
+    (prisma as any).dataExport.create({
       data: { user_id: userId, status: 'pending' },
     });
+
+  const setupExportJob = async (configured: boolean) => {
+    const fake = makeFakeStorage({ configured });
+    storageState.current = fake.adapter;
+    const userId = getUserId();
+    const row = await createPendingExport(userId);
+    return { fake, userId, row };
+  };
+
+  it('builds ZIP, uploads via storage adapter, flips row to ready', async () => {
+    const { fake, userId, row } = await setupExportJob(true);
 
     await processExportJob({
       data: { exportId: row.id, userId },
@@ -115,12 +64,7 @@ describeDb('GDPR data export — worker', () => {
   });
 
   it('flips to failed with storage_not_configured when adapter is unconfigured', async () => {
-    const fake = makeFakeStorage({ configured: false });
-    currentStorage = fake.adapter;
-
-    const row = await (prisma as any).dataExport.create({
-      data: { user_id: userId, status: 'pending' },
-    });
+    const { fake, userId, row } = await setupExportJob(false);
 
     await processExportJob({
       data: { exportId: row.id, userId },
@@ -136,12 +80,7 @@ describeDb('GDPR data export — worker', () => {
   });
 
   it('flips to failed with job_user_mismatch when payload user does not match row', async () => {
-    const fake = makeFakeStorage({ configured: true });
-    currentStorage = fake.adapter;
-
-    const row = await (prisma as any).dataExport.create({
-      data: { user_id: userId, status: 'pending' },
-    });
+    const { fake, userId, row } = await setupExportJob(true);
 
     await processExportJob({
       data: { exportId: row.id, userId: `wrong-${userId}` },
@@ -156,12 +95,7 @@ describeDb('GDPR data export — worker', () => {
   });
 
   it('is idempotent: a second invocation on a ready row does not rebuild or overwrite', async () => {
-    const fake = makeFakeStorage({ configured: true });
-    currentStorage = fake.adapter;
-
-    const row = await (prisma as any).dataExport.create({
-      data: { user_id: userId, status: 'pending' },
-    });
+    const { fake, userId, row } = await setupExportJob(true);
 
     await processExportJob({
       data: { exportId: row.id, userId },

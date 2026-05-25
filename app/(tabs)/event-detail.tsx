@@ -1,29 +1,29 @@
-import { useAuth } from '@/context/AuthProvider';
 import { BackHeader } from '@/components/ui/BackHeader';
+import { useAuth } from '@/context/AuthProvider';
+import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme,
+    ActivityIndicator,
+    Alert,
+    Linking,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { useShareLink } from '@/hooks/useShareLink';
-import { getAuthSnapshot } from '@/utils/authState';
+import { Image } from 'expo-image';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
-import { Image } from 'expo-image';
-import { Colors } from '@/constants/Colors';
 
 type EventItem = {
   id: string | number;
@@ -38,7 +38,7 @@ type EventItem = {
 };
 
 export default function EventDetailScreen() {
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -97,11 +97,12 @@ export default function EventDetailScreen() {
 
       // Load user and RSVP status in parallel (best-effort, don't block render)
       try {
-        const [user, status]: any = await Promise.all([
-          getAuthSnapshot(checkAuth, authUser).catch(() => null),
+        const [currentUser, status]: any = await Promise.all([
+          getAuthSnapshot(checkAuth, user).catch(() => null),
+
           Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
         ]);
-        setMe(user);
+        setMe(currentUser);
         setRsvped(!!(status?.attending ?? status?.going));
         setAttendeesCount(Number(status?.count || data?.attendees_count || data?.rsvp_count || 0));
       } catch (e: any) {
@@ -112,7 +113,7 @@ export default function EventDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [authUser, checkAuth, id]);
+  }, [checkAuth, id, user]);
 
   useEffect(() => {
     void load();
@@ -142,19 +143,24 @@ export default function EventDetailScreen() {
     contextLines: eventShareContext,
   });
 
-  const toggleRsvp = async () => {
-    if (!event || rsvping) return;
+  const ensureRsvpAllowed = () => {
     if (eventHasPassed) {
       Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
-      return;
+      return false;
     }
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Sign In', onPress: routeToSignIn },
       ]);
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const toggleRsvp = async () => {
+    if (!event || rsvping) return;
+    if (!ensureRsvpAllowed()) return;
     setRsvping(true);
     try {
       const res = await Event.rsvp(String(event.id), !rsvped);
@@ -186,17 +192,7 @@ export default function EventDetailScreen() {
   };
 
   const handleRsvpPress = () => {
-    if (eventHasPassed) {
-      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
-      return;
-    }
-    if (!me) {
-      Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign In', onPress: routeToSignIn },
-      ]);
-      return;
-    }
+    if (!ensureRsvpAllowed()) return;
     setRsvpSheetVisible(true);
   };
 

@@ -7,6 +7,10 @@ ANDROID_DIR="$PROJECT_ROOT/android"
 GRADLEW="$ANDROID_DIR/gradlew"
 BUNDLE_PATH="$ANDROID_DIR/app/build/outputs/bundle/release/app-release.aab"
 APK_PATH="$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
+KEYSTORE_PROPERTIES_FILE="$ANDROID_DIR/keystore.properties"
+
+source "$PROJECT_ROOT/scripts/android-java-env.sh"
+ensure_android_java 17
 
 echo "🤖 VarsityHub Android Release Builder"
 echo "====================================="
@@ -21,12 +25,17 @@ chmod +x "$GRADLEW"
 
 echo "📦 Project root: $PROJECT_ROOT"
 echo "📁 Android dir : $ANDROID_DIR"
+echo "☕ Java home   : ${JAVA_HOME:-$(command -v java)}"
 echo ""
 
-if ! grep -q "MYAPP_UPLOAD_STORE_FILE" "$ANDROID_DIR/gradle.properties"; then
-  echo "⚠️  Release keystore variables are not configured in android/gradle.properties."
-  echo "    The build will fall back to the debug keystore and cannot be uploaded to Google Play."
-  echo "    See ANDROID_KEYSTORE_SETUP.md to configure signing."
+if [ -f "$KEYSTORE_PROPERTIES_FILE" ]; then
+  echo "✅ Release signing will use android/keystore.properties"
+elif [ -n "${ANDROID_KEYSTORE_PATH:-}" ] && [ -n "${ANDROID_KEY_ALIAS:-}" ] && [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && [ -n "${ANDROID_KEY_PASSWORD:-}" ]; then
+  echo "✅ Release signing will use ANDROID_KEYSTORE_* env vars"
+else
+  echo "⚠️  Release signing is not configured for a local Play Store upload."
+  echo "    The local Gradle build will fall back to the debug keystore."
+  echo "    Configure android/keystore.properties or export ANDROID_KEYSTORE_* env vars."
   echo ""
 fi
 

@@ -1,7 +1,9 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 type EnvKey =
   | 'EXPO_PUBLIC_API_URL'
+  | 'EXPO_PUBLIC_USE_LOCAL_API'
   | 'EXPO_PUBLIC_FORCE_REMOTE_API'
   | 'EXPO_PUBLIC_NODE_ENV'
   | 'EXPO_PUBLIC_APP_SCHEME'
@@ -32,7 +34,9 @@ const DEFAULT_WEB_BASE = 'https://www.varsityhub.app';
 const normalizeUrl = (value: string) => value.replace(/\/$/, '');
 
 function getDevLocalApiUrl(): string {
-  if (typeof window === 'undefined') return 'http://localhost:4000';
+  if (typeof window === 'undefined') {
+    return Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000';
+  }
   const host = window.location.hostname;
   if (host === '127.0.0.1') return 'http://127.0.0.1:4000';
   if (host === 'localhost') return 'http://localhost:4000';
@@ -76,8 +80,13 @@ export type AppConfig = {
 const config: AppConfig = {
   apiUrl: (() => {
     const envUrl = readEnv('EXPO_PUBLIC_API_URL');
+    const useLocalApi = readBoolean('EXPO_PUBLIC_USE_LOCAL_API', false);
     const forceRemoteApi = readBoolean('EXPO_PUBLIC_FORCE_REMOTE_API', true);
     const normalizedEnvUrl = envUrl ? normalizeUrl(envUrl) : '';
+
+    if (__DEV__ && useLocalApi) {
+      return getDevLocalApiUrl();
+    }
 
     if (normalizedEnvUrl) {
       if (!forceRemoteApi || !/localhost|127\.0\.0\.1/.test(normalizedEnvUrl)) {

@@ -14,6 +14,10 @@ const leaguePendingApprovalScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'onboarding', 'league-pending-approval.tsx'),
   'utf8'
 );
+const pendingApprovalFlowHook = readFileSync(
+  join(process.cwd(), '..', 'hooks', 'usePendingApprovalFlow.ts'),
+  'utf8'
+);
 const adminAdsScreen = readFileSync(
   join(process.cwd(), '..', 'app', 'admin-ads.tsx'),
   'utf8'
@@ -61,17 +65,18 @@ describe('coach approval UI guards', () => {
     );
   });
 
-  it.each([
-    ['pending-approval.tsx', pendingApprovalScreen],
-    ['league-pending-approval.tsx', leaguePendingApprovalScreen],
-  ])('%s guards approved CTA navigation against double-taps', (_name, source) => {
-    expect(source).toMatch(/const isNavigatingRef = useRef\(false\)/);
-    expect(source).toMatch(
-      /const handleApprovedNavigation = useCallback\(async \(redirect: 'organization' \| 'create-team'\) => \{[\s\S]*?if \(isNavigatingRef\.current\) return;/
+  it('pending approval navigation guards live in the shared hook and screens consume the disabled state', () => {
+    expect(pendingApprovalFlowHook).toMatch(/const isNavigatingRef = useRef\(false\)/);
+    expect(pendingApprovalFlowHook).toMatch(
+      /const handleApprovedNavigation = useCallback\(\s*async \(redirect: 'organization' \| 'create-team'\) => \{[\s\S]*?if \(isNavigatingRef\.current\) return;/
     );
-    expect(source).toMatch(/setNavigationTarget\(redirect\);/);
-    expect(source).toMatch(/disabled=\{navigationTarget !== null\}/);
-    expect(source).toMatch(/if \(mountedRef\.current\) setNavigationTarget\(null\);/);
+    expect(pendingApprovalFlowHook).toMatch(/setNavigationTarget\(redirect\);/);
+    expect(pendingApprovalFlowHook).toMatch(/if \(mountedRef\.current\) setNavigationTarget\(null\);/);
+
+    expect(pendingApprovalScreen).toContain('usePendingApprovalActions({');
+    expect(pendingApprovalScreen).toMatch(/disabled=\{navigationTarget !== null\}/);
+    expect(leaguePendingApprovalScreen).toContain('usePendingApprovalActions({');
+    expect(leaguePendingApprovalScreen).toMatch(/disabled=\{navigationTarget !== null\}/);
   });
 
   it.each([
@@ -97,7 +102,7 @@ describe('coach approval UI guards', () => {
 
   it('coach application submission routes to waiting instead of locally completing onboarding', () => {
     const submitSnippet = step3LeagueScreen.match(
-      /httpPost\('\/auth\/coach-applications'[\s\S]*?const \{ decision: nextDecision \} = await getFreshPostAuthState\([\s\S]*?if \(nextDecision\.route === '\/onboarding\/league-pending-approval'\)[\s\S]*?router\.replace\(\{[\s\S]*?pathname:\s*nextDecision\.route/
+      /httpPost\('\/auth\/coach-applications'[\s\S]*?const nextDecision = getPostAuthRouteDecision\(authUser\)[\s\S]*?routeFromDecision\(nextDecision\.route,[\s\S]*?organizationName:\s*orgName\.trim\(\)/
     )?.[0];
     expect(submitSnippet).toBeTruthy();
     expect(submitSnippet).not.toMatch(/markOnboardingCompleteLocally/);
@@ -143,10 +148,29 @@ describe('coach approval UI guards', () => {
       /const canEnterStep3FromServer =[\s\S]*coach_application_required[\s\S]*coach_agreement_required[\s\S]*coach_final_setup_required/
     );
     expect(step3LeagueScreen).toMatch(
+      /const canonicalStep3Route = user \? getPostAuthRouteDecision\(user as any\)\.route : null;/
+    );
+    expect(step3LeagueScreen).toMatch(
+      /canonicalStep3Route &&[\s\S]*router\.replace\(canonicalStep3Route as any\);/
+    );
+    expect(step3LeagueScreen).toMatch(
       /if \(canEnterStep3FromServer\) \{[\s\S]*setOB\(\(?prev\)? => \{[\s\S]*role: nextRole,[\s\S]*step_2_visited: true,[\s\S]*\}\);[\s\S]*return;/
     );
     expect(step3LeagueScreen).toMatch(
       /if \(!ob\.role\) \{[\s\S]*router\.replace\('\/onboarding\/step-1-role'\);[\s\S]*\} else if \(!ob\.step_2_visited\) \{[\s\S]*router\.replace\('\/onboarding\/step-2-basic'\);/
+    );
+    expect(step3LeagueScreen).not.toMatch(
+      /const me: any = await User\.me\(\);[\s\S]*const finalSetupRequired =/
+    );
+  });
+
+  it('final coach setup mode suppresses search-and-join UI and explains that approval already happened', () => {
+    expect(step3LeagueScreen).toContain('const canSearchForExistingOrganization = !isFinalCoachSetup;');
+    expect(step3LeagueScreen).toContain('setShowSearch(false);');
+    expect(step3LeagueScreen).toContain('Approved Coach Setup');
+    expect(step3LeagueScreen).toContain('You do not need to apply again or search for an existing league here.');
+    expect(step3LeagueScreen).toMatch(
+      /\{canSearchForExistingOrganization && showSearch \?/
     );
   });
 

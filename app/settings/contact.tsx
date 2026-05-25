@@ -1,20 +1,21 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Textarea from '@/components/ui/textarea';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, useColorScheme } from 'react-native';
 // @ts-ignore JS exports
 import { Support } from '@/api/entities';
-import { useUserProfile } from '@/hooks/useUser';
-import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { safeGoBack } from '@/utils/navigation';
+import { SettingsFormScreen } from '@/components/settings/SettingsFormShared';
 
 export default function ContactScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { displayName, email: profileEmail, loading: _userLoading } = useUserProfile();
+  const { user } = useAuth();
+  const displayName = user?.display_name || '';
+  const profileEmail = user?.email || '';
   const [name, setName] = useState(displayName);
   const [emailField, setEmail] = useState(profileEmail);
   const [subject, setSubject] = useState('');
@@ -44,23 +45,16 @@ export default function ContactScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Contact', headerBackTitle: 'Back', headerShown: true }} />
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Contact VarsityHub Team</Text>
-        <Input placeholder="Your name" value={name} onChangeText={setName} style={{ marginBottom: 8 }} />
-        <Input placeholder="you@example.com" value={emailField} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 8 }} />
-        <Input placeholder="Subject" value={subject} onChangeText={setSubject} style={{ marginBottom: 8 }} />
-        <Textarea placeholder="Message" value={message} onChangeText={setMessage} style={{ marginBottom: 12, minHeight: 100 }} />
-        <Button onPress={onSubmit} disabled={sending}>{sending ? 'Sending…' : 'Send'}</Button>
-      </ScrollView>
-    </SafeAreaView>
+    <SettingsFormScreen
+      title="Contact"
+      headerTitle="Contact VarsityHub Team"
+      colorScheme={colorScheme}
+    >
+      <Input placeholder="Your name" value={name} onChangeText={setName} style={{ marginBottom: 8 }} />
+      <Input placeholder="you@example.com" value={emailField} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 8 }} />
+      <Input placeholder="Subject" value={subject} onChangeText={setSubject} style={{ marginBottom: 8 }} />
+      <Textarea placeholder="Message" value={message} onChangeText={setMessage} style={{ marginBottom: 12, minHeight: 100 }} />
+      <Button onPress={onSubmit} disabled={sending}>{sending ? 'Sending…' : 'Send'}</Button>
+    </SettingsFormScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1 },
-  contentContainer: { padding: 16, paddingTop: 24 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-});

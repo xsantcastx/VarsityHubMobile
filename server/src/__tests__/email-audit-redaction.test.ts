@@ -4,6 +4,16 @@ describe('EmailService audit logging', () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalOverride = process.env.EMAIL_OVERRIDE_TO;
 
+  const readEmailAuditPayload = (logSpy: ReturnType<typeof jest.spyOn>) => {
+    const auditLine = [...logSpy.mock.calls]
+      .reverse()
+      .find((call) => typeof call[0] === 'string' && call[0].includes('"EMAIL_AUDIT"'))
+      ?.[0] as string | undefined;
+
+    expect(auditLine).toBeDefined();
+    return JSON.parse(auditLine!);
+  };
+
   beforeEach(() => {
     process.env.NODE_ENV = 'development';
     delete process.env.EMAIL_OVERRIDE_TO;
@@ -40,13 +50,7 @@ describe('EmailService audit logging', () => {
 
     expect(result.success).toBe(true);
 
-    const auditLine = [...logSpy.mock.calls]
-      .reverse()
-      .find((call) => typeof call[0] === 'string' && call[0].includes('"EMAIL_AUDIT"'))
-      ?.[0] as string | undefined;
-
-    expect(auditLine).toBeDefined();
-    const payload = JSON.parse(auditLine!);
+    const payload = readEmailAuditPayload(logSpy);
     expect(payload.originalRecipient).toBe('[redacted-minor-email]');
     expect(payload.actualRecipient).toBe('[redacted-minor-email]');
   });
@@ -71,13 +75,7 @@ describe('EmailService audit logging', () => {
 
     expect(result.success).toBe(true);
 
-    const auditLine = [...logSpy.mock.calls]
-      .reverse()
-      .find((call) => typeof call[0] === 'string' && call[0].includes('"EMAIL_AUDIT"'))
-      ?.[0] as string | undefined;
-
-    expect(auditLine).toBeDefined();
-    const payload = JSON.parse(auditLine!);
+    const payload = readEmailAuditPayload(logSpy);
     expect(payload.originalRecipient).toBe('c***@example.com');
     expect(payload.actualRecipient).toBe('c***@example.com');
   });
@@ -101,13 +99,7 @@ describe('EmailService audit logging', () => {
       metadata: { audit_privacy: 'minor' },
     });
 
-    const auditLine = [...logSpy.mock.calls]
-      .reverse()
-      .find((call) => typeof call[0] === 'string' && call[0].includes('"EMAIL_AUDIT"'))
-      ?.[0] as string | undefined;
-
-    expect(auditLine).toBeDefined();
-    const payload = JSON.parse(auditLine!);
+    const payload = readEmailAuditPayload(logSpy);
     expect(payload.originalRecipient).toEqual([
       '[redacted-minor-email]',
       '[redacted-minor-email]',

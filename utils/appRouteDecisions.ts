@@ -1,13 +1,13 @@
 import type { OnboardingState } from '@/context/OnboardingContext';
 import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
-import {
-  getCoachAccessState,
-  getCoachOrganizationId,
-  getPendingCoachRoute,
-  isCoachOnboardingComplete,
-  type CoachUserLike,
-} from './roleChecks';
 import { isProceedingAsFanSnapshot } from './authState';
+import {
+    getCoachAccessState,
+    getCoachOrganizationId,
+    getPendingCoachRoute,
+    isCoachOnboardingComplete,
+    type CoachUserLike,
+} from './roleChecks';
 
 export type AppRoute =
   | '/sign-in'
@@ -21,6 +21,7 @@ export type AppRoute =
   | '/onboarding/league-pending-approval'
   | '/onboarding/coach-agreement'
   | '/settings/manage-subscription'
+  | '/subscription-paywall'
   | '/(tabs)'
   | '/(tabs)/team-hub'
   | '/(tabs)/create-team'
@@ -42,6 +43,7 @@ export type PostAuthRouteKind =
   | 'unauthenticated'
   | 'pending_verification'
   | 'email_verification_required'
+  | 'server_basic_info_required'
   | 'server_application_required'
   | 'server_application_submitted_waiting'
   | 'server_application_submitted_fan_mode'
@@ -50,7 +52,12 @@ export type PostAuthRouteKind =
   | 'server_pending_approval_league_waiting'
   | 'server_pending_approval_waiting'
   | 'server_pending_approval_fan_mode'
+  | 'server_coach_agreement_required'
+  | 'server_final_setup_required'
   | 'pending_coach_waiting'
+  | 'approved_coach_finish_setup'
+  | 'coach_checkout_required'
+  | 'coach_agreement_required'
   | 'generic_onboarding_required'
   | 'app_home';
 
@@ -63,6 +70,7 @@ const POST_AUTH_ROUTE_BY_KIND: Record<PostAuthRouteKind, AppRoute> = {
   unauthenticated: '/sign-in',
   pending_verification: '/verify',
   email_verification_required: '/verify',
+  server_basic_info_required: '/onboarding/step-2-basic',
   server_application_required: '/onboarding/coach-application',
   server_application_submitted_waiting: '/onboarding/league-pending-approval',
   server_application_submitted_fan_mode: '/(tabs)',
@@ -71,12 +79,18 @@ const POST_AUTH_ROUTE_BY_KIND: Record<PostAuthRouteKind, AppRoute> = {
   server_pending_approval_league_waiting: '/onboarding/league-pending-approval',
   server_pending_approval_waiting: '/onboarding/pending-approval',
   server_pending_approval_fan_mode: '/(tabs)',
+  server_coach_agreement_required: '/onboarding/coach-agreement',
+  server_final_setup_required: '/onboarding/step-3-league',
   pending_coach_waiting: '/onboarding/pending-approval',
+  approved_coach_finish_setup: '/onboarding/step-3-league',
+  coach_checkout_required: '/subscription-paywall',
+  coach_agreement_required: '/onboarding/coach-agreement',
   generic_onboarding_required: '/onboarding/step-1-role',
   app_home: '/(tabs)',
 };
 
 export type OnboardingIndexRouteKind =
+  | 'server_basic_info_required'
   | 'server_application_required'
   | 'server_application_submitted_waiting'
   | 'server_application_submitted_fan_mode'
@@ -85,11 +99,12 @@ export type OnboardingIndexRouteKind =
   | 'server_pending_approval_league_waiting'
   | 'server_pending_approval_waiting'
   | 'server_pending_approval_fan_mode'
+  | 'server_coach_agreement_required'
+  | 'server_final_setup_required'
   | 'completed_tabs'
   | 'draft_step_1'
   | 'draft_step_2'
-  | 'draft_step_3'
-  | 'draft_pending_waiting';
+  | 'draft_step_3';
 
 export type OnboardingIndexRouteDecision = {
   kind: OnboardingIndexRouteKind;
@@ -98,6 +113,7 @@ export type OnboardingIndexRouteDecision = {
 };
 
 const ONBOARDING_INDEX_ROUTE_BY_KIND: Record<OnboardingIndexRouteKind, AppRoute> = {
+  server_basic_info_required: '/onboarding/step-2-basic',
   server_application_required: '/onboarding/coach-application',
   server_application_submitted_waiting: '/onboarding/league-pending-approval',
   server_application_submitted_fan_mode: '/(tabs)',
@@ -106,11 +122,12 @@ const ONBOARDING_INDEX_ROUTE_BY_KIND: Record<OnboardingIndexRouteKind, AppRoute>
   server_pending_approval_league_waiting: '/onboarding/league-pending-approval',
   server_pending_approval_waiting: '/onboarding/pending-approval',
   server_pending_approval_fan_mode: '/(tabs)',
+  server_coach_agreement_required: '/onboarding/coach-agreement',
+  server_final_setup_required: '/onboarding/step-3-league',
   completed_tabs: '/(tabs)',
   draft_step_1: '/onboarding/step-1-role',
   draft_step_2: '/onboarding/step-2-basic',
   draft_step_3: '/onboarding/step-3-league',
-  draft_pending_waiting: '/onboarding/pending-approval',
 };
 
 export type CoachAgreementRouteKind = 'final_setup' | 'create_team' | 'team_hub';
@@ -121,13 +138,26 @@ export type CoachAgreementRouteDecision = {
   params?: Record<string, string>;
 };
 
+type ServerDirectedPostAuthRouteKind =
+  | 'server_basic_info_required'
+  | 'server_application_required'
+  | 'server_application_submitted_waiting'
+  | 'server_application_submitted_fan_mode'
+  | 'server_application_rejected_waiting'
+  | 'server_application_rejected_fan_mode'
+  | 'server_pending_approval_league_waiting'
+  | 'server_pending_approval_waiting'
+  | 'server_pending_approval_fan_mode'
+  | 'server_coach_agreement_required'
+  | 'server_final_setup_required';
+
 const COACH_AGREEMENT_ROUTE_BY_KIND: Record<CoachAgreementRouteKind, AppRoute> = {
   final_setup: '/onboarding/step-3-league',
   create_team: '/(tabs)/create-team',
   team_hub: '/organization',
 };
 
-function resolveServerDirectedPostAuthKind(user: RoutingUserLike): PostAuthRouteKind | null {
+function resolveServerDirectedPostAuthKind(user: RoutingUserLike): ServerDirectedPostAuthRouteKind | null {
   const accountState = String(user.account_state || '').trim();
   const explicitNextStep =
     typeof user.next_step === 'string' && user.next_step.trim().startsWith('/')
@@ -136,8 +166,12 @@ function resolveServerDirectedPostAuthKind(user: RoutingUserLike): PostAuthRoute
   const isProceedingAsFan = isProceedingAsFanSnapshot(user as any);
 
   switch (accountState) {
+    case 'coach_basic_info_required':
+      return 'server_basic_info_required';
     case 'coach_application_required':
-      return 'server_application_required';
+      return explicitNextStep === '/onboarding/step-2-basic'
+        ? 'server_basic_info_required'
+        : 'server_application_required';
     case 'coach_application_submitted':
       return isProceedingAsFan || explicitNextStep === '/(tabs)'
         ? 'server_application_submitted_fan_mode'
@@ -157,7 +191,7 @@ function resolveServerDirectedPostAuthKind(user: RoutingUserLike): PostAuthRoute
   }
 }
 
-function resolvePendingRouteKind(route: string, baseKind: 'pending_coach_waiting'): PostAuthRouteKind {
+function resolvePendingRouteKind(route: string, baseKind: 'pending_coach_waiting' | 'approved_coach_finish_setup'): PostAuthRouteKind {
   if (route === '/onboarding/league-pending-approval') {
     return baseKind;
   }
@@ -216,6 +250,28 @@ export function getPostAuthRouteDecision(
     return { kind: 'app_home', route: POST_AUTH_ROUTE_BY_KIND.app_home };
   }
 
+  if (coachAccess.needsPaidPlanCheckout) {
+    return {
+      kind: 'coach_checkout_required',
+      route: POST_AUTH_ROUTE_BY_KIND.coach_checkout_required,
+    };
+  }
+
+  if (coachAccess.isApprovedCoach && !coachAccess.hasCurrentCoachAgreement) {
+    return {
+      kind: 'coach_agreement_required',
+      route: POST_AUTH_ROUTE_BY_KIND.coach_agreement_required,
+    };
+  }
+
+  if (needsOnboarding && coachAccess.isApprovedCoach) {
+    const route = getPendingCoachRoute(user) as AppRoute;
+    return {
+      kind: resolvePendingRouteKind(route, 'approved_coach_finish_setup'),
+      route,
+    };
+  }
+
   if (needsOnboarding && !coachAccess.isApprovedCoach) {
     return {
       kind: 'generic_onboarding_required',
@@ -229,24 +285,17 @@ export function getPostAuthRouteDecision(
 type OnboardingDraftSummary = {
   role: 'fan' | 'coach' | undefined;
   serverComplete: boolean;
-  allComplete: boolean;
   calculatedStepIndex: number;
 };
 
 function summarizeOnboardingDraft(user: RoutingUserLike, state: OnboardingState): OnboardingDraftSummary {
   const role = state?.role as 'fan' | 'coach' | undefined;
   const calculatedStepIndex = nextIncompleteStep(state, role);
-  const serverComplete =
-    isCoachOnboardingComplete(user);
-  const allComplete =
-    role === 'coach'
-      ? !!state?.role && !!state?.step_2_visited && !!(state?.join_request_pending || state?.organization_id)
-      : !!state?.role && !!state?.step_2_visited;
+  const serverComplete = isCoachOnboardingComplete(user);
 
   return {
     role,
     serverComplete,
-    allComplete,
     calculatedStepIndex,
   };
 }
@@ -257,10 +306,8 @@ export function getOnboardingIndexRouteDecision(
 ): OnboardingIndexRouteDecision {
   const serverDirectedKind = resolveServerDirectedPostAuthKind(user);
   if (serverDirectedKind) {
-    const serverKindMap: Record<PostAuthRouteKind, OnboardingIndexRouteKind> = {
-      unauthenticated: 'draft_step_1',
-      pending_verification: 'draft_step_1',
-      email_verification_required: 'draft_step_1',
+    const serverKindMap: Record<ServerDirectedPostAuthRouteKind, OnboardingIndexRouteKind> = {
+      server_basic_info_required: 'server_basic_info_required',
       server_application_required: 'server_application_required',
       server_application_submitted_waiting: 'server_application_submitted_waiting',
       server_application_submitted_fan_mode: 'server_application_submitted_fan_mode',
@@ -269,9 +316,8 @@ export function getOnboardingIndexRouteDecision(
       server_pending_approval_league_waiting: 'server_pending_approval_league_waiting',
       server_pending_approval_waiting: 'server_pending_approval_waiting',
       server_pending_approval_fan_mode: 'server_pending_approval_fan_mode',
-      pending_coach_waiting: 'draft_pending_waiting',
-      generic_onboarding_required: 'draft_step_1',
-      app_home: 'completed_tabs',
+      server_coach_agreement_required: 'server_coach_agreement_required',
+      server_final_setup_required: 'server_final_setup_required',
     };
     const kind = serverKindMap[serverDirectedKind];
     return { kind, route: ONBOARDING_INDEX_ROUTE_BY_KIND[kind] };
@@ -279,22 +325,8 @@ export function getOnboardingIndexRouteDecision(
 
   const draft = summarizeOnboardingDraft(user, state);
 
-  if (draft.serverComplete && draft.allComplete) {
+  if (draft.serverComplete) {
     return { kind: 'completed_tabs', route: ONBOARDING_INDEX_ROUTE_BY_KIND.completed_tabs };
-  }
-
-  if (!draft.serverComplete && draft.role === 'coach' && draft.allComplete) {
-    const route = getPendingCoachRoute({
-      preferences: {
-        join_request_pending: state?.join_request_pending,
-        organization_id: state?.organization_id,
-      },
-    }) as AppRoute;
-
-    return {
-      kind: 'draft_pending_waiting',
-      route,
-    };
   }
 
   const targetRoute = STEP_ROUTES[draft.calculatedStepIndex] as AppRoute;

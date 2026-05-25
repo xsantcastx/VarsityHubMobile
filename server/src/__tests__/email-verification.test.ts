@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { defineEmailValidationCases } from './helpers/emailValidationShared.js';
 
 describe('Email Verification', () => {
   describe('Verification Code Generation', () => {
@@ -120,19 +121,7 @@ describe('Email Verification', () => {
       ' @test.com',
     ];
 
-    validEmails.forEach((email) => {
-      it(`should accept valid email: ${email}`, () => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        expect(email).toMatch(emailRegex);
-      });
-    });
-
-    invalidEmails.forEach((email) => {
-      it(`should reject invalid email: ${email}`, () => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        expect(email).not.toMatch(emailRegex);
-      });
-    });
+    defineEmailValidationCases(validEmails, invalidEmails);
   });
 
   describe('Fallback Email Behavior', () => {

@@ -1,42 +1,139 @@
-import { goBackToTrackedRoute } from '@/utils/navigation';
+import {
+  getNavigationFallback,
+  performTrackedSafeBack,
+} from '@/context/NavigationHistoryContext';
+import { goBackToTrackedRoute, safeGoBack } from '@/utils/navigation';
 
-describe('goBackToTrackedRoute', () => {
-  it('replaces with the tracked previous route when it differs from the current route', () => {
-    const router = {
-      back: jest.fn(),
-      canGoBack: jest.fn(() => true),
-      replace: jest.fn(),
-    } as any;
+jest.mock('@/context/NavigationHistoryContext', () => ({
+  NavigationHistoryContext: require('react').createContext(undefined),
+  getNavigationFallback: jest.fn(() => '/(tabs)/feed'),
+  performTrackedSafeBack: jest.fn(() => false),
+}));
 
-    goBackToTrackedRoute(router, '/user-profile?id=user-2', '/post-detail?id=post-1');
+const mockedGetNavigationFallback = getNavigationFallback as jest.MockedFunction<
+  typeof getNavigationFallback
+>;
+const mockedPerformTrackedSafeBack = performTrackedSafeBack as jest.MockedFunction<
+  typeof performTrackedSafeBack
+>;
 
-    expect(router.replace).toHaveBeenCalledWith('/post-detail?id=post-1');
-    expect(router.back).not.toHaveBeenCalled();
+describe('navigation helpers', () => {
+  beforeEach(() => {
+    mockedGetNavigationFallback.mockReturnValue('/(tabs)/feed');
+    mockedPerformTrackedSafeBack.mockReturnValue(false);
+    jest.clearAllMocks();
   });
 
-  it('falls back to router.back when the tracked route matches the current route', () => {
-    const router = {
-      back: jest.fn(),
-      canGoBack: jest.fn(() => true),
-      replace: jest.fn(),
-    } as any;
+  describe('safeGoBack', () => {
+    it('uses router.back when the native stack can go back', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => true),
+        replace: jest.fn(),
+      } as any;
 
-    goBackToTrackedRoute(router, '/user-profile?id=user-2', '/user-profile?id=user-2');
+      safeGoBack(router);
 
-    expect(router.back).toHaveBeenCalledTimes(1);
-    expect(router.replace).not.toHaveBeenCalled();
+      expect(router.back).toHaveBeenCalledTimes(1);
+      expect(mockedPerformTrackedSafeBack).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it('uses tracked history when the native stack is empty', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => false),
+        replace: jest.fn(),
+      } as any;
+      mockedPerformTrackedSafeBack.mockReturnValue(true);
+
+      safeGoBack(router);
+
+      expect(mockedPerformTrackedSafeBack).toHaveBeenCalledWith(undefined);
+      expect(router.back).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it('passes an explicit fallback through the tracked-history handler', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => false),
+        replace: jest.fn(),
+      } as any;
+      mockedPerformTrackedSafeBack.mockReturnValue(true);
+
+      safeGoBack(router, '/(tabs)/discover');
+
+      expect(mockedPerformTrackedSafeBack).toHaveBeenCalledWith('/(tabs)/discover');
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the global navigation fallback when tracked history cannot handle it', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => false),
+        replace: jest.fn(),
+      } as any;
+      mockedGetNavigationFallback.mockReturnValue('/(tabs)/discover');
+
+      safeGoBack(router);
+
+      expect(mockedPerformTrackedSafeBack).toHaveBeenCalledWith(undefined);
+      expect(router.replace).toHaveBeenCalledWith('/(tabs)/discover');
+    });
+
+    it('uses the explicit fallback when neither the native stack nor tracked history can handle back', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => false),
+        replace: jest.fn(),
+      } as any;
+
+      safeGoBack(router, '/organization?tab=teams');
+
+      expect(mockedPerformTrackedSafeBack).toHaveBeenCalledWith('/organization?tab=teams');
+      expect(router.replace).toHaveBeenCalledWith('/organization?tab=teams');
+    });
   });
 
-  it('uses the explicit fallback when there is no tracked route and the router cannot go back', () => {
-    const router = {
-      back: jest.fn(),
-      canGoBack: jest.fn(() => false),
-      replace: jest.fn(),
-    } as any;
+  describe('goBackToTrackedRoute', () => {
+    it('replaces with the tracked previous route when it differs from the current route', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => true),
+        replace: jest.fn(),
+      } as any;
 
-    goBackToTrackedRoute(router, '/user-profile?id=user-2', null, '/(tabs)/feed');
+      goBackToTrackedRoute(router, '/user-profile?id=user-2', '/post-detail?id=post-1');
 
-    expect(router.replace).toHaveBeenCalledWith('/(tabs)/feed');
-    expect(router.back).not.toHaveBeenCalled();
+      expect(router.replace).toHaveBeenCalledWith('/post-detail?id=post-1');
+      expect(router.back).not.toHaveBeenCalled();
+    });
+
+    it('falls back to safeGoBack when the tracked route matches the current route', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => true),
+        replace: jest.fn(),
+      } as any;
+
+      goBackToTrackedRoute(router, '/user-profile?id=user-2', '/user-profile?id=user-2');
+
+      expect(router.back).toHaveBeenCalledTimes(1);
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it('uses the explicit fallback when there is no tracked route and the router cannot go back', () => {
+      const router = {
+        back: jest.fn(),
+        canGoBack: jest.fn(() => false),
+        replace: jest.fn(),
+      } as any;
+
+      goBackToTrackedRoute(router, '/user-profile?id=user-2', null, '/(tabs)/feed');
+
+      expect(router.replace).toHaveBeenCalledWith('/(tabs)/feed');
+      expect(router.back).not.toHaveBeenCalled();
+    });
   });
 });

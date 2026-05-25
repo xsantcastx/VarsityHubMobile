@@ -95,3 +95,35 @@
 - Don't add client-side workarounds that bypass server-enforced rules
 - Don't push to `main` without testing — Railway auto-deploys immediately
 - Don't change Railway env vars (JWT_SECRET, OAuth keys) without understanding blast radius
+- **Don't run `git stash apply` directly** — use `npm run stash:apply`. A bare stash apply leaves conflict markers silently; the script scans and reports them immediately.
+- **Don't `git add -A` when the working tree has unresolved conflicts** — always stage files explicitly by path after verifying each one.
+
+## Git Workflow
+
+```bash
+# Apply a stash safely (scans for conflict markers after apply)
+npm run stash:apply
+
+# Check for unresolved conflict markers across all source files
+npm run check:conflicts
+
+# Format all source files with prettier
+npm run format
+
+# Pre-push checklist
+npm run check:conflicts
+npm run format:check
+npx tsc --noEmit --project server/tsconfig.json
+npm run verify:error-envelope
+```
+
+## Security Invariants (Do Not Break)
+
+- **No client-controlled security-critical state** — payment status, approval state, role, and plan are always server-authoritative
+- **Backend validation is law** — frontend validation is UX only
+- **IDOR guard on self-action** — users must never approve/reject their own pending requests
+- **Deep link params use allowlist** — `buildRouteParams()` in `utils/deepLinks.ts` enforces per-route key allowlists
+- **Webhook lock failures return 503** (not 500) so Stripe retries
+- **Apple IAP cert chain pins to `CN=Apple Root CA - G3`** exactly
+- **Org invite role escalation** — only owners can invite at `manager` role
+- **Payment-success non-auth errors surface on final retry** — no silent swallowing

@@ -52,10 +52,10 @@ describe('profile/settings note contracts', () => {
     expect(settingsScreen).toContain('placeholder="Type DELETE"');
     expect(settingsScreen).toContain("placeholder=\"Password\"");
     expect(settingsScreen).toContain(
-      "? 'This permanently deletes your account. Type DELETE and enter your password to confirm.'"
+      "? 'This permanently deletes your account. Enter your password to confirm.'"
     );
     expect(settingsScreen).toContain(
-      ": 'This permanently deletes your account. Type DELETE to confirm.'"
+      ": 'This permanently deletes your account. No password is required for Apple/Google-only accounts.'"
     );
   });
 
@@ -76,6 +76,11 @@ describe('profile/settings note contracts', () => {
     expect(settingsScreen).not.toContain("router.push(preferredRoute as any);");
     expect(settingsScreen).not.toContain("router.push('/onboarding/coach-application' as any);");
     expect(settingsScreen).not.toContain("router.push('/onboarding/step-2-basic');");
+  });
+
+  it('settings account transitions route from the canonical checkAuth snapshot instead of refetching refresh state', () => {
+    expect(settingsScreen).toContain("const fresh = (await checkAuth().catch(() => null)) as UserMeResponse | null;");
+    expect(settingsScreen).not.toContain('User.refresh().catch(() => null)');
   });
 
   it('settings keeps the private-profile toggle wired to the persisted profile_private preference', () => {

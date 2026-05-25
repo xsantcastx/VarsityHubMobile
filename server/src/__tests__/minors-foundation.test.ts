@@ -14,7 +14,7 @@ const PASSWORD = 'TestPassword123!';
 const ts = Date.now();
 
 describe('Minors Foundation Helpers', () => {
-  it('rejects DOB changes after the 24-hour grace window', async () => {
+  it('allows DOB changes after the old 24-hour grace window and preserves the original set timestamp', async () => {
     const { DOB_GRACE_WINDOW_MS, evaluateDobUpdate } = await import('../lib/userAge.js');
     const result = evaluateDobUpdate({
       currentDob: new Date('2000-01-01'),
@@ -23,9 +23,10 @@ describe('Minors Foundation Helpers', () => {
       now: new Date(),
     });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe('dob_locked');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.changed).toBe(true);
+      expect(result.newSetAt).toBeNull();
     }
   });
 
@@ -262,14 +263,21 @@ describeDb('Minors Foundation Integration', () => {
     }
   });
 
-  it('blocks DOB changes after the grace window on PATCH /auth/me/preferences', async () => {
+  it('allows DOB changes after the old grace window on PATCH /auth/me/preferences', async () => {
     const res = await request(app)
       .patch('/auth/me/preferences')
       .set('Authorization', `Bearer ${adultToken}`)
       .send({ dob: '1991-01-01' });
 
-    expect(res.status).toBe(403);
-    expect(res.body?.error).toBe('DOB_LOCKED');
+    expect(res.status).toBe(200);
+    expect(res.body?.preferences?.dob).toBe('1991-01-01');
+
+    const updated = await prisma.user.findUnique({
+      where: { id: adultId },
+      select: { date_of_birth: true, preferences: true },
+    });
+    expect(updated?.date_of_birth?.toISOString().slice(0, 10)).toBe('1991-01-01');
+    expect((updated?.preferences as any)?.dob).toBe('1991-01-01');
   });
 
   it('lets admins correct DOB after the grace window and syncs canonical fields', async () => {

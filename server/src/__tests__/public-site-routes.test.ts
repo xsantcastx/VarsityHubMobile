@@ -61,13 +61,14 @@ describe('Public site routes', () => {
     }
   });
 
-  it('serves the legal and support pages from the shared public router', async () => {
+  it('serves the legal, support, and account deletion pages from the shared public router', async () => {
     const app = buildApp();
 
-    const [privacy, terms, support] = await Promise.all([
+    const [privacy, terms, support, accountDeletion] = await Promise.all([
       request(app).get('/privacy-policy').set('Accept', 'text/html'),
       request(app).get('/terms').set('Accept', 'text/html'),
       request(app).get('/support').set('Accept', 'text/html'),
+      request(app).get('/account-deletion').set('Accept', 'text/html'),
     ]);
 
     expect(privacy.status).toBe(200);
@@ -76,6 +77,8 @@ describe('Public site routes', () => {
     expect(terms.text).toContain('Terms of Service');
     expect(support.status).toBe(200);
     expect(support.text).toContain('Customer Service');
+    expect(accountDeletion.status).toBe(200);
+    expect(accountDeletion.text).toContain('Account Deletion');
   });
 
   it('redirects browser app entry routes on apex to the dedicated web app host when no web bundle is deployed', async () => {

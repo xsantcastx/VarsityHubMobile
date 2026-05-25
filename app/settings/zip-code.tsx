@@ -1,15 +1,14 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, useColorScheme } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { useUserProfile } from '@/hooks/useUser';
-import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { safeGoBack } from '@/utils/navigation';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
+import { SettingsFormScreen } from '@/components/settings/SettingsFormShared';
 
 function isValidZip(v: string) {
   if (!v || v.length < 3 || v.length > 20) return false;
@@ -21,7 +20,8 @@ function isValidZip(v: string) {
 export default function ZipCodeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { zipCode, refresh: refreshUserProfile } = useUserProfile();
+  const { user, checkAuth } = useAuth();
+  const zipCode = String(user?.preferences?.zip_code || user?.zip_code || '').trim();
   const [zip, setZip] = useState(zipCode || '');
   const [saving, setSaving] = useState(false);
 
@@ -37,7 +37,13 @@ export default function ZipCodeScreen() {
     setSaving(true);
     try {
       await User.updatePreferences({ zip_code: v || null });
-      const fresh = await refreshUserProfile();
+      const fresh = await checkAuth().catch((error) => {
+        if (__DEV__) console.warn('[zip-code] checkAuth failed after save:', error);
+        return null;
+      });
+      if (!fresh) {
+        throw new Error('Saved ZIP code but could not refresh account state.');
+      }
       const savedZip = String(fresh?.preferences?.zip_code || fresh?.zip_code || '').trim();
       if (savedZip !== (v || '')) {
         throw new Error('Saved ZIP code did not round-trip from the server.');
@@ -52,26 +58,19 @@ export default function ZipCodeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'ZIP Code', headerBackTitle: 'Back', headerShown: true }} />
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>ZIP / Postal Code</Text>
-        <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
-        <ZipCodeMapPreview
-          zipCode={zip}
-          title="Your Location"
-          subtitle={`Content near ZIP ${zip || 'your area'} will be prioritized for you`}
-          showCircle={false}
-        />
-        <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-      </ScrollView>
-    </SafeAreaView>
+    <SettingsFormScreen
+      title="ZIP Code"
+      headerTitle="ZIP / Postal Code"
+      colorScheme={colorScheme}
+    >
+      <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
+      <ZipCodeMapPreview
+        zipCode={zip}
+        title="Your Location"
+        subtitle={`Content near ZIP ${zip || 'your area'} will be prioritized for you`}
+        showCircle={false}
+      />
+      <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+    </SettingsFormScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1 },
-  contentContainer: { padding: 16, paddingTop: 24 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-});

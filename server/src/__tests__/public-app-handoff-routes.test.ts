@@ -57,6 +57,13 @@ describe('Public app handoff routes', () => {
     expect(handoffRoute).toContain("path: '/payment-cancel'");
   });
 
+  it('covers coach onboarding handoff pages used by approval emails', () => {
+    expect(handoffRoute).toContain("path: '/onboarding/coach-agreement'");
+    expect(handoffRoute).toContain("title: 'Accept Coach Agreement'");
+    expect(handoffRoute).toContain("path: '/onboarding/step-3-league'");
+    expect(handoffRoute).toContain("title: 'Finish Coach Setup'");
+  });
+
   it('mounts the shared handoff router in both production and test app entrypoints', () => {
     expect(appSrc).toContain(
       "import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';"

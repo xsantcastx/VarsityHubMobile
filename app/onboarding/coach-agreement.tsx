@@ -35,10 +35,10 @@ function CoachAgreementScreen() {
       await User.updatePreferences({
         coach_agreement_accepted_at: new Date().toISOString(),
       });
-      // Sync auth state so we have the latest preferences
-      const me = (await getFreshAuthSnapshot(checkAuth, user)) as CoachUserLike | null;
-      const decision = me
-        ? getCoachAgreementRouteDecision(me, params.redirect)
+      // Sync auth state and route from the canonical refreshed payload.
+      const freshUser = (await checkAuth()) as CoachUserLike | null;
+      const decision = freshUser
+        ? getCoachAgreementRouteDecision(freshUser, params.redirect)
         : { route: '/onboarding/step-3-league', params: undefined };
       if (decision.params) {
         router.replace({ pathname: decision.route, params: decision.params } as never);

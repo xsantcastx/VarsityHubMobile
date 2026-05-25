@@ -384,6 +384,17 @@ export const adCreationLimiter = createLimiter({
 });
 
 /**
+ * Game story creation
+ * 30 stories per hour per user. Stories are geovalidated and typically tie to
+ * a single live event, so 30/hr is well above real-world usage.
+ */
+export const storyCreationLimiter = createLimiter({
+  name: 'story-creation',
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: rateLimitingDisabled ? 100000 : 30,
+});
+
+/**
  * Ad moderation actions (approve / reject / review)
  * 30 per 15 minutes per admin. Threat model is a compromised or misbehaving
  * admin account spamming moderation; legitimate queue work rarely exceeds
@@ -560,7 +571,7 @@ export const rateLimiters = {
   rsvp: rsvpLimiter,
   vote: voteLimiter,
   adCreation: adCreationLimiter,
-  adModeration: adModerationLimiter,
+  storyCreation: storyCreationLimiter,
   payment: paymentLimiter,
   promoCode: promoCodeLimiter,
   userLookup: userLookupLimiter,

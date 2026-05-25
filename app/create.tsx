@@ -2,17 +2,17 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
+import { getAuthSnapshot } from '@/utils/authState';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { getAuthSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
 
 function CreateScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const { canAccessCreateTeam } = useCreateTeamAccess();
   const [me, setMe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ function CreateScreen() {
     let mounted = true;
     void (async () => {
       try {
-        const u = await getAuthSnapshot(checkAuth, authUser);
+        const u = await getAuthSnapshot(checkAuth, user);
         if (mounted) setMe(u);
       } catch (e: any) {
         if (mounted) setError('Unable to load your account.');
@@ -35,7 +35,7 @@ function CreateScreen() {
       }
     })();
     return () => { mounted = false; };
-  }, [authUser, checkAuth]);
+  }, [checkAuth, user]);
   const go = (path: string) => {
     if (!verified) return router.replace('/verify-identity?method=email');
     router.replace(path as any);

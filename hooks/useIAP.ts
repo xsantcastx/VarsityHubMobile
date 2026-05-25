@@ -114,7 +114,7 @@ export function useVHubIAP() {
           await httpPost('/payments/google/verify-purchase', {
             purchase_token: purchaseToken,
             product_id: purchase.productId,
-            package_name: (purchase as any).packageNameAndroid || 'com.varsityhub.varsityhub',
+            package_name: (purchase as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
           });
         }
 
@@ -238,7 +238,7 @@ export function useVHubIAP() {
             await httpPost('/payments/google/verify-purchase', {
               purchase_token: (p as any).purchaseToken,
               product_id: p.productId,
-              package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
+              package_name: (p as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
             });
           }
           await finishTransaction({ purchase: p, isConsumable: false }).catch(() => {});
@@ -358,7 +358,7 @@ export function useVHubIAP() {
               await httpPost('/payments/google/verify-purchase', {
                 purchase_token: token,
                 product_id: p.productId,
-                package_name: (p as any).packageNameAndroid || 'com.varsityhub.varsityhub',
+                package_name: (p as any).packageNameAndroid || 'com.xsantcastx.varsityhub',
               });
             }
           }

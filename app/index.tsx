@@ -11,8 +11,8 @@ import { ActivityIndicator, Platform, View } from 'react-native';
  * Passive splash screen - navigation is handled centrally by _layout.tsx
  * This eliminates race conditions where both index and _layout try to navigate.
  *
- * The AuthProvider/_layout flow will:
- * 1. Refresh canonical auth state
+ * The _layout effect will:
+ * 1. Check auth status via the centralized auth provider
  * 2. Route to sign-in (unauthenticated)
  * 3. Route to onboarding (needs onboarding)
  * 4. Route to tabs (authenticated)

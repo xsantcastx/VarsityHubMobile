@@ -1,13 +1,16 @@
+import { User } from '@/api/entities';
+import {
+  AdminGuardState,
+  AdminScreenShell,
+  adminScreenSharedStyles as sharedStyles,
+} from '@/components/AdminScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-// @ts-ignore
-import { User } from '@/api/entities';
 import { safeGoBack } from '@/utils/navigation';
 import { isSessionExpiryError } from '@/utils/sessionExpiryError';
 
@@ -15,7 +18,7 @@ function AdminUsersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -23,9 +26,10 @@ function AdminUsersScreen() {
   const [showBanned, setShowBanned] = useState(false);
 
   const load = useCallback(async () => {
-    if (!isAdmin) return; // Don't load if not admin
-    
-    setLoading(true); setError(null);
+    if (!isAdmin) return;
+
+    setLoading(true);
+    setError(null);
     try {
       const list = await User.listAllAdmin(q, 200, showBanned);
       setItems(Array.isArray(list) ? list : []);
@@ -35,12 +39,16 @@ function AdminUsersScreen() {
           ? 'Your admin session expired. Please sign in again.'
           : e?.status === 403
             ? 'Access denied (admin only).'
-            : (e?.message || 'Failed to load users')
+            : e?.message || 'Failed to load users'
       );
-    } finally { setLoading(false); }
-  }, [q, showBanned, isAdmin]);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, q, showBanned]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const toggleBan = (id: string, banned: boolean) => {
     const action = banned ? 'unban' : 'ban';
@@ -61,9 +69,7 @@ function AdminUsersScreen() {
               }
               await load();
             } catch (e: any) {
-              if (isSessionExpiryError(e)) {
-                return;
-              }
+              if (isSessionExpiryError(e)) return;
               Alert.alert('Error', e?.message || `Failed to ${action} user`);
             }
           },
@@ -74,91 +80,155 @@ function AdminUsersScreen() {
 
   if (adminLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <ActivityIndicator color={Colors[colorScheme].tint} />
-      </SafeAreaView>
+      <AdminGuardState
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+        loading
+      />
     );
   }
 
   if (!isAdmin) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-        <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Admin access required</Text>
-      </SafeAreaView>
+      <AdminGuardState
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+      />
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Admin · Users', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ) }} />
+    <AdminScreenShell
+      title="Admin · Users"
+      backgroundColor={Colors[colorScheme].background}
+      onBack={() => {
+        safeGoBack(router);
+      }}
+    >
       <View style={styles.bar}>
-        <TextInput value={q} onChangeText={setQ} placeholder="Search by name or email" placeholderTextColor={Colors[colorScheme].mutedText} style={[styles.search, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]} />
-        <Pressable style={[styles.toggle, { borderColor: Colors[colorScheme].border }, showBanned && { backgroundColor: Colors[colorScheme].tint }]} onPress={() => setShowBanned((x) => !x)}>
-          <Text style={[styles.toggleText, { color: showBanned ? '#fff' : Colors[colorScheme].text }]}>Banned</Text>
+        <TextInput
+          value={q}
+          onChangeText={setQ}
+          placeholder="Search by name or email"
+          placeholderTextColor={Colors[colorScheme].mutedText}
+          style={[
+            styles.search,
+            {
+              backgroundColor: Colors[colorScheme].card,
+              borderColor: Colors[colorScheme].border,
+              color: Colors[colorScheme].text,
+            },
+          ]}
+        />
+        <Pressable
+          style={[
+            styles.toggle,
+            { borderColor: Colors[colorScheme].border },
+            showBanned && { backgroundColor: Colors[colorScheme].tint },
+          ]}
+          onPress={() => setShowBanned(x => !x)}
+        >
+          <Text style={[styles.toggleText, { color: showBanned ? '#fff' : Colors[colorScheme].text }]}>
+            Banned
+          </Text>
         </Pressable>
       </View>
-      {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator color={Colors[colorScheme].tint} /></View> : null}
-      {error ? <Text style={[styles.error, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>{error}</Text> : null}
-      {!loading && !error && (
+      {loading ? <View style={sharedStyles.listLoading}><ActivityIndicator /></View> : null}
+      {error ? <Text style={[sharedStyles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
+      {!loading && !error ? (
         <FlatList
           data={items}
-          keyExtractor={(u) => String(u.id)}
+          keyExtractor={u => String(u.id)}
           renderItem={({ item }) => (
-            <View style={[styles.row, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{item.display_name || '(no display)'}</Text>
+            <View
+              style={[
+                styles.row,
+                {
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                },
+              ]}
+            >
+              <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+                {item.display_name || '(no display)'}
+              </Text>
               <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{item.email}</Text>
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-                <View style={styles.badge}><Text style={styles.badgeText}>{item.email_verified ? 'VERIFIED' : 'UNVERIFIED'}</Text></View>
-                {item.banned ? <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}><Text style={[styles.badgeText, { color: '#991B1B' }]}>BANNED</Text></View> : null}
+              <View style={styles.badgesRow}>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{item.email_verified ? 'VERIFIED' : 'UNVERIFIED'}</Text>
+                </View>
+                {item.banned ? (
+                  <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+                    <Text style={[styles.badgeText, { color: '#991B1B' }]}>BANNED</Text>
+                  </View>
+                ) : null}
               </View>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <View style={styles.actionsRow}>
                 <Pressable style={styles.btn} onPress={() => toggleBan(String(item.id), !!item.banned)}>
                   <Text style={styles.btnText}>{item.banned ? 'Unban' : 'Ban'}</Text>
                 </Pressable>
-                <Pressable style={[styles.btn, { backgroundColor: '#374151' }]} onPress={() => void router.push(`/admin-user-detail?id=${encodeURIComponent(String(item.id))}`)}>
+                <Pressable
+                  style={[styles.btn, { backgroundColor: '#374151' }]}
+                  onPress={() => void router.push(`/admin-user-detail?id=${encodeURIComponent(String(item.id))}`)}
+                >
                   <Text style={styles.btnText}>View</Text>
                 </Pressable>
               </View>
             </View>
           )}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+          contentContainerStyle={sharedStyles.listContent}
           ListEmptyComponent={
-            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+            <View style={styles.emptyState}>
               <MaterialIcons name="person-search" size={48} color={Colors[colorScheme].mutedText} />
-              <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600', marginTop: 12 }}>No users match this filter</Text>
-              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 14, marginTop: 4 }}>Try adjusting your search or filter criteria.</Text>
+              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No users match this filter</Text>
+              <Text style={[styles.emptyBody, { color: Colors[colorScheme].mutedText }]}>
+                Try adjusting your search or filter criteria.
+              </Text>
             </View>
           }
         />
-      )}
-    </SafeAreaView>
+      ) : null}
+    </AdminScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   bar: { flexDirection: 'row', gap: 8, padding: 12 },
-  search: { flex: 1, height: 44, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 10, backgroundColor: 'white' },
-  toggle: { paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
-  toggleOn: { backgroundColor: '#111827', borderColor: '#111827' },
-  toggleText: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
-  toggleTextOn: { color: '#FFFFFF' }, // White text for active state
-  row: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB' },
+  search: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+  },
+  toggle: {
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleText: { fontWeight: '700' },
+  row: { padding: 12, borderRadius: 12, borderWidth: 1 },
   title: { fontWeight: '800', fontSize: 16 },
-  meta: { color: Colors.light.mutedText },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#D1D5DB' },
+  meta: {},
+  badgesRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#D1D5DB',
+  },
   badgeText: { fontWeight: '800', fontSize: 10 },
+  actionsRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   btn: { backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   btnText: { color: 'white', fontWeight: '800' },
-  error: { color: '#b91c1c', padding: 12 },
+  emptyState: { alignItems: 'center', paddingVertical: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', marginTop: 12 },
+  emptyBody: { fontSize: 14, marginTop: 4 },
 });
-
-
-
 
 export default AdminUsersScreen;

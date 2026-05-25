@@ -2,6 +2,43 @@ import { describe, expect, it } from '@jest/globals';
 import { getCoachFlowState } from '../lib/coachApplications.js';
 
 describe('getCoachFlowState', () => {
+  const buildApplication = (
+    overrides: Partial<Parameters<typeof getCoachFlowState>[1]> = {},
+  ): Parameters<typeof getCoachFlowState>[1] => ({
+    id: 'app_1',
+    status: 'submitted',
+    organization_name: 'Westhill',
+    org_type: 'school',
+    location: 'Stamford, CT',
+    zip_code: '06902',
+    place_id: null,
+    supporting_document_url: null,
+    background_url: null,
+    payload: {} as any,
+    submitted_at: new Date(),
+    reviewed_at: null,
+    reviewed_by: null,
+    review_note: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    ...overrides,
+  });
+
+  const buildJoinRequest = (
+    overrides: Partial<NonNullable<Parameters<typeof getCoachFlowState>[2]>> = {},
+  ): NonNullable<Parameters<typeof getCoachFlowState>[2]> => ({
+    id: 'join_1',
+    organization_id: 'org_1',
+    user_id: 'user_1',
+    status: 'pending',
+    message: 'Would love to help coach.',
+    rejection_reason: null,
+    created_at: new Date(),
+    reviewed_at: null,
+    reviewed_by: null,
+    ...overrides,
+  });
+
   it('keeps a newly submitted coach application on the waiting screen', () => {
     const state = getCoachFlowState(
       {
@@ -10,24 +47,7 @@ describe('getCoachFlowState', () => {
         onboarding_completed: false,
         proceeding_as_fan: false,
       },
-      {
-        id: 'app_1',
-        status: 'submitted',
-        organization_name: 'Westhill',
-        org_type: 'school',
-        location: 'Stamford, CT',
-        zip_code: '06902',
-        place_id: null,
-        supporting_document_url: null,
-        background_url: null,
-        payload: {},
-        submitted_at: new Date(),
-        reviewed_at: null,
-        reviewed_by: null,
-        review_note: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      buildApplication()
     );
 
     expect(state).toEqual({
@@ -44,24 +64,7 @@ describe('getCoachFlowState', () => {
         onboarding_completed: false,
         proceeding_as_fan: true,
       },
-      {
-        id: 'app_1',
-        status: 'submitted',
-        organization_name: 'Westhill',
-        org_type: 'school',
-        location: 'Stamford, CT',
-        zip_code: '06902',
-        place_id: null,
-        supporting_document_url: null,
-        background_url: null,
-        payload: {},
-        submitted_at: new Date(),
-        reviewed_at: null,
-        reviewed_by: null,
-        review_note: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      buildApplication()
     );
 
     expect(state).toEqual({
@@ -108,6 +111,64 @@ describe('getCoachFlowState', () => {
     });
   });
 
+  it('routes pending coaches with incomplete basics back to step 2 before the application flow', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        username: '',
+        preferences: { role: 'coach' },
+        proceeding_as_fan: false,
+      },
+      null
+    );
+
+    expect(state).toEqual({
+      account_state: 'coach_basic_info_required',
+      next_step: '/onboarding/step-2-basic',
+    });
+  });
+
+  it('routes pending coaches with complete basics into the application flow', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        username: 'coachuser',
+        date_of_birth: new Date('1990-01-01T00:00:00.000Z'),
+        preferences: { role: 'coach', zip_code: '06902' },
+        proceeding_as_fan: false,
+      },
+      null
+    );
+
+    expect(state).toEqual({
+      account_state: 'coach_application_required',
+      next_step: '/onboarding/coach-application',
+    });
+  });
+
+  it('routes an existing-organization join request to the join waiting screen', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'PENDING',
+        onboarding_completed: false,
+        organization_id: 'org_1',
+        proceeding_as_fan: false,
+      },
+      null,
+      buildJoinRequest()
+    );
+
+    expect(state).toEqual({
+      account_state: 'coach_pending_approval',
+      next_step: '/onboarding/pending-approval',
+    });
+  });
+
   it('lets a rejected applicant continue as a fan without pretending onboarding is complete', () => {
     const state = getCoachFlowState(
       {
@@ -116,24 +177,13 @@ describe('getCoachFlowState', () => {
         onboarding_completed: false,
         proceeding_as_fan: true,
       },
-      {
+      buildApplication({
         id: 'app_2',
         status: 'rejected',
-        organization_name: 'Westhill',
-        org_type: 'school',
-        location: 'Stamford, CT',
-        zip_code: '06902',
-        place_id: null,
-        supporting_document_url: null,
-        background_url: null,
-        payload: {},
-        submitted_at: new Date(),
         reviewed_at: new Date(),
         reviewed_by: 'admin_1',
         review_note: 'Need better documentation',
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      })
     );
 
     expect(state).toEqual({
@@ -183,6 +233,30 @@ describe('getCoachFlowState', () => {
     });
   });
 
+  it('routes a denied organization join request back to the join review screen', () => {
+    const state = getCoachFlowState(
+      {
+        role: 'coach',
+        approval_status: 'REJECTED',
+        onboarding_completed: false,
+        organization_id: 'org_1',
+        proceeding_as_fan: false,
+      },
+      null,
+      buildJoinRequest({
+        status: 'denied',
+        reviewed_at: new Date(),
+        reviewed_by: 'owner_1',
+        rejection_reason: 'Roster is full',
+      })
+    );
+
+    expect(state).toEqual({
+      account_state: 'coach_pending_approval',
+      next_step: '/onboarding/pending-approval',
+    });
+  });
+
   it('treats approved coaches as active without extra agreement or setup gates', () => {
     const firstApprovedState = getCoachFlowState(
       {
@@ -192,24 +266,12 @@ describe('getCoachFlowState', () => {
         organization_id: null,
         coach_agreement_accepted_at: null,
       },
-      {
+      buildApplication({
         id: 'app_3',
         status: 'approved',
-        organization_name: 'Westhill',
-        org_type: 'school',
-        location: 'Stamford, CT',
-        zip_code: '06902',
-        place_id: null,
-        supporting_document_url: null,
-        background_url: null,
-        payload: {},
-        submitted_at: new Date(),
         reviewed_at: new Date(),
         reviewed_by: 'admin_1',
-        review_note: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      })
     );
 
     expect(firstApprovedState).toEqual({
@@ -225,24 +287,12 @@ describe('getCoachFlowState', () => {
         organization_id: null,
         coach_agreement_accepted_at: new Date(),
       },
-      {
+      buildApplication({
         id: 'app_3',
         status: 'approved',
-        organization_name: 'Westhill',
-        org_type: 'school',
-        location: 'Stamford, CT',
-        zip_code: '06902',
-        place_id: null,
-        supporting_document_url: null,
-        background_url: null,
-        payload: {},
-        submitted_at: new Date(),
         reviewed_at: new Date(),
         reviewed_by: 'admin_1',
-        review_note: null,
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
+      })
     );
 
     expect(secondApprovedState).toEqual({

@@ -61,6 +61,35 @@ describe('nextIncompleteStep', () => {
     expect(result).toBe(2); // STEP_3_LEAGUE.index (last completed step)
   });
 
+  it('should keep coach on step 3 when local org data exists but step 3 was never completed', () => {
+    const state: OnboardingState = {
+      role: 'coach',
+      username: 'testuser',
+      dob: '2000-01-01',
+      zip: '12345',
+      step_2_visited: true,
+      organization_id: 'org_123',
+      join_request_pending: true,
+    };
+    const result = nextIncompleteStep(state, 'coach');
+    expect(result).toBe(2); // stale ids do not complete step 3
+  });
+
+  it('should treat step_3_visited as the canonical local completion marker for coaches', () => {
+    const state: OnboardingState = {
+      role: 'coach',
+      username: 'testuser',
+      dob: '2000-01-01',
+      zip: '12345',
+      step_2_visited: true,
+      organization_id: 'org_123',
+      join_request_pending: false,
+      step_3_visited: true,
+    };
+    const result = nextIncompleteStep(state, 'coach');
+    expect(result).toBe(2);
+  });
+
   it('should enforce step order for coaches - never jump ahead', () => {
     const incompleteState: OnboardingState = {
       role: 'coach',

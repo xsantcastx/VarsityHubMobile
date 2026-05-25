@@ -1,24 +1,7 @@
-import React from 'react';
+import { StripeProvider, createNoopPaymentSheet } from './stripe.noop-shared';
 
-type PaymentSheetResult = {
-  error?: {
-    code?: string;
-    message?: string;
-  };
-};
+export { StripeProvider };
 
-const unavailableResult = (message: string): PaymentSheetResult => ({
-  error: {
-    code: 'Unavailable',
-    message,
-  },
-});
-
-export const StripeProvider: React.ComponentType<any> = ({ children }) => <>{children}</>;
-
-export const usePaymentSheet = () => ({
-  initPaymentSheet: async () =>
-    unavailableResult('Stripe PaymentSheet is disabled on iOS. VarsityHub uses Apple In-App Purchase instead.'),
-  presentPaymentSheet: async () =>
-    unavailableResult('Stripe PaymentSheet is disabled on iOS. VarsityHub uses Apple In-App Purchase instead.'),
-});
+export const usePaymentSheet = createNoopPaymentSheet(
+  'Stripe PaymentSheet is disabled on iOS. VarsityHub uses Apple In-App Purchase instead.'
+);

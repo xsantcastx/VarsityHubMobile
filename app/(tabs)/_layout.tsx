@@ -14,6 +14,48 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const hiddenTabScreenNames = [
+    'index',
+    'notifications/index',
+    'messages/index',
+    'feed/game/[id]',
+    'feed/game/index',
+    'discover/mobile-community',
+    'discover/game/index',
+    'discover/game/[id]',
+    'admin-ads',
+    'admin-messages',
+    'admin-teams',
+    'admin-users',
+    'admin-user-detail',
+    'ad-calendar',
+    'edit-ad',
+    'my-ads',
+    'submit-ad',
+    'game-detail',
+    'game-photos',
+    'game-highlights',
+    'game-reviews',
+    'create-post',
+    'team-profile',
+    'team-hub',
+    'team-contacts',
+    'edit-profile',
+    'create-team',
+    'edit-team',
+    'manage-teams',
+    'my-team',
+    'followers',
+    'following',
+    'organization',
+    'event-detail',
+    'edit-event',
+    'edit-organization',
+    'event-approvals',
+    'approvals',
+    'verify-email',
+    'team-page',
+  ] as const;
 
   const hiddenTab = useMemo(
     () =>
@@ -92,46 +134,9 @@ export default function TabLayout() {
           tabBarAccessibilityLabel: 'Discover',
         }}
       />
-      <Tabs.Screen name="index" options={hiddenTab} />
-      <Tabs.Screen name="notifications/index" options={hiddenTab} />
-      <Tabs.Screen name="messages/index" options={hiddenTab} />
-      <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
-      <Tabs.Screen name="feed/game/index" options={hiddenTab} />
-      <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
-      <Tabs.Screen name="discover/game/index" options={hiddenTab} />
-      <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
-      <Tabs.Screen name="admin-ads" options={hiddenTab} />
-      <Tabs.Screen name="admin-messages" options={hiddenTab} />
-      <Tabs.Screen name="admin-teams" options={hiddenTab} />
-      <Tabs.Screen name="admin-users" options={hiddenTab} />
-      <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
-      <Tabs.Screen name="ad-calendar" options={hiddenTab} />
-      <Tabs.Screen name="edit-ad" options={hiddenTab} />
-      <Tabs.Screen name="my-ads" options={hiddenTab} />
-      <Tabs.Screen name="submit-ad" options={hiddenTab} />
-      <Tabs.Screen name="game-detail" options={hiddenTab} />
-      <Tabs.Screen name="game-photos" options={hiddenTab} />
-      <Tabs.Screen name="game-highlights" options={hiddenTab} />
-      <Tabs.Screen name="game-reviews" options={hiddenTab} />
-      <Tabs.Screen name="create-post" options={hiddenTab} />
-      <Tabs.Screen name="team-profile" options={hiddenTab} />
-      <Tabs.Screen name="team-hub" options={hiddenTab} />
-      <Tabs.Screen name="team-contacts" options={hiddenTab} />
-      <Tabs.Screen name="edit-profile" options={hiddenTab} />
-      <Tabs.Screen name="create-team" options={hiddenTab} />
-      <Tabs.Screen name="edit-team" options={hiddenTab} />
-      <Tabs.Screen name="manage-teams" options={hiddenTab} />
-      <Tabs.Screen name="my-team" options={hiddenTab} />
-      <Tabs.Screen name="followers" options={hiddenTab} />
-      <Tabs.Screen name="following" options={hiddenTab} />
-      <Tabs.Screen name="organization" options={hiddenTab} />
-      <Tabs.Screen name="event-detail" options={hiddenTab} />
-      <Tabs.Screen name="edit-event" options={hiddenTab} />
-      <Tabs.Screen name="edit-organization" options={hiddenTab} />
-      <Tabs.Screen name="event-approvals" options={hiddenTab} />
-      <Tabs.Screen name="approvals" options={hiddenTab} />
-      <Tabs.Screen name="verify-email" options={hiddenTab} />
-      <Tabs.Screen name="team-page" options={hiddenTab} />
+      {hiddenTabScreenNames.map((name) => (
+        <Tabs.Screen key={name} name={name} options={hiddenTab} />
+      ))}
       <Tabs.Screen
         name="profile/index"
         options={{

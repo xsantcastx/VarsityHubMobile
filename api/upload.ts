@@ -51,6 +51,25 @@ interface UploadFetchConfig {
   coerceFinal401ToUnauthorized?: boolean;
 }
 
+interface PreparedUploadInput {
+  finalBase: string;
+  finalUri: string;
+  finalFilename: string;
+  finalMimeType: string;
+  isMedia: boolean;
+}
+
+async function resolveUploadToken(): Promise<string | null> {
+  const fromSession = await auth.getToken();
+  if (fromSession) return fromSession;
+  try {
+    const refreshed = await auth.refreshToken();
+    return refreshed?.accessToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const MIME_MAP: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
   webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
@@ -168,6 +187,38 @@ async function handleUploadAccessBoundary(
   }
 
   return false;
+}
+
+async function prepareUploadInput(
+  baseUrl: string | null | undefined,
+  uri: string,
+  filename?: string,
+  mimeType?: string,
+): Promise<PreparedUploadInput> {
+  const finalBase = computeBase(baseUrl);
+  let finalMimeType = detectMime(mimeType, filename, uri);
+  const finalFilename = filename || 'upload';
+  let finalUri = uri;
+  const isMedia =
+    finalMimeType.startsWith('image/') || finalMimeType.startsWith('video/');
+
+  if (finalMimeType.startsWith('image/')) {
+    try {
+      const compressed = await compressImageForUpload(finalUri, finalMimeType);
+      finalUri = compressed.uri;
+      if (compressed.mimeType) finalMimeType = compressed.mimeType;
+    } catch (e) {
+      if (__DEV__) console.warn('[upload] Image compression failed, uploading original:', e);
+    }
+  }
+
+  return {
+    finalBase,
+    finalUri,
+    finalFilename,
+    finalMimeType,
+    isMedia,
+  };
 }
 
 async function uploadViaFetchWithRetries({
@@ -425,30 +476,14 @@ export async function uploadFile(
   mimeType?: string,
   options?: UploadOptions,
 ): Promise<any> {
-  const finalBase = computeBase(baseUrl);
-  let finalMimeType = detectMime(mimeType, filename, uri);
-  const finalFilename = filename || 'upload';
-  let finalUri = uri;
-
-  const isMedia =
-    finalMimeType.startsWith('image/') || finalMimeType.startsWith('video/');
+  const { finalBase, finalUri, finalFilename, finalMimeType, isMedia } =
+    await prepareUploadInput(baseUrl, uri, filename, mimeType);
 
   // Non-media files (PDFs, docs) go straight to the general-file server endpoint.
   // Don't try Cloudinary direct — the signature flow assumes resource_type=image|video.
   if (!isMedia) {
     if (__DEV__) console.log('[upload] Non-media upload via /uploads/files:', finalMimeType);
     return uploadRawViaServer(finalBase, finalUri, finalFilename, finalMimeType, options);
-  }
-
-  // Compress images before upload (max 1920px, 80% quality). Videos pass through unchanged.
-  if (finalMimeType.startsWith('image/')) {
-    try {
-      const compressed = await compressImageForUpload(finalUri, finalMimeType);
-      finalUri = compressed.uri;
-      if (compressed.mimeType) finalMimeType = compressed.mimeType;
-    } catch (e) {
-      if (__DEV__) console.warn('[upload] Image compression failed, uploading original:', e);
-    }
   }
 
   // Try direct-to-Cloudinary first (faster — skips server proxy)
@@ -505,21 +540,8 @@ export async function uploadFileWithProgress(
   mimeType?: string,
   options?: UploadOptions,
 ): Promise<any> {
-  const finalBase = computeBase(baseUrl);
-  let finalMimeType = detectMime(mimeType, filename, uri);
-  const finalFilename = filename || 'upload';
-  let finalUri = uri;
-
-  // Compress images before upload (max 1920px, 80% quality). Videos pass through unchanged.
-  if (finalMimeType.startsWith('image/')) {
-    try {
-      const compressed = await compressImageForUpload(finalUri, finalMimeType);
-      finalUri = compressed.uri;
-      if (compressed.mimeType) finalMimeType = compressed.mimeType;
-    } catch (e) {
-      if (__DEV__) console.warn('[upload] Image compression failed, uploading original:', e);
-    }
-  }
+  const { finalBase, finalUri, finalFilename, finalMimeType } =
+    await prepareUploadInput(baseUrl, uri, filename, mimeType);
 
   // Try direct-to-Cloudinary (has XHR progress built in)
   try {

@@ -1,21 +1,23 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, ScrollView, Text, View, useColorScheme, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, View, useColorScheme, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
-import { getCanonicalRole, isProceedingAsFanSnapshot } from '@/utils/authState';
-// @ts-ignore
-import { User, Notification as NotificationApi, Organization } from '@/api/entities';
-import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { httpGet } from '@/api/http';
+import {
+  fetchRejectionReason,
+  getPendingApprovalAuthSnapshot,
+  reapplyCoachApplication,
+  usePendingApprovalActions,
+  usePendingApprovalPolling,
+} from '@/hooks/usePendingApprovalFlow';
+import { captureException } from '@/utils/sentry';
 import {
   CoachSetupActions,
   FanFallbackActions,
   InfoCardRow,
-  PendingApprovalShell,
+  PendingApprovalScreenScaffold,
   PrimaryButton,
   ReasonCard,
   SecondaryButton,
@@ -50,40 +52,103 @@ function LeaguePendingApproval() {
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
   const redirectedRef = useRef(false);
   const proceedingAsFanRef = useRef(false);
-  const isNavigatingRef = useRef(false);
-  const approvalCheckInFlightRef = useRef(false);
-  const lastLifecycleCheckRef = useRef(0);
-  const [navigationTarget, setNavigationTarget] = useState<'organization' | 'create-team' | null>(null);
 
-  const reportPendingApprovalFailure = useCallback((task: string, error: unknown) => {
-    if (__DEV__) console.warn(`[league-pending-approval] ${task} failed:`, error);
-    captureBreadcrumb('League pending approval deferred task failed', 'onboarding.pending_approval', { task }, 'warning');
-    captureException(error instanceof Error ? error : new Error(String(error)), {
-      tags: { context: 'league-pending-approval', task },
-    });
-  }, []);
+  const { stopPolling } = usePendingApprovalPolling({
+    setChecking,
+    setTimedOut,
+    skipLifecycleChecks: hydrating,
+    onCheck: async () => {
+      try {
+        const { user: me, decision } = await getPendingApprovalAuthSnapshot(checkAuth);
+        if (!me) return;
+        if (decision.route === '/onboarding/pending-approval') {
+          stopPolling();
+          router.replace(decision.route as any);
+          return;
+        }
+        const accountState = String(me?.account_state || '').trim();
+        const applicationName = String(me?.coach_application?.organization_name || '').trim();
+        if (applicationName) setLeagueName(applicationName);
 
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-  }, []);
+        if (accountState === 'coach_application_submitted') {
+          setIsApplicationFlow(true);
+          setApproved(false);
+          setRejected(false);
+          stopPolling();
+          return;
+        }
 
+        if (accountState === 'coach_application_rejected') {
+          setIsApplicationFlow(true);
+          setRejected(true);
+          stopPolling();
+          setRejectionReason(await fetchRejectionReason(['COACH_REJECTED', 'ORG_REJECTED']));
+          return;
+        }
+
+        if (accountState === 'coach_agreement_required' || accountState === 'coach_final_setup_required') {
+          setIsApplicationFlow(true);
+          setApproved(true);
+          stopPolling();
+          return;
+        }
+
+        setIsApplicationFlow(false);
+
+        if (!orgId) {
+          redirectToLeagueSetup();
+          return;
+        }
+
+        const org: any = await httpGet(`/organizations/${orgId}`);
+        const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
+        const approvalStatus = String(me?.approval_status || '').toUpperCase();
+        const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+        if (isProceedingAsFan || proceedingAsFanRef.current) {
+          stopPolling();
+          return;
+        }
+        const orgState = String(org?.status || '').toLowerCase();
+        const canViewPendingApproval =
+          role === 'coach' &&
+          (approvalStatus === 'PENDING' || approvalStatus === 'APPROVED' || approvalStatus === 'REJECTED') &&
+          Boolean(org?.id) &&
+          (orgState === '' ||
+            orgState === 'pending' ||
+            orgState === 'approved' ||
+            orgState === 'rejected' ||
+            org?.admin_approved === true);
+
+        if (!canViewPendingApproval) {
+          redirectToLeagueSetup();
+          return;
+        }
+
+        const isRejected = org?.status === 'rejected' || me?.approval_status === 'REJECTED';
+        if (isRejected) {
+          setRejected(true);
+          stopPolling();
+          setRejectionReason(await fetchRejectionReason(['COACH_REJECTED', 'ORG_REJECTED']));
+          return;
+        }
+        if (org?.admin_approved === true || me?.approval_status === 'APPROVED') {
+          setApproved(true);
+          stopPolling();
+          void registerPushToken().catch(() => {});
+        }
+      } catch {
+        // ignore polling errors
+      }
+    },
+  });
   const redirectToLeagueSetup = useCallback(() => {
     if (redirectedRef.current) return;
     redirectedRef.current = true;
     stopPolling();
     router.replace('/onboarding/coach-application' as any);
   }, [router, stopPolling]);
-
-  useEffect(() => () => {
-    mountedRef.current = false;
-  }, []);
-
   // v1.0.3: hydrate orgId from /me when it's missing at mount (cold-start
   // race where OnboardingContext hasn't loaded yet). Only redirect back to
   // step-3 if the SERVER truly has no organization_id — otherwise we loop
@@ -96,7 +161,13 @@ function LeaguePendingApproval() {
     let cancelled = false;
     void (async () => {
       try {
-        const me: any = await User.refresh();
+        const { user: me, decision } = await getPendingApprovalAuthSnapshot(checkAuth);
+        if (!me) return;
+        if (decision.route === '/onboarding/pending-approval') {
+          stopPolling();
+          router.replace(decision.route as any);
+          return;
+        }
         if (cancelled) return;
         const applicationName = String(me?.coach_application?.organization_name || '').trim();
         if (applicationName) setLeagueName(applicationName);
@@ -133,250 +204,55 @@ function LeaguePendingApproval() {
       cancelled = true;
     };
   }, [orgId, redirectToLeagueSetup]);
-
-  // Poll organization status every 30 seconds for legacy org-backed pending flows.
-  const checkApproval = useCallback(async (trigger: 'initial' | 'interval' | 'focus' | 'foreground' = 'interval') => {
-    if (approvalCheckInFlightRef.current) return;
-    if (trigger === 'focus' || trigger === 'foreground') {
-      const now = Date.now();
-      if (now - lastLifecycleCheckRef.current < 2000) return;
-      lastLifecycleCheckRef.current = now;
-    }
-    try {
-      approvalCheckInFlightRef.current = true;
-      setChecking(true);
-      const me: any = await User.refresh().catch(() => null);
-      const accountState = String(me?.account_state || '').trim();
-      const applicationName = String(me?.coach_application?.organization_name || '').trim();
-      if (applicationName) setLeagueName(applicationName);
-
-      if (accountState === 'coach_application_submitted') {
-        setIsApplicationFlow(true);
-        setApproved(false);
-        setRejected(false);
-        stopPolling();
-        return;
-      }
-
-      if (accountState === 'coach_application_rejected') {
-        setIsApplicationFlow(true);
-        setRejected(true);
-        stopPolling();
-        try {
-          const page = await NotificationApi.listPage(null, 20, false);
-          const rejectionNotif = Array.isArray(page?.items)
-            ? page.items.find((n: any) => (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') && n.meta?.reason)
-            : null;
-          if (rejectionNotif?.meta?.reason) {
-            setRejectionReason(rejectionNotif.meta.reason);
-          }
-        } catch {
-          // best-effort
-        }
-        return;
-      }
-
-      if (accountState === 'coach_agreement_required' || accountState === 'coach_final_setup_required') {
-        setIsApplicationFlow(true);
-        setApproved(true);
-        stopPolling();
-        return;
-      }
-
-      setIsApplicationFlow(false);
-
-      if (!orgId) {
-        redirectToLeagueSetup();
-        return;
-      }
-
-      const org: any = await Organization.get(orgId);
-      const role = String(getCanonicalRole(me) || '').toLowerCase();
-      const approvalStatus = String(me?.approval_status || '').toUpperCase();
-      const isProceedingAsFan = isProceedingAsFanSnapshot(me);
-      if (isProceedingAsFan || proceedingAsFanRef.current) {
-        stopPolling();
-        return;
-      }
-      const orgState = String(org?.status || '').toLowerCase();
-      const canViewPendingApproval =
-        role === 'coach' &&
-        (approvalStatus === 'PENDING' || approvalStatus === 'APPROVED' || approvalStatus === 'REJECTED') &&
-        Boolean(org?.id) &&
-        (orgState === '' || orgState === 'pending' || orgState === 'approved' || orgState === 'rejected' || org?.admin_approved === true);
-
-      if (!canViewPendingApproval) {
-        redirectToLeagueSetup();
-        return;
-      }
-
-      const isRejected = org?.status === 'rejected' || me?.approval_status === 'REJECTED';
-      if (isRejected) {
-        setRejected(true);
-        stopPolling();
-        // Fetch rejection reason from notifications
-        try {
-          const page = await NotificationApi.listPage(null, 20, false);
-          const rejectionNotif = Array.isArray(page?.items)
-            ? page.items.find((n: any) => (n.type === 'COACH_REJECTED' || n.type === 'ORG_REJECTED') && n.meta?.reason)
-            : null;
-          if (rejectionNotif?.meta?.reason) {
-            setRejectionReason(rejectionNotif.meta.reason);
-          }
-        } catch {
-          // best-effort
-        }
-        return;
-      }
-      // Legacy org-backed approval path.
-      if (org?.admin_approved === true || me?.approval_status === 'APPROVED') {
-        setApproved(true);
-        stopPolling();
-        // Approval only unlocks real coach setup. Do not mark onboarding complete here.
-        void registerPushToken().catch((error: unknown) => {
-          reportPendingApprovalFailure('register_push_token', error);
-        });
-      }
-    } catch {
-      // ignore polling errors
-    } finally {
-      approvalCheckInFlightRef.current = false;
-      setChecking(false);
-    }
-  }, [orgId, redirectToLeagueSetup, registerPushToken, reportPendingApprovalFailure, stopPolling]);
-
-  useEffect(() => {
-    void checkApproval('initial');
-    // v1.0.3: poll every 30s (was 60s) — see pending-approval.tsx for rationale.
-    intervalRef.current = setInterval(() => void checkApproval('interval'), 30000);
-    // Stop polling after 30 minutes — admin has been notified, user should continue as fan
-    timeoutRef.current = setTimeout(() => {
-      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-      setTimedOut(true);
-    }, 30 * 60 * 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [checkApproval, orgId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!hydrating) {
-        void checkApproval('focus');
-      }
-    }, [checkApproval, hydrating])
-  );
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextState => {
-      if (nextState === 'active' && !hydrating) {
-        void checkApproval('foreground');
-      }
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, [checkApproval, hydrating]);
-
-  const handleLogout = async () => {
-    try {
-      await signOut();
-    } catch (err) {
-      if (__DEV__) console.warn('[league-pending-approval] Logout failed:', (err as Error)?.message ?? err);
-    }
-    router.replace('/sign-in');
-  };
-
-  const handleProceedAsFan = async () => {
-    try {
-      proceedingAsFanRef.current = true;
-      stopPolling();
-      await User.updatePreferences({ proceeding_as_fan: true });
-      let nextRoute: string = '/(tabs)';
-      try {
-        const freshUser = await checkAuth({ skipSubscriptionRefresh: true });
-        const decision = getPostAuthRouteDecision(freshUser ?? null);
-        if (
-          freshUser &&
-          ![
-            '/onboarding/pending-approval',
-            '/onboarding/league-pending-approval',
-            '/onboarding/step-1-role',
-            '/onboarding/step-2-basic',
-            '/onboarding/step-3-league',
-            '/onboarding/coach-application',
-          ].includes(decision.route)
-        ) {
-          nextRoute = decision.route;
-        }
-      } catch {
-        // The fan-mode write already succeeded. Fall back to tabs instead of
-        // trapping the user on a stale pending route.
-      }
-      router.replace(nextRoute as any);
-    } catch (err) {
-      proceedingAsFanRef.current = false;
-      if (__DEV__) console.warn('[league-pending-approval] Failed to proceed as fan:', err);
+  const {
+    navigationTarget,
+    handleLogout,
+    handleProceedAsFan,
+    handleApprovedNavigation,
+  } = usePendingApprovalActions({
+    replaceRoute: route => router.replace(route),
+    signOut,
+    checkAuth,
+    stopPolling,
+    logPrefix: 'league-pending-approval',
+    proceedingAsFanRef,
+    onProceedAsFanError: err => {
       captureException(err instanceof Error ? err : new Error(String(err)), {
         tags: { component: 'LeaguePendingApproval', action: 'proceedAsFan' },
       });
-      Alert.alert('Setup Issue', 'Could not complete setup. Please check your connection and try again. If this persists, try signing out and back in.');
-    }
-  };
-
-  const handleApprovedNavigation = useCallback(async (redirect: 'organization' | 'create-team') => {
-    if (isNavigatingRef.current) return;
-    isNavigatingRef.current = true;
-    setNavigationTarget(redirect);
-    try {
-      const freshUser = await checkAuth();
-      const decision = getPostAuthRouteDecision(freshUser ?? null);
-      if (decision.route === '/onboarding/coach-agreement') {
-        router.replace({ pathname: decision.route, params: { redirect } } as any);
-      } else {
-        router.replace(decision.route as any);
-      }
-    } catch {
-      Alert.alert('Connection Error', 'Could not verify your account status. Please check your connection and try again.');
-    } finally {
-      isNavigatingRef.current = false;
-      if (mountedRef.current) setNavigationTarget(null);
-    }
-  }, [checkAuth, router]);
+    },
+    formatProceedAsFanError: () => ({
+      title: 'Setup Issue',
+      message:
+        'Could not complete setup. Please check your connection and try again. If this persists, try signing out and back in.',
+    }),
+  });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#F8FAFC' }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <PendingApprovalShell
-          isDark={isDark}
-          status={rejected ? 'rejected' : approved ? 'approved' : 'pending'}
-          heading={
-            rejected
-              ? isApplicationFlow
-                ? 'Application Not Approved'
-                : 'League Not Approved'
-              : approved
-                ? 'Application Approved'
-                : 'Submitted to VarsityHub for Review'
-          }
-          subheading={
-            rejected
-              ? isApplicationFlow
-                ? `Your coach application for "${leagueName}" was not approved.${rejectionReason ? '' : ' You can try again later or continue as a fan. Contact support@varsityhub.app for questions.'}`
-                : `"${leagueName}" was not approved.${rejectionReason ? '' : ' You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.'}`
-              : approved
-                ? isApplicationFlow
-                  ? `Your application for "${leagueName}" was approved. Continue to accept the coach agreement and finish setting up your real organization.`
-                  : `"${leagueName}" is approved. Continue to accept the coach agreement and finish coach setup.`
-                : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
-          }
-        >
+    <PendingApprovalScreenScaffold
+      isDark={isDark}
+      status={rejected ? 'rejected' : approved ? 'approved' : 'pending'}
+      heading={
+        rejected
+          ? isApplicationFlow
+            ? 'Application Not Approved'
+            : 'League Not Approved'
+          : approved
+            ? 'Application Approved'
+            : 'Submitted to VarsityHub for Review'
+      }
+      subheading={
+        rejected
+          ? isApplicationFlow
+            ? `Your coach application for "${leagueName}" was not approved.${rejectionReason ? '' : ' You can try again later or continue as a fan. Contact support@varsityhub.app for questions.'}`
+            : `"${leagueName}" was not approved.${rejectionReason ? '' : ' You can try creating a new league or continue as a fan. Contact support@varsityhub.app for questions.'}`
+          : approved
+            ? isApplicationFlow
+              ? `Your application for "${leagueName}" was approved. Continue to accept the coach agreement and finish setting up your real organization.`
+              : `"${leagueName}" is approved. Continue to accept the coach agreement and finish coach setup.`
+            : `VarsityHub is reviewing "${leagueName}". This usually takes less than 24 hours. You'll receive an email when your league is approved and ready.`
+      }
+    >
 
           {rejected && rejectionReason ? (
             <ReasonCard
@@ -423,42 +299,19 @@ function LeaguePendingApproval() {
               <PrimaryButton
                 label={isApplicationFlow ? 'Try Again' : 'Back to Organization Setup'}
                 onPress={() => {
-                  void (async () => {
-                    if (isApplicationFlow) {
-                      try {
-                        setChecking(true);
-                        await User.reapplyCoach();
-                        setRejected(false);
-                        setRejectionReason(null);
-                        Alert.alert('Application Resubmitted', 'Your coach application is pending review again.');
-                        router.replace('/onboarding/coach-application' as any);
-                      } catch (e: any) {
-                        const msg = e?.data?.error || e?.message || 'Failed to re-apply.';
-                        const code = e?.data?.code;
-                        const hrs = e?.data?.retry_after_hours;
-                        const retryAt = e?.data?.retry_at;
-                        if (code === 'REJECTION_COOLDOWN') {
-                          let msgText = 'You can try again once the cooldown expires.';
-                          if (typeof retryAt === 'string') {
-                            const when = new Date(retryAt);
-                            if (!isNaN(when.getTime())) {
-                              msgText = `You can try again on ${when.toLocaleDateString()} at ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
-                            }
-                          } else if (hrs) {
-                            msgText = `You can try again in about ${hrs} hour${hrs === 1 ? '' : 's'}.`;
-                          }
-                          Alert.alert('Please wait', msgText);
-                        } else {
-                          Alert.alert('Failed', msg);
-                        }
-                      } finally {
-                        setChecking(false);
-                      }
-                      return;
-                    }
-
+                  if (!isApplicationFlow) {
                     router.replace('/onboarding/coach-application' as any);
-                  })();
+                    return;
+                  }
+
+                  void reapplyCoachApplication({
+                    setChecking,
+                    setRejected,
+                    setRejectionReason,
+                    onSuccess: () => {
+                      router.replace('/onboarding/coach-application' as any);
+                    },
+                  });
                 }}
                 disabled={checking}
                 style={{ marginBottom: 12 }}
@@ -513,9 +366,7 @@ function LeaguePendingApproval() {
               primaryIcon={<MaterialIcons name={orgId ? 'business' : 'arrow-forward'} size={20} color="#fff" />}
             />
           )}
-        </PendingApprovalShell>
-      </ScrollView>
-    </SafeAreaView>
+    </PendingApprovalScreenScaffold>
   );
 }
 

@@ -183,20 +183,27 @@ describe('Ad Approval Security', () => {
     });
   }
 
-  it('allows token-based approval without an authenticated admin session', async () => {
+  async function expectTokenApprovalWorks(extraHeaders?: Record<string, string>) {
     const ad = await createAd('pending');
     const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
-
-    const res = await request(app)
+    const req = request(app)
       .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
+      .query({ token });
 
+    for (const [key, value] of Object.entries(extraHeaders || {})) {
+      req.set(key, value);
+    }
+
+    const res = await req.send({});
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Ad Approved/i);
 
     const updated = await prisma.ad.findUnique({ where: { id: ad.id } });
     expect(updated?.status).toBe('approved');
+  }
+
+  it('allows token-based approval without an authenticated admin session', async () => {
+    await expectTokenApprovalWorks();
   });
 
   it('burns a tokenized approval link after the first successful POST', async () => {
@@ -262,47 +269,19 @@ describe('Ad Approval Security', () => {
   });
 
   it('allows a valid token even when the requester is a verified non-admin', async () => {
-    const ad = await createAd('pending');
-    const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
-
-    const res = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .set('Authorization', `Bearer ${verifiedNonAdminToken}`)
-      .send({});
-
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Ad Approved/i);
+    await expectTokenApprovalWorks({
+      Authorization: `Bearer ${verifiedNonAdminToken}`,
+    });
   });
 
   it('allows a valid token even when the requester has an unverified admin session', async () => {
-    const ad = await createAd('pending');
-    const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
-
-    const res = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .set('Authorization', `Bearer ${unverifiedAdminToken}`)
-      .send({});
-
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Ad Approved/i);
+    await expectTokenApprovalWorks({
+      Authorization: `Bearer ${unverifiedAdminToken}`,
+    });
   });
 
   it('allows verified admins to approve with a valid token', async () => {
-    const ad = await createAd('pending');
-    const token = signJwt({ adId: ad.id, action: 'approve_ad' }, '7d');
-
-    const res = await request(app)
-      .post(`/ads/${ad.id}/approve`)
-      .query({ token })
-      .send({});
-
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Ad Approved/i);
-
-    const updated = await prisma.ad.findUnique({ where: { id: ad.id } });
-    expect(updated?.status).toBe('approved');
+    await expectTokenApprovalWorks();
   });
 
   it('blocks unverified admins from reviewing through the dashboard endpoint', async () => {

@@ -2456,6 +2456,7 @@ export async function sendCoachApprovedEmail(params: {
   coachName: string;
   leagueName: string;
   note?: string;
+  destination?: 'organization' | 'coach_agreement' | 'coach_final_setup';
 }): Promise<boolean> {
   const subject = `Congratulations on being accepted!`;
   const templateId = TEMPLATE_IDS.JOIN_REQUEST_APPROVED;
@@ -2463,6 +2464,14 @@ export async function sendCoachApprovedEmail(params: {
     console.error('[email] Missing SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID');
     return false;
   }
+
+  const destination = params.destination || 'organization';
+  const destinationUrl =
+    destination === 'coach_agreement'
+      ? buildWebScreenUrl('/onboarding/coach-agreement')
+      : destination === 'coach_final_setup'
+        ? buildWebScreenUrl('/onboarding/step-3-league')
+        : buildWebScreenUrl('/organization?tab=teams');
 
   return sendTemplateEmail(
     templateId,
@@ -2474,8 +2483,8 @@ export async function sendCoachApprovedEmail(params: {
       org_name: params.leagueName,
       admin_name: 'VarsityHub',
       admin_note: params.note || '',
-      org_url: buildWebScreenUrl('/organization?tab=teams'),
-      dashboard_url: buildWebScreenUrl('/organization?tab=teams'),
+      org_url: destinationUrl,
+      dashboard_url: destinationUrl,
       org_logo_url: '',
     },
     `Coach approved email sent to ${params.to}`

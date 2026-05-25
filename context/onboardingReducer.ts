@@ -65,7 +65,10 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
       return !!state.step_2_visited;
     case 3: // League (coaches only)
       if (role !== 'coach') return true; // Fans skip this
-      return !!(state.join_request_pending || state.organization_id);
+      // Explicit visit/completion marker only. Org ids and pending flags can
+      // exist in stale local draft state before the canonical server flow has
+      // actually advanced the user past step 3.
+      return state.step_3_visited === true;
     default:
       return false;
   }

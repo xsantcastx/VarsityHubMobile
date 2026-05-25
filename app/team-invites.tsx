@@ -1,11 +1,13 @@
 import CustomActionModal from '@/components/CustomActionModal';
+import {
+  InviteScreenShell,
+  inviteScreenSharedStyles as sharedStyles,
+} from '@/components/InviteScreenShared';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 import { Button } from '@/components/ui/button';
@@ -17,7 +19,11 @@ type Invite = { id: string; role?: string; team?: { id: string; name?: string } 
 function TeamInvitesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; fallback?: string }>();
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : '/(tabs)/notifications/index';
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
   const { invites, loading, error: invitesError, refresh } = useTeamInvites<Invite>();
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -74,32 +80,33 @@ function TeamInvitesScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Team Invites', headerShown: true, headerLeft: () => (
-            <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
-              <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
-            </Pressable>
-          ) }} />
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Team Invites</Text>
-      {params.id && prioritizedInvites.some(invite => invite.id === params.id) ? (
-        <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
+    <InviteScreenShell
+      title="Team Invites"
+      backgroundColor={Colors[colorScheme].background}
+      textColor={Colors[colorScheme].text}
+      onBack={() => {
+        safeGoBack(router, explicitFallback);
+      }}
+      subtitle={params.id && prioritizedInvites.some(invite => invite.id === params.id) ? (
+        <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
           Your emailed invitation is at the top of the list.
         </Text>
       ) : null}
-      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator color={Colors[colorScheme].tint} /></View>}
-      {invitesError && !loading && <Text style={[styles.error, { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' }]}>{invitesError}</Text>}
-      {!loading && invites.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>}
+    >
+      {loading && <View style={sharedStyles.loading}><ActivityIndicator /></View>}
+      {invitesError && !loading && <Text style={sharedStyles.error}>{invitesError}</Text>}
+      {!loading && invites.length === 0 && <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>}
       {!loading && prioritizedInvites.length > 0 && (
         <FlatList
           data={prioritizedInvites}
           keyExtractor={(i) => i.id}
           renderItem={({ item }) => (
-            <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            <View style={[sharedStyles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.name, { color: Colors[colorScheme].text }]}>{item.team?.name || 'Team'}</Text>
-                <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Role: {item.role || 'member'}</Text>
+                <Text style={[sharedStyles.name, { color: Colors[colorScheme].text }]}>{item.team?.name || 'Team'}</Text>
+                <Text style={[sharedStyles.muted, { color: Colors[colorScheme].mutedText }]}>Role: {item.role || 'member'}</Text>
               </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={sharedStyles.actions}>
                 <Button size="sm" onPress={() => accept(item.id, item.team?.id)} disabled={!!processingId}><Text>Accept</Text></Button>
                 <Button size="sm" variant="outline" onPress={() => decline(item.id)} disabled={!!processingId}><Text>Decline</Text></Button>
               </View>
@@ -117,17 +124,8 @@ function TeamInvitesScreen() {
           onClose={() => setModal(null)}
         />
       )}
-    </SafeAreaView>
+    </InviteScreenShell>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  error: { color: '#b91c1c' },
-  muted: {},
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
-  name: { fontWeight: '700' },
-});
 
 export default TeamInvitesScreen;

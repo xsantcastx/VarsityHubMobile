@@ -158,10 +158,14 @@ type TeamMembershipLike = {
 
 export const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'] as const;
 
-function getMatchingOrgMembership(
+function getMatchingMembership<T extends {
+  status?: string | null;
+  user_id?: string | null;
+  user?: { id?: string | null } | null;
+}>(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
-  memberships: OrgMembershipLike[] | null | undefined,
-): OrgMembershipLike | null {
+  memberships: T[] | null | undefined,
+): T | null {
   if (!user?.id || !Array.isArray(memberships)) return null;
 
   return (
@@ -174,20 +178,18 @@ function getMatchingOrgMembership(
   );
 }
 
+function getMatchingOrgMembership(
+  user: (CoachUserLike & { id?: string | null }) | null | undefined,
+  memberships: OrgMembershipLike[] | null | undefined,
+): OrgMembershipLike | null {
+  return getMatchingMembership(user, memberships);
+}
+
 function getMatchingTeamMembership(
   user: (CoachUserLike & { id?: string | null }) | null | undefined,
   memberships: TeamMembershipLike[] | null | undefined,
 ): TeamMembershipLike | null {
-  if (!user?.id || !Array.isArray(memberships)) return null;
-
-  return (
-    memberships.find((m) => {
-      const memberUserId = m?.user?.id || m?.user_id;
-      if (!memberUserId || memberUserId !== user.id) return false;
-      const status = String(m?.status || 'active').toLowerCase();
-      return status === 'active';
-    }) || null
-  );
+  return getMatchingMembership(user, memberships);
 }
 
 export function getOrganizationAccess(
@@ -343,6 +345,7 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
     explicitNextStep &&
     accountState &&
     [
+      'coach_basic_info_required',
       'coach_application_required',
       'coach_application_submitted',
       'coach_application_rejected',
@@ -350,6 +353,10 @@ export function getCoachRecoveryRoute(user: CoachUserLike | null | undefined): s
     ].includes(accountState)
   ) {
     return explicitNextStep;
+  }
+
+  if (accountState === 'coach_basic_info_required') {
+    return '/onboarding/step-2-basic';
   }
 
   if (accountState === 'coach_application_required') {

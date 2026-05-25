@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
+import { type ReactNode } from 'react';
 import {
     Pressable,
     ScrollView,
@@ -11,11 +12,64 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+function ValueCard({
+  isDark,
+  icon,
+  iconColor,
+  title,
+  children,
+}: {
+  isDark: boolean;
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
+  iconColor: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
+          borderColor: isDark ? '#374151' : '#D1D5DB',
+        },
+      ]}
+    >
+      <View style={styles.cardHeader}>
+        <MaterialIcons name={icon} size={28} color={iconColor} />
+        <Text style={[styles.cardTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}>
+          {title}
+        </Text>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function PlainBulletList({
+  color,
+  items,
+}: {
+  color: string;
+  items: string[];
+}) {
+  return (
+    <View style={styles.bulletList}>
+      {items.map((item) => (
+        <Text key={item} style={[styles.bulletPoint, { color }]}>
+          {`• ${item}`}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 export default function CoreValuesScreen() {
   const colorScheme = useColorScheme();
   const router = useRouter();
 
   const isDark = colorScheme === 'dark';
+  const bodyTextColor = isDark ? '#D1D5DB' : '#374151';
 
   return (
     <SafeAreaView
@@ -44,150 +98,88 @@ export default function CoreValuesScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Our Mission */}
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#D1D5DB',
-            },
-          ]}
+        <ValueCard
+          isDark={isDark}
+          icon="flag"
+          iconColor={isDark ? '#60A5FA' : '#3B82F6'}
+          title="Our Mission"
         >
-          <View style={styles.cardHeader}>
-            <MaterialIcons
-              name="flag"
-              size={28}
-              color={isDark ? '#60A5FA' : '#3B82F6'}
-            />
-            <Text style={[styles.cardTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}>
-              Our Mission
-            </Text>
-          </View>
-          <Text style={[styles.cardBody, { color: isDark ? '#D1D5DB' : '#374151' }]}>
+          <Text style={[styles.cardBody, { color: bodyTextColor }]}>
             VarsityHub is dedicated to bringing high school sports communities together
             in a safe, positive, and inclusive environment. We empower athletes, parents,
             coaches, and fans to connect, celebrate achievements, and support each other
             through every season.
           </Text>
-        </View>
+        </ValueCard>
 
         {/* Safety First */}
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#D1D5DB',
-            },
-          ]}
+        <ValueCard
+          isDark={isDark}
+          icon="verified-user"
+          iconColor={isDark ? '#34D399' : '#10B981'}
+          title="Safety First"
         >
-          <View style={styles.cardHeader}>
-            <MaterialIcons
-              name="verified-user"
-              size={28}
-              color={isDark ? '#34D399' : '#10B981'}
-            />
-            <Text style={[styles.cardTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}>
-              Safety First
-            </Text>
-          </View>
-          <Text style={[styles.cardBody, { color: isDark ? '#D1D5DB' : '#374151' }]}>
+          <Text style={[styles.cardBody, { color: bodyTextColor }]}>
             We prioritize the safety of all users, especially minors. Our platform includes:
           </Text>
-          <View style={styles.bulletList}>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • 24/7 content moderation and reporting tools
-            </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • Age-appropriate messaging restrictions
-            </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • Zero-tolerance policy for harassment and bullying
-            </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • Verified coach and staff accounts
-            </Text>
-          </View>
-        </View>
+          <PlainBulletList
+            color={bodyTextColor}
+            items={[
+              '24/7 content moderation and reporting tools',
+              'Age-appropriate messaging restrictions',
+              'Zero-tolerance policy for harassment and bullying',
+              'Verified coach and staff accounts',
+            ]}
+          />
+        </ValueCard>
 
         {/* Age-Based Messaging */}
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#D1D5DB',
-            },
-          ]}
+        <ValueCard
+          isDark={isDark}
+          icon="group"
+          iconColor="#F59E0B"
+          title="Age-Based Messaging"
         >
-          <View style={styles.cardHeader}>
-            <MaterialIcons
-              name="group"
-              size={28}
-              color={isDark ? '#F59E0B' : '#F59E0B'}
-            />
-            <Text style={[styles.cardTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}>
-              Age-Based Messaging
-            </Text>
-          </View>
-          <Text style={[styles.cardBody, { color: isDark ? '#D1D5DB' : '#374151' }]}>
+          <Text style={[styles.cardBody, { color: bodyTextColor }]}>
             To protect minors, our messaging system enforces age-based restrictions:
           </Text>
           <View style={styles.bulletList}>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
+            <Text style={[styles.bulletPoint, { color: bodyTextColor }]}>
               <Text style={styles.bold}>Users 17 & under:</Text> Can only send direct messages
               to other minors of similar age
             </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
+            <Text style={[styles.bulletPoint, { color: bodyTextColor }]}>
               <Text style={styles.bold}>Users 18+:</Text> Can only message other adults and
               verified coaches/staff members
             </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
+            <Text style={[styles.bulletPoint, { color: bodyTextColor }]}>
               <Text style={styles.bold}>Cross-age messaging:</Text> Blocked by default to
               prevent inappropriate contact
             </Text>
           </View>
-        </View>
+        </ValueCard>
 
         {/* Coach Exception */}
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-              borderColor: isDark ? '#374151' : '#D1D5DB',
-            },
-          ]}
+        <ValueCard
+          isDark={isDark}
+          icon="check-circle"
+          iconColor={isDark ? '#8B5CF6' : '#7C3AED'}
+          title="Coach Exception"
         >
-          <View style={styles.cardHeader}>
-            <MaterialIcons
-              name="check-circle"
-              size={28}
-              color={isDark ? '#8B5CF6' : '#7C3AED'}
-            />
-            <Text style={[styles.cardTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}>
-              Coach Exception
-            </Text>
-          </View>
-          <Text style={[styles.cardBody, { color: isDark ? '#D1D5DB' : '#374151' }]}>
+          <Text style={[styles.cardBody, { color: bodyTextColor }]}>
             Verified coaches and staff members have special permissions to communicate with
             their team members:
           </Text>
-          <View style={styles.bulletList}>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • Coaches are automatically placed in group chats with all team members
-            </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • Group chats allow safe communication between coaches and players of all ages
-            </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • All coach communications are logged for safety and transparency
-            </Text>
-            <Text style={[styles.bulletPoint, { color: isDark ? '#D1D5DB' : '#374151' }]}>
-              • Parents can request to be added to team group chats
-            </Text>
-          </View>
-        </View>
+          <PlainBulletList
+            color={bodyTextColor}
+            items={[
+              'Coaches are automatically placed in group chats with all team members',
+              'Group chats allow safe communication between coaches and players of all ages',
+              'All coach communications are logged for safety and transparency',
+              'Parents can request to be added to team group chats',
+            ]}
+          />
+        </ValueCard>
 
         {/* DM Settings Button */}
         <Pressable

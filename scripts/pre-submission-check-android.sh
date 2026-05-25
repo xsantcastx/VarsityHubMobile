@@ -8,6 +8,9 @@ GRADLEW="$ANDROID_DIR/gradlew"
 PASSED=0
 FAILED=0
 
+source "$PROJECT_ROOT/scripts/android-java-env.sh"
+ensure_android_java 17
+
 echo "🔍 VarsityHub Android Pre-Submission Checklist"
 echo "============================================="
 echo ""
@@ -32,24 +35,42 @@ fi
 
 popd >/dev/null
 
-echo -n "2) Release keystore variables present… "
-if grep -q "MYAPP_UPLOAD_STORE_FILE" "$ANDROID_DIR/gradle.properties" && \
-   grep -q "MYAPP_UPLOAD_KEY_ALIAS" "$ANDROID_DIR/gradle.properties"; then
-  echo "✅"
-  ((PASSED++))
-else
-  echo "❌ (configure values in android/gradle.properties)"
-  ((FAILED++))
+KEYSTORE_PROPERTIES_FILE="$ANDROID_DIR/keystore.properties"
+STORE_FILE=""
+KEY_ALIAS=""
+
+if [ -f "$KEYSTORE_PROPERTIES_FILE" ]; then
+  STORE_FILE=$(grep '^storeFile=' "$KEYSTORE_PROPERTIES_FILE" 2>/dev/null | tail -1 | cut -d'=' -f2-)
+  KEY_ALIAS=$(grep '^keyAlias=' "$KEYSTORE_PROPERTIES_FILE" 2>/dev/null | tail -1 | cut -d'=' -f2-)
+elif [ -n "${ANDROID_KEYSTORE_PATH:-}" ]; then
+  STORE_FILE="${ANDROID_KEYSTORE_PATH:-}"
+  KEY_ALIAS="${ANDROID_KEY_ALIAS:-}"
 fi
 
-STORE_FILE=$(grep '^MYAPP_UPLOAD_STORE_FILE=' "$ANDROID_DIR/gradle.properties" 2>/dev/null | tail -1 | cut -d'=' -f2-)
 STORE_FILE="${STORE_FILE//$'\r'/}"
 STORE_FILE="${STORE_FILE//[$'\t ']/}"
+KEY_ALIAS="${KEY_ALIAS//$'\r'/}"
+KEY_ALIAS="${KEY_ALIAS//[$'\t ']/}"
+
+echo -n "2) Release signing source configured… "
+if [ -f "$KEYSTORE_PROPERTIES_FILE" ] && [ -n "$STORE_FILE" ] && [ -n "$KEY_ALIAS" ]; then
+  echo "✅ (android/keystore.properties)"
+  ((PASSED++))
+elif [ -n "${ANDROID_KEYSTORE_PATH:-}" ] && [ -n "${ANDROID_KEY_ALIAS:-}" ] && [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && [ -n "${ANDROID_KEY_PASSWORD:-}" ]; then
+  echo "✅ (ANDROID_KEYSTORE_* env vars)"
+  ((PASSED++))
+else
+  echo "❌ (configure android/keystore.properties or ANDROID_KEYSTORE_* env vars)"
+  ((FAILED++))
+fi
 
 echo -n "3) Keystore file exists… "
 if [ -n "$STORE_FILE" ]; then
   if [ -f "$STORE_FILE" ]; then
     echo "✅ ($STORE_FILE)"
+    ((PASSED++))
+  elif [ -f "$ANDROID_DIR/$STORE_FILE" ]; then
+    echo "✅ ($ANDROID_DIR/$STORE_FILE)"
     ((PASSED++))
   elif [ -f "$ANDROID_DIR/app/$STORE_FILE" ]; then
     echo "✅ ($ANDROID_DIR/app/$STORE_FILE)"
@@ -59,17 +80,15 @@ if [ -n "$STORE_FILE" ]; then
     ((FAILED++))
   fi
 else
-  echo "⚠️  (STORE_FILE not defined)"
+  echo "⚠️  (storeFile not defined locally; EAS remote credentials may still be used for store builds)"
   ((FAILED++))
 fi
 
-APP_PACKAGE=$(python3 - <<'PY'
-import json, pathlib, sys
-root = pathlib.Path(__file__).resolve().parents[1]
-data = json.loads((root / "app.json").read_text())
-print(data["expo"]["android"]["package"])
-PY
-)
+APP_PACKAGE=$(node -e "
+  const path = require('path');
+  const appJson = require(path.join(process.argv[1], 'app.json'));
+  process.stdout.write(appJson.expo.android.package);
+" "$PROJECT_ROOT")
 
 echo -n "4) applicationId matches app.json package ($APP_PACKAGE)… "
 if grep -q "applicationId '$APP_PACKAGE'" "$ANDROID_DIR/app/build.gradle"; then
@@ -88,6 +107,19 @@ if [ "${VERSION_CODE:-0}" -gt 0 ] 2>/dev/null; then
 else
   echo "❌"
   ((FAILED++))
+fi
+
+echo -n "6) Play submit service account can access Android Publisher… "
+if [ -f "$PROJECT_ROOT/service-account-key.json" ]; then
+  if node "$PROJECT_ROOT/scripts/verify-play-service-account.js" >/dev/null 2>&1; then
+    echo "✅"
+    ((PASSED++))
+  else
+    echo "❌"
+    ((FAILED++))
+  fi
+else
+  echo "⚠️  (service-account-key.json not present; manual Play upload is still possible)"
 fi
 
 echo ""

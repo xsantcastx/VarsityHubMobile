@@ -1,35 +1,36 @@
-import { Colors } from '@/constants/Colors';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
+import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useColorScheme,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    useColorScheme,
+    View,
 } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
-import { getCanonicalBillingState } from '@/utils/billingState';
-import { getFreshAuthSnapshot } from '@/utils/authState';
-import { getCanonicalCoachRole } from '@/utils/roleChecks';
 import {
-  LEGEND_YEARLY_PRICE_LABEL,
-  ROOKIE_TEAM_LIMIT,
-  VETERAN_MONTHLY_TEAM_PRICE_LABEL,
+    LEGEND_YEARLY_PRICE_LABEL,
+    ROOKIE_TEAM_LIMIT,
+    VETERAN_MONTHLY_TEAM_PRICE_LABEL,
 } from '@/constants/plans';
+import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
+import { getFreshAuthSnapshot } from '@/utils/authState';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachUpgradeCta } from '@/utils/coachUpgradeCta';
-import { useAuth } from '@/context/AuthProvider';
+import { getCanonicalCoachRole } from '@/utils/roleChecks';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -71,32 +72,30 @@ function RoleOnboardingScreenInner() {
         const billing = getCanonicalBillingState(me);
         const resolvedCoachTier = billing.selected_plan as CoachTier;
 
-        // Determine account type (fan or coach)
-        if (userRole === 'fan') {
-          setAccountType('fan');
-          logTelemetry('prefill-fan', {
-            plan: billing.plan,
-            pendingPlan: billing.pending_plan,
-            subscriptionTier: me?.subscription_tier,
-          });
-        } else if (userRole === 'coach') {
-          setAccountType('coach');
-          setCoachTier(resolvedCoachTier);
-          logTelemetry('prefill-coach', {
-            plan: billing.plan,
-            pendingPlan: billing.pending_plan,
-            subscriptionTier: me?.subscription_tier,
-            resolvedCoachTier,
-          });
-        }
+    if (userRole === 'fan') {
+      setAccountType('fan');
+      logTelemetry('prefill-fan', {
+        plan: billing.plan,
+        pendingPlan: billing.pending_plan,
+        subscriptionTier: me?.subscription_tier,
+      });
+    } else if (userRole === 'coach') {
+      setAccountType('coach');
+      setCoachTier(resolvedCoachTier);
+      logTelemetry('prefill-coach', {
+        plan: billing.plan,
+        pendingPlan: billing.pending_plan,
+        subscriptionTier: me?.subscription_tier,
+        resolvedCoachTier,
+      });
+    }
 
-        // Check if zip code is already provided
-        const hasZip = me?.zip_code || me?.preferences?.zip_code;
-        if (hasZip) {
-          setZipCode(hasZip);
-          setZipCodeProvided(true);
-          logTelemetry('prefill-zip', { zip: hasZip });
-        }
+    const hasZip = me?.zip_code || me?.preferences?.zip_code;
+    if (hasZip) {
+      setZipCode(hasZip);
+      setZipCodeProvided(true);
+      logTelemetry('prefill-zip', { zip: hasZip });
+    }
 
         // If no account type, show selection screen
         if (!userRole) {
@@ -133,7 +132,7 @@ function RoleOnboardingScreenInner() {
     try {
       logTelemetry('zip-save-attempt');
       await User.updatePreferences({ zip_code: trimmedZip });
-      const fresh = await getFreshAuthSnapshot(checkAuth, user);
+      const fresh = await checkAuth().catch(() => null);
       const savedZip = String(fresh?.preferences?.zip_code || fresh?.zip_code || '').trim();
       if (savedZip !== trimmedZip) {
         throw new Error('Saved ZIP code did not round-trip from the server.');
@@ -185,6 +184,7 @@ function RoleOnboardingScreenInner() {
       logTelemetry('coach-tier-attempt', { tier });
 
       await User.upgradeToCoach(tier);
+      const fresh = (await checkAuth().catch(() => null)) as any;
 
       setCoachTier(tier);
       setShowCoachTierSelection(false);
@@ -199,8 +199,8 @@ function RoleOnboardingScreenInner() {
       }));
       logTelemetry('coach-tier-success', { tier });
 
-      // Redirect to the coach-application step with fan steps skipped.
-      router.replace('/onboarding/coach-application' as any);
+      const decision = getPostAuthRouteDecision(fresh ?? null);
+      router.replace(decision.route as any);
     } catch (e: any) {
       if (__DEV__) console.error('Failed to set coach tier', e);
       logTelemetry('coach-tier-error', { message: e?.message });
@@ -209,8 +209,12 @@ function RoleOnboardingScreenInner() {
         e?.data?.code === 'COACH_REAPPLICATION_REQUIRED' ||
         e?.data?.code === 'COACH_ALREADY_APPROVED'
       ) {
-      const fresh = (await getFreshAuthSnapshot(checkAuth, user).catch(() => null)) as any;
-      const nextCta = getCoachUpgradeCta(fresh as any);
+        const fresh = (await checkAuth().catch(() => null)) as any;
+        const nextCta = getCoachUpgradeCta({
+          ...fresh,
+          role: fresh?.preferences?.role || fresh?.role || null,
+          preferences: fresh?.preferences || {},
+        });
         if (nextCta?.route) {
           router.replace(nextCta.route as any);
           return;

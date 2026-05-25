@@ -31,7 +31,7 @@ export default function EditOrganizationScreen() {
   const params = useLocalSearchParams<{ id?: string; fallback?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const explicitFallback =
+  const fallbackRoute =
     typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
       ? params.fallback.trim()
       : params.id
@@ -63,7 +63,7 @@ export default function EditOrganizationScreen() {
       // The detail payload now carries the canonical org access flags.
       if (!org?.can_edit && !org?.is_owner) {
         Alert.alert('Error', 'Only the organization owner can edit this organization.');
-        safeGoBack(router, explicitFallback);
+        safeGoBack(router, fallbackRoute);
         return;
       }
       setHasPermission(true);
@@ -81,11 +81,11 @@ export default function EditOrganizationScreen() {
       setBackgroundUrl(org.background_url || null);
     } catch {
       Alert.alert('Error', 'Failed to load organization.');
-      safeGoBack(router, explicitFallback);
+      safeGoBack(router, fallbackRoute);
     } finally {
       setLoading(false);
     }
-  }, [explicitFallback, params.id, router]);
+  }, [fallbackRoute, params.id, router]);
 
   useEffect(() => { void loadOrg(); }, [loadOrg]);
 
@@ -149,7 +149,7 @@ export default function EditOrganizationScreen() {
         zip_code: zipCode.trim() || null,
       });
       Alert.alert('Saved', 'Organization updated successfully.');
-      safeGoBack(router, explicitFallback);
+      safeGoBack(router, fallbackRoute);
     } catch (e: any) {
       const msg = e?.data?.error || e?.message || 'Failed to save changes.';
       Alert.alert('Error', msg);
@@ -212,7 +212,7 @@ export default function EditOrganizationScreen() {
 
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <Pressable onPress={() => safeGoBack(router, explicitFallback)} hitSlop={12}>
+        <Pressable onPress={() => safeGoBack(router, fallbackRoute)} hitSlop={12}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Organization</Text>

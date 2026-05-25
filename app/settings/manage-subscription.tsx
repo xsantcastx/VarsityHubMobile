@@ -47,15 +47,17 @@ const isIOS = Platform.OS === 'ios';
 function ManageSubscription() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const { checkAuth, user } = useAuth();
+  const { user, checkAuth } = useAuth();
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<string | null>(null);
-  const [paidByOwner, setPaidByOwner] = useState(false);
   const [ownerLeagueName, setOwnerLeagueName] = useState<string | null>(null);
-  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
-  const [paymentPending, setPaymentPending] = useState(false);
+  const me: any = user;
+  const billing = getCanonicalBillingState(me);
+  const plan = billing.plan;
+  const paidByOwner = me?.paid_by_owner === true;
+  const approvalStatus = me?.approval_status || null;
+  const paymentPending = billing.payment_pending;
 
   async function wait(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -78,49 +80,73 @@ function ManageSubscription() {
     return false;
   }
 
-  const refreshPlan = useCallback(async () => {
+  const syncBillingState = useCallback(async () => {
     try {
-      const me: any = await getFreshAuthSnapshot(checkAuth, user);
-      if (!me) {
-        setPaidByOwner(false);
-        setOwnerLeagueName(null);
-        setApprovalStatus(null);
-        setPlan(null);
-        setPaymentPending(false);
-        return;
-      }
-      const billing = getCanonicalBillingState(me);
-      setPaidByOwner(!!me?.paid_by_owner);
-      setApprovalStatus(me?.approval_status || null);
-      setPlan(billing.plan);
-      setPaymentPending(billing.payment_pending);
-
-      // If covered by owner, fetch the league name
-      if (me?.paid_by_owner) {
-        try {
-          const { Organization } = await import('@/api/entities');
-          const summaries: any = await Organization.reviewSummaries();
-          if (Array.isArray(summaries) && summaries.length > 0) {
-            setOwnerLeagueName(summaries[0]?.organization?.name || null);
-          }
-        } catch {
-          /* ignore */
-        }
-      }
+      return (await checkAuth().catch(() => null)) as any;
     } catch (error) {
-      if (__DEV__) console.warn('[manage-subscription] Failed to load plan:', error);
+      if (__DEV__) console.warn('[manage-subscription] Failed to sync billing state:', error);
+      return null;
     }
-  }, [checkAuth, user]);
+  }, [checkAuth]);
+
+  const waitForPaidPlanActivation = useCallback(async () => {
+    for (let i = 0; i < 15; i += 1) {
+      await wait(2000);
+      const fresh: any = await syncBillingState();
+      const freshBilling = getCanonicalBillingState(fresh);
+      if (
+        (freshBilling.plan === 'veteran' || freshBilling.plan === 'legend') &&
+        !freshBilling.payment_pending &&
+        !freshBilling.pending_plan
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }, [syncBillingState]);
 
   useEffect(() => {
-    void refreshPlan();
-  }, [refreshPlan]);
+    let cancelled = false;
+
+    if (!paidByOwner) {
+      setOwnerLeagueName(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      try {
+        const { Organization } = await import('@/api/entities');
+        const summaries: any = await Organization.reviewSummaries();
+        if (!cancelled) {
+          setOwnerLeagueName(
+            Array.isArray(summaries) && summaries.length > 0
+              ? summaries[0]?.organization?.name || null
+              : null
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setOwnerLeagueName(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [paidByOwner]);
+
+  useEffect(() => {
+    void syncBillingState();
+  }, [syncBillingState]);
 
   useFocusEffect(
     useCallback(() => {
-      void refreshPlan();
+      void syncBillingState();
       return undefined;
-    }, [refreshPlan])
+    }, [syncBillingState])
   );
 
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
@@ -161,8 +187,15 @@ function ManageSubscription() {
           entry: 'manage_subscription',
         });
         if (success) {
-          Alert.alert('Success', 'Your subscription is now active!');
-          await refreshPlan();
+          const planActivated = await waitForPaidPlanActivation();
+          if (planActivated) {
+            Alert.alert('Success', 'Your subscription is now active!');
+          } else {
+            Alert.alert(
+              'Payment Received',
+              "Your subscription is being processed. You'll receive a confirmation email shortly."
+            );
+          }
         }
       } catch (err: any) {
         captureBreadcrumb(
@@ -296,14 +329,14 @@ function ManageSubscription() {
           );
           Alert.alert('Success', 'Your subscription is now active!');
         }
-        await refreshPlan();
+        await syncBillingState();
       } else if (res?.free) {
         captureBreadcrumb('Subscription free activation completed', 'payments.subscription', {
           tier: targetPlan,
           entry: 'manage_subscription',
         });
         Alert.alert('Subscribed', 'Your plan is now active.');
-        await refreshPlan();
+        await syncBillingState();
       } else {
         Alert.alert('Error', 'Unable to start checkout.');
       }
@@ -350,7 +383,7 @@ function ManageSubscription() {
           'Canceled',
           'Your subscription will be canceled at the end of the current period.'
         );
-        await refreshPlan();
+        await syncBillingState();
       } else {
         Alert.alert('Error', res?.error || 'Unable to cancel subscription');
       }
@@ -373,7 +406,7 @@ function ManageSubscription() {
             setLoading(true);
             try {
               await User.skipPayment();
-              await refreshPlan();
+              await syncBillingState();
             } catch (e: any) {
               Alert.alert('Error', e?.message || 'Unable to skip payment');
             } finally {

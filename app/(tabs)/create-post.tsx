@@ -94,7 +94,7 @@ const isSampleEvent = (id?: string | null): boolean => {
 
 function CreatePostScreen() {
   const router = useRouter();
-  const { user: authUser, checkAuth } = useAuth();
+  const { user, checkAuth } = useAuth();
   const { clear: clearPostCache } = usePostCache();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
@@ -747,7 +747,7 @@ function CreatePostScreen() {
 
       if (isSelectedSample && selectedGameId) {
         try {
-          const me = await getAuthSnapshot(checkAuth, authUser).catch(() => null);
+          const me = await getAuthSnapshot(checkAuth, user).catch(() => null);
           const isVideo = picked?.type === 'video';
           const newPost = {
             id: created?.id ? String(created.id) : `local-${Date.now()}`,

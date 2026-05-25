@@ -1,4 +1,5 @@
 import { Organization, Team } from '@/api/entities';
+import { screenHeaderSharedStyles } from '@/components/ScreenHeaderShared';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -29,7 +30,15 @@ function RequestJoinOrganizationScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const params = useLocalSearchParams<{ team_id?: string; team_name?: string; orgId?: string }>();
+  const params = useLocalSearchParams<{ team_id?: string; team_name?: string; orgId?: string; fallback?: string }>();
+  const explicitFallback =
+    typeof params.fallback === 'string' && params.fallback.trim().startsWith('/')
+      ? params.fallback.trim()
+      : params.orgId
+        ? `/organizations/${encodeURIComponent(params.orgId)}`
+        : params.team_id
+          ? '/organization?tab=teams'
+          : '/(tabs)/discover';
 
   const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -122,7 +131,7 @@ function RequestJoinOrganizationScreen() {
         [
           {
             text: 'OK',
-            onPress: () => { safeGoBack(router); },
+            onPress: () => { safeGoBack(router, explicitFallback); },
           },
         ]
       );
@@ -147,7 +156,7 @@ function RequestJoinOrganizationScreen() {
 
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
-        <Pressable onPress={() => { safeGoBack(router); }} style={styles.backButton}>
+        <Pressable onPress={() => { safeGoBack(router, explicitFallback); }} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Join Organization</Text>
@@ -323,23 +332,9 @@ function RequestJoinOrganizationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: screenHeaderSharedStyles.container,
+  header: screenHeaderSharedStyles.header,
+  backButton: screenHeaderSharedStyles.backButtonCentered,
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',

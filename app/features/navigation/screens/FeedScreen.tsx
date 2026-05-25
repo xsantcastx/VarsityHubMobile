@@ -1,33 +1,34 @@
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import {
-  Advertisement,
-  Event,
-  Feed,
-  Game,
-  Message,
-  Notification as NotificationApi,
+    Advertisement,
+    Event,
+    Feed,
+    Game,
+    Message,
+    Notification as NotificationApi,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format } from 'date-fns';
@@ -38,13 +39,12 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
-import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
-  getNotificationHrefForUser,
-  getNotificationSubtitle,
-  getNotificationTitle,
-  isSystemNotification,
+    getNotificationHrefForUser,
+    getNotificationSubtitle,
+    getNotificationTitle,
+    isSystemNotification,
 } from '@/utils/notificationPresentation';
 import GameVerticalFeedScreen from '../../../game-details/GameVerticalFeedScreen';
 
@@ -263,10 +263,10 @@ const buildVotePreviewEntry = (
 
 export default function FeedScreen() {
   const router = useRouter();
+  const { user, checkAuth } = useAuth();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
@@ -391,7 +391,7 @@ export default function FeedScreen() {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const userPromise = getAuthSnapshot(checkAuth, authUser)
+      const userPromise = getAuthSnapshot(checkAuth, user)
         .then(user => {
           if (isCurrentRequest()) setMe(user);
           return user;
@@ -573,7 +573,7 @@ export default function FeedScreen() {
         lastLoadTimestampRef.current = Date.now();
       }
     }
-  }, [authUser, checkAuth]);
+  }, [checkAuth, user]);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -2136,7 +2136,7 @@ export default function FeedScreen() {
                         }
 
                         setNotificationsMenuOpen(false);
-                        const href = getNotificationHrefForUser(item, authUser);
+                        const href = getNotificationHrefForUser(item, user);
                         if (href) {
                           router.push(href as any);
                         }

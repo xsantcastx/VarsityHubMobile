@@ -6,14 +6,14 @@ import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { useUser } from '@/hooks/useUser';
+import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { safeGoBack } from '@/utils/navigation';
 
 export default function EditUsernameScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { user, loading: userLoading, refresh: refreshUser } = useUser();
+  const { user, loading: authLoading, checkAuth } = useAuth();
   const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -50,8 +50,7 @@ export default function EditUsernameScreen() {
     setSaving(true);
     try {
       await User.updateMe({ username: v });
-      // Refresh the canonical auth snapshot once; useUser reads from AuthProvider.
-      await refreshUser();
+      await checkAuth().catch((e) => { if (__DEV__) console.warn('[edit-username] Auth refresh failed:', e); }); // VAL-2
       Alert.alert('Success', 'Username updated successfully');
       safeGoBack(router);
     } catch (e: any) {
@@ -87,7 +86,7 @@ export default function EditUsernameScreen() {
         <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
           This is your @ handle (e.g., @rwerwqer). Lowercase letters, numbers, dots, and underscores only.
         </Text>
-        {userLoading ? (
+        {authLoading ? (
           <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Loading...</Text>
         ) : (
           <Input 
@@ -99,7 +98,7 @@ export default function EditUsernameScreen() {
             style={{ marginBottom: 24 }} 
           />
         )}
-        <Button onPress={onSave} disabled={saving || userLoading}>
+        <Button onPress={onSave} disabled={saving || authLoading}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </ScrollView>

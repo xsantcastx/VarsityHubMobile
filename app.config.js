@@ -13,14 +13,18 @@
 //   EAS_PROJECT_ID
 
 module.exports = ({ config }) => {
+  const isTruthy = (value) =>
+    typeof value === 'string' && ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
   const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || '64489ed7-a8c0-41de-91ec-5846ea79a27f';
   const packageVersion = require('./package.json').version;
   const appVersion = process.env.APP_VERSION_OVERRIDE || packageVersion;
   const runtimeVersion = process.env.RUNTIME_VERSION_OVERRIDE || appVersion;
   const sentryAutoUploadEnabled = process.env.SENTRY_DISABLE_AUTO_UPLOAD !== 'true';
-  const publicApiUrl =
-    process.env.EXPO_PUBLIC_API_URL || 'https://api-production-8ac3.up.railway.app';
-  const forceRemoteApi = process.env.EXPO_PUBLIC_FORCE_REMOTE_API || '1';
+  const useLocalApi = isTruthy(process.env.EXPO_PUBLIC_USE_LOCAL_API || '0');
+  const publicApiUrl = useLocalApi
+    ? 'http://localhost:4000'
+    : process.env.EXPO_PUBLIC_API_URL || 'https://api-production-8ac3.up.railway.app';
+  const forceRemoteApi = process.env.EXPO_PUBLIC_FORCE_REMOTE_API || (useLocalApi ? '0' : '1');
   const publicNodeEnv =
     process.env.EXPO_PUBLIC_NODE_ENV ||
     (process.env.NODE_ENV === 'development' ? 'development' : 'production');
@@ -127,7 +131,7 @@ module.exports = ({ config }) => {
       softwareKeyboardLayoutMode: 'pan',
       edgeToEdgeEnabled: true,
       versionCode: 3,
-      package: 'com.varsityhub.varsityhub',
+      package: 'com.xsantcastx.varsityhub',
       intentFilters: [
         {
           action: 'VIEW',
@@ -151,7 +155,6 @@ module.exports = ({ config }) => {
         'android.permission.VIBRATE',
         'android.permission.INTERNET',
         'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
-        'android.permission.ACCESS_MEDIA_LOCATION',
         'android.permission.POST_NOTIFICATIONS',
         'android.permission.RECORD_AUDIO',
         'android.permission.MODIFY_AUDIO_SETTINGS',
@@ -205,7 +208,6 @@ module.exports = ({ config }) => {
             'VarsityHub uses your photo library to let you browse and select images and videos for team posts and profiles.',
           savePhotosPermission:
             'VarsityHub uses save access to download shared team photos and game-day images to your device.',
-          isAccessMediaLocationEnabled: true,
         },
       ],
       'expo-video',
@@ -258,6 +260,7 @@ module.exports = ({ config }) => {
       },
       EXPO_PUBLIC_API_URL: publicApiUrl,
       EXPO_PUBLIC_FORCE_REMOTE_API: forceRemoteApi,
+      EXPO_PUBLIC_USE_LOCAL_API: useLocalApi ? '1' : process.env.EXPO_PUBLIC_USE_LOCAL_API || '0',
       EXPO_PUBLIC_NODE_ENV: publicNodeEnv,
       EXPO_PUBLIC_APP_SCHEME: 'varsityhubmobile',
       EXPO_PUBLIC_WEB_BASE_URL: 'https://www.varsityhub.app',

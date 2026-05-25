@@ -1,28 +1,28 @@
-import { Colors } from '@/constants/Colors';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
+import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useCreateTeamAccess } from '@/hooks/useCreateTeamAccess';
-import { useAuth } from '@/context/AuthProvider';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { getApiBaseUrl } from '@/api/http';
 import { ROOKIE_TEAM_LIMIT } from '@/constants/plans';
+import { getAuthSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
-import { getAuthSnapshot, getFreshAuthSnapshot } from '@/utils/authState';
 import { sanitizeText } from '@/utils/formUtils';
-import { getCanonicalCoachRole, getCoachRecoveryRoute } from '@/utils/roleChecks';
+import { getCoachRecoveryRoute } from '@/utils/roleChecks';
 
 type TeamLimitSummary = {
   owned_teams: number;
@@ -371,6 +371,10 @@ function CreateTeamScreen() {
       setNameError('Please enter a team name');
       return;
     }
+    if (name.trim().length > 100) {
+      setNameError('Team name must be 100 characters or fewer');
+      return;
+    }
 
     if (!selectedOrgId) {
       Alert.alert(
@@ -387,9 +391,9 @@ function CreateTeamScreen() {
     
     setSubmitting(true);
     try {
-      let user;
+      let currentUser;
       try { 
-        user = (await getFreshAuthSnapshot(checkAuth, authUser)) as UserOrgPreference | null; 
+        currentUser = (await getAuthSnapshot(checkAuth, authUser)) as UserOrgPreference | null; 
       } catch { 
         Alert.alert('Sign in required', 'Please sign in to create a team.'); 
         setSubmitting(false); 
@@ -405,8 +409,8 @@ function CreateTeamScreen() {
       }
 
       // Check plan tier limits
-      const userRole = getCanonicalCoachRole(user as any);
-      const userPlan = getCanonicalBillingState(user).selected_plan;
+      const userRole = currentUser?.preferences?.role; // Already guaranteed coach above
+      const userPlan = getCanonicalBillingState(currentUser).selected_plan;
 
       let latestLimits: TeamLimitSummary | null = teamLimits;
       try {
@@ -416,7 +420,7 @@ function CreateTeamScreen() {
       } catch {
         // non-blocking
       }
-      const teamCount = latestLimits?.owned_teams ?? user?._count?.teams ?? 0;
+      const teamCount = latestLimits?.owned_teams ?? currentUser?._count?.teams ?? 0;
       const canCreateMore = latestLimits?.can_create_more ?? true;
       
       // Only surface local billing prompts for coach-owned flows.
