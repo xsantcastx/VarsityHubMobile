@@ -37,7 +37,11 @@ export function getAccountDeletionConfirmationRequirements(
   const normalizedDeleteConfirmation = String(payload.delete_confirmation || '')
     .trim()
     .toUpperCase();
-  const requiresPassword = Boolean(user.password_hash);
+  // OAuth users (Google/Apple) do not need to provide a password even if
+  // they also have a password_hash (hybrid account). They authenticated via
+  // their OAuth provider, which is sufficient re-auth for account deletion.
+  const hasOAuthProvider = Boolean(user.google_id || user.apple_id);
+  const requiresPassword = Boolean(user.password_hash) && !hasOAuthProvider;
 
   if (normalizedDeleteConfirmation !== 'DELETE') {
     return {

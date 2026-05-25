@@ -192,6 +192,10 @@ export default function SettingsScreen() {
   const obCtx = useOnboardingOptional();
   const setOB = obCtx?.setState;
   const initialLinkedProviders = getLinkedProvidersSnapshot(user);
+  // Password is only required for deletion if the account has a password AND
+  // no OAuth provider — OAuth users can delete without knowing their password.
+  const computeDeleteRequiresPassword = (p: typeof initialLinkedProviders) =>
+    p.password && !p.google && !p.apple;
 
   const [_loading, setLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
@@ -220,7 +224,7 @@ export default function SettingsScreen() {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
-  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(initialLinkedProviders.password);
+  const [deleteRequiresPassword, setDeleteRequiresPassword] = useState(computeDeleteRequiresPassword(initialLinkedProviders));
   const [linkedProviders, setLinkedProviders] = useState<LinkedProviders>(initialLinkedProviders);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [upgradingToCoach, setUpgradingToCoach] = useState(false);
@@ -238,7 +242,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     if (!user) return;
     const snapshot = getLinkedProvidersSnapshot(user);
-    setDeleteRequiresPassword(snapshot.password);
+    setDeleteRequiresPassword(computeDeleteRequiresPassword(snapshot));
     setLinkedProviders(snapshot);
   }, [user]);
 
@@ -328,7 +332,7 @@ export default function SettingsScreen() {
     const nextCoachUpgradeCta = getCoachUpgradeCta(me as any);
     setCoachUpgradeCta(nextCoachUpgradeCta);
     const linkedProviders = getLinkedProvidersSnapshot(me);
-    setDeleteRequiresPassword(linkedProviders.password);
+    setDeleteRequiresPassword(computeDeleteRequiresPassword(linkedProviders));
     setLinkedProviders(linkedProviders);
     setShowCoachBilling(
       coachAccess.isApprovedCoach ||
