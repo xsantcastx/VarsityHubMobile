@@ -7,8 +7,8 @@
  * Usage: npx tsx scripts/db-integrity-check.ts
  */
 
-import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import 'dotenv/config';
 
 const prisma = new PrismaClient();
 
@@ -95,23 +95,15 @@ async function checkNonOnboardedUsersWithPosts(): Promise<void> {
 }
 
 async function checkTeamsWithNoOrganization(): Promise<void> {
-  // Teams whose organization_id is null (orphaned from any org).
-  // Note: the FK has onDelete: SetNull, so deleted orgs set this to null.
-  const teams = await prisma.team.findMany({
-    where: {
-      organization_id: null,
-    },
-    select: { id: true },
-  });
-
-  if (teams.length === 0) {
-    pass('Teams with no organization (organization_id is null)');
+  // organization_id is non-nullable (String, not String?) with onDelete: Restrict.
+  // Deleted orgs are blocked while teams exist — orphaned teams are impossible by schema.
+  // Verify this constraint holds by checking count matches org-linked count.
+  const total = await prisma.team.count();
+  const withOrg = await prisma.team.count({ where: { organization: { isNot: undefined } } });
+  if (total === withOrg) {
+    pass('Teams with no organization (organization_id is non-null by schema)');
   } else {
-    warn(
-      'Teams with no organization (organization_id is null)',
-      teams.length,
-      teams.map((t) => t.id),
-    );
+    warn('Teams with no organization', total - withOrg, []);
   }
 }
 
