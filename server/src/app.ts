@@ -1,6 +1,5 @@
 import cors from 'cors';
 import 'dotenv/config';
-import escapeHtml from 'escape-html';
 import express, { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
@@ -8,27 +7,25 @@ import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import {
-  startAdGoLiveCheck,
-  startMessageCleanup,
-  startOvernightMonitoring,
-  startQueueCleanup,
+    startAdGoLiveCheck,
+    startMessageCleanup,
+    startOvernightMonitoring,
+    startQueueCleanup,
 } from './cron/overnightTasks.js';
 import { debugLog } from './lib/debugLog.js';
 import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { addBreadcrumb, addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { defaultApiLimiter } from './middleware/rateLimiters.js';
 import { requireAdmin } from './middleware/requireAdmin.js';
 import { requireAuth } from './middleware/requireAuth.js';
 import { requireParentalConsent } from './middleware/requireParentalConsent.js';
-import { requireVerified } from './middleware/requireVerified.js';
-import { defaultApiLimiter } from './middleware/rateLimiters.js';
 import adminRouter from './routes/admin.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { adsRouter } from './routes/ads.js';
 import { authRouter } from './routes/auth.js';
-import { consentRouter } from './routes/consent.js';
-import { handleConsentResend } from './routes/consent.js';
+import { consentRouter, handleConsentResend } from './routes/consent.js';
 import { dataExportRouter } from './routes/dataExport.js';
 import { eventsRouter } from './routes/events.js';
 import { feedRouter } from './routes/feed.js';
@@ -44,9 +41,12 @@ import { organizationsRouter } from './routes/organizations.js';
 import { paymentsRouter } from './routes/payments.js';
 import { postsRouter } from './routes/posts.js';
 import { promosRouter } from './routes/promos.js';
+import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
+import { publicSiteRouter } from './routes/publicSite.js';
 import { reportsRouter } from './routes/reports.js';
 import { rsvpsRouter } from './routes/rsvps.js';
 import { searchRouter } from './routes/search.js';
+import { shareLandingRouter } from './routes/shareLanding.js';
 import { supportRouter } from './routes/support.js';
 import { teamInvitesRouter } from './routes/team-invites.js';
 import { teamMembershipsRouter } from './routes/team-memberships.js';
@@ -56,9 +56,6 @@ import { testNotificationsRouter } from './routes/test-notifications.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
 import { wellKnownRouter } from './routes/well-known.js';
-import { publicAppHandoffRouter } from './routes/publicAppHandoff.js';
-import { publicSiteRouter } from './routes/publicSite.js';
-import { shareLandingRouter } from './routes/shareLanding.js';
 
 const app = express();
 const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
@@ -202,7 +199,7 @@ app.use((req, res, next) => {
   if (rawBodyPaths.some(path => req.originalUrl.startsWith(path))) {
     return next();
   }
-  return express.json({ limit: '10mb' })(req, res, next);
+  return express.json({ limit: '1mb' })(req, res, next);
 });
 app.use(express.urlencoded({ extended: false }));
 
