@@ -9,13 +9,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { sendAbuseReportEmail } from '../lib/email.js';
 import { autoEscalate } from '../lib/moderation.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { prisma } from '../lib/prisma.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { reportLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { sendAbuseReportEmail } from '../lib/email.js';
 
 export const reportsRouter = Router();
 
@@ -293,7 +294,7 @@ reportsRouter.post('/', requireAuth as any, reportLimiter, asyncHandler(async (r
         target_type,
         target_id,
         reason,
-        details: details || null,
+        details: details ? stripHtml(details) : null,
         context: targetContext,
         reported_at: new Date().toISOString(),
       }, null, 2),

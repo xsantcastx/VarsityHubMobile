@@ -1,40 +1,41 @@
 import escapeHtml from 'escape-html';
 import { Router } from 'express';
 import { z } from 'zod';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import {
-  sendEventCanceledEmail,
-  sendEventRsvpConfirmedEmail,
-  sendEventSubmissionReceivedEmail,
-  sendEventUpdatedEmail,
-} from '../lib/email.js';
-import {
-  cancelGameReminders,
-  scheduleGameReminders,
-  sendPushNotification,
-} from '../lib/notifications.js';
-import {
-  approveEvent as approveEventService,
-  rejectEvent as rejectEventService,
+    approveEvent as approveEventService,
+    rejectEvent as rejectEventService,
 } from '../lib/approvalService.js';
+import {
+    sendEventCanceledEmail,
+    sendEventRsvpConfirmedEmail,
+    sendEventSubmissionReceivedEmail,
+    sendEventUpdatedEmail,
+} from '../lib/email.js';
+import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
+import { geocodeLocation } from '../lib/geocoding.js';
+import {
+    cancelGameReminders,
+    scheduleGameReminders,
+    sendPushNotification,
+} from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
+import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import { mustSucceed } from '../lib/sideEffect.js';
+import {
+    canManageAnyTeam,
+    canManageTeam as canManageTeamScoped,
+} from '../lib/teamAuthorization.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { eventCreationLimiter, rsvpLimiter } from '../middleware/rateLimiters.js';
-import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
-import { geocodeLocation } from '../lib/geocoding.js';
-import { mustSucceed } from '../lib/sideEffect.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import {
-  canManageAnyTeam,
-  canManageTeam as canManageTeamScoped,
-} from '../lib/teamAuthorization.js';
-import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
-import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 
 export const eventsRouter = Router();
 registerIdValidation(eventsRouter);
@@ -1070,10 +1071,11 @@ eventsRouter.post(
           }
         }
         // For host requests, append requester info to description
-        let finalDescription = data.description;
+        let finalDescription = data.description ? stripHtml(data.description) : data.description;
         if (data.event_type === 'host_request' && (data.requested_by || data.requested_email)) {
+          const safeRequestedBy = data.requested_by ? stripHtml(data.requested_by) : null;
           const extra = [
-            data.requested_by ? `Requested by: ${data.requested_by}` : null,
+            safeRequestedBy ? `Requested by: ${safeRequestedBy}` : null,
             data.requested_email ? `Email: ${data.requested_email}` : null,
             data.venue_address ? `Venue: ${data.venue_address}` : null,
           ]
@@ -1434,7 +1436,7 @@ eventsRouter.patch(
       }
 
       const updateData: any = {};
-      if (data.title !== undefined) updateData.title = data.title;
+      if (data.title !== undefined) updateData.title = stripHtml(data.title);
       if (data.date !== undefined) updateData.date = new Date(data.date);
       if (data.location !== undefined) updateData.location = data.location;
       if (data.latitude !== undefined) updateData.latitude = data.latitude;
@@ -1458,7 +1460,7 @@ eventsRouter.patch(
           console.warn('[events] geocoding update failed:', geocodeErr);
         }
       }
-      if (data.description !== undefined) updateData.description = data.description;
+      if (data.description !== undefined) updateData.description = stripHtml(data.description);
       if (data.event_type !== undefined) updateData.event_type = data.event_type;
       if (data.linked_league !== undefined) updateData.linked_league = data.linked_league;
       if (data.max_attendees !== undefined) {

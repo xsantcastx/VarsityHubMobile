@@ -1,6 +1,6 @@
 import { prisma } from './prisma.js';
-import { invalidateMeCacheForUser } from './userCache.js';
 import { captureException } from './sentry.js';
+import { invalidateMeCacheForUser } from './userCache.js';
 
 async function cleanupStripeBillingForDeletedUserLazy(params: {
   userId: string;
@@ -259,6 +259,10 @@ export async function softDeleteUserAccount(userId: string): Promise<{
         password_reset_expires: null,
         password_changed_at: deletedAt,
         stripe_customer_id: null,
+        // The overwrite to `{ deleted: true }` intentionally drops all stored preferences
+        // including push_token. This is the correct behaviour — after deletion no device
+        // should receive push notifications for this account. The key is explicitly not
+        // preserved so any in-flight Expo delivery will fail silently once the token is gone.
         preferences: { deleted: true } as any,
         date_of_birth: null,
         dob_set_at: null,

@@ -1,27 +1,27 @@
+import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
-import { commentLimiter, interactionLimiter } from '../middleware/rateLimiters.js';
-import { haversineDistance, getZipCoordinates } from '../lib/geoUtils.js';
+import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { prisma } from '../lib/prisma.js';
 import {
-  getExcludedPrivateAuthorIds,
-  getBlockedUserIds,
-  getRequestBlockedCache,
-  isAuthorHiddenFromViewer,
+    getBlockedUserIds,
+    getExcludedPrivateAuthorIds,
+    getRequestBlockedCache,
+    isAuthorHiddenFromViewer,
 } from '../lib/privacyUtils.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { registerIdValidation } from '../middleware/validateParams.js';
-import crypto from 'crypto';
 import {
-  canManageAnyTeam,
-  canManageTeam as canManageTeamScoped,
+    canManageAnyTeam,
+    canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { commentLimiter, interactionLimiter, postCreationLimiter } from '../middleware/rateLimiters.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { requireVerified } from '../middleware/requireVerified.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const postsRouter = Router();
 registerIdValidation(postsRouter);
@@ -772,16 +772,17 @@ const createPostSchema = z
 
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
-import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.js';
 import { notifyMentions } from '../lib/mentionNotifications.js';
+import { notifyCommentReply, notifyPostInteraction } from '../lib/notifications.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 postsRouter.post(
   '/',
   requireAuth as any,
   requireVerified as any,
   requireOnboarded as any,
+  postCreationLimiter,
   asyncHandler(async (req: AuthedRequest, res) => {
     // Sample game IDs (sample-*) are handled downstream — stored in title with [SAMPLE_GAME:] prefix
     // instead of game_id (which has a foreign key constraint). See line ~604.
@@ -1042,23 +1043,19 @@ postsRouter.post(
     // Mention notifications (parse @username from content)
     const contentForMentions = data.content?.trim() ?? '';
     if (contentForMentions && req.user) {
-      try {
-        await notifyMentions({
+      const actorId = req.user.id;
+      prisma.user.findUnique({
+        where: { id: actorId },
+        select: { display_name: true },
+      }).then(actor => {
+        notifyMentions({
           content: contentForMentions,
-          actorId: req.user.id,
-          actorName:
-            (
-              await prisma.user.findUnique({
-                where: { id: req.user.id },
-                select: { display_name: true },
-              })
-            )?.display_name || 'Someone',
+          actorId,
+          actorName: actor?.display_name || 'Someone',
           postId: post.id,
           context: 'post',
-        });
-      } catch (e) {
-        console.error('Failed to send mention notifications:', e);
-      }
+        }).catch(e => console.error('[notif] post mention push failed', e));
+      }).catch(e => console.error('[notif] post mention actor lookup failed', e));
     }
 
     res.status(201).json({
@@ -1114,7 +1111,7 @@ postsRouter.post(
           post_id: postId,
           expires_at: expires_at ? new Date(expires_at) : undefined,
           options: {
-            create: options.map(text => ({ text })),
+            create: options.map(text => ({ text: stripHtml(text) })),
           },
         },
         include: {
@@ -1571,7 +1568,8 @@ postsRouter.post(
             comment_id: comment.id,
           },
         });
-        await notifyPostInteraction(postAuthorId, 'comment', req.user.id, actorName, id);
+        notifyPostInteraction(postAuthorId, 'comment', req.user.id, actorName, id)
+          .catch(e => console.error('[notif] comment push failed', e));
       }
 
       // Reply-to-comment: notify parent comment author
@@ -1592,19 +1590,20 @@ postsRouter.post(
               meta: { parent_comment_id: parent_id },
             },
           });
-          await notifyCommentReply(parentAuthorId, req.user.id, actorName, id, comment.id);
+          notifyCommentReply(parentAuthorId, req.user.id, actorName, id, comment.id)
+            .catch(e => console.error('[notif] comment reply push failed', e));
         }
       }
 
       // Mention notifications (parse @username from content)
-      await notifyMentions({
+      notifyMentions({
         content,
         actorId: req.user.id,
         actorName,
         postId: id,
         commentId: comment.id,
         context: 'comment',
-      });
+      }).catch(e => console.error('[notif] comment mention push failed', e));
     } catch (e) {
       console.error('Failed to send comment notification:', e);
     }
@@ -1695,13 +1694,13 @@ postsRouter.post(
             select: { display_name: true },
           });
           if (actor) {
-            await notifyPostInteraction(
+            notifyPostInteraction(
               recipient,
               'like',
               userId,
               actor.display_name || 'Someone',
               postId
-            );
+            ).catch(e => console.error('[notif] upvote push failed', e));
           }
         }
       } catch (e) {
@@ -1818,13 +1817,13 @@ postsRouter.post(
             where: { id: userId },
             select: { display_name: true },
           });
-          await notifyPostInteraction(
+          notifyPostInteraction(
             postAuthorId,
             'share',
             userId,
             actor?.display_name || 'Someone',
             postId
-          );
+          ).catch(e => console.error('[notif] share push failed', e));
         } catch (e) {
           console.error('Failed to send share notification:', e);
         }
@@ -2039,7 +2038,13 @@ postsRouter.patch(
 
       let updateData: Record<string, unknown> = {};
       if (isAuthor) {
-        updateData = parsed.data;
+        // Sanitize user-supplied text fields to prevent XSS in edited posts
+        const { content, title, ...rest } = parsed.data;
+        updateData = {
+          ...rest,
+          ...(content !== undefined ? { content: stripHtml(content) } : {}),
+          ...(title !== undefined ? { title: stripHtml(title) } : {}),
+        };
       } else if (isTeamCoach && parsed.data.is_pinned !== undefined) {
         // Coach can only toggle is_pinned
         updateData = { is_pinned: parsed.data.is_pinned };

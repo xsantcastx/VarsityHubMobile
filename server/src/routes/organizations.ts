@@ -1,63 +1,64 @@
+import { OrganizationRole } from '@prisma/client';
+import escapeHtml from 'escape-html';
 import { Router } from 'express';
 import { z } from 'zod';
-import { OrganizationRole } from '@prisma/client';
-import {
-  buildCoachJoinRequestReviewUrl,
-  sendOrganizationInviteEmail,
-  sendLeagueApprovalRequestEmail,
-  sendCoachApprovedEmail,
-  sendCoachRejectedEmail,
-  sendCoachJoinRequestEmail,
-  sendStaffMemberJoinedEmail,
-} from '../lib/email.js';
-import { sendPushNotification } from '../lib/notifications.js';
-import { prisma } from '../lib/prisma.js';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { authMiddleware } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import { requireAdmin, getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
-import { debugLog } from '../lib/debugLog.js';
-import escapeHtml from 'escape-html';
-import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
-import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
-import { consumeReviewToken, signReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
-import { registerIdValidation } from '../middleware/validateParams.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
+import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
-import { logAdminActivity } from '../lib/adminActivityLogger.js';
-import { invalidateMeCacheForUser } from '../lib/userCache.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
+import { debugLog } from '../lib/debugLog.js';
 import {
-  buildOrganizationSerializeSelect,
-  serializeOrganization,
-} from '../lib/serializeOrganization.js';
-import { addBreadcrumb, captureException } from '../lib/sentry.js';
+    buildCoachJoinRequestReviewUrl,
+    sendCoachApprovedEmail,
+    sendCoachJoinRequestEmail,
+    sendCoachRejectedEmail,
+    sendLeagueApprovalRequestEmail,
+    sendOrganizationInviteEmail,
+    sendStaffMemberJoinedEmail,
+} from '../lib/email.js';
 import { redactEmail } from '../lib/logRedaction.js';
+import { sendPushNotification } from '../lib/notifications.js';
 import {
-  getOrganizationMembership,
-  isOrganizationOwner as isOrganizationOwnerScoped,
-  ORGANIZATION_OWNER_ROLE,
+    getOrganizationMembership,
+    isOrganizationOwner as isOrganizationOwnerScoped,
+    ORGANIZATION_OWNER_ROLE,
 } from '../lib/organizationAuthorization.js';
 import {
-  getOrganizationInviteState,
-  getOrganizationJoinRequestState,
-  getOrganizationJoinRequestStateForUser,
-  listOrganizationInvitesForEmail,
-  listOrganizationJoinRequestsForOrganization,
-  listOrganizationJoinRequestsForUser,
+    getOrganizationInviteState,
+    getOrganizationJoinRequestState,
+    getOrganizationJoinRequestStateForUser,
+    listOrganizationInvitesForEmail,
+    listOrganizationJoinRequestsForOrganization,
+    listOrganizationJoinRequestsForUser,
 } from '../lib/organizationWorkflowState.js';
+import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
+import { prisma } from '../lib/prisma.js';
+import { consumeReviewToken, signReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import {
-  buildAuthStateColumns,
-  getCanonicalUserRole,
-  getPreferencesObject,
-  mergeAuthStateIntoPreferences,
+    buildOrganizationSerializeSelect,
+    serializeOrganization,
+} from '../lib/serializeOrganization.js';
+import {
+    buildAuthStateColumns,
+    getCanonicalUserRole,
+    getPreferencesObject,
+    mergeAuthStateIntoPreferences,
 } from '../lib/userAuthState.js';
 import {
-  buildBillingStateColumns,
-  getEffectiveEntitledPlan,
+    buildBillingStateColumns,
+    getEffectiveEntitledPlan,
 } from '../lib/userBillingState.js';
+import { invalidateMeCacheForUser } from '../lib/userCache.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { inviteLimiter, organizationsNearbyLimiter } from '../middleware/rateLimiters.js';
+import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { requireVerified } from '../middleware/requireVerified.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
 
 export const organizationsRouter = Router();
 registerIdValidation(organizationsRouter);
@@ -634,7 +635,7 @@ organizationsRouter.patch(
         where: { id: orgId },
         data: {
           ...(data.name !== undefined && { name: data.name }),
-          ...(data.description !== undefined && { description: data.description }),
+          ...(data.description !== undefined && { description: stripHtml(data.description) }),
           ...(data.logo_url !== undefined && { logo_url: data.logo_url }),
           ...(data.profile_picture_url !== undefined && {
             profile_picture_url: data.profile_picture_url,

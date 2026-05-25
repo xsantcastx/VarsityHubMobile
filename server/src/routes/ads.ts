@@ -1,38 +1,38 @@
 import escapeHtml from 'escape-html';
 import { Router, type Response } from 'express';
+import { z } from 'zod';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { AD_GEOFENCE_RADIUS_KM, AD_GEOFENCE_RADIUS_MILES, getAdBoundingBoxDegrees } from '../lib/adGeofencing.js';
+import {
+    releaseExpiredPendingApprovalReservationsForAd,
+} from '../lib/adReservationLifecycle.js';
+import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
+import {
+    approveAd as approveAdService,
+    rejectAd as rejectAdService,
+} from '../lib/approvalService.js';
+import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
+import {
+    consumeReviewToken,
+    getReviewTokenReplayState,
+    verifyReviewToken,
+    type ReviewTokenPayload,
+} from '../lib/reviewTokens.js';
+import { addBreadcrumb } from '../lib/sentry.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import {
+    adCreationLimiter,
+    adModerationLimiter,
+    alternativeZipsLimiter,
+} from '../middleware/rateLimiters.js';
 import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import {
-  adCreationLimiter,
-  adModerationLimiter,
-  alternativeZipsLimiter,
-} from '../middleware/rateLimiters.js';
-import { sendAdPendingReviewEmail } from '../lib/email.js';
-import {
-  consumeReviewToken,
-  getReviewTokenReplayState,
-  type ReviewTokenPayload,
-  verifyReviewToken,
-} from '../lib/reviewTokens.js';
-import { sendPushNotification } from '../lib/pushNotifications.js';
-import {
-  approveAd as approveAdService,
-  rejectAd as rejectAdService,
-} from '../lib/approvalService.js';
-import {
-  releaseExpiredPendingApprovalReservationsForAd,
-} from '../lib/adReservationLifecycle.js';
-import { z } from 'zod';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { addBreadcrumb } from '../lib/sentry.js';
-import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
 
 const debugLog = (...args: Parameters<typeof console.log>) => {
   if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
@@ -220,14 +220,18 @@ adsRouter.post(
       description,
     } = parsed.data;
 
+    const safeContactName = stripHtml(contact_name);
+    const safeBusinessName = stripHtml(business_name);
+    const safeDescription = description != null ? stripHtml(description) : description;
+
     const zipCoords = await getZipCoordinatesWithFallback(target_zip_code);
     const bypassApproval = await isAppReviewDemoUser(req.user?.id);
     const ad = await prisma.ad.create({
       data: {
         user_id: req.user?.id,
-        contact_name,
+        contact_name: safeContactName,
         contact_email,
-        business_name,
+        business_name: safeBusinessName,
         banner_url: banner_url ?? null,
         banner_fit_mode: banner_fit_mode ?? null,
         target_url: target_url ?? null,
@@ -235,7 +239,7 @@ adsRouter.post(
         target_lat: zipCoords?.lat ?? null,
         target_lng: zipCoords?.lon ?? null,
         radius: AD_GEOFENCE_RADIUS_KM, // Fixed 9 km radius for all ads
-        description: description ?? null,
+        description: safeDescription ?? null,
         status: bypassApproval ? 'approved' : 'draft',
         payment_status: 'unpaid',
         ...(bypassApproval
@@ -693,6 +697,11 @@ adsRouter.put(
     for (const [k, v] of Object.entries(parsed.data)) {
       if (k in safeBody) data[k] = v;
     }
+
+    // Sanitize user-visible text fields to prevent stored XSS
+    if (typeof data.contact_name === 'string') data.contact_name = stripHtml(data.contact_name);
+    if (typeof data.business_name === 'string') data.business_name = stripHtml(data.business_name);
+    if (typeof data.description === 'string') data.description = stripHtml(data.description);
 
     const businessNameChanged =
       'business_name' in data && data.business_name !== ad.business_name;
