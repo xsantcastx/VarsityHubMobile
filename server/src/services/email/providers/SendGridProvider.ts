@@ -6,11 +6,10 @@
 
 import sgMail, { MailDataRequired } from '@sendgrid/mail';
 import type {
-  EmailProvider,
-  EmailResult,
-  BaseEmailOptions,
-  TemplateEmailOptions,
-  EmailError,
+    BaseEmailOptions,
+    EmailProvider,
+    EmailResult,
+    TemplateEmailOptions
 } from '../types.js';
 import { EmailErrorCode } from '../types.js';
 
@@ -191,6 +190,15 @@ export class SendGridProvider implements EmailProvider {
     if (options.tags && options.tags.length > 0) {
       baseData.categories = options.tags;
     }
+
+    // Disable click tracking globally — all emails here are transactional.
+    // SendGrid click-tracking wraps every href in a redirect URL, which can
+    // corrupt JWT tokens embedded as query parameters (especially when
+    // combined with Outlook Safe Links double-wrapping), causing approval
+    // links to show "Invalid Link" on first click.
+    baseData.mail_settings = {
+      click_tracking: { enable: false, enable_text: false },
+    };
 
     return { ...baseData, ...additionalData } as MailDataRequired;
   }

@@ -1,35 +1,35 @@
 import escapeHtml from 'escape-html';
 import { Router, type Response } from 'express';
 import { z } from 'zod';
-import { stripHtml } from '../lib/sanitizeHtml.js';
 import {
-  AD_GEOFENCE_RADIUS_KM,
-  AD_GEOFENCE_RADIUS_MILES,
-  getAdBoundingBoxDegrees,
+    AD_GEOFENCE_RADIUS_KM,
+    AD_GEOFENCE_RADIUS_MILES,
+    getAdBoundingBoxDegrees,
 } from '../lib/adGeofencing.js';
 import { releaseExpiredPendingApprovalReservationsForAd } from '../lib/adReservationLifecycle.js';
 import { APP_REVIEW_EMAIL } from '../lib/appReviewFixture.js';
 import {
-  approveAd as approveAdService,
-  rejectAd as rejectAdService,
+    approveAd as approveAdService,
+    rejectAd as rejectAdService,
 } from '../lib/approvalService.js';
 import { sendAdPendingReviewEmail } from '../lib/email.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import { prisma } from '../lib/prisma.js';
 import {
-  consumeReviewToken,
-  getReviewTokenReplayState,
-  verifyReviewToken,
-  type ReviewTokenPayload,
+    consumeReviewToken,
+    getReviewTokenReplayState,
+    verifyReviewToken,
+    type ReviewTokenPayload,
 } from '../lib/reviewTokens.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { addBreadcrumb } from '../lib/sentry.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
-  adCreationLimiter,
-  adModerationLimiter,
-  alternativeZipsLimiter,
+    adCreationLimiter,
+    adModerationLimiter,
+    alternativeZipsLimiter,
 } from '../middleware/rateLimiters.js';
 import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -1508,6 +1508,24 @@ async function handleAdApprove(req: AuthedRequest, res: Response) {
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
       if (!token || !tokenPayload) {
+        // Diagnose WHY the token failed — helps debug email client URL rewriting
+        if (token) {
+          try {
+            const { verifyReviewToken } = await import('../lib/reviewTokens.js');
+            const raw = verifyReviewToken<{ adId?: string; action?: string }>(token);
+            if (!raw) {
+              console.warn('[ads] approve token failed JWT verification — likely expired or secret mismatch', { ad_id: id });
+            } else if (raw.adId !== id) {
+              console.warn('[ads] approve token adId mismatch', { token_adId: raw.adId, url_id: id });
+            } else if (raw.action !== 'approve_ad') {
+              console.warn('[ads] approve token action mismatch', { token_action: raw.action, expected: 'approve_ad' });
+            }
+          } catch {
+            console.warn('[ads] approve token diagnostic check threw', { ad_id: id });
+          }
+        } else {
+          console.warn('[ads] approve link clicked with no token', { ad_id: id });
+        }
         addBreadcrumb('Ad approval token validation failed', 'approval.ad_route', 'warning', {
           action: 'approve',
           ad_id: id,
@@ -1662,6 +1680,23 @@ async function handleAdReject(req: AuthedRequest, res: Response) {
     // GET path = confirmation form served from email link. Token-only, read-only.
     if (req.method === 'GET') {
       if (!token || !tokenPayload) {
+        if (token) {
+          try {
+            const { verifyReviewToken } = await import('../lib/reviewTokens.js');
+            const raw = verifyReviewToken<{ adId?: string; action?: string }>(token);
+            if (!raw) {
+              console.warn('[ads] reject token failed JWT verification — likely expired or secret mismatch', { ad_id: id });
+            } else if (raw.adId !== id) {
+              console.warn('[ads] reject token adId mismatch', { token_adId: raw.adId, url_id: id });
+            } else if (raw.action !== 'reject_ad') {
+              console.warn('[ads] reject token action mismatch', { token_action: raw.action, expected: 'reject_ad' });
+            }
+          } catch {
+            console.warn('[ads] reject token diagnostic check threw', { ad_id: id });
+          }
+        } else {
+          console.warn('[ads] reject link clicked with no token', { ad_id: id });
+        }
         addBreadcrumb('Ad rejection token validation failed', 'approval.ad_route', 'warning', {
           action: 'reject',
           ad_id: id,
