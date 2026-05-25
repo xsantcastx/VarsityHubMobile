@@ -1,9 +1,8 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { usePostCache } from '@/context/PostCacheContext';
-import { useAuth } from '@/context/AuthProvider';
-import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { getAuthSnapshot } from '@/utils/authState';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,8 +11,6 @@ import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-let VideoThumbnails: any = null;
-try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 import {
     ActivityIndicator,
     Alert,
@@ -30,6 +27,8 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+let VideoThumbnails: any = null;
+try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
 // @ts-ignore legacy export shape
 import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';

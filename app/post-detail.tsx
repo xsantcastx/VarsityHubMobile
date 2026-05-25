@@ -1,42 +1,40 @@
-import VideoPlayer from '@/components/VideoPlayer';
 import ExpandableText from '@/components/ExpandableText';
+import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { resolvePostMedia } from '@/utils/media';
-import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { safeGoBack } from '@/utils/navigation';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Post as PostApi, User, Report } from '@/api/entities';
-import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { Post as PostApi, Report, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
-import { useShareLink } from '@/hooks/useShareLink';
 import { usePostCache } from '@/context/PostCacheContext';
-import { useAuth } from '@/context/AuthProvider';
+import { useShareLink } from '@/hooks/useShareLink';
 import { sanitizeTitle } from '@/lib/sanitizeTitle';
-import { getAuthSnapshot } from '@/utils/authState';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { sanitizeText } from '@/utils/formUtils';
 import { Ionicons } from '@expo/vector-icons';
 

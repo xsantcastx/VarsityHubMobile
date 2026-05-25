@@ -3,15 +3,15 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { retryWithBackoff } from '@/utils/retryWithBackoff';
-import { safeGoBack } from '@/utils/navigation';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import {
-  canShowGamePoll,
-  getEventPresentationPhase,
-  isEventPastEndOfDay,
+    canShowGamePoll,
+    getEventPresentationPhase,
+    isEventPastEndOfDay,
 } from '@/utils/eventPresentation';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { safeGoBack } from '@/utils/navigation';
+import { retryWithBackoff } from '@/utils/retryWithBackoff';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -21,21 +21,21 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import {
-  AccessibilityInfo,
-  ActivityIndicator,
-  Alert,
-  Animated,
-  AppState,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
+    AccessibilityInfo,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    AppState,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
@@ -48,17 +48,17 @@ import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { useAuth } from '@/context/AuthProvider';
-import { getAuthSnapshot } from '@/utils/authState';
-import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
-import {
-  applyClearVote,
-  applyVoteSelection,
-  buildVoteSummary,
-  parseVoteSummary,
-  type VoteOption,
-  type VoteSummary,
-} from '@/utils/voteSummary';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { getAuthSnapshot } from '@/utils/authState';
+import {
+    applyClearVote,
+    applyVoteSelection,
+    buildVoteSummary,
+    parseVoteSummary,
+    type VoteOption,
+    type VoteSummary,
+} from '@/utils/voteSummary';
+import GameVerticalFeedScreen, { mapHighlightToFeedPost } from './GameVerticalFeedScreen';
 
 import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = [
@@ -106,6 +106,7 @@ function StoriesViewer({
   const colorScheme = useColorScheme() ?? 'light';
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
   const [current, setCurrent] = useState(index);
+  const [resolvedCurrentUserId, setCurrentUserId] = useState<string | null>(currentUserId ?? null);
   const w = useWindowDimensions().width;
   const progress = useRef(new Animated.Value(0)).current;
   const [paused, setPaused] = useState(false);
@@ -231,7 +232,7 @@ function StoriesViewer({
   const isVideo = item?.kind === 'video' || (item?.url && VIDEO_EXT.test(item.url));
 
   // Check if user can delete this story
-  const canDelete = currentUserId && item?.user_id && currentUserId === item.user_id;
+  const canDelete = resolvedCurrentUserId && item?.user_id && resolvedCurrentUserId === item.user_id;
 
   const showDeleteButton = canDelete;
 

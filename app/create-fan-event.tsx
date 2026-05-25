@@ -1,7 +1,10 @@
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { APP_ROUTES } from '@/utils/appRoutes';
 import { getAuthSnapshot } from '@/utils/authState';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -23,23 +26,19 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { safeGoBack } from '@/utils/navigation';
-import { APP_ROUTES } from '@/utils/appRoutes';
-import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 // @ts-ignore
 import { Event, Game, Team as TeamAPI } from '@/api/entities';
-import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { handleCoachAccessError } from '@/utils/coachAccess';
 import { sanitizeText } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { getFreshAuthSnapshot } from '@/utils/authState';
-import { handleCoachAccessError } from '@/utils/coachAccess';
 import { getCoachAccessState } from '@/utils/roleChecks';
-import MatchBanner from './components/MatchBanner';
-import AppearancePicker, { AppearancePreset } from './components/AppearancePicker';
 import ViewShot, { captureRef } from 'react-native-view-shot';
+import AppearancePicker, { AppearancePreset } from './components/AppearancePicker';
+import MatchBanner from './components/MatchBanner';
 
 const EVENT_TYPES = [
   { value: 'game', label: 'Game/Match', emoji: '🏈' },
@@ -613,7 +612,7 @@ function CreateFanEventScreen() {
       const errorCode = e?.code || e?.data?.code;
       const errorMessage = e?.message || e?.data?.message;
 
-      if (handleCoachAccessError(router, e, 'creating events', authUser as any)) {
+      if (handleCoachAccessError(router, e, 'creating events', user as any)) {
         return;
       } else if (errorCode === 'EVENT_LIMIT_EXCEEDED') {
         Alert.alert(

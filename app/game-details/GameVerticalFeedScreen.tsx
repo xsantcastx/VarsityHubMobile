@@ -1,42 +1,42 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
 import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
-import { sanitizeTitle } from '@/lib/sanitizeTitle';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { sanitizeTitle } from '@/lib/sanitizeTitle';
+import { safeGoBack } from '@/utils/navigation';
 import { Ionicons } from '@expo/vector-icons';
-import { useEventListener } from 'expo';
 import { useFocusEffect } from '@react-navigation/native';
+import { useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { safeGoBack } from '@/utils/navigation';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
 import { Game, Highlights, Post, Report, User } from '@/api/entities';
+import { httpGet } from '@/api/http';
 import { useAuth } from '@/context/AuthProvider';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
-import { httpGet } from '@/api/http';
 import { getAuthSnapshot } from '@/utils/authState';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
@@ -238,6 +238,7 @@ const FeedCard = memo(
     const { user, checkAuth } = useAuth();
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
+    const [currentUser, setCurrentUser] = useState<any>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);

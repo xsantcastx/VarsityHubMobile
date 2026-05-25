@@ -1,30 +1,29 @@
+import { BackHeader } from '@/components/ui/BackHeader';
 import { useAuth } from '@/context/AuthProvider';
 import { getAuthSnapshot } from '@/utils/authState';
-import { BackHeader } from '@/components/ui/BackHeader';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme,
+    ActivityIndicator,
+    Alert,
+    Linking,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { useShareLink } from '@/hooks/useShareLink';
-import { getAuthSnapshot } from '@/utils/authState';
+import { Image } from 'expo-image';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
-import { Image } from 'expo-image';
-import { Colors } from '@/constants/Colors';
 
 type EventItem = {
   id: string | number;

@@ -1,28 +1,28 @@
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import {
-  Advertisement,
-  Event,
-  Feed,
-  Game,
-  Message,
-  Notification as NotificationApi,
+    Advertisement,
+    Event,
+    Feed,
+    Game,
+    Message,
+    Notification as NotificationApi,
 } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
@@ -39,13 +39,12 @@ import * as Location from 'expo-location';
 
 import PostCard from '@/components/PostCard';
 import { PostCardSkeleton } from '@/components/ui/SkeletonCard';
-import { getAuthSnapshot } from '@/utils/authState';
 import { optimizeImageUrl } from '@/utils/imageUrl';
 import {
-  getNotificationHrefForUser,
-  getNotificationSubtitle,
-  getNotificationTitle,
-  isSystemNotification,
+    getNotificationHrefForUser,
+    getNotificationSubtitle,
+    getNotificationTitle,
+    isSystemNotification,
 } from '@/utils/notificationPresentation';
 import GameVerticalFeedScreen from '../../../game-details/GameVerticalFeedScreen';
 

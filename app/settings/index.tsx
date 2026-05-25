@@ -3,30 +3,30 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  useColorScheme,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    useColorScheme,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
+import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { getFreshAuthSnapshot, getLinkedProvidersSnapshot } from '@/utils/authState';
 import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachUpgradeCta, type CoachUpgradeCta } from '@/utils/coachUpgradeCta';
-import { getCanonicalCoachRole } from '@/utils/roleChecks';
-import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
 import { safeGoBack } from '@/utils/navigation';
+import { getCanonicalCoachRole } from '@/utils/roleChecks';
 
 interface PendingHostRequest {
   id: string;
@@ -571,7 +571,7 @@ export default function SettingsScreen() {
               title="Followed Teams"
               onPress={() => void router.push('/settings/followed-teams')}
             />
-            {visibleProviderStatuses.map((provider) => (
+            {visibleProviderStatuses.map((provider, index) => (
               <NavRow
                 key={provider}
                 title={provider === 'google' ? 'Google Sign-In' : 'Apple Sign-In'}

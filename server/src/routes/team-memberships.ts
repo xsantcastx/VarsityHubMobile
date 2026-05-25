@@ -129,9 +129,13 @@ teamMembershipsRouter.post(
 );
 
 // PATCH /team-memberships/:id { role? }
+const VALID_STATUSES = ['active', 'archived'] as const;
+type ValidStatus = (typeof VALID_STATUSES)[number];
+
 const updateMembershipSchema = z.object({
   role: z.string().optional(),
   custom_position: z.string().nullable().optional(),
+  status: z.enum(VALID_STATUSES).optional(),
 });
 
 teamMembershipsRouter.patch(
@@ -148,7 +152,7 @@ teamMembershipsRouter.patch(
         return res
           .status(400)
           .json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
-      const { role, custom_position } = parsed.data;
+      const { role, custom_position, status } = parsed.data;
 
       const membership = await prisma.teamMembership.findUnique({ where: { id } });
       if (!membership) return sendError(res, 404, 'Membership not found');
@@ -160,8 +164,8 @@ teamMembershipsRouter.patch(
         });
       }
 
-      if (!role && custom_position === undefined)
-        return sendError(res, 400, 'role or custom_position is required');
+      if (!role && custom_position === undefined && !status)
+        return sendError(res, 400, 'role, custom_position, or status is required');
 
       const data: Record<string, any> = {};
       if (role) {
@@ -174,12 +178,27 @@ teamMembershipsRouter.patch(
           teamId: membership.team_id,
           nextRole: validatedRole,
           existingMembership: { role: membership.role, status: membership.status },
-          nextStatus: membership.status,
+          nextStatus: status ?? membership.status,
         });
         if (!guard.ok) {
           return res.status(guard.status).json(guard.body);
         }
         data.role = validatedRole;
+      }
+      if (status) {
+        // When activating an archived member, re-check roster limits
+        if (status === 'active' && membership.status !== 'active') {
+          const guard = await guardTeamMembershipMutation(prisma, {
+            teamId: membership.team_id,
+            nextRole: (role as ValidRole) ?? (membership.role as ValidRole),
+            existingMembership: { role: membership.role, status: membership.status },
+            nextStatus: 'active',
+          });
+          if (!guard.ok) {
+            return res.status(guard.status).json(guard.body);
+          }
+        }
+        data.status = status;
       }
       if (custom_position !== undefined)
         data.custom_position = custom_position === null ? null : stripHtml(String(custom_position));
@@ -404,6 +423,53 @@ teamMembershipsRouter.post(
     return res
       .status(201)
       .json({ ok: true, join_request: { id: joinRequest.id, status: joinRequest.status } });
+  })
+);
+
+// GET /team-memberships/search-users?teamId=xxx&q=yyy
+// Coaches can search existing users by name/username to add to their team.
+// Excludes users already on the team and blocked users.
+teamMembershipsRouter.get(
+  '/search-users',
+  requireAuth as any,
+  requireOnboarded as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    if (!req.user) return sendError(res, 401, 'Unauthorized');
+    const teamId = String(req.query.teamId || '').trim();
+    const q = String(req.query.q || '').trim();
+    if (!teamId) return sendError(res, 400, 'teamId is required');
+    if (!q || q.length < 2) return sendError(res, 400, 'q must be at least 2 characters');
+
+    const canManage = await canManageTeam(req, teamId);
+    if (!canManage) return sendError(res, 403, 'PERMISSION_DENIED');
+
+    // Users already on the team (any status) — exclude from results
+    const existingMembers = await prisma.teamMembership.findMany({
+      where: { team_id: teamId },
+      select: { user_id: true },
+    });
+    const existingUserIds = existingMembers.map(m => m.user_id);
+
+    const users = await prisma.user.findMany({
+      where: {
+        AND: [
+          { id: { notIn: existingUserIds } },
+          { deleted_at: null },
+          { banned: false },
+          {
+            OR: [
+              { username: { contains: q, mode: 'insensitive' } },
+              { display_name: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        ],
+      },
+      select: { id: true, username: true, display_name: true, avatar_url: true },
+      take: 20,
+      orderBy: { username: 'asc' },
+    });
+
+    return res.json(users);
   })
 );
 

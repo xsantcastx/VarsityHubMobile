@@ -1,4 +1,4 @@
-import { Team } from '@/api/entities';
+import { Team, TeamMemberships } from '@/api/entities';
 import type { TeamAdminSummaryResponse, TeamResponse } from '@/api/schemas/team';
 import CoachAccessRedirecting from '@/components/CoachAccessRedirecting';
 import { Colors } from '@/constants/Colors';
@@ -7,7 +7,7 @@ import { useRequireCoach } from '@/hooks/useRequireCoach';
 import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,7 +32,15 @@ type TeamMember = {
     id?: string;
     display_name?: string | null;
     username?: string | null;
+    avatar_url?: string | null;
   };
+};
+
+type UserSearchResult = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
 };
 
 type TeamGame = {
@@ -119,6 +128,11 @@ export default function TeamAdminScreen() {
   const [games, setGames] = useState<TeamGame[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(routeTeamId);
   const [actingInviteId, setActingInviteId] = useState<string | null>(null);
+  const [actingMemberId, setActingMemberId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isTeamAdminTab(params.tab)) {
@@ -214,6 +228,94 @@ export default function TeamAdminScreen() {
       ]);
     },
     [actingInviteId, loadTeam, selectedTeamId]
+  );
+
+  const handleToggleMemberStatus = useCallback(
+    async (member: TeamMember) => {
+      if (!member.user?.id || actingMemberId) return;
+      const isActive = member.status === 'active';
+      const nextStatus = isActive ? 'archived' : 'active';
+      const label = isActive ? 'Archive' : 'Restore';
+      const name = member.user.display_name || member.user.username || 'this member';
+
+      Alert.alert(
+        `${label} member`,
+        isActive
+          ? `Archive ${name}? They will be hidden from the active roster but can be restored later.`
+          : `Restore ${name} to the active roster?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: label,
+            style: isActive ? 'destructive' : 'default',
+            onPress: async () => {
+              setActingMemberId(member.id);
+              try {
+                await TeamMemberships.update(member.id, { status: nextStatus });
+                await loadTeam();
+              } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : `Failed to ${label.toLowerCase()} member`;
+                Alert.alert(`Unable to ${label.toLowerCase()} member`, message);
+              } finally {
+                setActingMemberId(null);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [actingMemberId, loadTeam]
+  );
+
+  const handleSearchUsers = useCallback(
+    (q: string) => {
+      setSearchQuery(q);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      if (!q || q.length < 2 || !selectedTeamId) {
+        setSearchResults([]);
+        return;
+      }
+      searchTimeoutRef.current = setTimeout(async () => {
+        setSearching(true);
+        try {
+          const results = await TeamMemberships.searchUsers(selectedTeamId, q);
+          setSearchResults(Array.isArray(results) ? (results as UserSearchResult[]) : []);
+        } catch {
+          setSearchResults([]);
+        } finally {
+          setSearching(false);
+        }
+      }, 400);
+    },
+    [selectedTeamId]
+  );
+
+  const handleAddUser = useCallback(
+    async (user: UserSearchResult) => {
+      if (!selectedTeamId) return;
+      Alert.alert(
+        'Add to roster',
+        `Add ${user.display_name || user.username || 'this user'} as a player?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Add',
+            onPress: async () => {
+              try {
+                await TeamMemberships.create({ team_id: selectedTeamId, user_id: user.id, role: 'player' });
+                setSearchQuery('');
+                setSearchResults([]);
+                await loadTeam();
+              } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Failed to add player';
+                Alert.alert('Unable to add player', message);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [selectedTeamId, loadTeam]
   );
 
   if (coachLoading) {
@@ -414,6 +516,39 @@ export default function TeamAdminScreen() {
                 ]}
               >
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Roster</Text>
+
+                {/* Add player by search */}
+                <TextInput
+                  style={[styles.searchInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
+                  placeholder="Search users to add…"
+                  placeholderTextColor={theme.mutedText}
+                  value={searchQuery}
+                  onChangeText={handleSearchUsers}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searching ? (
+                  <ActivityIndicator size="small" color={theme.tint} style={{ marginVertical: 6 }} />
+                ) : null}
+                {searchResults.length > 0 ? (
+                  <View style={[styles.searchResultsContainer, { borderColor: theme.border }]}>
+                    {searchResults.map(user => (
+                      <Pressable
+                        key={user.id}
+                        style={[styles.searchResultRow, { borderColor: theme.border }]}
+                        onPress={() => void handleAddUser(user)}
+                      >
+                        <Text style={[styles.rowTitle, { color: theme.text }]}>
+                          {user.display_name || user.username || user.id}
+                        </Text>
+                        {user.username ? (
+                          <Text style={[styles.metaText, { color: theme.mutedText }]}>@{user.username}</Text>
+                        ) : null}
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+
                 {members.length === 0 ? (
                   <Text style={[styles.metaText, { color: theme.mutedText }]}>
                     No roster members yet.
@@ -422,14 +557,24 @@ export default function TeamAdminScreen() {
                   members.map(member => (
                     <View key={member.id} style={[styles.row, { borderColor: theme.border }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.rowTitle, { color: theme.text }]}>
+                        <Text style={[styles.rowTitle, { color: member.status === 'archived' ? theme.mutedText : theme.text }]}>
                           {member.user?.display_name || member.user?.username || 'Member'}
+                          {member.status === 'archived' ? ' (archived)' : ''}
                         </Text>
                         <Text style={[styles.metaText, { color: theme.mutedText }]}>
                           {roleLabel(member.role)}
                           {member.position ? `  |  ${member.position}` : ''}
                         </Text>
                       </View>
+                      <Pressable
+                        onPress={() => void handleToggleMemberStatus(member)}
+                        disabled={actingMemberId === member.id}
+                        style={[styles.actionButton, member.status === 'archived' ? styles.restoreButton : styles.archiveButton]}
+                      >
+                        <Text style={styles.actionButtonText}>
+                          {actingMemberId === member.id ? '…' : member.status === 'archived' ? 'Restore' : 'Archive'}
+                        </Text>
+                      </Pressable>
                     </View>
                   ))
                 )}
@@ -700,5 +845,38 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  searchResultsContainer: {
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  searchResultRow: {
+    borderBottomWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  actionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  archiveButton: {
+    backgroundColor: '#f3f4f6',
+  },
+  restoreButton: {
+    backgroundColor: '#dcfce7',
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
   },
 });

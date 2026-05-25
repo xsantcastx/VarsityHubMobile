@@ -1,17 +1,17 @@
 import { Organization } from '@/api/entities';
 import { screenHeaderSharedStyles } from '@/components/ScreenHeaderShared';
-import { getOrganizationAccess } from '@/utils/roleChecks';
-import { getAuthSnapshot } from '@/utils/authState';
-import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { getAuthSnapshot } from '@/utils/authState';
+import { safeGoBack } from '@/utils/navigation';
+import { getOrganizationAccess } from '@/utils/roleChecks';
 import { captureException } from '@/utils/sentry';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { safeGoBack } from '@/utils/navigation';
+import { Colors } from '@/constants/Colors';
 
 /** API returns OrganizationJoinRequest (user-based coach requests) */
 type ApiJoinRequest = {
@@ -42,6 +42,9 @@ type JoinRequest = {
 
 function OrganizationJoinRequestsScreen() {
   const { user, checkAuth } = useAuth();
+  const router = useRouter();
+  const colorScheme = useCustomColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const params = useLocalSearchParams<{
     organization_id: string;
     organization_name?: string;

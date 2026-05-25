@@ -7,24 +7,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { uploadFile } from '@/api/upload';
+import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
+import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
-import { safeGoBack } from '@/utils/navigation';
-import OnboardingLayout from './components/OnboardingLayout';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
-import { uploadFile } from '@/api/upload';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import { getConfig } from '@/config/env';
-import Notifications from '@/utils/notifications';
-import { getFreshAuthSnapshot } from '@/utils/authState';
 import { BIO_MAX_LENGTH } from '@/utils/formUtils';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { safeGoBack } from '@/utils/navigation';
+import Notifications from '@/utils/notifications';
 import { getFreshPostAuthState } from '@/utils/postMutationAuth';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import OnboardingLayout from './components/OnboardingLayout';
 
 // Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
 // Spaces are normalized to underscores BEFORE validation
@@ -91,7 +90,7 @@ function SportBallRow() {
 export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { user, markOnboardingCompleteLocally, registerPushToken } = useAuth();
+  const { user, markOnboardingCompleteLocally, registerPushToken, checkAuth } = useAuth();
   const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('other');

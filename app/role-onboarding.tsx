@@ -1,37 +1,36 @@
-import { Colors } from '@/constants/Colors';
 import { ZipCodeMapPreview } from '@/components/ZipCodeMapPreview';
+import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  useColorScheme,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    useColorScheme,
+    View,
 } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import {
+    LEGEND_YEARLY_PRICE_LABEL,
+    ROOKIE_TEAM_LIMIT,
+    VETERAN_MONTHLY_TEAM_PRICE_LABEL,
+} from '@/constants/plans';
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
 import { getPostAuthRouteDecision } from '@/utils/appRouteDecisions';
-import { getCanonicalBillingState } from '@/utils/billingState';
 import { getFreshAuthSnapshot } from '@/utils/authState';
-import { getCanonicalCoachRole } from '@/utils/roleChecks';
-import {
-  LEGEND_YEARLY_PRICE_LABEL,
-  ROOKIE_TEAM_LIMIT,
-  VETERAN_MONTHLY_TEAM_PRICE_LABEL,
-} from '@/constants/plans';
+import { getCanonicalBillingState } from '@/utils/billingState';
 import { getCoachUpgradeCta } from '@/utils/coachUpgradeCta';
-import { useAuth } from '@/context/AuthProvider';
+import { getCanonicalCoachRole } from '@/utils/roleChecks';
 
 type OnboardingAction = {
   icon: keyof typeof Ionicons.glyphMap;

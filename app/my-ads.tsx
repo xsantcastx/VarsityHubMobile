@@ -1,10 +1,18 @@
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getAuthSnapshot } from '@/utils/authState';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { getCompositeAdBadge } from '@/utils/adStatusBadge';
+import { getAuthSnapshot } from '@/utils/authState';
 import { safeGoBack } from '@/utils/navigation';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Image } from 'expo-image';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+// @ts-ignore
+import { Advertisement as AdsApi } from '@/api/entities';
+import settings from '@/api/settings';
 
 type ManagedAd = {
   id: string;
