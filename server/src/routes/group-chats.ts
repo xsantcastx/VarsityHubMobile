@@ -1,14 +1,15 @@
-import { Router } from 'express';
 import { Prisma } from '@prisma/client';
+import { Router } from 'express';
 import { z } from 'zod';
+import { prisma } from '../lib/prisma.js';
+import { captureMessage } from '../lib/sentry.js';
+import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { prisma } from '../lib/prisma.js';
-import { groupMessageLimiter } from '../middleware/rateLimiters.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
-import { captureMessage } from '../lib/sentry.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
@@ -220,7 +221,7 @@ groupChatsRouter.post(
         data: {
           chat_id: chatId,
           sender_id: req.user.id,
-          content: content.trim(),
+          content: stripHtml(content.trim()),
         },
         include: {
           sender: {

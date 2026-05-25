@@ -1,13 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
 import { getOrganizationMembership } from '../lib/organizationAuthorization.js';
-import { buildOrganizationSerializeSelect, serializeOrganization } from '../lib/serializeOrganization.js';
 import { getOrganizationState } from '../lib/organizationState.js';
+import { prisma } from '../lib/prisma.js';
+import { buildOrganizationSerializeSelect, serializeOrganization } from '../lib/serializeOrganization.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const createTournamentSchema = z.object({
   name: z.string().min(1).max(255),
@@ -65,7 +65,7 @@ tournamentsRouter.post('/', requireAuth as any, requireOnboarded as any, asyncHa
     const tournament = await prisma.organization.create({
       data: {
         name,
-        description: description ?? `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
+        description: description ? stripHtml(description) : `${season ? `${season} ` : ''}${sport ?? ''} Tournament`.trim() || undefined,
         org_type: 'tournament',
         sport: sport ?? undefined,
         location: location ?? undefined,
@@ -132,6 +132,7 @@ tournamentsRouter.get('/:id', asyncHandler(async (req: Request, res: Response) =
       select: {
         ...buildOrganizationSerializeSelect(),
         teams: {
+          take: 500,
           select: {
             id: true,
             name: true,

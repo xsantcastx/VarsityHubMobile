@@ -1,32 +1,33 @@
 import escapeHtml from 'escape-html';
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
-import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
-import { requireAdmin, isEmailAdmin, getIsAdmin } from '../middleware/requireAdmin.js';
-import { requireAuth } from '../middleware/requireAuth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import { requireOnboarded } from '../middleware/requireOnboarded.js';
-import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
-import { debugLog } from '../lib/debugLog.js';
-import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
-import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
-import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { registerIdValidation } from '../middleware/validateParams.js';
-import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
 import { isAdminEmail } from '../lib/adminEmails.js';
-import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
-import { sendError } from '../lib/http/sendError.js';
-import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import { cacheDelPattern, cacheGet, cacheSet } from '../lib/cache.js';
+import { debugLog } from '../lib/debugLog.js';
 import {
-  sendEventApprovedEmail,
-  sendEventCanceledEmail,
-  sendEventDeniedEmail,
-  sendEventSubmissionReceivedEmail,
-  sendEventUpdatedEmail,
+    sendEventApprovedEmail,
+    sendEventCanceledEmail,
+    sendEventDeniedEmail,
+    sendEventSubmissionReceivedEmail,
+    sendEventUpdatedEmail,
 } from '../lib/email.js';
+import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
+import { sendError } from '../lib/http/sendError.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
+import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
+import { prisma } from '../lib/prisma.js';
+import { getExcludedPrivateAuthorIds } from '../lib/privacyUtils.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import { canManageAnyTeam, canManageTeam as canManageTeamScoped } from '../lib/teamAuthorization.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { authMiddleware, type AuthedRequest } from '../middleware/auth.js';
+import { gameCreationLimiter, voteLimiter } from '../middleware/rateLimiters.js';
+import { getIsAdmin, isEmailAdmin, requireAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireOnboarded } from '../middleware/requireOnboarded.js';
+import { requireVerified } from '../middleware/requireVerified.js';
+import { registerIdValidation } from '../middleware/validateParams.js';
+import { makeCreateStoryHandler, makeListMediaHandler } from './gameStories.js';
 
 export const gamesRouter = Router();
 registerIdValidation(gamesRouter);
@@ -859,28 +860,28 @@ gamesRouter.post(
     try {
       // Prepare game data
       let gameData: any = {
-        title: parsed.data.title,
+        title: stripHtml(parsed.data.title),
         date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
-        location: parsed.data.location,
-        description: parsed.data.description,
+        location: stripHtml(parsed.data.location),
+        description: parsed.data.description ? stripHtml(parsed.data.description) : undefined,
         banner_url: parsed.data.banner_url ?? null,
         cover_image_url: parsed.data.cover_image_url ?? null,
         appearance: parsed.data.appearance ?? null,
         expected_attendance: parsed.data.expected_attendance ?? null,
         event_type: parsed.data.event_type ?? 'game',
         donation_goal: parsed.data.donation_goal ?? null,
-        watch_location: parsed.data.watch_location ?? null,
+        watch_location: parsed.data.watch_location ? stripHtml(parsed.data.watch_location) : null,
         watch_location_lat: parsed.data.watch_location_lat ?? null,
         watch_location_lng: parsed.data.watch_location_lng ?? null,
         watch_location_place_id: parsed.data.watch_location_place_id ?? null,
-        destination: parsed.data.destination ?? null,
+        destination: parsed.data.destination ? stripHtml(parsed.data.destination) : null,
         latitude: parsed.data.latitude ?? null,
         longitude: parsed.data.longitude ?? null,
         home_team: parsed.data.home_team ?? null,
         away_team: parsed.data.away_team ?? null,
         home_team_id: parsed.data.home_team_id ?? null,
         away_team_id: parsed.data.away_team_id ?? null,
-        away_team_name: parsed.data.away_team_name ?? null,
+        away_team_name: parsed.data.away_team_name ? stripHtml(parsed.data.away_team_name) : null,
         venue_place_id: parsed.data.venue_place_id ?? null,
         venue_address: parsed.data.venue_address ?? null,
         venue_lat: parsed.data.venue_lat ?? null,
@@ -1185,6 +1186,28 @@ gamesRouter.post(
         .json({ error: 'Invalid bulk games payload', issues: parsed.error.issues });
     }
     const userId = req.user!.id;
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    const isAdmin = isEmailAdmin(currentUser?.email);
+
+    // Verify caller manages at least one of the referenced teams (mirrors single POST auth check)
+    if (!isAdmin) {
+      const allTeamIds = [
+        ...new Set(
+          parsed.data.games.flatMap(g => [g.home_team_id, g.away_team_id].filter(Boolean) as string[])
+        ),
+      ];
+      if (allTeamIds.length === 0) {
+        return res.status(400).json({ error: 'Each game must reference a home_team_id or away_team_id.' });
+      }
+      const checks = await Promise.all(allTeamIds.map(id => canManageTeamScoped(userId, id)));
+      if (!checks.some(Boolean)) {
+        return res.status(403).json({ error: 'You do not manage any of the referenced teams.' });
+      }
+    }
+
     try {
       // All-or-nothing: one failure rolls back the whole batch.
       const created = await prisma.$transaction(async tx => {
@@ -1192,10 +1215,10 @@ gamesRouter.post(
         for (const g of parsed.data.games) {
           const row = await tx.game.create({
             data: {
-              title: g.title,
+              title: stripHtml(g.title),
               date: new Date(g.date),
-              location: g.location,
-              description: g.description ?? null,
+              location: stripHtml(g.location),
+              description: g.description ? stripHtml(g.description) : null,
               home_team: g.home_team ?? null,
               away_team: g.away_team ?? null,
               home_team_id: g.home_team_id ?? null,
@@ -2126,15 +2149,15 @@ gamesRouter.put(
       // Build update payload — only include fields that were explicitly provided
       const updateData: any = {};
       const d = parsed.data;
-      if (d.title !== undefined) updateData.title = d.title;
+      if (d.title !== undefined) updateData.title = stripHtml(d.title);
       if (d.home_team !== undefined) updateData.home_team = d.home_team;
       if (d.away_team !== undefined) updateData.away_team = d.away_team;
       if (d.home_team_id !== undefined) updateData.home_team_id = d.home_team_id;
       if (d.away_team_id !== undefined) updateData.away_team_id = d.away_team_id;
-      if (d.away_team_name !== undefined) updateData.away_team_name = d.away_team_name;
+      if (d.away_team_name !== undefined) updateData.away_team_name = d.away_team_name ? stripHtml(d.away_team_name) : d.away_team_name;
       if (d.date !== undefined) updateData.date = new Date(d.date);
-      if (d.location !== undefined) updateData.location = d.location;
-      if (d.description !== undefined) updateData.description = d.description;
+      if (d.location !== undefined) updateData.location = stripHtml(d.location);
+      if (d.description !== undefined) updateData.description = d.description ? stripHtml(d.description) : d.description;
       if (d.cover_image_url !== undefined) updateData.cover_image_url = d.cover_image_url;
       if (d.banner_url !== undefined) updateData.banner_url = d.banner_url;
       if (d.appearance !== undefined) updateData.appearance = d.appearance;
