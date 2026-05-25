@@ -1032,6 +1032,93 @@ usersRouter.get('/me/follow-requests', requireAuth as any, requireVerified as an
   }
 }));
 
+// Suggested users to follow — people the current user doesn't follow yet
+// Ordered by: mutual connections first, then follower count
+usersRouter.get('/me/suggested', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
+  const currentUserId = req.user!.id;
+  const limit = Math.max(1, Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 20));
+
+  // Get IDs the current user already follows + their own ID to exclude
+  const alreadyFollowing = await prisma.follows.findMany({
+    where: { follower_id: currentUserId },
+    select: { following_id: true },
+    take: 2000,
+  });
+  const excludeIds = new Set([currentUserId, ...alreadyFollowing.map(f => f.following_id)]);
+
+  // Get blocked user IDs (both directions)
+  const blocks = await prisma.blockedUser.findMany({
+    where: { OR: [{ blocker_id: currentUserId }, { blocked_id: currentUserId }] },
+    select: { blocker_id: true, blocked_id: true },
+    take: 1000,
+  });
+  for (const b of blocks) {
+    excludeIds.add(b.blocker_id);
+    excludeIds.add(b.blocked_id);
+  }
+
+  // Get IDs of people the current user follows, to find mutual connections
+  const myFollowingIds = alreadyFollowing.map(f => f.following_id);
+
+  // Find users who follow at least one person the current user follows (mutual connection signal)
+  // Also pull in active onboarded users ordered by follower count as a fallback
+  const candidates = await prisma.user.findMany({
+    where: {
+      id: { notIn: Array.from(excludeIds) },
+      onboarding_completed: true,
+      banned: false,
+      deleted_at: null,
+    },
+    select: {
+      ...publicUserSelect,
+      role: true,
+      approval_status: true,
+      _count: { select: { followers: { where: { status: 'accepted' } } } },
+    },
+    orderBy: { followers: { _count: 'desc' } },
+    take: 50,
+  });
+
+  // Score by mutual connections: count how many of their followers also follow me or I follow
+  const myFollowingSet = new Set(myFollowingIds);
+  const candidateIds = candidates.map(c => c.id);
+
+  let mutualScores: Map<string, number> = new Map();
+  if (myFollowingSet.size > 0 && candidateIds.length > 0) {
+    const mutuals = await prisma.follows.findMany({
+      where: {
+        follower_id: { in: candidateIds },
+        following_id: { in: myFollowingIds },
+        status: 'accepted',
+      },
+      select: { follower_id: true },
+      take: 500,
+    });
+    for (const m of mutuals) {
+      mutualScores.set(m.follower_id, (mutualScores.get(m.follower_id) ?? 0) + 1);
+    }
+  }
+
+  // Sort: mutual score desc, then follower count desc
+  const scored = candidates
+    .map(c => ({ ...c, mutualScore: mutualScores.get(c.id) ?? 0 }))
+    .sort((a, b) => b.mutualScore - a.mutualScore || b._count.followers - a._count.followers)
+    .slice(0, limit);
+
+  res.json({
+    items: scored.map(u => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name,
+      avatar_url: u.avatar_url,
+      role: u.role,
+      followers_count: u._count.followers,
+      mutual_count: u.mutualScore,
+      is_following: false,
+    })),
+  });
+}));
+
 // Get followers
 usersRouter.get('/:id/followers', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
   const { id } = req.params;
@@ -1053,18 +1140,23 @@ usersRouter.get('/:id/followers', requireAuth as any, requireVerified as any, as
 
   if (currentUserId) {
     const userIds = users.map(u => u.id);
-    const followingSet = new Set(
-      (await prisma.follows.findMany({
-        where: {
-          follower_id: currentUserId,
-          following_id: { in: userIds },
-          status: 'accepted',
-        },
+    const [followingSet, followsViewerSet] = await Promise.all([
+      prisma.follows.findMany({
+        where: { follower_id: currentUserId, following_id: { in: userIds }, status: 'accepted' },
         select: { following_id: true },
         take: Math.max(userIds.length, 1),
-      })).map(f => f.following_id)
-    );
-    users.forEach(u => (u as any).is_following = followingSet.has(u.id));
+      }).then(rows => new Set(rows.map(f => f.following_id))),
+      // is_following_viewer: does each follower also follow the current viewer?
+      prisma.follows.findMany({
+        where: { follower_id: { in: userIds }, following_id: currentUserId, status: 'accepted' },
+        select: { follower_id: true },
+        take: Math.max(userIds.length, 1),
+      }).then(rows => new Set(rows.map(f => f.follower_id))),
+    ]);
+    users.forEach(u => {
+      (u as any).is_following = followingSet.has(u.id);
+      (u as any).is_following_viewer = followsViewerSet.has(u.id);
+    });
   }
 
   res.json({ items: users, nextCursor });
@@ -1091,18 +1183,22 @@ usersRouter.get('/:id/following', requireAuth as any, requireVerified as any, as
 
   if (currentUserId) {
     const userIds = users.map(u => u.id);
-    const followingSet = new Set(
-      (await prisma.follows.findMany({
-        where: {
-          follower_id: currentUserId,
-          following_id: { in: userIds },
-          status: 'accepted',
-        },
+    const [followingSet, followsViewerSet] = await Promise.all([
+      prisma.follows.findMany({
+        where: { follower_id: currentUserId, following_id: { in: userIds }, status: 'accepted' },
         select: { following_id: true },
         take: Math.max(userIds.length, 1),
-      })).map(f => f.following_id)
-    );
-    users.forEach(u => (u as any).is_following = followingSet.has(u.id));
+      }).then(rows => new Set(rows.map(f => f.following_id))),
+      prisma.follows.findMany({
+        where: { follower_id: { in: userIds }, following_id: currentUserId, status: 'accepted' },
+        select: { follower_id: true },
+        take: Math.max(userIds.length, 1),
+      }).then(rows => new Set(rows.map(f => f.follower_id))),
+    ]);
+    users.forEach(u => {
+      (u as any).is_following = followingSet.has(u.id);
+      (u as any).is_following_viewer = followsViewerSet.has(u.id);
+    });
   }
 
   res.json({ items: users, nextCursor });

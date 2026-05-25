@@ -10,14 +10,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -181,9 +181,21 @@ export function UserConnectionListScreen({
                   onPress={() => void router.push(`/user-profile?id=${item.id}`)}
                 >
                   <Avatar uri={item.avatar_url} />
-                  <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
-                    {item.display_name}
-                  </Text>
+                  <View style={styles.userNameCol}>
+                    <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
+                      {item.display_name || item.username || 'User'}
+                    </Text>
+                    {item.username ? (
+                      <Text style={[styles.userHandle, { color: Colors[colorScheme].mutedText }]}>
+                        @{item.username}
+                      </Text>
+                    ) : null}
+                    {item.is_following_viewer ? (
+                      <View style={styles.followsYouBadge}>
+                        <Text style={styles.followsYouText}>Follows You</Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </Pressable>
                 <Button
                   variant={item.is_following ? 'outline' : 'default'}
@@ -304,7 +316,18 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
-  userName: { flex: 1, fontWeight: '600' },
+  userName: { fontWeight: '600', fontSize: 15 },
+  userHandle: { fontSize: 13, marginTop: 1 },
+  userNameCol: { flex: 1, justifyContent: 'center' },
+  followsYouBadge: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F0FE',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  followsYouText: { fontSize: 11, fontWeight: '600', color: '#3B5BDB' },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,42 +1,41 @@
-import { useAuth } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game, Organization, Post, Search, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
-import { getCanonicalRole } from '@/utils/authState';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
-import { Calendar } from 'react-native-calendars';
 import SwipeBackContainer from '@/components/SwipeBackContainer';
-import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
-import { getAuthSnapshot } from '@/utils/authState';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import { getAuthSnapshot, getCanonicalRole } from '@/utils/authState';
 import { handleCoachAccessError } from '@/utils/coachAccess';
 import { optimizeImageUrl } from '@/utils/imageUrl';
-import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import { Calendar } from 'react-native-calendars';
+import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 // Guard against internal IDs (cuid / UUID) being leaked as display text
 const isInternalId = (s: string) =>
@@ -160,6 +159,8 @@ function CommunityDiscoverScreen() {
   const [discoverPosts, setDiscoverPosts] = useState<any[]>([]);
   const [tab, setTab] = useState<'discover' | 'following'>('discover');
   const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
+  const [suggestedPeople, setSuggestedPeople] = useState<any[]>([]);
+  const [suggestedFollowLoading, setSuggestedFollowLoading] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
@@ -418,6 +419,15 @@ function CommunityDiscoverScreen() {
 
     try {
       const [items, people] = await Promise.all([fetchPosts(), fetchPeople()]);
+
+      // Suggested users (fire-and-forget, non-blocking)
+      User.suggested(10).then((res: any) => {
+        const items = Array.isArray(res?.items) ? res.items : [];
+        setSuggestedPeople(items.filter((u: any) => {
+          const name = u?.display_name || u?.username;
+          return name && !isInternalId(name);
+        }));
+      }).catch(() => { /* non-fatal */ });
 
       const followingOnly = items.filter(
         (p: any) => p && (p.is_following_author || p.is_following)
@@ -2134,6 +2144,89 @@ function CommunityDiscoverScreen() {
         </View>
       ) : null}
 
+      {suggestedPeople.length > 0 ? (
+        <View style={{ marginBottom: 20 }}>
+          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+            People You May Know
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 10 }}
+            contentContainerStyle={{ gap: 12, paddingRight: 16 }}
+          >
+            {suggestedPeople.map((u: any) => (
+              <View key={String(u.id)} style={styles.suggestedCard}>
+                <Pressable onPress={() => void router.push(`/user-profile?id=${u.id}`)}>
+                  <View style={styles.suggestedAvatar}>
+                    {u.avatar_url ? (
+                      <Image
+                        source={{ uri: optimizeImageUrl(String(u.avatar_url), 80) }}
+                        style={styles.suggestedAvatar}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={['#1e3a5f', '#0f172a']}
+                        style={styles.suggestedAvatar}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      />
+                    )}
+                  </View>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.suggestedName, { color: Colors[colorScheme].text }]}
+                  >
+                    {safeDisplayName(u)}
+                  </Text>
+                  {u.followers_count > 0 ? (
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.suggestedMeta, { color: Colors[colorScheme].mutedText }]}
+                    >
+                      {u.mutual_count > 0
+                        ? `${u.mutual_count} mutual`
+                        : `${u.followers_count} follower${u.followers_count !== 1 ? 's' : ''}`}
+                    </Text>
+                  ) : null}
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.suggestedFollowBtn,
+                    u.is_following && styles.suggestedFollowingBtn,
+                  ]}
+                  onPress={async () => {
+                    if (suggestedFollowLoading === u.id) return;
+                    setSuggestedFollowLoading(u.id);
+                    try {
+                      if (u.is_following) {
+                        await User.unfollow(u.id);
+                      } else {
+                        await User.follow(u.id);
+                      }
+                      setSuggestedPeople(prev =>
+                        prev.map(p => p.id === u.id ? { ...p, is_following: !p.is_following } : p)
+                      );
+                    } catch {
+                      // silent
+                    } finally {
+                      setSuggestedFollowLoading(null);
+                    }
+                  }}
+                >
+                  <Text style={[styles.suggestedFollowText, u.is_following && { color: '#555' }]}>
+                    {suggestedFollowLoading === u.id
+                      ? '...'
+                      : u.is_following ? 'Following' : 'Follow'}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
+
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>
         Upcoming and recent games near you
       </Text>
@@ -2618,6 +2711,29 @@ const styles = StyleSheet.create({
   personTile: { width: 84, marginRight: 10, alignItems: 'center' },
   personAvatar: { width: 64, height: 64, borderRadius: 32 },
   personName: { marginTop: 6, fontSize: 12, maxWidth: 84 },
+  suggestedCard: {
+    width: 130,
+    borderRadius: 14,
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.07)',
+  },
+  suggestedAvatar: { width: 56, height: 56, borderRadius: 28 },
+  suggestedName: { marginTop: 8, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  suggestedMeta: { fontSize: 11, marginTop: 2, textAlign: 'center' },
+  suggestedFollowBtn: {
+    marginTop: 8,
+    backgroundColor: '#1e3a5f',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    width: '100%',
+    alignItems: 'center',
+  },
+  suggestedFollowingBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ccc' },
+  suggestedFollowText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   // Coach Dashboard Styles
   coachDashboard: {
     borderRadius: 16,
