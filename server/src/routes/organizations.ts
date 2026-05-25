@@ -2,7 +2,7 @@ import { OrganizationRole } from '@prisma/client';
 import escapeHtml from 'escape-html';
 import { Response, Router } from 'express';
 import { z } from 'zod';
-import { logAdminActivity } from '../lib/adminActivityLogger.js';
+import { logAdminActivity, logAdminActivityFromReq } from '../lib/adminActivityLogger.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { debugLog } from '../lib/debugLog.js';
@@ -580,6 +580,7 @@ organizationsRouter.get(
 organizationsRouter.get(
   '/mine',
   requireAuth as any,
+  requireVerified as any,
   asyncHandler(async (req: AuthedRequest, res) => {
     try {
       const orgs = await prisma.organization.findMany({
@@ -3252,15 +3253,20 @@ async function approveLeagueHandler(req: AuthedRequest, res: any) {
     const org = (result as any).org;
 
     // ORG-11: Log league approval via centralized logger
-    const approverEmail = adminSession?.email || adminUserId || 'unknown-admin';
-    await logAdminActivity(
-      adminUserId || 'unknown-admin',
-      approverEmail,
-      'APPROVE_LEAGUE',
-      'organization',
-      orgId,
-      `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
-    );
+    if (adminSession?.email) {
+      await logAdminActivity(
+        adminUserId || 'unknown-admin',
+        adminSession.email,
+        'APPROVE_LEAGUE',
+        'organization',
+        orgId,
+        `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
+      );
+    } else {
+      await logAdminActivityFromReq(req, 'APPROVE_LEAGUE', 'organization', orgId,
+        `Approved league: ${org.name || orgId}${adminNote ? ` — ${adminNote}` : ''}`
+      );
+    }
 
     return res.json({ message: 'League approved', organization_id: orgId });
   } catch (err) {
@@ -3483,15 +3489,20 @@ async function rejectLeagueHandler(req: AuthedRequest, res: any) {
     const org = (result as any).org;
 
     // ORG-11: Log league rejection via centralized logger
-    const rejecterEmail = adminSession?.email || adminUserId || 'unknown-admin';
-    await logAdminActivity(
-      adminUserId || 'unknown-admin',
-      rejecterEmail,
-      'REJECT_LEAGUE',
-      'organization',
-      orgId,
-      `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
-    );
+    if (adminSession?.email) {
+      await logAdminActivity(
+        adminUserId || 'unknown-admin',
+        adminSession.email,
+        'REJECT_LEAGUE',
+        'organization',
+        orgId,
+        `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
+      );
+    } else {
+      await logAdminActivityFromReq(req, 'REJECT_LEAGUE', 'organization', orgId,
+        `Rejected league: ${org.name || orgId}${reason ? ` — ${reason}` : ''}`
+      );
+    }
 
     return res.json({ message: 'League rejected', organization_id: orgId });
   } catch (err) {

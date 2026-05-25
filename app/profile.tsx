@@ -252,6 +252,7 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('[profile] Follow toggle failed:', error);
       setIsFollowing(previousState); // Revert on error
+      Alert.alert('Error', 'Failed to update follow status. Please try again.');
     } finally {
       setFollowLoading(false);
       // Fresh server counts (avoid stale _count after follow/unfollow)

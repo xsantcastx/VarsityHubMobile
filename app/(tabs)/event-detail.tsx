@@ -450,7 +450,7 @@ export default function EventDetailScreen() {
                   Share
                 </Text>
               </Pressable>
-              {(event as any).can_cancel &&
+              {((event as any).can_edit || (event as any).can_cancel) &&
                 (event as EventItem).status !== 'cancelled' &&
                 !eventHasPassed && (
                   <Pressable

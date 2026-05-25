@@ -5,17 +5,17 @@ import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Linking,
-  PanResponder,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Linking,
+    PanResponder,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -27,17 +27,17 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import {
-  BIO_MAX_LENGTH,
-  DISPLAY_NAME_MAX_LENGTH,
-  sanitizeText,
-  validateBio,
-  validateDisplayName,
-  validateYear,
-  validateZipCode,
+    BIO_MAX_LENGTH,
+    DISPLAY_NAME_MAX_LENGTH,
+    sanitizeText,
+    validateBio,
+    validateDisplayName,
+    validateYear,
+    validateZipCode,
 } from '@/utils/formUtils';
 import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 import { safeGoBack } from '@/utils/navigation';
-import { THEME_COLOR_GRADIENTS, getThemeColorName } from '@/utils/theme';
+import { getThemeColorName, THEME_COLOR_GRADIENTS } from '@/utils/theme';
 
 // Field validation errors
 interface FieldErrors {
@@ -507,7 +507,7 @@ export default function EditProfileScreen() {
       // Username is edited separately via /settings/edit-username
       const directFields: any = {
         bio: sanitizeText(bio) || null, // Explicitly send null when blank so backend clears it
-        display_name: displayName.trim() || null,
+        display_name: displayName.trim() || undefined,
       };
 
       // Include avatar URL only if the user actually uploaded a new one
