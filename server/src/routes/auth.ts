@@ -57,6 +57,7 @@ import {
 import {
   buildAuthStateColumns,
   getCanonicalAuthState,
+  getCanonicalOrganizationId,
   getCanonicalUserRole,
   getPreferencesObject,
   isProceedingAsFan,
@@ -74,6 +75,7 @@ import {
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import {
+<<<<<<< Updated upstream
   authLimiter,
   oauthLimiter,
   passwordResetLimiter,
@@ -83,6 +85,17 @@ import {
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { stripHtml } from '../lib/sanitizeHtml.js';
+=======
+  getCoachFlowState,
+  getLatestCoachApplication,
+  serializeCoachApplication,
+} from '../lib/coachApplications.js';
+import {
+  buildOAuthExistingAccountConflict,
+  getLinkedProviders,
+} from '../lib/oauthAccountLinking.js';
+import { getOrganizationJoinRequestStateForUser } from '../lib/organizationWorkflowState.js';
+>>>>>>> Stashed changes
 
 export const authRouter = Router();
 
@@ -1904,6 +1917,7 @@ authRouter.post(
       where: { id: req.user!.id },
       select: {
         id: true,
+        username: true,
         preferences: true,
         role: true,
         approval_status: true,
@@ -1924,7 +1938,11 @@ authRouter.post(
     // If already a coach, reject
     if (currentRole === 'coach') {
       const latestApplication = await getLatestCoachApplication(prisma, user.id);
-      const flowState = getCoachFlowState(user as any, latestApplication);
+      const joinRequest = await getOrganizationJoinRequestStateForUser(
+        getCanonicalOrganizationId(user as any),
+        user.id,
+      );
+      const flowState = getCoachFlowState(user as any, latestApplication, joinRequest);
       const approvalStatus = String(user.approval_status || '').toUpperCase();
       const code =
         approvalStatus === 'APPROVED'
@@ -2380,8 +2398,8 @@ authRouter.post(
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const currentRole = getCanonicalUserRole(user as any);
-    if (currentRole !== 'coach') {
+    const currentUserState = { role: getCanonicalUserRole(user as any) };
+    if (currentUserState.role !== 'coach') {
       return res.status(400).json({
         error: 'Upgrade to coach before submitting an application.',
         code: 'NOT_COACH',
@@ -2565,13 +2583,19 @@ authRouter.get(
     const normalizedRole = getCanonicalUserRole(user as any);
     const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
     const serializedApplication = serializeCoachApplication(coachApplication);
+    const currentOrganizationId = getCanonicalOrganizationId(user as any);
+    const joinRequest = await getOrganizationJoinRequestStateForUser(
+      currentOrganizationId,
+      req.user!.id,
+    );
     const flowState = getCoachFlowState(
       {
         ...user,
         coach_agreement_accepted_at: (safe as any).coach_agreement_accepted_at,
         coach_agreement_version: (safe as any).coach_agreement_version,
       } as any,
-      coachApplication
+      coachApplication,
+      joinRequest,
     );
     const payload = {
       ...safe,
@@ -3066,10 +3090,9 @@ authRouter.patch(
       incoming.coach_agreement_version = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
     }
 
-    // Canonical DOB gate: once the column is set and the 24h grace window has
-    // lapsed, DOB is locked to normal users. Admins can still update via admin
-    // routes. Within-window edits and first-time writes both flow through
-    // `evaluateDobUpdate`, which returns the Date object + timestamp to write.
+    // Canonical DOB gate: under-13 users are blocked, but DOB itself remains
+    // editable after first set. `evaluateDobUpdate` normalizes the date and
+    // preserves the original first-set timestamp when applicable.
     let patchDobColumnWrite: { date_of_birth: Date; dob_set_at?: Date } | null = null;
     if (incoming.dob !== undefined && incoming.dob !== null && incoming.dob !== '') {
       const decision = evaluateDobUpdate({
@@ -3078,13 +3101,6 @@ authRouter.patch(
         incomingDob: incoming.dob,
       });
       if (!decision.ok) {
-        if (decision.reason === 'dob_locked') {
-          return res.status(403).json({
-            error: 'DOB_LOCKED',
-            message:
-              'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
-          });
-        }
         return res.status(400).json({
           error: 'INVALID_DOB',
           message: 'Date of birth is not a valid date.',
@@ -3459,7 +3475,7 @@ authRouter.post(
       });
     }
 
-    // Canonical DOB gate — same grace-window logic as PATCH /me/preferences.
+    // Canonical DOB gate — same normalization logic as PATCH /me/preferences.
     let onboardingDobColumnWrite: { date_of_birth: Date; dob_set_at?: Date } | null = null;
     if (data.dob !== undefined && data.dob !== null && data.dob !== '') {
       const decision = evaluateDobUpdate({
@@ -3468,13 +3484,6 @@ authRouter.post(
         incomingDob: data.dob,
       });
       if (!decision.ok) {
-        if (decision.reason === 'dob_locked') {
-          return res.status(403).json({
-            error: 'DOB_LOCKED',
-            message:
-              'Your date of birth can only be changed within 24 hours of first setting it. Contact support to correct an error.',
-          });
-        }
         return res.status(400).json({
           error: 'INVALID_DOB',
           message: 'Date of birth is not a valid date.',
