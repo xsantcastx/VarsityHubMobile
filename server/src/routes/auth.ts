@@ -2715,6 +2715,7 @@ authRouter.put(
     let user;
     try {
       user = await prisma.user.update({
+        // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
         where: { id: req.user!.id },
         data: { ...rest, ...(preferences ? { preferences } : {}) },
       });
@@ -2842,6 +2843,7 @@ authRouter.patch(
     let user;
     try {
       user = await prisma.user.update({
+        // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
         where: { id: req.user!.id },
         data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) },
       });
