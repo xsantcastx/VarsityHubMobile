@@ -1,50 +1,50 @@
 import { OrganizationRole } from '@prisma/client';
 import escapeHtml from 'escape-html';
 import { Response, Router } from 'express';
-import { sendError } from '../lib/http/sendError.js';
 import { z } from 'zod';
-import { stripHtml } from '../lib/sanitizeHtml.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { approveOrganization, rejectOrganization } from '../lib/approvalService.js';
 import { getLatestCoachApplication } from '../lib/coachApplications.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
-  buildCoachJoinRequestReviewUrl,
-  sendCoachApprovedEmail,
-  sendCoachJoinRequestEmail,
-  sendCoachRejectedEmail,
-  sendLeagueApprovalRequestEmail,
-  sendOrganizationInviteEmail,
-  sendStaffMemberJoinedEmail,
+    buildCoachJoinRequestReviewUrl,
+    sendCoachApprovedEmail,
+    sendCoachJoinRequestEmail,
+    sendCoachRejectedEmail,
+    sendLeagueApprovalRequestEmail,
+    sendOrganizationInviteEmail,
+    sendStaffMemberJoinedEmail,
 } from '../lib/email.js';
+import { sendError } from '../lib/http/sendError.js';
 import { redactEmail } from '../lib/logRedaction.js';
 import { sendPushNotification } from '../lib/notifications.js';
 import {
-  getOrganizationMembership,
-  isOrganizationOwner as isOrganizationOwnerScoped,
-  ORGANIZATION_OWNER_ROLE,
+    getOrganizationMembership,
+    isOrganizationOwner as isOrganizationOwnerScoped,
+    ORGANIZATION_OWNER_ROLE,
 } from '../lib/organizationAuthorization.js';
 import {
-  getOrganizationInviteState,
-  getOrganizationJoinRequestState,
-  getOrganizationJoinRequestStateForUser,
-  listOrganizationInvitesForEmail,
-  listOrganizationJoinRequestsForOrganization,
-  listOrganizationJoinRequestsForUser,
+    getOrganizationInviteState,
+    getOrganizationJoinRequestState,
+    getOrganizationJoinRequestStateForUser,
+    listOrganizationInvitesForEmail,
+    listOrganizationJoinRequestsForOrganization,
+    listOrganizationJoinRequestsForUser,
 } from '../lib/organizationWorkflowState.js';
 import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { consumeReviewToken, signReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
 import {
-  buildOrganizationSerializeSelect,
-  serializeOrganization,
+    buildOrganizationSerializeSelect,
+    serializeOrganization,
 } from '../lib/serializeOrganization.js';
 import {
-  buildAuthStateColumns,
-  getCanonicalUserRole,
-  getPreferencesObject,
-  mergeAuthStateIntoPreferences,
+    buildAuthStateColumns,
+    getCanonicalUserRole,
+    getPreferencesObject,
+    mergeAuthStateIntoPreferences,
 } from '../lib/userAuthState.js';
 import { buildBillingStateColumns, getEffectiveEntitledPlan } from '../lib/userBillingState.js';
 import { invalidateMeCacheForUser } from '../lib/userCache.js';
@@ -3767,7 +3767,7 @@ organizationsRouter.post(
             where: { id: joinRequest.id, status: 'pending' },
             data: {
               status: 'denied',
-              message: reason,
+              rejection_reason: reason || null,
               reviewed_at: new Date(),
               reviewed_by: req.user!.id,
             },
