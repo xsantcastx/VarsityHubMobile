@@ -74,7 +74,10 @@
     "test:smoke:ui": "playwright test --ui",
     "test:smoke:headed": "playwright test --headed",
     "test:smoke:debug": "playwright test --debug",
-    "test:coverage": "jest --coverage --runInBand"
+    "test:coverage": "jest --coverage --runInBand",
+    "stash:apply": "bash scripts/safe-stash-apply.sh",
+    "check:conflicts": "rg -l \"^<<<<<<< |^>>>>>>> |^=======$\" --glob \"*.ts\" --glob \"*.tsx\" --glob \"*.js\" app components hooks utils api context constants lib shared server/src 2>/dev/null && echo \"Conflicts found!\" || echo \"No conflicts found.\"",
+    "format": "npx prettier --write \"app/**/*.{ts,tsx,js,jsx}\" \"components/**/*.{ts,tsx,js,jsx}\" \"hooks/**/*.{ts,tsx,js,jsx}\" \"utils/**/*.{ts,tsx,js,jsx}\" \"api/**/*.{ts,tsx,js,jsx}\" \"context/**/*.{ts,tsx,js,jsx}\" \"constants/**/*.{ts,tsx,js,jsx}\" \"__tests__/**/*.{ts,tsx}\" \"server/src/**/*.{ts,tsx,js,jsx}\" \"*.{js,json,md}\" \"docs/**/*.md\""
   },
   "dependencies": {
     "@base44/sdk": "^0.7.0",

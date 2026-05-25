@@ -95,3 +95,24 @@
 - Don't add client-side workarounds that bypass server-enforced rules
 - Don't push to `main` without testing — Railway auto-deploys immediately
 - Don't change Railway env vars (JWT_SECRET, OAuth keys) without understanding blast radius
+- **Don't run `git stash apply` directly** — use `npm run stash:apply`. A bare stash apply leaves conflict markers silently; the script scans and reports them immediately.
+- **Don't `git add -A` when the working tree has unresolved conflicts** — always stage files explicitly by path after verifying each one.
+
+## Git Workflow
+
+```bash
+# Apply a stash safely (scans for conflict markers after apply)
+npm run stash:apply
+
+# Check for unresolved conflict markers across all source files
+npm run check:conflicts
+
+# Format all source files with prettier
+npm run format
+
+# Pre-push checklist
+npm run check:conflicts
+npm run format:check
+npx tsc --noEmit --project server/tsconfig.json
+npm run verify:error-envelope
+```

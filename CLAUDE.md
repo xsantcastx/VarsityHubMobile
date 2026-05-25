@@ -113,6 +113,22 @@ rg -n "sgMail.send" server/src --glob "*.ts" -g '!server/src/services/email/prov
 grep -rn "req.user" server/src/routes/ --include="*.ts" | grep -v requireAuth
 ```
 
+## Git Workflow
+
+**Never run `git stash apply` directly** — use `npm run stash:apply` instead. This applies the stash and immediately scans for unresolved conflict markers, listing every affected file with block counts.
+
+**Before committing**, run `npm run check:conflicts` to ensure no `<<<<<<<` markers are present in source files. The pre-commit hook (`scripts/verify-guardrails.sh`) also enforces this automatically.
+
+**Format before commit**: `npm run format` runs prettier across all source directories. The pre-commit hook (lint-staged) auto-formats staged files, but running it manually first avoids surprises.
+
+**Quick checks before pushing to main**:
+```bash
+npm run check:conflicts         # no merge/stash markers
+npm run format:check            # all files prettier-clean
+npx tsc --noEmit --project server/tsconfig.json  # server TypeScript
+npm run verify:error-envelope   # no raw res.status().json()
+```
+
 ## Known Quirks
 
 - Local `server/.env` has placeholder Cloudinary creds — uploads only work in production

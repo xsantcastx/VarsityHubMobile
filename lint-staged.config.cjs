@@ -1,7 +1,9 @@
 const shellQuote = (value) => `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
 
 module.exports = {
-  '{app,components,hooks,utils,api,context,constants,lib,shared}/**/*.{js,jsx,ts,tsx}': [
+  '{app,components,hooks,utils,api,context,constants,lib,shared,__tests__,tests}/**/*.{js,jsx,ts,tsx}': [
+    // prettier first so eslint sees already-formatted code
+    'prettier --write',
     'tsc-files --noEmit -p tsconfig.json',
     'eslint --cache --fix --no-warn-ignored',
   ],
