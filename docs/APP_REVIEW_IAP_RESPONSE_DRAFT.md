@@ -41,9 +41,10 @@ The review account is coach-approved and starts on the free Rookie plan so upgra
 
 1. Sign in with the review account.
 2. Open `Settings`.
-3. Open `Billing`.
-4. Tap `Manage Subscription`.
-5. Purchase options:
+3. Open `Billing & Plans`.
+4. Tap `View Subscription Plans` (direct path to purchase buttons).
+5. Optional for coach accounts: tap `Manage Subscription`.
+6. Purchase options:
    - `Upgrade to Veteran` (product ID `MIDTIER`)
    - `Upgrade to Legend` (product ID `TOPTIER`)
 

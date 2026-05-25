@@ -717,9 +717,15 @@ export default function SettingsScreen() {
             />
           </SectionCard>
 
-          {/* Billing (coaches only) */}
-          {showCoachBilling && (
-            <SectionCard title="Billing">
+          {/* Billing */}
+          <SectionCard title="Billing & Plans">
+            <NavRow
+              title="View Subscription Plans"
+              subtitle="See Rookie, Veteran, and Legend options"
+              isLast={!showCoachBilling}
+              onPress={() => void router.push('/subscription-paywall')}
+            />
+            {showCoachBilling && (
               <NavRow
                 title="Manage Subscription"
                 isLast
@@ -730,8 +736,8 @@ export default function SettingsScreen() {
                 }
                 onPress={() => void router.push('/settings/manage-subscription')}
               />
-            </SectionCard>
-          )}
+            )}
+          </SectionCard>
 
           {/* Contact VarsityHub */}
           <SectionCard title="Contact VarsityHub Team">
@@ -852,6 +858,7 @@ export default function SettingsScreen() {
             />
             <NavRow
               title="Delete Account"
+              subtitle="Permanently delete your account and data"
               destructive
               isLast={!coachUpgradeCta && !canDowngradeCoach && !downgradingToFan}
               onPress={confirmDeleteAccount}

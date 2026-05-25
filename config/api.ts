@@ -5,7 +5,7 @@ import { getConfig } from '@/config/env';
 import { getApiBaseUrl } from '../api/http';
 
 const appConfig = getConfig();
-export const API_BASE_URL = getApiBaseUrl();
+export const API_BASE_URL = appConfig.apiUrl || getApiBaseUrl();
 
 export const API_TIMEOUT = 10000; // 10 seconds
 

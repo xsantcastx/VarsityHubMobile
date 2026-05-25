@@ -3,13 +3,25 @@
  * Verifies production health integrations and payment config readiness.
  *
  * Usage:
- *   BASE_URL=https://api-production-8ac3.up.railway.app npm --prefix server run verify:production-health
+ *   BASE_URL=https://api.varsityhub.app npm --prefix server run verify:production-health
  *
  * With full integration details (requires HEALTH_CHECK_SECRET):
  *   BASE_URL=https://... HEALTH_CHECK_SECRET=... npm --prefix server run verify:production-health
  */
 
-const BASE_URL = (process.env.BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
+const STALE_RAILWAY_URL = 'https://api-production-8ac3.up.railway.app';
+const rawBaseUrl = (process.env.BASE_URL || '').trim();
+if (!rawBaseUrl) {
+  throw new Error(
+    'BASE_URL is required. Example: BASE_URL=https://api.varsityhub.app npm --prefix server run verify:production-health'
+  );
+}
+if (rawBaseUrl.replace(/\/$/, '') === STALE_RAILWAY_URL) {
+  throw new Error(
+    'BASE_URL points to a retired Railway hostname. Configure a live API domain before running this check.'
+  );
+}
+const BASE_URL = rawBaseUrl.replace(/\/$/, '');
 const HEALTH_SECRET = process.env.HEALTH_CHECK_SECRET || '';
 
 type HealthResponse = {
@@ -32,10 +44,23 @@ async function main() {
 
   // 1. Health endpoint
   const healthRes = await fetch(`${BASE_URL}/health?include=payments`, { method: 'GET', headers });
+  const healthText = await healthRes.text();
   if (!healthRes.ok) {
-    throw new Error(`Health endpoint failed: ${healthRes.status}`);
+    failures.push(`health endpoint returned ${healthRes.status}`);
   }
-  const body = (await healthRes.json()) as HealthResponse;
+  if ((healthRes.headers.get('x-railway-fallback') || '').toLowerCase() === 'true') {
+    failures.push('x-railway-fallback=true');
+  }
+  if (/Application not found/i.test(healthText)) {
+    failures.push('health body contained "Application not found"');
+  }
+
+  let body: HealthResponse = {};
+  try {
+    body = JSON.parse(healthText) as HealthResponse;
+  } catch {
+    failures.push('health endpoint did not return JSON');
+  }
 
   if (body.status !== 'ok') failures.push(`status=${body.status}`);
 
