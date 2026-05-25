@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
 import { sendPushNotification } from '../lib/notifications.js';
+import { prisma } from '../lib/prisma.js';
+import { canManageTeam as canManageTeamShared } from '../lib/teamAuthorization.js';
+import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requirePlan } from '../middleware/subscription.js';
 import { registerIdValidation } from '../middleware/validateParams.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { guardTeamMembershipMutation } from '../lib/teamEntitlements.js';
-import { canManageTeam as canManageTeamShared } from '../lib/teamAuthorization.js';
+import { stripHtml } from '../lib/sanitizeHtml.js';
 
 // 'owner' is intentionally excluded — ownership can only be assigned through org creation or transfer-ownership endpoint
 const VALID_ROLES = ['manager', 'coach', 'assistant_coach', 'player', 'parent', 'member', 'equipment', 'health_wellness'] as const;
@@ -145,7 +146,7 @@ teamMembershipsRouter.patch('/:id', requireAuth as any, requireOnboarded as any,
       }
       data.role = validatedRole;
     }
-    if (custom_position !== undefined) data.custom_position = custom_position === null ? null : String(custom_position);
+    if (custom_position !== undefined) data.custom_position = custom_position === null ? null : stripHtml(String(custom_position));
 
     const updated = await prisma.teamMembership.update({
       where: { id },
