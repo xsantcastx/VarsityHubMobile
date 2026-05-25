@@ -2,12 +2,12 @@
 if (__DEV__ && process.env.EXPO_OS !== 'web') {
   require('../ReactotronConfig');
 }
-import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider as NavigationThemeProvider,
-} from '@react-navigation/native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import {
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider as NavigationThemeProvider,
+} from '@react-navigation/native';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
@@ -17,11 +17,12 @@ import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorToastContainer } from '@/components/ErrorToast';
+import { NotificationTapHandler } from '@/components/NotificationTapHandler';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { VerificationRequiredModal } from '@/components/VerificationRequiredModal';
+import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { MAX_CONTENT_WIDTH } from '@/constants/layout';
 import { AuthProvider, useAuth } from '@/context/AuthProvider';
@@ -30,16 +31,15 @@ import { PostCacheProvider } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { useVerificationGate } from '@/hooks/useVerificationGate';
-import { NotificationTapHandler } from '@/components/NotificationTapHandler';
+import { initAnalytics } from '@/utils/analytics';
 import {
-  handleDeepLinkAuthAware,
-  handleInitialDeepLink,
-  setupDeepLinkListener,
+    handleDeepLinkAuthAware,
+    handleInitialDeepLink,
+    setupDeepLinkListener,
 } from '@/utils/deepLinks';
 import { initSentry } from '@/utils/sentry';
-import { initAnalytics } from '@/utils/analytics';
-import { getConfig } from '@/config/env';
 import { StripeProvider } from '@/utils/stripe';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -216,6 +216,7 @@ function AppShell() {
                             <Stack.Screen name="manage-season" options={{ headerShown: false }} />
                             <Stack.Screen name="manage-users" options={{ headerShown: false }} />
                             <Stack.Screen name="team-invites" options={{ headerShown: false }} />
+                            <Stack.Screen name="team-join-requests" options={{ headerShown: false }} />
                             <Stack.Screen
                               name="organization-invites"
                               options={{ headerShown: false }}

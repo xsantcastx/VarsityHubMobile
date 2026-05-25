@@ -624,7 +624,7 @@ teamsRouter.get('/:id/screen-summary', asyncHandler(async (req, res) => {
 
     const canManage = access.isAdmin || access.isOrgAdmin || isManagementRole(access.membership?.role);
 
-    const [memberships, approvedGames] = await Promise.all([
+    const [memberships, approvedGames, viewerJoinRequest] = await Promise.all([
       prisma.teamMembership.findMany({
         where: { team_id: teamId, status: 'active' },
         orderBy: { created_at: 'asc' },
@@ -660,6 +660,10 @@ teamsRouter.get('/:id/screen-summary', asyncHandler(async (req, res) => {
           approval_status: true,
         },
       }),
+      viewerId ? prisma.teamJoinRequest.findUnique({
+        where: { team_id_user_id: { team_id: teamId, user_id: viewerId } },
+        select: { id: true, status: true },
+      }) : Promise.resolve(null),
     ]);
 
     return res.json({
@@ -670,6 +674,7 @@ teamsRouter.get('/:id/screen-summary', asyncHandler(async (req, res) => {
         viewerRole: access.membership?.role ?? null,
         canManageTeam: canManage,
         isOrgAdmin: access.isOrgAdmin,
+        viewerJoinRequestStatus: viewerJoinRequest?.status ?? null,
       }),
       permissions: {
         can_manage: canManage,

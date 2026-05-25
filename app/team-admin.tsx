@@ -9,14 +9,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -313,6 +313,17 @@ export default function TeamAdminScreen() {
                       style={[styles.primaryButton, { backgroundColor: theme.tint }]}
                     >
                       <Text style={styles.primaryButtonText}>Manage Roster</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() =>
+                        router.push({
+                          pathname: '/team-join-requests',
+                          params: { teamId: selectedTeamId, teamName: team?.name || '' },
+                        } as any)
+                      }
+                      style={[styles.secondaryButton, { borderColor: theme.border }]}
+                    >
+                      <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Join Requests</Text>
                     </Pressable>
                   </>
                 ) : null}

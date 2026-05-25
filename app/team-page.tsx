@@ -1,18 +1,18 @@
-import { Game, Post, Team } from '@/api/entities';
+import { Game, Post, Team, TeamMemberships } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
+import { safeGoBack } from '@/utils/navigation';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
-import { safeGoBack } from '@/utils/navigation';
 
 type LeagueTeam = {
   id: string;
@@ -123,6 +123,9 @@ function TeamScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
+  const [joinRequestStatus, setJoinRequestStatus] = useState<'none' | 'pending' | 'member'>('none');
+  const [joinRequestId, setJoinRequestId] = useState<string | null>(null);
+  const [joinRequestLoading, setJoinRequestLoading] = useState(false);
   
   // Posts state - matching profile.tsx
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -365,9 +368,19 @@ function TeamScreen() {
       
           setTeam(teamData);
           setIsFollowing(!!(teamData as any).is_following);
-          
+
           if (mounted.current) {
             setIsTeamAdmin(canManageTeam);
+            // Determine join request status from viewer state
+            const vjrs = (teamData as any).viewer_join_request_status;
+            const viewerRole = (teamData as any).viewer_role || (teamData as any).my_role;
+            if (viewerRole) {
+              setJoinRequestStatus('member');
+            } else if (vjrs === 'pending') {
+              setJoinRequestStatus('pending');
+            } else {
+              setJoinRequestStatus('none');
+            }
           }
 
       // Use default theme color (teams don't have preferences field yet)
@@ -676,6 +689,60 @@ function TeamScreen() {
                   <Ionicons name="checkmark" size={18} color={theme.text} />
                 ) : (
                   <Ionicons name="person-add" size={16} color={theme.text} />
+                )}
+              </Pressable>
+            )}
+            {/* Request to Join — visible to non-members who aren't admins */}
+            {!isTeamAdmin && joinRequestStatus !== 'member' && (
+              <Pressable
+                style={[
+                  styles.joinRequestButton,
+                  joinRequestStatus === 'pending'
+                    ? { backgroundColor: '#F59E0B' }
+                    : { backgroundColor: theme.tint },
+                  joinRequestLoading && { opacity: 0.5 },
+                ]}
+                disabled={joinRequestLoading}
+                accessibilityRole="button"
+                accessibilityLabel={joinRequestStatus === 'pending' ? 'Cancel join request' : 'Request to join team'}
+                onPress={async () => {
+                  if (!team?.id || team.id.startsWith('temp-')) return;
+                  setJoinRequestLoading(true);
+                  try {
+                    if (joinRequestStatus === 'pending' && joinRequestId) {
+                      await TeamMemberships.rejectJoinRequest(joinRequestId, 'Cancelled by requester');
+                      setJoinRequestStatus('none');
+                      setJoinRequestId(null);
+                    } else {
+                      const result: any = await TeamMemberships.requestToJoin(team.id);
+                      setJoinRequestStatus('pending');
+                      if (result?.join_request?.id) setJoinRequestId(result.join_request.id);
+                      Alert.alert('Request Sent', 'Your request to join has been sent to the team managers.');
+                    }
+                  } catch (err: any) {
+                    const msg = err?.data?.message || err?.message || 'Something went wrong';
+                    if (err?.data?.error === 'ALREADY_MEMBER') {
+                      setJoinRequestStatus('member');
+                    } else {
+                      Alert.alert('Error', msg);
+                    }
+                  } finally {
+                    setJoinRequestLoading(false);
+                  }
+                }}
+              >
+                {joinRequestLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : joinRequestStatus === 'pending' ? (
+                  <>
+                    <Ionicons name="time-outline" size={15} color="#fff" />
+                    <Text style={styles.joinRequestText}>Pending</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="enter-outline" size={15} color="#fff" />
+                    <Text style={styles.joinRequestText}>Request to Join</Text>
+                  </>
                 )}
               </Pressable>
             )}
@@ -1419,6 +1486,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: Colors.light.text,
+  },
+  joinRequestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    gap: 5,
+    marginLeft: 6,
+  },
+  joinRequestText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   followingIndicator: {
     width: 28,

@@ -1,45 +1,44 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
 import {
-  validateAuthenticatedUser,
-  validateOnboardingCompletion,
-} from './schemas/auth';
-import { validateEvent, validateEventArray, validateEventRsvpArray } from './schemas/event';
-import { validateEventSummaryArray } from './schemas/event';
+    httpDelete,
+    httpGet,
+    httpPatch,
+    httpPost,
+    httpPostLongTimeout,
+    httpPostWithOptions,
+    httpPut,
+} from './http';
 import {
-  validateOrganization,
-  validateOrganizationAdminSummary,
-  validateOrganizationArray,
-  validateOrganizationReviewSummaryArray,
+    validateAuthenticatedUser,
+    validateOnboardingCompletion,
+} from './schemas/auth';
+import { validateEvent, validateEventArray, validateEventRsvpArray, validateEventSummaryArray } from './schemas/event';
+import {
+    validateOrganization,
+    validateOrganizationAdminSummary,
+    validateOrganizationArray,
+    validateOrganizationReviewSummaryArray,
 } from './schemas/organization';
 import {
-  validateTeam,
-  validateTeamAdminSummary,
-  validateTeamArray,
-  validateFollowedTeamArray,
-  validateTeamScreenSummary,
+    validateFollowedTeamArray,
+    validateTeam,
+    validateTeamAdminSummary,
+    validateTeamArray,
+    validateTeamScreenSummary,
 } from './schemas/team';
-import {
-  httpDelete,
-  httpGet,
-  httpPatch,
-  httpPost,
-  httpPostLongTimeout,
-  httpPostWithOptions,
-  httpPut,
-} from './http';
 import type {
-  UpdateMePayload,
-  UpdatePreferencesPayload,
-  CompleteOnboardingPayload,
-  CreateGamePayload,
-  UpdateGamePayload,
-  CreatePostPayload,
-  UpdatePostPayload,
-  CreateEventPayload,
-  UpdateEventPayload,
-  CreateAdPayload,
-  UpdateAdPayload,
+    CompleteOnboardingPayload,
+    CreateAdPayload,
+    CreateEventPayload,
+    CreateGamePayload,
+    CreatePostPayload,
+    UpdateAdPayload,
+    UpdateEventPayload,
+    UpdateGamePayload,
+    UpdateMePayload,
+    UpdatePostPayload,
+    UpdatePreferencesPayload,
 } from './types';
 
 export const User = {
@@ -896,6 +895,19 @@ export const TeamMemberships = {
     httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
   delete: (membershipId: string) =>
     httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
+  // Team join requests
+  requestToJoin: (teamId: string, message?: string) =>
+    httpPost('/team-memberships/join-requests', { team_id: teamId, message }),
+  getJoinRequests: (teamId: string) =>
+    httpGet(`/team-memberships/join-requests?teamId=${encodeURIComponent(teamId)}`),
+  myJoinRequests: () =>
+    httpGet('/team-memberships/join-requests/my'),
+  approveJoinRequest: (requestId: string) =>
+    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
+  rejectJoinRequest: (requestId: string, reason?: string) =>
+    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, { rejection_reason: reason }),
+  cancelJoinRequest: (requestId: string) =>
+    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, { rejection_reason: 'Cancelled by requester' }),
 };
 
 export const TeamInvites = {

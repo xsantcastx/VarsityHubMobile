@@ -256,3 +256,217 @@ teamMembershipsRouter.delete('/:id', requireAuth as any, requireOnboarded as any
     return res.status(500).json({ error: 'Internal server error' });
   }
 }));
+
+// ─────────────────────────────────────────────────────────────
+// Team Join Requests
+// ─────────────────────────────────────────────────────────────
+
+const createJoinRequestSchema = z.object({
+  team_id: z.string().min(1),
+  message: z.string().max(500).optional(),
+});
+
+// POST /team-memberships/join-requests
+// Athlete self-submits a request to join a team.
+teamMembershipsRouter.post('/join-requests', requireAuth as any, requireOnboarded as any, asyncHandler(async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const parsed = createJoinRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+
+  const { team_id, message } = parsed.data;
+  const userId = req.user.id;
+
+  const team = await prisma.team.findUnique({
+    where: { id: team_id },
+    select: { id: true, name: true, is_private: true, status: true, organization_id: true },
+  });
+  if (!team || team.status !== 'active') return res.status(404).json({ error: 'Team not found' });
+
+  // Block if already a member
+  const existing = await prisma.teamMembership.findUnique({ where: { team_id_user_id: { team_id, user_id: userId } }, select: { id: true } });
+  if (existing) return res.status(409).json({ error: 'ALREADY_MEMBER', message: 'You are already a member of this team.' });
+
+  // Upsert: if a previous denied request exists, allow re-request
+  const joinRequest = await prisma.teamJoinRequest.upsert({
+    where: { team_id_user_id: { team_id, user_id: userId } },
+    update: { status: 'pending', message: message ?? null, rejection_reason: null, reviewed_at: null, reviewed_by: null, created_at: new Date() },
+    create: { team_id, user_id: userId, status: 'pending', message: message ?? null },
+  });
+
+  // Notify all team owners/managers
+  try {
+    const staffMembers = await prisma.teamMembership.findMany({
+      where: { team_id, role: { in: ['owner', 'manager'] }, status: 'active' },
+      select: { user_id: true },
+      take: 20,
+    });
+    const requesterName = (req.user as any).display_name || (req.user as any).username || 'Someone';
+    await Promise.all(
+      staffMembers
+        .filter(m => m.user_id !== userId)
+        .map(m =>
+          Promise.all([
+            prisma.notification.create({
+              data: {
+                user_id: m.user_id,
+                actor_id: userId,
+                type: 'TEAM_JOIN_REQUEST',
+                meta: { team_id, team_name: team.name, join_request_id: joinRequest.id },
+              },
+            }).catch(() => {}),
+            sendPushNotification(
+              m.user_id,
+              `New join request for ${team.name}`,
+              `${requesterName} wants to join your team`,
+              { type: 'team_join_request', team_id, join_request_id: joinRequest.id, screen: 'team-join-requests' }
+            ).catch(() => {}),
+          ])
+        )
+    );
+  } catch (notifErr) {
+    console.error('[team-memberships] join-request notification error:', notifErr);
+  }
+
+  return res.status(201).json({ ok: true, join_request: { id: joinRequest.id, status: joinRequest.status } });
+}));
+
+// GET /team-memberships/join-requests?teamId=xxx
+// Team owner/manager sees pending requests for their team.
+teamMembershipsRouter.get('/join-requests', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const teamId = req.query.teamId as string | undefined;
+  if (!teamId) return res.status(400).json({ error: 'teamId query param required' });
+
+  const canManage = await canManageTeam(req, teamId);
+  if (!canManage) return res.status(403).json({ error: 'PERMISSION_DENIED' });
+
+  const requests = await prisma.teamJoinRequest.findMany({
+    where: { team_id: teamId, status: 'pending' },
+    include: {
+      user: { select: { id: true, display_name: true, username: true, avatar_url: true } },
+    },
+    orderBy: { created_at: 'asc' },
+    take: 100,
+  });
+
+  return res.json(requests);
+}));
+
+// GET /team-memberships/join-requests/my
+// Authenticated user sees all their own join requests.
+teamMembershipsRouter.get('/join-requests/my', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const requests = await prisma.teamJoinRequest.findMany({
+    where: { user_id: req.user.id },
+    include: {
+      team: { select: { id: true, name: true, logo_url: true, sport: true } },
+    },
+    orderBy: { created_at: 'desc' },
+    take: 50,
+  });
+
+  return res.json(requests);
+}));
+
+const reviewJoinRequestSchema = z.object({
+  rejection_reason: z.string().max(500).optional(),
+});
+
+// POST /team-memberships/join-requests/:id/approve
+teamMembershipsRouter.post('/join-requests/:id/approve', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const { id } = req.params;
+
+  const joinRequest = await prisma.teamJoinRequest.findUnique({ where: { id }, select: { id: true, team_id: true, user_id: true, status: true } });
+  if (!joinRequest) return res.status(404).json({ error: 'Join request not found' });
+  if (joinRequest.status !== 'pending') return res.status(409).json({ error: 'Request is no longer pending' });
+
+  const canManage = await canManageTeam(req, joinRequest.team_id);
+  if (!canManage) return res.status(403).json({ error: 'PERMISSION_DENIED' });
+
+  // Approve atomically: update request + create membership
+  const [, membership] = await prisma.$transaction([
+    prisma.teamJoinRequest.update({
+      where: { id },
+      data: { status: 'approved', reviewed_at: new Date(), reviewed_by: req.user.id },
+    }),
+    prisma.teamMembership.upsert({
+      where: { team_id_user_id: { team_id: joinRequest.team_id, user_id: joinRequest.user_id } },
+      update: { status: 'active', role: 'member' },
+      create: { team_id: joinRequest.team_id, user_id: joinRequest.user_id, role: 'member', status: 'active' },
+    }),
+  ]);
+
+  // Notify the requester
+  try {
+    const team = await prisma.team.findUnique({ where: { id: joinRequest.team_id }, select: { id: true, name: true } });
+    const teamName = team?.name || 'the team';
+    await Promise.all([
+      prisma.notification.create({
+        data: {
+          user_id: joinRequest.user_id,
+          actor_id: req.user.id,
+          type: 'TEAM_JOIN_APPROVED',
+          meta: { team_id: joinRequest.team_id, team_name: teamName },
+        },
+      }).catch(() => {}),
+      sendPushNotification(
+        joinRequest.user_id,
+        `You joined ${teamName}!`,
+        'Your request to join the team was approved',
+        { type: 'team_join_approved', team_id: joinRequest.team_id, screen: 'team-page' }
+      ).catch(() => {}),
+    ]);
+  } catch (notifErr) {
+    console.error('[team-memberships] approve notification error:', notifErr);
+  }
+
+  return res.json({ ok: true, membership: { id: membership.id, role: membership.role } });
+}));
+
+// POST /team-memberships/join-requests/:id/reject
+teamMembershipsRouter.post('/join-requests/:id/reject', requireAuth as any, asyncHandler(async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const { id } = req.params;
+  const parsed = reviewJoinRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+
+  const joinRequest = await prisma.teamJoinRequest.findUnique({ where: { id }, select: { id: true, team_id: true, user_id: true, status: true } });
+  if (!joinRequest) return res.status(404).json({ error: 'Join request not found' });
+  if (joinRequest.status !== 'pending') return res.status(409).json({ error: 'Request is no longer pending' });
+
+  const canManage = await canManageTeam(req, joinRequest.team_id);
+  if (!canManage) return res.status(403).json({ error: 'PERMISSION_DENIED' });
+
+  await prisma.teamJoinRequest.update({
+    where: { id },
+    data: { status: 'denied', rejection_reason: parsed.data.rejection_reason ?? null, reviewed_at: new Date(), reviewed_by: req.user.id },
+  });
+
+  // Notify the requester
+  try {
+    const team = await prisma.team.findUnique({ where: { id: joinRequest.team_id }, select: { id: true, name: true } });
+    const teamName = team?.name || 'the team';
+    await Promise.all([
+      prisma.notification.create({
+        data: {
+          user_id: joinRequest.user_id,
+          actor_id: req.user.id,
+          type: 'TEAM_JOIN_REJECTED',
+          meta: { team_id: joinRequest.team_id, team_name: teamName },
+        },
+      }).catch(() => {}),
+      sendPushNotification(
+        joinRequest.user_id,
+        `Update on your ${teamName} request`,
+        'Your request to join the team was not approved',
+        { type: 'team_join_rejected', team_id: joinRequest.team_id, screen: 'team-page' }
+      ).catch(() => {}),
+    ]);
+  } catch (notifErr) {
+    console.error('[team-memberships] reject notification error:', notifErr);
+  }
+
+  return res.json({ ok: true });
+}));
