@@ -1336,8 +1336,8 @@ authRouter.post(
         }
       } else if (!user.email_verified) {
         stage = 'verify-existing';
+        // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
         user = await prisma.user.update({
-          // cache-invalidation-exempt — invalidateMeCacheForUser called below
           where: { id: user.id },
           data: {
             email_verified: true,
@@ -2712,10 +2712,10 @@ authRouter.put(
       priorAvatarUrl = currentUser?.avatar_url ?? null;
     }
 
+    // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
     let user;
     try {
       user = await prisma.user.update({
-        // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
         where: { id: req.user!.id },
         data: { ...rest, ...(preferences ? { preferences } : {}) },
       });
@@ -2840,10 +2840,10 @@ authRouter.patch(
       priorAvatarUrlPatch = currentUser?.avatar_url ?? null;
     }
 
+    // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
     let user;
     try {
       user = await prisma.user.update({
-        // cache-invalidation-exempt — invalidateMeCacheForUser called on line below
         where: { id: req.user!.id },
         data: { ...rest, ...(prefs2 ? { preferences: prefs2 } : {}) },
       });
