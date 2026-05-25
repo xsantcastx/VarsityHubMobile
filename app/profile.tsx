@@ -667,12 +667,10 @@ export default function ProfileScreen() {
   // v1.0.2 audit fix: do NOT surface "Pending Coach" to the user.
   // Pre-approval, display "Fan" so profile looks normal; internal approval_status stays intact.
   const roleLabel =
-    coachAccess.isCoach
-      ? approvedCoach
-        ? 'Coach / Organizer'
-        : 'Fan'
-      : roleRaw === 'fan'
-        ? 'Fan'
+    coachAccess.isApprovedCoach
+      ? 'Coach / Organizer'
+      : roleRaw === 'player'
+        ? 'Player'
         : null;
   // Guard against internal IDs (cuid / UUID) being leaked as username
   const isInternalId = (s: string) =>
@@ -996,19 +994,11 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.roleBadge,
-                  coachAccess.isCoach &&
-                    (approvedCoach ? styles.coachBadge : styles.fanBadge),
+                  approvedCoach && styles.coachBadge,
                   roleRaw === 'player' && styles.playerBadge,
-                  roleRaw === 'fan' && styles.fanBadge,
                 ]}
               >
-                <Text style={styles.roleText}>
-                  {coachAccess.isCoach
-                    ? approvedCoach
-                      ? 'COACH'
-                      : 'FAN'
-                    : roleRaw.toUpperCase()}
-                </Text>
+                <Text style={styles.roleText}>{roleLabel.toUpperCase()}</Text>
               </View>
             )}
           </View>
