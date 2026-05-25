@@ -1,44 +1,46 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
 import {
-    httpDelete,
-    httpGet,
-    httpPatch,
-    httpPost,
-    httpPostLongTimeout,
-    httpPostWithOptions,
-    httpPut,
+  httpDelete,
+  httpGet,
+  httpPatch,
+  httpPost,
+  httpPostLongTimeout,
+  httpPostWithOptions,
+  httpPut,
 } from './http';
+import { validateAuthenticatedUser, validateOnboardingCompletion } from './schemas/auth';
 import {
-    validateAuthenticatedUser,
-    validateOnboardingCompletion,
-} from './schemas/auth';
-import { validateEvent, validateEventArray, validateEventRsvpArray, validateEventSummaryArray } from './schemas/event';
+  validateEvent,
+  validateEventArray,
+  validateEventRsvpArray,
+  validateEventSummaryArray,
+} from './schemas/event';
 import {
-    validateOrganization,
-    validateOrganizationAdminSummary,
-    validateOrganizationArray,
-    validateOrganizationReviewSummaryArray,
+  validateOrganization,
+  validateOrganizationAdminSummary,
+  validateOrganizationArray,
+  validateOrganizationReviewSummaryArray,
 } from './schemas/organization';
 import {
-    validateFollowedTeamArray,
-    validateTeam,
-    validateTeamAdminSummary,
-    validateTeamArray,
-    validateTeamScreenSummary,
+  validateFollowedTeamArray,
+  validateTeam,
+  validateTeamAdminSummary,
+  validateTeamArray,
+  validateTeamScreenSummary,
 } from './schemas/team';
 import type {
-    CompleteOnboardingPayload,
-    CreateAdPayload,
-    CreateEventPayload,
-    CreateGamePayload,
-    CreatePostPayload,
-    UpdateAdPayload,
-    UpdateEventPayload,
-    UpdateGamePayload,
-    UpdateMePayload,
-    UpdatePostPayload,
-    UpdatePreferencesPayload,
+  CompleteOnboardingPayload,
+  CreateAdPayload,
+  CreateEventPayload,
+  CreateGamePayload,
+  CreatePostPayload,
+  UpdateAdPayload,
+  UpdateEventPayload,
+  UpdateGamePayload,
+  UpdateMePayload,
+  UpdatePostPayload,
+  UpdatePreferencesPayload,
 } from './types';
 
 export const User = {
@@ -526,7 +528,8 @@ export const Event = {
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) =>
     httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
-  myRsvps: () => httpGet('/events/my-rsvps').then(data => validateEventRsvpArray('events.myRsvps', data)),
+  myRsvps: () =>
+    httpGet('/events/my-rsvps').then(data => validateEventRsvpArray('events.myRsvps', data)),
 };
 
 export const Message = {
@@ -775,7 +778,10 @@ export const Team = {
   invite: (teamId: string, email: string, role?: string) =>
     httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
   cancelInvite: (teamId: string, inviteId: string) =>
-    httpPost(`/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/cancel`, {}),
+    httpPost(
+      `/teams/${encodeURIComponent(teamId)}/invites/${encodeURIComponent(inviteId)}/cancel`,
+      {}
+    ),
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) =>
     httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
@@ -900,14 +906,17 @@ export const TeamMemberships = {
     httpPost('/team-memberships/join-requests', { team_id: teamId, message }),
   getJoinRequests: (teamId: string) =>
     httpGet(`/team-memberships/join-requests?teamId=${encodeURIComponent(teamId)}`),
-  myJoinRequests: () =>
-    httpGet('/team-memberships/join-requests/my'),
+  myJoinRequests: () => httpGet('/team-memberships/join-requests/my'),
   approveJoinRequest: (requestId: string) =>
     httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
   rejectJoinRequest: (requestId: string, reason?: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, { rejection_reason: reason }),
+    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
+      rejection_reason: reason,
+    }),
   cancelJoinRequest: (requestId: string) =>
-    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, { rejection_reason: 'Cancelled by requester' }),
+    httpPost(`/team-memberships/join-requests/${encodeURIComponent(requestId)}/reject`, {
+      rejection_reason: 'Cancelled by requester',
+    }),
 };
 
 export const TeamInvites = {
@@ -977,11 +986,12 @@ export const Advertisement = {
     return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
   },
   submitForApproval: (adId: string, dates?: string[]) =>
-    httpPost(`/ads/${encodeURIComponent(adId)}/submit-for-approval`, dates?.length ? { dates } : {}),
-  trackImpression: (adId: string) =>
-    httpPost(`/ads/${encodeURIComponent(adId)}/impression`, {}),
-  trackClick: (adId: string) =>
-    httpPost(`/ads/${encodeURIComponent(adId)}/click`, {}),
+    httpPost(
+      `/ads/${encodeURIComponent(adId)}/submit-for-approval`,
+      dates?.length ? { dates } : {}
+    ),
+  trackImpression: (adId: string) => httpPost(`/ads/${encodeURIComponent(adId)}/impression`, {}),
+  trackClick: (adId: string) => httpPost(`/ads/${encodeURIComponent(adId)}/click`, {}),
   review: (adId: string, action: 'approve' | 'reject', note?: string) =>
     httpPost(`/ads/${encodeURIComponent(adId)}/review`, { action, note }),
   report: (adId: string, reason: string, details?: string) =>
@@ -1010,16 +1020,18 @@ export const Highlights = {
 };
 
 export const Feed = {
-  bundle: (params: {
-    country?: string;
-    date?: string;
-    zip?: string;
-    lat?: number;
-    lng?: number;
-    posts_limit?: number;
-    highlights_limit?: number;
-    ads_limit?: number;
-  } = {}) => {
+  bundle: (
+    params: {
+      country?: string;
+      date?: string;
+      zip?: string;
+      lat?: number;
+      lng?: number;
+      posts_limit?: number;
+      highlights_limit?: number;
+      ads_limit?: number;
+    } = {}
+  ) => {
     const q: string[] = [];
     if (params.country) q.push('country=' + encodeURIComponent(params.country));
     if (params.date) q.push('date=' + encodeURIComponent(params.date));

@@ -10,7 +10,17 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -80,7 +90,8 @@ type TeamMember = {
 };
 
 const HEADER_IMAGE_DRAG_LIMIT = 120;
-const _clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const _clampValue = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
@@ -99,7 +110,14 @@ const toFeedPost = (item: any): FeedPost | null => {
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
     bookmarks_count: item?.bookmarks_count ?? 0,
     created_at: item?.created_at ?? null,
-    author: item?.author ? { id: String(item.author.id ?? id), username: (item.author as any).username ?? null, display_name: (item.author as any).display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
+    author: item?.author
+      ? {
+          id: String(item.author.id ?? id),
+          username: (item.author as any).username ?? null,
+          display_name: (item.author as any).display_name ?? null,
+          avatar_url: item.author.avatar_url ?? null,
+        }
+      : null,
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),
@@ -111,9 +129,14 @@ function TeamScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ id?: string; name?: string; from?: string; gameId?: string }>();
+  const params = useLocalSearchParams<{
+    id?: string;
+    name?: string;
+    from?: string;
+    gameId?: string;
+  }>();
   const { from, gameId } = params;
-  
+
   const [loading, setLoading] = useState(true);
   const [team, setTeam] = useState<LeagueTeam | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -126,7 +149,7 @@ function TeamScreen() {
   const [joinRequestStatus, setJoinRequestStatus] = useState<'none' | 'pending' | 'member'>('none');
   const [joinRequestId, setJoinRequestId] = useState<string | null>(null);
   const [joinRequestLoading, setJoinRequestLoading] = useState(false);
-  
+
   // Posts state - matching profile.tsx
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [_postsCursor, _setPostsCursor] = useState<string | null>(null);
@@ -139,16 +162,16 @@ function TeamScreen() {
   const [repliesHasMore, setRepliesHasMore] = useState(true);
   const [repliesLoading, setRepliesLoading] = useState(false);
   const repliesRequestInFlight = useRef(false);
-  
+
   const [upvotes, setUpvotes] = useState<PostItem[]>([]);
   const [_upvotesCursor, _setUpvotesCursor] = useState<string | null>(null);
   const [upvotesHasMore, setUpvotesHasMore] = useState(true);
   const [upvotesLoading, setUpvotesLoading] = useState(false);
   const upvotesRequestInFlight = useRef(false);
-  
+
   const [_sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [teamThemeColor, setTeamThemeColor] = useState<string>('#3B82F6');
-  
+
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -170,72 +193,79 @@ function TeamScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (_teamId: string) => {
-    if (postsRequestInFlight.current || !mounted.current) return;
-    postsRequestInFlight.current = true;
-    if (mounted.current) setPostsLoading(true);
-    try {
-      // Fetch posts for team games
-      const teamNameLower = (team?.name || '').toLowerCase();
-      const allGamesData = await Game.list('-date');
-      if (!mounted.current) return;
-      const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
+  const refreshPosts = useCallback(
+    async (_teamId: string) => {
+      if (postsRequestInFlight.current || !mounted.current) return;
+      postsRequestInFlight.current = true;
+      if (mounted.current) setPostsLoading(true);
+      try {
+        // Fetch posts for team games
+        const teamNameLower = (team?.name || '').toLowerCase();
+        const allGamesData = await Game.list('-date');
+        if (!mounted.current) return;
+        const allGames = Array.isArray(allGamesData)
+          ? allGamesData
+          : allGamesData?.games || allGamesData?.items || [];
 
-      const teamGames = allGames.filter((g: GameItem) => {
-            const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-            const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-            return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-          });
-      
-      const gameIds = teamGames.map((g: GameItem) => g.id);
-      if (!mounted.current) return;
-      
-      if (gameIds.length === 0) {
+        const teamGames = allGames.filter((g: GameItem) => {
+          const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+          const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+          return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
+        });
+
+        const gameIds = teamGames.map((g: GameItem) => g.id);
+        if (!mounted.current) return;
+
+        if (gameIds.length === 0) {
+          if (mounted.current) {
+            setPosts([]);
+            setPostsHasMore(false);
+          }
+          return;
+        }
+
+        // Fetch posts for all team games (aggregate from all games)
+        const postPromises = gameIds
+          .slice(0, 10)
+          .map((gameId: string) =>
+            Post.filter({ game_id: gameId }, '-created_at', 20).catch(() => [])
+          );
+        const postBatches = await Promise.all(postPromises);
+        if (!mounted.current) return;
+
+        // Aggregate and deduplicate posts
+        const allPosts: PostItem[] = [];
+        const seenIds = new Set<string>();
+
+        postBatches.forEach(batch => {
+          if (Array.isArray(batch)) {
+            batch.forEach((post: PostItem) => {
+              if (post?.id && !seenIds.has(String(post.id))) {
+                seenIds.add(String(post.id));
+                allPosts.push(post);
+              }
+            });
+          }
+        });
+
+        // Sort by creation date (newest first)
+        allPosts.sort((a: PostItem, b: PostItem) => {
+          const dateA = new Date(a.created_at || a.created_date || 0).getTime();
+          const dateB = new Date(b.created_at || b.created_date || 0).getTime();
+          return dateB - dateA;
+        });
+
         if (mounted.current) {
-          setPosts([]);
-          setPostsHasMore(false);
+          setPosts(allPosts);
+          setPostsHasMore(false); // Simplified pagination
         }
-        return;
+      } finally {
+        postsRequestInFlight.current = false;
+        if (mounted.current) setPostsLoading(false);
       }
-      
-      // Fetch posts for all team games (aggregate from all games)
-      const postPromises = gameIds.slice(0, 10).map((gameId: string) =>
-        Post.filter({ game_id: gameId }, '-created_at', 20).catch(() => [])
-      );
-      const postBatches = await Promise.all(postPromises);
-      if (!mounted.current) return;
-      
-      // Aggregate and deduplicate posts
-      const allPosts: PostItem[] = [];
-      const seenIds = new Set<string>();
-      
-      postBatches.forEach(batch => {
-        if (Array.isArray(batch)) {
-          batch.forEach((post: PostItem) => {
-            if (post?.id && !seenIds.has(String(post.id))) {
-              seenIds.add(String(post.id));
-              allPosts.push(post);
-            }
-          });
-        }
-      });
-      
-      // Sort by creation date (newest first)
-      allPosts.sort((a: PostItem, b: PostItem) => {
-        const dateA = new Date(a.created_at || a.created_date || 0).getTime();
-        const dateB = new Date(b.created_at || b.created_date || 0).getTime();
-        return dateB - dateA;
-      });
-      
-      if (mounted.current) {
-        setPosts(allPosts);
-        setPostsHasMore(false); // Simplified pagination
-      }
-    } finally {
-      postsRequestInFlight.current = false;
-      if (mounted.current) setPostsLoading(false);
-    }
-  }, [team?.name]);
+    },
+    [team?.name]
+  );
 
   const refreshReplies = useCallback(async (_teamId: string) => {
     if (repliesRequestInFlight.current || !mounted.current) return;
@@ -279,7 +309,7 @@ function TeamScreen() {
       // Validate and sanitize route params
       const teamId = params.id?.trim();
       const teamName = params.name?.trim();
-      
+
       // Validate ID format (alphanumeric, dash, underscore only)
       if (teamId && !/^[a-zA-Z0-9_-]+$/.test(teamId)) {
         if (mounted.current) {
@@ -288,7 +318,7 @@ function TeamScreen() {
         }
         return;
       }
-      
+
       if (!teamId && !teamName) {
         if (mounted.current) {
           setError('No team ID or name provided');
@@ -310,10 +340,13 @@ function TeamScreen() {
             const summary: any = await Team.screenSummary(teamId);
             if (summary?.team) {
               teamData = summary.team as LeagueTeam;
-              summaryMembers = Array.isArray(summary.members) ? summary.members as TeamMember[] : [];
-              summaryGames = Array.isArray(summary.games) ? summary.games as GameItem[] : [];
+              summaryMembers = Array.isArray(summary.members)
+                ? (summary.members as TeamMember[])
+                : [];
+              summaryGames = Array.isArray(summary.games) ? (summary.games as GameItem[]) : [];
               canManageTeam =
-                summary?.permissions?.can_manage === true || summary?.team?.can_manage_team === true;
+                summary?.permissions?.can_manage === true ||
+                summary?.team?.can_manage_team === true;
             } else {
               const fullTeamData = await Team.get(teamId);
               if (fullTeamData) {
@@ -325,20 +358,20 @@ function TeamScreen() {
             if (__DEV__) console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
           }
         }
-        
+
         // Fallback to list if get() didn't work or we only have teamName
         if (!teamData) {
           const allTeams = await Team.list(undefined, undefined, { limit: 100 });
           const teamsList = Array.isArray(allTeams) ? allTeams : [];
-          
+
           if (teamId && !teamData) {
             teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
           }
-          
+
           if (!teamData && teamName) {
-            teamData = teamsList.find((t: LeagueTeam) => 
-              t.name?.toLowerCase() === teamName.toLowerCase()
-            ) || null;
+            teamData =
+              teamsList.find((t: LeagueTeam) => t.name?.toLowerCase() === teamName.toLowerCase()) ||
+              null;
           }
         }
       } catch (apiErr: any) {
@@ -359,65 +392,68 @@ function TeamScreen() {
       }
 
       if (!mounted.current) return;
-      
+
       // Extract organization_id from team data (could be direct or nested in organization object)
       const orgId = (teamData as any)?.organization_id || (teamData as any)?.organization?.id;
       if (orgId) {
         teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
       }
-      
-          setTeam(teamData);
-          setIsFollowing(!!(teamData as any).is_following);
 
-          if (mounted.current) {
-            setIsTeamAdmin(canManageTeam);
-            // Determine join request status from viewer state
-            const vjrs = (teamData as any).viewer_join_request_status;
-            const viewerRole = (teamData as any).viewer_role || (teamData as any).my_role;
-            if (viewerRole) {
-              setJoinRequestStatus('member');
-            } else if (vjrs === 'pending') {
-              setJoinRequestStatus('pending');
-            } else {
-              setJoinRequestStatus('none');
-            }
-          }
+      setTeam(teamData);
+      setIsFollowing(!!(teamData as any).is_following);
+
+      if (mounted.current) {
+        setIsTeamAdmin(canManageTeam);
+        // Determine join request status from viewer state
+        const vjrs = (teamData as any).viewer_join_request_status;
+        const viewerRole = (teamData as any).viewer_role || (teamData as any).my_role;
+        if (viewerRole) {
+          setJoinRequestStatus('member');
+        } else if (vjrs === 'pending') {
+          setJoinRequestStatus('pending');
+        } else {
+          setJoinRequestStatus('none');
+        }
+      }
 
       // Use default theme color (teams don't have preferences field yet)
       if (mounted.current) setTeamThemeColor('#3B82F6');
 
       // Fetch games, posts, and members
-          const [gamesResult, membersResult] = summaryGames.length || summaryMembers.length
-            ? [summaryGames, summaryMembers]
-            : await Promise.all([
-                Game.list('-date')
-                  .then(allGamesData => {
-                    if (!mounted.current) return [];
-                    const allGames = Array.isArray(allGamesData) ? allGamesData : (allGamesData?.games || allGamesData?.items || []);
-                    const teamNameLower = (teamData!.name || '').toLowerCase();
-                    return allGames
-                      .filter((g: GameItem) => {
-                          const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
-                          const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
-                          return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
-                        })
-                      .sort((a: GameItem, b: GameItem) => {
-                          const dateA = new Date(a.date || a.created_at || 0).getTime();
-                          const dateB = new Date(b.date || b.created_at || 0).getTime();
-                          return dateA - dateB;
-                        });
-                  })
-                  .catch((err: any) => {
-                    if (__DEV__) console.error('[team-page] Failed to load games:', err);
-                    return [];
-                  }),
-                Promise.resolve([] as TeamMember[]),
-              ]);
+      const [gamesResult, membersResult] =
+        summaryGames.length || summaryMembers.length
+          ? [summaryGames, summaryMembers]
+          : await Promise.all([
+              Game.list('-date')
+                .then(allGamesData => {
+                  if (!mounted.current) return [];
+                  const allGames = Array.isArray(allGamesData)
+                    ? allGamesData
+                    : allGamesData?.games || allGamesData?.items || [];
+                  const teamNameLower = (teamData!.name || '').toLowerCase();
+                  return allGames
+                    .filter((g: GameItem) => {
+                      const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+                      const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+                      return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
+                    })
+                    .sort((a: GameItem, b: GameItem) => {
+                      const dateA = new Date(a.date || a.created_at || 0).getTime();
+                      const dateB = new Date(b.date || b.created_at || 0).getTime();
+                      return dateA - dateB;
+                    });
+                })
+                .catch((err: any) => {
+                  if (__DEV__) console.error('[team-page] Failed to load games:', err);
+                  return [];
+                }),
+              Promise.resolve([] as TeamMember[]),
+            ]);
 
       if (!mounted.current) return;
       setGames(gamesResult);
       setMembers(membersResult);
-      
+
       // Load initial posts
       if (teamData.id) {
         await refreshPosts(teamData.id);
@@ -493,10 +529,13 @@ function TeamScreen() {
     }
   }, [upvotesHasMore, upvotesLoading, team?.id]);
 
-  const unwrapPost = useCallback((item: PostItem | { post?: PostItem; target?: PostItem | { post?: PostItem } }) => {
-    const postItem = item as any; // Complex nested structure from interactions
-    return postItem?.post || postItem?.target?.post || postItem?.target || item;
-  }, []);
+  const unwrapPost = useCallback(
+    (item: PostItem | { post?: PostItem; target?: PostItem | { post?: PostItem } }) => {
+      const postItem = item as any; // Complex nested structure from interactions
+      return postItem?.post || postItem?.target?.post || postItem?.target || item;
+    },
+    []
+  );
 
   // Get header background (teams don't have preferences field yet, so no custom header image)
   const headerBackgroundImage = null; // Future: team?.header_image_url
@@ -504,7 +543,7 @@ function TeamScreen() {
   const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : (getGradientForColor(teamThemeColor) as [string, string, ...string[]]);
-  
+
   const teamName = team?.name || 'Team';
   const teamHandle = `@${(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}`;
   const teamVenue = typeof team?.venue_address === 'string' ? team.venue_address.trim() : '';
@@ -556,7 +595,13 @@ function TeamScreen() {
           <Pressable
             testID="team-page-back-button"
             onPress={handleBack}
-            style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+            style={[
+              styles.controlButton,
+              {
+                backgroundColor:
+                  colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
@@ -580,7 +625,13 @@ function TeamScreen() {
                   },
                 } as any);
               }}
-              style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+              style={[
+                styles.controlButton,
+                {
+                  backgroundColor:
+                    colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)',
+                },
+              ]}
               accessibilityRole="button"
               accessibilityLabel="Open team tools"
             >
@@ -588,15 +639,24 @@ function TeamScreen() {
             </Pressable>
           </View>
         )}
-        
+
         {/* Profile Content - Avatar centered at banner bottom edge */}
         <View style={styles.profileContent}>
           <View style={styles.avatarSection}>
             <View style={styles.avatarContainer}>
               {team?.logo_url ? (
-                <Image source={{ uri: String(team.logo_url) }} style={styles.avatarImage} contentFit="cover" />
+                <Image
+                  source={{ uri: String(team.logo_url) }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
               ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface || theme.card }]}>
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    { backgroundColor: theme.surface || theme.card },
+                  ]}
+                >
                   <Ionicons name="people" size={48} color={theme.mutedText} />
                 </View>
               )}
@@ -627,12 +687,17 @@ function TeamScreen() {
             {isTeamAdmin && (
               <Pressable
                 testID="team-page-edit-button"
-                style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]}
+                style={[
+                  styles.editButtonBelowBanner,
+                  { backgroundColor: theme.surface || theme.background, borderColor: theme.border },
+                ]}
                 onPress={() => void router.push(`/edit-team?id=${team?.id}` as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Edit team profile"
               >
-                <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
+                <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>
+                  Edit profile
+                </Text>
               </Pressable>
             )}
             {!isTeamAdmin && (
@@ -651,10 +716,17 @@ function TeamScreen() {
                 disabled={followLoading}
                 onPress={async () => {
                   // eslint-disable-next-line no-console
-                  if (__DEV__) console.log('[Follow] button pressed — team?.id:', team?.id, '| isFollowing:', isFollowing);
+                  if (__DEV__)
+                    console.log(
+                      '[Follow] button pressed — team?.id:',
+                      team?.id,
+                      '| isFollowing:',
+                      isFollowing
+                    );
                   if (!team?.id || team.id.startsWith('temp-') || followLoading) {
                     // eslint-disable-next-line no-console
-                    if (__DEV__) console.warn('[Follow] blocked: team or team.id is missing/temporary');
+                    if (__DEV__)
+                      console.warn('[Follow] blocked: team or team.id is missing/temporary');
                     return;
                   }
                   setFollowLoading(true);
@@ -666,7 +738,17 @@ function TeamScreen() {
                       // eslint-disable-next-line no-console
                       if (__DEV__) console.log('[Follow] unfollow success');
                       setIsFollowing(false);
-                      setTeam((prev) => prev ? { ...prev, followers_count: Math.max(0, ((prev as any).followers_count ?? 0) - 1) } : null);
+                      setTeam(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              followers_count: Math.max(
+                                0,
+                                ((prev as any).followers_count ?? 0) - 1
+                              ),
+                            }
+                          : null
+                      );
                     } else {
                       // eslint-disable-next-line no-console
                       if (__DEV__) console.log('[Follow] calling Team.follow(', team.id, ')');
@@ -674,12 +756,28 @@ function TeamScreen() {
                       // eslint-disable-next-line no-console
                       if (__DEV__) console.log('[Follow] follow success');
                       setIsFollowing(true);
-                      setTeam((prev) => prev ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 } : null);
+                      setTeam(prev =>
+                        prev
+                          ? { ...prev, followers_count: ((prev as any).followers_count ?? 0) + 1 }
+                          : null
+                      );
                     }
                   } catch (err: any) {
-                    const serverMsg = err?.data?.error || err?.data?.message || err?.message || 'Unknown error';
-                    if (__DEV__) console.error('[Follow] Team follow/unfollow failed — status:', err?.status, '| server:', serverMsg, '| data:', JSON.stringify(err?.data));
-                    Alert.alert('Follow Failed', `${serverMsg} (status: ${err?.status || 'unknown'})`);
+                    const serverMsg =
+                      err?.data?.error || err?.data?.message || err?.message || 'Unknown error';
+                    if (__DEV__)
+                      console.error(
+                        '[Follow] Team follow/unfollow failed — status:',
+                        err?.status,
+                        '| server:',
+                        serverMsg,
+                        '| data:',
+                        JSON.stringify(err?.data)
+                      );
+                    Alert.alert(
+                      'Follow Failed',
+                      `${serverMsg} (status: ${err?.status || 'unknown'})`
+                    );
                   } finally {
                     setFollowLoading(false);
                   }
@@ -704,20 +802,28 @@ function TeamScreen() {
                 ]}
                 disabled={joinRequestLoading}
                 accessibilityRole="button"
-                accessibilityLabel={joinRequestStatus === 'pending' ? 'Cancel join request' : 'Request to join team'}
+                accessibilityLabel={
+                  joinRequestStatus === 'pending' ? 'Cancel join request' : 'Request to join team'
+                }
                 onPress={async () => {
                   if (!team?.id || team.id.startsWith('temp-')) return;
                   setJoinRequestLoading(true);
                   try {
                     if (joinRequestStatus === 'pending' && joinRequestId) {
-                      await TeamMemberships.rejectJoinRequest(joinRequestId, 'Cancelled by requester');
+                      await TeamMemberships.rejectJoinRequest(
+                        joinRequestId,
+                        'Cancelled by requester'
+                      );
                       setJoinRequestStatus('none');
                       setJoinRequestId(null);
                     } else {
                       const result: any = await TeamMemberships.requestToJoin(team.id);
                       setJoinRequestStatus('pending');
                       if (result?.join_request?.id) setJoinRequestId(result.join_request.id);
-                      Alert.alert('Request Sent', 'Your request to join has been sent to the team managers.');
+                      Alert.alert(
+                        'Request Sent',
+                        'Your request to join has been sent to the team managers.'
+                      );
                     }
                   } catch (err: any) {
                     const msg = err?.data?.message || err?.message || 'Something went wrong';
@@ -754,13 +860,17 @@ function TeamScreen() {
           {team?.description && (
             <Text style={[styles.userBio, { color: theme.text }]}>{team.description}</Text>
           )}
-          
+
           {/* Created Date */}
           {team?.created_at && (
             <View style={styles.metaItem}>
               <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
               <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                Created {new Date(team.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                Created{' '}
+                {new Date(team.created_at).toLocaleDateString('en-US', {
+                  month: 'long',
+                  year: 'numeric',
+                })}
               </Text>
             </View>
           )}
@@ -775,72 +885,104 @@ function TeamScreen() {
           {teamOrganizationName ? (
             <View style={styles.metaItem}>
               <Ionicons name="business-outline" size={14} color={theme.mutedText} />
-              <Text style={[styles.metaText, { color: theme.mutedText }]}>{teamOrganizationName}</Text>
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                {teamOrganizationName}
+              </Text>
             </View>
           ) : null}
-          
+
           {/* Stats - Members, Followers, Games */}
           <View style={styles.statsRow}>
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {members.length}
-            </Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>{members.length}</Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Members </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {(team as any)?.followers_count ?? 0}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers </Text>
-            <Text style={[styles.statNumber, { color: theme.text }]}>
-              {games.length}
-            </Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>{games.length}</Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Games</Text>
           </View>
-          
+
           {/* Roster - Public, shows all members with roles */}
           {members.length > 0 && (
-            <View style={[styles.rosterSection, { borderColor: theme.border, backgroundColor: theme.card }]}>
+            <View
+              style={[
+                styles.rosterSection,
+                { borderColor: theme.border, backgroundColor: theme.card },
+              ]}
+            >
               <Text style={[styles.rosterTitle, { color: theme.text }]}>Roster</Text>
-              <ScrollView style={styles.rosterScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
-              <View style={styles.rosterList}>
-                {members
-                  .filter((m) => m.status === 'active')
-                  .map((m) => (
-                    <Pressable
-                      key={m.id}
-                      style={({ pressed }) => [
-                        styles.rosterRow,
-                        { backgroundColor: pressed ? theme.surface : 'transparent', borderColor: theme.border },
-                      ]}
-                      onPress={() => m.user?.id && router.push({ pathname: '/user-profile', params: { id: m.user.id } } as any)}
-                    >
-                      {m.user?.avatar_url ? (
-                        <Image source={{ uri: m.user.avatar_url }} style={styles.rosterAvatar} contentFit="cover" />
-                      ) : (
-                        <View style={[styles.rosterAvatarPlaceholder, { backgroundColor: theme.tint + '30' }]}>
-                          <Ionicons name="person" size={16} color={theme.tint} />
-                        </View>
-                      )}
-                      <View style={styles.rosterInfo}>
-                        <Text style={[styles.rosterName, { color: theme.text }]} numberOfLines={1}>
-                          {m.user?.display_name || m.user?.username || 'Unknown'}
-                        </Text>
-                        <View style={styles.rosterMeta}>
-                          {(m.jersey_number != null && m.jersey_number !== '') && (
-                            <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>#{m.jersey_number}</Text>
-                          )}
-                          {m.position && (
-                            <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>{m.position}</Text>
-                          )}
-                          <Text style={[styles.rosterRole, { color: theme.tint }]}>
-                            {String(m.role || 'member').replace(/_/g, ' ')}
+              <ScrollView
+                style={styles.rosterScroll}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.rosterList}>
+                  {members
+                    .filter(m => m.status === 'active')
+                    .map(m => (
+                      <Pressable
+                        key={m.id}
+                        style={({ pressed }) => [
+                          styles.rosterRow,
+                          {
+                            backgroundColor: pressed ? theme.surface : 'transparent',
+                            borderColor: theme.border,
+                          },
+                        ]}
+                        onPress={() =>
+                          m.user?.id &&
+                          router.push({
+                            pathname: '/user-profile',
+                            params: { id: m.user.id },
+                          } as any)
+                        }
+                      >
+                        {m.user?.avatar_url ? (
+                          <Image
+                            source={{ uri: m.user.avatar_url }}
+                            style={styles.rosterAvatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.rosterAvatarPlaceholder,
+                              { backgroundColor: theme.tint + '30' },
+                            ]}
+                          >
+                            <Ionicons name="person" size={16} color={theme.tint} />
+                          </View>
+                        )}
+                        <View style={styles.rosterInfo}>
+                          <Text
+                            style={[styles.rosterName, { color: theme.text }]}
+                            numberOfLines={1}
+                          >
+                            {m.user?.display_name || m.user?.username || 'Unknown'}
                           </Text>
+                          <View style={styles.rosterMeta}>
+                            {m.jersey_number != null && m.jersey_number !== '' && (
+                              <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>
+                                #{m.jersey_number}
+                              </Text>
+                            )}
+                            {m.position && (
+                              <Text style={[styles.rosterMetaText, { color: theme.mutedText }]}>
+                                {m.position}
+                              </Text>
+                            )}
+                            <Text style={[styles.rosterRole, { color: theme.tint }]}>
+                              {String(m.role || 'member').replace(/_/g, ' ')}
+                            </Text>
+                          </View>
                         </View>
-                      </View>
-                      {m.user?.id && (
-                        <Ionicons name="chevron-forward" size={14} color={theme.mutedText} />
-                      )}
-                    </Pressable>
-                  ))}
-              </View>
+                        {m.user?.id && (
+                          <Ionicons name="chevron-forward" size={14} color={theme.mutedText} />
+                        )}
+                      </Pressable>
+                    ))}
+                </View>
               </ScrollView>
             </View>
           )}
@@ -867,10 +1009,12 @@ function TeamScreen() {
               size={16}
               color={team?.organization_id ? theme.text : theme.mutedText}
             />
-            <Text style={[
-              styles.orgButtonText,
-              { color: team?.organization_id ? theme.text : theme.mutedText }
-            ]}>
+            <Text
+              style={[
+                styles.orgButtonText,
+                { color: team?.organization_id ? theme.text : theme.mutedText },
+              ]}
+            >
               {teamOrganizationName || 'No Organization'}
             </Text>
             {team?.organization_id && (
@@ -885,42 +1029,82 @@ function TeamScreen() {
         <Pressable
           testID="team-page-posts-tab"
           onPress={() => setActiveTab('posts')}
-          style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          style={[
+            styles.tab,
+            activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Posts"
           accessibilityState={{ selected: activeTab === 'posts' }}
         >
-          <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'posts' ? theme.tint : theme.mutedText },
+            ]}
+          >
+            Posts
+          </Text>
         </Pressable>
         <Pressable
           testID="team-page-replies-tab"
           onPress={() => setActiveTab('replies')}
-          style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          style={[
+            styles.tab,
+            activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Replies"
           accessibilityState={{ selected: activeTab === 'replies' }}
         >
-          <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'replies' ? theme.tint : theme.mutedText },
+            ]}
+          >
+            Replies
+          </Text>
         </Pressable>
         <Pressable
           testID="team-page-upvotes-tab"
           onPress={() => setActiveTab('upvotes')}
-          style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          style={[
+            styles.tab,
+            activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Upvotes"
           accessibilityState={{ selected: activeTab === 'upvotes' }}
         >
-          <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText },
+            ]}
+          >
+            Upvotes
+          </Text>
         </Pressable>
         <Pressable
           testID="team-page-events-tab"
           onPress={() => setActiveTab('events')}
-          style={[styles.tab, activeTab === 'events' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          style={[
+            styles.tab,
+            activeTab === 'events' && { borderBottomWidth: 2, borderBottomColor: theme.tint },
+          ]}
           accessibilityRole="tab"
           accessibilityLabel="Events"
           accessibilityState={{ selected: activeTab === 'events' }}
         >
-          <Text style={[styles.tabText, { color: activeTab === 'events' ? theme.tint : theme.mutedText }]}>Events</Text>
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeTab === 'events' ? theme.tint : theme.mutedText },
+            ]}
+          >
+            Events
+          </Text>
         </Pressable>
       </View>
     </>
@@ -929,7 +1113,9 @@ function TeamScreen() {
   const renderEmptyPosts = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>No posts yet</Text>
-      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>Posts from this team's games will appear here</Text>
+      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
+        Posts from this team's games will appear here
+      </Text>
     </View>
   );
 
@@ -948,17 +1134,28 @@ function TeamScreen() {
   const renderEmptyEvents = () => (
     <View style={styles.emptyContainer}>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>No past events</Text>
-      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>Past games and events will appear here</Text>
+      <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
+        Past games and events will appear here
+      </Text>
     </View>
   );
 
-  const onEndReachedPosts = useCallback(() => { if (team?.id) void loadMorePosts(); }, [team?.id, loadMorePosts]);
-  const onEndReachedReplies = useCallback(() => { if (team?.id) void loadMoreReplies(); }, [team?.id, loadMoreReplies]);
-  const onEndReachedUpvotes = useCallback(() => { if (team?.id) void loadMoreUpvotes(); }, [team?.id, loadMoreUpvotes]);
+  const onEndReachedPosts = useCallback(() => {
+    if (team?.id) void loadMorePosts();
+  }, [team?.id, loadMorePosts]);
+  const onEndReachedReplies = useCallback(() => {
+    if (team?.id) void loadMoreReplies();
+  }, [team?.id, loadMoreReplies]);
+  const onEndReachedUpvotes = useCallback(() => {
+    if (team?.id) void loadMoreUpvotes();
+  }, [team?.id, loadMoreUpvotes]);
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <Stack.Screen options={{ title: 'Team' }} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={theme.tint} />
@@ -969,7 +1166,10 @@ function TeamScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <Stack.Screen options={{ title: 'Team' }} />
         <View style={styles.center}>
           <Text style={[styles.error, { color: theme.text }]}>{error}</Text>
@@ -983,7 +1183,10 @@ function TeamScreen() {
 
   if (!team) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <Stack.Screen options={{ title: 'Team' }} />
         <View style={styles.center}>
           <Text style={[styles.error, { color: theme.text }]}>Team not found</Text>
@@ -1001,7 +1204,7 @@ function TeamScreen() {
           key={`${activeTab}-grid-2cols`}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
@@ -1018,7 +1221,7 @@ function TeamScreen() {
                   const mapped = (posts || []).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = mapped[index]?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
@@ -1047,14 +1250,16 @@ function TeamScreen() {
                   </View>
                 ) : (
                   <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb']}
+                      style={StyleSheet.absoluteFillObject as any}
+                      start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     />
                     <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                      <Text numberOfLines={4} style={styles.gridTextOnly}>
+                        {String(item.caption || item.content || '').trim() || 'Post'}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -1070,7 +1275,13 @@ function TeamScreen() {
                 </View>
                 <View style={styles.gridIconBadge}>
                   <Ionicons
-                    name={media.hasMedia ? (media.isVideo ? 'play-circle-outline' : 'camera-outline') : 'text'}
+                    name={
+                      media.hasMedia
+                        ? media.isVideo
+                          ? 'play-circle-outline'
+                          : 'camera-outline'
+                        : 'text'
+                    }
                     size={14}
                     color="#fff"
                   />
@@ -1078,7 +1289,11 @@ function TeamScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null}
+          ListFooterComponent={
+            postsLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
+          }
         />
       ) : activeTab === 'replies' ? (
         <FlatList
@@ -1107,7 +1322,7 @@ function TeamScreen() {
                   const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = unwrapPost(replies[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
@@ -1136,14 +1351,16 @@ function TeamScreen() {
                   </View>
                 ) : (
                   <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb']}
+                      style={StyleSheet.absoluteFillObject as any}
+                      start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     />
                     <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                      <Text numberOfLines={4} style={styles.gridTextOnly}>
+                        {String(postItem?.caption || postItem?.content || '').trim() || 'Post'}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -1159,7 +1376,13 @@ function TeamScreen() {
                 </View>
                 <View style={styles.gridIconBadge}>
                   <Ionicons
-                    name={media.hasMedia ? (media.isVideo ? 'play-circle-outline' : 'camera-outline') : 'text'}
+                    name={
+                      media.hasMedia
+                        ? media.isVideo
+                          ? 'play-circle-outline'
+                          : 'camera-outline'
+                        : 'text'
+                    }
                     size={14}
                     color="#fff"
                   />
@@ -1167,7 +1390,11 @@ function TeamScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null}
+          ListFooterComponent={
+            repliesLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
+          }
         />
       ) : activeTab === 'upvotes' ? (
         <FlatList
@@ -1196,7 +1423,7 @@ function TeamScreen() {
                   const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = unwrapPost(upvotes[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  const targetIdx = targetId ? items.findIndex(p => p.id === targetId) : index;
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
@@ -1225,14 +1452,16 @@ function TeamScreen() {
                   </View>
                 ) : (
                   <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb']}
+                      style={StyleSheet.absoluteFillObject as any}
+                      start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     />
                     <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                      <Text numberOfLines={4} style={styles.gridTextOnly}>
+                        {String(postItem?.caption || postItem?.content || '').trim() || 'Post'}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -1248,7 +1477,13 @@ function TeamScreen() {
                 </View>
                 <View style={styles.gridIconBadge}>
                   <Ionicons
-                    name={media.hasMedia ? (media.isVideo ? 'play-circle-outline' : 'camera-outline') : 'text'}
+                    name={
+                      media.hasMedia
+                        ? media.isVideo
+                          ? 'play-circle-outline'
+                          : 'camera-outline'
+                        : 'text'
+                    }
                     size={14}
                     color="#fff"
                   />
@@ -1256,7 +1491,11 @@ function TeamScreen() {
               </Pressable>
             );
           }}
-          ListFooterComponent={upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null}
+          ListFooterComponent={
+            upvotesLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
+          }
         />
       ) : (
         <FlatList
@@ -1265,7 +1504,7 @@ function TeamScreen() {
             return d && new Date(d as string) < new Date();
           })}
           key={`${activeTab}-list`}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyEvents}
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
@@ -1273,18 +1512,29 @@ function TeamScreen() {
             const g = item as any;
             const rawDate = g.scheduled_date || g.date;
             const dateStr = rawDate
-              ? new Date(rawDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              ? new Date(rawDate).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
               : 'TBD';
             const opponent = g.opponent_name || g.away_team || g.awayTeam || 'TBD';
             const gameType = g.game_type || 'Game';
             const hasScore = g.home_score != null || g.away_score != null;
             return (
-              <View style={[styles.eventRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.eventRow,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 <View style={[styles.eventDateBadge, { backgroundColor: theme.tint + '22' }]}>
                   <Text style={[styles.eventDate, { color: theme.tint }]}>{dateStr}</Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>vs {opponent}</Text>
+                  <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>
+                    vs {opponent}
+                  </Text>
                   <Text style={[styles.eventTypeText, { color: theme.mutedText }]}>{gameType}</Text>
                 </View>
                 {hasScore && (
@@ -1304,7 +1554,15 @@ function TeamScreen() {
           showHeader
           initialPosts={viewerItems}
           startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Team posts' : activeTab === 'replies' ? 'Team replies' : activeTab === 'upvotes' ? 'Team upvotes' : 'Team events'}
+          title={
+            activeTab === 'posts'
+              ? 'Team posts'
+              : activeTab === 'replies'
+                ? 'Team replies'
+                : activeTab === 'upvotes'
+                  ? 'Team upvotes'
+                  : 'Team events'
+          }
         />
       </Modal>
     </SafeAreaView>
@@ -1312,8 +1570,8 @@ function TeamScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1
+  container: {
+    flex: 1,
   },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center', marginBottom: 16 },
@@ -1328,7 +1586,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // Header Styles - Exact Match to Profile
   headerContainer: {
     position: 'relative',
@@ -1575,9 +1833,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '400',
   },
-  tabsContainer: { 
-    flexDirection: 'row', 
-    borderBottomWidth: 1, 
+  tabsContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
     backgroundColor: 'transparent',
     marginTop: 0,
     marginBottom: 0,
@@ -1594,12 +1852,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginBottom: 12,
   },
-  gridItem: { 
-    flex: 1, 
-    aspectRatio: 1, 
+  gridItem: {
+    flex: 1,
+    aspectRatio: 1,
     margin: 0,
     borderRadius: 14,
-    overflow: 'hidden', 
+    overflow: 'hidden',
     backgroundColor: '#F3F4F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1617,7 +1875,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.05)',
   },
-  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
+  gridImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    position: 'relative',
+  },
   textPostOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -1627,46 +1890,46 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 8,
   },
-  gridTextOnly: { 
-    textAlign: 'center', 
-    color: '#ffffff', 
-    fontWeight: '700', 
-    fontSize: 12, 
+  gridTextOnly: {
+    textAlign: 'center',
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 12,
     lineHeight: 16,
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    textShadowRadius: 2,
   },
-  gridIconBadge: { 
-    position: 'absolute', 
-    bottom: 8, 
-    right: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    width: 28, 
-    height: 28, 
-    alignItems: 'center', 
+  gridIconBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 2
+    shadowRadius: 2,
   },
-  gridCounts: { 
-    position: 'absolute', 
-    left: 8, 
-    bottom: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  gridCounts: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 2
+    shadowRadius: 2,
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },

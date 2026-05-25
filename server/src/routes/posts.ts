@@ -6,18 +6,22 @@ import { geocodeLocation } from '../lib/geocoding.js';
 import { detectMediaType, getVideoPreviewUrl } from '../lib/mediaUtils.js';
 import { prisma } from '../lib/prisma.js';
 import {
-    getBlockedUserIds,
-    getExcludedPrivateAuthorIds,
-    getRequestBlockedCache,
-    isAuthorHiddenFromViewer,
+  getBlockedUserIds,
+  getExcludedPrivateAuthorIds,
+  getRequestBlockedCache,
+  isAuthorHiddenFromViewer,
 } from '../lib/privacyUtils.js';
 import {
-    canManageAnyTeam,
-    canManageTeam as canManageTeamScoped,
+  canManageAnyTeam,
+  canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { commentLimiter, interactionLimiter, postCreationLimiter } from '../middleware/rateLimiters.js';
+import {
+  commentLimiter,
+  interactionLimiter,
+  postCreationLimiter,
+} from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireOnboarded } from '../middleware/requireOnboarded.js';
 import { requireVerified } from '../middleware/requireVerified.js';
@@ -148,7 +152,9 @@ async function getPostPollEligibility(post: { game_id?: string | null }) {
     return { ok: false as const, status: 404, body: { error: 'Linked game not found' } };
   }
 
-  const normalizedEventType = String(game.event_type || 'game').trim().toLowerCase();
+  const normalizedEventType = String(game.event_type || 'game')
+    .trim()
+    .toLowerCase();
   if (normalizedEventType !== 'game') {
     return {
       ok: false as const,
@@ -1044,18 +1050,21 @@ postsRouter.post(
     const contentForMentions = data.content?.trim() ?? '';
     if (contentForMentions && req.user) {
       const actorId = req.user.id;
-      prisma.user.findUnique({
-        where: { id: actorId },
-        select: { display_name: true },
-      }).then(actor => {
-        notifyMentions({
-          content: contentForMentions,
-          actorId,
-          actorName: actor?.display_name || 'Someone',
-          postId: post.id,
-          context: 'post',
-        }).catch(e => console.error('[notif] post mention push failed', e));
-      }).catch(e => console.error('[notif] post mention actor lookup failed', e));
+      prisma.user
+        .findUnique({
+          where: { id: actorId },
+          select: { display_name: true },
+        })
+        .then(actor => {
+          notifyMentions({
+            content: contentForMentions,
+            actorId,
+            actorName: actor?.display_name || 'Someone',
+            postId: post.id,
+            context: 'post',
+          }).catch(e => console.error('[notif] post mention push failed', e));
+        })
+        .catch(e => console.error('[notif] post mention actor lookup failed', e));
     }
 
     res.status(201).json({
@@ -1568,8 +1577,9 @@ postsRouter.post(
             comment_id: comment.id,
           },
         });
-        notifyPostInteraction(postAuthorId, 'comment', req.user.id, actorName, id)
-          .catch(e => console.error('[notif] comment push failed', e));
+        notifyPostInteraction(postAuthorId, 'comment', req.user.id, actorName, id).catch(e =>
+          console.error('[notif] comment push failed', e)
+        );
       }
 
       // Reply-to-comment: notify parent comment author
@@ -1590,8 +1600,9 @@ postsRouter.post(
               meta: { parent_comment_id: parent_id },
             },
           });
-          notifyCommentReply(parentAuthorId, req.user.id, actorName, id, comment.id)
-            .catch(e => console.error('[notif] comment reply push failed', e));
+          notifyCommentReply(parentAuthorId, req.user.id, actorName, id, comment.id).catch(e =>
+            console.error('[notif] comment reply push failed', e)
+          );
         }
       }
 

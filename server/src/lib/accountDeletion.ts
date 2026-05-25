@@ -54,10 +54,7 @@ export async function hardDeleteAnonymizedUsers(options?: {
     1,
     options?.retentionDays ?? ANONYMIZED_USER_RETENTION_DAYS_DEFAULT
   );
-  const maxPerRun = Math.max(
-    1,
-    options?.maxPerRun ?? HARD_DELETE_PURGE_MAX_PER_RUN
-  );
+  const maxPerRun = Math.max(1, options?.maxPerRun ?? HARD_DELETE_PURGE_MAX_PER_RUN);
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
 
   const candidates = await prisma.user.findMany({
@@ -199,17 +196,14 @@ export async function softDeleteUserAccount(userId: string): Promise<{
       '[accountDeletion] Stripe billing cleanup failed; local deletion proceeds anyway:',
       (stripeErr as any)?.message || stripeErr
     );
-    captureException(
-      stripeErr instanceof Error ? stripeErr : new Error(String(stripeErr)),
-      {
-        extra: {
-          context: 'account_deletion_stripe_cleanup_failed',
-          userId,
-          stripeCustomerId: existing.stripe_customer_id,
-          subscriptionId: storedSubscriptionId,
-        },
-      }
-    );
+    captureException(stripeErr instanceof Error ? stripeErr : new Error(String(stripeErr)), {
+      extra: {
+        context: 'account_deletion_stripe_cleanup_failed',
+        userId,
+        stripeCustomerId: existing.stripe_customer_id,
+        subscriptionId: storedSubscriptionId,
+      },
+    });
   }
 
   await prisma.$transaction(async tx => {
@@ -290,9 +284,8 @@ export async function softDeleteUserAccount(userId: string): Promise<{
   if (userAdsForCleanup.length > 0 || userStoriesForCleanup.length > 0) {
     void (async () => {
       try {
-        const { extractCloudinaryPublicId, destroyCloudinaryAsset } = await import(
-          './cloudinary.js'
-        );
+        const { extractCloudinaryPublicId, destroyCloudinaryAsset } =
+          await import('./cloudinary.js');
         const urls: Array<{ kind: string; entityId: string; url: string | null }> = [
           ...userAdsForCleanup.map(a => ({ kind: 'ad', entityId: a.id, url: a.banner_url })),
           ...userStoriesForCleanup.map(s => ({ kind: 'story', entityId: s.id, url: s.media_url })),

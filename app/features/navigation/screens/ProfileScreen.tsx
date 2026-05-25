@@ -24,17 +24,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from '../../../game-details/GameVerticalFeedScreen';
@@ -412,7 +412,7 @@ export default function ProfileScreen() {
       // Use shared upload helper with consistent auth/retry logic
       const { url } = await uploadAvatar(null, manipulated.uri, name);
       await User.updateMe({ avatar_url: url });
-      setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
+      setMe(prev => (prev ? { ...prev, avatar_url: url } : null));
     } catch (error) {
       console.error('[profile] Avatar upload failed:', error);
       showUploadErrorAlert(error, {
@@ -443,10 +443,7 @@ export default function ProfileScreen() {
 
       try {
         // Step 1: Get current user first
-        const currentUser: any = await getAuthSnapshot(
-          checkAuth,
-          userFromAuth ?? userFromHook
-        );
+        const currentUser: any = await getAuthSnapshot(checkAuth, userFromAuth ?? userFromHook);
         setCurrentUserId(currentUser?.id || null);
 
         let u: any;
@@ -520,7 +517,16 @@ export default function ProfileScreen() {
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [activeTab, checkAuth, refreshPosts, refreshReplies, refreshUpvotes, userFromAuth, userFromHook, viewingUserId]
+    [
+      activeTab,
+      checkAuth,
+      refreshPosts,
+      refreshReplies,
+      refreshUpvotes,
+      userFromAuth,
+      userFromHook,
+      viewingUserId,
+    ]
   );
 
   const onRefresh = useCallback(async () => {
@@ -905,10 +911,7 @@ export default function ProfileScreen() {
             <View style={styles.inlineActionRow}>
               <Pressable
                 testID="profile-message-inline-button"
-                style={[
-                  styles.headerActionButton,
-                  styles.headerActionButtonGhost,
-                ]}
+                style={[styles.headerActionButton, styles.headerActionButtonGhost]}
                 onPress={() => void router.push(`/message-thread?with=${viewingUserId}` as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Send message"
@@ -1085,18 +1088,13 @@ export default function ProfileScreen() {
               <View
                 style={[
                   styles.roleBadge,
-                  roleRaw === 'coach' &&
-                    (approvedCoach ? styles.coachBadge : styles.fanBadge),
+                  roleRaw === 'coach' && (approvedCoach ? styles.coachBadge : styles.fanBadge),
                   roleRaw === 'player' && styles.playerBadge,
                   roleRaw === 'fan' && styles.fanBadge,
                 ]}
               >
                 <Text style={styles.roleText}>
-                  {roleRaw === 'coach'
-                    ? approvedCoach
-                      ? 'COACH'
-                      : 'FAN'
-                    : roleRaw.toUpperCase()}
+                  {roleRaw === 'coach' ? (approvedCoach ? 'COACH' : 'FAN') : roleRaw.toUpperCase()}
                 </Text>
               </View>
             )}
@@ -1594,7 +1592,9 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
+            postsLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
           }
         />
       ) : activeTab === 'replies' ? (
@@ -1719,7 +1719,9 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            repliesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
+            repliesLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
           }
         />
       ) : (
@@ -1844,7 +1846,9 @@ export default function ProfileScreen() {
             );
           }}
           ListFooterComponent={
-            upvotesLoading ? <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} /> : null
+            upvotesLoading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={theme.tint} />
+            ) : null
           }
         />
       )}

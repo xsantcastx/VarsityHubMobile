@@ -13,55 +13,59 @@ import { stripHtml } from '../lib/sanitizeHtml.js';
 const groupChatsRouter = Router();
 
 // Get all group chats for the current user
-groupChatsRouter.get('/', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+groupChatsRouter.get(
+  '/',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const memberships = await prisma.groupChatMember.findMany({
-      where: { user_id: req.user.id },
-      take: 100,
-      include: {
-        chat: {
-          include: {
-            team: true,
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    display_name: true,
-                    avatar_url: true,
+      const memberships = await prisma.groupChatMember.findMany({
+        where: { user_id: req.user.id },
+        take: 100,
+        include: {
+          chat: {
+            include: {
+              team: true,
+              members: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      display_name: true,
+                      avatar_url: true,
+                    },
                   },
                 },
               },
-            },
-            messages: {
-              take: 1,
-              orderBy: { created_at: 'desc' },
-              include: {
-                sender: {
-                  select: {
-                    id: true,
-                    display_name: true,
-                    avatar_url: true,
+              messages: {
+                take: 1,
+                orderBy: { created_at: 'desc' },
+                include: {
+                  sender: {
+                    select: {
+                      id: true,
+                      display_name: true,
+                      avatar_url: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-      orderBy: { joined_at: 'desc' },
-    });
+        orderBy: { joined_at: 'desc' },
+      });
 
-    // Mirror the joined_at floor that the message-fetch path enforces (see
-    // GET /:chatId/messages — line ~134, `created_at: { gte: membership.joined_at }`).
-    // Without this AND clause, a member added after a chat already had history
-    // would see unread badges for messages they cannot actually load —
-    // confusing badge-vs-list mismatch.
-    const unreadRows =
-      memberships.length > 0
-        ? await prisma.$queryRaw<Array<{ chat_id: string; unread_count: number }>>(Prisma.sql`
+      // Mirror the joined_at floor that the message-fetch path enforces (see
+      // GET /:chatId/messages — line ~134, `created_at: { gte: membership.joined_at }`).
+      // Without this AND clause, a member added after a chat already had history
+      // would see unread badges for messages they cannot actually load —
+      // confusing badge-vs-list mismatch.
+      const unreadRows =
+        memberships.length > 0
+          ? await prisma.$queryRaw<Array<{ chat_id: string; unread_count: number }>>(Prisma.sql`
             SELECT
               m.chat_id,
               COUNT(*)::int AS unread_count
@@ -77,108 +81,112 @@ groupChatsRouter.get('/', requireAuth as any, requireVerified as any, asyncHandl
               )
             GROUP BY m.chat_id
           `)
-        : [];
+          : [];
 
-    const unreadByChat = new Map<string, number>(
-      unreadRows.map(row => [row.chat_id, Number(row.unread_count) || 0])
-    );
+      const unreadByChat = new Map<string, number>(
+        unreadRows.map(row => [row.chat_id, Number(row.unread_count) || 0])
+      );
 
-    const chats = memberships.map((m: any) => ({
-      ...m.chat,
-      lastMessage: m.chat.messages[0] || null,
-      unreadCount: unreadByChat.get(m.chat_id) ?? 0,
-    }));
+      const chats = memberships.map((m: any) => ({
+        ...m.chat,
+        lastMessage: m.chat.messages[0] || null,
+        unreadCount: unreadByChat.get(m.chat_id) ?? 0,
+      }));
 
-    return res.json(chats);
-  } catch (error: any) {
-    console.error('Error fetching group chats:', error);
-    return res.status(500).json({ error: 'Failed to fetch group chats' });
-  }
-}));
+      return res.json(chats);
+    } catch (error: any) {
+      console.error('Error fetching group chats:', error);
+      return res.status(500).json({ error: 'Failed to fetch group chats' });
+    }
+  })
+);
 
 // Get messages for a specific group chat
-groupChatsRouter.get('/:chatId/messages', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+groupChatsRouter.get(
+  '/:chatId/messages',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { chatId } = req.params;
-    const meId = req.user.id;
+      const { chatId } = req.params;
+      const meId = req.user.id;
 
-    // Verify user is a member of this chat
-    const membership = await prisma.groupChatMember.findFirst({
-      where: {
-        chat_id: chatId,
-        user_id: meId,
-      },
-      select: { joined_at: true },
-    });
-
-    if (!membership) {
-      return res.status(403).json({ error: 'Not a member of this chat' });
-    }
-
-    // Block-list: filter out messages from users the requester has blocked or
-    // who have blocked the requester. Blocking otherwise only prevented DMs —
-    // in group chats, blocked users were still fully visible to each other.
-    //
-    // Same overflow detection as search.ts: take=LIMIT+1 so a pathological
-    // user with > LIMIT block relationships fails closed (503) instead of
-    // silently letting blocked users' messages through.
-    const BLOCK_LIST_HARD_LIMIT = 10_000;
-    const blocks = await prisma.blockedUser.findMany({
-      where: { OR: [{ blocker_id: meId }, { blocked_id: meId }] },
-      select: { blocker_id: true, blocked_id: true },
-      take: BLOCK_LIST_HARD_LIMIT + 1,
-    });
-    if (blocks.length > BLOCK_LIST_HARD_LIMIT) {
-      captureMessage('Group-chat blocked-list exceeded hard limit — failing closed', 'error', {
-        context: 'group_chat_blocked_list_overflow',
-        userId: meId,
-        chatId,
-        limit: BLOCK_LIST_HARD_LIMIT,
+      // Verify user is a member of this chat
+      const membership = await prisma.groupChatMember.findFirst({
+        where: {
+          chat_id: chatId,
+          user_id: meId,
+        },
+        select: { joined_at: true },
       });
-      return res.status(503).json({
-        error: 'CHAT_TEMPORARILY_UNAVAILABLE',
-        message: 'Chat is temporarily unavailable for this account. Please contact support.',
-      });
-    }
-    const blockedUserIds = new Set<string>();
-    for (const b of blocks) {
-      if (b.blocker_id !== meId) blockedUserIds.add(b.blocker_id);
-      if (b.blocked_id !== meId) blockedUserIds.add(b.blocked_id);
-    }
 
-    const messages = await prisma.groupChatMessage.findMany({
-      where: {
-        chat_id: chatId,
-        // Pre-join history filter: members added partway through a chat now
-        // see only messages from their join time forward. Previously new
-        // members got full history, including conversations that happened
-        // before they were added.
-        created_at: { gte: membership.joined_at },
-        ...(blockedUserIds.size > 0
-          ? { sender_id: { notIn: Array.from(blockedUserIds) } }
-          : {}),
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            display_name: true,
-            avatar_url: true,
+      if (!membership) {
+        return res.status(403).json({ error: 'Not a member of this chat' });
+      }
+
+      // Block-list: filter out messages from users the requester has blocked or
+      // who have blocked the requester. Blocking otherwise only prevented DMs —
+      // in group chats, blocked users were still fully visible to each other.
+      //
+      // Same overflow detection as search.ts: take=LIMIT+1 so a pathological
+      // user with > LIMIT block relationships fails closed (503) instead of
+      // silently letting blocked users' messages through.
+      const BLOCK_LIST_HARD_LIMIT = 10_000;
+      const blocks = await prisma.blockedUser.findMany({
+        where: { OR: [{ blocker_id: meId }, { blocked_id: meId }] },
+        select: { blocker_id: true, blocked_id: true },
+        take: BLOCK_LIST_HARD_LIMIT + 1,
+      });
+      if (blocks.length > BLOCK_LIST_HARD_LIMIT) {
+        captureMessage('Group-chat blocked-list exceeded hard limit — failing closed', 'error', {
+          context: 'group_chat_blocked_list_overflow',
+          userId: meId,
+          chatId,
+          limit: BLOCK_LIST_HARD_LIMIT,
+        });
+        return res.status(503).json({
+          error: 'CHAT_TEMPORARILY_UNAVAILABLE',
+          message: 'Chat is temporarily unavailable for this account. Please contact support.',
+        });
+      }
+      const blockedUserIds = new Set<string>();
+      for (const b of blocks) {
+        if (b.blocker_id !== meId) blockedUserIds.add(b.blocker_id);
+        if (b.blocked_id !== meId) blockedUserIds.add(b.blocked_id);
+      }
+
+      const messages = await prisma.groupChatMessage.findMany({
+        where: {
+          chat_id: chatId,
+          // Pre-join history filter: members added partway through a chat now
+          // see only messages from their join time forward. Previously new
+          // members got full history, including conversations that happened
+          // before they were added.
+          created_at: { gte: membership.joined_at },
+          ...(blockedUserIds.size > 0 ? { sender_id: { notIn: Array.from(blockedUserIds) } } : {}),
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              display_name: true,
+              avatar_url: true,
+            },
           },
         },
-      },
-      orderBy: { created_at: 'asc' },
-      take: 100, // Limit to last 100 messages
-    });
+        orderBy: { created_at: 'asc' },
+        take: 100, // Limit to last 100 messages
+      });
 
-    return res.json(messages);
-  } catch (error: any) {
-    console.error('Error fetching group chat messages:', error);
-    return res.status(500).json({ error: 'Failed to fetch messages' });
-  }
-}));
+      return res.json(messages);
+    } catch (error: any) {
+      console.error('Error fetching group chat messages:', error);
+      return res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+  })
+);
 
 // Send a message to a group chat
 const sendMessageSchema = z.object({
@@ -243,29 +251,34 @@ groupChatsRouter.post(
 );
 
 // Mark messages as read
-groupChatsRouter.post('/:chatId/read', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+groupChatsRouter.post(
+  '/:chatId/read',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { chatId } = req.params;
+      const { chatId } = req.params;
 
-    // Update last_read_at for this user's membership
-    await prisma.groupChatMember.updateMany({
-      where: {
-        chat_id: chatId,
-        user_id: req.user.id,
-      },
-      data: {
-        last_read_at: new Date(),
-      },
-    });
+      // Update last_read_at for this user's membership
+      await prisma.groupChatMember.updateMany({
+        where: {
+          chat_id: chatId,
+          user_id: req.user.id,
+        },
+        data: {
+          last_read_at: new Date(),
+        },
+      });
 
-    return res.json({ ok: true });
-  } catch (error: any) {
-    console.error('Error marking messages as read:', error);
-    return res.status(500).json({ error: 'Failed to mark as read' });
-  }
-}));
+      return res.json({ ok: true });
+    } catch (error: any) {
+      console.error('Error marking messages as read:', error);
+      return res.status(500).json({ error: 'Failed to mark as read' });
+    }
+  })
+);
 
 // Create a group chat (usually for a team)
 const createChatSchema = z.object({
@@ -274,75 +287,80 @@ const createChatSchema = z.object({
   teamId: z.string().min(1, 'teamId is required to create a group chat'),
 });
 
-groupChatsRouter.post('/', requireAuth as any, requireVerified as any, asyncHandler(async (req: AuthedRequest, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+groupChatsRouter.post(
+  '/',
+  requireAuth as any,
+  requireVerified as any,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const parsed = createChatSchema.safeParse(req.body);
-    if (!parsed.success)
-      return res
-        .status(400)
-        .json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
-    const { name, teamId, memberIds } = parsed.data;
+      const parsed = createChatSchema.safeParse(req.body);
+      if (!parsed.success)
+        return res
+          .status(400)
+          .json({ error: 'Validation failed', details: parsed.error.flatten().fieldErrors });
+      const { name, teamId, memberIds } = parsed.data;
 
-    const canManage = await canManageTeamScoped(req.user.id, teamId);
-    if (!canManage) {
-      return res.status(403).json({ error: 'No permission to create team chat' });
-    }
+      const canManage = await canManageTeamScoped(req.user.id, teamId);
+      if (!canManage) {
+        return res.status(403).json({ error: 'No permission to create team chat' });
+      }
 
-    // Verify all members are active on this team
-    const teamMembers = await prisma.teamMembership.findMany({
-      where: { team_id: teamId, user_id: { in: memberIds }, status: 'active' },
-      select: { user_id: true },
-      take: memberIds.length,
-    });
-    const teamMemberIds = new Set(teamMembers.map(m => m.user_id));
-    const invalidMembers = memberIds.filter(
-      (id: string) => !teamMemberIds.has(id) && id !== req.user!.id
-    );
-    if (invalidMembers.length > 0) {
-      return res
-        .status(400)
-        .json({ error: 'Some members are not on this team', invalid: invalidMembers });
-    }
+      // Verify all members are active on this team
+      const teamMembers = await prisma.teamMembership.findMany({
+        where: { team_id: teamId, user_id: { in: memberIds }, status: 'active' },
+        select: { user_id: true },
+        take: memberIds.length,
+      });
+      const teamMemberIds = new Set(teamMembers.map(m => m.user_id));
+      const invalidMembers = memberIds.filter(
+        (id: string) => !teamMemberIds.has(id) && id !== req.user!.id
+      );
+      if (invalidMembers.length > 0) {
+        return res
+          .status(400)
+          .json({ error: 'Some members are not on this team', invalid: invalidMembers });
+      }
 
-    // Create the group chat
-    const chat = await prisma.groupChat.create({
-      data: {
-        name: name.trim(),
-        team_id: teamId || null,
-        created_by: req.user!.id,
-        members: {
-          create: [
-            { user_id: req.user!.id }, // Add creator
-            ...memberIds
-              .filter((id: string) => id !== req.user!.id) // Avoid duplicates
-              .map((id: string) => ({ user_id: id })),
-          ],
+      // Create the group chat
+      const chat = await prisma.groupChat.create({
+        data: {
+          name: name.trim(),
+          team_id: teamId || null,
+          created_by: req.user!.id,
+          members: {
+            create: [
+              { user_id: req.user!.id }, // Add creator
+              ...memberIds
+                .filter((id: string) => id !== req.user!.id) // Avoid duplicates
+                .map((id: string) => ({ user_id: id })),
+            ],
+          },
         },
-      },
-      include: {
-        team: true,
-        members: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                display_name: true,
-                avatar_url: true,
+        include: {
+          team: true,
+          members: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  display_name: true,
+                  avatar_url: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    return res.status(201).json(chat);
-  } catch (error: any) {
-    console.error('Error creating group chat:', error);
-    return res.status(500).json({ error: 'Failed to create group chat' });
-  }
-}));
+      return res.status(201).json(chat);
+    } catch (error: any) {
+      console.error('Error creating group chat:', error);
+      return res.status(500).json({ error: 'Failed to create group chat' });
+    }
+  })
+);
 
 // Add a member to a team-scoped group chat. Requires team staff role on the
 // chat's team (owner/manager/coach/assistant_coach) OR org admin (owner/manager)
@@ -392,7 +410,7 @@ groupChatsRouter.post(
       if (!onTeam) {
         return res.status(400).json({
           error: 'NOT_ON_TEAM',
-          message: 'User is not on this team\'s roster.',
+          message: "User is not on this team's roster.",
         });
       }
 

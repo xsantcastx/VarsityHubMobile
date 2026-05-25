@@ -9,14 +9,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -77,7 +77,9 @@ function formatDate(value?: string): string {
 }
 
 function roleLabel(role?: string | null): string {
-  const normalized = String(role || '').replace(/_/g, ' ').trim();
+  const normalized = String(role || '')
+    .replace(/_/g, ' ')
+    .trim();
   if (!normalized) return 'Member';
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
@@ -85,7 +87,13 @@ function roleLabel(role?: string | null): string {
 export default function TeamAdminScreen() {
   const { canAccessCoachTools, loading: coachLoading } = useRequireCoach();
   const router = useRouter();
-  const params = useLocalSearchParams<{ teamId?: string; id?: string; tab?: string; orgId?: string; orgTab?: string }>();
+  const params = useLocalSearchParams<{
+    teamId?: string;
+    id?: string;
+    tab?: string;
+    orgId?: string;
+    orgTab?: string;
+  }>();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
 
@@ -99,7 +107,9 @@ export default function TeamAdminScreen() {
     ? `/organization?id=${encodeURIComponent(params.orgId)}&tab=${encodeURIComponent(params.orgTab || 'teams')}`
     : '/organization?tab=teams';
 
-  const [activeTab, setActiveTab] = useState<TeamAdminTab>(isTeamAdminTab(params.tab) ? params.tab : 'overview');
+  const [activeTab, setActiveTab] = useState<TeamAdminTab>(
+    isTeamAdminTab(params.tab) ? params.tab : 'overview'
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -183,36 +193,35 @@ export default function TeamAdminScreen() {
     async (invite: TeamInvite) => {
       if (!selectedTeamId || actingInviteId) return;
 
-      Alert.alert(
-        'Cancel invite',
-        `Cancel the pending invite for ${invite.email}?`,
-        [
-          { text: 'Keep', style: 'cancel' },
-          {
-            text: 'Cancel Invite',
-            style: 'destructive',
-            onPress: async () => {
-              setActingInviteId(invite.id);
-              try {
-                await Team.cancelInvite(selectedTeamId, invite.id);
-                await loadTeam();
-              } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : 'Failed to cancel invite';
-                Alert.alert('Unable to cancel invite', message);
-              } finally {
-                setActingInviteId(null);
-              }
-            },
+      Alert.alert('Cancel invite', `Cancel the pending invite for ${invite.email}?`, [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Cancel Invite',
+          style: 'destructive',
+          onPress: async () => {
+            setActingInviteId(invite.id);
+            try {
+              await Team.cancelInvite(selectedTeamId, invite.id);
+              await loadTeam();
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : 'Failed to cancel invite';
+              Alert.alert('Unable to cancel invite', message);
+            } finally {
+              setActingInviteId(null);
+            }
           },
-        ]
-      );
+        },
+      ]);
     },
     [actingInviteId, loadTeam, selectedTeamId]
   );
 
   if (coachLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        edges={['top']}
+      >
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={theme.tint} />
         </View>
@@ -277,10 +286,14 @@ export default function TeamAdminScreen() {
           </View>
         ) : (
           <>
-            <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View
+              style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+            >
               <Text style={[styles.teamName, { color: theme.text }]}>{team?.name || 'Team'}</Text>
               <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                {[team?.sport, team?.season, team?.organization?.name].filter(Boolean).join('  |  ')}
+                {[team?.sport, team?.season, team?.organization?.name]
+                  .filter(Boolean)
+                  .join('  |  ')}
               </Text>
               {team?.description ? (
                 <Text style={[styles.metaBody, { color: theme.text }]}>{team.description}</Text>
@@ -297,7 +310,9 @@ export default function TeamAdminScreen() {
                       }
                       style={[styles.secondaryButton, { borderColor: theme.border }]}
                     >
-                      <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Public Page</Text>
+                      <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
+                        Public Page
+                      </Text>
                     </Pressable>
                     <Pressable
                       onPress={() =>
@@ -323,7 +338,9 @@ export default function TeamAdminScreen() {
                       }
                       style={[styles.secondaryButton, { borderColor: theme.border }]}
                     >
-                      <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Join Requests</Text>
+                      <Text style={[styles.secondaryButtonText, { color: theme.text }]}>
+                        Join Requests
+                      </Text>
                     </Pressable>
                   </>
                 ) : null}
@@ -357,7 +374,9 @@ export default function TeamAdminScreen() {
                       {tab.label}
                     </Text>
                     {badge > 0 ? (
-                      <Text style={[styles.tabCount, { color: selected ? '#fff' : theme.mutedText }]}>
+                      <Text
+                        style={[styles.tabCount, { color: selected ? '#fff' : theme.mutedText }]}
+                      >
                         {badge}
                       </Text>
                     ) : null}
@@ -367,24 +386,38 @@ export default function TeamAdminScreen() {
             </View>
 
             {activeTab === 'overview' ? (
-              <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Team Overview</Text>
                 <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                  {members.length} roster members  |  {staffMembers.length} staff  |  {games.length} scheduled games
+                  {members.length} roster members | {staffMembers.length} staff | {games.length}{' '}
+                  scheduled games
                 </Text>
                 {team?.organization?.name ? (
                   <Text style={[styles.metaBody, { color: theme.text }]}>
-                    This team belongs to {team.organization.name}. Back navigation from here returns to the organization Teams tab.
+                    This team belongs to {team.organization.name}. Back navigation from here returns
+                    to the organization Teams tab.
                   </Text>
                 ) : null}
               </View>
             ) : null}
 
             {activeTab === 'roster' ? (
-              <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Roster</Text>
                 {members.length === 0 ? (
-                  <Text style={[styles.metaText, { color: theme.mutedText }]}>No roster members yet.</Text>
+                  <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                    No roster members yet.
+                  </Text>
                 ) : (
                   members.map(member => (
                     <View key={member.id} style={[styles.row, { borderColor: theme.border }]}>
@@ -393,7 +426,8 @@ export default function TeamAdminScreen() {
                           {member.user?.display_name || member.user?.username || 'Member'}
                         </Text>
                         <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                          {roleLabel(member.role)}{member.position ? `  |  ${member.position}` : ''}
+                          {roleLabel(member.role)}
+                          {member.position ? `  |  ${member.position}` : ''}
                         </Text>
                       </View>
                     </View>
@@ -403,15 +437,24 @@ export default function TeamAdminScreen() {
             ) : null}
 
             {activeTab === 'schedule' ? (
-              <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Schedule</Text>
                 {games.length === 0 ? (
-                  <Text style={[styles.metaText, { color: theme.mutedText }]}>No scheduled games found for this team.</Text>
+                  <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                    No scheduled games found for this team.
+                  </Text>
                 ) : (
                   games.map(game => (
                     <Pressable
                       key={game.id}
-                      onPress={() => router.push({ pathname: '/game/[id]', params: { id: game.id } })}
+                      onPress={() =>
+                        router.push({ pathname: '/game/[id]', params: { id: game.id } })
+                      }
                       style={[styles.row, { borderColor: theme.border }]}
                     >
                       <View style={{ flex: 1 }}>
@@ -421,7 +464,8 @@ export default function TeamAdminScreen() {
                             : game.title || 'Game'}
                         </Text>
                         <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                          {formatDate(game.date)}{game.location ? `  |  ${game.location}` : ''}
+                          {formatDate(game.date)}
+                          {game.location ? `  |  ${game.location}` : ''}
                         </Text>
                       </View>
                       <MaterialIcons name="chevron-right" size={20} color={theme.mutedText} />
@@ -432,7 +476,12 @@ export default function TeamAdminScreen() {
             ) : null}
 
             {activeTab === 'staff' ? (
-              <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.sectionCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Invites and Staff</Text>
                 <Text style={[styles.metaText, { color: theme.mutedText }]}>
                   Staff management is shared between pending invites and active staff members.
@@ -448,21 +497,31 @@ export default function TeamAdminScreen() {
                       },
                     })
                   }
-                  style={[styles.primaryButton, { backgroundColor: theme.tint, alignSelf: 'flex-start' }]}
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: theme.tint, alignSelf: 'flex-start' },
+                  ]}
                 >
                   <Text style={styles.primaryButtonText}>Open Staff Manager</Text>
                 </Pressable>
                 <View style={styles.subsection}>
-                  <Text style={[styles.subsectionTitle, { color: theme.text }]}>Pending Invites</Text>
+                  <Text style={[styles.subsectionTitle, { color: theme.text }]}>
+                    Pending Invites
+                  </Text>
                   {pendingInvites.length === 0 ? (
-                    <Text style={[styles.metaText, { color: theme.mutedText }]}>No pending staff invites.</Text>
+                    <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                      No pending staff invites.
+                    </Text>
                   ) : (
                     pendingInvites.map(invite => (
                       <View key={invite.id} style={[styles.row, { borderColor: theme.border }]}>
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.rowTitle, { color: theme.text }]}>{invite.email}</Text>
+                          <Text style={[styles.rowTitle, { color: theme.text }]}>
+                            {invite.email}
+                          </Text>
                           <Text style={[styles.metaText, { color: theme.mutedText }]}>
-                            {roleLabel(invite.role)}{invite.created_at ? `  |  ${formatDate(invite.created_at)}` : ''}
+                            {roleLabel(invite.role)}
+                            {invite.created_at ? `  |  ${formatDate(invite.created_at)}` : ''}
                           </Text>
                         </View>
                         <Pressable
@@ -486,7 +545,9 @@ export default function TeamAdminScreen() {
                 <View style={styles.subsection}>
                   <Text style={[styles.subsectionTitle, { color: theme.text }]}>Active Staff</Text>
                   {staffMembers.length === 0 ? (
-                    <Text style={[styles.metaText, { color: theme.mutedText }]}>No staff members found.</Text>
+                    <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                      No staff members found.
+                    </Text>
                   ) : (
                     staffMembers.map(member => (
                       <View key={member.id} style={[styles.row, { borderColor: theme.border }]}>

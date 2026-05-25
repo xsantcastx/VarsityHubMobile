@@ -10,14 +10,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -113,7 +113,9 @@ export function UserConnectionListScreen({
       if (__DEV__) console.error('Follow/unfollow failed', followError);
       Alert.alert(
         'Error',
-        isFollowing ? 'Failed to unfollow. Please try again.' : 'Failed to follow. Please try again.'
+        isFollowing
+          ? 'Failed to unfollow. Please try again.'
+          : 'Failed to follow. Please try again.'
       );
     } finally {
       setFollowLoading(null);
@@ -208,7 +210,9 @@ export function UserConnectionListScreen({
                 <ActivityIndicator />
               ) : loadMoreError ? (
                 <View style={styles.loadMoreError}>
-                  <Text style={[styles.loadMoreErrorText, { color: Colors[colorScheme].mutedText }]}>
+                  <Text
+                    style={[styles.loadMoreErrorText, { color: Colors[colorScheme].mutedText }]}
+                  >
                     Failed to load more.
                   </Text>
                   <TouchableOpacity
@@ -217,7 +221,9 @@ export function UserConnectionListScreen({
                       if (nextCursor) void loadUsers(nextCursor);
                     }}
                   >
-                    <Text style={[styles.retryText, { color: Colors[colorScheme].tint }]}>Retry</Text>
+                    <Text style={[styles.retryText, { color: Colors[colorScheme].tint }]}>
+                      Retry
+                    </Text>
                   </TouchableOpacity>
                 </View>
               ) : null
@@ -225,17 +231,11 @@ export function UserConnectionListScreen({
             ListEmptyComponent={
               !loading ? (
                 <View style={styles.emptyContainer}>
-                  <MaterialIcons
-                    name={emptyIcon}
-                    size={48}
-                    color={Colors[colorScheme].mutedText}
-                  />
+                  <MaterialIcons name={emptyIcon} size={48} color={Colors[colorScheme].mutedText} />
                   <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
                     {emptyTitle}
                   </Text>
-                  <Text
-                    style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}
-                  >
+                  <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
                     {emptySubtitle}
                   </Text>
                 </View>

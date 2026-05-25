@@ -3,29 +3,29 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import {
-    approveEvent as approveEventService,
-    rejectEvent as rejectEventService,
+  approveEvent as approveEventService,
+  rejectEvent as rejectEventService,
 } from '../lib/approvalService.js';
 import {
-    sendEventCanceledEmail,
-    sendEventRsvpConfirmedEmail,
-    sendEventSubmissionReceivedEmail,
-    sendEventUpdatedEmail,
+  sendEventCanceledEmail,
+  sendEventRsvpConfirmedEmail,
+  sendEventSubmissionReceivedEmail,
+  sendEventUpdatedEmail,
 } from '../lib/email.js';
 import { notifyPendingEventReviewers } from '../lib/eventReviewNotifications.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { geocodeLocation } from '../lib/geocoding.js';
 import {
-    cancelGameReminders,
-    scheduleGameReminders,
-    sendPushNotification,
+  cancelGameReminders,
+  scheduleGameReminders,
+  sendPushNotification,
 } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { consumeReviewToken, verifyReviewToken } from '../lib/reviewTokens.js';
 import { mustSucceed } from '../lib/sideEffect.js';
 import {
-    canManageAnyTeam,
-    canManageTeam as canManageTeamScoped,
+  canManageAnyTeam,
+  canManageTeam as canManageTeamScoped,
 } from '../lib/teamAuthorization.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -163,12 +163,20 @@ async function handleEventTokenReview(req: AuthedRequest, res: any, action: 'app
   }
   if (event.approval_status === 'approved') {
     return res.send(
-      renderEventResultPage('Already Approved', `${event.title || 'This event'} was already approved.`, true)
+      renderEventResultPage(
+        'Already Approved',
+        `${event.title || 'This event'} was already approved.`,
+        true
+      )
     );
   }
   if (event.approval_status === 'rejected') {
     return res.send(
-      renderEventResultPage('Already Rejected', `${event.title || 'This event'} was already rejected.`, true)
+      renderEventResultPage(
+        'Already Rejected',
+        `${event.title || 'This event'} was already rejected.`,
+        true
+      )
     );
   }
 
@@ -1129,10 +1137,7 @@ eventsRouter.post(
           eventTitle: event.title,
           needsApproval: !autoApprove,
         }).catch(err =>
-          console.warn(
-            '[events] submission receipt email failed:',
-            (err as any)?.message || err
-          )
+          console.warn('[events] submission receipt email failed:', (err as any)?.message || err)
         );
       }
 

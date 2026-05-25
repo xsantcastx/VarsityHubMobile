@@ -93,14 +93,10 @@ type BuildTeamSerializeSelectOptions = {
   includeMembershipsForUserId?: string | null;
 };
 
-export function buildTeamSerializeSelect(
-  opts: BuildTeamSerializeSelectOptions = {},
-) {
+export function buildTeamSerializeSelect(opts: BuildTeamSerializeSelectOptions = {}) {
   return {
     ...TEAM_SERIALIZE_SAFE_SELECT,
-    ...(opts.includeCounts
-      ? { _count: { select: { memberships: true, followers: true } } }
-      : {}),
+    ...(opts.includeCounts ? { _count: { select: { memberships: true, followers: true } } } : {}),
     ...(opts.includeOrganization
       ? {
           organization: {
