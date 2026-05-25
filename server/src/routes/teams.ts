@@ -1184,7 +1184,7 @@ teamsRouter.get(
 // Create team (auth required). Creator becomes owner.
 const createSchema = z.object({
   name: z.string().trim().min(2).max(100),
-  description: z.string().trim().optional(),
+  description: z.string().trim().max(1000).optional(),
   organization_id: z.string().min(1, 'Organization is required'),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
@@ -1444,7 +1444,7 @@ async function createTeamWithGuardrails(userId: string, data: TeamCreatePayload)
           data: {
             name: stripHtml(data.name.trim()),
             description: data.description ? stripHtml(data.description.trim()) : null,
-            sport: data.sport?.trim() || null,
+            sport: data.sport ? stripHtml(data.sport.trim()) : null,
             club_type: data.club_type || 'sport',
             extracurricular_category: data.extracurricular_category?.trim() || null,
             season: data.season?.trim() || null,
@@ -1607,17 +1607,36 @@ const logoUrlString = z.union([
     .or(z.string()),
   z.literal(''),
 ]);
+const TEAM_LOGO_URL_VALIDATOR = z
+  .string()
+  .url({ message: 'logo_url must be a valid URL' })
+  .refine(
+    url => {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'https:') return false;
+        const allowed = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+        return allowed.some(d => parsed.hostname.endsWith(d));
+      } catch {
+        return false;
+      }
+    },
+    { message: 'logo_url must be an HTTPS Cloudinary or VarsityHub CDN URL' }
+  )
+  .optional()
+  .or(z.literal(''));
+
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
-  description: z.string().trim().optional(),
-  sport: z.string().trim().optional(),
+  description: z.string().trim().max(1000).optional(),
+  sport: z.string().trim().max(100).optional(),
   season: z.string().trim().optional(),
   // v1.0.2: season dates are now editable after team creation.
   // Previously missing from updateSchema so coaches were stuck with the initial dates.
   season_start: z.string().optional().nullable(),
   season_end: z.string().optional().nullable(),
   organization_id: z.string().optional(),
-  logo_url: z.string().optional().or(z.literal('')),
+  logo_url: TEAM_LOGO_URL_VALIDATOR,
   city: z.string().max(100).optional(),
   state: z.string().max(100).optional(),
   league: z.string().max(100).optional(),
@@ -1671,7 +1690,7 @@ teamsRouter.put(
         ? stripHtml(parsed.data.description)
         : parsed.data.description;
     }
-    if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
+    if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport ? stripHtml(parsed.data.sport) : null;
     if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
     // v1.0.2: season date edits
     if (parsed.data.season_start !== undefined) {
@@ -1913,7 +1932,7 @@ const createTeamSchema = z.object({
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
   organization_name: z.string().max(255).optional(),
-  logo_url: z.string().optional(),
+  logo_url: TEAM_LOGO_URL_VALIDATOR,
   city: z.string().max(100).optional(),
   state: z.string().max(100).optional(),
   league: z.string().max(100).optional(),
