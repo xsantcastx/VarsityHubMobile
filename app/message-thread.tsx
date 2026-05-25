@@ -1,36 +1,35 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Image } from 'expo-image';
 import { useIsFocused } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  AppState,
-  type AppStateStatus,
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    AppState,
+    type AppStateStatus,
+    FlatList,
+    Keyboard,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
+import SwipeBackContainer from '@/components/SwipeBackContainer';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getAuthSnapshot } from '@/utils/authState';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
+import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { formatUserLabel } from '@/utils/userDisplay';
-import SwipeBackContainer from '@/components/SwipeBackContainer';
-import { safeGoBack } from '@/utils/navigation';
 
 type MiniUser = {
   id: string;
@@ -265,10 +264,18 @@ function MessageThreadScreen() {
       // Replace optimistic message with real one; clear input only on success
       setMsgs(arr => arr.filter(m => m.id !== optimisticMsg.id).concat(created));
       setText('');
-    } catch {
+    } catch (err: any) {
       // Remove optimistic message on failure; preserve text so user can retry
       setMsgs(arr => arr.filter(m => m.id !== optimisticMsg.id));
-      Alert.alert('Send Failed', 'Your message could not be sent. Please try again.');
+      const code = err?.data?.code as string | undefined;
+      const msg =
+        code === 'MESSAGE_BLOCKED'      ? "You can't message this person." :
+        code === 'DM_RESTRICTED'        ? 'This user has restricted their messages.' :
+        code === 'USER_BANNED'          ? 'This account is currently unavailable.' :
+        code === 'ORG_ACCOUNT'          ? "You can't directly message organization accounts." :
+        code === 'AGE_POLICY_BLOCKED'   ? 'This conversation is not available due to age policy.' :
+                                          'Your message could not be sent. Please try again.';
+      Alert.alert('Send Failed', msg);
     } finally {
       setSending(false);
     }

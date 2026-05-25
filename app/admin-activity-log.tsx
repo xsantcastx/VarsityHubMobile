@@ -1,13 +1,13 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
+import { safeGoBack } from '@/utils/navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { safeGoBack } from '@/utils/navigation';
-import { getApiBaseUrl } from '../api/http';
+
 
 interface ActivityLogItem {
   id: string;
@@ -25,38 +25,65 @@ function AdminActivityLogScreen() {
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<ActivityLogItem[]>([]);
-  const [filter, setFilter] = useState('all'); // all, user, team, ad, post
+  const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
+  // Debounce search input — only fire API after 400ms idle
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [searchQuery]);
+
+  // Reset to page 1 when filter or debounced query changes
+  useEffect(() => {
+    setPage(1);
+    setItems([]);
+  }, [filter, debouncedQuery]);
+
+  const load = useCallback(async (pageToLoad = 1, append = false) => {
     if (!isAdmin) return;
-    setLoading(true);
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError(null);
     
     try {
-      const _token = await (await import('@/api/auth')).loadToken();
-      const _apiUrl = getApiBaseUrl();
-
       const params = new URLSearchParams();
       if (filter !== 'all') params.append('type', filter);
-      if (searchQuery) params.append('q', searchQuery);
+      if (debouncedQuery) params.append('q', debouncedQuery);
+      params.append('page', String(pageToLoad));
+      params.append('limit', '50');
       
-      // Use API client instead of direct fetch
       const { httpGet } = await import('@/api/http');
       const data = await httpGet(`/admin/activity-log?${params}`);
-      setItems(Array.isArray(data?.activities) ? data.activities : Array.isArray(data) ? data : []);
+      const fetched = Array.isArray(data?.activities) ? data.activities : Array.isArray(data) ? data : [];
+      setItems(prev => append ? [...prev, ...fetched] : fetched);
+      setHasMore(fetched.length === 50);
     } catch (e: any) {
       setError(e?.message || 'Failed to load activity log');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [filter, isAdmin, searchQuery]);
+  }, [filter, isAdmin, debouncedQuery]);
 
   useEffect(() => {
-    void load();
+    void load(1, false);
   }, [load]);
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    const next = page + 1;
+    setPage(next);
+    void load(next, true);
+  }, [hasMore, load, loadingMore, page]);
 
   const getActionColor = (action: string) => {
     if (action.includes('ban') || action.includes('delete')) return '#EF4444';
@@ -230,6 +257,15 @@ function AdminActivityLogScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                <ActivityIndicator color={Colors[colorScheme].tint} />
+              </View>
+            ) : null
+          }
         />
       )}
     </SafeAreaView>

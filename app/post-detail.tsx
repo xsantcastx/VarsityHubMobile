@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     Dimensions,
     FlatList,
@@ -139,6 +140,8 @@ export default function PostDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
+  const [commentsNextCursor, setCommentsNextCursor] = useState<string | null>(null);
+  const [loadingMoreComments, setLoadingMoreComments] = useState(false);
   const [postsById, setPostsById] = useState<Record<string, any>>({});
   const [commentsById, setCommentsById] = useState<Record<string, any[]>>({});
   const [error, setError] = useState<string | null>(null);
@@ -373,6 +376,7 @@ export default function PostDetailScreen() {
               commentsArray = c;
             } else if (c && Array.isArray(c.items)) {
               commentsArray = c.items;
+              setCommentsNextCursor(c.nextCursor ?? null);
             }
             setComments(commentsArray);
             if (targetId) {
@@ -419,6 +423,7 @@ export default function PostDetailScreen() {
           commentsArray = c;
         } else if (c && Array.isArray(c.items)) {
           commentsArray = c.items;
+          setCommentsNextCursor(c.nextCursor ?? null);
         }
         setComments(commentsArray);
         if (targetId) {
@@ -1487,6 +1492,34 @@ export default function PostDetailScreen() {
                   </Text>
                 </View>
               ))}
+              {isActivePost && commentsNextCursor && (
+                <Pressable
+                  style={{ paddingVertical: 12, alignItems: 'center' }}
+                  onPress={async () => {
+                    if (loadingMoreComments || !commentsNextCursor) return;
+                    setLoadingMoreComments(true);
+                    try {
+                      const more = await PostApi.comments(postData.id, { cursor: commentsNextCursor });
+                      const moreItems = Array.isArray(more) ? more : (more?.items ?? []);
+                      setComments(prev => [...prev, ...moreItems]);
+                      setCommentsNextCursor(more?.nextCursor ?? null);
+                    } catch {
+                      // silently ignore — user can retry by tapping again
+                    } finally {
+                      setLoadingMoreComments(false);
+                    }
+                  }}
+                  disabled={loadingMoreComments}
+                >
+                  {loadingMoreComments ? (
+                    <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+                  ) : (
+                    <Text style={{ color: Colors[colorScheme].tint, fontSize: 14 }}>
+                      Load more comments
+                    </Text>
+                  )}
+                </Pressable>
+              )}
             </View>
           )}
         </View>

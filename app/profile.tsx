@@ -7,25 +7,25 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { calculateContrastRatio } from '@/utils/accessibility';
 import events from '@/utils/events';
 import { resolveMediaType, resolvePostMedia } from '@/utils/media';
+import { safeGoBack } from '@/utils/navigation';
 import { getCoachAccessState } from '@/utils/roleChecks';
 import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { safeGoBack } from '@/utils/navigation';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
@@ -368,7 +368,16 @@ export default function ProfileScreen() {
         let u: any;
         // If viewing another user's profile
         if (viewingUserId && viewingUserId !== currentUser?.id) {
-          u = await User.getPublic(viewingUserId);
+          const raw = await User.getPublic(viewingUserId);
+          // Normalize flat followers_count / following_count → _count shape
+          if (raw && !raw._count && (raw.followers_count != null || raw.following_count != null)) {
+            raw._count = {
+              followers: raw.followers_count ?? 0,
+              following: raw.following_count ?? 0,
+              posts: raw.posts_count ?? 0,
+            };
+          }
+          u = raw;
           if (u) {
             setIsFollowing(u.is_following || false);
           }

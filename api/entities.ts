@@ -1,46 +1,46 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth, { invalidateMeCache } from './auth';
 import {
-  httpDelete,
-  httpGet,
-  httpPatch,
-  httpPost,
-  httpPostLongTimeout,
-  httpPostWithOptions,
-  httpPut,
+    httpDelete,
+    httpGet,
+    httpPatch,
+    httpPost,
+    httpPostLongTimeout,
+    httpPostWithOptions,
+    httpPut,
 } from './http';
 import { validateAuthenticatedUser, validateOnboardingCompletion } from './schemas/auth';
 import {
-  validateEvent,
-  validateEventArray,
-  validateEventRsvpArray,
-  validateEventSummaryArray,
+    validateEvent,
+    validateEventArray,
+    validateEventRsvpArray,
+    validateEventSummaryArray,
 } from './schemas/event';
 import {
-  validateOrganization,
-  validateOrganizationAdminSummary,
-  validateOrganizationArray,
-  validateOrganizationReviewSummaryArray,
+    validateOrganization,
+    validateOrganizationAdminSummary,
+    validateOrganizationArray,
+    validateOrganizationReviewSummaryArray,
 } from './schemas/organization';
 import {
-  validateFollowedTeamArray,
-  validateTeam,
-  validateTeamAdminSummary,
-  validateTeamArray,
-  validateTeamScreenSummary,
+    validateFollowedTeamArray,
+    validateTeam,
+    validateTeamAdminSummary,
+    validateTeamArray,
+    validateTeamScreenSummary,
 } from './schemas/team';
 import type {
-  CompleteOnboardingPayload,
-  CreateAdPayload,
-  CreateEventPayload,
-  CreateGamePayload,
-  CreatePostPayload,
-  UpdateAdPayload,
-  UpdateEventPayload,
-  UpdateGamePayload,
-  UpdateMePayload,
-  UpdatePostPayload,
-  UpdatePreferencesPayload,
+    CompleteOnboardingPayload,
+    CreateAdPayload,
+    CreateEventPayload,
+    CreateGamePayload,
+    CreatePostPayload,
+    UpdateAdPayload,
+    UpdateEventPayload,
+    UpdateGamePayload,
+    UpdateMePayload,
+    UpdatePostPayload,
+    UpdatePreferencesPayload,
 } from './types';
 
 export const User = {
@@ -454,7 +454,13 @@ export const Post = {
   },
   createCollage: (data: CreatePostPayload) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
-  comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
+  comments: (id: string, options: { limit?: number; cursor?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', String(options.limit));
+    if (options.cursor) params.append('cursor', options.cursor);
+    const qs = params.toString();
+    return httpGet(`/posts/${encodeURIComponent(id)}/comments${qs ? '?' + qs : ''}`);
+  },
   addComment: (id: string, content: string, parentId?: string) =>
     httpPost(`/posts/${encodeURIComponent(id)}/comments`, {
       content,

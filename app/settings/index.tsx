@@ -265,6 +265,7 @@ export default function SettingsScreen() {
 
     // Use functional update to get the latest state
     setPrefs(cur => {
+      const prevPrefs = cur; // capture snapshot for revert on server error
       const newPrefs = {
         ...cur,
         ...patch,
@@ -287,6 +288,7 @@ export default function SettingsScreen() {
         } catch (e: any) {
           if (__DEV__) console.error('[settings] Failed to update preferences:', e);
           Alert.alert('Update failed', 'Could not save your preference. Please try again.');
+          setPrefs(prevPrefs); // revert optimistic update
         }
       }, 300);
 
