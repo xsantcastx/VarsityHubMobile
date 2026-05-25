@@ -1,6 +1,7 @@
 import { OrganizationRole } from '@prisma/client';
 import escapeHtml from 'escape-html';
 import { Response, Router } from 'express';
+import { sendError } from '../lib/http/sendError.js';
 import { z } from 'zod';
 import { stripHtml } from '../lib/sanitizeHtml.js';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
@@ -282,6 +283,7 @@ async function handleOrganizationCreateRequest(
       });
       // cache-invalidation-exempt — invalidateMeCacheForUser(userId) called after $transaction
       await tx.user.update({
+        where: { id: userId },
         data: {
           preferences: buildPendingLeagueOwnerPreferences(applicantPrefs, {
             id: org.id,

@@ -1931,7 +1931,7 @@ authRouter.post(
         getCanonicalOrganizationId(user as any),
         user.id
       );
-      const flowState = getCoachFlowState(user as any, latestApplication, joinRequest);
+      const flowState = getCoachFlowState(user as any, latestApplication);
       const approvalStatus = String(user.approval_status || '').toUpperCase();
       const code =
         approvalStatus === 'APPROVED'
@@ -2583,8 +2583,7 @@ authRouter.get(
         coach_agreement_accepted_at: (safe as any).coach_agreement_accepted_at,
         coach_agreement_version: (safe as any).coach_agreement_version,
       } as any,
-      coachApplication,
-      joinRequest
+      coachApplication
     );
     const payload = {
       ...safe,

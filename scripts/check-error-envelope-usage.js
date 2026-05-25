@@ -13,6 +13,38 @@ if (!baseSha) {
 const exemptToken = 'error-envelope-exempt';
 const allowedPaths = new Set(['server/src/lib/http/sendError.ts']);
 
+// Cache of base-SHA file contents to detect reformatted (pre-existing) violations
+const baseFileCache = new Map();
+function getBaseFileContent(filePath) {
+  if (baseFileCache.has(filePath)) return baseFileCache.get(filePath);
+  try {
+    const content = execFileSync('git', ['show', `${baseSha}:${filePath}`], { encoding: 'utf8' });
+    baseFileCache.set(filePath, content);
+    return content;
+  } catch {
+    baseFileCache.set(filePath, null);
+    return null;
+  }
+}
+
+function isDiffOnlyReformat(filePath, snippet) {
+  const baseContent = getBaseFileContent(filePath);
+  if (!baseContent) return false;
+  // Normalize whitespace for comparison: collapse all whitespace runs to single space
+  const normalize = s => s.replace(/\s+/g, ' ').trim();
+  const normalized = normalize(snippet);
+  // Check if the same normalized snippet exists anywhere in the base file
+  const baseNormalized = normalize(baseContent);
+  if (baseNormalized.includes(normalized)) return true;
+  // Fallback: check if all meaningful tokens from the snippet exist in the base
+  // (handles prettier adding/removing trailing commas which changes normalized form)
+  const errorMatch = snippet.match(/error\s*:\s*['"`]([^'"`]+)['"`]/);
+  if (errorMatch) {
+    return baseContent.includes(errorMatch[1]);
+  }
+  return false;
+}
+
 function getDiff() {
   const args = ['diff', '--unified=0', '--no-color', baseSha];
   if (headSha !== 'WORKTREE') {
@@ -38,6 +70,9 @@ function maybeRecordViolation(state, findings) {
   if (!/res(?:\.status\([^)]*\))?\.json\s*\(/.test(snippet)) return;
   if (!/\berror\s*:/.test(snippet)) return;
   if (/\bsendError\s*\(/.test(snippet)) return;
+
+  // Skip violations that are pre-existing in the base SHA (only whitespace/formatting changed)
+  if (isDiffOnlyReformat(state.currentFile, snippet)) return;
 
   findings.push({
     file: state.currentFile,
