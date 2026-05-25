@@ -979,10 +979,11 @@ gamesRouter.post(
 
       // Require team association for non-admin users
       if (!parsed.data.home_team_id && !parsed.data.away_team_id && !isAdmin) {
-        return res.status(400).json({
-          error:
-            'A home_team_id or away_team_id is required. Games must be associated with a team.',
-        });
+        return sendError(
+          res,
+          400,
+          'A home_team_id or away_team_id is required. Games must be associated with a team.'
+        );
       }
 
       if (!isAdmin) {

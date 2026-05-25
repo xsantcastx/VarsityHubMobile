@@ -3564,8 +3564,7 @@ authRouter.post(
         // path-specific message instead of a generic 400. Previously users
         // hitting this branch (e.g. via a deep-link that skipped step-3) saw
         // "Failed to complete onboarding" with no direction.
-        return res.status(400).json({
-          error: 'Team or organization required for coach onboarding',
+        return sendError(res, 400, 'Team or organization required for coach onboarding', {
           code: 'ORG_TEAM_REQUIRED',
         });
       }

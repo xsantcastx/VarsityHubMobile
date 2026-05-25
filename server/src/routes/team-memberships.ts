@@ -61,8 +61,7 @@ teamMembershipsRouter.post(
 
       const canManage = await canManageTeam(req, String(team_id));
       if (!canManage) {
-        return res.status(403).json({
-          error: 'PERMISSION_DENIED',
+        return sendError(res, 403, 'PERMISSION_DENIED', {
           message: 'Only team staff or organization admins can add members to teams.',
         });
       }
@@ -156,8 +155,7 @@ teamMembershipsRouter.patch(
 
       const canManage = await canManageTeam(req, membership.team_id);
       if (!canManage) {
-        return res.status(403).json({
-          error: 'PERMISSION_DENIED',
+        return sendError(res, 403, 'PERMISSION_DENIED', {
           message: 'Only team staff or organization admins can update roles.',
         });
       }
@@ -247,8 +245,7 @@ teamMembershipsRouter.delete(
       const canManage = await canManageTeam(req, membership.team_id);
       const isSelf = req.user.id === membership.user_id;
       if (!canManage && !isSelf) {
-        return res.status(403).json({
-          error: 'PERMISSION_DENIED',
+        return sendError(res, 403, 'PERMISSION_DENIED', {
           message: 'Only team staff or organization admins can remove members.',
         });
       }
@@ -259,8 +256,7 @@ teamMembershipsRouter.delete(
           where: { team_id: membership.team_id, role: 'owner' },
         });
         if (ownerCount <= 1) {
-          return res.status(400).json({
-            error: 'SOLE_OWNER',
+          return sendError(res, 400, 'SOLE_OWNER', {
             message: 'Cannot remove the only owner. Transfer ownership to another member first.',
           });
         }
