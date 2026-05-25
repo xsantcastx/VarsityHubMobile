@@ -1,8 +1,8 @@
 import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
+import ExpandableText from '@/components/ExpandableText';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
-import ExpandableText from '@/components/ExpandableText';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { NavigationHistoryContext } from '@/context/NavigationHistoryContext';
@@ -11,12 +11,12 @@ import { useUser } from '@/hooks/useUser';
 import { calculateContrastRatio } from '@/utils/accessibility';
 import { getAuthSnapshot, getCanonicalRole, isApprovedCoach } from '@/utils/authState';
 import events from '@/utils/events';
+import { goBackToTrackedRoute } from '@/utils/navigation';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { getGradientForColor } from '@/utils/theme';
+import { showUploadErrorAlert } from '@/utils/uploadErrorAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { goBackToTrackedRoute } from '@/utils/navigation';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,16 +24,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useUnstableGlobalHref } from 'expo-router';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    FlatList,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from '../../../game-details/GameVerticalFeedScreen';
@@ -139,6 +140,7 @@ export default function ProfileScreen() {
   const { user: userFromHook, refresh: refreshUserFromHook } = useUser(false); // Get user from hook but don't auto-load
   const { user: userFromAuth, checkAuth } = useAuth(); // Get user from AuthProvider
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const hasLoadedOnce = useRef(false);
@@ -520,6 +522,15 @@ export default function ProfileScreen() {
     },
     [activeTab, checkAuth, refreshPosts, refreshReplies, refreshUpvotes, userFromAuth, userFromHook, viewingUserId]
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadProfile({ silent: true });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadProfile]);
 
   // Initial load on mount - only once
   useEffect(() => {
@@ -1477,6 +1488,7 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item, index }) => {
             const thumb = item.media_url;
             const isVideo = !!thumb && VIDEO_EXT.test(thumb);
@@ -1600,6 +1612,7 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedReplies}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;
@@ -1724,6 +1737,7 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedUpvotes}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item, index }) => {
             const postItem = unwrapPost(item);
             const thumb = postItem?.media_url;

@@ -10,14 +10,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,6 +38,7 @@ export function UserConnectionListScreen({
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -66,6 +67,7 @@ export function UserConnectionListScreen({
       }
 
       if (!cursor) setError(null);
+      setLoadMoreError(false);
       setLoading(true);
       try {
         const response =
@@ -79,6 +81,8 @@ export function UserConnectionListScreen({
         if (__DEV__) console.error(`Failed to load ${mode}`, loadError);
         if (!cursor) {
           setError(`Failed to load ${mode}. Pull down to refresh.`);
+        } else {
+          setLoadMoreError(true);
         }
       } finally {
         setLoading(false);
@@ -194,12 +198,30 @@ export function UserConnectionListScreen({
             )}
             keyExtractor={item => item.id}
             onEndReached={() => {
-              if (nextCursor) {
+              if (nextCursor && !loadMoreError) {
                 void loadUsers(nextCursor);
               }
             }}
             onEndReachedThreshold={0.5}
-            ListFooterComponent={loading ? <ActivityIndicator /> : null}
+            ListFooterComponent={
+              loading ? (
+                <ActivityIndicator />
+              ) : loadMoreError ? (
+                <View style={styles.loadMoreError}>
+                  <Text style={[styles.loadMoreErrorText, { color: Colors[colorScheme].mutedText }]}>
+                    Failed to load more.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setLoadMoreError(false);
+                      if (nextCursor) void loadUsers(nextCursor);
+                    }}
+                  >
+                    <Text style={[styles.retryText, { color: Colors[colorScheme].tint }]}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null
+            }
             ListEmptyComponent={
               !loading ? (
                 <View style={styles.emptyContainer}>
@@ -261,6 +283,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: '#fff', fontWeight: '600' },
+  loadMoreError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  loadMoreErrorText: { fontSize: 14 },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, type AppStateStatus, FlatList, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
@@ -53,6 +53,7 @@ function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const { user: authUser, checkAuth } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<MiniUser | null>(null);
   const [messages, setMessages] = useState<UIMsg[]>([]);
@@ -131,6 +132,22 @@ function MessagesScreen() {
       setLoading(false);
     }
   }, [authUser, checkAuth]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
+        ? Message.list('-created_at', 50)
+        : Message.filter({}, '-created_at'));
+      if (result && !('_isNotModified' in result)) {
+        setMessages(Array.isArray(result) ? result : []);
+      }
+    } catch {
+      // Silently ignore pull-to-refresh errors; existing data stays visible
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -486,6 +503,9 @@ function MessagesScreen() {
             keyExtractor={(item) => item.id}
             renderItem={renderConversation}
             contentContainerStyle={{ paddingBottom: 80 }}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
           />
         )}
       </View>
