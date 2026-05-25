@@ -1,5 +1,5 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { safeGoBack } from '@/utils/navigation';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,27 +11,27 @@ import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { PromptPresets } from '@/components/RotatingPrompts';
 import { MentionInput } from '@/components/ui/MentionInput';
 
+import SwipeBackContainer from '@/components/SwipeBackContainer';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoTrimmer from '@/components/VideoTrimmer';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
+import { usePostCache } from '@/context/PostCacheContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
-import SwipeBackContainer from '@/components/SwipeBackContainer';
+import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 import { getAuthSnapshot } from '@/utils/authState';
-import { pickerMediaTypeFor } from '@/utils/picker';
+import { compressVideoSafe } from '@/utils/compressVideo';
 import { sanitizeText } from '@/utils/formUtils';
-import { usePostCache } from '@/context/PostCacheContext';
+import { ICLOUD_ERROR_MESSAGE, ICLOUD_ERROR_TITLE, isICloudError } from '@/utils/isICloudError';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
 let VideoThumbnails: any = null;
 try { VideoThumbnails = require('expo-video-thumbnails'); } catch { /* native module not available */ }
-import { compressVideoSafe } from '@/utils/compressVideo';
-import { isICloudError, ICLOUD_ERROR_TITLE, ICLOUD_ERROR_MESSAGE } from '@/utils/isICloudError';
-import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
 
 // Retry thumbnail generation at multiple timestamps
 const generateVideoThumbnail = async (videoUri: string, setVideoThumbnailUri: (uri: string) => void) => {
@@ -842,6 +842,13 @@ function CreatePostScreen() {
               'This game has no event with location data. Only team members can post to this game.',
             );
             setError('Only team members can post to games without event location data.');
+          } else if (e?.data?.code === 'COACH_REQUIRED') {
+            Alert.alert(
+              'Coaches Only',
+              'Only coaches and team staff can create posts. Complete your coach onboarding to unlock this feature.',
+              [{ text: 'OK', style: 'cancel' }],
+            );
+            setError('Only coaches and team staff can create posts.');
           } else {
             setError(e?.data?.error || e?.data?.message || 'You do not have permission to post to this event.');
           }
