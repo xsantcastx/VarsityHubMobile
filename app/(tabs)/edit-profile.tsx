@@ -4,27 +4,28 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View, Animated, PanResponder, Platform } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Linking, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getApiBaseUrl } from '@/api/http';
-import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
-import {
-  BIO_MAX_LENGTH,
-  DISPLAY_NAME_MAX_LENGTH,
-  sanitizeText,
-  validateBio,
-  validateDisplayName,
-  validateYear,
-  validateZipCode,
-} from '@/utils/formUtils';
-import { safeGoBack } from '@/utils/navigation';
 import { analytics, ANALYTICS_EVENTS } from '@/utils/analytics';
+import {
+    BIO_MAX_LENGTH,
+    DISPLAY_NAME_MAX_LENGTH,
+    sanitizeText,
+    validateBio,
+    validateDisplayName,
+    validateYear,
+    validateZipCode,
+} from '@/utils/formUtils';
+import { materializeICloudAssetIfNeeded } from '@/utils/materializeICloudAsset';
+import { safeGoBack } from '@/utils/navigation';
+import { THEME_COLOR_GRADIENTS, getThemeColorName } from '@/utils/theme';
 
 // Field validation errors
 interface FieldErrors {
@@ -39,14 +40,11 @@ const SPORTS_OPTIONS = [
   'Track & Field', 'Swimming', 'Hockey', 'Tennis', 'Golf', 'Wrestling', 'Other'
 ];
 
-const THEME_COLORS = [
-  { name: 'VarsityHub Blue', value: '#3B82F6', gradient: ['#1e3a8a', '#3b82f6', '#60a5fa'] },
-  { name: 'Championship Red', value: '#DC2626', gradient: ['#7f1d1d', '#dc2626', '#ef4444'] },
-  { name: 'Victory Green', value: '#10B981', gradient: ['#065f46', '#10b981', '#34d399'] },
-  { name: 'Gold Medal', value: '#F59E0B', gradient: ['#78350f', '#f59e0b', '#fbbf24'] },
-  { name: 'Royal Purple', value: '#8B5CF6', gradient: ['#4c1d95', '#8b5cf6', '#a78bfa'] },
-  { name: 'Classic Gray', value: '#6B7280', gradient: ['#1f2937', '#6b7280', '#9ca3af'] }, // audit: intentional theme preset gradient
-];
+const THEME_COLORS = Object.entries(THEME_COLOR_GRADIENTS).map(([value, gradient]) => ({
+  name: getThemeColorName(value),
+  value,
+  gradient,
+}));
 
 export default function EditProfileScreen() {
   const router = useRouter();
