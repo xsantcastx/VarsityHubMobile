@@ -987,7 +987,7 @@ function TeamScreen() {
             </View>
           )}
 
-          {/* Organization Link Button - white bg, black text */}
+          {/* Organization Link Button */}
           <Pressable
             style={[styles.orgButton, { borderColor: theme.border, backgroundColor: '#fff' }]}
             onPress={() => {

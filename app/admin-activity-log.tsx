@@ -22,6 +22,7 @@ interface ActivityLogItem {
 
 function AdminActivityLogScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const palette = Colors[colorScheme];
   const router = useRouter();
   const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
@@ -110,10 +111,10 @@ function AdminActivityLogScreen() {
         {
           backgroundColor: filter === value
             ? (colorScheme === 'dark' ? '#3B82F6' : '#3B82F6')
-            : (colorScheme === 'dark' ? '#1F2937' : '#F3F4F6'),
+            : palette.surface,
           borderColor: filter === value
             ? '#3B82F6'
-            : (colorScheme === 'dark' ? '#374151' : '#D1D5DB'),
+            : palette.border,
         },
       ]}
       onPress={() => setFilter(value)}
@@ -124,7 +125,7 @@ function AdminActivityLogScreen() {
           {
             color: filter === value
               ? 'white'
-              : (colorScheme === 'dark' ? '#ECEDEE' : '#111827'),
+              : palette.text,
           },
         ]}
       >
@@ -138,8 +139,8 @@ function AdminActivityLogScreen() {
       style={[
         styles.logItem,
         {
-          backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-          borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+          backgroundColor: palette.card,
+          borderColor: palette.border,
         },
       ]}
     >
@@ -148,27 +149,27 @@ function AdminActivityLogScreen() {
           <MaterialIcons name={getActionIcon(item.target_type) as any} size={20} color={getActionColor(item.action)} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.logAction, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+          <Text style={[styles.logAction, { color: palette.text }]}>
             {item.action}
           </Text>
-          <Text style={[styles.logAdmin, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+          <Text style={[styles.logAdmin, { color: palette.mutedText }]}>
             by {item.admin_email}
           </Text>
         </View>
-        <Text style={[styles.logTime, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+        <Text style={[styles.logTime, { color: palette.mutedText }]}>
           {new Date(item.timestamp).toLocaleTimeString()}
         </Text>
       </View>
-      <Text style={[styles.logDesc, { color: colorScheme === 'dark' ? '#D1D5DB' : '#374151' }]}>
+      <Text style={[styles.logDesc, { color: palette.mutedText }]}>
         {item.description}
       </Text>
       <View style={styles.logMeta}>
-        <View style={[styles.badge, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6' }]}>
-          <Text style={[styles.badgeText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+        <View style={[styles.badge, { backgroundColor: palette.surface }]}>
+          <Text style={[styles.badgeText, { color: palette.mutedText }]}>
             {item.target_type.toUpperCase()}
           </Text>
         </View>
-        <Text style={[styles.logDate, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+        <Text style={[styles.logDate, { color: palette.mutedText }]}>
           {new Date(item.timestamp).toLocaleDateString()}
         </Text>
       </View>
@@ -200,7 +201,7 @@ function AdminActivityLogScreen() {
           title: 'Activity Log',
           headerShown: true,
           headerStyle: { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' },
-          headerTintColor: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
+          headerTintColor: palette.text,
           headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color={Colors[colorScheme].tint} />
@@ -215,13 +216,13 @@ function AdminActivityLogScreen() {
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search activities..."
-          placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+          placeholderTextColor={palette.mutedText}
           style={[
             styles.searchInput,
             {
-              backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
-              borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
-              color: colorScheme === 'dark' ? '#ECEDEE' : '#111827',
+              backgroundColor: palette.card,
+              borderColor: palette.border,
+              color: palette.text,
             },
           ]}
         />
@@ -245,7 +246,7 @@ function AdminActivityLogScreen() {
         </View>
       ) : items.length === 0 ? (
         <View style={styles.centerContainer}>
-          <MaterialIcons name="content-paste" size={64} color={colorScheme === 'dark' ? '#374151' : '#D1D5DB'} />
+          <MaterialIcons name="content-paste" size={64} color={palette.border} />
           <Text style={[styles.emptyText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
             No activity found
           </Text>

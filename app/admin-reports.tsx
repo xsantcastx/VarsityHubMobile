@@ -253,7 +253,7 @@ function AdminReportsScreen() {
           backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
           borderColor: isSelected 
             ? '#3B82F6' 
-            : (colorScheme === 'dark' ? '#374151' : '#D1D5DB'),
+            : Colors[colorScheme].border,
           borderWidth: isSelected ? 2 : 1,
         }]}
         onPress={() => toggleSelectReport(report.id)}

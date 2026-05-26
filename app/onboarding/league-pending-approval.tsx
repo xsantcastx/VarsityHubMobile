@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Text, View, useColorScheme, ActivityIndicator } from 'react-native';
+import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { httpGet } from '@/api/http';
@@ -288,7 +289,7 @@ function LeaguePendingApproval() {
               <SecondaryButton
                 label="Back to Organization Setup"
                 onPress={() => router.replace('/onboarding/coach-application' as any)}
-                borderColor={isDark ? '#374151' : '#D1D5DB'}
+                borderColor={Colors[colorScheme].border}
                 color={isDark ? '#9CA3AF' : '#6B7280'}
               />
             </>

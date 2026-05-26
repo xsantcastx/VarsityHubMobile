@@ -81,7 +81,7 @@ function BlockedUsersScreen() {
   }, [loadBlocked]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.card }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Blocked Users', headerBackTitle: 'Back', headerShown: true, headerLeft: () => (
             <Pressable onPress={() => { safeGoBack(router); }} style={{ paddingRight: 8 }}>
               <MaterialIcons name="chevron-left" size={28} color="#007AFF" />
@@ -119,8 +119,8 @@ function BlockedUsersScreen() {
             scrollEnabled={false}
             renderItem={({ item }) => (
               <View style={[styles.row, { 
-                backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-                borderColor: isDark ? '#374151' : '#D1D5DB'
+                backgroundColor: theme.surface,
+                borderColor: theme.border
               }]}>
                 <View>
                   <Text style={[styles.email, { color: theme.text }]}>{formatUserLabel(item)}</Text>

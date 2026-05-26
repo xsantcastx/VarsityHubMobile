@@ -1532,14 +1532,14 @@ function CommunityDiscoverScreen() {
             backgroundColor: colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
             calendarBackground:
               colorScheme === 'light' ? '#FFFFFF' : Colors[colorScheme].background,
-            textSectionTitleColor: colorScheme === 'light' ? '#374151' : Colors[colorScheme].text,
+            textSectionTitleColor: Colors[colorScheme].mutedText,
             selectedDayBackgroundColor: Colors[colorScheme].tint,
             selectedDayTextColor: '#FFFFFF',
             todayTextColor: Colors[colorScheme].tint,
-            dayTextColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].text,
+            dayTextColor: Colors[colorScheme].text,
             textDisabledColor: colorScheme === 'light' ? '#9CA3AF' : Colors[colorScheme].mutedText,
-            arrowColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].tint,
-            monthTextColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].text,
+            arrowColor: colorScheme === 'light' ? '#111827' : Colors[colorScheme].tint, // audit: intentional
+            monthTextColor: Colors[colorScheme].text,
             textDayFontWeight: '500',
             textMonthFontWeight: '800',
             textDayHeaderFontWeight: '600',

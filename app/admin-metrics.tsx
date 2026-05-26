@@ -22,8 +22,8 @@ function AdminMetricsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const palette = Colors[colorScheme];
-  const cardBg = colorScheme === 'dark' ? '#1F2937' : 'white';
-  const cardBorder = colorScheme === 'dark' ? '#374151' : '#D1D5DB';
+  const cardBg = palette.card;
+  const cardBorder = palette.border;
 
   const loadMetrics = useCallback(async (showRefreshing = false) => {
     if (!isAdmin) return;

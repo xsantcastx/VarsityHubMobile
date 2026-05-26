@@ -107,7 +107,7 @@ export default function BillingHistory() {
         </View>
       ) : rows.length === 0 ? (
         <View style={styles.center}>
-          <MaterialIcons name="receipt-long" size={56} color={isDark ? '#374151' : '#D1D5DB'} />
+          <MaterialIcons name="receipt-long" size={56} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No transactions yet</Text>
           <Text style={[styles.emptySub, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
             Subscription and ad-booking receipts will appear here.

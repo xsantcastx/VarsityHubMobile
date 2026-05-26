@@ -63,6 +63,7 @@ function Step3League() {
   const pathname = usePathname();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
+  const theme = Colors[colorScheme];
   const { user, markOnboardingCompleteLocally, checkAuth, registerPushToken } = useAuth();
   const { state: ob, setState: setOB } = useOnboarding();
   const accountState = String(user?.account_state || '').trim();
@@ -1173,7 +1174,7 @@ function Step3League() {
                       style={[
                         styles.selectField,
                         {
-                          borderColor: isDark ? '#374151' : '#E2E8F0',
+                      borderColor: theme.border,
                           backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
                           marginBottom: 8,
                         },
@@ -1254,7 +1255,7 @@ function Step3League() {
                     style={[
                       styles.searchEmptyState,
                       {
-                        borderColor: isDark ? '#374151' : '#E2E8F0',
+                        borderColor: theme.border,
                         backgroundColor: isDark ? '#111827' : '#F8FAFC',
                       },
                     ]}
@@ -1365,7 +1366,7 @@ function Step3League() {
                 style={[
                   styles.selectField,
                   {
-                    borderColor: isDark ? '#374151' : '#E2E8F0',
+                    borderColor: theme.border,
                     backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
                   },
                 ]}
@@ -1397,7 +1398,7 @@ function Step3League() {
                 style={[
                   styles.selectField,
                   {
-                    borderColor: isDark ? '#374151' : '#E2E8F0',
+                    borderColor: theme.border,
                     backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
                     minHeight: 80,
                     paddingVertical: 12,

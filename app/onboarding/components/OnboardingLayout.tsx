@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { screenHeaderSharedStyles } from '@/components/ScreenHeaderShared';
+import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { safeGoBack } from '@/utils/navigation';
 
@@ -89,7 +90,7 @@ export default function OnboardingLayout({
 
   const colors = {
     background: isDark ? '#0f172a' : '#FFFFFF',
-    text: isDark ? '#F9FAFB' : '#111827',
+    text: Colors[colorScheme].text,
     textMuted: isDark ? '#9CA3AF' : '#6B7280',
     border: isDark ? '#334155' : '#D1D5DB',
     headerBg: isDark ? '#0f172a' : '#FFFFFF',

@@ -47,7 +47,7 @@ export default function FanPermissions() {
     background: isDark ? '#0f172a' : '#FFFFFF',
     card: isDark ? '#1E293B' : '#F8FAFF',
     cardBorder: isDark ? '#334155' : '#DBEAFE',
-    text: isDark ? '#F9FAFB' : '#111827',
+    text: palette.text,
     textMuted: isDark ? '#9CA3AF' : '#6B7280',
     primary: isDark ? '#60A5FA' : '#2563EB',
     primaryMuted: isDark ? '#1E3A5F' : '#EFF6FF',

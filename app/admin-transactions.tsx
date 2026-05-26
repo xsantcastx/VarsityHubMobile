@@ -26,8 +26,8 @@ function AdminTransactionsScreen() {
   const limit = 30;
 
   const palette = Colors[colorScheme];
-  const cardBg = colorScheme === 'dark' ? '#1F2937' : 'white';
-  const cardBorder = colorScheme === 'dark' ? '#374151' : '#D1D5DB';
+  const cardBg = palette.card;
+  const cardBorder = palette.border;
 
   const loadData = useCallback(async (reset = false, showRefreshing = false) => {
     if (!isAdmin) return;

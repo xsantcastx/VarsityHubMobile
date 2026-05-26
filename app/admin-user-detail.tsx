@@ -164,8 +164,8 @@ function AdminUserDetailScreen() {
   const datesByAd = detail?.datesByAd || {};
   const warnings = moderation?.warnings || [];
   const palette = Colors[colorScheme];
-  const modalCardBackground = colorScheme === 'dark' ? '#1F2937' : 'white';
-  const modalInputBackground = colorScheme === 'dark' ? '#111827' : '#F9FAFB';
+  const modalCardBackground = palette.card;
+  const modalInputBackground = palette.surface;
 
   const severityColor = (s: string) => {
     if (s === 'strike') return '#F59E0B';
@@ -352,8 +352,8 @@ function AdminUserDetailScreen() {
                   <View
                     key={w.id}
                     style={[styles.card, {
-                      backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB',
-                      borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                      backgroundColor: palette.surface,
+                      borderColor: palette.border,
                       borderLeftWidth: 3,
                       borderLeftColor: severityColor(w.severity),
                     }]}
@@ -385,8 +385,8 @@ function AdminUserDetailScreen() {
                 <View
                   key={String(item.id)}
                   style={[styles.card, {
-                    backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB',
-                    borderColor: colorScheme === 'dark' ? '#374151' : '#D1D5DB',
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
                   }]}
                 >
                   <Text style={[styles.cardTitle, { color: palette.text }]}>{item.business_name || '(no business)'}</Text>

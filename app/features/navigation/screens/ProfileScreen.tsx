@@ -788,7 +788,7 @@ export default function ProfileScreen() {
     : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
 
   // Helper function to determine text color based on background contrast
-  // White is default, but switches to black if white has insufficient contrast
+  // White is default, but switches to #000000 if white has insufficient contrast
   const getTextColorForBackground = (bgColor: string): string => {
     // Convert rgba to hex if needed
     let hexColor = bgColor;
@@ -800,7 +800,7 @@ export default function ProfileScreen() {
         const b = parseInt(match[3], 10);
         // Defensive: parseInt of a non-numeric capture returns NaN, which
         // .toString(16) renders as "NaN" — produces an invalid hex color
-        // that breaks the contrast calculation. Fall back to black on any
+        // that breaks the contrast calculation. Fall back to #000000 on any
         // bad parse rather than rendering broken text on top of unknown bg.
         if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
           return '#000000';
@@ -818,7 +818,7 @@ export default function ProfileScreen() {
     const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
 
     // If white has sufficient contrast (>= 3.0 for large text), use white
-    // Otherwise, use black
+    // Otherwise, use #000000
     if (whiteContrast && whiteContrast >= 3.0) {
       return '#FFFFFF';
     }
@@ -1031,7 +1031,7 @@ export default function ProfileScreen() {
                     styles.avatarPlaceholder,
                     {
                       backgroundColor:
-                        colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB',
+                        colorScheme === 'dark' ? theme.surface : '#E5E7EB',
                     },
                   ]}
                 >

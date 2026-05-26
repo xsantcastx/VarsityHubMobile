@@ -70,7 +70,7 @@ function formatRetryWindow(seconds?: number): string | null {
   return `${minutes}m`;
 }
 
-function statusTone(status: ExportStatus, isDark: boolean) {
+function statusTone(status: ExportStatus, isDark: boolean, theme: typeof Colors['light']) {
   switch (status) {
     case 'ready':
       return {
@@ -95,9 +95,9 @@ function statusTone(status: ExportStatus, isDark: boolean) {
       };
     case 'expired':
       return {
-        bg: isDark ? '#111827' : '#F3F4F6',
-        border: isDark ? '#374151' : '#D1D5DB',
-        text: isDark ? '#D1D5DB' : '#4B5563',
+        bg: theme.surface,
+        border: theme.border,
+        text: theme.mutedText,
         label: 'Expired',
       };
     case 'failed':
@@ -111,7 +111,9 @@ function statusTone(status: ExportStatus, isDark: boolean) {
 }
 
 function StatusBadge({ status, isDark }: { status: ExportStatus; isDark: boolean }) {
-  const tone = statusTone(status, isDark);
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const tone = statusTone(status, isDark, theme);
   return (
     <View
       style={[

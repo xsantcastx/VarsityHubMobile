@@ -25,19 +25,21 @@ function ValueCard({
   title: string;
   children: ReactNode;
 }) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   return (
     <View
       style={[
         styles.card,
         {
-          backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-          borderColor: isDark ? '#374151' : '#D1D5DB',
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
         },
       ]}
     >
       <View style={styles.cardHeader}>
         <MaterialIcons name={icon} size={28} color={iconColor} />
-        <Text style={[styles.cardTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}>
+        <Text style={[styles.cardTitle, { color: theme.text }]}>
           {title}
         </Text>
       </View>
@@ -69,7 +71,8 @@ export default function CoreValuesScreen() {
   const router = useRouter();
 
   const isDark = colorScheme === 'dark';
-  const bodyTextColor = isDark ? '#D1D5DB' : '#374151';
+  const theme = Colors[colorScheme ?? 'light'];
+  const bodyTextColor = theme.mutedText;
 
   return (
     <SafeAreaView
@@ -89,7 +92,7 @@ export default function CoreValuesScreen() {
               <MaterialIcons
                 name="settings"
                 size={24}
-                color={isDark ? '#ECEDEE' : '#11181C'}
+                color={theme.text}
               />
             </Pressable>
           ),

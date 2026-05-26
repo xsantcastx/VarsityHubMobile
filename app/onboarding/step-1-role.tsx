@@ -57,7 +57,7 @@ function RoleCard({
   const buttonBg = isFan ? '#6B7280' : '#DAA520'; // Dark silver vs goldenrod
 
   const colors = {
-    cardBg: isDark ? (selected ? '#1F2937' : '#111827') : selected ? '#FFFFFF' : '#F9FAFB',
+    cardBg: selected ? theme.card : theme.surface,
     cardBorder: isDark
       ? selected
         ? accentColorLight
@@ -72,7 +72,7 @@ function RoleCard({
       : selected
         ? accentColor
         : '#6B7280',
-    titleColor: isDark ? '#F9FAFB' : '#111827',
+    titleColor: theme.text,
     descColor: isDark ? '#9CA3AF' : '#6B7280',
     featureText: isDark ? '#D1D5DB' : theme.text,
     buttonBg: buttonBg,
@@ -151,6 +151,7 @@ function RoleCard({
 export default function Step1Role() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const { user, signOut, checkAuth } = useAuth();
   const {
     state: ob,
@@ -440,7 +441,7 @@ export default function Step1Role() {
             <Text
               style={[
                 styles.coachAgeText,
-                { color: colorScheme === 'dark' ? '#F9FAFB' : '#111827' },
+                { color: theme.text },
               ]}
             >
               I confirm I am at least 18 years old
