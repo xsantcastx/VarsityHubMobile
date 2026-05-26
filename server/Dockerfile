@@ -47,8 +47,10 @@ COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./start.sh
 COPY ./server/well-known ./well-known
-# Copy shared directory (needed for plan-definitions.json)
-COPY ./shared ./shared
+# Copy shared directory to filesystem root so import paths resolve correctly.
+# server/src/lib/ imports '../../../shared/runtime/...' — 3 levels up from
+# WORKDIR=/app/src/lib/ resolves to /shared/, not /app/shared/.
+COPY ./shared /shared
 # Copy exported Expo web bundle so the apex domain can serve the real web app.
 COPY --from=web-builder /web/dist ./web-dist
 
