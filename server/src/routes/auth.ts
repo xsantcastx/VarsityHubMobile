@@ -945,9 +945,25 @@ authRouter.post(
           }),
         ]);
       } catch (txErr: any) {
-        // Token was already deleted by a concurrent request — treat as invalid
         if (txErr?.code === 'P2025') {
-          return res.status(401).json({ error: 'Token already used' });
+          // Token was already deleted. Two causes:
+          //   (a) Concurrent legitimate refresh — lost the race, harmless.
+          //   (b) Replay attack — attacker is using a stolen + already-rotated token.
+          // We can't distinguish (a) from (b), so treat conservatively: revoke all
+          // sessions for the user. A legitimate concurrent request will be forced to
+          // re-authenticate, which is the correct response to a potential token theft.
+          console.warn('[auth] Refresh token reuse detected — revoking all sessions', {
+            userId: user.id,
+            refreshTokenId: stored.id,
+            ip: req.ip,
+            path: req.path,
+          });
+          try {
+            await revokeAllSessions(user.id);
+          } catch (revokeErr) {
+            console.error('[auth] Failed to revoke sessions after token reuse', revokeErr);
+          }
+          return res.status(401).json({ error: 'Token already used', code: 'TOKEN_REUSED' });
         }
         throw txErr;
       }
