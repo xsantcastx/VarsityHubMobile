@@ -4,14 +4,14 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CloudinaryUpstreamError, getCloudinaryCredentials, getCloudinaryFolder, isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
+import { signMediaPath } from '../lib/mediaAccess.js';
+import { prisma } from '../lib/prisma.js';
 import { addBreadcrumb, captureException } from '../lib/sentry.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { uploadLimiter } from '../middleware/rateLimiters.js';
-import { signMediaPath } from '../lib/mediaAccess.js';
-import { asyncHandler } from '../middleware/asyncHandler.js';
-import { prisma } from '../lib/prisma.js';
-import type { AuthedRequest } from '../middleware/auth.js';
 
 // Magic byte signatures for file type validation (prevents MIME spoofing)
 const MAGIC_BYTES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
@@ -262,6 +262,9 @@ uploadsRouter.get('/cloudinary-signature', requireAuth as any, requireVerifiedUn
       .join('&');
     const signature = crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
 
+    // Diagnostic: log key fingerprint once per deploy so Railway logs confirm the right credentials are in use
+    // Format: first 4 chars of api_key + secret length — safe to log, not reversible
+    console.log(`[uploads] Cloudinary signature issued — cloud=${cloudName} key=${apiKey.slice(0, 4)}… secret=[${apiSecret.length}ch]`);
     addBreadcrumb('Cloudinary signature issued', 'uploads.signature', 'info', {
       configured: true,
       folder,
