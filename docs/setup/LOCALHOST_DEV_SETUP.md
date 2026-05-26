@@ -35,7 +35,7 @@ npm run dev:server
 
 ### Babel Config (`babel.config.js`)
 - `babel-preset-expo` includes `react-refresh/plugin` automatically
-- `react-native-reanimated/plugin` is last (required for Fast Refresh)
+- `react-native-worklets/plugin` must be last on Expo SDK 54 / Reanimated v4
 
 ### Package Scripts
 - `npm run dev` - Start with localhost, port 8081, clear cache
@@ -78,6 +78,10 @@ bash scripts/verify-fast-refresh.sh
    ```bash
    bash scripts/verify-fast-refresh.sh
    ```
+
+5. **Rebuild only for native changes:**
+   - Changes under `ios/`, `android/`, native config plugins, or newly added native packages require `npx expo run:ios` or `npx expo run:android`
+   - Normal `.ts` / `.tsx` / `.js` edits should update through Metro without a rebuild
 
 ### Port Already in Use?
 

@@ -85,10 +85,13 @@ async function initializeRateLimitRedis() {
   }
 }
 
-// Initialize rate limit Redis on module load
-initializeRateLimitRedis().catch(err => {
-  console.error('[RateLimit] Failed to initialize Redis:', err);
-});
+// Avoid background async startup during Jest module evaluation; it can outlive
+// the test environment teardown and surface unrelated import-time failures.
+if (process.env.NODE_ENV !== 'test') {
+  initializeRateLimitRedis().catch(err => {
+    console.error('[RateLimit] Failed to initialize Redis:', err);
+  });
+}
 
 /**
  * Get user identifier for rate limiting

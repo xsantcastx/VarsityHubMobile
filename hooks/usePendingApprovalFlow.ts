@@ -21,6 +21,7 @@ type UsePendingApprovalActionsOptions = {
   stopPolling: () => void;
   logPrefix: string;
   proceedingAsFanRef?: MutableRefObject<boolean>;
+  persistProceedAsFan?: () => Promise<void>;
   formatProceedAsFanError?: (error: any) => { title: string; message: string };
   onProceedAsFanError?: (error: any) => void;
 };
@@ -126,6 +127,7 @@ export function usePendingApprovalActions({
   stopPolling,
   logPrefix,
   proceedingAsFanRef: externalProceedingAsFanRef,
+  persistProceedAsFan,
   formatProceedAsFanError,
   onProceedAsFanError,
 }: UsePendingApprovalActionsOptions) {
@@ -154,7 +156,8 @@ export function usePendingApprovalActions({
     try {
       proceedingAsFanRef.current = true;
       stopPolling();
-      await User.updatePreferences({ proceeding_as_fan: true });
+      if (persistProceedAsFan) await persistProceedAsFan();
+      else await User.updatePreferences({ proceeding_as_fan: true });
       const { decision } = await getPendingApprovalAuthSnapshot(checkAuth);
       replaceRoute(decision.route as any);
     } catch (err: any) {
@@ -169,7 +172,15 @@ export function usePendingApprovalActions({
           };
       Alert.alert(fallback.title, fallback.message);
     }
-  }, [checkAuth, formatProceedAsFanError, logPrefix, onProceedAsFanError, replaceRoute, stopPolling]);
+  }, [
+    checkAuth,
+    formatProceedAsFanError,
+    logPrefix,
+    onProceedAsFanError,
+    persistProceedAsFan,
+    replaceRoute,
+    stopPolling,
+  ]);
 
   const handleApprovedNavigation = useCallback(
     async (redirect: 'organization' | 'create-team') => {

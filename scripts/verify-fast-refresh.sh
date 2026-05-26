@@ -18,11 +18,11 @@ else
   echo "❌ babel.config.js - Missing babel-preset-expo"
 fi
 
-# Check if reanimated plugin is last
-if tail -n 5 babel.config.js | grep -q "react-native-reanimated/plugin" 2>/dev/null; then
-  echo "✅ babel.config.js - Reanimated plugin is last (correct order)"
+# Check if worklets plugin is last for Expo SDK 54 / Reanimated v4
+if tail -n 5 babel.config.js | grep -q "react-native-worklets/plugin" 2>/dev/null; then
+  echo "✅ babel.config.js - Worklets plugin is last (correct for SDK 54)"
 else
-  echo "⚠️  babel.config.js - Reanimated plugin should be last"
+  echo "⚠️  babel.config.js - react-native-worklets/plugin should be last"
 fi
 
 # Check package.json dev script
@@ -32,6 +32,11 @@ else
   echo "⚠️  package.json - dev script may not use localhost"
 fi
 
+echo ""
+echo "📋 If JS edits still do not appear:"
+echo "   1. Confirm Metro is running on :8081"
+echo "   2. Make sure you opened the dev client, not a release build"
+echo "   3. Rebuild only for native changes: npx expo run:ios / run:android"
 echo ""
 echo "📋 To start development server with Fast Refresh:"
 echo "   npm run dev"

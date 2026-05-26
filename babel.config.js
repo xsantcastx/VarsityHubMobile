@@ -27,8 +27,8 @@ module.exports = function (api) {
         }
       }],
       ...(isProduction ? [['transform-remove-console', { exclude: ['error', 'warn'] }]] : []),
-      // CRITICAL: Reanimated plugin MUST be last for Fast Refresh to work
-      'react-native-reanimated/plugin',
+      // Expo SDK 54 + Reanimated v4 requires the worklets plugin for Fast Refresh.
+      'react-native-worklets/plugin',
     ],
   };
 };

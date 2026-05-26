@@ -40,6 +40,7 @@ Once Expo starts:
 
 ✅ **metro.config.js** - Fast Refresh enabled  
 ✅ **babel.config.js** - react-refresh plugin included via babel-preset-expo  
+✅ **worklets plugin** - `react-native-worklets/plugin` should be the last Babel plugin on Expo SDK 54  
 ✅ **Development Mode** - Fast Refresh only works in dev mode  
 
 ## Troubleshooting
@@ -63,6 +64,10 @@ Once Expo starts:
 4. **Check for syntax errors:**
    - Fast Refresh won't work with syntax errors
    - Fix the error first, then it will hot reload
+
+5. **Check you are in the dev client:**
+   - A release/TestFlight build will not live-update from Metro
+   - Use the installed dev build and keep Metro running on `localhost:8081`
 
 ### When Fast Refresh Falls Back to Full Reload
 

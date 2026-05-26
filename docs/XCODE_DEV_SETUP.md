@@ -114,7 +114,8 @@ npm run dev:server
 **Check:**
 1. Metro config has Fast Refresh enabled (already configured in `metro.config.js`)
 2. Babel config includes react-refresh plugin (already configured in `babel.config.js`)
-3. You're not using class components (Fast Refresh works best with function components)
+3. `react-native-worklets/plugin` is the last Babel plugin for Expo SDK 54 / Reanimated v4
+4. You're not using class components (Fast Refresh works best with function components)
 
 **Solution:**
 - Clear Metro cache: `npm run dev` (uses `--clear` flag)
@@ -166,6 +167,7 @@ npm run dev:server
      - Change native code
      - Modify `app.json` native config
      - Add new assets that need to be bundled
+   - Do not rebuild for normal React/TypeScript edits; those should come through Metro immediately
 
 ### Hot Reload vs Fast Refresh
 

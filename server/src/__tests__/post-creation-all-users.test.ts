@@ -99,7 +99,7 @@ describeDb('Post creation — all authenticated users allowed', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBeTruthy();
-    expect(res.body.user_id).toBe(fanUserId);
+    expect(res.body.author_id).toBe(fanUserId);
   });
 
   it('approved coach can create a post', async () => {
@@ -109,7 +109,7 @@ describeDb('Post creation — all authenticated users allowed', () => {
       .send({ content: 'Coach post test content', post_type: 'text' });
 
     expect(res.status).toBe(201);
-    expect(res.body.user_id).toBe(coachUserId);
+    expect(res.body.author_id).toBe(coachUserId);
   });
 
   it('unauthenticated request is rejected with 401', async () => {

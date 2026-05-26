@@ -2,10 +2,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Text, View, useColorScheme, ActivityIndicator } from 'react-native';
+import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { httpGet } from '@/api/http';
+import { isProceedingAsFanSnapshot } from '@/utils/authState';
 import {
   fetchRejectionReason,
   getPendingApprovalAuthSnapshot,
@@ -106,7 +108,7 @@ function LeaguePendingApproval() {
         const org: any = await httpGet(`/organizations/${orgId}`);
         const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
         const approvalStatus = String(me?.approval_status || '').toUpperCase();
-        const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+        const isProceedingAsFan = isProceedingAsFanSnapshot(me);
         if (isProceedingAsFan || proceedingAsFanRef.current) {
           stopPolling();
           return;
@@ -217,6 +219,9 @@ function LeaguePendingApproval() {
     stopPolling,
     logPrefix: 'league-pending-approval',
     proceedingAsFanRef,
+    persistProceedAsFan: async () => {
+      await User.updatePreferences({ proceeding_as_fan: true });
+    },
     onProceedAsFanError: err => {
       captureException(err instanceof Error ? err : new Error(String(err)), {
         tags: { component: 'LeaguePendingApproval', action: 'proceedAsFan' },

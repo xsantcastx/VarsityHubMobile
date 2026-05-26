@@ -35,11 +35,20 @@ type CoachFlowUser = {
   proceeding_as_fan?: boolean | null;
   coach_agreement_accepted_at?: Date | string | null;
   coach_agreement_version?: number | null;
+  username?: string | null;
+  date_of_birth?: Date | string | null;
+  zip_code?: string | null;
 };
+
+type OrganizationJoinRequestLike = {
+  status?: string | null;
+  organization_id?: string | null;
+} | null | undefined;
 
 export type CoachAccountState =
   | 'fan_onboarding'
   | 'fan_active'
+  | 'coach_basic_info_required'
   | 'coach_application_required'
   | 'coach_application_submitted'
   | 'coach_application_rejected'
@@ -73,6 +82,7 @@ export async function getLatestCoachApplication(
 export function getCoachFlowState(
   user: CoachFlowUser | null | undefined,
   application: CoachApplicationRecord | null | undefined,
+  joinRequest?: OrganizationJoinRequestLike,
 ): {
   account_state: CoachAccountState;
   next_step: string;
@@ -82,6 +92,14 @@ export function getCoachFlowState(
   const onboardingCompleted = isUserOnboardingComplete(user as any);
   const organizationId = getCanonicalOrganizationId(user as any);
   const proceedingAsFan = isProceedingAsFan(user as any);
+  const prefs = (user?.preferences && typeof user.preferences === 'object'
+    ? (user.preferences as Record<string, unknown>)
+    : {}) as Record<string, unknown>;
+  const username = String(user?.username || prefs.username || '').trim();
+  const dateOfBirth = user?.date_of_birth || prefs.dob || null;
+  const hasCompletedBasicInfo = Boolean(username && dateOfBirth);
+  const joinRequestStatus = String(joinRequest?.status || '').trim().toLowerCase();
+  const hasOrganizationJoinRequest = Boolean(joinRequest?.organization_id);
   const pendingFanModeNextStep = '/(tabs)';
 
   if (role !== 'coach') {
@@ -91,6 +109,12 @@ export function getCoachFlowState(
   }
 
   if (approvalStatus === 'REJECTED') {
+    if (hasOrganizationJoinRequest) {
+      return {
+        account_state: 'coach_pending_approval',
+        next_step: proceedingAsFan ? pendingFanModeNextStep : '/onboarding/pending-approval',
+      };
+    }
     if (application?.status === 'rejected' && !organizationId) {
       return {
         account_state: 'coach_application_rejected',
@@ -112,6 +136,18 @@ export function getCoachFlowState(
       return {
         account_state: 'coach_application_submitted',
         next_step: proceedingAsFan ? pendingFanModeNextStep : '/onboarding/league-pending-approval',
+      };
+    }
+    if (hasOrganizationJoinRequest || joinRequestStatus === 'pending' || joinRequestStatus === 'denied') {
+      return {
+        account_state: 'coach_pending_approval',
+        next_step: proceedingAsFan ? pendingFanModeNextStep : '/onboarding/pending-approval',
+      };
+    }
+    if (!hasCompletedBasicInfo && !organizationId && !proceedingAsFan) {
+      return {
+        account_state: 'coach_basic_info_required',
+        next_step: '/onboarding/step-2-basic',
       };
     }
     if (organizationId || proceedingAsFan) {

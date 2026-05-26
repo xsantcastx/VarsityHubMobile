@@ -11,14 +11,28 @@ export const isTwilioConfigured = (): boolean => {
   return !!(accountSid && authToken && fromPhoneNumber);
 };
 
-// Initialize Twilio client if configured
 let twilioClient: Twilio | null = null;
+let twilioInitAttempted = false;
 
-if (isTwilioConfigured()) {
-  twilioClient = twilio(accountSid, authToken);
-  debugLog('✅ Twilio configured - SMS verification enabled');
-} else {
-  debugLog('⚠️ Twilio not configured - SMS verification disabled (email only)');
+function getTwilioClient(): Twilio | null {
+  if (twilioClient || twilioInitAttempted) return twilioClient;
+
+  twilioInitAttempted = true;
+
+  if (!isTwilioConfigured()) {
+    debugLog('⚠️ Twilio not configured - SMS verification disabled (email only)');
+    return null;
+  }
+
+  try {
+    twilioClient = twilio(accountSid, authToken);
+    debugLog('✅ Twilio configured - SMS verification enabled');
+  } catch (error: any) {
+    console.error('[twilio] Failed to initialize Twilio client:', error?.message || error);
+    twilioClient = null;
+  }
+
+  return twilioClient;
 }
 
 /**
@@ -30,7 +44,8 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
     return false;
   }
 
-  if (!twilioClient) {
+  const client = getTwilioClient();
+  if (!client) {
     console.error('[twilio] Twilio client not initialized');
     return false;
   }
@@ -38,7 +53,7 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
   try {
     const message = `Your VarsityHub verification code is: ${code}. This code expires in 30 minutes.`;
     
-    await twilioClient.messages.create({
+    await client.messages.create({
       body: message,
       from: fromPhoneNumber,
       to: phoneNumber,
@@ -56,7 +71,8 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
  * Send SMS password reset code
  */
 export async function sendSmsPasswordReset(phoneNumber: string, code: string): Promise<boolean> {
-  if (!isTwilioConfigured() || !twilioClient) {
+  const client = getTwilioClient();
+  if (!isTwilioConfigured() || !client) {
     debugLog('[twilio] Twilio not configured - skipping SMS');
     return false;
   }
@@ -64,7 +80,7 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
   try {
     const message = `Your VarsityHub password reset code is: ${code}. This code expires in 30 minutes.`;
     
-    await twilioClient.messages.create({
+    await client.messages.create({
       body: message,
       from: fromPhoneNumber,
       to: phoneNumber,
@@ -82,13 +98,14 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
  * Send SMS notification (generic)
  */
 export async function sendSmsNotification(phoneNumber: string, message: string): Promise<boolean> {
-  if (!isTwilioConfigured() || !twilioClient) {
+  const client = getTwilioClient();
+  if (!isTwilioConfigured() || !client) {
     debugLog('[twilio] Twilio not configured - skipping SMS');
     return false;
   }
 
   try {
-    await twilioClient.messages.create({
+    await client.messages.create({
       body: message,
       from: fromPhoneNumber,
       to: phoneNumber,

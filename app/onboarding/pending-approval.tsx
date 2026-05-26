@@ -2,8 +2,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Text, useColorScheme } from 'react-native';
+import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { isProceedingAsFanSnapshot } from '@/utils/authState';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import {
   fetchRejectionReason,
@@ -52,7 +54,7 @@ function PendingApproval() {
         }
         const role = String(me?.role || me?.preferences?.role || '').toLowerCase();
         const approvalStatus = String(me?.approval_status || '').toUpperCase();
-        const isProceedingAsFan = me?.preferences?.proceeding_as_fan === true || role === 'fan';
+        const isProceedingAsFan = isProceedingAsFanSnapshot(me);
         if (isProceedingAsFan || proceedingAsFanRef.current) {
           stopPolling();
           return;
@@ -102,6 +104,9 @@ function PendingApproval() {
     stopPolling,
     logPrefix: 'pending-approval',
     proceedingAsFanRef,
+    persistProceedAsFan: async () => {
+      await User.updatePreferences({ proceeding_as_fan: true });
+    },
   });
 
   return (
