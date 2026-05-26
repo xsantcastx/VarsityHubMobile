@@ -60,6 +60,7 @@ export function TeamCard({
       textColor = '#f57c00';
     } else if (team.role === 'fan') {
       return null;
+    }
 
     return (
       <View style={[styles.badge, { backgroundColor }]}>
