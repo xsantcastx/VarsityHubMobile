@@ -38,7 +38,7 @@ import {
     handleInitialDeepLink,
     setupDeepLinkListener,
 } from '@/utils/deepLinks';
-import { initSentry } from '@/utils/sentry';
+import { captureException, initSentry } from '@/utils/sentry';
 import { StripeProvider } from '@/utils/stripe';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -178,13 +178,16 @@ function RootLayout() {
     updateCheckInFlight.current = true;
     try {
       const result = await Updates.checkForUpdateAsync();
-      if (!result.isAvailable) return;
-
+      if (!result.isAvailable) {
+        updateCheckInFlight.current = false;
+        return;
+      }
       await Updates.fetchUpdateAsync();
+      // reloadAsync restarts the app with the new bundle immediately
       await Updates.reloadAsync();
     } catch (error) {
       devLog('[updates] OTA sync failed', error);
-    } finally {
+      captureException(error, { tags: { context: 'ota_sync' } });
       updateCheckInFlight.current = false;
     }
   }, []);
