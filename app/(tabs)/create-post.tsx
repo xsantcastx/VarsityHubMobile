@@ -673,12 +673,13 @@ function CreatePostScreen() {
         const uploadUri = (picked.type === 'video' && trimmedUri) ? trimmedUri : picked.uri;
         // Upload main file and thumbnail in parallel for speed
         const mainUpload = uploadFile(base, uploadUri, name, mime, { onProgress: (pct) => setUploadProgress(pct) }).catch((uploadErr: any) => {
-          if (__DEV__) console.error('[CreatePost] Media upload failed:', uploadErr?.message);
-          throw new Error(
-            uploadErr?.message?.includes('timeout') || uploadErr?.message?.includes('Timeout')
-              ? 'Upload timed out. Please check your connection and try again.'
-              : 'Media upload failed. Please try again.'
-          );
+          const msg: string = uploadErr?.message || '';
+          console.error('[CreatePost] Media upload failed:', msg);
+          if (msg.includes('timeout') || msg.includes('Timeout')) {
+            throw new Error('Upload timed out. Please check your connection and try again.');
+          }
+          // Surface the actual underlying error so it's debuggable
+          throw new Error(msg || 'Media upload failed. Please try again.');
         });
         const thumbUpload = (picked.type === 'video' && videoThumbnailUri)
           ? uploadFile(base, videoThumbnailUri, 'thumbnail.jpg', 'image/jpeg').catch((e) => {
