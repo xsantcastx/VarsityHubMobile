@@ -2566,7 +2566,13 @@ authRouter.get(
       }),
       getLatestCoachApplication(prisma, req.user!.id),
     ]);
-    const user = await ensureOAuthUserVerified(rawUser);
+    // Parallelize: verify OAuth state and look up join request concurrently.
+    // Both only need rawUser/orgId which are already available.
+    const orgIdFromRaw = getCanonicalOrganizationId(rawUser as any);
+    const [user, joinRequest] = await Promise.all([
+      ensureOAuthUserVerified(rawUser),
+      getOrganizationJoinRequestStateForUser(orgIdFromRaw, req.user!.id),
+    ]);
     if (!user) return res.status(404).json({ error: 'Not found' });
     const is_admin = isAdminEmail(user.email);
     const defaults = {
@@ -2588,11 +2594,6 @@ authRouter.get(
     const normalizedRole = getCanonicalUserRole(user as any);
     const requiredCoachAgreementVersion = Number(process.env.REQUIRED_COACH_AGREEMENT_VERSION ?? 1);
     const serializedApplication = serializeCoachApplication(coachApplication);
-    const currentOrganizationId = getCanonicalOrganizationId(user as any);
-    const joinRequest = await getOrganizationJoinRequestStateForUser(
-      currentOrganizationId,
-      req.user!.id
-    );
     const flowState = getCoachFlowState(
       {
         ...user,
